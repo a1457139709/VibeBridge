@@ -1,0 +1,24 @@
+{
+  "name": "vibebridge-ui-prototype",
+  "private": true,
+  "version": "0.0.0-prototype",
+  "type": "module",
+  "scripts": {
+    "prototype": "vite --config plans/ui.prototype/vite.config.ts",
+    "check:prototype": "tsc --noEmit -p plans/ui.prototype/tsconfig.json",
+    "build:prototype": "npm run check:prototype && vite build --config plans/ui.prototype/vite.config.ts"
+  },
+  "dependencies": {
+    "@xterm/addon-fit": "0.11.0",
+    "@xterm/xterm": "6.0.0",
+    "react": "19.3.0",
+    "react-dom": "19.3.0"
+  },
+  "devDependencies": {
+    "@types/node": "26.6.3",
+    "@types/react": "19.3.0",
+    "@types/react-dom": "19.3.0",
+    "typescript": "5.9.3",
+    "vite": "7.3.6"
+  }
+}
