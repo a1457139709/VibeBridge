@@ -1,4 +1,5 @@
 node_modules/
 dist.prototype/
+dist.terminal.prototype/
 *.log
 .DS_Store

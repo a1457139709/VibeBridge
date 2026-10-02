@@ -1,0 +1,4 @@
+{
+  "extends": "../ui.prototype/tsconfig.json",
+  "include": ["*.ts", "*.tsx"]
+}
