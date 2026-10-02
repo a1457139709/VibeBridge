@@ -2,11 +2,12 @@ import { useEffect, useRef } from 'react';
 import { Terminal } from '@xterm/xterm';
 import type { ITheme } from '@xterm/xterm';
 import { FitAddon } from '@xterm/addon-fit';
+import { WebglAddon } from '@xterm/addon-webgl';
 import '@xterm/xterm/css/xterm.css';
 import type { AgentType } from './types.prototype';
 
 export type Appearance = { fontSize: number; lineHeight: number; contrast: number; scrollbar: boolean };
-export type RunState = { status: string; cols: number; rows: number; pid?: number; error?: string };
+export type RunState = { status: string; cols: number; rows: number; pid?: number; error?: string; renderer?: string };
 function theme(element: HTMLElement): ITheme {
   const css = getComputedStyle(element);
   const color = (key: string) => css.getPropertyValue(key).trim();
@@ -31,6 +32,7 @@ export function RealTerminal({ id, agent, light, appearance, selected, report }:
       fontFamily: '"SFMono-Regular", Consolas, "Liberation Mono", monospace',
       fontSize: appearance.fontSize, lineHeight: appearance.lineHeight, letterSpacing: 0,
       cursorStyle: 'bar', cursorBlink: true, scrollback: 10000, convertEol: false,
+      customGlyphs: true,
       macOptionIsMeta: true, minimumContrastRatio: appearance.contrast, theme: theme(element.current!),
       overviewRuler: { width: 1, showTopBorder: false, showBottomBorder: false },
     });
@@ -38,6 +40,12 @@ export function RealTerminal({ id, agent, light, appearance, selected, report }:
     terminal.current = term; fitRef.current = fit;
     let disposed = false, started = false, frame = 0;
     const update = (state: Partial<RunState>) => { if (!disposed) reportRef.current(state); };
+    // Block glyphs must fill their cells even with the baseline's 1.55 line height.
+    // DOM font glyphs leave strips of the CLI's explicit background exposed.
+    const webgl = new WebglAddon();
+    const contextLoss = webgl.onContextLoss(() => { webgl.dispose(); update({ renderer: 'DOM（WebGL 失效）' }); });
+    try { term.loadAddon(webgl); update({ renderer: 'WebGL' }); }
+    catch { webgl.dispose(); update({ renderer: 'DOM（WebGL 不可用）' }); }
     const off = window.terminalPrototype.onEvent(event => {
       if (event.id !== id && event.id !== '*') return;
       if (event.type === 'output') term.write(event.data);
@@ -71,7 +79,7 @@ export function RealTerminal({ id, agent, light, appearance, selected, report }:
     });
     return () => {
       disposed = true; observer.disconnect(); cancelAnimationFrame(frame); off();
-      input.dispose(); binary.dispose(); resize.dispose(); term.dispose(); terminal.current = null; fitRef.current = null;
+      input.dispose(); binary.dispose(); resize.dispose(); contextLoss.dispose(); term.dispose(); terminal.current = null; fitRef.current = null;
       if (started) void window.terminalPrototype.stop(id).catch(() => {});
     };
     // An appearance change must never restart the real Agent.

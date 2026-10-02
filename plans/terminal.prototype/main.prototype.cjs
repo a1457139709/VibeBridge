@@ -75,7 +75,7 @@ app.whenReady().then(async () => {
   });
   window = new BrowserWindow({
     width: 1360, height: 900, minWidth: 620, minHeight: 420,
-    title: 'VibeBridge · 真实终端原型', backgroundColor: '#14161a',
+    title: 'VibeBridge · 真实终端原型', backgroundColor: config.startupTheme === 'light' ? '#eeeff1' : '#14161a',
     webPreferences: { preload: path.join(__dirname, 'preload.prototype.cjs'), contextIsolation: true, nodeIntegration: false, sandbox: true, spellcheck: false, backgroundThrottling: false },
   });
   window.webContents.setWindowOpenHandler(() => ({ action: 'deny' }));
@@ -83,7 +83,7 @@ app.whenReady().then(async () => {
   window.webContents.session.setPermissionRequestHandler((_wc, _permission, callback) => callback(false));
   window.webContents.on('render-process-gone', () => { void quit(); });
   window.on('close', event => { if (!stopped) { event.preventDefault(); void quit(); } });
-  await window.loadFile(renderer);
+  await window.loadFile(renderer, { query: { theme: config.startupTheme === 'light' ? 'light' : 'dark' } });
   window.show();
   app.focus({ steal: true });
   window.focus();

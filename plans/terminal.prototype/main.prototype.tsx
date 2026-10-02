@@ -63,10 +63,10 @@ function App() {
   const record = () => [
     '# VibeBridge 真实终端体验记录（待用户判定）', `时间：${new Date().toISOString()}`,
     `平台：${boot?.platform}；Electron ${boot?.electron}；Node ${boot?.node}；Chromium ${boot?.chrome}`,
-    'xterm.js 6.0.0；node-pty 1.1.0；直接启动 PATH 中的 CLI，继承当前启动环境。',
+    'xterm.js 6.0.0；WebGL addon 0.19.0；node-pty 1.1.0；直接启动 PATH 中的 CLI，PTY 不继承 NO_COLOR。',
     `工作台：${light ? '浅色' : '深色'}；终端：${terminalLight ? '浅色' : '深色'}（${terminalTheme === 'follow' ? '跟随界面' : '独立选择'}；CLI 自身主题请补充）；字体：SFMono-Regular；字号 ${appearance.fontSize}px；行高 ${appearance.lineHeight}；最小对比度 ${appearance.contrast}；滚动条 ${appearance.scrollbar ? '显示' : '隐藏'}`,
     `窗口内容区：${innerWidth}×${innerHeight}px；设备像素比：${devicePixelRatio}；布局：${count} 格；临时放大：${maximized ? '是' : '否'}`,
-    ...panels.map(panel => { const info = boot?.agents.find(a => a.id === panel.agent), state = states[panel.id]; return `- ${info?.name} / ${info?.version}：${state?.cols ?? 0}列 × ${state?.rows ?? 0}行，${state?.status ?? '启动中'}，PID ${state?.pid ?? '—'}`; }),
+    ...panels.map(panel => { const info = boot?.agents.find(a => a.id === panel.agent), state = states[panel.id]; return `- ${info?.name} / ${info?.version}：${state?.cols ?? 0}列 × ${state?.rows ?? 0}行，${state?.status ?? '启动中'}，${state?.renderer ?? '初始化'}，PID ${state?.pid ?? '—'}`; }),
     '', '## 体验观察', notes || '尚未填写；没有用户结论。', '',
     '本记录不自动复制终端内容；不代表正式集成、命令环境覆盖或异常清理验收。',
   ].join('\n');
@@ -83,7 +83,7 @@ function App() {
             <header className="panel-header"><div className="agent-label"><AgentMark agent={panel.agent} size={17}/><span>{info?.name}</span><small>{info?.version}</small></div><div className="panel-controls"><code title="有效终端网格">{state?.cols ?? '—'} × {state?.rows ?? '—'}</code><button onClick={() => setMaximized(maximized === panel.id ? null : panel.id)} title={maximized === panel.id ? '还原面板' : '临时放大'} aria-label={maximized === panel.id ? '还原面板' : '临时放大'}><Icon name={maximized === panel.id ? 'collapse' : 'expand'} size={14}/></button><button onClick={() => void close(panel.id)} title="结束并关闭面板" aria-label="结束并关闭面板"><Icon name="close" size={14}/></button></div></header>
             <RealTerminal id={panel.id} agent={panel.agent} light={terminalLight} appearance={appearance} selected={selected === panel.id} report={next => setStates(old => ({ ...old, [panel.id]: { ...(old[panel.id] ?? { status: '启动中', cols: 0, rows: 0 }), ...next } }))}/>
             {state?.error && <div role="alert" className="error-banner">{state.error}</div>}
-            <footer className="panel-status"><span>{state?.status ?? '启动中'}</span><span>{state?.pid ? `PID ${state.pid}` : ''}</span></footer>
+            <footer className="panel-status"><span>{state?.status ?? '启动中'}</span><span>{state?.renderer} {state?.pid ? `· PID ${state.pid}` : ''}</span></footer>
           </article>;
         })}
         {Array.from({ length: Math.max(0, count - panels.length) }, (_, i) => <div key={`empty-${i}`} className="empty-slot"><Icon name="terminal" size={25}/><span>保留分屏尺寸</span><small>可从右上角添加真实 Agent</small></div>)}

@@ -9,6 +9,7 @@ import electron from 'electron';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const root = path.resolve(here, '../..');
+const startupTheme = process.argv.includes('--theme=light') ? 'light' : 'dark';
 const runtime = mkdtempSync(path.join(tmpdir(), 'vibebridge-terminal-'));
 const cwd = path.join(runtime, 'workspace');
 mkdirSync(cwd);
@@ -37,7 +38,7 @@ if (nativeCheck.status !== 0) {
   const electronVersion = JSON.parse(readFileSync(path.join(root, 'node_modules/electron/package.json'), 'utf8')).version;
   await rebuild({ buildPath: root, electronVersion, onlyModules: ['node-pty'], force: true });
 }
-writeFileSync(path.join(runtime, 'launch.json'), JSON.stringify({ cwd, agents, parentPid: process.pid }));
+writeFileSync(path.join(runtime, 'launch.json'), JSON.stringify({ cwd, agents, parentPid: process.pid, startupTheme }));
 await build({ configFile: path.join(here, 'vite.config.ts') });
 const args = [path.join(here, 'main.prototype.cjs')];
 const child = spawn(electron, args, {

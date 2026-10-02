@@ -37,6 +37,9 @@ process.parentPort.on('message', async ({ data: message }) => {
       if (!grid(message.cols) || !grid(message.rows)) throw new Error('无效终端尺寸');
       const env = { ...process.env, TERM: 'xterm-256color', COLORTERM: 'truecolor', TERM_PROGRAM: 'VibeBridge', LANG: process.env.LANG || 'en_US.UTF-8' };
       for (const key of ['ELECTRON_RUN_AS_NODE', 'NODE_OPTIONS', 'NODE_CHANNEL_FD', 'VIBEBRIDGE_PROTOTYPE_RUNTIME']) delete env[key];
+      // The launcher may run in an agent's plain-text command environment.
+      // This child has a real color terminal; do not inherit its NO_COLOR flag.
+      delete env.NO_COLOR;
       const run = pty.spawn(agent.path, [], { name: 'xterm-256color', cols: message.cols, rows: message.rows, cwd, env });
       runs.set(id, run);
       run.onData(data => send({ type: 'output', id, data }));
