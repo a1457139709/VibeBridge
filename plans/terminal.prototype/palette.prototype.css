@@ -1,11 +1,11 @@
 /* Snapshot of the current UI palette; throwaway terminal experiment. */
-:root {
+:root, .terminal-host[data-terminal-theme="dark"] {
   font-family: "PingFang SC", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
   font-size: var(--font-main); line-height: 1.5;
   --font-main: 13px; --font-secondary: 12px; --font-helper: 11px;
   --space: 8px; --panel-radius: 10px; --terminal-padding: 13px; --motion-hover: 140ms;
   font-synthesis: none; text-rendering: optimizeLegibility; -webkit-font-smoothing: antialiased;
-  /* One semantic palette. Component rules and xterm both consume these tokens. */
+  /* The terminal can scope this palette independently of the workbench. */
   --shell: #14161a; --panel: #1b1e24; --panel-border: rgba(255, 255, 255, .08); --preview-tile: #24282f;
   --text: #e6e8ec; --muted: #a0a7b2; --faint: #6f7683;
   --accent: #5cc9a7; --accent-text: #5cc9a7; --focus-halo-strength: 14%;
@@ -24,7 +24,7 @@
   --line: var(--panel-border); --line-soft: var(--panel-border); --focus: var(--accent); --accent-bg: var(--selected-row);
   --field: var(--panel); --modal: var(--panel); color-scheme: dark;
 }
-:root[data-theme="light"] {
+:root[data-theme="light"], .terminal-host[data-terminal-theme="light"] {
   --shell: #eeeff1; --panel: #ffffff; --panel-border: rgba(0, 0, 0, .09); --preview-tile: #ffffff;
   --text: #1c1f26; --muted: #596070; --faint: #8b919d;
   --accent: #1f8f6c; --accent-text: #166c50; --focus-halo-strength: 12%;

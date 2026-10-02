@@ -26,6 +26,8 @@ function App() {
   const [variant, setVariant] = useState(profiles[initialVariant] ? initialVariant : 'A');
   const [appearance, setAppearance] = useState<Appearance>(profiles[initialVariant] ?? profiles.A);
   const [light, setLight] = useState(new URLSearchParams(location.search).get('theme') === 'light');
+  const [terminalTheme, setTerminalTheme] = useState<'follow' | 'dark' | 'light'>('follow');
+  const terminalLight = terminalTheme === 'follow' ? light : terminalTheme === 'light';
   const [notesOpen, setNotesOpen] = useState(false);
   const [notes, setNotes] = useState('');
   const [copied, setCopied] = useState(false);
@@ -62,7 +64,7 @@ function App() {
     '# VibeBridge 真实终端体验记录（待用户判定）', `时间：${new Date().toISOString()}`,
     `平台：${boot?.platform}；Electron ${boot?.electron}；Node ${boot?.node}；Chromium ${boot?.chrome}`,
     'xterm.js 6.0.0；node-pty 1.1.0；直接启动 PATH 中的 CLI，继承当前启动环境。',
-    `主题：${light ? '浅色' : '深色'}（CLI 自身主题请补充）；字体：SFMono-Regular；字号 ${appearance.fontSize}px；行高 ${appearance.lineHeight}；最小对比度 ${appearance.contrast}；滚动条 ${appearance.scrollbar ? '显示' : '隐藏'}`,
+    `工作台：${light ? '浅色' : '深色'}；终端：${terminalLight ? '浅色' : '深色'}（${terminalTheme === 'follow' ? '跟随界面' : '独立选择'}；CLI 自身主题请补充）；字体：SFMono-Regular；字号 ${appearance.fontSize}px；行高 ${appearance.lineHeight}；最小对比度 ${appearance.contrast}；滚动条 ${appearance.scrollbar ? '显示' : '隐藏'}`,
     `窗口内容区：${innerWidth}×${innerHeight}px；设备像素比：${devicePixelRatio}；布局：${count} 格；临时放大：${maximized ? '是' : '否'}`,
     ...panels.map(panel => { const info = boot?.agents.find(a => a.id === panel.agent), state = states[panel.id]; return `- ${info?.name} / ${info?.version}：${state?.cols ?? 0}列 × ${state?.rows ?? 0}行，${state?.status ?? '启动中'}，PID ${state?.pid ?? '—'}`; }),
     '', '## 体验观察', notes || '尚未填写；没有用户结论。', '',
@@ -79,7 +81,7 @@ function App() {
           const info = boot?.agents.find(agent => agent.id === panel.agent), state = states[panel.id];
           return <article key={panel.id} data-run-id={panel.id} className={`agent-panel ${selected === panel.id ? 'is-selected' : ''} ${maximized === panel.id ? 'is-maximized' : ''}`} onFocusCapture={() => setSelected(panel.id)} onMouseDown={() => setSelected(panel.id)}>
             <header className="panel-header"><div className="agent-label"><AgentMark agent={panel.agent} size={17}/><span>{info?.name}</span><small>{info?.version}</small></div><div className="panel-controls"><code title="有效终端网格">{state?.cols ?? '—'} × {state?.rows ?? '—'}</code><button onClick={() => setMaximized(maximized === panel.id ? null : panel.id)} title={maximized === panel.id ? '还原面板' : '临时放大'} aria-label={maximized === panel.id ? '还原面板' : '临时放大'}><Icon name={maximized === panel.id ? 'collapse' : 'expand'} size={14}/></button><button onClick={() => void close(panel.id)} title="结束并关闭面板" aria-label="结束并关闭面板"><Icon name="close" size={14}/></button></div></header>
-            <RealTerminal id={panel.id} agent={panel.agent} light={light} appearance={appearance} selected={selected === panel.id} report={next => setStates(old => ({ ...old, [panel.id]: { ...(old[panel.id] ?? { status: '启动中', cols: 0, rows: 0 }), ...next } }))}/>
+            <RealTerminal id={panel.id} agent={panel.agent} light={terminalLight} appearance={appearance} selected={selected === panel.id} report={next => setStates(old => ({ ...old, [panel.id]: { ...(old[panel.id] ?? { status: '启动中', cols: 0, rows: 0 }), ...next } }))}/>
             {state?.error && <div role="alert" className="error-banner">{state.error}</div>}
             <footer className="panel-status"><span>{state?.status ?? '启动中'}</span><span>{state?.pid ? `PID ${state.pid}` : ''}</span></footer>
           </article>;
@@ -88,6 +90,7 @@ function App() {
       </section>
     </main>
     <footer className="controls">
+      <label className="control-group" title="仅调整终端配色，不会修改 CLI 自身主题。用于比较，尚未定案。">终端配色<select aria-label="终端配色" value={terminalTheme} onChange={e => setTerminalTheme(e.target.value as typeof terminalTheme)}><option value="follow">跟随界面</option><option value="dark">深色</option><option value="light">浅色</option></select></label>
       <div className="control-group"><label htmlFor="profile">排版</label><select id="profile" value={variant} onChange={event => changeProfile(event.target.value)}>{Object.entries(profiles).map(([key, value]) => <option key={key} value={key}>{key} · {value.name}</option>)}</select></div>
       <label className="control-group">字号<input aria-label="字号" type="number" min="10" max="24" value={appearance.fontSize} onChange={e => setAppearance(a => ({ ...a, fontSize: Math.min(24, Math.max(10, Number(e.target.value) || 13)) }))}/></label>
       <label className="control-group">行高<input aria-label="行高" type="number" min="1" max="2" step="0.05" value={appearance.lineHeight} onChange={e => setAppearance(a => ({ ...a, lineHeight: Math.min(2, Math.max(1, Number(e.target.value) || 1)) }))}/></label>

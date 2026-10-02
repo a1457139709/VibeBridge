@@ -7,8 +7,8 @@ import type { AgentType } from './types.prototype';
 
 export type Appearance = { fontSize: number; lineHeight: number; contrast: number; scrollbar: boolean };
 export type RunState = { status: string; cols: number; rows: number; pid?: number; error?: string };
-function theme(): ITheme {
-  const css = getComputedStyle(document.documentElement);
+function theme(element: HTMLElement): ITheme {
+  const css = getComputedStyle(element);
   const color = (key: string) => css.getPropertyValue(key).trim();
   return {
     background: color('--panel'), foreground: color('--text'), cursor: color('--accent'), cursorAccent: color('--panel'), selectionBackground: color('--terminal-selection'),
@@ -31,7 +31,7 @@ export function RealTerminal({ id, agent, light, appearance, selected, report }:
       fontFamily: '"SFMono-Regular", Consolas, "Liberation Mono", monospace',
       fontSize: appearance.fontSize, lineHeight: appearance.lineHeight, letterSpacing: 0,
       cursorStyle: 'bar', cursorBlink: true, scrollback: 10000, convertEol: false,
-      macOptionIsMeta: true, minimumContrastRatio: appearance.contrast, theme: theme(),
+      macOptionIsMeta: true, minimumContrastRatio: appearance.contrast, theme: theme(element.current!),
       overviewRuler: { width: 1, showTopBorder: false, showBottomBorder: false },
     });
     const fit = new FitAddon(); term.loadAddon(fit); term.open(element.current!);
@@ -78,13 +78,13 @@ export function RealTerminal({ id, agent, light, appearance, selected, report }:
   }, [id, agent]);
   useEffect(() => {
     const term = terminal.current; if (!term) return;
-    term.options.theme = theme(); term.options.fontSize = appearance.fontSize;
+    term.options.theme = theme(element.current!); term.options.fontSize = appearance.fontSize;
     term.options.lineHeight = appearance.lineHeight; term.options.minimumContrastRatio = appearance.contrast;
     const frame = requestAnimationFrame(() => fitRef.current?.fit());
     return () => cancelAnimationFrame(frame);
   }, [appearance, light]);
   useEffect(() => { if (selected) terminal.current?.focus(); }, [selected]);
-  return <div className={`terminal-host ${appearance.scrollbar ? '' : 'hide-scrollbar'}`} onClick={() => terminal.current?.focus()}>
+  return <div className={`terminal-host ${appearance.scrollbar ? '' : 'hide-scrollbar'}`} data-terminal-theme={light ? 'light' : 'dark'} onClick={() => terminal.current?.focus()}>
     <div className="terminal-content" ref={element} aria-label={`${agent} 真实终端`} />
   </div>;
 }
