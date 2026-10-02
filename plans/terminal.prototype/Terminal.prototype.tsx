@@ -86,11 +86,12 @@ export function RealTerminal({ id, agent, light, appearance, selected, report }:
   }, [id, agent]);
   useEffect(() => {
     const term = terminal.current; if (!term) return;
-    term.options.theme = theme(element.current!); term.options.fontSize = appearance.fontSize;
+    // Theme is fixed when this application starts; only typography is live here.
+    term.options.fontSize = appearance.fontSize;
     term.options.lineHeight = appearance.lineHeight; term.options.minimumContrastRatio = appearance.contrast;
     const frame = requestAnimationFrame(() => fitRef.current?.fit());
     return () => cancelAnimationFrame(frame);
-  }, [appearance, light]);
+  }, [appearance]);
   useEffect(() => { if (selected) terminal.current?.focus(); }, [selected]);
   return <div className={`terminal-host ${appearance.scrollbar ? '' : 'hide-scrollbar'}`} data-terminal-theme={light ? 'light' : 'dark'} onClick={() => terminal.current?.focus()}>
     <div className="terminal-content" ref={element} aria-label={`${agent} 真实终端`} />

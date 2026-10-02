@@ -9,7 +9,8 @@ import electron from 'electron';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const root = path.resolve(here, '../..');
-const startupTheme = process.argv.includes('--theme=light') ? 'light' : 'dark';
+// Optional one-launch override; otherwise use the prototype's saved preference.
+const startupTheme = process.argv.find(arg => /^--theme=(system|dark|light)$/.test(arg))?.split('=')[1];
 const runtime = mkdtempSync(path.join(tmpdir(), 'vibebridge-terminal-'));
 const cwd = path.join(runtime, 'workspace');
 mkdirSync(cwd);

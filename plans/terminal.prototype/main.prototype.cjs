@@ -1,11 +1,21 @@
 // THROWAWAY: one window + one common PTY host. No product persistence.
-const { app, BrowserWindow, ipcMain, utilityProcess, clipboard, Menu } = require('electron');
+const { app, BrowserWindow, ipcMain, utilityProcess, clipboard, Menu, nativeTheme } = require('electron');
 const fs = require('node:fs');
 const path = require('node:path');
 const { fileURLToPath } = require('node:url');
+const { tmpdir } = require('node:os');
+// Deliberately disposable; never writes product settings or any CLI configuration.
+const themeFile = path.join(tmpdir(), 'vibebridge-terminal-settings.prototype.json');
+const isTheme = value => ['system', 'dark', 'light'].includes(value);
+let savedTheme = 'system';
+try {
+  const saved = JSON.parse(fs.readFileSync(themeFile, 'utf8'));
+  if (isTheme(saved.theme)) savedTheme = saved.theme;
+} catch (error) { if (error.code !== 'ENOENT') console.warn('原型主题配置无法读取，使用跟随系统'); }
 const runtime = process.env.VIBEBRIDGE_PROTOTYPE_RUNTIME;
 if (!runtime) throw new Error('请从 npm run prototype:terminal 启动');
 const config = JSON.parse(fs.readFileSync(path.join(runtime, 'launch.json'), 'utf8'));
+const startupPreference = isTheme(config.startupTheme) ? config.startupTheme : savedTheme;
 app.setName('VibeBridge Terminal Prototype');
 app.setPath('userData', path.join(runtime, 'electron-profile'));
 const renderer = path.resolve(__dirname, '../../dist.terminal.prototype/index.html');
@@ -32,7 +42,12 @@ function handle(channel, callback) {
 }
 handle('terminal:boot', async () => {
   await ready;
-  return { cwd: config.cwd, agents: config.agents, electron: process.versions.electron, node: process.versions.node, chrome: process.versions.chrome, platform: `${process.platform}/${process.arch}`, hostPid: host.pid };
+  return { cwd: config.cwd, agents: config.agents, savedTheme, electron: process.versions.electron, node: process.versions.node, chrome: process.versions.chrome, platform: `${process.platform}/${process.arch}`, hostPid: host.pid };
+});
+handle('terminal:save-theme', theme => {
+  if (!isTheme(theme)) throw new Error('未知主题');
+  fs.writeFileSync(themeFile, JSON.stringify({ prototype: 'THROWAWAY, safe to delete', theme }, null, 2) + '\n');
+  savedTheme = theme;
 });
 handle('terminal:start', options => request({ type: 'start', ...options }));
 handle('terminal:stop', id => request({ type: 'stop', id }));
@@ -52,6 +67,8 @@ app.on('before-quit', event => { if (!stopped) { event.preventDefault(); void qu
 app.on('window-all-closed', () => { void quit(); });
 process.on('SIGTERM', () => { void quit(); });
 app.whenReady().then(async () => {
+  // Resolve once. System appearance changes must not recolor a running CLI.
+  const startupTheme = startupPreference === 'system' ? (nativeTheme.shouldUseDarkColors ? 'dark' : 'light') : startupPreference;
   Menu.setApplicationMenu(Menu.buildFromTemplate([
     { label: 'VibeBridge', submenu: [{ role: 'quit' }] },
     { label: '编辑', submenu: [{ role: 'undo' }, { role: 'redo' }, { type: 'separator' }, { role: 'cut' }, { role: 'copy' }, { role: 'paste' }, { role: 'selectAll' }] },
@@ -75,7 +92,7 @@ app.whenReady().then(async () => {
   });
   window = new BrowserWindow({
     width: 1360, height: 900, minWidth: 620, minHeight: 420,
-    title: 'VibeBridge · 真实终端原型', backgroundColor: config.startupTheme === 'light' ? '#eeeff1' : '#14161a',
+    title: 'VibeBridge · 真实终端原型', backgroundColor: startupTheme === 'light' ? '#eeeff1' : '#14161a',
     webPreferences: { preload: path.join(__dirname, 'preload.prototype.cjs'), contextIsolation: true, nodeIntegration: false, sandbox: true, spellcheck: false, backgroundThrottling: false },
   });
   window.webContents.setWindowOpenHandler(() => ({ action: 'deny' }));
@@ -83,7 +100,7 @@ app.whenReady().then(async () => {
   window.webContents.session.setPermissionRequestHandler((_wc, _permission, callback) => callback(false));
   window.webContents.on('render-process-gone', () => { void quit(); });
   window.on('close', event => { if (!stopped) { event.preventDefault(); void quit(); } });
-  await window.loadFile(renderer, { query: { theme: config.startupTheme === 'light' ? 'light' : 'dark' } });
+  await window.loadFile(renderer, { query: { theme: startupTheme, preference: startupPreference } });
   window.show();
   app.focus({ steal: true });
   window.focus();

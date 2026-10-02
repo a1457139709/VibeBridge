@@ -2,6 +2,7 @@
 const { contextBridge, ipcRenderer } = require('electron');
 contextBridge.exposeInMainWorld('terminalPrototype', {
   boot: () => ipcRenderer.invoke('terminal:boot'),
+  saveTheme: theme => ipcRenderer.invoke('terminal:save-theme', theme),
   start: options => ipcRenderer.invoke('terminal:start', options),
   stop: id => ipcRenderer.invoke('terminal:stop', id),
   input: (id, data, binary = false) => ipcRenderer.send('terminal:input', { id, data, binary }),
