@@ -3,9 +3,9 @@
 import type { AgentSettings, AgentType, Layout, Panel, Project, PrototypeCommand, PrototypeEvent, Shortcuts, Theme, Trace, Variant, WorkspaceSnapshot } from './bridge.prototype';
 
 export const AGENTS = {
-  codex: { name: 'Codex', command: 'codex', color: '#9abdb0' },
-  claude: { name: 'Claude Code', command: 'claude', color: '#cf947b' },
-  pi: { name: 'pi', command: 'pi', color: '#b9a6d3' },
+  codex: { name: 'Codex', command: 'codex', color: 'var(--brand-codex)' },
+  claude: { name: 'Claude Code', command: 'claude', color: 'var(--brand-claude)' },
+  pi: { name: 'pi', command: 'pi', color: 'var(--brand-pi)' },
 } as const;
 export const AGENT_TYPES: AgentType[] = ['codex', 'claude', 'pi'];
 export const PANEL_GAP = 8;
@@ -72,14 +72,14 @@ export function buildLayout(panels: string[], width: number, height: number, min
   }
   return null;
 }
-export function panelRects(node: Layout | null, width: number, height: number, x = 0, y = 0): Array<{ panelId: string; x: number; y: number; width: number; height: number }> {
+export function panelRects(node: Layout | null, width: number, height: number, x = 0, y = 0, gap = PANEL_GAP): Array<{ panelId: string; x: number; y: number; width: number; height: number }> {
   if (!node) return [];
   if (node.kind === 'panel') return [{ panelId: node.panelId, x, y, width, height }];
-  const firstWidth = node.axis === 'x' ? (width - PANEL_GAP) * node.ratio : width;
-  const firstHeight = node.axis === 'y' ? (height - PANEL_GAP) * node.ratio : height;
+  const firstWidth = node.axis === 'x' ? (width - gap) * node.ratio : width;
+  const firstHeight = node.axis === 'y' ? (height - gap) * node.ratio : height;
   return node.axis === 'x'
-    ? [...panelRects(node.first, firstWidth, height, x, y), ...panelRects(node.second, width - PANEL_GAP - firstWidth, height, x + firstWidth + PANEL_GAP, y)]
-    : [...panelRects(node.first, width, firstHeight, x, y), ...panelRects(node.second, width, height - PANEL_GAP - firstHeight, x, y + firstHeight + PANEL_GAP)];
+    ? [...panelRects(node.first, firstWidth, height, x, y, gap), ...panelRects(node.second, width - gap - firstWidth, height, x + firstWidth + gap, y, gap)]
+    : [...panelRects(node.first, width, firstHeight, x, y, gap), ...panelRects(node.second, width, height - gap - firstHeight, x, y + firstHeight + gap, gap)];
 }
 function replaceLeaf(node: Layout, panelId: string, replacement: Layout): Layout {
   if (node.kind === 'panel') return node.panelId === panelId ? replacement : node;
@@ -102,9 +102,9 @@ const defaults = (): PrototypeState => {
     return { id: id('project'), name, directory, initials, color, panels, layout: buildLayout(panels.map(p => p.id), 1000, 680, { width: 240, height: 160 }), opened: false };
   };
   const projects = [
-    project('VibeBridge', '/Users/red/Project/VibeBridge', 'VB', '#a8b4d4', ['codex', 'claude', 'pi']),
-    project('Fieldnotes', '/Users/red/Project/Fieldnotes', 'Fn', '#c1ac8b', ['claude', 'codex']),
-    project('Pocket Lab', '/Users/red/Project/PocketLab', 'PL', '#97b2a3', []),
+    project('VibeBridge', '/Users/red/Project/VibeBridge', 'VB', 'var(--avatar-blue)', ['codex', 'claude', 'pi']),
+    project('Fieldnotes', '/Users/red/Project/Fieldnotes', 'Fn', 'var(--avatar-amber)', ['claude', 'codex']),
+    project('Pocket Lab', '/Users/red/Project/PocketLab', 'PL', 'var(--avatar-green)', []),
   ];
   const query = new URLSearchParams(location.search);
   const variant = query.get('variant')?.toUpperCase();
@@ -159,10 +159,10 @@ class PrototypeModel {
     }
     panel.runId = runId;
     const prompt = panel.agent === 'claude' ? '❯' : panel.agent === 'pi' ? '>' : '›';
-    const colored = '\x1b[38;2;155;164;181m';
+    const colored = '\x1b[90m';
     const title = `\x1b[1m${AGENTS[panel.agent].name}\x1b[0m  ${colored}· mock terminal\x1b[0m`;
     const sampleLines: Record<AgentType, string> = {
-      codex: `\r\n${prompt} Read plans/SPEC.md\r\n\r\n${colored}• Read SPEC.md, CONTEXT.md\x1b[0m\r\n\r\nProject setup → Terminal workspace → Settings\r\n\r\n\x1b[38;2;143;183;160m+ Keep panel identity stable during layout changes.\x1b[0m\r\n+ Let the CLI own session history and recovery.\r\n`,
+      codex: `\r\n${prompt} Read plans/SPEC.md\r\n\r\n${colored}• Read SPEC.md, CONTEXT.md\x1b[0m\r\n\r\nProject setup → Terminal workspace → Settings\r\n\r\n\x1b[32m+ Keep panel identity stable during layout changes.\r\n+ Let the CLI own session history and recovery.\x1b[0m\r\n`,
       claude: `\r\n${colored}Window count: 3 · Assigned: 0 / 3\x1b[0m\r\n\r\nCreate only when assigned count equals total.\r\n`,
       pi: `\r\nSwitch project    keep runs alive\r\nClose panel       stop the run\r\nQuit app          keep configuration\r\n`,
     };
@@ -222,7 +222,7 @@ class PrototypeModel {
     this.save(); this.publish();
   }
   selectDirectory() { this.command({ type: 'directory.select' }); this.publish(); }
-  createProject(directory: string, count: number, allocation: Record<AgentType, number>) {
+  createProject(directory: string, count: number, allocation: Record<AgentType, number>, projectName?: string) {
     if (AGENT_TYPES.reduce((n, a) => n + allocation[a], 0) !== count || count < 1 || count > 10) return false;
     const existing = this.state.projects.find(p => p.directory === directory);
     if (existing) { this.switchProject(existing.id); return true; }
@@ -230,8 +230,8 @@ class PrototypeModel {
     const { width, height } = this.state.viewport;
     const layout = buildLayout(panels.map(p => p.id), width, height, this.state.minPanel);
     if (!layout) { this.notify('空间不足，请扩大主窗口或关闭其他面板后重试'); return false; }
-    const name = directory.split('/').filter(Boolean).at(-1) || 'Project';
-    const project: Project = { id: id('project'), name, directory, initials: name.slice(0, 2), color: '#a8b4d4', panels, layout, opened: false };
+    const name = projectName?.trim() || directory.split('/').filter(Boolean).at(-1) || 'Project';
+    const project: Project = { id: id('project'), name, directory, initials: name.slice(0, 2), color: 'var(--avatar-blue)', panels, layout, opened: false };
     this.state.projects.push(project); this.state.activeProjectId = project.id; this.state.maximizedId = null;
     this.initialize(false); this.save(); this.publish(); return true;
   }

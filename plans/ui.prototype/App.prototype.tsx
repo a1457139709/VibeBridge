@@ -1,16 +1,18 @@
-import { useEffect, useLayoutEffect, useRef, useState, useSyncExternalStore } from 'react';
+import { useEffect, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
 import type { CSSProperties, ReactNode } from 'react';
 import type { AgentType, Layout, Panel, Project, ShortcutAction, Variant } from './bridge.prototype';
-import { AGENTS, AGENT_TYPES, DEFAULT_SHORTCUTS, leafIds, layoutMinimum, model, PANEL_GAP, panelRects } from './model.prototype';
+import { AGENTS, AGENT_TYPES, buildLayout, DEFAULT_SHORTCUTS, leafIds, layoutMinimum, model, PANEL_GAP, panelRects } from './model.prototype';
 import type { PrototypeState } from './model.prototype';
 import { AgentMark, BridgeMark, Icon } from './icons.prototype';
 import type { IconName } from './icons.prototype';
 import { MockTerminal } from './Terminal.prototype';
 import { PrototypeSwitcher } from './PrototypeSwitcher';
 
-type Modal = 'directory' | 'add' | 'quit' | null;
-type ModalRequest = Modal | 'settings';
+type Modal = 'add' | 'quit' | null;
+type ModalRequest = Modal | 'directory' | 'settings';
 type SetupDraft = { total: number; counts: Record<AgentType, number> };
+const newSetupDraft = (): SetupDraft => ({ total: 3, counts: { codex: 0, claude: 0, pi: 0 } });
+const directoryName = (directory: string) => directory.trim().split('/').filter(Boolean).at(-1) || 'Project';
 const usePrototype = () => useSyncExternalStore(model.subscribe, model.getState);
 const shortcutLabels: Record<ShortcutAction, string> = { nextProject: '切换到下一个项目', nextPanel: '切换到下一个面板', maximize: '放大 / 还原面板', addAgent: '添加 Agent' };
 const keySymbols: Record<string, string> = { Meta: '⌘', Control: '⌃', Shift: '⇧', Alt: '⌥', Enter: '↵', ' ': '空格' };
@@ -20,8 +22,8 @@ function keyboardBinding(event: KeyboardEvent | React.KeyboardEvent) {
   return [...(event.metaKey ? ['Meta'] : []), ...(event.ctrlKey ? ['Control'] : []), ...(event.altKey ? ['Alt'] : []), ...(event.shiftKey ? ['Shift'] : []), key].join('+');
 }
 
-function ToolButton({ icon, label, onClick, active, children }: { icon: IconName; label: string; onClick: () => void; active?: boolean; children?: ReactNode }) {
-  return <button className={`icon-button ${active ? 'active' : ''}`} onClick={onClick} title={label} aria-label={label}><Icon name={icon} />{children}</button>;
+function ToolButton({ icon, label, onClick, active, current, children }: { icon: IconName; label: string; onClick: () => void; active?: boolean; current?: boolean; children?: ReactNode }) {
+  return <button className={`icon-button ${active ? 'active' : ''}`} onClick={onClick} title={label} aria-label={label} aria-current={current ? 'page' : undefined}><Icon name={icon} />{children}</button>;
 }
 function TrafficLights({ onQuit }: { onQuit: () => void }) {
   return <div className="traffic-lights"><button className="traffic-close" title="关闭工作台" aria-label="关闭工作台" onClick={onQuit}><span>×</span></button><span className="traffic-yellow" /><span className="traffic-green" /></div>;
@@ -30,20 +32,21 @@ function ProjectBadge({ project, size = 'normal' }: { project: Project; size?: '
   return <span className={`project-badge ${size}`} style={{ '--project-color': project.color } as CSSProperties}>{project.initials}</span>;
 }
 
-type ShellProps = { state: PrototypeState; children: ReactNode; onModal: (modal: ModalRequest) => void; onProject: (id: string) => void; light: boolean };
-function Sidebar({ state, onModal, onProject, mode }: Pick<ShellProps, 'state' | 'onModal' | 'onProject'> & { mode: 'list' | 'rail' | 'context' }) {
+type ShellProps = { state: PrototypeState; children: ReactNode; onModal: (modal: ModalRequest) => void; onProject: (id: string) => void; light: boolean; isSetup?: boolean };
+function Sidebar({ state, onModal, onProject, mode, isSetup }: Pick<ShellProps, 'state' | 'onModal' | 'onProject' | 'isSetup'> & { mode: 'list' | 'rail' | 'context' }) {
   const active = model.active(), collapsed = state.sidebarCollapsed;
   return <aside className={`sidebar ${collapsed ? 'collapsed' : ''} sidebar-${mode}`}>
-    {!collapsed && <div className="nav-section-label"><span>项目</span>{mode === 'list' && <ToolButton icon="plus" label="添加项目" onClick={() => onModal('directory')} />}</div>}
+    {!collapsed && <div className="nav-section-label"><span>项目</span>{(mode === 'list' || isSetup) && <ToolButton icon="plus" label="添加项目" active={isSetup} current={isSetup} onClick={() => onModal('directory')} />}</div>}
+    {isSetup && collapsed && <button className="new-project-button selected" onClick={() => onModal('directory')} aria-label="添加项目" aria-current="page" title="创建项目"><Icon name="plus" size={17} /></button>}
     <nav className="project-nav" aria-label="项目导航">
-      {state.projects.map((project, index) => <button key={project.id} className={`project-row ${project.id === active.id ? 'selected' : ''}`} onClick={() => onProject(project.id)} title={`${project.name}\n${project.directory}`} aria-label={`切换到 ${project.name}`} aria-current={project.id === active.id ? 'page' : undefined}>
+      {state.projects.map((project, index) => <button key={project.id} className={`project-row ${!isSetup && project.id === active.id ? 'selected' : ''}`} onClick={() => onProject(project.id)} title={`${project.name}\n${project.directory}`} aria-label={`切换到 ${project.name}`} aria-current={!isSetup && project.id === active.id ? 'page' : undefined}>
         <ProjectBadge project={project} />
         {!collapsed && <span className="project-row-text"><span>{project.name}</span>{mode === 'list' && <small>{project.panels.length} 个面板</small>}</span>}
         {!collapsed && <span className="project-key">⌘{index + 1}</span>}
       </button>)}
     </nav>
-    {(collapsed || mode !== 'list') && <button className="new-project-button" onClick={() => onModal('directory')} aria-label="添加项目"><Icon name="plus" size={17} />{!collapsed && <span>添加项目</span>}</button>}
-    {mode === 'context' && !collapsed && <div className="project-context">
+    {!isSetup && (collapsed || mode !== 'list') && <button className="new-project-button" onClick={() => onModal('directory')} aria-label="添加项目"><Icon name="plus" size={17} />{!collapsed && <span>添加项目</span>}</button>}
+    {mode === 'context' && !collapsed && !isSetup && <div className="project-context">
       <span className="eyebrow">当前项目</span>
       <ProjectBadge project={active} size="large" />
       <strong>{active.name}</strong><code>{active.directory.replace('/Users/red/', '~/')}</code>
@@ -71,19 +74,7 @@ function SystemBar(props: Pick<ShellProps, 'onModal' | 'state' | 'light'> & { se
     <HeaderActions {...props} />
   </header>;
 }
-function LayoutThumbnail({ project, state }: { project: Project; state: PrototypeState }) {
-  const width = Math.max(1, state.viewport.width), height = Math.max(1, state.viewport.height);
-  return <div className="layout-overview" title={`自动排布 · ${project.panels.length} 个面板`}>
-    <span className="layout-overview-label">自动排布</span>
-    <div className="layout-thumbnail" role="img" aria-label={`${project.panels.length} 个面板的自动排布缩略图`}>
-      {panelRects(project.layout, width, height).map(rect => {
-        const panel = project.panels.find(p => p.id === rect.panelId)!;
-        return <span key={panel.id} className={`layout-thumbnail-panel ${state.focusId === panel.id ? 'is-focused' : ''}`} data-panel-id={panel.id} data-agent={panel.agent} style={{ left: `${rect.x / width * 100}%`, top: `${rect.y / height * 100}%`, width: `${rect.width / width * 100}%`, height: `${rect.height / height * 100}%` }} />;
-      })}
-    </div>
-  </div>;
-}
-function WorkspaceHeader({ onModal, state }: Pick<ShellProps, 'onModal' | 'state'>) {
+function WorkspaceHeader({ onModal }: Pick<ShellProps, 'onModal'>) {
   const project = model.active(), path = project.directory.replace('/Users/red/', '~/');
   const lastSlash = path.lastIndexOf('/');
   return <header className="workspace-header" aria-label="工作区工具栏">
@@ -91,7 +82,7 @@ function WorkspaceHeader({ onModal, state }: Pick<ShellProps, 'onModal' | 'state
       <strong className="workspace-project-name" title={project.name}>{project.name}</strong>
       <code className="workspace-path" title={project.directory} aria-label={project.directory}><span className="workspace-path-start">{path.slice(0, lastSlash + 1)}</span><span className="workspace-path-end">{path.slice(lastSlash + 1)}</span></code>
     </div>
-    <div className="workspace-actions"><LayoutThumbnail project={project} state={state} /><span className="terminal-count">{project.panels.length} 个终端</span><ToolButton icon="plus" label="添加 Agent" onClick={() => onModal('add')} /></div>
+    <div className="workspace-actions"><span className="terminal-count">{project.panels.length} 个终端</span><ToolButton icon="plus" label="添加 Agent" onClick={() => onModal('add')} /></div>
   </header>;
 }
 export function VariantA(props: ShellProps) {
@@ -99,7 +90,7 @@ export function VariantA(props: ShellProps) {
     <SystemBar {...props} />
     <Sidebar {...props} mode="list" />
     <section className="main-workspace">
-      <WorkspaceHeader onModal={props.onModal} state={props.state} />
+      {!props.isSetup && <WorkspaceHeader onModal={props.onModal} />}
       {props.children}
     </section>
   </div>;
@@ -109,7 +100,7 @@ export function VariantB(props: ShellProps) {
     <SystemBar {...props} />
     <Sidebar {...props} mode="rail" />
     <section className="main-workspace">
-      <WorkspaceHeader onModal={props.onModal} state={props.state} />
+      {!props.isSetup && <WorkspaceHeader onModal={props.onModal} />}
       {props.children}
     </section>
   </div>;
@@ -119,7 +110,7 @@ export function VariantC(props: ShellProps) {
     <SystemBar {...props} />
     <Sidebar {...props} mode="context" />
     <section className="main-workspace">
-      <WorkspaceHeader onModal={props.onModal} state={props.state} />
+      {!props.isSetup && <WorkspaceHeader onModal={props.onModal} />}
       {props.children}
     </section>
   </div>;
@@ -162,7 +153,7 @@ function PanelView({ panel, state, light }: { panel: Panel; state: PrototypeStat
   return <section className={`agent-panel ${selected ? 'is-selected' : ''} ${maximized ? 'is-maximized' : ''}`} data-panel-id={panel.id} data-agent={panel.agent} aria-label={`${AGENTS[panel.agent].name} 面板`} onPointerDown={() => { if (!selected) model.focus(panel.id); }}>
     <header className="panel-header" onPointerDown={startSwap}>
       <span className="panel-agent-label"><AgentMark agent={panel.agent} size={17} /><span>{AGENTS[panel.agent].name}</span></span>
-      <div className={`panel-controls ${menu ? 'menu-open' : ''}`}>
+      <div className="panel-controls">
         <ToolButton icon={maximized ? 'collapse' : 'expand'} label={maximized ? '还原面板' : '放大面板'} onClick={() => model.maximize(panel.id)} />
         <ToolButton icon="more" label="面板更多操作" active={menu} onClick={() => setMenu(!menu)} />
         <ToolButton icon="close" label="关闭面板" onClick={() => model.closePanel(panel.id)} />
@@ -278,30 +269,67 @@ function AddAgentDialog({ variant, onClose }: { variant: Variant; onClose: () =>
     <div className="agent-options">{AGENT_TYPES.map(agent => <button key={agent} className={`agent-option option-${agent}`} aria-label={`添加 ${AGENTS[agent].name}`} onClick={() => { if (model.addPanel(agent)) onClose(); }}><AgentMark agent={agent} size={variant === 'B' ? 42 : 62} /><span>{AGENTS[agent].name}</span></button>)}</div>
   </ModalFrame>;
 }
-function DirectoryDialog({ initial, onContinue, onClose }: { initial: string; onContinue: (directory: string) => void; onClose: () => void }) {
-  const [directory, setDirectory] = useState(initial), [error, setError] = useState('');
-  const submit = () => {
-    const value = directory.trim().replace(/\/+$/, '') || '/';
-    if (!directory.trim() || !value.startsWith('/') || model.state.faults.directory) { setError('目录无效，请选择有效的本地目录'); return; }
-    onContinue(value);
-  };
-  return <ModalFrame label="选择项目目录" className="directory-modal" onClose={onClose}><div className="dialog-header"><h2>添加项目</h2><ToolButton icon="close" label="关闭" onClick={onClose} /></div><p className="dialog-description">从一个本地目录开始。</p><label className="field-label" htmlFor="directory-input">项目目录</label><div className="directory-input-wrap"><Icon name="folder" /><input id="directory-input" autoFocus value={directory} placeholder="/Users/red/Project/MyProject" onChange={e => { setDirectory(e.target.value); setError(''); }} onKeyDown={e => { if (e.key === 'Enter') submit(); }} /></div>{error && <p className="form-error" role="alert">{error}</p>}<p className="prototype-inline-note">原型中手动输入目录；不会访问本地文件。</p><div className="dialog-footer"><button className="text-button" onClick={onClose}>取消</button><button className="primary-button" onClick={submit}>继续<Icon name="arrow" size={16} /></button></div></ModalFrame>;
-}
 function Stepper({ value, minus, plus, minusDisabled, plusDisabled, label }: { value: number; minus: () => void; plus: () => void; minusDisabled: boolean; plusDisabled: boolean; label: string }) {
-  return <div className="stepper"><button onClick={minus} disabled={minusDisabled} aria-label={`减少${label}`}><span>−</span></button><output aria-label={label}>{value}</output><button onClick={plus} disabled={plusDisabled} aria-label={`增加${label}`}><Icon name="plus" size={16} /></button></div>;
+  return <div className="stepper"><button type="button" onClick={minus} disabled={minusDisabled} aria-label={`减少${label}`}><span>−</span></button><output aria-label={label}>{value}</output><button type="button" onClick={plus} disabled={plusDisabled} aria-label={`增加${label}`}><Icon name="plus" size={16} /></button></div>;
 }
-function SetupPage({ directory, draft, onDraft, onBack, onCreated }: { directory: string; draft: SetupDraft; onDraft: (draft: SetupDraft) => void; onBack: () => void; onCreated: () => void }) {
+function SetupPage({ directory, projectName, draft, state, onDirectory, onName, onDraft, onBack, onCreated }: { directory: string; projectName: string; draft: SetupDraft; state: PrototypeState; onDirectory: (directory: string) => void; onName: (name: string) => void; onDraft: (draft: SetupDraft) => void; onBack: () => void; onCreated: () => void }) {
+  const page = useRef<HTMLElement>(null);
+  const previewFrame = useRef<HTMLDivElement>(null);
+  const [previewSize, setPreviewSize] = useState({ width: 418, height: 242 });
+  useLayoutEffect(() => {
+    const frame = previewFrame.current;
+    if (!frame) return;
+    const update = (width: number, height: number) => setPreviewSize(previous => previous.width === width && previous.height === height ? previous : { width, height });
+    const bounds = frame.getBoundingClientRect();
+    update(bounds.width, bounds.height);
+    const observer = new ResizeObserver(([entry]) => update(entry.contentRect.width, entry.contentRect.height));
+    observer.observe(frame); return () => observer.disconnect();
+  }, []);
+  useEffect(() => {
+    const workspace = page.current?.parentElement;
+    if (!workspace) return;
+    const observer = new ResizeObserver(([entry]) => model.setViewport(Math.max(1, entry.contentRect.width - 16), Math.max(1, entry.contentRect.height - 48)));
+    observer.observe(workspace); return () => observer.disconnect();
+  }, []);
   const { total, counts } = draft;
   const setTotal = (total: number) => onDraft({ ...draft, total });
   const setCounts = (counts: Record<AgentType, number>) => onDraft({ ...draft, counts });
   const assigned = AGENT_TYPES.reduce((sum, agent) => sum + counts[agent], 0);
   const difference = total - assigned;
-  return <main className="setup-page"><div className="setup-content"><div className="setup-kicker"><Icon name="folder" size={18} /><span>新项目</span></div><h1>创建项目</h1><div className="setup-project"><strong>{directory.split('/').filter(Boolean).at(-1) || 'Project'}</strong><code>{directory}</code></div>
-    <div className="setup-total"><div><h3>窗口数量</h3><p>设置这个项目的终端窗口总数</p></div><Stepper value={total} minus={() => setTotal(total - 1)} plus={() => setTotal(total + 1)} minusDisabled={total <= 1} plusDisabled={total >= 10} label="窗口数量" /></div>
-    <div className="setup-allocation"><h3>分配 Agent</h3>{AGENT_TYPES.map(agent => <div className="allocation-row" key={agent}><span><AgentMark agent={agent} size={27} /><strong>{AGENTS[agent].name}</strong></span><Stepper value={counts[agent]} minus={() => setCounts({ ...counts, [agent]: counts[agent] - 1 })} plus={() => setCounts({ ...counts, [agent]: counts[agent] + 1 })} minusDisabled={!counts[agent]} plusDisabled={assigned >= total} label={`${AGENTS[agent].name} 数量`} /></div>)}</div>
-    <div className={`allocation-progress ${difference < 0 ? 'overallocated' : ''}`}><div><span>已分配 <b>{assigned}</b> / {total}</span><span>{difference > 0 ? `还需分配 ${difference} 个` : difference < 0 ? `多分配了 ${-difference} 个` : '分配完成'}</span></div><div className="progress-track"><span style={{ width: `${Math.min(100, assigned / total * 100)}%` }} /></div></div>
-    <div className="setup-footer"><button className="text-button" onClick={onBack}><Icon name="left" size={16} />返回</button><button className="primary-button" disabled={difference !== 0} onClick={() => { if (model.createProject(directory, total, counts)) onCreated(); }}>创建并启动<Icon name="arrow" size={16} /></button></div>
-  </div></main>;
+  const previewCount = Math.max(total, assigned);
+  const previewIds = useMemo(() => Array.from({ length: previewCount }, (_, index) => `setup-panel-${index}`), [previewCount]);
+  const { width, height } = state.viewport;
+  const preview = useMemo(() => {
+    const layout = buildLayout(previewIds, width, height, state.minPanel);
+    return { fits: !!layout, layout: layout ?? buildLayout(previewIds, width, height, { width: 1.5, height: 1 }) };
+  }, [previewIds, width, height, state.minPanel.width, state.minPanel.height]);
+  // Keep the icon and name readable without changing the workbench's layout tree.
+  const previewMinimum = layoutMinimum(preview.layout, { width: 96, height: 64 });
+  const allocation = AGENT_TYPES.flatMap(agent => Array.from({ length: counts[agent] }, () => agent));
+  const normalizedDirectory = directory.trim().replace(/\/+$/, '') || '/';
+  const invalidDirectory = !directory.trim() || !normalizedDirectory.startsWith('/') || state.faults.directory;
+  const existing = state.projects.find(project => project.directory === normalizedDirectory);
+  const canCreate = !!projectName.trim() && !invalidDirectory && !existing && difference === 0 && preview.fits;
+  return <main className="setup-page" ref={page}><form className="setup-content" aria-label="创建项目" onSubmit={event => { event.preventDefault(); if (canCreate && model.createProject(normalizedDirectory, total, counts, projectName.trim())) onCreated(); }}>
+    <div className="setup-intro"><h1>创建项目</h1><p className="setup-description">配置项目与 Agent，确认后一起启动。</p></div>
+    <div className="setup-project-fields" role="group" aria-label="项目信息"><label htmlFor="setup-project-name">项目名称<input id="setup-project-name" autoFocus value={projectName} placeholder="输入项目名称" onChange={event => onName(event.target.value)} /></label><label htmlFor="setup-project-directory">项目目录<div className="directory-input-wrap"><Icon name="folder" size={16} /><input id="setup-project-directory" value={directory} placeholder="/Users/red/Project/MyProject" aria-invalid={invalidDirectory} onChange={event => onDirectory(event.target.value)} /></div></label>
+      {invalidDirectory ? <p className="form-error" role="alert">请输入有效的本地绝对目录。</p> : existing ? <p className="setup-existing">此目录已添加。<button type="button" className="text-button" onClick={() => { model.switchProject(existing.id); onCreated(); }}>打开已有项目<Icon name="arrow" size={13} /></button></p> : <p className="setup-directory-note">所有 Agent 都在这个目录中运行。</p>}
+    </div>
+    <hr className="setup-group-divider" />
+    <div className="setup-window-config" role="group" aria-label="窗口与 Agent 配置">
+      <div className="setup-layout-preview"><div className="setup-preview-canvas" style={{ minHeight: previewMinimum.height + 22 }} role="img" aria-label={`${previewCount} 个面板的自动排布预览，已分配 ${assigned} 个 Agent`}><div className="setup-preview-layout" ref={previewFrame}>
+        {panelRects(preview.layout, previewSize.width, previewSize.height, 0, 0, PANEL_GAP).map(rect => {
+          const index = previewIds.indexOf(rect.panelId), agent = allocation[index];
+          return <span key={rect.panelId} className={`setup-preview-panel ${agent ? 'is-assigned' : 'is-unassigned'}`} data-agent={agent ?? 'unassigned'} title={agent ? AGENTS[agent].name : '待分配'} style={{ left: rect.x, top: rect.y, width: rect.width, height: rect.height, '--preview-accent': agent ? AGENTS[agent].color : 'var(--accent)' } as CSSProperties}><span className="setup-preview-index" aria-hidden="true">{index + 1}</span><span className="setup-preview-content" key={agent ?? 'unassigned'}>{agent ? <AgentMark agent={agent} size={24} strokeScale={17 / 24} /> : <span className="setup-preview-placeholder" aria-hidden="true" />}<span className="setup-preview-name">{agent ? AGENTS[agent].name : '待分配'}</span></span></span>;
+        })}
+      </div></div><p className="setup-preview-heading">自动排布 · {previewCount} 个面板</p></div>
+      <div className="setup-total"><div><h3>窗口数量</h3><p>设置这个项目的终端窗口总数</p></div><Stepper value={total} minus={() => setTotal(total - 1)} plus={() => setTotal(total + 1)} minusDisabled={total <= 1} plusDisabled={total >= 10} label="窗口数量" /></div>
+    <div className="setup-allocation"><h3>分配 Agent</h3>{AGENT_TYPES.map(agent => <div className="allocation-row" key={agent}><span><AgentMark agent={agent} size={20} strokeScale={17 / 20} /><strong>{AGENTS[agent].name}</strong></span><Stepper value={counts[agent]} minus={() => setCounts({ ...counts, [agent]: counts[agent] - 1 })} plus={() => setCounts({ ...counts, [agent]: counts[agent] + 1 })} minusDisabled={!counts[agent]} plusDisabled={assigned >= total} label={`${AGENTS[agent].name} 数量`} /></div>)}</div>
+    <div className={`allocation-progress ${difference < 0 ? 'overallocated' : ''}`}><div><span>已分配 <b>{assigned}</b> / <b>{total}</b></span><span>{difference > 0 ? <>还需分配 <b>{difference}</b> 个</> : difference < 0 ? <>多分配了 <b>{-difference}</b> 个</> : '分配完成'}</span></div><div className="progress-track" role="progressbar" aria-label="Agent 分配进度" aria-valuemin={0} aria-valuemax={total} aria-valuenow={Math.min(total, assigned)} aria-valuetext={`已分配 ${assigned} 个，共 ${total} 个${difference < 0 ? `，超额 ${-difference} 个` : ''}`} style={{ gridTemplateColumns: `repeat(${total}, minmax(0, 1fr))` }}>{Array.from({ length: total }, (_, index) => <span key={index} className={index < assigned ? 'is-filled' : ''} aria-hidden="true" />)}</div></div>
+    {!preview.fits && <p className="form-error" role="alert">空间不足，请扩大窗口或减少面板数量。</p>}
+    </div>
+    <div className="setup-footer"><button type="button" className="text-button" onClick={onBack}>取消</button><button type="submit" className="primary-button" disabled={!canCreate}>创建并启动<Icon name="arrow" size={16} /></button></div>
+  </form></main>;
 }
 
 function ShortcutsSettings({ state }: { state: PrototypeState }) {
@@ -382,7 +410,7 @@ function ClosedScene({ state }: { state: PrototypeState }) {
   return <div className="closed-scene"><BridgeMark size={56} /><span className="eyebrow">原型演示</span><h1>{state.closed === 'crash' ? '模拟主进程故障' : '工作台已退出'}</h1><p>全部运行实例已结束，项目配置和布局仍在内存中。</p><button className="primary-button" onClick={() => model.reopen()}><Icon name="reset" size={16} />重新打开（模拟）</button><span className="closed-detail">只启动上次查看项目的 CLI，终端输出重新开始。</span></div>;
 }
 
-function DebugInspector({ state, setupDraft, onClose }: { state: PrototypeState; setupDraft: (SetupDraft & { directory: string }) | null; onClose: () => void }) {
+function DebugInspector({ state, setupDraft, onClose }: { state: PrototypeState; setupDraft: (SetupDraft & { directory: string; projectName: string }) | null; onClose: () => void }) {
   const [tab, setTab] = useState<'state' | 'events' | 'scenarios'>('state');
   const [sequence, setSequence] = useState<number | null>(null);
   const [filter, setFilter] = useState('');
@@ -427,12 +455,13 @@ export default function App() {
   const state = usePrototype();
   const query = new URLSearchParams(location.search);
   const [modal, setModal] = useState<Modal>(() => {
-    const scene = query.get('scene'); return scene === 'add' || scene === 'quit' || scene === 'directory' ? scene : null;
+    const scene = query.get('scene'); return scene === 'add' || scene === 'quit' ? scene : null;
   });
   const [settingsOpen, setSettingsOpen] = useState(query.get('scene') === 'settings');
-  const [scene, setScene] = useState<'workbench' | 'setup'>(query.get('scene') === 'setup' ? 'setup' : 'workbench');
+  const [scene, setScene] = useState<'workbench' | 'setup'>(['setup', 'directory'].includes(query.get('scene') ?? '') ? 'setup' : 'workbench');
   const [directory, setDirectory] = useState('/Users/red/Project/MyProject');
-  const [setupDraft, setSetupDraft] = useState<SetupDraft>({ total: 3, counts: { codex: 0, claude: 0, pi: 0 } });
+  const [projectName, setProjectName] = useState('MyProject');
+  const [setupDraft, setSetupDraft] = useState<SetupDraft>(newSetupDraft);
   const [debug, setDebug] = useState(query.get('debug') === '1');
   const [systemLight, setSystemLight] = useState(matchMedia('(prefers-color-scheme: light)').matches);
   const light = state.theme === 'light' || state.theme === 'system' && systemLight;
@@ -440,8 +469,12 @@ export default function App() {
     const media = matchMedia('(prefers-color-scheme: light)'), change = () => setSystemLight(media.matches);
     media.addEventListener('change', change); return () => media.removeEventListener('change', change);
   }, []);
-  useEffect(() => { document.documentElement.dataset.theme = light ? 'light' : 'dark'; document.documentElement.dataset.variant = state.variant; }, [light, state.variant]);
-  const openModal = (next: ModalRequest) => { if (next === 'settings') { setSettingsOpen(true); return; } if (next === 'directory') model.selectDirectory(); setModal(next); };
+  useLayoutEffect(() => { document.documentElement.dataset.theme = light ? 'light' : 'dark'; document.documentElement.dataset.variant = state.variant; }, [light, state.variant]);
+  const openModal = (next: ModalRequest) => {
+    if (next === 'settings') { setSettingsOpen(true); return; }
+    if (next === 'directory') { setSettingsOpen(false); setModal(null); setScene('setup'); return; }
+    setModal(next);
+  };
   const selectProject = (projectId: string) => { setScene('workbench'); setSettingsOpen(false); setModal(null); model.switchProject(projectId); };
   useEffect(() => {
     const key = (event: KeyboardEvent) => {
@@ -469,16 +502,15 @@ export default function App() {
     window.addEventListener('keydown', key, true); return () => window.removeEventListener('keydown', key, true);
   }, [state, modal, scene, settingsOpen]);
   const content = scene === 'setup'
-    ? <SetupPage directory={directory} draft={setupDraft} onDraft={setSetupDraft} onBack={() => { setScene('workbench'); setModal('directory'); }} onCreated={() => { setScene('workbench'); setModal(null); }} />
+    ? <SetupPage directory={directory} projectName={projectName} draft={setupDraft} state={state} onDirectory={value => { if (projectName === directoryName(directory)) setProjectName(directoryName(value)); setDirectory(value); }} onName={setProjectName} onDraft={setSetupDraft} onBack={() => setScene('workbench')} onCreated={() => { setScene('workbench'); setModal(null); setSetupDraft(newSetupDraft()); setDirectory('/Users/red/Project/MyProject'); setProjectName('MyProject'); }} />
     : <WorkArea state={state} light={light} onAdd={() => setModal('add')} />;
   const Shell = { A: VariantA, B: VariantB, C: VariantC }[state.variant];
   return <div className={`app-root ${import.meta.env.DEV ? 'development' : ''}`} data-reduced-motion={state.debugReducedMotion ? 'true' : undefined}>
-    {state.closed ? <ClosedScene state={state} /> : settingsOpen ? <GlobalSettings state={state} light={light} onModal={openModal} onClose={() => setSettingsOpen(false)} /> : <Shell state={state} light={light} onModal={openModal} onProject={selectProject}>{content}</Shell>}
+    {state.closed ? <ClosedScene state={state} /> : settingsOpen ? <GlobalSettings state={state} light={light} onModal={openModal} onClose={() => setSettingsOpen(false)} /> : <Shell state={state} light={light} onModal={openModal} onProject={selectProject} isSetup={scene === 'setup'}>{content}</Shell>}
     {!state.closed && modal === 'add' && <AddAgentDialog variant={state.variant} onClose={() => setModal(null)} />}
-    {!state.closed && modal === 'directory' && <DirectoryDialog initial={directory} onClose={() => setModal(null)} onContinue={value => { const existing = state.projects.find(p => p.directory === value); if (existing) { selectProject(existing.id); return; } setDirectory(value); setSetupDraft({ total: 3, counts: { codex: 0, claude: 0, pi: 0 } }); setModal(null); setScene('setup'); }} />}
     {!state.closed && modal === 'quit' && <QuitDialog onClose={() => setModal(null)} />}
     {state.toast && <div className="toast" role="alert">{state.toast}</div>}
-    {import.meta.env.DEV && debug && <DebugInspector state={state} setupDraft={scene === 'setup' ? { ...setupDraft, directory } : null} onClose={() => setDebug(false)} />}
+    {import.meta.env.DEV && debug && <DebugInspector state={state} setupDraft={scene === 'setup' ? { ...setupDraft, directory, projectName } : null} onClose={() => setDebug(false)} />}
     <PrototypeSwitcher state={state} debug={debug} onDebug={() => setDebug(!debug)} />
   </div>;
 }
