@@ -35,7 +35,7 @@ function ensure(runId: string): Screen {
 }
 export function terminalEvent(event: WorkbenchEvent) {
   if (event.kind === 'started' && event.run.state === 'running') ensure(event.run.id);
-  if (event.kind === 'output') ensure(event.runId).terminal.write(event.data);
+  if (event.kind === 'output') screens.get(event.runId)?.terminal.write(event.data);
   if (event.kind === 'exit') dispose(event.runId);
 }
 export function reconcileTerminals(runs: Run[]) {

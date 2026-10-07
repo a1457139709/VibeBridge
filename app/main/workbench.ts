@@ -1,7 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import { realpath, stat } from 'node:fs/promises';
 import { basename } from 'node:path';
-import { assignedAgents, arrange, validateDraft, removeFromLayout, validateLayout, agentTypes, type AgentType, type DirectoryResult, type LaunchResult, type Layout, type Panel, type Project, type ProjectCreation, type ProjectDraft, type PanelCreation, type Settings, type Snapshot, type TerminalEvent, type WorkbenchEvent } from '../shared/model';
+import { assignedAgents, arrange, insertIntoLayout, validateDraft, removeFromLayout, validateLayout, agentTypes, type AgentType, type DirectoryResult, type LaunchResult, type Layout, type Panel, type Project, type ProjectCreation, type ProjectDraft, type PanelCreation, type Settings, type Snapshot, type TerminalEvent, type WorkbenchEvent } from '../shared/model';
 import { ProjectStore } from './storage';
 import { SettingsFile, defaultSettings } from './settings';
 import { TerminalClient } from './terminal-client';
@@ -53,15 +53,17 @@ export class Workbench {
       if (this.expectedRuns.get(event.run.panelId) !== event.run.id) return;
       this.state.runs = this.state.runs.filter(run => run.panelId !== event.run.panelId).concat(event.run);
       this.changed();
-    } else if (event.kind === 'exit') {
+    } else {
       const run = this.state.runs.find(run => run.id === event.runId);
-      if (!run || this.expectedRuns.get(run.panelId) !== run.id) return;
-      this.state.runs = this.state.runs.filter(r => r.id !== run.id);
-      if (!this.quitting) void this.operation(async () => {
-        if (this.expectedRuns.get(run.panelId) !== run.id) return;
-        await this.removePanel(run.projectId, run.panelId);
-      }).catch(error => this.report(error.message));
-      this.changed();
+      if (!run || run.state !== 'running' || this.expectedRuns.get(run.panelId) !== run.id) return;
+      if (event.kind === 'exit') {
+        this.state.runs = this.state.runs.filter(r => r.id !== run.id);
+        if (!this.quitting) void this.operation(async () => {
+          if (this.expectedRuns.get(run.panelId) !== run.id) return;
+          await this.removePanel(run.projectId, run.panelId);
+        }).catch(error => this.report(error.message));
+        this.changed();
+      }
     }
     this.emit(event);
   }
@@ -112,7 +114,7 @@ export class Workbench {
     if (!agentTypes.includes(agent)) throw new Error('Agent 类型无效');
     if (project.panels.length >= 10) throw new Error('每个项目最多 10 个面板');
     const panel = { id: randomUUID(), agent };
-    const next = { ...project, panels: [...project.panels, panel], layout: arrange([...project.panels.map(p => p.id), panel.id]) };
+    const next = { ...project, panels: [...project.panels, panel], layout: insertIntoLayout(project.layout, panel.id) };
     await this.store.save(next);
     Object.assign(project, next); this.changed();
     const launch = await this.startPanel(project, panel);

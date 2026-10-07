@@ -1,8 +1,9 @@
 import { agentIcons } from './agent-icons';
 import { useEffect, useRef, useState, type CSSProperties, type PointerEvent } from 'react';
-import { agentNames, agentTypes, type Layout, type Project, type Run } from '../shared/model';
-import { layoutBoxes, type Divider } from './layout';
+import { agentNames, type Layout, type Project, type Run } from '../shared/model';
+import { layoutBoxes, type Divider } from '../shared/layout';
 import { focusTerminal, mountTerminal } from './terminals';
+import { AgentPicker } from './AgentPicker';
 
 function TerminalView({ run }: { run?: Run }) {
   const container = useRef<HTMLDivElement>(null);
@@ -17,46 +18,68 @@ export function Workspace({ project, runs, report }: { project: Project; runs: R
   const [focused, setFocused] = useState<string>();
   const [maximized, setMaximized] = useState<string>();
   const [adding, setAdding] = useState(false);
-  const [addingBusy, setAddingBusy] = useState(false);
   const [dragged, setDragged] = useState<string>();
   const [dropTarget, setDropTarget] = useState<string>();
+  const [menuPanel, setMenuPanel] = useState<string>();
+  const [resizing, setResizing] = useState(false);
   const canvas = useRef<HTMLDivElement>(null);
-  const dragging = useRef(false);
-  useEffect(() => { if (!dragging.current) setLayout(project.layout); }, [project.layout]);
+  const cancelResize = useRef<(() => void) | undefined>(undefined);
+  const savedLayout = useRef(project.layout);
+  savedLayout.current = project.layout;
+  // Run snapshots also contain the layout; only a changed arrangement cancels a gesture.
+  const layoutKey = JSON.stringify(project.layout);
+  function resetDrag() { setDragged(undefined); setDropTarget(undefined); }
+  useEffect(() => { cancelResize.current?.(); setLayout(savedLayout.current); resetDrag(); }, [layoutKey]);
   useEffect(() => { if (maximized && !project.panels.some(p => p.id === maximized)) setMaximized(undefined); }, [project.panels, maximized]);
   useEffect(() => {
-    const reset = () => { setDragged(undefined); setDropTarget(undefined); };
+    const reset = () => { cancelResize.current?.(); resetDrag(); setMenuPanel(undefined); };
+    const keydown = (event: KeyboardEvent) => { if (event.key === 'Escape') reset(); };
     window.addEventListener('blur', reset);
-    return () => window.removeEventListener('blur', reset);
+    window.addEventListener('keydown', keydown);
+    return () => { reset(); window.removeEventListener('blur', reset); window.removeEventListener('keydown', keydown); };
   }, []);
   const positions = layoutBoxes(layout);
   const persist = (next: Layout | null) => { setLayout(next); void window.workbench.saveLayout(project.id, next).catch(error => report(error.message)); };
   const focus = (panelId: string) => { setFocused(panelId); focusTerminal(runs.find(r => r.panelId === panelId)?.id); };
+  const maximize = (panelId: string) => { setMenuPanel(undefined); setMaximized(maximized === panelId ? undefined : panelId); focus(panelId); };
+  const close = (panelId: string) => { setMenuPanel(undefined); void window.workbench.closePanel(project.id, panelId).catch(error => report(error.message)); };
   function resize(event: PointerEvent<HTMLDivElement>, divider: Divider) {
+    if (event.button !== 0) return;
     event.preventDefault();
+    cancelResize.current?.();
     const element = event.currentTarget;
     const bounds = canvas.current!.getBoundingClientRect();
     const original = structuredClone(layout)!;
     let next = original;
-    dragging.current = true;
+    setResizing(true);
     element.setPointerCapture(event.pointerId);
     const move = (pointer: globalThis.PointerEvent) => {
-      next = structuredClone(original);
-      let node = next;
+      if (pointer.pointerId !== event.pointerId) return;
+      const candidate = structuredClone(original);
+      let node = candidate;
       for (const part of divider.path) { if ('panel' in node) return; node = node[part]; }
       if ('panel' in node) return;
       const box = divider.box;
       const ratio = divider.axis === 'row' ? ((pointer.clientX - bounds.left) / bounds.width - box.x) / box.width
         : ((pointer.clientY - bounds.top) / bounds.height - box.y) / box.height;
-      node.ratio = Math.max(0.02, Math.min(0.98, ratio)); setLayout(next);
+      if (ratio <= 0 || ratio >= 1) return;
+      node.ratio = ratio; next = candidate; setLayout(next);
     };
-    const finish = (pointer: globalThis.PointerEvent) => {
-      element.removeEventListener('pointermove', move); element.removeEventListener('pointerup', finish); element.removeEventListener('pointercancel', finish);
-      dragging.current = false;
-      if (element.hasPointerCapture(pointer.pointerId)) element.releasePointerCapture(pointer.pointerId);
-      persist(pointer.type === 'pointercancel' ? original : next);
+    const finish = (commit: boolean) => {
+      element.removeEventListener('pointermove', move); element.removeEventListener('pointerup', up);
+      element.removeEventListener('pointercancel', cancel); element.removeEventListener('lostpointercapture', cancel);
+      window.removeEventListener('resize', cancel);
+      cancelResize.current = undefined;
+      setResizing(false);
+      if (element.hasPointerCapture(event.pointerId)) element.releasePointerCapture(event.pointerId);
+      if (commit) persist(next); else setLayout(savedLayout.current);
     };
-    element.addEventListener('pointermove', move); element.addEventListener('pointerup', finish); element.addEventListener('pointercancel', finish);
+    const up = (pointer: globalThis.PointerEvent) => { if (pointer.pointerId === event.pointerId) finish(true); };
+    const cancel = () => finish(false);
+    cancelResize.current = cancel;
+    element.addEventListener('pointermove', move); element.addEventListener('pointerup', up);
+    element.addEventListener('pointercancel', cancel); element.addEventListener('lostpointercapture', cancel);
+    window.addEventListener('resize', cancel);
   }
   function swap(target: string) {
     if (dragged && dragged !== target && layout) {
@@ -64,10 +87,10 @@ export function Workspace({ project, runs, report }: { project: Project; runs: R
         : { ...node, first: change(node.first), second: change(node.second) };
       persist(change(layout));
     }
-    setDragged(undefined); setDropTarget(undefined);
+    resetDrag();
   }
   return <div className="workspace"><header className="workspace-toolbar"><strong>{project.name}</strong><span className="project-path" title={project.directory}>{project.directory}</span><span className="muted">{project.panels.length} 个面板</span><button aria-label="添加 Agent" disabled={project.panels.length >= 10} onClick={() => setAdding(true)}>＋</button></header>
-    <div className="canvas" ref={canvas}>
+    <div className={`canvas ${resizing ? 'resizing' : ''}`} ref={canvas} onMouseDown={() => setMenuPanel(undefined)}>
       {!project.panels.length && <div className="empty"><p>这个项目还没有 Agent 面板</p><button onClick={() => setAdding(true)}>＋ 添加 Agent</button></div>}
       {project.panels.map(panel => {
         const box = positions.panels.get(panel.id);
@@ -75,13 +98,24 @@ export function Workspace({ project, runs, report }: { project: Project; runs: R
         const run = runs.find(run => run.panelId === panel.id);
         const position: CSSProperties = maximized === panel.id ? { left: 0, top: 0, width: '100%', height: '100%', zIndex: 2 }
           : { left: `${box.x * 100}%`, top: `${box.y * 100}%`, width: `${box.width * 100}%`, height: `${box.height * 100}%`, visibility: maximized ? 'hidden' : 'visible' };
-        return <section key={panel.id} className={`panel-slot ${panel.agent}`} style={position}><div className={`agent-panel ${focused === panel.id ? 'focused' : ''} ${dropTarget === panel.id ? 'drop-target' : ''}`} onMouseDown={() => setFocused(panel.id)}>
-          <header className="panel-header" draggable onDragStart={event => { setDragged(panel.id); event.dataTransfer.setData('text/plain', panel.id); event.dataTransfer.effectAllowed = 'move'; }} onDragOver={event => { if (dragged) { event.preventDefault(); setDropTarget(panel.id); } }} onDrop={event => { event.preventDefault(); swap(panel.id); }} onDragEnd={() => { setDragged(undefined); setDropTarget(undefined); }} onClick={() => focus(panel.id)}>
+        return <section key={panel.id} data-panel-id={panel.id} className={`panel-slot ${panel.agent}`} style={position}><div className={`agent-panel ${focused === panel.id ? 'focused' : ''} ${dropTarget === panel.id ? 'drop-target' : ''}`}
+          onMouseDown={() => setFocused(panel.id)} onFocusCapture={() => setFocused(panel.id)}
+          onDragOver={event => { if (dragged && dragged !== panel.id) { event.preventDefault(); event.dataTransfer.dropEffect = 'move'; setDropTarget(panel.id); } }}
+          onDragLeave={event => { if (!event.currentTarget.contains(event.relatedTarget as Node | null)) setDropTarget(undefined); }}
+          onDrop={event => { if (dragged) { event.preventDefault(); swap(panel.id); } }}>
+          <header className="panel-header" draggable={!maximized} onDragStart={event => {
+            if ((event.target as HTMLElement).closest('button, [role="menu"]')) { event.preventDefault(); return; }
+            setMenuPanel(undefined); setDragged(panel.id); event.dataTransfer.setData('text/plain', panel.id); event.dataTransfer.effectAllowed = 'move';
+          }} onDragEnd={resetDrag} onClick={() => focus(panel.id)}>
             <span className="agent-title"><span className="agent-mark">{agentIcons[panel.agent]}</span>{agentNames[panel.agent]}</span><span className="panel-actions">
-              <button aria-label={maximized === panel.id ? '还原面板' : '放大面板'} draggable={false} onMouseDown={event => event.stopPropagation()} onClick={event => { event.stopPropagation(); setMaximized(maximized === panel.id ? undefined : panel.id); }}>⤢</button>
-              <button aria-label="关闭面板" draggable={false} onMouseDown={event => event.stopPropagation()} onClick={event => { event.stopPropagation(); void window.workbench.closePanel(project.id, panel.id).catch(error => report(error.message)); }}>×</button>
+              <button aria-label={maximized === panel.id ? '还原面板' : '放大面板'} draggable={false} onMouseDown={event => event.stopPropagation()} onClick={event => { event.stopPropagation(); maximize(panel.id); }}>⤢</button>
+              <button aria-label="更多面板操作" aria-expanded={menuPanel === panel.id} aria-haspopup="menu" draggable={false} onMouseDown={event => event.stopPropagation()} onClick={event => { event.stopPropagation(); setMenuPanel(menuPanel === panel.id ? undefined : panel.id); }}>⋯</button>
+              <button aria-label="关闭面板" draggable={false} onMouseDown={event => event.stopPropagation()} onClick={event => { event.stopPropagation(); close(panel.id); }}>×</button>
             </span>
-          </header><TerminalView run={run} />
+          </header>{menuPanel === panel.id && <div className="panel-menu" role="menu" onMouseDown={event => event.stopPropagation()}>
+            <button role="menuitem" autoFocus onClick={() => maximize(panel.id)}>{maximized === panel.id ? '还原面板' : '放大面板'}</button>
+            <button role="menuitem" onClick={() => close(panel.id)}>关闭面板</button>
+          </div>}<TerminalView run={run} />
         </div></section>;
       })}
       {!maximized && positions.dividers.map(divider => {
@@ -92,6 +126,7 @@ export function Workspace({ project, runs, report }: { project: Project; runs: R
         return <div key={divider.path.join('.')} role="separator" aria-orientation={axis === 'row' ? 'vertical' : 'horizontal'} className="divider" style={style} onPointerDown={event => resize(event, divider)} />;
       })}
     </div>
-    {adding && <div className="modal-backdrop" onMouseDown={event => { if (event.target === event.currentTarget) setAdding(false); }}><div className="agent-picker" role="dialog" aria-modal="true" aria-label="添加 Agent" onKeyDown={event => { if (event.key === 'Escape') setAdding(false); }}><button className="picker-close" aria-label="关闭添加 Agent" onClick={() => setAdding(false)}>×</button>{agentTypes.map(type => <button key={type} autoFocus={type === 'codex'} className={`agent-option ${type}`} disabled={addingBusy} onClick={async () => { setAddingBusy(true); try { await window.workbench.addPanel(project.id, type); setAdding(false); } catch (error) { report((error as Error).message); } finally { setAddingBusy(false); } }}><span className="agent-mark">{agentIcons[type]}</span>{agentNames[type]}</button>)}</div></div>}
+    {adding && <AgentPicker projectId={project.id} full={project.panels.length >= 10} close={() => setAdding(false)}
+      added={() => { setAdding(false); setMaximized(undefined); }} />}
   </div>;
 }

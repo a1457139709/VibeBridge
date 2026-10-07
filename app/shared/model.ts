@@ -1,3 +1,5 @@
+import { layoutBoxes } from './layout';
+
 export const agentTypes = ['codex', 'claude', 'pi'] as const;
 export type AgentType = typeof agentTypes[number];
 export const agentNames: Record<AgentType, string> = { codex: 'Codex', claude: 'Claude Code', pi: 'pi' };
@@ -41,6 +43,19 @@ export function removeFromLayout(layout: Layout | null, panelId: string): Layout
   if ('panel' in layout) return layout.panel === panelId ? null : layout;
   const first = removeFromLayout(layout.first, panelId), second = removeFromLayout(layout.second, panelId);
   return first && second ? { ...layout, first, second } : first ?? second;
+}
+
+export function insertIntoLayout(layout: Layout | null, panelId: string): Layout {
+  if (!layout) return { panel: panelId };
+  let target = { panel: '', area: 0, axis: 'row' as 'row' | 'column' };
+  // Split the largest relative region. Selection is independent of focus and terminal grid size.
+  for (const [panel, { width, height }] of layoutBoxes(layout).panels) {
+    if (width * height > target.area) target = { panel, area: width * height, axis: width >= height ? 'row' : 'column' };
+  }
+  const insert = (node: Layout): Layout => 'panel' in node
+    ? node.panel === target.panel ? { axis: target.axis, ratio: 0.5, first: node, second: { panel: panelId } } : node
+    : { ...node, first: insert(node.first), second: insert(node.second) };
+  return insert(layout);
 }
 
 export function validateLayout(layout: Layout | null, panels: Panel[]): void {

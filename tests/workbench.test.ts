@@ -118,8 +118,11 @@ test('shared panel operations enforce the limit and report launch failure withou
     assert.ok(workbench.snapshot().projects[0].panels.every(panel => panel.agent === 'pi'));
     await assert.rejects(workbench.addPanel(project.id, 'codex'), /最多 10/);
     await workbench.closePanel(project.id, project.panels[0].id);
-    const added = await workbench.addPanel(project.id, 'pi');
-    assert.equal(added.launch.ok, false);
+    const additions = await Promise.allSettled([workbench.addPanel(project.id, 'pi'), workbench.addPanel(project.id, 'pi')]);
+    assert.equal(additions.filter(result => result.status === 'fulfilled').length, 1);
+    const rejected = additions.find(result => result.status === 'rejected');
+    assert.ok(rejected?.status === 'rejected');
+    assert.match(rejected.reason.message, /最多 10/);
     assert.equal(workbench.snapshot().projects[0].panels.length, 10);
   } finally { await workbench.quit(); await rm(dataDirectory, { recursive: true, force: true }); }
 });

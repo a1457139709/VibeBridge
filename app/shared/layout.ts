@@ -1,4 +1,4 @@
-import type { Layout } from '../shared/model';
+import type { Layout } from './model';
 export interface Box { x: number; y: number; width: number; height: number }
 export interface Divider { path: ('first' | 'second')[]; axis: 'row' | 'column'; ratio: number; box: Box }
 export function layoutBoxes(layout: Layout | null) {

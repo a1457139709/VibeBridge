@@ -2,7 +2,7 @@
 
 macOS 本地多项目 Agent CLI 工作台。正式应用代码在 `app/`；`plans/*prototype` 仅保留既有原型，不参与正式应用构建。
 
-本次实现对应 [#24：创建项目并启动 Agent 工作区](https://github.com/a1457139709/VibeBridge/issues/24)。提供统一创建页、真实 PTY/xterm.js、SQLite 保存、基础面板调整与退出清理、本地应用打包。全局设置页面、快捷键定制和完整跨项目故障验收属于后续交付。
+当前实现覆盖 [#24：创建项目并启动 Agent 工作区](https://github.com/a1457139709/VibeBridge/issues/24) 和 [#25：动态面板与布局操作](https://github.com/a1457139709/VibeBridge/issues/25)。提供统一创建页、真实 PTY/xterm.js、SQLite 保存、动态面板、布局调整与退出清理、本地应用打包。全局设置页面、快捷键定制和完整跨项目故障验收属于后续交付。
 
 ## 本地运行
 
@@ -56,6 +56,8 @@ npm run package
 
 关闭面板会停止运行并移除配置；退出会停止所有运行但保留面板配置。CLI 正常或异常结束会移除对应面板。启动失败仅显示“Agent 无法启动”。不解析终端文字推断处理状态，不自动恢复会话或发送通知。
 
+工作区右上角“＋”和零面板入口打开同一个 Agent 选择弹窗，每项目最多十个面板。新增时按相对面积选择最大的区域局部分割，不依赖焦点；关闭时按原分割关系合并。拖动分隔线调整比例，从顶部拖到另一面板交换位置，排列与比例自动保存。放大／还原仅改变视图，保留运行与保存布局。关闭最后一个面板后仍保留空项目。
+
 ## 验证
 
 ```sh
@@ -70,4 +72,4 @@ node scripts/test-desktop.mjs --packaged
 
 `--packaged` 使用开发 Electron 测试宿主加载 `.app` 内的产品代码和原生模块；此外需实际打开 `.app` 检查图标启动。桌面测试将继承 PATH 缩减为 `/usr/bin:/bin`，验证登录环境中的 `node` 仍能解析并直接启动。
 
-当前验收记录和剩余人工步骤见 [#24 验证记录](docs/issue-24-verification.md)。
+验收记录和剩余人工步骤见 [#24 验证记录](docs/issue-24-verification.md) 与 [#25 验证记录](docs/issue-25-verification.md)。

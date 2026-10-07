@@ -1,7 +1,7 @@
 import { agentIcons } from './agent-icons';
 import { useEffect, useState } from 'react';
 import { agentNames, agentTypes, arrange, assignedAgents, type DirectoryResult, type ProjectDraft } from '../shared/model';
-import { layoutBoxes } from './layout';
+import { layoutBoxes } from '../shared/layout';
 
 function Stepper({ label, value, decrease, increase, canDecrease, canIncrease }: { label: string; value: number; decrease(): void; increase(): void; canDecrease: boolean; canIncrease: boolean }) {
   return <div className="stepper"><button type="button" aria-label={`减少${label}`} disabled={!canDecrease} onClick={decrease}>−</button><output>{value}</output><button type="button" aria-label={`增加${label}`} disabled={!canIncrease} onClick={increase}>＋</button></div>;
