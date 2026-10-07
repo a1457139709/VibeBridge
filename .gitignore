@@ -3,3 +3,6 @@ dist.prototype/
 dist.terminal.prototype/
 *.log
 .DS_Store
+dist/
+outputs/
+work/issue-24/

@@ -1,9 +1,18 @@
 {
-  "name": "vibebridge-ui-prototype",
+  "name": "vibebridge",
   "private": true,
-  "version": "0.0.0-prototype",
+  "version": "0.1.0",
   "type": "module",
+  "main": "dist/main.cjs",
   "scripts": {
+    "prepare:runtime": "node scripts/prepare.mjs",
+    "typecheck": "tsc --noEmit",
+    "test": "node scripts/test.mjs",
+    "test:desktop": "node scripts/test-desktop.mjs",
+    "build": "npm run typecheck && node scripts/build.mjs && vite build",
+    "start": "node scripts/start.mjs",
+    "dev": "npm run build && npm start",
+    "package": "npm run prepare:runtime && npm run build && node scripts/package.mjs",
     "prototype:terminal": "node plans/terminal.prototype/launch.prototype.mjs",
     "check:terminal": "tsc --noEmit -p plans/terminal.prototype/tsconfig.json",
     "rebuild:terminal": "electron-rebuild -f -w node-pty",
@@ -25,6 +34,7 @@
     "@types/react": "19.3.0",
     "@types/react-dom": "19.3.0",
     "electron": "44.5.1",
+    "esbuild": "0.28.2",
     "typescript": "5.9.3",
     "vite": "7.3.6"
   }
