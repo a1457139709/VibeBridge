@@ -5,6 +5,7 @@ process.stdin.on('data', data => {
   const text = data.toString();
   if (text.includes('exit')) process.exit(0);
   if (text.includes('host')) process.stdout.write(`HOST:${process.ppid}\r\n`);
+  if (text.includes('later')) setTimeout(() => process.stdout.write('BACKGROUND:completed\r\n'), 300);
   if (text.includes('child')) {
     const child = spawn(process.execPath, ['-e', 'setInterval(() => {}, 1000)'], { detached: true, stdio: 'ignore' });
     process.stdout.write(`CHILD:${child.pid}\r\n`);

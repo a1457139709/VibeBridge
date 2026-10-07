@@ -13,9 +13,17 @@ function TerminalView({ run }: { run?: Run }) {
   return <div className="terminal-container" ref={container}>{run?.state === 'failed' ? <div className="terminal-message">Agent 无法启动</div> : !run ? <div className="terminal-message muted">正在启动…</div> : null}</div>;
 }
 
-export function Workspace({ project, runs, report }: { project: Project; runs: Run[]; report(message: string): void }) {
+export function Workspace({ project, runs, report, selectedPanelId, selectPanel }: { project: Project; runs: Run[]; report(message: string): void; selectedPanelId?: string; selectPanel(panelId: string): void }) {
   const [layout, setLayout] = useState(project.layout);
-  const [focused, setFocused] = useState<string>();
+  const focused = project.panels.some(panel => panel.id === selectedPanelId) ? selectedPanelId : project.panels[0]?.id;
+  const focusedRun = runs.find(run => run.panelId === focused && run.state === 'running');
+  const restoredFocus = useRef(false);
+  useEffect(() => {
+    if (focusedRun && (!restoredFocus.current || selectedPanelId !== focused)) {
+      restoredFocus.current = true;
+      focusTerminal(focusedRun.id);
+    }
+  }, [focusedRun, focused, selectedPanelId]);
   const [maximized, setMaximized] = useState<string>();
   const [adding, setAdding] = useState(false);
   const [dragged, setDragged] = useState<string>();
@@ -40,7 +48,7 @@ export function Workspace({ project, runs, report }: { project: Project; runs: R
   }, []);
   const positions = layoutBoxes(layout);
   const persist = (next: Layout | null) => { setLayout(next); void window.workbench.saveLayout(project.id, next).catch(error => report(error.message)); };
-  const focus = (panelId: string) => { setFocused(panelId); focusTerminal(runs.find(r => r.panelId === panelId)?.id); };
+  const focus = (panelId: string) => { selectPanel(panelId); focusTerminal(runs.find(r => r.panelId === panelId)?.id); };
   const maximize = (panelId: string) => { setMenuPanel(undefined); setMaximized(maximized === panelId ? undefined : panelId); focus(panelId); };
   const close = (panelId: string) => { setMenuPanel(undefined); void window.workbench.closePanel(project.id, panelId).catch(error => report(error.message)); };
   function resize(event: PointerEvent<HTMLDivElement>, divider: Divider) {
@@ -89,7 +97,8 @@ export function Workspace({ project, runs, report }: { project: Project; runs: R
     }
     resetDrag();
   }
-  return <div className="workspace"><header className="workspace-toolbar"><strong>{project.name}</strong><span className="project-path" title={project.directory}>{project.directory}</span><span className="muted">{project.panels.length} 个面板</span><button aria-label="添加 Agent" disabled={project.panels.length >= 10} onClick={() => setAdding(true)}>＋</button></header>
+  const directoryEnd = project.directory.lastIndexOf('/');
+  return <div className="workspace"><header className="workspace-toolbar"><strong title={project.name}>{project.name}</strong><span className="project-path" title={project.directory}><span className="path-parent">{project.directory.slice(0, directoryEnd)}</span><span className="path-leaf">{project.directory.slice(directoryEnd)}</span></span><span className="muted">{project.panels.length} 个面板</span><button aria-label="添加 Agent" disabled={project.panels.length >= 10} onClick={() => setAdding(true)}>＋</button></header>
     <div className={`canvas ${resizing ? 'resizing' : ''}`} ref={canvas} onMouseDown={() => setMenuPanel(undefined)}>
       {!project.panels.length && <div className="empty"><p>这个项目还没有 Agent 面板</p><button onClick={() => setAdding(true)}>＋ 添加 Agent</button></div>}
       {project.panels.map(panel => {
@@ -99,7 +108,7 @@ export function Workspace({ project, runs, report }: { project: Project; runs: R
         const position: CSSProperties = maximized === panel.id ? { left: 0, top: 0, width: '100%', height: '100%', zIndex: 2 }
           : { left: `${box.x * 100}%`, top: `${box.y * 100}%`, width: `${box.width * 100}%`, height: `${box.height * 100}%`, visibility: maximized ? 'hidden' : 'visible' };
         return <section key={panel.id} data-panel-id={panel.id} className={`panel-slot ${panel.agent}`} style={position}><div className={`agent-panel ${focused === panel.id ? 'focused' : ''} ${dropTarget === panel.id ? 'drop-target' : ''}`}
-          onMouseDown={() => setFocused(panel.id)} onFocusCapture={() => setFocused(panel.id)}
+          onMouseDown={() => selectPanel(panel.id)} onFocusCapture={() => selectPanel(panel.id)}
           onDragOver={event => { if (dragged && dragged !== panel.id) { event.preventDefault(); event.dataTransfer.dropEffect = 'move'; setDropTarget(panel.id); } }}
           onDragLeave={event => { if (!event.currentTarget.contains(event.relatedTarget as Node | null)) setDropTarget(undefined); }}
           onDrop={event => { if (dragged) { event.preventDefault(); swap(panel.id); } }}>

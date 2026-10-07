@@ -11,5 +11,13 @@ const environment = { ...process.env, VIBEBRIDGE_TEST_NODE: process.execPath, VI
   PATH: '/usr/bin:/bin',
   VIBEBRIDGE_TEST_ENTRY: packaged ? resolve('outputs/VibeBridge.app/Contents/Resources/app/dist/main.cjs') : resolve('dist/main.cjs') };
 delete environment.ELECTRON_RUN_AS_NODE;
-const child = spawn(binary, ['tests/desktop.cjs'], { env: environment, stdio: 'inherit' });
-child.on('exit', async code => { await rm(directory, { recursive: true, force: true }); process.exitCode = code ?? 1; });
+try {
+  for (const reopen of [false, true]) {
+    const code = await new Promise((resolve, reject) => {
+      const child = spawn(binary, ['tests/desktop.cjs'], { env: { ...environment, ...(reopen ? { VIBEBRIDGE_TEST_REOPEN: '1' } : {}) }, stdio: 'inherit' });
+      child.on('error', reject);
+      child.on('exit', resolve);
+    });
+    if (code !== 0) { process.exitCode = code ?? 1; break; }
+  }
+} finally { await rm(directory, { recursive: true, force: true }); }
