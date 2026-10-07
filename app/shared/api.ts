@@ -1,12 +1,12 @@
-import type { AgentType, DirectoryResult, Layout, Project, ProjectDraft, Snapshot, WorkbenchEvent } from './model';
+import type { AgentType, DirectoryResult, Layout, ProjectCreation, PanelCreation, ProjectDraft, Snapshot, WorkbenchEvent } from './model';
 
 export interface DesktopAPI {
   snapshot(): Promise<Snapshot>;
-  createProject(draft: ProjectDraft): Promise<Project>;
+  createProject(draft: ProjectDraft): Promise<ProjectCreation>;
   inspectDirectory(directory: string): Promise<DirectoryResult>;
   chooseDirectory(): Promise<string | null>;
   activateProject(id: string): Promise<void>;
-  addPanel(projectId: string, agent: AgentType): Promise<void>;
+  addPanel(projectId: string, agent: AgentType): Promise<PanelCreation>;
   closePanel(projectId: string, panelId: string): Promise<void>;
   saveLayout(projectId: string, layout: Layout | null): Promise<void>;
   sendInput(runId: string, data: string): Promise<void>;

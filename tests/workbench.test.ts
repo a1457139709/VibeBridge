@@ -38,7 +38,7 @@ test('confirmed projects start independent runs in the selected directory and re
     const settings = workbench.snapshot().settings;
     for (const type of ['codex', 'claude', 'pi'] as const) settings.agents[type] = { command: process.env.VIBEBRIDGE_TEST_NODE!, args: [resolve('tests/fixtures/interactive.cjs')] };
     await workbench.saveSettings(settings);
-    const project = await workbench.createProject({ name: 'Three agents', directory: dataDirectory, total: 3, counts: { codex: 1, claude: 1, pi: 1 } });
+    const { project } = await workbench.createProject({ name: 'Three agents', directory: dataDirectory, total: 3, counts: { codex: 1, claude: 1, pi: 1 } });
     assert.deepEqual(project.panels.map(p => p.agent), ['codex', 'claude', 'pi']);
     const runs = workbench.snapshot().runs;
     assert.equal(runs.length, 3);
@@ -72,7 +72,7 @@ test('quit cleans up runs and detached children while preserving the saved works
     await workbench.saveSettings(settings);
     const events: WorkbenchEvent[] = [];
     workbench.subscribe(event => events.push(event));
-    const project = await workbench.createProject({ name: 'Persistent', directory: dataDirectory, total: 2, counts: { codex: 2, claude: 0, pi: 0 } });
+    const { project } = await workbench.createProject({ name: 'Persistent', directory: dataDirectory, total: 2, counts: { codex: 2, claude: 0, pi: 0 } });
     const oldRuns = workbench.snapshot().runs;
     await until(() => events.some(e => e.kind === 'output' && e.data.includes('READY:')));
     await workbench.sendInput(oldRuns[0].id, 'child');
@@ -111,12 +111,15 @@ test('shared panel operations enforce the limit and report launch failure withou
     const settings = workbench.snapshot().settings;
     settings.agents.pi = { command: '/no-such-agent', args: [] };
     await workbench.saveSettings(settings);
-    const project = await workbench.createProject({ name: 'Limit', directory: dataDirectory, total: 10, counts: { codex: 0, claude: 0, pi: 10 } });
+    const { project, launches } = await workbench.createProject({ name: 'Limit', directory: dataDirectory, total: 10, counts: { codex: 0, claude: 0, pi: 10 } });
+    assert.equal(launches.length, 10);
+    assert.ok(launches.every(launch => !launch.ok && launch.error === 'Agent 无法启动'));
     assert.ok(workbench.snapshot().runs.every(run => run.state === 'failed'));
     assert.ok(workbench.snapshot().projects[0].panels.every(panel => panel.agent === 'pi'));
     await assert.rejects(workbench.addPanel(project.id, 'codex'), /最多 10/);
     await workbench.closePanel(project.id, project.panels[0].id);
-    await workbench.addPanel(project.id, 'pi');
+    const added = await workbench.addPanel(project.id, 'pi');
+    assert.equal(added.launch.ok, false);
     assert.equal(workbench.snapshot().projects[0].panels.length, 10);
   } finally { await workbench.quit(); await rm(dataDirectory, { recursive: true, force: true }); }
 });
@@ -131,5 +134,16 @@ test('damaged configuration is reported and preserved instead of being overwritt
     await assert.rejects(workbench.saveSettings(workbench.snapshot().settings), /未覆盖原配置/);
     await assert.rejects(workbench.quit(), /未覆盖原配置/);
     assert.equal(await readFile(`${directory}/settings.json`, 'utf8'), damaged);
+  } finally { await rm(directory, { recursive: true, force: true }); }
+});
+
+test('a project database read failure does not overwrite the existing user configuration', async () => {
+  const directory = await mkdtemp(resolve('work/issue-24/check-'));
+  const settings = '{ "theme": "dark", "agents": { "codex": { "command": "custom-codex", "args": [] }, "claude": { "command": "claude", "args": [] }, "pi": { "command": "pi", "args": [] } } }';
+  await writeFile(`${directory}/settings.json`, settings);
+  await writeFile(`${directory}/projects.sqlite`, 'damaged database');
+  try {
+    await assert.rejects(Workbench.open(directory));
+    assert.equal(await readFile(`${directory}/settings.json`, 'utf8'), settings);
   } finally { await rm(directory, { recursive: true, force: true }); }
 });

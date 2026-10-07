@@ -1,7 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import { realpath, stat } from 'node:fs/promises';
 import { basename } from 'node:path';
-import { assignedAgents, arrange, validateDraft, removeFromLayout, validateLayout, agentTypes, type AgentType, type DirectoryResult, type Layout, type Panel, type Project, type ProjectDraft, type Settings, type Snapshot, type TerminalEvent, type WorkbenchEvent } from '../shared/model';
+import { assignedAgents, arrange, validateDraft, removeFromLayout, validateLayout, agentTypes, type AgentType, type DirectoryResult, type LaunchResult, type Layout, type Panel, type Project, type ProjectCreation, type ProjectDraft, type PanelCreation, type Settings, type Snapshot, type TerminalEvent, type WorkbenchEvent } from '../shared/model';
 import { ProjectStore } from './storage';
 import { SettingsFile, defaultSettings } from './settings';
 import { TerminalClient } from './terminal-client';
@@ -26,7 +26,11 @@ export class Workbench {
       try { workbench.state.settings = await workbench.settingsFile.read(); }
       catch (error) { workbench.state.errors.push((error as Error).message); }
       return workbench;
-    } catch (error) { await workbench.quit(); throw error; }
+    } catch (error) {
+      workbench.quitting = true;
+      await Promise.allSettled([workbench.terminal.shutdown(), store.close()]);
+      throw error;
+    }
   }
   snapshot(): Snapshot { return structuredClone(this.state); }
   subscribe(listener: (event: WorkbenchEvent) => void) { this.listeners.add(listener); return () => { this.listeners.delete(listener); }; }
@@ -68,7 +72,7 @@ export class Workbench {
       return { valid: true, directory, name: basename(directory), existingProjectId: this.state.projects.find(p => p.directory === directory)?.id };
     } catch { return { valid: false }; }
   }
-  createProject(draft: ProjectDraft) { return this.operation(async () => {
+  createProject(draft: ProjectDraft): Promise<ProjectCreation> { return this.operation(async () => {
     validateDraft(draft);
     const directory = await this.inspectDirectory(draft.directory);
     if (!directory.valid) throw new Error('项目目录无效');
@@ -80,18 +84,21 @@ export class Workbench {
     this.state.activeProjectId = project.id;
     await this.store.active(project.id);
     this.changed();
-    await this.startProject(project);
-    return structuredClone(project);
+    const launches = await this.startProject(project);
+    return { project: structuredClone(project), launches };
   }); }
-  private async startPanel(project: Project, panel: Panel) {
+  private async startPanel(project: Project, panel: Panel): Promise<LaunchResult> {
     const id = randomUUID();
     this.expectedRuns.set(panel.id, id);
-    await this.terminal.start({ id, panelId: panel.id, projectId: project.id, directory: project.directory, command: this.state.settings.agents[panel.agent] });
+    const run = await this.terminal.start({ id, panelId: panel.id, projectId: project.id, directory: project.directory, command: this.state.settings.agents[panel.agent] });
+    return run.state === 'failed' ? { ok: false, run, error: 'Agent 无法启动' } : { ok: true, run };
   }
-  private async startProject(project: Project) {
-    if (this.visited.has(project.id)) return;
+  private async startProject(project: Project): Promise<LaunchResult[]> {
+    if (this.visited.has(project.id)) return [];
     this.visited.add(project.id);
-    for (const panel of project.panels) await this.startPanel(project, panel);
+    const launches: LaunchResult[] = [];
+    for (const panel of project.panels) launches.push(await this.startPanel(project, panel));
+    return launches;
   }
   activateProject(id: string) { return this.operation(async () => {
     const project = this.project(id);
@@ -100,7 +107,7 @@ export class Workbench {
     await this.store.active(id);
     await this.startProject(project);
   }); }
-  addPanel(projectId: string, agent: AgentType) { return this.operation(async () => {
+  addPanel(projectId: string, agent: AgentType): Promise<PanelCreation> { return this.operation(async () => {
     const project = this.project(projectId);
     if (!agentTypes.includes(agent)) throw new Error('Agent 类型无效');
     if (project.panels.length >= 10) throw new Error('每个项目最多 10 个面板');
@@ -108,8 +115,8 @@ export class Workbench {
     const next = { ...project, panels: [...project.panels, panel], layout: arrange([...project.panels.map(p => p.id), panel.id]) };
     await this.store.save(next);
     Object.assign(project, next); this.changed();
-    await this.startPanel(project, panel);
-    return panel;
+    const launch = await this.startPanel(project, panel);
+    return { panel: structuredClone(panel), launch };
   }); }
   private async removePanel(projectId: string, panelId: string) {
     const project = this.project(projectId);

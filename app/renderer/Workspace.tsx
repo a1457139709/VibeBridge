@@ -1,3 +1,4 @@
+import { agentIcons } from './agent-icons';
 import { useEffect, useRef, useState, type CSSProperties, type PointerEvent } from 'react';
 import { agentNames, agentTypes, type Layout, type Project, type Run } from '../shared/model';
 import { layoutBoxes, type Divider } from './layout';
@@ -76,7 +77,7 @@ export function Workspace({ project, runs, report }: { project: Project; runs: R
           : { left: `${box.x * 100}%`, top: `${box.y * 100}%`, width: `${box.width * 100}%`, height: `${box.height * 100}%`, visibility: maximized ? 'hidden' : 'visible' };
         return <section key={panel.id} className={`panel-slot ${panel.agent}`} style={position}><div className={`agent-panel ${focused === panel.id ? 'focused' : ''} ${dropTarget === panel.id ? 'drop-target' : ''}`} onMouseDown={() => setFocused(panel.id)}>
           <header className="panel-header" draggable onDragStart={event => { setDragged(panel.id); event.dataTransfer.setData('text/plain', panel.id); event.dataTransfer.effectAllowed = 'move'; }} onDragOver={event => { if (dragged) { event.preventDefault(); setDropTarget(panel.id); } }} onDrop={event => { event.preventDefault(); swap(panel.id); }} onDragEnd={() => { setDragged(undefined); setDropTarget(undefined); }} onClick={() => focus(panel.id)}>
-            <span className="agent-title"><span className="agent-mark">{panel.agent === 'codex' ? '⌘' : panel.agent === 'claude' ? '✳' : 'π'}</span>{agentNames[panel.agent]}</span><span className="panel-actions">
+            <span className="agent-title"><span className="agent-mark">{agentIcons[panel.agent]}</span>{agentNames[panel.agent]}</span><span className="panel-actions">
               <button aria-label={maximized === panel.id ? '还原面板' : '放大面板'} draggable={false} onMouseDown={event => event.stopPropagation()} onClick={event => { event.stopPropagation(); setMaximized(maximized === panel.id ? undefined : panel.id); }}>⤢</button>
               <button aria-label="关闭面板" draggable={false} onMouseDown={event => event.stopPropagation()} onClick={event => { event.stopPropagation(); void window.workbench.closePanel(project.id, panel.id).catch(error => report(error.message)); }}>×</button>
             </span>
@@ -91,6 +92,6 @@ export function Workspace({ project, runs, report }: { project: Project; runs: R
         return <div key={divider.path.join('.')} role="separator" aria-orientation={axis === 'row' ? 'vertical' : 'horizontal'} className="divider" style={style} onPointerDown={event => resize(event, divider)} />;
       })}
     </div>
-    {adding && <div className="modal-backdrop" onMouseDown={event => { if (event.target === event.currentTarget) setAdding(false); }}><div className="agent-picker" role="dialog" aria-modal="true" aria-label="添加 Agent" onKeyDown={event => { if (event.key === 'Escape') setAdding(false); }}><button className="picker-close" aria-label="关闭添加 Agent" onClick={() => setAdding(false)}>×</button>{agentTypes.map(type => <button key={type} autoFocus={type === 'codex'} className={`agent-option ${type}`} disabled={addingBusy} onClick={async () => { setAddingBusy(true); try { await window.workbench.addPanel(project.id, type); setAdding(false); } catch (error) { report((error as Error).message); } finally { setAddingBusy(false); } }}><span className="agent-mark">{type === 'codex' ? '⌘' : type === 'claude' ? '✳' : 'π'}</span>{agentNames[type]}</button>)}</div></div>}
+    {adding && <div className="modal-backdrop" onMouseDown={event => { if (event.target === event.currentTarget) setAdding(false); }}><div className="agent-picker" role="dialog" aria-modal="true" aria-label="添加 Agent" onKeyDown={event => { if (event.key === 'Escape') setAdding(false); }}><button className="picker-close" aria-label="关闭添加 Agent" onClick={() => setAdding(false)}>×</button>{agentTypes.map(type => <button key={type} autoFocus={type === 'codex'} className={`agent-option ${type}`} disabled={addingBusy} onClick={async () => { setAddingBusy(true); try { await window.workbench.addPanel(project.id, type); setAdding(false); } catch (error) { report((error as Error).message); } finally { setAddingBusy(false); } }}><span className="agent-mark">{agentIcons[type]}</span>{agentNames[type]}</button>)}</div></div>}
   </div>;
 }

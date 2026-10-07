@@ -9,6 +9,9 @@ export interface Project { id: string; name: string; directory: string; panels: 
 export interface AgentCommand { command: string; args: string[] }
 export interface Settings { theme: 'system' | 'dark' | 'light'; agents: Record<AgentType, AgentCommand> }
 export interface Run { id: string; projectId: string; panelId: string; state: 'running' | 'failed'; pid?: number }
+export type LaunchResult = { ok: true; run: Run } | { ok: false; run: Run; error: 'Agent 无法启动' };
+export interface ProjectCreation { project: Project; launches: LaunchResult[] }
+export interface PanelCreation { panel: Panel; launch: LaunchResult }
 export interface Snapshot { projects: Project[]; activeProjectId: string | null; runs: Run[]; settings: Settings; errors: string[] }
 export type TerminalEvent = { kind: 'output'; runId: string; data: string } | { kind: 'started'; run: Run } | { kind: 'exit'; runId: string };
 export type WorkbenchEvent = TerminalEvent | { kind: 'snapshot'; snapshot: Snapshot } | { kind: 'error'; message: string };
