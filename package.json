@@ -13,12 +13,7 @@
     "start": "node scripts/start.mjs",
     "dev": "npm run build && npm start",
     "package": "npm run prepare:runtime && npm run build && node scripts/package.mjs",
-    "prototype:terminal": "node plans/terminal.prototype/launch.prototype.mjs",
-    "check:terminal": "tsc --noEmit -p plans/terminal.prototype/tsconfig.json",
-    "rebuild:terminal": "electron-rebuild -f -w node-pty",
-    "prototype": "vite --config plans/ui.prototype/vite.config.ts",
-    "check:prototype": "tsc --noEmit -p plans/ui.prototype/tsconfig.json",
-    "build:prototype": "npm run check:prototype && vite build --config plans/ui.prototype/vite.config.ts"
+    "rebuild:terminal": "electron-rebuild -f -w node-pty"
   },
   "dependencies": {
     "@xterm/addon-fit": "0.11.0",

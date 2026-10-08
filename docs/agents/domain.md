@@ -4,12 +4,11 @@ How the engineering skills consume this project's domain documentation.
 
 ## Layout
 
-This is a single-context project: `CONTEXT.md` at the root for the domain glossary, and `docs/adr/` for architecture decision records.
-The current glossary lives at `plans/CONTEXT.md`; use it while root `CONTEXT.md` is absent.
+This is a single-context project: `plans/GLOSSARY.md` for the domain glossary, and `docs/adr/` for architecture decision records.
 
 ## Before exploring, read these
 
-- Read root `CONTEXT.md` when it exists; otherwise read `plans/CONTEXT.md`.
+- Read `plans/GLOSSARY.md`.
 - Read ADRs in `docs/adr/` that concern the area being explored.
 
 If these documents are absent, proceed silently. The `/domain-modeling` skill creates domain docs lazily when terms or decisions are resolved.
@@ -18,11 +17,10 @@ If these documents are absent, proceed silently. The `/domain-modeling` skill cr
 
 ```text
 /
-├── CONTEXT.md       # Root glossary when created
 ├── docs/
 │   └── adr/         # Architecture decision records when created
 └── plans/
-    └── CONTEXT.md   # Current glossary; fallback while root glossary is absent
+    └── GLOSSARY.md  # Domain glossary
 ```
 
 ## Use the glossary's vocabulary

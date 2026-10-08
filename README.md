@@ -1,6 +1,6 @@
 # VibeBridge
 
-macOS 本地多项目 Agent CLI 工作台。正式应用代码在 `app/`；`plans/*prototype` 仅保留既有原型，不参与正式应用构建。
+macOS 本地多项目 Agent CLI 工作台。正式应用代码在 `app/`；产品规格维护在 [GitHub #19](https://github.com/a1457139709/VibeBridge/issues/19)，领域术语见 [GLOSSARY](plans/GLOSSARY.md)。
 
 当前实现覆盖 [#24：创建项目并启动 Agent 工作区](https://github.com/a1457139709/VibeBridge/issues/24)、[#25：动态面板与布局操作](https://github.com/a1457139709/VibeBridge/issues/25)、[#26：多项目切换与重开恢复](https://github.com/a1457139709/VibeBridge/issues/26)、[#27：全局设置、主题与快捷键](https://github.com/a1457139709/VibeBridge/issues/27) 和 [#28：退出、故障清理与完整流程验收](https://github.com/a1457139709/VibeBridge/issues/28)。提供真实 PTY/xterm.js、SQLite 保存、动态面板、布局调整、项目切换、统一设置与退出清理、本地应用打包。真实 CLI、输入法及视觉体验的待验收步骤见验证记录。
 
