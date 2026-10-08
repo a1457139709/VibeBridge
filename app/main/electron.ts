@@ -63,6 +63,11 @@ void app.whenReady().then(async () => {
   handle('check-command', (service, command) => service.checkCommand(command));
   handle('input', (service, run, data) => service.sendInput(run, data));
   handle('resize', (service, run, cols, rows) => service.resizeRun(run, cols, rows));
+  ipcMain.on('workbench:output-consumed', (event, run, characters) => {
+    if (event.sender === window!.webContents && event.senderFrame?.url === page) {
+      void workbench.then(service => service.acknowledgeOutput(run, characters));
+    }
+  });
   handle('choose-directory', async () => {
     const choice = await dialog.showOpenDialog(window!, { properties: ['openDirectory'] });
     return choice.canceled ? null : choice.filePaths[0];

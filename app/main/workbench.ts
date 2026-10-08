@@ -15,12 +15,18 @@ export class Workbench {
   private expectedRuns = new Map<string, string>();
   private quitting = false;
   private quitPromise?: Promise<void>;
-  private constructor(private store: ProjectStore, private settingsFile: SettingsFile) {
-    this.terminal = new TerminalClient(event => this.terminalEvent(event), message => this.report(message));
+  private constructor(directory: string, private store: ProjectStore, private settingsFile: SettingsFile) {
+    this.terminal = new TerminalClient(directory, event => this.terminalEvent(event), (message, stopped) => {
+      if (stopped) {
+        for (const run of this.state.runs) if (run.state === 'running') run.state = 'stopped';
+        this.changed();
+      }
+      this.report(message);
+    });
   }
   static async open(directory: string, systemDark = false) {
     const store = await ProjectStore.open(directory);
-    const workbench = new Workbench(store, new SettingsFile(directory));
+    const workbench = new Workbench(directory, store, new SettingsFile(directory));
     try {
       Object.assign(workbench.state, await store.load());
       try { workbench.state.settings = await workbench.settingsFile.read(); }
@@ -149,6 +155,7 @@ export class Workbench {
   }); }
   sendInput(runId: string, data: string) { return this.terminal.input(runId, data); }
   resizeRun(runId: string, cols: number, rows: number) { return this.terminal.resize(runId, cols, rows); }
+  acknowledgeOutput(runId: string, characters: number) { this.terminal.acknowledgeOutput(runId, characters); }
   checkCommand(command: string) { return this.terminal.checkCommand(command); }
   saveSettings(patch: Partial<Settings>) {
     const update = structuredClone(patch);

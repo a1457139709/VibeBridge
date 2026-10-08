@@ -14,6 +14,7 @@ const api: DesktopAPI = {
   checkCommand: command => ipcRenderer.invoke('workbench:check-command', command),
   sendInput: (run, data) => ipcRenderer.invoke('workbench:input', run, data),
   resizeRun: (run, cols, rows) => ipcRenderer.invoke('workbench:resize', run, cols, rows),
+  acknowledgeOutput: (run, characters) => ipcRenderer.send('workbench:output-consumed', run, characters),
   ready: () => ipcRenderer.invoke('workbench:ready'),
   subscribe: listener => {
     const receive = (_event: Electron.IpcRendererEvent, value: Parameters<typeof listener>[0]) => listener(value);

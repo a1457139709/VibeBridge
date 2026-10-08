@@ -2,7 +2,7 @@ import { Terminal, type ITheme } from '@xterm/xterm';
 import { FitAddon } from '@xterm/addon-fit';
 import type { Run, WorkbenchEvent } from '../shared/model';
 
-interface Screen { terminal: Terminal; fit: FitAddon; element: HTMLDivElement; observer: ResizeObserver; opened: boolean }
+interface Screen { terminal: Terminal; fit: FitAddon; element: HTMLDivElement; observer: ResizeObserver; opened: boolean; consumed: number }
 const screens = new Map<string, Screen>();
 let theme: ITheme;
 let report: (message: string) => void;
@@ -22,7 +22,7 @@ function ensure(runId: string): Screen {
     if (!element.clientWidth || !element.clientHeight) return;
     fit.fit();
   });
-  const screen = { terminal, fit, element, observer, opened: false };
+  const screen = { terminal, fit, element, observer, opened: false, consumed: 0 };
   screens.set(runId, screen);
   terminal.onData(data => { void window.workbench.sendInput(runId, data).catch(error => report(error.message)); });
   terminal.onResize(({ cols, rows }) => { void window.workbench.resizeRun(runId, cols, rows).catch(error => report(error.message)); });
@@ -35,7 +35,17 @@ function ensure(runId: string): Screen {
 }
 export function terminalEvent(event: WorkbenchEvent) {
   if (event.kind === 'started' && event.run.state === 'running') ensure(event.run.id);
-  if (event.kind === 'output') screens.get(event.runId)?.terminal.write(event.data);
+  if (event.kind === 'output') {
+    const screen = screens.get(event.runId);
+    screen?.terminal.write(event.data, () => {
+      if (screens.get(event.runId) !== screen) return;
+      screen.consumed += event.data.length;
+      if (screen.consumed >= 32 * 1024) {
+        window.workbench.acknowledgeOutput(event.runId, screen.consumed);
+        screen.consumed = 0;
+      }
+    });
+  }
   if (event.kind === 'exit') dispose(event.runId);
 }
 export function reconcileTerminals(runs: Run[]) {

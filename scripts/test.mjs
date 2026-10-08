@@ -8,7 +8,7 @@ const files = process.argv.slice(2);
 const entries = files.length ? files : (await readdir('tests')).filter(f => f.endsWith('.test.ts')).map(f => `tests/${f}`);
 await build({ entryPoints: entries, outdir: 'work/issue-24/tests', bundle: true, platform: 'node',
   format: 'cjs', outExtension: { '.js': '.cjs' }, external: ['node-pty', 'electron'] });
-await build({ entryPoints: { storage: 'app/main/storage-worker.ts', terminal: 'app/terminal/host.ts' }, outdir: 'work/issue-24/tests', bundle: true,
+await build({ entryPoints: { storage: 'app/main/storage-worker.ts', terminal: 'app/terminal/host.ts', 'workbench-process': 'tests/fixtures/workbench-process.ts' }, outdir: 'work/issue-24/tests', bundle: true,
   platform: 'node', format: 'cjs', outExtension: { '.js': '.cjs' }, external: ['node-pty'] });
 const binary = resolve('node_modules/electron/dist', (await readFile('node_modules/electron/path.txt', 'utf8')).trim());
 const result = spawnSync(binary, ['--test', ...entries.map(f => resolve('work/issue-24/tests', f.split('/').at(-1).replace('.ts', '.cjs')))],

@@ -13,6 +13,7 @@ export interface DesktopAPI {
   checkCommand(command: string): Promise<CommandCheck>;
   sendInput(runId: string, data: string): Promise<void>;
   resizeRun(runId: string, cols: number, rows: number): Promise<void>;
+  acknowledgeOutput(runId: string, characters: number): void;
   subscribe(listener: (event: WorkbenchEvent) => void): () => void;
   ready(): Promise<void>;
 }

@@ -111,7 +111,7 @@ void (async () => {
     assert.match(await evaluate('document.body.innerText'), /已分配 3 \/ 3/);
     assert.equal(await evaluate(`document.getElementById('project-directory').value`), directory);
     await until(() => evaluate(`!document.querySelector('button[type="submit"]').disabled`));
-    await evaluate(`window.observedOutput = []; window.workbench.subscribe(event => { if (event.kind === 'output') window.observedOutput.push(event); }); void 0;`);
+    await evaluate(`window.observedOutput = []; window.workbench.subscribe(event => { if (event.kind === 'output' && !window.loadActive) window.observedOutput.push(event); }); void 0;`);
     await click('创建并启动');
     await until(() => evaluate(`document.querySelectorAll('.xterm').length === 3`));
     const before = await evaluate('window.workbench.snapshot()');
@@ -232,6 +232,7 @@ void (async () => {
     await until(() => evaluate(`document.activeElement?.closest('[data-panel-id]')?.dataset.panelId === ${JSON.stringify(selectedPanel)}`));
     await click('展开项目导航');
     await require('./settings-desktop.cjs')({ window, evaluate, click, fill, until });
+    await require('./load-desktop.cjs')({ window, evaluate, click, until });
     const { project: empty } = await create('Empty project', emptyDirectory, 1);
     await evaluate(`window.workbench.closePanel(${JSON.stringify(empty.id)}, ${JSON.stringify(empty.panels[0].id)})`);
     await click(second.name);
@@ -240,6 +241,10 @@ void (async () => {
     const quitRuns = (await evaluate('window.workbench.snapshot()')).runs;
     window.close();
     await until(() => confirmations === 1);
+    assert.equal(window.isDestroyed(), false);
+    assert.deepEqual((await evaluate('window.workbench.snapshot()')).runs, quitRuns);
+    app.quit();
+    await until(() => confirmations === 2);
     assert.equal(window.isDestroyed(), false);
     assert.deepEqual((await evaluate('window.workbench.snapshot()')).runs, quitRuns);
     answer = 1;

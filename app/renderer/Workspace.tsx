@@ -13,7 +13,7 @@ function TerminalView({ run }: { run?: Run }) {
   useEffect(() => {
     if (run?.state === 'running' && container.current) return mountTerminal(run.id, container.current);
   }, [run?.id, run?.state]);
-  return <div className="terminal-container" ref={container}>{run?.state === 'failed' ? <div className="terminal-message">Agent 无法启动</div> : !run ? <div className="terminal-message muted">正在启动…</div> : null}</div>;
+  return <div className="terminal-container" ref={container}>{run?.state === 'failed' ? <div className="terminal-message">Agent 无法启动</div> : run?.state === 'stopped' ? <div className="terminal-message">运行已结束，请重新打开工作台</div> : !run ? <div className="terminal-message muted">正在启动…</div> : null}</div>;
 }
 
 export function Workspace({ project, runs, report, selectedPanelId, selectPanel, visible, ref }: { project: Project; runs: Run[]; report(message: string): void; selectedPanelId?: string; selectPanel(panelId: string): void; visible: boolean; ref: Ref<WorkspaceActions> }) {

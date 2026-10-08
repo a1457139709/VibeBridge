@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { mkdtemp, rm } from 'node:fs/promises';
+import { mkdir, mkdtemp, readFile, rm } from 'node:fs/promises';
 import { resolve } from 'node:path';
 import { Workbench } from '../app/main/workbench';
 import type { WorkbenchEvent } from '../app/shared/model';
@@ -100,6 +100,7 @@ test('terminal manager failure cleans up runs without removing saved panel confi
   const directory = await mkdtemp(resolve('work/panels-'));
   let workbench = await Workbench.open(directory);
   let hostStopped = false;
+  let orphanPid = 0;
   try {
     const settings = workbench.snapshot().settings;
     settings.agents.codex = { command: process.env.VIBEBRIDGE_TEST_NODE!, args: [resolve('tests/fixtures/interactive.cjs')] };
@@ -107,23 +108,31 @@ test('terminal manager failure cleans up runs without removing saved panel confi
     let output = '';
     workbench.subscribe(event => { if (event.kind === 'output') output += event.data; });
     const { project } = await workbench.createProject({ name: 'Fault cleanup', directory, total: 2, counts: { codex: 2, claude: 0, pi: 0 } });
+    await mkdir(resolve(directory, 'second'));
+    const { project: second } = await workbench.createProject({ name: 'Background cleanup', directory: resolve(directory, 'second'), total: 1, counts: { codex: 1, claude: 0, pi: 0 } });
     const runs = workbench.snapshot().runs;
     await until(() => output.includes('READY:'));
     await workbench.sendInput(runs[0].id, 'host');
     await until(() => /HOST:(\d+)/.test(output));
+    await workbench.sendInput(runs[0].id, 'orphan');
+    await until(() => /ORPHAN:(\d+)/.test(output));
+    orphanPid = Number(output.match(/ORPHAN:(\d+)/)![1]);
     process.kill(Number(output.match(/HOST:(\d+)/)![1]), 'SIGKILL');
     hostStopped = true;
-    await until(() => workbench.snapshot().errors.includes('终端管理进程已结束'));
-    await until(() => runs.every(run => {
-      try { process.kill(run.pid!, 0); return false; } catch { return true; }
+    await until(() => workbench.snapshot().errors.some(message => message.includes('终端管理进程已结束')));
+    await until(() => [...runs.map(run => run.pid!), orphanPid].every(pid => {
+      try { process.kill(pid, 0); return false; } catch { return true; }
     }));
-    assert.deepEqual(workbench.snapshot().projects[0], project);
+    assert.deepEqual(workbench.snapshot().projects, [project, second]);
+    assert.ok(workbench.snapshot().runs.every(run => run.state !== 'running'));
     await assert.rejects(workbench.sendInput(runs[0].id, 'after-fault'), /终端管理进程已结束/);
     await assert.rejects(workbench.quit(), /终端管理进程已结束/);
+    assert.match(await readFile(resolve(directory, 'last-failure.json'), 'utf8'), /SIGKILL/);
     workbench = await Workbench.open(directory);
     hostStopped = false;
-    assert.deepEqual(workbench.snapshot().projects[0], project);
+    assert.deepEqual(workbench.snapshot().projects, [project, second]);
   } finally {
+    if (orphanPid) { try { process.kill(orphanPid, 'SIGKILL'); } catch { /* already cleaned */ } }
     if (hostStopped) await workbench.quit().catch(() => {}); else await workbench.quit();
     await rm(directory, { recursive: true, force: true });
   }

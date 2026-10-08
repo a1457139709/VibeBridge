@@ -13,7 +13,7 @@ export interface AgentCommand { command: string; args: string[] }
 export type DefaultLayout = 'auto' | 'row' | 'column';
 export interface Settings { theme: 'system' | 'dark' | 'light'; defaultLayout: DefaultLayout; agents: Record<AgentType, AgentCommand>; shortcuts: Shortcuts }
 export type CommandCheck = { available: true; path: string } | { available: false; message: string };
-export interface Run { id: string; projectId: string; panelId: string; state: 'running' | 'failed'; pid?: number }
+export interface Run { id: string; projectId: string; panelId: string; state: 'running' | 'failed' | 'stopped'; pid?: number }
 export type LaunchResult = { ok: true; run: Run } | { ok: false; run: Run; error: 'Agent 无法启动' };
 export interface ProjectCreation { project: Project; launches: LaunchResult[] }
 export interface PanelCreation { panel: Panel; launch: LaunchResult }

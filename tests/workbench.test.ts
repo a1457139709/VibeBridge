@@ -83,8 +83,11 @@ test('quit cleans up runs and detached children while preserving the saved works
       return !!childPid;
     });
     const layout = { axis: 'row' as const, ratio: 0.7, first: { panel: project.panels[1].id }, second: { panel: project.panels[0].id } };
-    await workbench.saveLayout(project.id, layout);
+    const saving = workbench.saveLayout(project.id, layout);
+    const quitStarted = Date.now();
     await workbench.quit();
+    await saving;
+    assert.ok(Date.now() - quitStarted < 1800, 'cooperative runs should not wait for the two-second force deadline');
     for (const pid of [...oldRuns.map(r => r.pid!), childPid]) assert.throws(() => process.kill(pid, 0));
     workbench = await Workbench.open(dataDirectory);
     assert.equal(workbench.snapshot().activeProjectId, project.id);

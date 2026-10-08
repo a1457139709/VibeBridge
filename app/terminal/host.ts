@@ -2,41 +2,65 @@ import * as pty from 'node-pty';
 import type { AgentCommand, Run, TerminalEvent } from '../shared/model';
 import { commandEnvironment, executable } from './environment';
 import { descendants, processTable, stopProcesses, type ProcessIdentity } from './processes';
+import { recordFailure } from './failure';
 
-const runs = new Map<string, { run: Run; terminal: pty.IPty; processes: ProcessIdentity[]; stopping: boolean }>();
+interface ManagedRun {
+  run: Run; terminal: pty.IPty; processes: ProcessIdentity[]; stopping: boolean; stop?: Promise<void>;
+  outstanding: number; paused: boolean; draining: boolean;
+}
+const runs = new Map<string, ManagedRun>();
+const owner = process.env.VIBEBRIDGE_HOST_OWNER!;
 let environment: Promise<Record<string, string>> | undefined;
 let closing = false;
-const send = (message: unknown) => { if (process.connected) process.send!(message); };
+// A peer can die between the connected check and the write. Let disconnect own cleanup.
+const send = (message: unknown) => { if (process.connected) process.send!(message, () => {}); };
 const event = (value: TerminalEvent) => send({ event: value });
-let sampling = false;
-async function sample() {
-  if (sampling) return;
-  sampling = true;
-  try {
+let sampling: Promise<void> | undefined;
+function sample(): Promise<void> {
+  sampling ??= (async () => {
     const table = await processTable();
     for (const entry of runs.values()) entry.processes = descendants(table, entry.processes);
     send({ processes: [...runs.values()].flatMap(entry => entry.processes) });
-  } finally { sampling = false; }
+  })().finally(() => { sampling = undefined; });
+  return sampling;
 }
 const sampler = setInterval(() => { void sample().catch(error => console.error(error.message)); }, 500);
+
+function drainAfterKill(entry: ManagedRun) {
+  // macOS can wait for PTY output to drain while reaping a killed producer. After SIGKILL
+  // only the finite kernel buffer remains; forward it without waiting for a lost renderer.
+  entry.draining = true;
+  entry.terminal.resume();
+}
 
 async function stop(id: string) {
   const entry = runs.get(id);
   if (!entry) return;
+  if (entry.stop) return entry.stop;
   entry.stopping = true;
-  await sample();
-  await stopProcesses(entry.processes);
-  try { entry.terminal.kill(); } catch { /* already exited */ }
-  runs.delete(id);
-  event({ kind: 'exit', runId: id });
+  entry.stop = (async () => {
+    await sample();
+    await stopProcesses(entry.processes, `${owner}:${id}`, () => drainAfterKill(entry));
+    runs.delete(id);
+    event({ kind: 'exit', runId: id });
+  })();
+  return entry.stop;
 }
 
-async function shutdown() {
+let shuttingDown: Promise<void> | undefined;
+function shutdown(): Promise<void> {
+  if (shuttingDown) return shuttingDown;
   closing = true;
   clearInterval(sampler);
-  const results = await Promise.allSettled([...runs.keys()].map(stop));
-  const failure = results.find(r => r.status === 'rejected');
-  if (failure?.status === 'rejected') throw failure.reason;
+  for (const entry of runs.values()) entry.stopping = true;
+  shuttingDown = (async () => {
+    await sampling;
+    await stopProcesses([...runs.values()].flatMap(entry => entry.processes), owner, () => {
+      for (const entry of runs.values()) drainAfterKill(entry);
+    });
+    runs.clear();
+  })();
+  return shuttingDown;
 }
 
 async function handle(operation: string, value: any) {
@@ -54,12 +78,18 @@ async function handle(operation: string, value: any) {
       environment ??= commandEnvironment();
       const env = await environment;
       const program = await executable(command.command, env);
-      const terminal = pty.spawn(program, command.args, { cwd: directory, env, name: 'xterm-256color', cols: 80, rows: 24 });
+      if (closing) throw new Error('工作台正在退出');
+      const terminal = pty.spawn(program, command.args, { cwd: directory, env: { ...env, VIBEBRIDGE_RUN_OWNER: `${owner}:${id}` }, name: 'xterm-256color', cols: 80, rows: 24 });
       const run: Run = { id, panelId, projectId, pid: terminal.pid, state: 'running' };
-      const entry = { run, terminal, processes: [] as ProcessIdentity[], stopping: false };
+      const entry = { run, terminal, processes: [] as ProcessIdentity[], stopping: false, outstanding: 0, paused: false, draining: false };
       runs.set(id, entry);
       event({ kind: 'started', run });
-      terminal.onData(data => event({ kind: 'output', runId: id, data }));
+      terminal.onData(data => {
+        entry.outstanding += data.length;
+        event({ kind: 'output', runId: id, data });
+        // Credit covers every hop through IPC and xterm's parser. Do not truncate output.
+        if (!entry.draining && entry.outstanding >= 128 * 1024) { terminal.pause(); entry.paused = true; }
+      });
       terminal.onExit(() => {
         if (entry.stopping) return;
         void stop(id).catch(error => send({ failure: String(error) }));
@@ -91,10 +121,28 @@ async function handle(operation: string, value: any) {
 
 let requests = Promise.resolve();
 process.on('message', (message: any) => {
+  // Parser acknowledgements must not wait behind a stop/start operation.
+  if (message.operation === 'output-consumed') {
+    const entry = runs.get(message.value.runId);
+    const characters = message.value.characters;
+    if (entry && Number.isInteger(characters) && characters > 0 && characters <= entry.outstanding) {
+      entry.outstanding -= characters;
+      if (entry.paused && entry.outstanding < 64 * 1024) { entry.paused = false; entry.terminal.resume(); }
+    }
+    return;
+  }
   requests = requests.then(async () => {
     try { send({ id: message.id, result: await handle(message.operation, message.value) }); }
     catch (error) { send({ id: message.id, error: (error as Error).message }); }
     if (message.operation === 'shutdown' && process.connected) process.disconnect!();
   });
 });
-process.on('disconnect', () => { void shutdown().finally(() => process.exit()); });
+process.on('disconnect', () => {
+  const unexpected = !closing;
+  void (async () => {
+    let cleanupError: unknown;
+    try { await shutdown(); } catch (error) { cleanupError = error; }
+    if (unexpected) await recordFailure(process.env.VIBEBRIDGE_FAULT_FILE!, 'main', '主进程连接已断开', cleanupError);
+    else if (cleanupError) console.error(cleanupError);
+  })().catch(error => console.error('故障记录保存失败：', error.message)).finally(() => process.exit());
+});
