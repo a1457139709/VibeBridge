@@ -160,6 +160,8 @@ void (async () => {
     await until(async () => (await evaluate('window.workbench.snapshot()')).projects[0].layout.ratio !== swapped.ratio);
     const resized = (await evaluate('window.workbench.snapshot()')).projects[0].layout;
     assert.deepEqual(resized.second, swapped.second);
+    // Let the saved-layout snapshot reach React before starting another gesture.
+    await evaluate('new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))');
     const movedDivider = { x: divider.x, y: divider.y - 40 };
     window.webContents.sendInputEvent({ type: 'mouseDown', ...movedDivider, button: 'left', clickCount: 1 });
     window.webContents.sendInputEvent({ type: 'mouseMove', x: divider.x, y: divider.y - 70, modifiers: ['leftButtonDown'] });
@@ -229,6 +231,7 @@ void (async () => {
     await click('取消');
     await until(() => evaluate(`document.activeElement?.closest('[data-panel-id]')?.dataset.panelId === ${JSON.stringify(selectedPanel)}`));
     await click('展开项目导航');
+    await require('./settings-desktop.cjs')({ window, evaluate, click, fill, until });
     const { project: empty } = await create('Empty project', emptyDirectory, 1);
     await evaluate(`window.workbench.closePanel(${JSON.stringify(empty.id)}, ${JSON.stringify(empty.panels[0].id)})`);
     await click(second.name);

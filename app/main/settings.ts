@@ -1,16 +1,18 @@
 import { readFile, writeFile, rename, mkdir, rm } from 'node:fs/promises';
 import { join } from 'node:path';
 import { agentTypes, type Settings } from '../shared/model';
+import { defaultShortcuts, validateShortcuts } from '../shared/shortcuts';
 
-export const defaultSettings = (): Settings => ({ theme: 'system', agents: {
+export const defaultSettings = (): Settings => ({ theme: 'system', defaultLayout: 'auto', shortcuts: defaultShortcuts(), agents: {
   codex: { command: 'codex', args: [] }, claude: { command: 'claude', args: [] }, pi: { command: 'pi', args: [] },
 } });
 
 export function validateSettings(value: Settings): void {
-  if (!value || !['system', 'dark', 'light'].includes(value.theme) || agentTypes.some(type => {
+  if (!value || !['system', 'dark', 'light'].includes(value.theme) || !['auto', 'row', 'column'].includes(value.defaultLayout) || agentTypes.some(type => {
     const command = value.agents?.[type];
     return !command || typeof command.command !== 'string' || !command.command.trim() || !Array.isArray(command.args) || command.args.some(arg => typeof arg !== 'string');
   })) throw new Error('配置文件损坏，请修正 settings.json 后重新启动');
+  validateShortcuts(value.shortcuts);
 }
 
 export class SettingsFile {
@@ -19,13 +21,15 @@ export class SettingsFile {
   constructor(private directory: string) {}
   async read(): Promise<Settings> {
     try {
-      const settings: Settings = JSON.parse(await readFile(join(this.directory, 'settings.json'), 'utf8'));
+      const value = JSON.parse(await readFile(join(this.directory, 'settings.json'), 'utf8'));
+      if (!value || typeof value !== 'object' || Array.isArray(value)) throw new Error('配置文件损坏');
+      const settings: Settings = { ...defaultSettings(), ...value };
       validateSettings(settings);
       return settings;
     } catch (error) {
       if ((error as NodeJS.ErrnoException).code === 'ENOENT') return defaultSettings();
       this.readable = false;
-      throw new Error('配置读取失败，请检查 settings.json', { cause: error });
+      throw new Error(`配置读取失败，请检查 settings.json：${(error as Error).message}`, { cause: error });
     }
   }
   save(settings: Settings): Promise<void> {

@@ -42,6 +42,12 @@ async function shutdown() {
 async function handle(operation: string, value: any) {
   if (operation === 'shutdown') { await shutdown(); return; }
   if (closing) throw new Error('工作台正在退出');
+  if (operation === 'check-command') {
+    try {
+      environment ??= commandEnvironment();
+      return { available: true, path: await executable(value, await environment) };
+    } catch (error) { return { available: false, message: `命令不可用，请检查程序路径及执行权限：${(error as Error).message}` }; }
+  }
   if (operation === 'start') {
     const { id, panelId, projectId, directory, command } = value as { id: string; panelId: string; projectId: string; directory: string; command: AgentCommand };
     try {

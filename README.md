@@ -2,7 +2,7 @@
 
 macOS 本地多项目 Agent CLI 工作台。正式应用代码在 `app/`；`plans/*prototype` 仅保留既有原型，不参与正式应用构建。
 
-当前实现覆盖 [#24：创建项目并启动 Agent 工作区](https://github.com/a1457139709/VibeBridge/issues/24) 和 [#25：动态面板与布局操作](https://github.com/a1457139709/VibeBridge/issues/25)。提供统一创建页、真实 PTY/xterm.js、SQLite 保存、动态面板、布局调整与退出清理、本地应用打包。全局设置页面、快捷键定制和完整跨项目故障验收属于后续交付。
+当前实现覆盖 [#24：创建项目并启动 Agent 工作区](https://github.com/a1457139709/VibeBridge/issues/24)、[#25：动态面板与布局操作](https://github.com/a1457139709/VibeBridge/issues/25)、[#26：多项目切换与重开恢复](https://github.com/a1457139709/VibeBridge/issues/26) 和 [#27：全局设置、主题与快捷键](https://github.com/a1457139709/VibeBridge/issues/27)。提供真实 PTY/xterm.js、SQLite 保存、动态面板、布局调整、项目切换、统一设置与退出清理、本地应用打包。完整跨项目故障与真实 CLI 兼容性仍需按规格验收。
 
 ## 本地运行
 
@@ -34,6 +34,16 @@ npm run package
 ```json
 {
   "theme": "system",
+  "defaultLayout": "auto",
+  "shortcuts": {
+    "previousProject": "Command+Shift+[",
+    "nextProject": "Command+Shift+]",
+    "previousPanel": "Command+[",
+    "nextPanel": "Command+]",
+    "maximizePanel": "Command+Enter",
+    "addPanel": "Command+N",
+    "settings": "Command+,"
+  },
   "agents": {
     "codex": { "command": "codex", "args": [] },
     "claude": { "command": "claude", "args": [] },
@@ -43,6 +53,12 @@ npm run package
 ```
 
 主题支持 `system`、`light`、`dark`，仅在启动时解析。命令可以是 PATH 中的程序名或绝对路径，参数逐项填写；不解析 shell 命令、别名或函数。应用异步读取登录 shell 的本机环境，然后通过 PTY 直接执行解析出的程序，不把 Agent 放进 shell 中运行。
+
+系统栏右侧的设置入口打开全局页面，返回后保留原项目、实际布局、临时放大和运行。Agent 页集中管理三种命令与参数，参数每行一项；“检查命令”在实际启动环境中检查可执行程序，编辑命令会清除结果。点击保存只影响之后启动的实例。
+
+外观页提供跟随系统、深色、浅色列表。保存主题后提示重启及结束 Agent 的影响；本次运行中的工作台、已有和新增终端保持启动主题。保存回启动偏好会清除待重启提示。默认布局支持 `auto`（自动）、`row`（横向平铺）、`column`（纵向平铺），只作用于没有实际布局的初始安排，创建预览采用相同规则。
+
+快捷键页支持按操作名或组合键搜索、按键录入和恢复全部默认。有效修改自动保存并立即生效；冲突会显示对象并保留有效绑定。手改时组合键使用以上格式，修饰键按 `Command`、`Control`、`Alt`、`Shift` 顺序排列，至少包含前三者之一。复制、粘贴、退出等原生菜单绑定保留。快捷键仅由前台窗口处理，未处理的输入继续交给选中 CLI。
 
 `VIBEBRIDGE_DATA_DIR` 可指定隔离的数据目录，供本地验收使用。不要在多个应用实例中同时使用同一个数据目录。
 
@@ -72,4 +88,4 @@ node scripts/test-desktop.mjs --packaged
 
 `--packaged` 使用开发 Electron 测试宿主加载 `.app` 内的产品代码和原生模块；此外需实际打开 `.app` 检查图标启动。桌面测试将继承 PATH 缩减为 `/usr/bin:/bin`，验证登录环境中的 `node` 仍能解析并直接启动。
 
-验收记录和剩余人工步骤见 [#24 验证记录](docs/issue-24-verification.md) 与 [#25 验证记录](docs/issue-25-verification.md)。
+验收记录和剩余人工步骤见 [#24](docs/issue-24-verification.md)、[#25](docs/issue-25-verification.md)、[#26](docs/issue-26-verification.md) 与 [#27 验证记录](docs/issue-27-verification.md)。

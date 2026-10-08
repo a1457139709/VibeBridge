@@ -1,4 +1,5 @@
 import { layoutBoxes } from './layout';
+import type { Shortcuts } from './shortcuts';
 
 export const agentTypes = ['codex', 'claude', 'pi'] as const;
 export type AgentType = typeof agentTypes[number];
@@ -9,12 +10,14 @@ export interface Panel { id: string; agent: AgentType }
 export type Layout = { panel: string } | { axis: 'row' | 'column'; ratio: number; first: Layout; second: Layout };
 export interface Project { id: string; name: string; directory: string; panels: Panel[]; layout: Layout | null }
 export interface AgentCommand { command: string; args: string[] }
-export interface Settings { theme: 'system' | 'dark' | 'light'; agents: Record<AgentType, AgentCommand> }
+export type DefaultLayout = 'auto' | 'row' | 'column';
+export interface Settings { theme: 'system' | 'dark' | 'light'; defaultLayout: DefaultLayout; agents: Record<AgentType, AgentCommand>; shortcuts: Shortcuts }
+export type CommandCheck = { available: true; path: string } | { available: false; message: string };
 export interface Run { id: string; projectId: string; panelId: string; state: 'running' | 'failed'; pid?: number }
 export type LaunchResult = { ok: true; run: Run } | { ok: false; run: Run; error: 'Agent 无法启动' };
 export interface ProjectCreation { project: Project; launches: LaunchResult[] }
 export interface PanelCreation { panel: Panel; launch: LaunchResult }
-export interface Snapshot { projects: Project[]; activeProjectId: string | null; runs: Run[]; settings: Settings; errors: string[] }
+export interface Snapshot { projects: Project[]; activeProjectId: string | null; runs: Run[]; settings: Settings; startupTheme: Settings['theme']; resolvedTheme: 'dark' | 'light'; errors: string[] }
 export type TerminalEvent = { kind: 'output'; runId: string; data: string } | { kind: 'started'; run: Run } | { kind: 'exit'; runId: string };
 export type WorkbenchEvent = TerminalEvent | { kind: 'snapshot'; snapshot: Snapshot } | { kind: 'error'; message: string };
 export interface DirectoryResult { valid: boolean; directory?: string; name?: string; existingProjectId?: string }
@@ -30,9 +33,10 @@ export function validateDraft(draft: ProjectDraft): void {
     || agentTypes.reduce((sum, type) => sum + draft.counts[type], 0) !== draft.total) throw new Error('Agent 分配数量须等于窗口总数');
 }
 
-export function arrange(ids: string[]): Layout | null {
+export function arrange(ids: string[], preference: DefaultLayout = 'auto'): Layout | null {
   if (!ids.length) return null;
   if (ids.length === 1) return { panel: ids[0] };
+  if (preference !== 'auto') return { axis: preference, ratio: 1 / ids.length, first: { panel: ids[0] }, second: arrange(ids.slice(1), preference)! };
   if (ids.length === 3) return { axis: 'column', ratio: 0.58, first: { panel: ids[0] }, second: { axis: 'row', ratio: 0.5, first: { panel: ids[1] }, second: { panel: ids[2] } } };
   const half = Math.ceil(ids.length / 2);
   return { axis: ids.length > 2 ? 'column' : 'row', ratio: half / ids.length, first: arrange(ids.slice(0, half))!, second: arrange(ids.slice(half))! };

@@ -1,4 +1,4 @@
-import type { AgentType, DirectoryResult, Layout, ProjectCreation, PanelCreation, ProjectDraft, Snapshot, WorkbenchEvent } from './model';
+import type { AgentType, CommandCheck, DirectoryResult, Layout, ProjectCreation, PanelCreation, ProjectDraft, Settings, Snapshot, WorkbenchEvent } from './model';
 
 export interface DesktopAPI {
   snapshot(): Promise<Snapshot>;
@@ -9,6 +9,8 @@ export interface DesktopAPI {
   addPanel(projectId: string, agent: AgentType): Promise<PanelCreation>;
   closePanel(projectId: string, panelId: string): Promise<void>;
   saveLayout(projectId: string, layout: Layout | null): Promise<void>;
+  saveSettings(settings: Partial<Settings>): Promise<void>;
+  checkCommand(command: string): Promise<CommandCheck>;
   sendInput(runId: string, data: string): Promise<void>;
   resizeRun(runId: string, cols: number, rows: number): Promise<void>;
   subscribe(listener: (event: WorkbenchEvent) => void): () => void;

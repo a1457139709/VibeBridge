@@ -1,12 +1,12 @@
 import { agentIcons } from './agent-icons';
 import { useEffect, useState } from 'react';
-import { agentNames, agentTypes, arrange, assignedAgents, type DirectoryResult, type ProjectDraft } from '../shared/model';
+import { agentNames, agentTypes, arrange, assignedAgents, type DefaultLayout, type DirectoryResult, type ProjectDraft } from '../shared/model';
 import { layoutBoxes } from '../shared/layout';
 
 function Stepper({ label, value, decrease, increase, canDecrease, canIncrease }: { label: string; value: number; decrease(): void; increase(): void; canDecrease: boolean; canIncrease: boolean }) {
   return <div className="stepper"><button type="button" aria-label={`减少${label}`} disabled={!canDecrease} onClick={decrease}>−</button><output>{value}</output><button type="button" aria-label={`增加${label}`} disabled={!canIncrease} onClick={increase}>＋</button></div>;
 }
-export function Setup({ draft, change, named, setNamed, cancel, created, report }: { draft: ProjectDraft; change(draft: ProjectDraft): void; named: boolean; setNamed(named: boolean): void; cancel(): void; created(id: string): void; report(message: string): void }) {
+export function Setup({ draft, change, named, setNamed, cancel, created, report, defaultLayout }: { draft: ProjectDraft; change(draft: ProjectDraft): void; named: boolean; setNamed(named: boolean): void; cancel(): void; created(id: string): void; report(message: string): void; defaultLayout: DefaultLayout }) {
   const [directory, setDirectory] = useState<DirectoryResult>({ valid: false });
   const [checking, setChecking] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -24,7 +24,7 @@ export function Setup({ draft, change, named, setNamed, cancel, created, report 
   const setPath = (path: string) => change({ ...draft, directory: path, name: named ? draft.name : path.replace(/\/+$/, '').split('/').at(-1) || '' });
   const types = assignedAgents(draft);
   const preview = Array.from({ length: Math.max(draft.total, assigned) }, (_, index) => String(index));
-  const boxes = layoutBoxes(arrange(preview)).panels;
+  const boxes = layoutBoxes(arrange(preview, defaultLayout)).panels;
   async function submit() {
     setBusy(true);
     try { created((await window.workbench.createProject(draft)).project.id); }

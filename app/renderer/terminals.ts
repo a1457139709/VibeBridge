@@ -55,4 +55,8 @@ export function mountTerminal(runId: string, container: HTMLElement) {
   if (screen.element.clientWidth && screen.element.clientHeight) screen.fit.fit();
   return () => { screen.observer.disconnect(); screen.element.remove(); };
 }
-export function focusTerminal(runId?: string) { if (runId) screens.get(runId)?.terminal.focus(); }
+export function focusTerminal(runId?: string) {
+  const screen = runId ? screens.get(runId) : undefined;
+  if (screen) screen.terminal.focus();
+  else if (document.activeElement instanceof HTMLElement) document.activeElement.blur();
+}

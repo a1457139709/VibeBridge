@@ -1,9 +1,12 @@
 import { agentIcons } from './agent-icons';
-import { useEffect, useRef, useState, type CSSProperties, type PointerEvent } from 'react';
+import { useEffect, useImperativeHandle, useRef, useState, type CSSProperties, type PointerEvent, type Ref } from 'react';
 import { agentNames, type Layout, type Project, type Run } from '../shared/model';
 import { layoutBoxes, type Divider } from '../shared/layout';
 import { focusTerminal, mountTerminal } from './terminals';
 import { AgentPicker } from './AgentPicker';
+import type { ShortcutAction } from '../shared/shortcuts';
+
+export interface WorkspaceActions { shortcut(action: ShortcutAction): boolean }
 
 function TerminalView({ run }: { run?: Run }) {
   const container = useRef<HTMLDivElement>(null);
@@ -13,18 +16,16 @@ function TerminalView({ run }: { run?: Run }) {
   return <div className="terminal-container" ref={container}>{run?.state === 'failed' ? <div className="terminal-message">Agent 无法启动</div> : !run ? <div className="terminal-message muted">正在启动…</div> : null}</div>;
 }
 
-export function Workspace({ project, runs, report, selectedPanelId, selectPanel }: { project: Project; runs: Run[]; report(message: string): void; selectedPanelId?: string; selectPanel(panelId: string): void }) {
+export function Workspace({ project, runs, report, selectedPanelId, selectPanel, visible, ref }: { project: Project; runs: Run[]; report(message: string): void; selectedPanelId?: string; selectPanel(panelId: string): void; visible: boolean; ref: Ref<WorkspaceActions> }) {
   const [layout, setLayout] = useState(project.layout);
   const focused = project.panels.some(panel => panel.id === selectedPanelId) ? selectedPanelId : project.panels[0]?.id;
   const focusedRun = runs.find(run => run.panelId === focused && run.state === 'running');
-  const restoredFocus = useRef(false);
-  useEffect(() => {
-    if (focusedRun && (!restoredFocus.current || selectedPanelId !== focused)) {
-      restoredFocus.current = true;
-      focusTerminal(focusedRun.id);
-    }
-  }, [focusedRun, focused, selectedPanelId]);
   const [maximized, setMaximized] = useState<string>();
+  useEffect(() => {
+    if (!visible) return;
+    const frame = requestAnimationFrame(() => focusTerminal(focusedRun?.id));
+    return () => cancelAnimationFrame(frame);
+  }, [visible, focused, focusedRun?.id]);
   const [adding, setAdding] = useState(false);
   const [dragged, setDragged] = useState<string>();
   const [dropTarget, setDropTarget] = useState<string>();
@@ -51,6 +52,20 @@ export function Workspace({ project, runs, report, selectedPanelId, selectPanel 
   const focus = (panelId: string) => { selectPanel(panelId); focusTerminal(runs.find(r => r.panelId === panelId)?.id); };
   const maximize = (panelId: string) => { setMenuPanel(undefined); setMaximized(maximized === panelId ? undefined : panelId); focus(panelId); };
   const close = (panelId: string) => { setMenuPanel(undefined); void window.workbench.closePanel(project.id, panelId).catch(error => report(error.message)); };
+  useImperativeHandle(ref, () => ({ shortcut(action) {
+    if (adding) return false;
+    if (action === 'addPanel' && project.panels.length < 10) { setAdding(true); return true; }
+    if (!focused) return false;
+    if (action === 'maximizePanel') { maximize(focused); return true; }
+    if (action === 'nextPanel' || action === 'previousPanel') {
+      const panels = [...positions.panels.keys()];
+      const offset = action === 'nextPanel' ? 1 : -1;
+      const next = panels[(panels.indexOf(focused) + offset + panels.length) % panels.length];
+      if (maximized) setMaximized(next);
+      focus(next); return true;
+    }
+    return false;
+  } }));
   function resize(event: PointerEvent<HTMLDivElement>, divider: Divider) {
     if (event.button !== 0) return;
     event.preventDefault();

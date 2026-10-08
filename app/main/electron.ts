@@ -39,7 +39,11 @@ void app.whenReady().then(async () => {
     { label: '编辑', submenu: [{ role: 'undo' }, { role: 'redo' }, { type: 'separator' }, { role: 'cut' }, { role: 'copy' }, { role: 'paste' }, { role: 'selectAll' }] },
     { label: '窗口', submenu: [{ role: 'minimize' }, { role: 'zoom' }] },
   ]));
-  workbench = Workbench.open(app.getPath('userData'));
+  workbench = Workbench.open(app.getPath('userData'), nativeTheme.shouldUseDarkColors);
+  void workbench.then(service => {
+    nativeTheme.themeSource = service.snapshot().resolvedTheme;
+    window?.setBackgroundColor(service.snapshot().resolvedTheme === 'dark' ? '#202322' : '#f3f4f0');
+  }).catch(() => {});
   void workbench.catch(error => dialog.showMessageBox(window!, { type: 'error', message: '工作台读取失败', detail: error.message }));
   // Install handlers before showing the page, while disk work completes asynchronously.
   const handle = (name: string, action: (service: Workbench, ...args: any[]) => unknown) => {
@@ -55,6 +59,8 @@ void app.whenReady().then(async () => {
   handle('add', (service, project, agent) => service.addPanel(project, agent));
   handle('close', (service, project, panel) => service.closePanel(project, panel));
   handle('layout', (service, project, layout) => service.saveLayout(project, layout));
+  handle('settings', (service, settings) => service.saveSettings(settings));
+  handle('check-command', (service, command) => service.checkCommand(command));
   handle('input', (service, run, data) => service.sendInput(run, data));
   handle('resize', (service, run, cols, rows) => service.resizeRun(run, cols, rows));
   handle('choose-directory', async () => {

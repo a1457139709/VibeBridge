@@ -7,7 +7,7 @@ import { SettingsFile, defaultSettings } from './settings';
 import { TerminalClient } from './terminal-client';
 
 export class Workbench {
-  private state: Snapshot = { projects: [], runs: [], activeProjectId: null, settings: defaultSettings(), errors: [] };
+  private state: Snapshot = { projects: [], runs: [], activeProjectId: null, settings: defaultSettings(), startupTheme: 'system', resolvedTheme: 'light', errors: [] };
   private terminal: TerminalClient;
   private listeners = new Set<(event: WorkbenchEvent) => void>();
   private operations: Promise<unknown> = Promise.resolve();
@@ -18,13 +18,15 @@ export class Workbench {
   private constructor(private store: ProjectStore, private settingsFile: SettingsFile) {
     this.terminal = new TerminalClient(event => this.terminalEvent(event), message => this.report(message));
   }
-  static async open(directory: string) {
+  static async open(directory: string, systemDark = false) {
     const store = await ProjectStore.open(directory);
     const workbench = new Workbench(store, new SettingsFile(directory));
     try {
       Object.assign(workbench.state, await store.load());
       try { workbench.state.settings = await workbench.settingsFile.read(); }
       catch (error) { workbench.state.errors.push((error as Error).message); }
+      workbench.state.startupTheme = workbench.state.settings.theme;
+      workbench.state.resolvedTheme = workbench.state.startupTheme === 'system' ? (systemDark ? 'dark' : 'light') : workbench.state.startupTheme;
       return workbench;
     } catch (error) {
       workbench.quitting = true;
@@ -80,7 +82,7 @@ export class Workbench {
     if (!directory.valid) throw new Error('项目目录无效');
     if (directory.existingProjectId) throw new Error('该目录已有项目，请打开已有项目');
     const panels = assignedAgents(draft).map(agent => ({ id: randomUUID(), agent }));
-    const project = { id: randomUUID(), name: draft.name.trim(), directory: directory.directory!, panels, layout: arrange(panels.map(p => p.id)) };
+    const project = { id: randomUUID(), name: draft.name.trim(), directory: directory.directory!, panels, layout: arrange(panels.map(p => p.id), this.state.settings.defaultLayout) };
     await this.store.save(project);
     this.state.projects.push(project);
     this.state.activeProjectId = project.id;
@@ -104,6 +106,10 @@ export class Workbench {
   }
   activateProject(id: string) { return this.operation(async () => {
     const project = this.project(id);
+    if (!project.layout && project.panels.length) {
+      project.layout = arrange(project.panels.map(panel => panel.id), this.state.settings.defaultLayout);
+      await this.store.save(project);
+    }
     this.state.activeProjectId = id;
     this.changed();
     await this.store.active(id);
@@ -143,10 +149,15 @@ export class Workbench {
   }); }
   sendInput(runId: string, data: string) { return this.terminal.input(runId, data); }
   resizeRun(runId: string, cols: number, rows: number) { return this.terminal.resize(runId, cols, rows); }
-  saveSettings(settings: Settings) { return this.operation(async () => {
-    await this.settingsFile.save(settings);
-    this.state.settings = structuredClone(settings); this.changed();
-  }); }
+  checkCommand(command: string) { return this.terminal.checkCommand(command); }
+  saveSettings(patch: Partial<Settings>) {
+    const update = structuredClone(patch);
+    return this.operation(async () => {
+      const settings = { ...this.state.settings, ...update };
+      await this.settingsFile.save(settings);
+      this.state.settings = structuredClone(settings); this.changed();
+    });
+  }
   quit(): Promise<void> {
     if (this.quitPromise) return this.quitPromise;
     this.quitting = true;

@@ -1,6 +1,6 @@
 import { fork, type ChildProcess } from 'node:child_process';
 import { join } from 'node:path';
-import type { AgentCommand, Run, TerminalEvent } from '../shared/model';
+import type { AgentCommand, CommandCheck, Run, TerminalEvent } from '../shared/model';
 import { stopProcesses, type ProcessIdentity } from '../terminal/processes';
 
 export class TerminalClient {
@@ -47,6 +47,7 @@ export class TerminalClient {
     });
   }
   start(value: { id: string; panelId: string; projectId: string; directory: string; command: AgentCommand }) { return this.request<Run>('start', value); }
+  checkCommand(command: string) { return this.request<CommandCheck>('check-command', command); }
   input(runId: string, data: string) { return this.request<void>('input', { runId, data }); }
   resize(runId: string, cols: number, rows: number) { return this.request<void>('resize', { runId, cols, rows }); }
   stop(runId: string) { return this.request<void>('stop', { runId }); }
