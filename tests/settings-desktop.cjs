@@ -1,0 +1,76 @@
+const assert = require('node:assert/strict');
+
+module.exports = async function verifySettings({ window, evaluate, click, fill, until }) {
+  const before = await evaluate('window.workbench.snapshot()');
+  const project = before.projects.find(project => project.id === before.activeProjectId);
+  const selected = project.panels[1].id;
+  const target = project.panels[0].id;
+  const key = (keyCode, modifiers = ['meta']) => {
+    window.webContents.sendInputEvent({ type: 'keyDown', keyCode, modifiers });
+    window.webContents.sendInputEvent({ type: 'keyUp', keyCode, modifiers });
+  };
+  window.focus(); window.webContents.focus();
+  key(']');
+  await until(() => evaluate(`document.activeElement?.closest('[data-panel-id]')?.dataset.panelId === ${JSON.stringify(target)}`));
+  key('Return');
+  await until(() => evaluate(`!!document.querySelector('[data-panel-id="${target}"] button[aria-label="还原面板"]')`));
+  await click('全局设置');
+  await until(() => evaluate(`!!document.querySelector('.settings-page')`));
+  await click('‹ 返回');
+  await until(() => evaluate(`document.activeElement?.closest('[data-panel-id]')?.dataset.panelId === ${JSON.stringify(target)}`));
+  assert.equal(await evaluate(`!!document.querySelector('[data-panel-id="${target}"] button[aria-label="还原面板"]')`), true);
+  key('[');
+  await until(() => evaluate(`document.activeElement?.closest('[data-panel-id]')?.dataset.panelId === ${JSON.stringify(selected)}`));
+  window.webContents.sendInputEvent({ type: 'char', keyCode: 'j' });
+  await until(() => evaluate(`window.observedOutput.some(event => event.data.includes('INPUT:j'))`));
+  assert.deepEqual(await evaluate(`[...new Set(window.observedOutput.filter(event => event.data.includes('INPUT:j')).map(event => event.runId))]`), [before.runs.find(run => run.panelId === selected).id]);
+  key('Return');
+  assert.deepEqual((await evaluate('window.workbench.snapshot()')).projects, before.projects);
+  assert.deepEqual((await evaluate('window.workbench.snapshot()')).runs, before.runs);
+
+  // Changing a binding through the actual recorder takes effect without restarting runs.
+  await click('全局设置');
+  await click('快捷键');
+  await evaluate(`document.getElementById('shortcut-nextPanel').focus()`);
+  key('k');
+  await until(async () => (await evaluate('window.workbench.snapshot()')).settings.shortcuts.nextPanel === 'Command+K');
+  await evaluate(`document.getElementById('shortcut-maximizePanel').focus()`);
+  key('k');
+  await until(() => evaluate(`document.querySelector('.settings-status').textContent.includes('下一个面板')`));
+  assert.equal((await evaluate('window.workbench.snapshot()')).settings.shortcuts.maximizePanel, before.settings.shortcuts.maximizePanel);
+  await click('‹ 返回');
+  key('k');
+  await until(() => evaluate(`document.activeElement?.closest('[data-panel-id]')?.dataset.panelId === ${JSON.stringify(target)}`));
+  key('[', ['meta', 'shift']);
+  await until(async () => (await evaluate('window.workbench.snapshot()')).activeProjectId !== project.id);
+  await until(() => evaluate(`document.querySelector('.workspace-toolbar strong')?.textContent !== ${JSON.stringify(project.name)}`));
+  key(']', ['meta', 'shift']);
+  await until(() => evaluate(`document.activeElement?.closest('[data-panel-id]')?.dataset.panelId === ${JSON.stringify(target)}`));
+  window.webContents.sendInputEvent({ type: 'char', keyCode: 'u' });
+  await until(() => evaluate(`window.observedOutput.some(event => event.data.includes('INPUT:u'))`));
+  assert.deepEqual(await evaluate(`[...new Set(window.observedOutput.filter(event => event.data.includes('INPUT:u')).map(event => event.runId))]`), [before.runs.find(run => run.panelId === target).id]);
+
+  await click('全局设置');
+  await click('快捷键');
+  await click('恢复全部默认');
+  await until(async () => (await evaluate('window.workbench.snapshot()')).settings.shortcuts.nextPanel === 'Command+]');
+  assert.deepEqual((await evaluate('window.workbench.snapshot()')).settings.shortcuts, before.settings.shortcuts);
+  await click('外观');
+  await evaluate(`document.querySelector('input[name="theme"][value="dark"]').click()`);
+  await click('保存外观设置');
+  await until(() => evaluate(`!!document.querySelector('.restart-notice')`));
+  assert.equal(await evaluate('document.documentElement.dataset.theme'), 'light');
+  assert.deepEqual((await evaluate('window.workbench.snapshot()')).runs, before.runs);
+  await evaluate(`document.querySelector('input[name="theme"][value="light"]').click()`);
+  await click('保存外观设置');
+  await until(() => evaluate(`!document.querySelector('.restart-notice')`));
+  await click('Agent');
+  await evaluate(`document.querySelector('.agent-settings.codex button').click()`);
+  await until(() => evaluate(`document.querySelector('.agent-settings.codex .command-result').textContent.includes('命令可用')`));
+  await fill('command-codex', '/unavailable-agent');
+  assert.equal(await evaluate(`document.querySelector('.agent-settings.codex .command-result').textContent.trim()`), '');
+  await evaluate(`document.querySelector('.agent-settings.codex button').click()`);
+  await until(() => evaluate(`document.querySelector('.agent-settings.codex .command-result').textContent.includes('命令不可用')`));
+  await click('‹ 返回');
+  assert.deepEqual((await evaluate('window.workbench.snapshot()')).runs, before.runs);
+};
