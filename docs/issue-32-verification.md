@@ -2,6 +2,18 @@
 
 本文件是本轮唯一结果表，依据 [#32](https://github.com/a1457139709/VibeBridge/issues/32)、[#19 规格](https://github.com/a1457139709/VibeBridge/issues/19) 与 [原 QA 反馈](https://github.com/a1457139709/VibeBridge/issues/29#issuecomment-6063221294)。历史验收状态不代表本轮结果。
 
+## 深色主题更新（2026-10-10）
+
+用户查看炭黑主题预览后，要求在 `fix/qa-creation-terminal` 落实并推送至 PR #40。正式实现依据确认的视觉效果独立修改现有样式与启动终端配色；预览服务、标签页、原型分支及其工作目录已删除。
+
+深色工作台采用中性黑灰层级：布局区域 `#141414`、项目导航 `#181818`、终端 `#1e1e1e`、面板标题 `#232323`，蓝色用于选中和焦点，正文使用 `#d4d4d4`。保留 Agent 图标与 CLI 输出的语义色、浅色主题和启动时应用主题的规则。
+
+本次 `npm run build`（含类型检查）、14/14 业务测试、`npm run test:desktop -- --appearance`、`git diff --check` 通过。深色桌面测试使用实际 PTY/xterm 渲染，确认背景为 RGB 30/30/30；ANSI 灰字 4.54:1、索引灰字 4.77:1、pi 页脚灰字 5.29:1、正文 11.25:1。CLI 强调色、SGR dim 和块字符语义保持。已查看正式应用截图，保存在本地 `outputs/charcoal-theme/appearance.png`。Vite 仍有既有大 chunk 提示，桌面宿主仍有 Shared Dictionary 缓存警告，未影响验证。
+
+以下保留先前 QA 修复的历史记录。
+
+## 原 QA 修复记录
+
 日期：2026-10-10。代码：`69e94cb3036f598d1ca4169411807d888d055402` 上的本轮未提交改动，分支 `feat/v1-workbench`。本轮没有提交、推送或关闭 issue。
 
 环境：macOS 26.6.2 (25G83)、arm64、Node 26.8.1、npm 11.19.0、Electron 44.5.1、xterm 6.0.0、node-pty 1.1.0；真实 Codex 0.162.1；灰色样本来自本机 pi 0.84.4 的深色主题与页脚实现。已读取 #32 引用的代码对话回顾。仓库当前没有 ADR 和 `docs/agents/qa.md`，本轮技术验证按 issue 的分工由 agent 执行。

@@ -8,7 +8,7 @@ let theme: ITheme;
 let report: (message: string) => void;
 export function configureTerminals(dark: boolean, onError: (message: string) => void) {
   report = onError;
-  theme = dark ? { background: '#262a28', foreground: '#e2e8e3', cursor: '#e2e8e3', selectionBackground: '#52766580' }
+  theme = dark ? { background: '#1e1e1e', foreground: '#d4d4d4', cursor: '#e6e6e6', cursorAccent: '#1e1e1e', selectionBackground: '#264f78', selectionInactiveBackground: '#3a3a3a' }
     : { background: '#ffffff', foreground: '#25302a', cursor: '#25302a', selectionBackground: '#94b5a280' };
 }
 function ensure(runId: string): Screen {

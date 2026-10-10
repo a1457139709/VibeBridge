@@ -23,7 +23,7 @@ module.exports = async function verifyAppearance({ window, evaluate, until, run 
   const luminance = rgb => rgb.map(value => value / 255).map(value => value <= 0.04045 ? value / 12.92 : ((value + 0.055) / 1.055) ** 2.4)
     .reduce((sum, value, index) => sum + value * [0.2126, 0.7152, 0.0722][index], 0);
   const bg = luminance(colors.background);
-  assert.deepEqual(colors.background, [38, 42, 40]);
+  assert.deepEqual(colors.background, [30, 30, 30]);
   const failures = [];
   for (const { label, color, opacity } of colors.samples) {
     const fg = luminance(color.map((value, index) => opacity * value + (1 - opacity) * colors.background[index]));
