@@ -10,9 +10,13 @@ macOS 本地多项目 Agent CLI 工作台。正式应用代码在 `app/`；产�
 
 ```sh
 npm ci
+npx --no-install install-electron
+npm run rebuild:terminal
 npm run prepare:runtime
 npm run dev
 ```
+
+当前锁定的 Electron 版本需显式运行 `install-electron` 下载运行时二进制；`npm ci` 只安装 npm 包。随后重建原生 PTY，再执行运行时预检。
 
 `dev` 先构建，再运行正式应用；不使用原型启动器。`npm start` 只启动现有构建，不编译或修复依赖。如果原生模块准备失败，先运行 `npm run rebuild:terminal`，再运行 `npm run prepare:runtime`。构建和依赖准备应在启动应用之前完成。
 
@@ -98,6 +102,6 @@ node scripts/test-desktop.mjs --packaged
 
 `--packaged` 使用开发 Electron 测试宿主加载 `.app` 内的产品代码和原生模块；此外需实际打开 `.app` 检查图标启动。桌面测试将继承 PATH 缩减为 `/usr/bin:/bin`，验证登录环境中的 `node` 仍能解析并直接启动。
 
-GitHub Actions 的 [Checks 工作流](.github/workflows/checks.yml) 在 push、pull request 和手动触发时使用 macOS 执行依赖安装、Electron 原生 PTY 重建、运行时检查、类型检查、业务测试和构建。桌面入口在具备 GUI/PTY 条件的本机执行，尚未加入远端 CI；工作流配置和本地通过不代表远端已经运行或合并已被分支保护强制拦截。
+GitHub Actions 的 [Checks 工作流](.github/workflows/checks.yml) 在 push、pull request 和手动触发时使用 macOS 执行依赖安装、Electron 二进制安装、原生 PTY 重建、运行时检查、类型检查、业务测试和构建。桌面入口在具备 GUI/PTY 条件的本机执行，尚未加入远端 CI；远端执行结果以 PR Checks 为准，检查通过不代表合并已被分支保护强制拦截。
 
 本轮修复、执行结果和剩余体验项统一记录在 [#32 验证记录](docs/issue-32-verification.md)。

@@ -24,6 +24,7 @@ jobs:
           node-version: '24'
           cache: npm
       - run: npm ci
+      - run: npx --no-install install-electron
       - run: npm run rebuild:terminal
       - run: npm run prepare:runtime
       - run: npm run typecheck
