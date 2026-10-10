@@ -42,7 +42,12 @@ label { display: block; margin: 16px 0 9px; font-size: 12px; }
 .directory-input { display: flex; gap: 8px; }
 .directory-input input { font-family: Menlo, monospace; font-size: 11px; min-width: 0; }
 .directory-input button { flex-shrink: 0; }
-.directory-status { min-height: 22px; padding-top: 7px; font-size: 11px; }
+.setup { --field-error: #b33e2d; }
+:root[data-theme='dark'] .setup { --field-error: #ef9683; }
+.field-status { min-height: 22px; padding-top: 7px; font-size: 12px; line-height: 1.5; overflow-wrap: anywhere; }
+.setup .error-text { color: var(--field-error); font-weight: 500; }
+.setup input[aria-invalid='true'] { border-color: var(--field-error); }
+.open-existing-project { display: block; margin-top: 8px; color: var(--accent); border-color: var(--accent); font-weight: 600; }
 .text-button { color: var(--accent); padding: 0; border: 0; background: none; min-height: 18px; }
 hr { border: 0; border-top: 1px solid var(--line); margin: 22px 0; }
 .preview { position: relative; margin: 12px -3px 8px; }

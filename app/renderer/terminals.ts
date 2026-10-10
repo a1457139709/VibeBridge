@@ -14,7 +14,7 @@ export function configureTerminals(dark: boolean, onError: (message: string) => 
 function ensure(runId: string): Screen {
   const existing = screens.get(runId);
   if (existing) return existing;
-  const terminal = new Terminal({ theme, fontFamily: 'Menlo, Monaco, monospace', fontSize: 13, lineHeight: 1.16, scrollback: 5000, allowProposedApi: false });
+  const terminal = new Terminal({ theme, minimumContrastRatio: 4.5, fontFamily: 'Menlo, Monaco, monospace', fontSize: 13, lineHeight: 1.16, scrollback: 5000, allowProposedApi: false });
   const fit = new FitAddon();
   terminal.loadAddon(fit);
   const element = document.createElement('div'); element.className = 'terminal-screen';

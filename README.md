@@ -86,11 +86,18 @@ npm run typecheck
 npm test
 npm run build
 npm run test:desktop
+npm run test:desktop -- --setup
+npm run test:desktop -- --appearance
+npm run test:desktop -- --codex
 node scripts/test-desktop.mjs --packaged
 ```
 
-测试使用 `work/issue-24/` 下的隔离目录，以及少量可控交互程序。业务测试覆盖创建约束、独立输入与运行身份、真实尺寸变化、面板上限、启动失败、保存重开、损坏配置保护和退出子进程清理。桌面测试通过正式页面及公开业务 API 检查创建草稿、超额分配、原生键盘输入、视图重新挂载、取消和确认退出。
+测试使用 `work/issue-24/` 下的隔离目录，以及少量可控交互程序。业务测试覆盖创建约束、独立输入与运行身份、真实尺寸变化、面板上限、启动失败、保存重开、损坏配置保护和退出子进程清理。桌面测试通过正式页面及公开业务 API 检查创建草稿、同页恢复分配后直接创建、连续创建时默认名称、原生方向键输入、视图重新挂载、取消和确认退出。
+
+`--setup` 聚焦创建表单，检查失焦后的红色警示、选择目录完成时按当前空名称填入、特殊字符处理、真实启动目录、emoji 显示和重复目录打开；仅替换系统目录选择器的返回结果，其余使用正式页面及业务路径。`--appearance` 使用深色启动，检查 pi 页脚 RGB 灰字、ANSI 灰字和索引灰字的实际显示对比度，并确认 CLI 强调色、淡化文字及块字符语义保留。`--codex` 是需要本机 Codex 的可选检查，通过真实键盘事件切换原生 `resume` 页的 Cwd/All；会读取本机历史列表，但不恢复会话或发送任务。这三个入口都可以与 `--packaged` 合用。`VIBEBRIDGE_TEST_APP` 可指定另一个待测 `.app` 路径，默认仍为 `outputs/VibeBridge.app`。
 
 `--packaged` 使用开发 Electron 测试宿主加载 `.app` 内的产品代码和原生模块；此外需实际打开 `.app` 检查图标启动。桌面测试将继承 PATH 缩减为 `/usr/bin:/bin`，验证登录环境中的 `node` 仍能解析并直接启动。
 
-验收记录和剩余人工步骤见 [#24](docs/issue-24-verification.md)、[#25](docs/issue-25-verification.md)、[#26](docs/issue-26-verification.md)、[#27](docs/issue-27-verification.md) 与 [#28 验证记录](docs/issue-28-verification.md)。
+GitHub Actions 的 [Checks 工作流](.github/workflows/checks.yml) 在 push、pull request 和手动触发时使用 macOS 执行依赖安装、Electron 原生 PTY 重建、运行时检查、类型检查、业务测试和构建。桌面入口在具备 GUI/PTY 条件的本机执行，尚未加入远端 CI；工作流配置和本地通过不代表远端已经运行或合并已被分支保护强制拦截。
+
+本轮修复、执行结果和剩余体验项统一记录在 [#32 验证记录](docs/issue-32-verification.md)。

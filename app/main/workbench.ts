@@ -79,7 +79,8 @@ export class Workbench {
     try {
       const directory = await realpath(path);
       if (!(await stat(directory)).isDirectory()) return { valid: false };
-      return { valid: true, directory, name: basename(directory), existingProjectId: this.state.projects.find(p => p.directory === directory)?.id };
+      const existing = this.state.projects.find(project => project.directory === directory);
+      return { valid: true, directory, name: basename(directory), existingProjectId: existing?.id, existingProjectName: existing?.name };
     } catch { return { valid: false }; }
   }
   createProject(draft: ProjectDraft): Promise<ProjectCreation> { return this.operation(async () => {
