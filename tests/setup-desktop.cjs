@@ -12,6 +12,25 @@ module.exports = async ({ window, evaluate, click, fill, until, directory, dialo
   const value = id => evaluate(`document.getElementById(${JSON.stringify(id)}).value`);
   const blur = id => evaluate(`document.getElementById(${JSON.stringify(id)}).focus(); document.getElementById(${JSON.stringify(id)}).blur();`);
   const redWarning = text => evaluate(`Array.from(document.querySelectorAll('.setup .error-text')).some(node => node.textContent.includes(${JSON.stringify(text)}) && node.getBoundingClientRect().height > 0)`);
+  const nameStatusLayout = async () => {
+    await settle();
+    return evaluate(`(() => {
+      const name = document.getElementById('project-name');
+      const status = document.getElementById('project-name-status');
+      const nextLabel = document.querySelector('label[for="project-directory"]');
+      return {
+        height: status?.getBoundingClientRect().height ?? 0,
+        gap: nextLabel.getBoundingClientRect().top - name.getBoundingClientRect().bottom,
+        normalGap: parseFloat(getComputedStyle(nextLabel).marginTop)
+      };
+    })()`);
+  };
+  const assertNameStatusCollapsed = async label => {
+    const layout = await nameStatusLayout();
+    assert.equal(layout.height, 0, `${label}: empty name warning must not reserve height`);
+    assert.equal(layout.gap, layout.normalGap, `${label}: empty name warning must not add spacing`);
+    console.log(`PASS: ${label} collapses the name warning and its spacing`);
+  };
   const choose = async path => {
     let returned = false;
     dialog.showOpenDialog = async () => { returned = true; return { canceled: path === null, filePaths: path === null ? [] : [path] }; };
@@ -23,11 +42,22 @@ module.exports = async ({ window, evaluate, click, fill, until, directory, dialo
   const second = join(directory, 'second');
   const special = join(directory, '  👩🏽‍💻 示例\n项目\t\u0001\u007f\u0085\u2028\u2029"\' $ & [测试]  ');
   const blank = join(directory, '\u0001\t ');
-  await Promise.all([first, second, special, blank].map(path => mkdir(path)));
   await until(() => evaluate(`!!document.getElementById('project-name')`));
   await check('new form does not report untouched empty fields', async () => assert.doesNotMatch(await evaluate('document.body.innerText'), /请输入项目名称|请选择项目目录/));
+  await assertNameStatusCollapsed('untouched name');
   await blur('project-name');
   await check('empty name shows a red field warning after blur', async () => assert.equal(await redWarning('请输入项目名称'), true));
+  const errorLayout = await nameStatusLayout();
+  assert.ok(errorLayout.height > 0, 'name warning expands when an error is shown');
+  assert.equal(errorLayout.gap, errorLayout.normalGap + errorLayout.height, 'expanded warning participates in layout');
+  await fill('project-name', 'Valid project');
+  await assertNameStatusCollapsed('corrected name');
+  await fill('project-name', '');
+  await check('clearing the corrected name expands its warning again', async () => {
+    assert.equal(await redWarning('请输入项目名称'), true);
+    assert.deepEqual(await nameStatusLayout(), errorLayout);
+  });
+  await Promise.all([first, second, special, blank].map(path => mkdir(path)));
   await blur('project-directory');
   await check('empty directory shows a red field warning after blur', async () => assert.equal(await redWarning('请选择项目目录'), true));
   if (process.env.VIBEBRIDGE_TEST_SETUP_SCREENSHOTS) {
@@ -96,6 +126,7 @@ module.exports = async ({ window, evaluate, click, fill, until, directory, dialo
   });
   await fill('project-name', cleanName);
   await check('correcting the name clears its warning', async () => assert.equal(await redWarning('控制字符'), false));
+  await assertNameStatusCollapsed('corrected pasted control characters');
   await until(() => evaluate(`!document.querySelector('button[type="submit"]').disabled`));
   await evaluate(`window.setupOutput = ''; window.workbench.subscribe(event => { if (event.kind === 'output') window.setupOutput += event.data; }); void 0;`);
   await click('创建并启动');

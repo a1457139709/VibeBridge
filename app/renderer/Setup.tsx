@@ -61,7 +61,7 @@ export function Setup({ draft, change, cancel, created, openProject, report, def
       if (projectNameHasControls(text)) { event.preventDefault(); setNameInputError('项目名称不能包含换行或控制字符'); }
       else setNameInputError('');
     }} autoComplete="off" />
-    <div id="project-name-status" className="field-status" aria-live="polite">{nameMessage && <span className="error-text">{nameMessage}</span>}</div>
+    <div id="project-name-status" className="field-status" hidden={!nameMessage} aria-live="polite">{nameMessage && <span className="error-text">{nameMessage}</span>}</div>
     <label htmlFor="project-directory">本地目录</label><div className="directory-input"><input id="project-directory" value={draft.directory} aria-invalid={!!directoryMessage} aria-describedby="project-directory-status" onBlur={() => setDirectoryTouched(true)} onChange={event => change({ ...draft, directory: event.target.value })} placeholder="/Users/you/Projects/my-project" autoComplete="off" /><button type="button" aria-label="选择本地目录" disabled={choosing} onClick={() => void chooseDirectory()}>浏览</button></div>
     <div id="project-directory-status" className="directory-status field-status" aria-live="polite">
       {checking ? '检查目录…' : directoryMessage && <span className="error-text">{directoryMessage}</span>}
