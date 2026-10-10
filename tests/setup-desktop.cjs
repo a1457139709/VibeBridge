@@ -12,24 +12,25 @@ module.exports = async ({ window, evaluate, click, fill, until, directory, dialo
   const value = id => evaluate(`document.getElementById(${JSON.stringify(id)}).value`);
   const blur = id => evaluate(`document.getElementById(${JSON.stringify(id)}).focus(); document.getElementById(${JSON.stringify(id)}).blur();`);
   const redWarning = text => evaluate(`Array.from(document.querySelectorAll('.setup .error-text')).some(node => node.textContent.includes(${JSON.stringify(text)}) && node.getBoundingClientRect().height > 0)`);
-  const nameStatusLayout = async () => {
+  const fieldStatusLayout = async field => {
     await settle();
     return evaluate(`(() => {
-      const name = document.getElementById('project-name');
-      const status = document.getElementById('project-name-status');
-      const nextLabel = document.querySelector('label[for="project-directory"]');
+      const field = ${JSON.stringify(field)};
+      const input = document.querySelector(field === 'name' ? '#project-name' : '.directory-input');
+      const status = document.getElementById('project-' + field + '-status');
+      const next = document.querySelector(field === 'name' ? 'label[for="project-directory"]' : '.setup > hr');
       return {
         height: status?.getBoundingClientRect().height ?? 0,
-        gap: nextLabel.getBoundingClientRect().top - name.getBoundingClientRect().bottom,
-        normalGap: parseFloat(getComputedStyle(nextLabel).marginTop)
+        gap: next.getBoundingClientRect().top - input.getBoundingClientRect().bottom,
+        normalGap: parseFloat(getComputedStyle(next).marginTop)
       };
     })()`);
   };
-  const assertNameStatusCollapsed = async label => {
-    const layout = await nameStatusLayout();
-    assert.equal(layout.height, 0, `${label}: empty name warning must not reserve height`);
-    assert.equal(layout.gap, layout.normalGap, `${label}: empty name warning must not add spacing`);
-    console.log(`PASS: ${label} collapses the name warning and its spacing`);
+  const assertStatusCollapsed = async (field, label) => {
+    const layout = await fieldStatusLayout(field);
+    assert.equal(layout.height, 0, `${label}: empty ${field} status must not reserve height`);
+    assert.equal(layout.gap, layout.normalGap, `${label}: empty ${field} status must not add spacing`);
+    console.log(`PASS: ${label} collapses the ${field} status and its spacing`);
   };
   const choose = async path => {
     let returned = false;
@@ -44,18 +45,19 @@ module.exports = async ({ window, evaluate, click, fill, until, directory, dialo
   const blank = join(directory, '\u0001\t ');
   await until(() => evaluate(`!!document.getElementById('project-name')`));
   await check('new form does not report untouched empty fields', async () => assert.doesNotMatch(await evaluate('document.body.innerText'), /请输入项目名称|请选择项目目录/));
-  await assertNameStatusCollapsed('untouched name');
+  await assertStatusCollapsed('name', 'untouched name');
+  await assertStatusCollapsed('directory', 'untouched directory');
   await blur('project-name');
   await check('empty name shows a red field warning after blur', async () => assert.equal(await redWarning('请输入项目名称'), true));
-  const errorLayout = await nameStatusLayout();
+  const errorLayout = await fieldStatusLayout('name');
   assert.ok(errorLayout.height > 0, 'name warning expands when an error is shown');
   assert.equal(errorLayout.gap, errorLayout.normalGap + errorLayout.height, 'expanded warning participates in layout');
   await fill('project-name', 'Valid project');
-  await assertNameStatusCollapsed('corrected name');
+  await assertStatusCollapsed('name', 'corrected name');
   await fill('project-name', '');
   await check('clearing the corrected name expands its warning again', async () => {
     assert.equal(await redWarning('请输入项目名称'), true);
-    assert.deepEqual(await nameStatusLayout(), errorLayout);
+    assert.deepEqual(await fieldStatusLayout('name'), errorLayout);
   });
   await Promise.all([first, second, special, blank].map(path => mkdir(path)));
   await blur('project-directory');
@@ -65,11 +67,26 @@ module.exports = async ({ window, evaluate, click, fill, until, directory, dialo
     await new Promise(resolve => setTimeout(resolve, 100));
     await writeFile(join(process.env.VIBEBRIDGE_TEST_SETUP_SCREENSHOTS, 'empty-fields.png'), (await window.webContents.capturePage()).toPNG());
   }
+  // Observe the checking state at render time so this assertion does not race the directory response.
+  await evaluate(`(() => {
+    window.directoryCheckingVisible = false;
+    const status = document.getElementById('project-directory-status');
+    const observer = new MutationObserver(() => {
+      if (status.textContent === '检查目录…') {
+        window.directoryCheckingVisible = status.getBoundingClientRect().height > 0;
+        observer.disconnect();
+      }
+    });
+    observer.observe(status, { childList: true, subtree: true, attributes: true });
+  })()`);
   await fill('project-directory', `${directory}/missing`);
   await until(() => evaluate(`document.querySelector('.directory-status').textContent.includes('请选择有效的本地目录')`));
+  await check('directory inspection shows its checking status', async () => assert.equal(await evaluate('window.directoryCheckingVisible'), true));
   await check('nonexistent directory explains why creation is unavailable', async () => assert.equal(await redWarning('请选择有效的本地目录'), true));
   await fill('project-directory', first);
   await check('typing a directory does not change the name', async () => assert.equal(await value('project-name'), ''));
+  await until(() => evaluate(`document.querySelector('.directory-status').textContent === ''`));
+  await assertStatusCollapsed('directory', 'corrected invalid directory');
   await fill('project-name', 'Edited then cleared');
   await fill('project-name', '');
   await choose(first);
@@ -126,7 +143,7 @@ module.exports = async ({ window, evaluate, click, fill, until, directory, dialo
   });
   await fill('project-name', cleanName);
   await check('correcting the name clears its warning', async () => assert.equal(await redWarning('控制字符'), false));
-  await assertNameStatusCollapsed('corrected pasted control characters');
+  await assertStatusCollapsed('name', 'corrected pasted control characters');
   await until(() => evaluate(`!document.querySelector('button[type="submit"]').disabled`));
   await evaluate(`window.setupOutput = ''; window.workbench.subscribe(event => { if (event.kind === 'output') window.setupOutput += event.data; }); void 0;`);
   await click('创建并启动');
@@ -141,6 +158,14 @@ module.exports = async ({ window, evaluate, click, fill, until, directory, dialo
   await until(() => evaluate(`document.querySelector('.directory-status').textContent.includes('打开已有项目')`));
   await check('duplicate directory explains the existing project in red', async () => assert.equal(await redWarning(`此目录已添加为项目『${cleanName}』，无法重复创建`), true));
   assert.equal(await evaluate(`document.querySelector('button[type="submit"]').disabled`), true);
+  await fill('project-directory', second);
+  await until(() => evaluate(`document.querySelector('.directory-status').textContent === ''`));
+  await assertStatusCollapsed('directory', 'corrected duplicate directory');
+  await choose(special);
+  await until(() => evaluate(`document.querySelector('.directory-status').textContent.includes('打开已有项目')`));
+  await check('duplicate directory expands its open-project action again', async () => {
+    assert.ok(await evaluate(`document.querySelector('.open-existing-project').getBoundingClientRect().height > 0`));
+  });
   if (process.env.VIBEBRIDGE_TEST_SETUP_SCREENSHOTS) {
     await settle();
     await new Promise(resolve => setTimeout(resolve, 100));
