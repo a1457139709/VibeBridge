@@ -1,5 +1,6 @@
 import { layoutBoxes } from './layout';
 import type { Shortcuts } from './shortcuts';
+import { projectNameError } from './project-name';
 
 export const agentTypes = ['codex', 'claude', 'pi'] as const;
 export type AgentType = typeof agentTypes[number];
@@ -20,14 +21,15 @@ export interface PanelCreation { panel: Panel; launch: LaunchResult }
 export interface Snapshot { projects: Project[]; activeProjectId: string | null; runs: Run[]; settings: Settings; startupTheme: Settings['theme']; resolvedTheme: 'dark' | 'light'; errors: string[] }
 export type TerminalEvent = { kind: 'output'; runId: string; data: string } | { kind: 'started'; run: Run } | { kind: 'exit'; runId: string };
 export type WorkbenchEvent = TerminalEvent | { kind: 'snapshot'; snapshot: Snapshot } | { kind: 'error'; message: string };
-export interface DirectoryResult { valid: boolean; directory?: string; name?: string; existingProjectId?: string }
+export interface DirectoryResult { valid: boolean; directory?: string; name?: string; existingProjectId?: string; existingProjectName?: string }
 
 export function assignedAgents(draft: ProjectDraft): AgentType[] {
   return agentTypes.flatMap(type => Array.from({ length: draft.counts[type] }, () => type));
 }
 
 export function validateDraft(draft: ProjectDraft): void {
-  if (!draft.name.trim()) throw new Error('请输入项目名称');
+  const nameError = projectNameError(draft.name);
+  if (nameError) throw new Error(nameError);
   if (!Number.isInteger(draft.total) || draft.total < 1 || draft.total > 10) throw new Error('窗口总数须为 1 至 10');
   if (agentTypes.some(type => !Number.isInteger(draft.counts[type]) || draft.counts[type] < 0 || draft.counts[type] > 10)
     || agentTypes.reduce((sum, type) => sum + draft.counts[type], 0) !== draft.total) throw new Error('Agent 分配数量须等于窗口总数');

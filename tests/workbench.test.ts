@@ -21,6 +21,12 @@ test('project creation rejects incomplete allocation and invalid directories wit
     await assert.rejects(workbench.createProject(draft), /分配/);
     await assert.rejects(workbench.createProject({ ...draft, total: 1, counts: { codex: 1, claude: 0, pi: 0 }, directory: `${dataDirectory}/missing` }), /目录/);
     await assert.rejects(workbench.createProject({ ...draft, name: ' ', total: 1, counts: { codex: 1, claude: 0, pi: 0 } }), /名称/);
+    const settings = workbench.snapshot().settings;
+    settings.agents.codex = { command: '/no-such-test-agent', args: [] };
+    await workbench.saveSettings(settings);
+    for (const name of ['Manual\u001bname', 'Manual\nname', 'Manual\u2028name']) {
+      await assert.rejects(workbench.createProject({ ...draft, name, total: 1, counts: { codex: 1, claude: 0, pi: 0 } }), /控制字符/);
+    }
     assert.deepEqual(workbench.snapshot().projects, []);
     assert.deepEqual(workbench.snapshot().runs, []);
   } finally {

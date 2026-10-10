@@ -14,8 +14,9 @@ async function until(check) {
 void (async () => {
   const directory = process.env.VIBEBRIDGE_TEST_DATA;
   process.env.VIBEBRIDGE_DATA_DIR = directory;
-  const command = { command: 'node', args: [resolve('tests/fixtures/interactive.cjs')] };
-  if (!process.env.VIBEBRIDGE_TEST_REOPEN) await writeFile(`${directory}/settings.json`, JSON.stringify({ theme: 'light', agents: { codex: command, claude: command, pi: command } }));
+  const command = { command: 'node', args: [resolve('tests/fixtures/interactive.cjs'), ...(process.env.VIBEBRIDGE_TEST_SETUP ? ['--encode-cwd'] : [])] };
+  const codexCommand = process.env.VIBEBRIDGE_TEST_CODEX ? { command: 'codex', args: ['resume', '--no-daemon', '--no-alt-screen'] } : command;
+  if (!process.env.VIBEBRIDGE_TEST_REOPEN) await writeFile(`${directory}/settings.json`, JSON.stringify({ theme: process.env.VIBEBRIDGE_TEST_APPEARANCE ? 'dark' : 'light', agents: { codex: codexCommand, claude: command, pi: command } }));
   let answer = 0;
   let confirmations = 0;
   dialog.showMessageBox = async (_window, options) => {
@@ -34,6 +35,25 @@ void (async () => {
   window.webContents.on('console-message', details => { if (details.level === 'error') console.error(details.message); });
   const click = label => evaluate(`(() => { const button = [...document.querySelectorAll('button')].find(b => b.getAttribute('aria-label') === ${JSON.stringify(label)} || b.textContent === ${JSON.stringify(label)}); if (!button) throw new Error('Missing button'); button.click(); })()`);
   const fill = (id, value) => evaluate(`(() => { const input = document.getElementById(${JSON.stringify(id)}); Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value').set.call(input, ${JSON.stringify(value)}); input.dispatchEvent(new Event('input', { bubbles: true })); })()`);
+  const verifyArrows = async panelId => {
+    const run = (await evaluate('window.workbench.snapshot()')).runs.find(run => run.panelId === panelId);
+    assert.equal(await evaluate(`document.activeElement?.closest('[data-panel-id]')?.dataset.panelId`), panelId);
+    for (const [mode, prefix] of [['normal', '1b5b'], ['application', '1b4f']]) {
+      const modeStart = await evaluate('window.observedOutput.length');
+      await evaluate(`window.workbench.sendInput(${JSON.stringify(run.id)}, 'cursor-${mode}')`);
+      await until(() => evaluate(`window.observedOutput.slice(${modeStart}).some(event => event.runId === ${JSON.stringify(run.id)} && event.data.includes('INPUT:cursor-${mode}'))`));
+      await evaluate('new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))');
+      for (const [keyCode, suffix] of [['Left', '44'], ['Right', '43']]) {
+        const expected = prefix + suffix;
+        const start = await evaluate('window.observedOutput.length');
+        window.webContents.sendInputEvent({ type: 'keyDown', keyCode });
+        window.webContents.sendInputEvent({ type: 'keyUp', keyCode });
+        await until(() => evaluate(`window.observedOutput.slice(${start}).some(event => event.data.includes('BYTES:${expected}'))`));
+        assert.deepEqual(await evaluate(`[...new Set(window.observedOutput.slice(${start}).filter(event => event.data.includes('BYTES:${expected}')).map(event => event.runId))]`), [run.id]);
+      }
+    }
+    await evaluate(`window.workbench.sendInput(${JSON.stringify(run.id)}, 'cursor-normal')`);
+  };
   // Select and copy visible terminal text through the native UI, without inspecting xterm internals.
   const copyTerminal = async panelId => {
     const previous = await Promise.all((await clipboard.read()).map(async item =>
@@ -52,6 +72,33 @@ void (async () => {
     }
   };
   try {
+    if (process.env.VIBEBRIDGE_TEST_SETUP) {
+      await require('./setup-desktop.cjs')({ window, evaluate, click, fill, until, directory, dialog });
+      const runs = (await evaluate('window.workbench.snapshot()')).runs;
+      answer = 1;
+      app.once('will-quit', event => {
+        event.preventDefault();
+        try { for (const run of runs) assert.throws(() => process.kill(run.pid, 0)); app.exit(0); }
+        catch (error) { console.error(error); app.exit(1); }
+      });
+      app.quit();
+      return;
+    }
+    if (process.env.VIBEBRIDGE_TEST_CODEX) {
+      await require('./codex-desktop.cjs')({ window, evaluate, click, fill, until, directory });
+      const runs = (await evaluate('window.workbench.snapshot()')).runs;
+      answer = 1;
+      app.once('will-quit', event => {
+        event.preventDefault();
+        try {
+          for (const run of runs) assert.throws(() => process.kill(run.pid, 0));
+          console.log('Codex native resume picker arrows, focus changes and quit passed.');
+          app.exit(0);
+        } catch (error) { console.error(error); app.exit(1); }
+      });
+      app.quit();
+      return;
+    }
     if (process.env.VIBEBRIDGE_TEST_REOPEN) {
       const saved = JSON.parse(await readFile(`${directory}/expected.json`, 'utf8'));
       await until(async () => (await evaluate('window.workbench.snapshot()')).runs.length === 2);
@@ -99,24 +146,76 @@ void (async () => {
     await until(() => evaluate(`!!document.getElementById('project-name')`));
     assert.match(await evaluate('document.body.innerText'), /已分配 0 \/ 3/);
     assert.equal(await evaluate(`document.querySelector('button[type="submit"]').disabled`), true);
+    await fill('project-directory', `${directory}/missing`);
+    await until(() => evaluate(`document.querySelector('.directory-status').textContent.includes('请选择有效的本地目录')`));
+    assert.equal(await evaluate(`document.querySelector('button[type="submit"]').disabled`), true);
+    dialog.showOpenDialog = async () => ({ canceled: false, filePaths: [directory] });
+    await click('选择本地目录');
+    await until(() => evaluate(`document.getElementById('project-name').value === ${JSON.stringify(directory.split('/').at(-1))}`));
+    await fill('project-name', 'First project');
+    await fill('project-directory', `${directory}/missing-again`);
+    await until(() => evaluate(`document.querySelector('.directory-status').textContent.includes('请选择有效的本地目录')`));
+    assert.equal(await evaluate(`document.getElementById('project-name').value`), 'First project');
     await fill('project-directory', directory);
     for (const label of ['增加Codex', '增加Claude Code', '增加pi']) await click(label);
-    await click('减少窗口数量');
-    assert.match(await evaluate('document.body.innerText'), /多分配了 1 个/);
-    assert.equal(await evaluate(`document.querySelector('button[type="submit"]').disabled`), true);
-    await click('增加窗口数量');
     await click('取消');
     assert.equal((await evaluate('window.workbench.snapshot()')).projects.length, 0);
     await click('创建项目');
     assert.match(await evaluate('document.body.innerText'), /已分配 3 \/ 3/);
     assert.equal(await evaluate(`document.getElementById('project-directory').value`), directory);
+    assert.equal(await evaluate(`document.getElementById('project-name').value`), 'First project');
     await until(() => evaluate(`!document.querySelector('button[type="submit"]').disabled`));
+    await click('减少窗口数量');
+    assert.match(await evaluate('document.body.innerText'), /多分配了 1 个/);
+    assert.equal(await evaluate(`document.querySelector('button[type="submit"]').disabled`), true);
+    await click('增加窗口数量');
+    assert.equal(await evaluate(`document.querySelector('button[type="submit"]').disabled`), false, 'Restoring the total must enable creation on the same page');
     await evaluate(`window.observedOutput = []; window.workbench.subscribe(event => { if (event.kind === 'output' && !window.loadActive) window.observedOutput.push(event); }); void 0;`);
     await click('创建并启动');
     await until(() => evaluate(`document.querySelectorAll('.xterm').length === 3`));
     const before = await evaluate('window.workbench.snapshot()');
     assert.equal(before.runs.length, 3);
+    assert.equal(before.projects[0].name, 'First project');
+    assert.equal(before.projects[0].directory, directory);
+    assert.deepEqual(before.projects[0].panels.map(panel => panel.agent), ['codex', 'claude', 'pi']);
     await until(() => evaluate(`new Set(window.observedOutput.filter(event => event.data.includes('READY:')).map(event => event.runId)).size === 3`));
+    if (process.env.VIBEBRIDGE_TEST_APPEARANCE) {
+      await require('./appearance-desktop.cjs')({ window, evaluate, until, run: before.runs[0] });
+      answer = 1;
+      app.once('will-quit', event => {
+        event.preventDefault();
+        try {
+          for (const run of before.runs) assert.throws(() => process.kill(run.pid, 0));
+          console.log('Dark terminal appearance and quit passed.');
+          app.exit(0);
+        } catch (error) { console.error(error); app.exit(1); }
+      });
+      app.quit();
+      return;
+    }
+    const nextDirectory = resolve(directory, 'next-project');
+    await mkdir(nextDirectory);
+    await click('添加项目');
+    assert.equal(await evaluate(`document.getElementById('project-name').value`), '');
+    assert.match(await evaluate('document.body.innerText'), /已分配 0 \/ 3/);
+    dialog.showOpenDialog = async () => ({ canceled: false, filePaths: [nextDirectory] });
+    await click('选择本地目录');
+    await until(() => evaluate(`document.getElementById('project-directory').value === ${JSON.stringify(nextDirectory)}`));
+    assert.equal(await evaluate(`document.getElementById('project-directory').value`), nextDirectory);
+    await until(() => evaluate(`!document.querySelector('.directory-status').textContent.includes('检查目录')`));
+    assert.equal(await evaluate(`document.getElementById('project-name').value`), 'next-project', 'A fresh draft must derive its name from the directory after a named project was created');
+    await fill('project-name', 'Pending draft');
+    await fill('project-directory', directory);
+    await until(() => evaluate(`document.querySelector('.directory-status').textContent.includes('打开已有项目')`));
+    assert.equal(await evaluate(`document.querySelector('button[type="submit"]').disabled`), true);
+    await click('打开已有项目');
+    await until(() => evaluate(`document.querySelectorAll('.xterm').length === 3`));
+    assert.deepEqual((await evaluate('window.workbench.snapshot()')).runs, before.runs);
+    await click('添加项目');
+    assert.equal(await evaluate(`document.getElementById('project-name').value`), 'Pending draft');
+    await fill('project-directory', nextDirectory);
+    assert.equal(await evaluate(`document.getElementById('project-name').value`), 'Pending draft');
+    await click('取消');
     window.focus();
     window.webContents.focus();
     await evaluate(`document.querySelector('.xterm-helper-textarea').focus()`);
@@ -125,6 +224,13 @@ void (async () => {
     const inputRuns = await evaluate(`[...new Set(window.observedOutput.filter(event => event.data.includes('INPUT:k')).map(event => event.runId))]`);
     assert.equal(inputRuns.length, 1);
     const project = before.projects[0];
+    await verifyArrows(project.panels[0].id);
+    await evaluate(`document.querySelector('[data-panel-id="${project.panels[1].id}"] .panel-header').click()`);
+    await verifyArrows(project.panels[1].id);
+    await click('全局设置');
+    await click('‹ 返回');
+    await until(() => evaluate(`document.activeElement?.closest('[data-panel-id]')?.dataset.panelId === ${JSON.stringify(project.panels[1].id)}`));
+    await verifyArrows(project.panels[1].id);
     const layout = { axis: 'column', ratio: 0.65, first: { panel: project.panels[2].id },
       second: { axis: 'row', ratio: 0.4, first: { panel: project.panels[0].id }, second: { panel: project.panels[1].id } } };
     await evaluate(`window.workbench.saveLayout(${JSON.stringify(project.id)}, ${JSON.stringify(layout)})`);
@@ -230,6 +336,7 @@ void (async () => {
     await click('添加项目');
     await click('取消');
     await until(() => evaluate(`document.activeElement?.closest('[data-panel-id]')?.dataset.panelId === ${JSON.stringify(selectedPanel)}`));
+    await verifyArrows(selectedPanel);
     await click('展开项目导航');
     await require('./settings-desktop.cjs')({ window, evaluate, click, fill, until });
     await require('./load-desktop.cjs')({ window, evaluate, click, until });
