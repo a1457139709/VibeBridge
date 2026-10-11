@@ -46,6 +46,10 @@ process.stdin.on('data', data => {
     const child = spawn(process.execPath, [__filename, 'orphan-parent'], { detached: true, stdio: ['ignore', 'pipe', 'ignore'] });
     child.stdout.on('data', data => process.stdout.write(data));
   }
+  if (text.includes('linger')) {
+    const child = spawn(process.execPath, ['-e', 'process.on("SIGTERM", () => {}); setInterval(() => {}, 1000)'], { detached: true, stdio: 'ignore' });
+    process.stdout.write(`LINGER:${child.pid}\r\n`);
+  }
   if (text.includes('child')) {
     const child = spawn(process.execPath, ['-e', 'setInterval(() => {}, 1000)'], { detached: true, stdio: 'ignore' });
     process.stdout.write(`CHILD:${child.pid}\r\n`);
