@@ -108,6 +108,8 @@ async function handle(operation: string, value: any) {
   const entry = runs.get(value.runId);
   // Layout transitions may finish after a panel has stopped. Only input requires a live target.
   if (operation === 'resize' && (!entry || entry.stopping)) return;
+  // A stopping run still shows its panel until cleanup ends; drop typing or terminal replies meanwhile.
+  if (operation === 'input' && entry?.stopping) return;
   if (!entry || entry.stopping) throw new Error('运行已失效');
   if (operation === 'input') {
     if (typeof value.data !== 'string' || value.data.length > 1024 * 1024) throw new Error('终端输入无效');

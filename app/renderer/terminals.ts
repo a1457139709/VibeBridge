@@ -24,7 +24,8 @@ function ensure(runId: string): Screen {
   });
   const screen = { terminal, fit, element, observer, opened: false, consumed: 0 };
   screens.set(runId, screen);
-  terminal.onData(data => { void window.workbench.sendInput(runId, data).catch(error => report(error.message)); });
+  // Input sent just before the run ended is rejected after its exit disposed this screen; only a live screen reports.
+  terminal.onData(data => { void window.workbench.sendInput(runId, data).catch(error => { if (screens.get(runId) === screen) report(error.message); }); });
   terminal.onResize(({ cols, rows }) => { void window.workbench.resizeRun(runId, cols, rows).catch(error => report(error.message)); });
   terminal.attachCustomKeyEventHandler(event => {
     if (event.metaKey && event.key.toLowerCase() === 'c' && terminal.hasSelection()) return false;

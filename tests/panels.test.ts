@@ -137,3 +137,42 @@ test('terminal manager failure cleans up runs without removing saved panel confi
     await rm(directory, { recursive: true, force: true });
   }
 });
+
+test('input while a naturally exited run is still being cleaned up is dropped without an error', async () => {
+  const directory = await mkdtemp(resolve('work/panels-'));
+  const workbench = await Workbench.open(directory);
+  let lingerPid = 0;
+  try {
+    const settings = workbench.snapshot().settings;
+    settings.agents.codex = { command: process.env.VIBEBRIDGE_TEST_NODE!, args: [resolve('tests/fixtures/interactive.cjs')] };
+    await workbench.saveSettings(settings);
+    let output = '';
+    const exits: string[] = [];
+    workbench.subscribe(event => {
+      if (event.kind === 'output') output += event.data;
+      if (event.kind === 'exit') exits.push(event.runId);
+    });
+    await workbench.createProject({ name: 'Exit cleanup', directory, total: 1, counts: { codex: 1, claude: 0, pi: 0 } });
+    const [run] = workbench.snapshot().runs;
+    await until(() => output.includes('READY:'));
+    await workbench.sendInput(run.id, 'linger');
+    await until(() => /LINGER:(\d+)/.test(output));
+    lingerPid = Number(output.match(/LINGER:(\d+)/)![1]);
+    // Let the host sample the child so cleanup has to wait for it to ignore SIGTERM.
+    await new Promise(resolve => setTimeout(resolve, 700));
+    await workbench.sendInput(run.id, 'exit');
+    await until(() => { try { process.kill(run.pid!, 0); return false; } catch { return true; } });
+    // The panel still shows the run while its leftover child is cleaned up.
+    assert.equal(workbench.snapshot().runs.find(r => r.id === run.id)?.state, 'running');
+    await workbench.sendInput(run.id, 'typed-after-exit');
+    await workbench.sendInput(run.id, '\x1b[O');
+    await until(() => exits.includes(run.id));
+    // The exit event precedes the queued panel removal.
+    await until(() => workbench.snapshot().projects[0].panels.length === 0);
+    assert.deepEqual(workbench.snapshot().errors, []);
+  } finally {
+    if (lingerPid) { try { process.kill(lingerPid, 'SIGKILL'); } catch { /* already cleaned */ } }
+    await workbench.quit();
+    await rm(directory, { recursive: true, force: true });
+  }
+});
