@@ -167,7 +167,8 @@ test('input while a naturally exited run is still being cleaned up is dropped wi
     await workbench.sendInput(run.id, 'typed-after-exit');
     await workbench.sendInput(run.id, '\x1b[O');
     await until(() => exits.includes(run.id));
-    assert.deepEqual(workbench.snapshot().projects[0].panels, []);
+    // The exit event precedes the queued panel removal.
+    await until(() => workbench.snapshot().projects[0].panels.length === 0);
     assert.deepEqual(workbench.snapshot().errors, []);
   } finally {
     if (lingerPid) { try { process.kill(lingerPid, 'SIGKILL'); } catch { /* already cleaned */ } }
