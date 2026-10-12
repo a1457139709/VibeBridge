@@ -93,7 +93,6 @@ hr { border: 0; border-top: 1px solid var(--line); margin: 22px 0; }
 .resizing .panel-slot { transition: none; }
 .agent-panel { position: relative; height: 100%; border: 1px solid var(--line); border-radius: 10px; background: var(--surface); display: flex; flex-direction: column; overflow: hidden; transition: border-color 140ms, box-shadow 140ms; }
 .agent-panel.focused { border-color: var(--panel-focus, var(--brand)); box-shadow: var(--panel-ring, 0 0 0 3px color-mix(in srgb, var(--brand) 18%, transparent)); }
-.agent-panel.drop-target::after { content: ''; position: absolute; inset: 3px; border: 1px dashed var(--panel-focus, var(--brand)); border-radius: 6px; background: color-mix(in srgb, var(--panel-focus, var(--brand)) 10%, transparent); pointer-events: none; z-index: 3; }
 .panel-header { height: 31px; flex-shrink: 0; display: flex; align-items: center; justify-content: space-between; padding: 0 7px 0 11px; cursor: grab; user-select: none; font-size: 11px; gap: 4px; background: var(--panel-heading, var(--surface)); border-bottom: var(--panel-heading-border, 0); }
 .agent-title { display: flex; align-items: center; gap: 6px; min-width: 0; white-space: nowrap; color: var(--muted); }
 .focused .agent-title { color: inherit; }
@@ -102,7 +101,7 @@ hr { border: 0; border-top: 1px solid var(--line); margin: 22px 0; }
 .panel-actions button { font-size: 17px; border: 0; min-height: 25px; width: 27px; padding: 0; background: transparent; color: var(--muted); }
 .panel-menu { position: absolute; top: 30px; right: 7px; z-index: 4; display: grid; padding: 4px; background: var(--surface); border: 1px solid var(--line); border-radius: 6px; box-shadow: 0 4px 16px #0002; }
 .panel-menu button { border: 0; text-align: left; font-size: 12px; }
-.terminal-container { flex: 1; min-height: 0; padding: 13px; overflow: hidden; }
+.terminal-container { --normal-terminal-padding: 13; flex: 1; min-height: 0; padding: 13px; overflow: hidden; }
 .terminal-screen { height: 100%; width: 100%; }
 .terminal-message { display: grid; place-items: center; height: 100%; font-size: 12px; }
 .divider { position: absolute; z-index: 1; touch-action: none; }
@@ -148,3 +147,17 @@ textarea { resize: vertical; }
 @media (max-width: 760px) { .settings-shell { padding: 0 20px; } .settings-columns { gap: 20px; } .settings-navigation { flex-basis: 90px; } .shortcut-row { gap: 10px; } .shortcut-row input { width: 130px; } }
 @media (max-width: 760px) { .setup { margin: 28px 20px; } }
 @media (prefers-reduced-motion: reduce) { *, *::before, *::after { transition: none !important; animation: none !important; } }
+
+.tiny-agent-mark { display: none; }
+.agent-panel[data-tiny='true'] { border-color: var(--brand); border-radius: 2px; }
+.agent-panel[data-tiny='true'] .panel-header { position: absolute; width: max-content; visibility: hidden; pointer-events: none; }
+.agent-panel[data-tiny='true'] .panel-menu { display: none; }
+.agent-panel[data-tiny='true'] .terminal-container { position: absolute; inset: 0; padding: 0; visibility: hidden; }
+.agent-panel[data-tiny='true'] .tiny-agent-mark { display: grid; place-items: center; position: absolute; inset: 0; width: auto; overflow: hidden; font-size: min(18px, calc(var(--terminal-cell-width) * 2)); }
+
+.panel-header { touch-action: none; }
+.panel-drag-image, .panel-preview-image { position: fixed; pointer-events: none; overflow: hidden; }
+.panel-drag-image { z-index: 31; opacity: .5; }
+.panel-swap-preview { position: fixed; inset: 0; z-index: 30; pointer-events: none; }
+.panel-swap-preview .agent-panel, .panel-drag-image .agent-panel { transition: none; }
+.dragging, .dragging .panel-header { cursor: grabbing; }

@@ -99,6 +99,19 @@ void (async () => {
       app.quit();
       return;
     }
+    if (process.env.VIBEBRIDGE_TEST_REOPEN && process.env.VIBEBRIDGE_TEST_PANELS) {
+      const saved = JSON.parse(await readFile(`${directory}/panels-expected.json`, 'utf8'));
+      await require('./panels-desktop.cjs').reopen({ evaluate, until, saved });
+      const runs = (await evaluate('window.workbench.snapshot()')).runs;
+      answer = 1;
+      app.once('will-quit', event => {
+        event.preventDefault();
+        try { for (const run of runs) assert.throws(() => process.kill(run.pid, 0)); app.exit(0); }
+        catch (error) { console.error(error); app.exit(1); }
+      });
+      app.quit();
+      return;
+    }
     if (process.env.VIBEBRIDGE_TEST_REOPEN) {
       const saved = JSON.parse(await readFile(`${directory}/expected.json`, 'utf8'));
       await until(async () => (await evaluate('window.workbench.snapshot()')).runs.length === 2);
@@ -179,6 +192,18 @@ void (async () => {
     assert.equal(before.projects[0].directory, directory);
     assert.deepEqual(before.projects[0].panels.map(panel => panel.agent), ['codex', 'claude', 'pi']);
     await until(() => evaluate(`new Set(window.observedOutput.filter(event => event.data.includes('READY:')).map(event => event.runId)).size === 3`));
+    if (process.env.VIBEBRIDGE_TEST_PANELS) {
+      await require('./panels-desktop.cjs')({ window, evaluate, until, project: before.projects[0], runs: before.runs, directory, copyTerminal });
+      await writeFile(`${directory}/panels-expected.json`, JSON.stringify(await evaluate('window.workbench.snapshot()')));
+      answer = 1;
+      app.once('will-quit', event => {
+        event.preventDefault();
+        try { for (const run of before.runs) assert.throws(() => process.kill(run.pid, 0)); app.exit(0); }
+        catch (error) { console.error(error); app.exit(1); }
+      });
+      app.quit();
+      return;
+    }
     if (process.env.VIBEBRIDGE_TEST_APPEARANCE) {
       await require('./appearance-desktop.cjs')({ window, evaluate, until, run: before.runs[0] });
       answer = 1;
@@ -235,14 +260,22 @@ void (async () => {
       second: { axis: 'row', ratio: 0.4, first: { panel: project.panels[0].id }, second: { panel: project.panels[1].id } } };
     await evaluate(`window.workbench.saveLayout(${JSON.stringify(project.id)}, ${JSON.stringify(layout)})`);
     await until(() => evaluate(`document.querySelector('[data-panel-id="${project.panels[2].id}"]').style.height === '65%'`));
-    // Exercise the same DOM drag handlers without treating this as a drag-feel or visual acceptance test.
-    await evaluate(`window.panelDrag = new DataTransfer(); document.querySelector('[data-panel-id="${project.panels[0].id}"] .panel-header').dispatchEvent(new DragEvent('dragstart', { bubbles: true, dataTransfer: window.panelDrag }));`);
-    await evaluate(`document.querySelector('[data-panel-id="${project.panels[1].id}"] .terminal-container').dispatchEvent(new DragEvent('dragover', { bubbles: true, cancelable: true, dataTransfer: window.panelDrag }));`);
-    await until(() => evaluate(`!!document.querySelector('.drop-target')`));
-    await evaluate(`document.querySelector('[data-panel-id="${project.panels[1].id}"] .terminal-container').dispatchEvent(new DragEvent('drop', { bubbles: true, cancelable: true, dataTransfer: window.panelDrag }));`);
+    const dragPanel = async (sourceId, targetId, release = true) => {
+      const point = selector => evaluate(`(() => { const b = document.querySelector(${JSON.stringify(selector)}).getBoundingClientRect(); return { x: Math.round(b.left + Math.min(30, b.width / 2)), y: Math.round(b.top + Math.min(12, b.height / 2)) }; })()`);
+      const source = await point(`[data-panel-id="${sourceId}"] .panel-header`);
+      const target = await point(`[data-panel-id="${targetId}"] .agent-panel`);
+      window.webContents.sendInputEvent({ type: 'mouseDown', ...source, button: 'left', clickCount: 1 });
+      window.webContents.sendInputEvent({ type: 'mouseMove', x: source.x + 12, y: source.y + 2, modifiers: ['leftButtonDown'] });
+      await until(() => evaluate(`!!document.querySelector('.panel-drag-image')`));
+      window.webContents.sendInputEvent({ type: 'mouseMove', ...target, modifiers: ['leftButtonDown'] });
+      await until(() => evaluate(`!!document.querySelector('.panel-swap-preview')`));
+      if (release) window.webContents.sendInputEvent({ type: 'mouseUp', ...target, button: 'left', clickCount: 1 });
+      return target;
+    };
+    await dragPanel(project.panels[0].id, project.panels[1].id);
     const swapped = { ...layout, second: { ...layout.second, first: layout.second.second, second: layout.second.first } };
     await until(async () => JSON.stringify((await evaluate('window.workbench.snapshot()')).projects[0].layout) === JSON.stringify(swapped));
-    assert.equal(await evaluate(`!!document.querySelector('.drop-target')`), false);
+    assert.equal(await evaluate(`!!document.querySelector('.panel-swap-preview')`), false);
     const firstPanel = `[data-panel-id="${project.panels[0].id}"]`;
     await evaluate(`document.querySelector('${firstPanel} button[aria-label="放大面板"]').click()`);
     await until(() => evaluate(`!!document.querySelector('${firstPanel} button[aria-label="还原面板"]')`));
@@ -252,11 +285,10 @@ void (async () => {
     assert.deepEqual(await evaluate(`[...new Set(window.observedOutput.filter(event => event.data.includes('INPUT:m')).map(event => event.runId))]`), [before.runs.find(run => run.panelId === project.panels[0].id).id]);
     await click('还原面板');
     assert.deepEqual((await evaluate('window.workbench.snapshot()')).projects[0].layout, swapped);
-    await evaluate(`document.querySelector('${firstPanel} .panel-header').dispatchEvent(new DragEvent('dragstart', { bubbles: true, dataTransfer: window.panelDrag }));`);
-    await evaluate(`document.querySelector('[data-panel-id="${project.panels[1].id}"] .agent-panel').dispatchEvent(new DragEvent('dragover', { bubbles: true, cancelable: true, dataTransfer: window.panelDrag }));`);
-    await until(() => evaluate(`!!document.querySelector('.drop-target')`));
+    const cancelledTarget = await dragPanel(project.panels[0].id, project.panels[1].id, false);
     await evaluate(`window.dispatchEvent(new Event('blur'))`);
-    await until(() => evaluate(`!document.querySelector('.drop-target')`));
+    window.webContents.sendInputEvent({ type: 'mouseUp', ...cancelledTarget, button: 'left', clickCount: 1 });
+    await until(() => evaluate(`!document.querySelector('.panel-swap-preview')`));
     const divider = await evaluate(`(() => { const b = document.querySelector('.divider[aria-orientation="horizontal"]').getBoundingClientRect(); return { x: Math.round(b.left + b.width / 2), y: Math.round(b.top + b.height / 2) }; })()`);
     window.webContents.sendInputEvent({ type: 'mouseDown', ...divider, button: 'left', clickCount: 1 });
     await until(() => evaluate(`document.querySelector('.canvas').classList.contains('resizing')`));
