@@ -54,6 +54,8 @@ void app.whenReady().then(async () => {
   };
   handle('snapshot', service => service.snapshot());
   handle('create', (service, draft) => service.createProject(draft));
+  handle('edit-project', (service, id, edit, restart) => service.editProject(id, edit, restart));
+  handle('delete-project', (service, id) => service.deleteProject(id));
   handle('directory', (service, directory) => service.inspectDirectory(directory));
   handle('activate', (service, id) => service.activateProject(id));
   handle('add', (service, project, agent) => service.addPanel(project, agent));

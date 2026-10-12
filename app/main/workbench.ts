@@ -1,3 +1,5 @@
+import { projectNameError } from '../shared/project-name';
+import type { ProjectEdit, ProjectEditResult } from '../shared/model';
 import { randomUUID } from 'node:crypto';
 import { realpath, stat } from 'node:fs/promises';
 import { basename } from 'node:path';
@@ -13,12 +15,15 @@ export class Workbench {
   private operations: Promise<unknown> = Promise.resolve();
   private visited = new Set<string>();
   private expectedRuns = new Map<string, string>();
+  private terminalFailure?: string;
+  private controlledStops = new Set<string>();
   private quitting = false;
   private quitPromise?: Promise<void>;
   private constructor(directory: string, private store: ProjectStore, private settingsFile: SettingsFile) {
     this.terminal = new TerminalClient(directory, event => this.terminalEvent(event), (message, stopped) => {
       if (stopped) {
-        for (const run of this.state.runs) if (run.state === 'running') run.state = 'stopped';
+        this.terminalFailure = message;
+        for (const run of this.state.runs) if (run.state === 'running' || run.state === 'starting') run.state = 'stopped';
         this.changed();
       }
       this.report(message);
@@ -65,8 +70,10 @@ export class Workbench {
       const run = this.state.runs.find(run => run.id === event.runId);
       if (!run || run.state !== 'running' || this.expectedRuns.get(run.panelId) !== run.id) return;
       if (event.kind === 'exit') {
-        this.state.runs = this.state.runs.filter(r => r.id !== run.id);
-        if (!this.quitting) void this.operation(async () => {
+        const controlled = this.controlledStops.delete(run.id);
+        if (controlled) run.state = 'stopped';
+        else this.state.runs = this.state.runs.filter(r => r.id !== run.id);
+        if (!this.quitting && !controlled) void this.operation(async () => {
           if (this.expectedRuns.get(run.panelId) !== run.id) return;
           await this.removePanel(run.projectId, run.panelId);
         }).catch(error => this.report(error.message));
@@ -98,11 +105,70 @@ export class Workbench {
     const launches = await this.startProject(project);
     return { project: structuredClone(project), launches };
   }); }
+  editProject(id: string, edit: ProjectEdit, restart: boolean): Promise<ProjectEditResult> { return this.operation(async () => {
+    const project = this.project(id);
+    const nameError = projectNameError(edit.name);
+    if (nameError) throw new Error(nameError);
+    const directory = await this.inspectDirectory(edit.directory);
+    if (!directory.valid) throw new Error('项目目录无效');
+    if (directory.existingProjectId && directory.existingProjectId !== id) throw new Error(`此目录已添加为项目『${directory.existingProjectName}』，请打开已有项目`);
+    const next = { ...project, name: edit.name.trim(), directory: directory.directory! };
+    const changedDirectory = project.directory !== next.directory;
+    if (!changedDirectory && project.name === next.name) return { project: structuredClone(project), launches: [] };
+    await this.store.save(next);
+    Object.assign(project, next); this.changed();
+    const result: ProjectEditResult = { project: structuredClone(project), launches: [] };
+    if (changedDirectory && restart && this.visited.has(id)) {
+      const failures = await this.stopProject(project);
+      if (failures.length) result.error = `项目已保存，但停止失败，未重新启动：${failures.join('；')}`;
+      else for (const panel of project.panels) result.launches.push(await this.startPanel(project, panel));
+    }
+    return result;
+  }); }
+  deleteProject(id: string) { return this.operation(async () => {
+    const project = this.project(id);
+    const failures = await this.stopProject(project);
+    if (failures.length) throw new Error(`项目未删除，停止失败：${failures.join('；')}`);
+    const index = this.state.projects.indexOf(project);
+    const nextActive = this.state.activeProjectId === id
+      ? this.state.projects[index + 1]?.id ?? this.state.projects[index - 1]?.id ?? null
+      : this.state.activeProjectId;
+    // Records and the active-project pointer are removed in the same transaction.
+    await this.store.delete(id, nextActive);
+    this.state.projects = this.state.projects.filter(item => item.id !== id);
+    this.state.runs = this.state.runs.filter(run => run.projectId !== id);
+    for (const panel of project.panels) this.expectedRuns.delete(panel.id);
+    this.visited.delete(id);
+    const activateNext = this.state.activeProjectId === id;
+    this.state.activeProjectId = nextActive;
+    this.changed();
+    if (activateNext && nextActive) await this.startProject(this.project(nextActive));
+  }); }
+  private async stopProject(project: Project): Promise<string[]> {
+    if (this.terminalFailure && this.state.runs.some(run => run.projectId === project.id)) return [this.terminalFailure];
+    const failures: string[] = [];
+    for (const run of this.state.runs.filter(run => run.projectId === project.id && (run.state === 'running' || run.state === 'starting'))) {
+      // Mark before requesting cleanup: its exit event can arrive before the response.
+      this.controlledStops.add(run.id);
+      try { await this.terminal.stop(run.id); }
+      catch (error) { failures.push(`面板 ${project.panels.findIndex(panel => panel.id === run.panelId) + 1}：${(error as Error).message}`); }
+    }
+    return failures;
+  }
   private async startPanel(project: Project, panel: Panel): Promise<LaunchResult> {
     const id = randomUUID();
     this.expectedRuns.set(panel.id, id);
-    const run = await this.terminal.start({ id, panelId: panel.id, projectId: project.id, directory: project.directory, command: this.state.settings.agents[panel.agent] });
-    return run.state === 'failed' ? { ok: false, run, error: 'Agent 无法启动' } : { ok: true, run };
+    try {
+      const run = await this.terminal.start({ id, panelId: panel.id, projectId: project.id, directory: project.directory, command: this.state.settings.agents[panel.agent] });
+      return run.state === 'failed' ? { ok: false, run, error: 'Agent 无法启动' } : { ok: true, run };
+    } catch (error) {
+      // A missing response is not proof that the process never started. Preserve any
+      // observed run and keep accepting its later events instead of retrying implicitly.
+      const observed = this.state.runs.find(run => run.id === id);
+      const run = observed ?? { id, panelId: panel.id, projectId: project.id, state: 'starting' as const };
+      if (!observed) this.terminalEvent({ kind: 'started', run });
+      return { ok: false, run: structuredClone(run), error: `启动结果未确认：${(error as Error).message}` };
+    }
   }
   private async startProject(project: Project): Promise<LaunchResult[]> {
     if (this.visited.has(project.id)) return [];
@@ -144,7 +210,7 @@ export class Workbench {
   }
   closePanel(projectId: string, panelId: string) { return this.operation(async () => {
     if (!this.project(projectId).panels.some(p => p.id === panelId)) throw new Error('面板不存在');
-    const run = this.state.runs.find(r => r.panelId === panelId && r.state === 'running');
+    const run = this.state.runs.find(r => r.panelId === panelId && (r.state === 'running' || r.state === 'starting'));
     if (run) await this.terminal.stop(run.id);
     await this.removePanel(projectId, panelId);
   }); }

@@ -2,6 +2,7 @@ import { useEffect, useRef, useState, type CSSProperties, type PointerEvent } fr
 import { createRoot } from 'react-dom/client';
 import type {} from '../shared/api';
 import { newDraft, navigationWidth, type Snapshot } from '../shared/model';
+import { ProjectNavigationItem } from './ProjectManagement';
 import { Setup } from './Setup';
 import { Workspace, type WorkspaceActions } from './Workspace';
 import { Notices, useNotices } from './Notices';
@@ -109,7 +110,7 @@ function App() {
     }}>☷</button><span className="wordmark">VibeBridge</span></div></header>
     <div className="app-body"><nav className={`navigation ${collapsed ? 'collapsed' : ''}`} aria-label="项目导航">
       <div className="navigation-projects"><div className="nav-heading">工作项目</div>
-        {state?.projects.map(project => <button key={project.id} title={`${project.name} · ${project.panels.length} 个面板`} aria-label={project.name} aria-current={!settingsOpen && !setup && active?.id === project.id ? 'page' : undefined} className={`project-link ${!settingsOpen && !setup && active?.id === project.id ? 'selected' : ''}`} onClick={() => activate(project.id)}><span className="project-initial" aria-hidden="true">{projectInitial(project.name)}</span><span className="project-name">{project.name}</span><small>{project.panels.length}</small></button>)}
+        {state?.projects.map(project => <ProjectNavigationItem key={project.id} project={project} runs={state.runs} openProject={activate}><button title={`${project.name} · ${project.panels.length} 个面板`} aria-label={project.name} aria-current={!settingsOpen && !setup && active?.id === project.id ? 'page' : undefined} className={`project-link ${!settingsOpen && !setup && active?.id === project.id ? 'selected' : ''}`} onClick={() => activate(project.id)}><span className="project-initial" aria-hidden="true">{projectInitial(project.name)}</span><span className="project-name">{project.name}</span><small>{project.panels.length}</small></button></ProjectNavigationItem>)}
         <button className={`add-project ${!settingsOpen && setup ? 'selected' : ''}`} aria-label="添加项目" aria-current={!settingsOpen && setup ? 'page' : undefined} onClick={create}><span>＋</span>添加项目</button>
       </div>
       <div className="nav-footer"><span>本地 Agent 工作台</span><button className={`settings-entry ${settingsOpen ? 'selected' : ''}`} aria-label="全局设置" aria-current={settingsOpen ? 'page' : undefined} disabled={!state} onClick={toggleSettings}>⚙</button></div>

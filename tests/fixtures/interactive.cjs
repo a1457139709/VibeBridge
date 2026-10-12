@@ -37,6 +37,7 @@ process.stdin.on('data', data => {
     else stream();
   }
   if (text.includes('exit')) process.exit(0);
+  if (text === 'cwd-report') process.stdout.write(`CWD:${process.cwd()}\r\n`);
   if (text.includes('host')) process.stdout.write(`HOST:${process.ppid}\r\n`);
   if (text.includes('later')) setTimeout(() => process.stdout.write('BACKGROUND:completed\r\n'), 300);
   if (text === 'cursor-normal') process.stdout.write('\x1b[?1l');
