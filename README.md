@@ -2,7 +2,9 @@
 
 macOS 本地多项目 Agent CLI 工作台。正式应用代码在 `app/`；产品规格维护在 [GitHub #19](https://github.com/a1457139709/VibeBridge/issues/19)，领域术语见 [GLOSSARY](plans/GLOSSARY.md)。
 
-当前实现覆盖 [#24：创建项目并启动 Agent 工作区](https://github.com/a1457139709/VibeBridge/issues/24)、[#25：动态面板与布局操作](https://github.com/a1457139709/VibeBridge/issues/25)、[#26：多项目切换与重开恢复](https://github.com/a1457139709/VibeBridge/issues/26)、[#27：全局设置、主题与快捷键](https://github.com/a1457139709/VibeBridge/issues/27) 和 [#28：退出、故障清理与完整流程验收](https://github.com/a1457139709/VibeBridge/issues/28)。提供真实 PTY/xterm.js、SQLite 保存、动态面板、布局调整、项目切换、统一设置与退出清理、本地应用打包。真实 CLI、输入法及视觉体验的待验收步骤见验证记录。
+第一阶段实现覆盖 [#24：创建项目并启动 Agent 工作区](https://github.com/a1457139709/VibeBridge/issues/24)、[#25：动态面板与布局操作](https://github.com/a1457139709/VibeBridge/issues/25)、[#26：多项目切换与重开恢复](https://github.com/a1457139709/VibeBridge/issues/26)、[#27：全局设置、主题与快捷键](https://github.com/a1457139709/VibeBridge/issues/27) 和 [#28：退出、故障清理与完整流程验收](https://github.com/a1457139709/VibeBridge/issues/28)。提供真实 PTY/xterm.js、SQLite 保存、动态面板、布局调整、项目切换、统一设置与退出清理、本地应用打包。真实 CLI、输入法及视觉体验的待验收步骤见验证记录。
+
+本次 `implement/spec-45` 分支交付 [#45 第二阶段交互](https://github.com/a1457139709/VibeBridge/issues/45)的标题观察版：项目编辑与删除、可隐藏／调宽的导航、面板定位、原始终端标题、设置分类草稿、快捷键冲突提示、面板最小尺寸与交换预览。真实 CLI 与动效的人工验收见 [观察版验收指南](docs/spec-45-human-acceptance.md)。标题暂时原样显示；[#51](https://github.com/a1457139709/VibeBridge/issues/51) 的过滤规则必须等用户确认观察结果后实施。
 
 ## 本地运行
 
@@ -47,6 +49,7 @@ npm run package
     "nextPanel": "Command+]",
     "maximizePanel": "Command+Enter",
     "addPanel": "Command+N",
+    "closePanel": "Command+Shift+W",
     "settings": "Command+,"
   },
   "agents": {
@@ -59,11 +62,13 @@ npm run package
 
 主题支持 `system`、`light`、`dark`，仅在启动时解析。命令可以是 PATH 中的程序名或绝对路径，参数逐项填写；不解析 shell 命令、别名或函数。应用异步读取登录 shell 的本机环境，然后通过 PTY 直接执行解析出的程序，不把 Agent 放进 shell 中运行。
 
-系统栏右侧的设置入口打开全局页面，返回后保留原项目、实际布局、临时放大和运行。Agent 页集中管理三种命令与参数，参数每行一项；“检查命令”在实际启动环境中检查可执行程序，编辑命令会清除结果。点击保存只影响之后启动的实例。
+导航右下角的设置入口只替换工作区，导航保持原有宽度和显隐。再点设置入口、左上“‹ 返回”或设置快捷键可回到进入前的页面，也可从导航直接选择项目／面板或创建项目。返回后保留原项目、实际布局、临时放大和运行。Agent 页集中管理三种命令与参数，参数每行一项；“检查命令”在实际启动环境中检查可执行程序，编辑命令会清除结果。点击保存只影响之后启动的实例。
 
 外观页提供跟随系统、深色、浅色列表。保存主题后提示重启及结束 Agent 的影响；本次运行中的工作台、已有和新增终端保持启动主题。保存回启动偏好会清除待重启提示。默认布局支持 `auto`（自动）、`row`（横向平铺）、`column`（纵向平铺），只作用于没有实际布局的初始安排，创建预览采用相同规则。
 
-快捷键页支持按操作名或组合键搜索、按键录入和恢复全部默认。有效修改自动保存并立即生效；冲突会显示对象并保留有效绑定。手改时组合键使用以上格式，修饰键按 `Command`、`Control`、`Alt`、`Shift` 顺序排列，至少包含前三者之一。复制、粘贴、退出等原生菜单绑定保留。快捷键仅由前台窗口处理，未处理的输入继续交给选中 CLI。
+快捷键页支持按操作名或组合键搜索、按键录入和恢复全部默认。录入和“恢复全部默认”只修改草稿，点击“保存快捷键”后立即生效。“放弃更改”恢复已保存绑定。冲突按组合键分组高亮并显示对象，存在冲突时拒绝保存。手改时组合键使用以上格式，修饰键按 `Command`、`Control`、`Alt`、`Shift` 顺序排列，至少包含前三者之一。复制、粘贴、退出等原生菜单绑定保留。快捷键仅由前台窗口处理，未处理的输入继续交给选中 CLI。
+
+Agent、外观和快捷键分类各自保留草稿和保存按钮；切换分类不会丢失草稿。离开设置时，有改动会询问“保存并返回／不保存／取消”；保存失败留在出问题的分类，原导航动作不执行。退出工作台直接丢弃未保存草稿。升级时自动补齐缺失快捷键，补入默认键产生的冲突会在快捷键页显示，不阻止启动。
 
 `VIBEBRIDGE_DATA_DIR` 可指定隔离的数据目录，供本地验收使用。不要在多个应用实例中同时使用同一个数据目录。
 
@@ -75,13 +80,17 @@ npm run package
 - `app/main/settings.ts`：串行、完整临时写入后替换的配置保存。
 - `app/renderer/terminals.ts`：当前应用内的 xterm.js 实例及有界滚动缓冲，视图卸载不结束运行或清空缓冲。
 
-关闭面板会停止运行并移除配置；退出会停止所有运行但保留面板配置。CLI 正常或异常结束会移除对应面板。启动失败仅显示“Agent 无法启动”。不解析终端文字推断处理状态，不自动恢复会话或发送通知。
+面板顶部与导航共享当前运行实例的终端标题（OSC 0/2）；观察版原样显示，尚无标题时为 `Untitled task`。标题不写入存储，不读取 CLI 会话文件。导航按面板创建顺序排列，点击条目可跨项目聚焦；从临时放大进入时继续放大目标面板，还原到目标项目原布局。
+
+项目行右键或“⋯”可编辑／删除项目。改目录在同一弹窗选择重启或保留现有运行；不重启时已有运行继续使用旧目录，之后的启动使用新目录。删除只移除工作台记录并结束该项目的运行，本地文件与 CLI 历史保留。
+
+关闭面板（顶部“×”或默认 ⌘⇧W）会停止运行并移除配置；退出会停止所有运行但保留面板配置。CLI 正常或异常结束会移除对应面板。启动失败仅显示“Agent 无法启动”。不解析终端文字推断处理状态，不自动恢复会话或发送通知。
 
 主窗口关闭与应用退出均先确认；取消保留全部项目运行。确认后等待已提交的保存操作，再向全部受管运行及后代请求结束，已结束则立即继续；两秒后仍存活才强制结束，并进行有界检查。两个现有进程通过 IPC 断开／子进程退出检测故障；存活方负责清理，不自动重开窗口。归属识别结合 PID、启动时间与每次运行的可继承环境标记，覆盖脱离原进程组及父进程已退出的工具，不按程序名或目录批量终止。
 
 终端输出直接进入 xterm，不触发整页状态更新。每个终端保留 5000 行滚动缓冲；解析完成分批确认消费量，未确认输出约 128 Ki 个 UTF-16 code units 时暂停 PTY 读取，降到 64 Ki 后恢复，不截断原始输出或控制序列。上限可能多出一个已读取的块。
 
-工作区右上角“＋”和零面板入口打开同一个 Agent 选择弹窗，每项目最多十个面板。新增时按相对面积选择最大的区域局部分割，不依赖焦点；关闭时按原分割关系合并。拖动分隔线调整比例，从顶部拖到另一面板交换位置，排列与比例自动保存。放大／还原仅改变视图，保留运行与保存布局。关闭最后一个面板后仍保留空项目。
+工作区右上角“＋”和零面板入口打开同一个 Agent 选择弹窗，每项目最多十个面板。新增时按相对面积选择最大的区域局部分割，不依赖焦点；关闭时按原分割关系合并。拖动分隔线调整比例，下限按当前字体的两列 × 两行字符空间计算；极小时只显示类型图标。主窗口缩小不受此下限限制。从顶部拖动显示半透明整面板影像及两两交换预览，有效松手后才保存；Escape 或窗口失焦取消。预览期间实际终端尺寸和输入身份保持不变。放大／还原仅改变视图，保留运行与保存布局。关闭最后一个面板后仍保留空项目。
 
 ## 验证
 
@@ -93,6 +102,12 @@ npm run test:desktop
 npm run test:desktop -- --setup
 npm run test:desktop -- --appearance
 npm run test:desktop -- --codex
+npm run test:desktop -- --navigation
+npm run test:desktop -- --notices-startup
+npm run test:desktop -- --project-management
+npm run test:desktop -- --settings-drafts
+npm run test:desktop -- --titles
+npm run test:desktop -- --panels
 node scripts/test-desktop.mjs --packaged
 ```
 
@@ -104,4 +119,4 @@ node scripts/test-desktop.mjs --packaged
 
 GitHub Actions 的 [Checks 工作流](.github/workflows/checks.yml) 在 push、pull request 和手动触发时使用 macOS 执行依赖安装、Electron 二进制安装、原生 PTY 重建、运行时检查、类型检查、业务测试和构建。桌面入口在具备 GUI/PTY 条件的本机执行，尚未加入远端 CI；远端执行结果以 PR Checks 为准，检查通过不代表合并已被分支保护强制拦截。
 
-本轮修复、执行结果和剩余体验项统一记录在 [#32 验证记录](docs/issue-32-verification.md)。
+第一阶段修复见 [#32 验证记录](docs/issue-32-verification.md)。第二阶段各工单的执行结果见 `docs/issue-46-verification.md` 至 `docs/issue-50-verification.md`；用户需要操作的真实 CLI 与动效案例集中在 [观察版验收指南](docs/spec-45-human-acceptance.md)。
