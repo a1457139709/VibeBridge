@@ -4,6 +4,7 @@ import { resolve } from 'node:path';
 const packaged = process.argv.includes('--packaged');
 const appearance = process.argv.includes('--appearance');
 const codex = process.argv.includes('--codex');
+const titles = process.argv.includes('--titles');
 const projectManagement = process.argv.includes('--project-management');
 const setup = process.argv.includes('--setup');
 const panels = process.argv.includes('--panels');
@@ -23,6 +24,7 @@ const environment = { ...process.env, VIBEBRIDGE_TEST_NODE: process.execPath, VI
   ...(settingsMigration ? { VIBEBRIDGE_TEST_SETTINGS_MIGRATION: '1' } : {}),
   ...(settingsDrafts ? { VIBEBRIDGE_TEST_SETTINGS_DRAFTS: '1' } : {}),
   ...(navigation ? { VIBEBRIDGE_TEST_NAVIGATION: '1' } : {}),
+  ...(titles ? { VIBEBRIDGE_TEST_TITLES: '1' } : {}),
   ...(projectManagement ? { VIBEBRIDGE_TEST_PROJECT_MANAGEMENT: '1' } : {}),
   ...(setup ? { VIBEBRIDGE_TEST_SETUP: '1' } : {}),
   ...(panels ? { VIBEBRIDGE_TEST_PANELS: '1' } : {}),

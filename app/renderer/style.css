@@ -116,6 +116,7 @@ hr { border: 0; border-top: 1px solid var(--line); margin: 22px 0; }
 .agent-option .agent-mark { font-size: 28px; }
 .notices { position: fixed; top: 54px; left: 50%; transform: translateX(-50%); z-index: 20; display: flex; flex-direction: column; align-items: center; gap: 8px; width: min(560px, calc(100vw - 32px)); pointer-events: none; }
 .notice { display: flex; align-items: center; gap: 10px; max-width: 100%; padding: 10px 12px; border: 1px solid var(--notice-color); color: inherit; background: var(--surface); border-radius: 8px; box-shadow: 0 5px 20px #0002; pointer-events: auto; overflow-wrap: anywhere; }
+.notice > span:nth-child(2) { white-space: pre-wrap; }
 .notice.success { --notice-color: #43805a; }
 .notice.error { --notice-color: var(--error, #b33e2d); }
 .notice-icon { color: var(--notice-color); font-weight: 700; font-size: 15px; }
@@ -179,3 +180,16 @@ textarea { resize: vertical; }
 .panel-swap-preview { position: fixed; inset: 0; z-index: 30; pointer-events: none; }
 .panel-swap-preview .agent-panel, .panel-drag-image .agent-panel { transition: none; }
 .dragging, .dragging .panel-header { cursor: grabbing; }
+
+.project-group { flex-shrink: 0; min-width: 0; }
+.project-disclosure { flex: 0 0 22px; width: 22px; min-height: 32px; border: 0; padding: 0; background: transparent; color: var(--muted); }
+.project-panels { margin: 2px 0 6px 26px; display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.panel-link { display: flex; align-items: center; gap: 8px; min-width: 0; width: 100%; text-align: left; padding: 4px 8px; border: 0; background: transparent; font-size: 12px; }
+.panel-link .agent-mark { flex: 0 0 16px; width: 16px; }
+.panel-link.selected { background: var(--selection, var(--hover)); color: var(--selection-text, var(--accent)); }
+.session-title { display: block; min-width: 0; overflow: hidden; white-space: pre; text-overflow: ellipsis; line-height: 1.4; max-height: 1.4em; }
+.agent-title { flex: 1; overflow: hidden; }
+.agent-title .agent-mark { flex-shrink: 0; }
+
+/* The locator owns its two 100ms halves; layout interpolation would add a second transition. */
+.locating-panel .panel-slot { transition: none; }

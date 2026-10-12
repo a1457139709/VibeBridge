@@ -14,7 +14,7 @@ async function until(check) {
 void (async () => {
   const directory = process.env.VIBEBRIDGE_TEST_DATA;
   process.env.VIBEBRIDGE_DATA_DIR = directory;
-  const command = { command: 'node', args: [resolve('tests/fixtures/interactive.cjs'), ...(process.env.VIBEBRIDGE_TEST_SETUP ? ['--encode-cwd'] : [])] };
+  const command = { command: 'node', args: [resolve(process.env.VIBEBRIDGE_TEST_TITLES ? 'tests/fixtures/title-cli.cjs' : 'tests/fixtures/interactive.cjs'), ...(process.env.VIBEBRIDGE_TEST_SETUP ? ['--encode-cwd'] : [])] };
   const codexCommand = process.env.VIBEBRIDGE_TEST_CODEX ? { command: 'codex', args: ['resume', '--no-daemon', '--no-alt-screen'] } : command;
   if (!process.env.VIBEBRIDGE_TEST_REOPEN) await writeFile(`${directory}/settings.json`, process.env.VIBEBRIDGE_TEST_NOTICE_STARTUP ? '{damaged configuration' : JSON.stringify({ theme: process.env.VIBEBRIDGE_TEST_APPEARANCE ? 'dark' : 'light', agents: { codex: codexCommand, claude: command, pi: command }, ...(process.env.VIBEBRIDGE_TEST_SETTINGS_MIGRATION ? { shortcuts: { previousProject: 'Command+Shift+[', nextProject: 'Command+Shift+]', previousPanel: 'Command+[', nextPanel: 'Command+Shift+W', maximizePanel: 'Command+Enter', addPanel: 'Command+N', settings: 'Command+,' } } : {}) }));
   let answer = 0;
@@ -101,8 +101,8 @@ void (async () => {
       app.quit();
       return;
     }
-    if (process.env.VIBEBRIDGE_TEST_SETUP || process.env.VIBEBRIDGE_TEST_PROJECT_MANAGEMENT) {
-      await require(process.env.VIBEBRIDGE_TEST_PROJECT_MANAGEMENT ? './project-management-desktop.cjs' : './setup-desktop.cjs')({ window, evaluate, click, fill, until, directory, dialog });
+    if (process.env.VIBEBRIDGE_TEST_SETUP || process.env.VIBEBRIDGE_TEST_PROJECT_MANAGEMENT || process.env.VIBEBRIDGE_TEST_TITLES) {
+      await require(process.env.VIBEBRIDGE_TEST_TITLES ? './titles-desktop.cjs' : process.env.VIBEBRIDGE_TEST_PROJECT_MANAGEMENT ? './project-management-desktop.cjs' : './setup-desktop.cjs')({ window, evaluate, click, fill, until, directory, dialog, reopen: !!process.env.VIBEBRIDGE_TEST_REOPEN });
       const runs = (await evaluate('window.workbench.snapshot()')).runs;
       answer = 1;
       app.once('will-quit', event => {

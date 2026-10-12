@@ -1,3 +1,4 @@
+import { observeTitles } from './titles';
 import * as pty from 'node-pty';
 import type { AgentCommand, Run, TerminalEvent } from '../shared/model';
 import { commandEnvironment, executable } from './environment';
@@ -84,7 +85,9 @@ async function handle(operation: string, value: any) {
       const entry = { run, terminal, processes: [] as ProcessIdentity[], stopping: false, outstanding: 0, paused: false, draining: false };
       runs.set(id, entry);
       event({ kind: 'started', run });
+      const titles = observeTitles(title => event({ kind: 'title', runId: id, title }));
       terminal.onData(data => {
+        titles(data);
         entry.outstanding += data.length;
         event({ kind: 'output', runId: id, data });
         // Credit covers every hop through IPC and xterm's parser. Do not truncate output.
