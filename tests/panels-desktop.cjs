@@ -179,10 +179,15 @@ module.exports = async function verifyPanels({ window, evaluate, until, project,
   await until(() => evaluate(`!document.querySelector('.panel-drag-image, .panel-swap-preview')`));
   await release(target);
   assert.deepEqual((await evaluate('window.workbench.snapshot()')).projects[0].layout, layout, 'Escape cancels the whole drag');
+  // Native blur must start from a focused window; injected mouse events alone do not focus it.
+  window.focus(); window.webContents.focus();
+  await until(async () => window.isFocused() && await evaluate('document.hasFocus()'));
   await begin(); await hover(target);
   window.blur();
   await until(() => evaluate(`!document.querySelector('.panel-drag-image, .panel-swap-preview')`));
-  window.focus(); window.webContents.focus(); await release(target);
+  window.focus(); window.webContents.focus();
+  await until(async () => window.isFocused() && await evaluate('document.hasFocus()'));
+  await release(target);
   assert.deepEqual((await evaluate('window.workbench.snapshot()')).projects[0].layout, layout, 'Native window blur cancels the whole drag');
   await begin(); await hover(third); await release(third);
   const committed = { ...layout, first: { panel: c }, second: { ...layout.second, second: { panel: a } } };
