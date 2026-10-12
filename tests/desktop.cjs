@@ -72,8 +72,8 @@ void (async () => {
     }
   };
   try {
-    if (process.env.VIBEBRIDGE_TEST_SETUP) {
-      await require('./setup-desktop.cjs')({ window, evaluate, click, fill, until, directory, dialog });
+    if (process.env.VIBEBRIDGE_TEST_SETUP || process.env.VIBEBRIDGE_TEST_PROJECT_MANAGEMENT) {
+      await require(process.env.VIBEBRIDGE_TEST_PROJECT_MANAGEMENT ? './project-management-desktop.cjs' : './setup-desktop.cjs')({ window, evaluate, click, fill, until, directory, dialog });
       const runs = (await evaluate('window.workbench.snapshot()')).runs;
       answer = 1;
       app.once('will-quit', event => {

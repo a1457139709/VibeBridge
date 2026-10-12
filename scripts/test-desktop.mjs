@@ -4,6 +4,7 @@ import { resolve } from 'node:path';
 const packaged = process.argv.includes('--packaged');
 const appearance = process.argv.includes('--appearance');
 const codex = process.argv.includes('--codex');
+const projectManagement = process.argv.includes('--project-management');
 const setup = process.argv.includes('--setup');
 const panels = process.argv.includes('--panels');
 // The test harness needs Electron's default-app entry; packaged product files and native modules
@@ -14,13 +15,14 @@ const directory = await mkdtemp(resolve('work/issue-24/desktop-'));
 const environment = { ...process.env, VIBEBRIDGE_TEST_NODE: process.execPath, VIBEBRIDGE_TEST_DATA: directory,
   ...(appearance ? { VIBEBRIDGE_TEST_APPEARANCE: '1' } : {}),
   ...(codex ? { VIBEBRIDGE_TEST_CODEX: '1' } : {}),
+  ...(projectManagement ? { VIBEBRIDGE_TEST_PROJECT_MANAGEMENT: '1' } : {}),
   ...(setup ? { VIBEBRIDGE_TEST_SETUP: '1' } : {}),
   ...(panels ? { VIBEBRIDGE_TEST_PANELS: '1' } : {}),
   PATH: '/usr/bin:/bin',
   VIBEBRIDGE_TEST_ENTRY: packaged ? resolve(process.env.VIBEBRIDGE_TEST_APP ?? 'outputs/VibeBridge.app', 'Contents/Resources/app/dist/main.cjs') : resolve('dist/main.cjs') };
 delete environment.ELECTRON_RUN_AS_NODE;
 try {
-  for (const reopen of appearance || codex || setup ? [false] : [false, true]) {
+  for (const reopen of appearance || codex || setup || projectManagement ? [false] : [false, true]) {
     const code = await new Promise((resolve, reject) => {
       const child = spawn(binary, ['tests/desktop.cjs'], { env: { ...environment, ...(reopen ? { VIBEBRIDGE_TEST_REOPEN: '1' } : {}) }, stdio: 'inherit' });
       child.on('error', reject);

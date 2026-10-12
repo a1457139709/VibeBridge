@@ -31,6 +31,14 @@ parentPort!.on('message', ({ id, operation, value }) => {
         project.panels.forEach((panel, position) => insert.run(panel.id, project.id, panel.agent, position));
         db.exec('COMMIT');
       } catch (error) { db.exec('ROLLBACK'); throw error; }
+    } else if (operation === 'delete') {
+      db.exec('BEGIN IMMEDIATE');
+      try {
+        db.prepare('DELETE FROM panels WHERE project_id=?').run(value.id);
+        db.prepare('DELETE FROM projects WHERE id=?').run(value.id);
+        db.prepare('INSERT INTO workspace VALUES (1,?) ON CONFLICT(id) DO UPDATE SET active_project=excluded.active_project').run(value.activeProjectId);
+        db.exec('COMMIT');
+      } catch (error) { db.exec('ROLLBACK'); throw error; }
     } else if (operation === 'active') {
       db.prepare('INSERT INTO workspace VALUES (1,?) ON CONFLICT(id) DO UPDATE SET active_project=excluded.active_project').run(value);
     } else if (operation === 'close') db.close();

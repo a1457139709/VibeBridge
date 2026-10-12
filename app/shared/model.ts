@@ -14,9 +14,11 @@ export interface AgentCommand { command: string; args: string[] }
 export type DefaultLayout = 'auto' | 'row' | 'column';
 export interface Settings { theme: 'system' | 'dark' | 'light'; defaultLayout: DefaultLayout; agents: Record<AgentType, AgentCommand>; shortcuts: Shortcuts }
 export type CommandCheck = { available: true; path: string } | { available: false; message: string };
-export interface Run { id: string; projectId: string; panelId: string; state: 'running' | 'failed' | 'stopped'; pid?: number }
-export type LaunchResult = { ok: true; run: Run } | { ok: false; run: Run; error: 'Agent 无法启动' };
+export interface Run { id: string; projectId: string; panelId: string; state: 'running' | 'starting' | 'failed' | 'stopped'; pid?: number }
+export type LaunchResult = { ok: true; run: Run } | { ok: false; run: Run; error: string };
 export interface ProjectCreation { project: Project; launches: LaunchResult[] }
+export interface ProjectEdit { name: string; directory: string }
+export interface ProjectEditResult { project: Project; launches: LaunchResult[]; error?: string }
 export interface PanelCreation { panel: Panel; launch: LaunchResult }
 export interface Snapshot { projects: Project[]; activeProjectId: string | null; runs: Run[]; settings: Settings; startupTheme: Settings['theme']; resolvedTheme: 'dark' | 'light'; errors: string[] }
 export type TerminalEvent = { kind: 'output'; runId: string; data: string } | { kind: 'started'; run: Run } | { kind: 'exit'; runId: string };
