@@ -12,6 +12,7 @@ const api: DesktopAPI = {
   addPanel: (project, agent) => ipcRenderer.invoke('workbench:add', project, agent),
   closePanel: (project, panel) => ipcRenderer.invoke('workbench:close', project, panel),
   saveLayout: (project, layout) => ipcRenderer.invoke('workbench:layout', project, layout),
+  saveNavigation: preferences => ipcRenderer.invoke('workbench:navigation', preferences),
   saveSettings: settings => ipcRenderer.invoke('workbench:settings', settings),
   checkCommand: command => ipcRenderer.invoke('workbench:check-command', command),
   sendInput: (run, data) => ipcRenderer.invoke('workbench:input', run, data),
