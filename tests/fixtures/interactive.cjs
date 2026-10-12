@@ -36,6 +36,7 @@ process.stdin.on('data', data => {
     if (process.argv[2] === '--termination-file') spawn(process.execPath, [__filename, 'stream-child'], { stdio: ['ignore', process.stdout, 'ignore'] });
     else stream();
   }
+  if (text === 'size') process.stdout.write(`SIZE:${process.stdout.columns}x${process.stdout.rows}\r\n`);
   if (text.includes('exit')) process.exit(0);
   if (text === 'cwd-report') process.stdout.write(`CWD:${process.cwd()}\r\n`);
   if (text.includes('host')) process.stdout.write(`HOST:${process.ppid}\r\n`);
