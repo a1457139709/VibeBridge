@@ -2,7 +2,7 @@ const assert = require('node:assert/strict');
 const { mkdir, readFile, writeFile } = require('node:fs/promises');
 const { join } = require('node:path');
 
-module.exports = async ({ window, evaluate, click, until, directory, reopen }) => {
+module.exports = async ({ window, evaluate, click, fill, until, directory, reopen }) => {
   if (reopen) {
     const saved = JSON.parse(await readFile(join(directory, 'titles-expected.json'), 'utf8'));
     const active = saved.projects.find(project => project.id === saved.activeProjectId);
@@ -46,6 +46,7 @@ module.exports = async ({ window, evaluate, click, until, directory, reopen }) =
   await until(() => evaluate(`window.titleOutput.some(event => event.data.includes('INPUT:q'))`));
   assert.deepEqual(await evaluate(`[...new Set(window.titleOutput.filter(event => event.data.includes('INPUT:q')).map(event => event.runId))]`), [firstRun.id]);
   console.log('PASS: shared raw title, creation-ordered navigation, removed More menu and same-selected native refocus');
+  if (process.env.VIBEBRIDGE_TEST_SCREENSHOT) await writeFile(process.env.VIBEBRIDGE_TEST_SCREENSHOT, (await window.webContents.capturePage()).toPNG());
   const secondDirectory = join(directory, 'second'); await mkdir(secondDirectory);
   const second = (await create('Second title project', secondDirectory, 2)).project;
   await click(second.name);
@@ -166,6 +167,7 @@ module.exports = async ({ window, evaluate, click, until, directory, reopen }) =
   await evaluate(`document.querySelector('[data-panel-id="${added.id}"] button[aria-label="关闭面板"]').click()`);
   await until(async () => (await order()).length === 3);
   assert.deepEqual(await order(), expectedOrder);
+  await require('./title-settings-desktop.cjs')({ window, evaluate, click, fill, until, directory, first, second, locate });
   for (const panel of second.panels) await evaluate(`window.workbench.closePanel(${JSON.stringify(second.id)}, ${JSON.stringify(panel.id)})`);
   await until(() => evaluate(`document.querySelectorAll('[data-project-id="${second.id}"] [data-locate-panel-id]').length === 0`));
   assert.equal(await evaluate(`document.querySelector('[data-project-id="${second.id}"] .project-link small').textContent`), '0');
