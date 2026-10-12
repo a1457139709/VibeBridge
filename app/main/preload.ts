@@ -4,6 +4,8 @@ import type { DesktopAPI } from '../shared/api';
 const api: DesktopAPI = {
   snapshot: () => ipcRenderer.invoke('workbench:snapshot'),
   createProject: draft => ipcRenderer.invoke('workbench:create', draft),
+  editProject: (id, edit, restart) => ipcRenderer.invoke('workbench:edit-project', id, edit, restart),
+  deleteProject: id => ipcRenderer.invoke('workbench:delete-project', id),
   inspectDirectory: directory => ipcRenderer.invoke('workbench:directory', directory),
   chooseDirectory: () => ipcRenderer.invoke('workbench:choose-directory'),
   activateProject: id => ipcRenderer.invoke('workbench:activate', id),
