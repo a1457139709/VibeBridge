@@ -2,6 +2,7 @@ import { useEffect, useRef, useState, type CSSProperties, type PointerEvent } fr
 import { createRoot } from 'react-dom/client';
 import type {} from '../shared/api';
 import { newDraft, navigationWidth, type Snapshot } from '../shared/model';
+import { capturePointer } from './pointer-capture';
 import { sessionTitle } from '../shared/session-title';
 import { agentIcons } from './agent-icons';
 import { ProjectNavigationItem } from './ProjectManagement';
@@ -19,6 +20,7 @@ const projectInitial = (name: string) => nameSegments.segment(name)[Symbol.itera
 
 function App() {
   const [state, setState] = useState<Snapshot>();
+  const currentRuns = useRef<Snapshot['runs']>([]);
   const [draft, setDraft] = useState(newDraft);
   const [setup, setSetup] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
@@ -48,11 +50,12 @@ function App() {
       const dark = snapshot.resolvedTheme === 'dark';
       document.documentElement.dataset.theme = dark ? 'dark' : 'light';
       configureTerminals(dark, report);
+      currentRuns.current = snapshot.runs;
       setState(snapshot); setSetup(!snapshot.projects.length);
       snapshot.errors.forEach(message => report(message));
       reconcileTerminals(snapshot.runs);
       unsubscribe = window.workbench.subscribe(event => {
-        if (event.kind === 'snapshot') { reconcileTerminals(event.snapshot.runs); setState(event.snapshot); }
+        if (event.kind === 'snapshot') { currentRuns.current = event.snapshot.runs; reconcileTerminals(event.snapshot.runs); setState(event.snapshot); }
         else if (event.kind === 'error') report(event.message);
         terminalEvent(event);
       });
@@ -119,7 +122,7 @@ function App() {
       if (revision !== navigationVersion.current) return;
       if (animated) animated = await animate(true);
       if (revision === navigationVersion.current && changingMaximized && !animated) {
-        report(`已切换至：${sessionTitle(state.runs.find(run => run.panelId === panelId))}`, 'success');
+        report(`已切换至：${sessionTitle(currentRuns.current.find(run => run.panelId === panelId))}`, 'success');
       }
     } finally {
       if (revision === navigationVersion.current) setSwitchingPanels(false);
@@ -131,24 +134,16 @@ function App() {
     const element = event.currentTarget, start = event.clientX;
     const width = element.parentElement!.getBoundingClientRect().width;
     let next = width;
-    element.setPointerCapture(event.pointerId);
     const move = (pointer: globalThis.PointerEvent) => {
-      if (pointer.pointerId !== event.pointerId) return;
       next = navigationWidth(width + pointer.clientX - start); setDragWidth(next);
     };
     const finish = (commit: boolean) => {
-      element.removeEventListener('pointermove', move); element.removeEventListener('pointerup', up);
-      element.removeEventListener('pointercancel', cancel); element.removeEventListener('lostpointercapture', cancel);
       window.removeEventListener('blur', cancel); cancelResize.current = undefined;
-      if (element.hasPointerCapture(event.pointerId)) element.releasePointerCapture(event.pointerId);
       if (commit) void window.workbench.saveNavigation({ ...state.navigation, width: next }).catch(error => report(error.message)).finally(() => setDragWidth(undefined));
       else setDragWidth(undefined);
     };
-    const up = (pointer: globalThis.PointerEvent) => { if (pointer.pointerId === event.pointerId) finish(true); };
-    const cancel = () => finish(false);
+    const cancel = capturePointer(element, event.pointerId, { move, finish });
     cancelResize.current = cancel;
-    element.addEventListener('pointermove', move); element.addEventListener('pointerup', up);
-    element.addEventListener('pointercancel', cancel); element.addEventListener('lostpointercapture', cancel);
     window.addEventListener('blur', cancel);
   }
   const active = state?.projects.find(project => project.id === state.activeProjectId);

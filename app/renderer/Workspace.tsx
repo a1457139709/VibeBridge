@@ -5,6 +5,7 @@ import { agentNames, type Layout, type Project, type Run } from '../shared/model
 import { layoutBoxes, type Divider } from '../shared/layout';
 import { focusTerminal, mountTerminal, observePanel, terminalCellSize } from './terminals';
 import { AgentPicker } from './AgentPicker';
+import { capturePointer } from './pointer-capture';
 import { beginPanelDrag } from './panel-drag';
 import type { ShortcutAction } from '../shared/shortcuts';
 
@@ -102,9 +103,7 @@ export function Workspace({ project, runs, report, selectedPanelId, selectPanel,
     let lower = Math.min(originalRatio, firstMinimum), upper = Math.max(originalRatio, secondMaximum);
 
     setResizing(true);
-    element.setPointerCapture(event.pointerId);
     const move = (pointer: globalThis.PointerEvent) => {
-      if (pointer.pointerId !== event.pointerId) return;
       const candidate = structuredClone(original);
       let node = candidate;
       for (const part of divider.path) { if ('panel' in node) return; node = node[part]; }
@@ -120,19 +119,13 @@ export function Workspace({ project, runs, report, selectedPanelId, selectPanel,
       next = candidate; setLayout(next);
     };
     const finish = (commit: boolean) => {
-      element.removeEventListener('pointermove', move); element.removeEventListener('pointerup', up);
-      element.removeEventListener('pointercancel', cancel); element.removeEventListener('lostpointercapture', cancel);
       window.removeEventListener('resize', cancel);
       cancelResize.current = undefined;
       setResizing(false);
-      if (element.hasPointerCapture(event.pointerId)) element.releasePointerCapture(event.pointerId);
       if (commit) persist(next); else setLayout(savedLayout.current);
     };
-    const up = (pointer: globalThis.PointerEvent) => { if (pointer.pointerId === event.pointerId) finish(true); };
-    const cancel = () => finish(false);
+    const cancel = capturePointer(element, event.pointerId, { move, finish });
     cancelResize.current = cancel;
-    element.addEventListener('pointermove', move); element.addEventListener('pointerup', up);
-    element.addEventListener('pointercancel', cancel); element.addEventListener('lostpointercapture', cancel);
     window.addEventListener('resize', cancel);
   }
   function drag(event: PointerEvent<HTMLElement>, panelId: string) {

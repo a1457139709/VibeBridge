@@ -45,6 +45,16 @@ module.exports = async function verifyPanels({ window, evaluate, until, project,
   assert.ok(narrow.width <= cell.width * 2 + 3, `Shrinking reaches the character-cell minimum: width ${narrow.width}, cell ${cell.width}`);
   assert.equal(await evaluate(`getComputedStyle(document.querySelector('[data-panel-id="${a}"] .panel-header')).visibility`), 'hidden');
   assert.equal(await evaluate(`getComputedStyle(document.querySelector('[data-panel-id="${a}"] [role="img"]')).display`), 'grid');
+  await evaluate(`document.querySelector('[data-panel-id="${b}"] .panel-header').click()`);
+  await until(() => evaluate(`document.activeElement?.closest('[data-panel-id]')?.dataset.panelId === ${JSON.stringify(b)}`));
+  const tinyLocator = await rect(`[data-locate-panel-id="${a}"]`);
+  mouse('mouseDown', tinyLocator.x + 30, tinyLocator.y + tinyLocator.height / 2);
+  mouse('mouseUp', tinyLocator.x + 30, tinyLocator.y + tinyLocator.height / 2);
+  await until(() => evaluate(`document.activeElement?.closest('[data-panel-id]')?.dataset.panelId === ${JSON.stringify(a)}`));
+  window.webContents.sendInputEvent({ type: 'char', keyCode: 'f' });
+  await until(() => evaluate(`window.observedOutput.some(event => event.data.includes('INPUT:f'))`));
+  assert.deepEqual(await evaluate(`[...new Set(window.observedOutput.filter(event => event.data.includes('INPUT:f')).map(event => event.runId))]`), [run.id], 'tiny-panel navigation delivers native input only to the target run');
+  assert.equal(await evaluate(`document.querySelector('[data-panel-id="${a}"] .xterm') === window.originalTerminal`), true);
   await evaluate(`window.workbench.sendInput(${JSON.stringify(run.id)}, 'tiny-alive')`);
   await until(() => evaluate(`window.observedOutput.some(event => event.runId === ${JSON.stringify(run.id)} && event.data.includes('INPUT:tiny-alive'))`));
   await dragDivider('vertical', { x: canvas.x + canvas.width * .6, y: canvas.y + canvas.height / 4 });
