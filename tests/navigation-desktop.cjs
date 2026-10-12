@@ -113,6 +113,8 @@ module.exports = async function verifyNavigation({ window, evaluate, click, fill
   assert.deepEqual(await evaluate(`(() => { const b = document.querySelector('.settings-entry').getBoundingClientRect(); return { x: b.x, y: b.y }; })()`), footer);
   await click('全局设置');
   assert.equal(await evaluate(`(() => { const b = document.querySelector('.settings-back').getBoundingClientRect(); return b.x >= 312 && b.right <= innerWidth && b.bottom < innerHeight; })()`), true);
+  await evaluate(`document.getElementById('command-pi').scrollIntoView({ block: 'end' })`);
+  assert.equal(await evaluate(`document.querySelector('.settings-back').getBoundingClientRect().top >= 44`), true, 'return remains available after scrolling settings');
   await click('折叠项目导航');
   assert.equal(await evaluate(`!!document.querySelector('.settings-page')`), true);
   await click('‹ 返回');
@@ -125,6 +127,8 @@ module.exports = async function verifyNavigation({ window, evaluate, click, fill
   await click('展开项目导航');
   await click(first.name);
   await require('./notices-desktop.cjs')({ window, evaluate, click, fill, until, project: first, directory });
+  await until(() => evaluate(`!!document.querySelector('.settings-page') && !document.querySelector('.notice')`));
+  await evaluate('new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))');
   await mkdir('work/issue-46', { recursive: true });
   await writeFile('work/issue-46/navigation-settings.png', (await window.webContents.capturePage()).toPNG());
   await click('‹ 返回');

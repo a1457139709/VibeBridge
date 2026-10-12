@@ -4,7 +4,7 @@ import { mkdtemp, readFile, rm } from 'node:fs/promises';
 import { resolve } from 'node:path';
 import { Workbench } from '../app/main/workbench';
 
-test('navigation preferences default open and survive reopening independently from user settings', async () => {
+test('navigation preferences default open and survive project deletion and reopening independently from user settings', async () => {
   const directory = await mkdtemp(resolve('work/issue-24/navigation-'));
   let workbench = await Workbench.open(directory);
   try {
@@ -18,6 +18,16 @@ test('navigation preferences default open and survive reopening independently fr
     assert.deepEqual(workbench.snapshot().navigation, { visible: false, width: 318 });
     await workbench.saveNavigation({ visible: true, width: 318 });
     assert.deepEqual(workbench.snapshot().navigation, { visible: true, width: 318 });
+    const agents = workbench.snapshot().settings.agents;
+    agents.codex = { command: process.env.VIBEBRIDGE_TEST_NODE!, args: [resolve('tests/fixtures/interactive.cjs')] };
+    await workbench.saveSettings({ agents });
+    const { project } = await workbench.createProject({ name: 'Navigation persistence', directory, total: 1, counts: { codex: 1, claude: 0, pi: 0 } });
+    await workbench.deleteProject(project.id);
+    assert.deepEqual(workbench.snapshot().navigation, { visible: true, width: 318 });
+    await workbench.quit();
+    workbench = await Workbench.open(directory);
+    assert.deepEqual(workbench.snapshot().navigation, { visible: true, width: 318 });
+    assert.equal(workbench.snapshot().projects.length, 0);
   } finally { await workbench.quit(); await rm(directory, { recursive: true, force: true }); }
 });
 

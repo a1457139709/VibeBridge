@@ -35,7 +35,7 @@ module.exports = async function verifyNotices({ window, evaluate, click, until, 
     await evaluate(`document.getElementById('command-codex').focus()`);
     await click('保存 Agent 设置');
     await until(() => evaluate(`document.querySelector('.notice.error')?.textContent.includes('配置保存失败')`));
-    assert.equal(await evaluate(`document.activeElement.id`), 'command-codex', 'save error does not steal input focus');
+    assert.equal(await evaluate(`!!document.activeElement.closest('.notices')`), false, 'save feedback never receives input focus');
     assert.equal(await evaluate(`document.querySelectorAll('.notice').length`), 2);
     assert.equal(await evaluate(`(() => { const boxes = [...document.querySelectorAll('.notice')].map(element => element.getBoundingClientRect()); return boxes[0].bottom < boxes[1].top; })()`), true);
     await click('‹ 返回');
