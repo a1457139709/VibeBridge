@@ -88,6 +88,8 @@ export function observePanel(container: HTMLElement, runId?: string) {
   const panel = container.closest<HTMLElement>('.agent-panel')!;
   const header = panel.querySelector<HTMLElement>('.panel-header')!;
   const update = () => {
+    // A hidden settings/project view has no layout, not a genuinely tiny panel.
+    if (!panel.getClientRects().length) return;
     const cell = terminalCellSize(runId);
     const title = header.querySelector<HTMLElement>('.agent-title')!;
     const actions = header.querySelector<HTMLElement>('.panel-actions')!;

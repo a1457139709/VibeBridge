@@ -15,9 +15,9 @@ function snapshot(element: HTMLElement) {
   return copy;
 }
 
-export function beginPanelDrag({ event, handle, canvas, source, panels, layout, commit, consumed }: {
+export function beginPanelDrag({ event, handle, canvas, source, panels, layout, commit, consumed, ended }: {
   event: PointerEvent; handle: HTMLElement; canvas: HTMLElement; source: string; panels: Panel[]; layout: Layout;
-  commit(layout: Layout): void; consumed(): void;
+  commit(layout: Layout): void; consumed(): void; ended(): void;
 }): () => void {
   const original = structuredClone(layout);
   const images = panels.map(panel => {
@@ -70,13 +70,18 @@ export function beginPanelDrag({ event, handle, canvas, source, panels, layout, 
     observer.disconnect();
     ghost?.remove(); preview?.remove(); canvas.classList.remove('dragging');
     if (handle.hasPointerCapture(event.pointerId)) handle.releasePointerCapture(event.pointerId);
+    ended();
     if (save && moving && target) {
       const swap = (node: Layout): Layout => 'panel' in node ? { panel: node.panel === source ? target! : node.panel === target ? source : node.panel }
         : { ...node, first: swap(node.first), second: swap(node.second) };
       commit(swap(original));
     }
   };
-  const up = (pointer: PointerEvent) => { if (pointer.pointerId === event.pointerId) finish(true); };
+  const up = (pointer: PointerEvent) => {
+    if (pointer.pointerId !== event.pointerId) return;
+    // A release can arrive at new coordinates without a final pointermove.
+    move(pointer); finish(true);
+  };
   const cancel = () => finish(false);
   const keydown = (key: KeyboardEvent) => { if (key.key === 'Escape') { key.preventDefault(); key.stopImmediatePropagation(); cancel(); } };
   const bounds = canvas.getBoundingClientRect();

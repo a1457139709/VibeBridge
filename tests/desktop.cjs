@@ -193,7 +193,7 @@ void (async () => {
     assert.deepEqual(before.projects[0].panels.map(panel => panel.agent), ['codex', 'claude', 'pi']);
     await until(() => evaluate(`new Set(window.observedOutput.filter(event => event.data.includes('READY:')).map(event => event.runId)).size === 3`));
     if (process.env.VIBEBRIDGE_TEST_PANELS) {
-      await require('./panels-desktop.cjs')({ window, evaluate, until, project: before.projects[0], runs: before.runs, directory, copyTerminal });
+      await require('./panels-desktop.cjs')({ window, evaluate, until, project: before.projects[0], runs: before.runs, directory, copyTerminal, click });
       await writeFile(`${directory}/panels-expected.json`, JSON.stringify(await evaluate('window.workbench.snapshot()')));
       answer = 1;
       app.once('will-quit', event => {
@@ -261,6 +261,7 @@ void (async () => {
     await evaluate(`window.workbench.saveLayout(${JSON.stringify(project.id)}, ${JSON.stringify(layout)})`);
     await until(() => evaluate(`document.querySelector('[data-panel-id="${project.panels[2].id}"]').style.height === '65%'`));
     const dragPanel = async (sourceId, targetId, release = true) => {
+      await evaluate('new Promise(resolve => setTimeout(() => requestAnimationFrame(resolve), 250))');
       const point = selector => evaluate(`(() => { const b = document.querySelector(${JSON.stringify(selector)}).getBoundingClientRect(); return { x: Math.round(b.left + Math.min(30, b.width / 2)), y: Math.round(b.top + Math.min(12, b.height / 2)) }; })()`);
       const source = await point(`[data-panel-id="${sourceId}"] .panel-header`);
       const target = await point(`[data-panel-id="${targetId}"] .agent-panel`);

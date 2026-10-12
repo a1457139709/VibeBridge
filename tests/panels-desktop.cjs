@@ -1,6 +1,6 @@
 const assert = require('node:assert/strict');
 
-module.exports = async function verifyPanels({ window, evaluate, until, project, runs, directory, copyTerminal }) {
+module.exports = async function verifyPanels({ window, evaluate, until, project, runs, directory, copyTerminal, click }) {
   const [a, b, c] = project.panels.map(panel => panel.id);
   const settle = () => evaluate('new Promise(resolve => setTimeout(() => requestAnimationFrame(resolve), 250))');
   const layout = { axis: 'row', ratio: .6, first: { panel: a }, second: { axis: 'column', ratio: .5, first: { panel: b }, second: { panel: c } } };
@@ -20,6 +20,7 @@ module.exports = async function verifyPanels({ window, evaluate, until, project,
     await until(() => evaluate(`document.querySelector('.canvas').classList.contains('resizing')`));
     mouse('mouseMove', (r.x + to.x) / 2, (r.y + to.y) / 2);
     await settle();
+    if (to.via) { mouse('mouseMove', to.via.x, to.via.y); await settle(); }
     mouse('mouseMove', to.x, to.y);
     await settle();
     mouse('mouseUp', to.x, to.y);
@@ -27,6 +28,11 @@ module.exports = async function verifyPanels({ window, evaluate, until, project,
   };
   window.focus(); window.webContents.focus();
   await save(layout);
+  await evaluate(`document.querySelector('[data-panel-id="${b}"] .panel-header').click()`);
+  await until(() => evaluate(`document.activeElement?.closest('[data-panel-id]')?.dataset.panelId === ${JSON.stringify(b)}`));
+  await click('全局设置'); await settle();
+  await click('‹ 返回');
+  await until(() => evaluate(`document.activeElement?.closest('[data-panel-id]')?.dataset.panelId === ${JSON.stringify(b)}`));
   const run = runs.find(run => run.panelId === a);
   const [cols, rows] = await size(run);
   const screen = await rect(`[data-panel-id="${a}"] .xterm-screen`);
@@ -74,7 +80,8 @@ module.exports = async function verifyPanels({ window, evaluate, until, project,
   const beforeSmall = await rect(panel(a));
   await dragDivider('vertical', { x: smallCanvas.x + 1, y: smallCanvas.y + smallCanvas.height / 4 });
   assert.deepEqual((await evaluate('window.workbench.snapshot()')).projects[0].layout, one, 'An already undersized panel cannot shrink further or jump to its minimum');
-  await dragDivider('vertical', { x: smallCanvas.x + 70, y: smallCanvas.y + smallCanvas.height / 4 });
+  await dragDivider('vertical', { x: smallCanvas.x + 1, y: smallCanvas.y + smallCanvas.height / 4, via: { x: smallCanvas.x + 70, y: smallCanvas.y + smallCanvas.height / 4 } });
+  assert.ok((await rect(panel(a))).width >= cell.width * 2 + 2 - .1, 'After growing past its minimum, reversing the same drag cannot cross below it');
   assert.ok((await rect(panel(a))).width > beforeSmall.width, 'An undersized panel can grow');
   assert.ok((await rect(panel(b))).width >= cell.width * 2 + 2 - .1, 'The opposite side cannot cross its minimum');
   window.setSize(1280, 160); await settle();

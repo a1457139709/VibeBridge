@@ -95,11 +95,11 @@ export function Workspace({ project, runs, report, selectedPanelId, selectPanel,
         : parseFloat(slotStyle.paddingTop) + parseFloat(slotStyle.paddingBottom) + parseFloat(panelStyle.borderTopWidth) + parseFloat(panelStyle.borderBottomWidth);
       const current = (row ? box.width : box.height) * dimension;
       const minimum = (row ? cell.width : cell.height) * 2 + chrome;
-      // Existing undersized leaves may grow, but never shrink further in this direction.
-      return Math.min(current, minimum) / (current / share);
+      return minimum / (current / share);
     };
-    const lower = Math.max(...leaves(node.first).map(id => required(id, originalRatio)));
-    const upper = 1 - Math.max(...leaves(node.second).map(id => required(id, 1 - originalRatio)));
+    const firstMinimum = Math.max(...leaves(node.first).map(id => required(id, originalRatio)));
+    const secondMaximum = 1 - Math.max(...leaves(node.second).map(id => required(id, 1 - originalRatio)));
+    let lower = Math.min(originalRatio, firstMinimum), upper = Math.max(originalRatio, secondMaximum);
 
     setResizing(true);
     element.setPointerCapture(event.pointerId);
@@ -112,7 +112,12 @@ export function Workspace({ project, runs, report, selectedPanelId, selectPanel,
       const box = divider.box;
       const delta = (divider.axis === 'row' ? pointer.clientX : pointer.clientY) - start;
       const ratio = originalRatio + delta / (dimension * (divider.axis === 'row' ? box.width : box.height));
-      node.ratio = lower <= upper ? Math.max(lower, Math.min(upper, ratio)) : originalRatio; next = candidate; setLayout(next);
+      node.ratio = lower <= upper ? Math.max(lower, Math.min(upper, ratio)) : originalRatio;
+      // While an undersized leaf grows, it cannot surrender that space on reversal.
+      // Once it reaches its normal minimum, ordinary bidirectional resizing resumes.
+      lower = Math.max(lower, Math.min(node.ratio, firstMinimum));
+      upper = Math.min(upper, Math.max(node.ratio, secondMaximum));
+      next = candidate; setLayout(next);
     };
     const finish = (commit: boolean) => {
       element.removeEventListener('pointermove', move); element.removeEventListener('pointerup', up);
@@ -135,7 +140,7 @@ export function Workspace({ project, runs, report, selectedPanelId, selectPanel,
     event.preventDefault();
     cancelResize.current?.(); resetDrag(); setMenuPanel(undefined); dragClick.current = false;
     cancelDrag.current = beginPanelDrag({ event: event.nativeEvent, handle: event.currentTarget, canvas: canvas.current!, source: panelId,
-      panels: project.panels, layout, commit: persist, consumed: () => { dragClick.current = true; } });
+      panels: project.panels, layout, commit: persist, consumed: () => { dragClick.current = true; }, ended: () => { cancelDrag.current = undefined; } });
   }
   const directoryEnd = project.directory.lastIndexOf('/');
   return <div className="workspace"><header className="workspace-toolbar"><strong title={project.name}>{project.name}</strong><span className="project-path" title={project.directory}><span className="path-parent">{project.directory.slice(0, directoryEnd)}</span><span className="path-leaf">{project.directory.slice(directoryEnd)}</span></span><span className="muted">{project.panels.length} 个面板</span><button aria-label="添加 Agent" disabled={project.panels.length >= 10} onClick={() => setAdding(true)}>＋</button></header>
