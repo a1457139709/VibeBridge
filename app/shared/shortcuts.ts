@@ -1,13 +1,13 @@
-export const shortcutActions = ['previousProject', 'nextProject', 'previousPanel', 'nextPanel', 'maximizePanel', 'addPanel', 'settings'] as const;
+export const shortcutActions = ['previousProject', 'nextProject', 'previousPanel', 'nextPanel', 'maximizePanel', 'addPanel', 'closePanel', 'settings'] as const;
 export type ShortcutAction = typeof shortcutActions[number];
 export type Shortcuts = Record<ShortcutAction, string>;
 export const shortcutNames: Record<ShortcutAction, string> = {
   previousProject: '切换到上一个项目', nextProject: '切换到下一个项目', previousPanel: '切换到上一个面板', nextPanel: '切换到下一个面板',
-  maximizePanel: '放大 / 还原面板', addPanel: '添加 Agent', settings: '打开全局设置',
+  maximizePanel: '放大 / 还原面板', addPanel: '添加 Agent', closePanel: '关闭面板', settings: '打开全局设置',
 };
 export const defaultShortcuts = (): Shortcuts => ({
   previousProject: 'Command+Shift+[', nextProject: 'Command+Shift+]', previousPanel: 'Command+[', nextPanel: 'Command+]',
-  maximizePanel: 'Command+Enter', addPanel: 'Command+N', settings: 'Command+,',
+  maximizePanel: 'Command+Enter', addPanel: 'Command+N', closePanel: 'Command+Shift+W', settings: 'Command+,',
 });
 const reserved: Record<string, string> = {
   'Command+C': '复制', 'Command+V': '粘贴', 'Command+X': '剪切', 'Command+A': '全选', 'Command+Z': '撤销', 'Command+Shift+Z': '重做',
@@ -22,8 +22,7 @@ const validKey = (key: string) => /^[A-Z0-9]$/.test(key) || Object.values(codeKe
   || /^F([1-9]|1[0-9]|2[0-4])$/.test(key);
 
 // One canonical spelling is shared by hand-edited settings, the recorder and dispatch.
-export function validateShortcuts(shortcuts: Shortcuts): void {
-  const owners = new Map<string, string>(Object.entries(reserved));
+export function validateShortcutFormats(shortcuts: Shortcuts): void {
   for (const action of shortcutActions) {
     const binding = shortcuts?.[action];
     if (typeof binding !== 'string') throw new Error(`快捷键无效：${shortcutNames[action]}`);
@@ -31,10 +30,24 @@ export function validateShortcuts(shortcuts: Shortcuts): void {
     const modifiers = ['Command', 'Control', 'Alt', 'Shift'].filter(modifier => parts.includes(modifier));
     if (!validKey(key) || !parts.some(modifier => ['Command', 'Control', 'Alt'].includes(modifier)) || [...modifiers, key].join('+') !== binding)
       throw new Error(`快捷键无效：${shortcutNames[action]}，请使用 Command、Control 或 Alt 组合键`);
-    const owner = owners.get(binding);
-    if (owner) throw new Error(`快捷键冲突：「${shortcutNames[action]}」与「${owner}」使用了相同组合键，已保留原绑定`);
-    owners.set(binding, shortcutNames[action]);
   }
+}
+
+export interface ShortcutConflict { binding: string; actions: ShortcutAction[]; system?: string }
+export function shortcutConflicts(shortcuts: Shortcuts): ShortcutConflict[] {
+  const groups = new Map<string, ShortcutAction[]>();
+  for (const action of shortcutActions) {
+    const binding = shortcuts[action];
+    groups.set(binding, [...groups.get(binding) ?? [], action]);
+  }
+  return [...groups].filter(([binding, actions]) => actions.length > 1 || reserved[binding])
+    .map(([binding, actions]) => ({ binding, actions, system: reserved[binding] }));
+}
+
+export function validateShortcuts(shortcuts: Shortcuts): void {
+  validateShortcutFormats(shortcuts);
+  const conflict = shortcutConflicts(shortcuts)[0];
+  if (conflict) throw new Error(`快捷键冲突：${conflict.actions.map(action => `「${shortcutNames[action]}」`).concat(conflict.system ? [`系统「${conflict.system}」`] : []).join('与')}使用了相同组合键`);
 }
 
 export function shortcutFromEvent(event: Pick<KeyboardEvent, 'code' | 'metaKey' | 'ctrlKey' | 'altKey' | 'shiftKey' | 'isComposing'>): string | undefined {

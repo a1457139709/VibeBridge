@@ -82,8 +82,8 @@ void (async () => {
       app.quit();
       return;
     }
-    if (process.env.VIBEBRIDGE_TEST_NAVIGATION) {
-      await require('./navigation-desktop.cjs')({ window, evaluate, click, fill, until, directory, reopen: !!process.env.VIBEBRIDGE_TEST_REOPEN });
+    if (process.env.VIBEBRIDGE_TEST_NAVIGATION || process.env.VIBEBRIDGE_TEST_SETTINGS_DRAFTS) {
+      await require(process.env.VIBEBRIDGE_TEST_SETTINGS_DRAFTS ? './settings-drafts-desktop.cjs' : './navigation-desktop.cjs')({ window, evaluate, click, fill, until, directory, reopen: !!process.env.VIBEBRIDGE_TEST_REOPEN });
       const runs = (await evaluate('window.workbench.snapshot()')).runs;
       answer = 1;
       app.once('will-quit', event => {
