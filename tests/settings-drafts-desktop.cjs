@@ -57,4 +57,6 @@ module.exports = async function verifySettingsDrafts({ window, evaluate, click, 
   await require('./settings-conflicts-desktop.cjs')({ window, evaluate, click, until });
   await require('./settings-scroll-desktop.cjs')({ window, evaluate, click, until });
   assert.deepEqual((await evaluate('window.workbench.snapshot()')).runs, before.runs);
+  await require('./settings-leave-desktop.cjs')({ window, evaluate, click, fill, until, directory });
+  await require('./settings-close-desktop.cjs')({ window, evaluate, click, until });
 };

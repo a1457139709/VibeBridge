@@ -158,9 +158,9 @@ textarea { resize: vertical; }
 @media (max-width: 760px) { .setup { margin: 28px 20px; } }
 @media (prefers-reduced-motion: reduce) { *, *::before, *::after { transition: none !important; animation: none !important; } }
 
-.command-input[aria-invalid="true"] { border-color: var(--error); }
+.command-input[aria-invalid="true"] { border-color: var(--error, #b33e2d); }
 .settings-leave { color: var(--text); background: var(--canvas); border: 1px solid var(--line); border-radius: 12px; max-width: 460px; padding: 24px; }
-.settings-leave::backdrop { background: var(--modal-backdrop); }
+.settings-leave::backdrop { background: var(--modal-backdrop, #10171044); }
 .settings-leave h2 { margin-top: 0; }
 .settings-leave .dialog-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 24px; }
 

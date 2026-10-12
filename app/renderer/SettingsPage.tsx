@@ -91,14 +91,25 @@ export function SettingsPage({ settings, startupTheme, back, ref, report }: { se
     const patch = category === 'agents' ? { agents } : category === 'appearance' ? { theme, defaultLayout } : { shortcuts };
     pending.current = true; setSaving(true); setError('');
     try { await window.workbench.saveSettings(patch); if (!quiet) report(category === 'appearance' ? '配置已保存，主题重启后生效' : '配置已保存', 'success'); return true; }
-    catch (error) { const message = (error as Error).message; setError(message); report(message); return false; }
+    catch (error) {
+      const detail = (error as Error).message.replace(/^Error invoking remote method '[^']+': Error: /, '');
+      const conflict = detail.includes('快捷键冲突');
+      const message = conflict ? '存在按键冲突，未保存' : detail;
+      setSection(conflict || detail.includes('快捷键无效') ? 'shortcuts' : category); setError(message); report(message);
+      if (conflict) {
+        setSearch('');
+        const action = (conflicts[0] ?? shortcutConflicts(settings.shortcuts)[0])?.actions[0];
+        requestAnimationFrame(() => document.getElementById(`shortcut-${action}`)?.scrollIntoView({ block: 'nearest' }));
+      }
+      return false;
+    }
     finally { pending.current = false; setSaving(false); }
   }
   async function saveAndLeave() {
     leaveDialog.current?.close();
-    const categories = leaveCategories;
+    const categories = [...leaveCategories].sort((first, second) => Number(second === 'shortcuts') - Number(first === 'shortcuts'));
     if (!categories.every(valid)) { decideLeave(false); return; }
-    for (const category of categories) if (!await save(category, true)) { setSection(category); decideLeave(false); return; }
+    for (const category of categories) if (!await save(category, true)) { decideLeave(false); return; }
     report(categories.includes('appearance') ? '配置已保存，主题重启后生效' : '配置已保存', 'success'); decideLeave(true);
   }
   const query = search.trim().toLowerCase();

@@ -16,7 +16,7 @@ void (async () => {
   process.env.VIBEBRIDGE_DATA_DIR = directory;
   const command = { command: 'node', args: [resolve('tests/fixtures/interactive.cjs'), ...(process.env.VIBEBRIDGE_TEST_SETUP ? ['--encode-cwd'] : [])] };
   const codexCommand = process.env.VIBEBRIDGE_TEST_CODEX ? { command: 'codex', args: ['resume', '--no-daemon', '--no-alt-screen'] } : command;
-  if (!process.env.VIBEBRIDGE_TEST_REOPEN) await writeFile(`${directory}/settings.json`, process.env.VIBEBRIDGE_TEST_NOTICE_STARTUP ? '{damaged configuration' : JSON.stringify({ theme: process.env.VIBEBRIDGE_TEST_APPEARANCE ? 'dark' : 'light', agents: { codex: codexCommand, claude: command, pi: command } }));
+  if (!process.env.VIBEBRIDGE_TEST_REOPEN) await writeFile(`${directory}/settings.json`, process.env.VIBEBRIDGE_TEST_NOTICE_STARTUP ? '{damaged configuration' : JSON.stringify({ theme: process.env.VIBEBRIDGE_TEST_APPEARANCE ? 'dark' : 'light', agents: { codex: codexCommand, claude: command, pi: command }, ...(process.env.VIBEBRIDGE_TEST_SETTINGS_MIGRATION ? { shortcuts: { previousProject: 'Command+Shift+[', nextProject: 'Command+Shift+]', previousPanel: 'Command+[', nextPanel: 'Command+Shift+W', maximizePanel: 'Command+Enter', addPanel: 'Command+N', settings: 'Command+,' } } : {}) }));
   let answer = 0;
   let confirmations = 0;
   dialog.showMessageBox = async (_window, options) => {
@@ -82,13 +82,20 @@ void (async () => {
       app.quit();
       return;
     }
-    if (process.env.VIBEBRIDGE_TEST_NAVIGATION || process.env.VIBEBRIDGE_TEST_SETTINGS_DRAFTS) {
-      await require(process.env.VIBEBRIDGE_TEST_SETTINGS_DRAFTS ? './settings-drafts-desktop.cjs' : './navigation-desktop.cjs')({ window, evaluate, click, fill, until, directory, reopen: !!process.env.VIBEBRIDGE_TEST_REOPEN });
+    if (process.env.VIBEBRIDGE_TEST_NAVIGATION || process.env.VIBEBRIDGE_TEST_SETTINGS_DRAFTS || process.env.VIBEBRIDGE_TEST_SETTINGS_MIGRATION) {
+      const result = await require(process.env.VIBEBRIDGE_TEST_SETTINGS_MIGRATION ? './settings-migration-desktop.cjs' : process.env.VIBEBRIDGE_TEST_SETTINGS_DRAFTS ? './settings-drafts-desktop.cjs' : './navigation-desktop.cjs')({ window, evaluate, click, fill, until, directory, reopen: !!process.env.VIBEBRIDGE_TEST_REOPEN });
       const runs = (await evaluate('window.workbench.snapshot()')).runs;
       answer = 1;
       app.once('will-quit', event => {
         event.preventDefault();
-        try { for (const run of runs) if (run.pid) assert.throws(() => process.kill(run.pid, 0)); app.exit(0); }
+        try {
+          for (const run of runs) if (run.pid) assert.throws(() => process.kill(run.pid, 0));
+          if (result?.settingsBeforeQuit) {
+            assert.deepEqual(JSON.parse(require('node:fs').readFileSync(`${directory}/settings.json`, 'utf8')), result.settingsBeforeQuit);
+            assert.equal(confirmations, 1, 'quit retains its one native confirmation and drops settings drafts');
+          }
+          app.exit(0);
+        }
         catch (error) { console.error(error); app.exit(1); }
       });
       app.quit();

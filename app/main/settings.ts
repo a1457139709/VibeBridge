@@ -35,7 +35,7 @@ export class SettingsFile {
       const settings: Settings = { ...defaultSettings(), ...value, shortcuts: { ...defaultShortcuts(), ...value.shortcuts } };
       validateSettings(settings, true);
       const conflicts = shortcutConflicts(settings.shortcuts);
-      if (conflicts.some(group => !group.actions.some(action => missing.includes(action)))) validateShortcuts(settings.shortcuts);
+      if (conflicts.some(group => group.system || group.actions.filter(action => !missing.includes(action)).length > 1)) validateShortcuts(settings.shortcuts);
       this.migratedConflict = conflicts.length > 0;
       return settings;
     } catch (error) {

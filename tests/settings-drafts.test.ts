@@ -43,6 +43,7 @@ test('empty Agent commands return field errors while failed partial saves retain
       assert.equal((error as Error & { fields: Record<string, string> }).fields['agents.codex.command'], '启动命令不能为空');
       return true;
     });
+    await assert.rejects(workbench.saveSettings({ shortcuts: { ...before.shortcuts, closePanel: 'Shift+W' } }), /快捷键无效/);
     assert.deepEqual(workbench.snapshot().settings, before);
     await workbench.saveSettings({ theme: 'light', defaultLayout: 'column' });
     await workbench.saveSettings({ shortcuts: { ...before.shortcuts, closePanel: 'Command+K' } });
@@ -54,4 +55,22 @@ test('empty Agent commands return field errors while failed partial saves retain
     assert.deepEqual(workbench.snapshot().settings, saved);
     await rm(`${directory}/settings.json`, { recursive: true });
   } finally { await workbench.quit(); await rm(directory, { recursive: true, force: true }); }
+});
+
+test('missing-action migration does not excuse duplicate bindings already present in the old file', async () => {
+  await mkdir('work/issue-47', { recursive: true });
+  const directory = await mkdtemp(resolve('work/issue-47/invalid-legacy-'));
+  let workbench = await Workbench.open(directory);
+  const settings = workbench.snapshot().settings;
+  await workbench.quit();
+  const { closePanel: _missing, ...old } = settings.shortcuts;
+  const original = JSON.stringify({ ...settings, shortcuts: { ...old, nextPanel: 'Command+Shift+W', previousPanel: 'Command+Shift+W' } });
+  await writeFile(`${directory}/settings.json`, original);
+  workbench = await Workbench.open(directory);
+  try {
+    assert.match(workbench.snapshot().errors.join('\n'), /快捷键冲突/);
+    await assert.rejects(workbench.saveSettings({ theme: 'dark' }), /未覆盖原配置/);
+    await assert.rejects(workbench.quit(), /未覆盖原配置/);
+    assert.equal(await readFile(`${directory}/settings.json`, 'utf8'), original);
+  } finally { await workbench.quit().catch(() => {}); await rm(directory, { recursive: true, force: true }); }
 });
