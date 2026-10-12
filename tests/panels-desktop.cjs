@@ -5,7 +5,7 @@ module.exports = async function verifyPanels({ window, evaluate, until, project,
   const settle = () => evaluate('new Promise(resolve => setTimeout(() => requestAnimationFrame(resolve), 250))');
   const layout = { axis: 'row', ratio: .6, first: { panel: a }, second: { axis: 'column', ratio: .5, first: { panel: b }, second: { panel: c } } };
   const save = async value => { await evaluate(`window.workbench.saveLayout(${JSON.stringify(project.id)}, ${JSON.stringify(value)})`); await settle(); };
-  const rect = selector => evaluate(`(() => { const r = document.querySelector(${JSON.stringify(selector)}).getBoundingClientRect(); return { x: r.x, y: r.y, width: r.width, height: r.height }; })()`);
+  const rect = (selector, index = 0) => evaluate(`(() => { const r = document.querySelectorAll(${JSON.stringify(selector)})[${index}].getBoundingClientRect(); return { x: r.x, y: r.y, width: r.width, height: r.height }; })()`);
   const panel = id => `[data-panel-id="${id}"] .agent-panel`;
   const size = async run => {
     const start = await evaluate('window.observedOutput.length');
@@ -14,8 +14,8 @@ module.exports = async function verifyPanels({ window, evaluate, until, project,
     return evaluate(`window.observedOutput.slice(${start}).filter(event => event.runId === ${JSON.stringify(run.id)}).map(event => event.data).join('').match(/SIZE:(\\d+)x(\\d+)/).slice(1).map(Number)`);
   };
   const mouse = (type, x, y) => window.webContents.sendInputEvent({ type, x: Math.round(x), y: Math.round(y), ...(type === 'mouseMove' ? { modifiers: ['leftButtonDown'] } : { button: 'left', clickCount: 1 }) });
-  const dragDivider = async (orientation, to) => {
-    const r = await rect(`.divider[aria-orientation="${orientation}"]`);
+  const dragDivider = async (orientation, to, index = 0) => {
+    const r = await rect(`.divider[aria-orientation="${orientation}"]`, index);
     mouse('mouseDown', r.x + r.width * .25, r.y + r.height * .25);
     await until(() => evaluate(`document.querySelector('.canvas').classList.contains('resizing')`));
     mouse('mouseMove', (r.x + to.x) / 2, (r.y + to.y) / 2);
@@ -66,13 +66,14 @@ module.exports = async function verifyPanels({ window, evaluate, until, project,
   }
   console.log(`Measured ${cell.width.toFixed(3)} × ${cell.height.toFixed(3)} px character cells: normal/nested width and height bounds, tiny display, same terminal and live output passed.`);
   const dimensions = window.getSize();
-  const both = { ...layout, ratio: .5 };
+  const both = { axis: 'row', ratio: .2, first: { axis: 'row', ratio: .5, first: { panel: a }, second: { panel: b } }, second: { panel: c } };
   await save(both);
   window.setSize(262, 860); await settle();
   let smallCanvas = await rect('.canvas');
   assert.deepEqual((await evaluate('window.workbench.snapshot()')).projects[0].layout, both, 'Window shrinking never rewrites layout ratios');
   assert.ok((await rect(panel(a))).width < cell.width * 2 + 2);
-  await dragDivider('vertical', { x: smallCanvas.x + 1, y: smallCanvas.y + smallCanvas.height / 4 });
+  assert.ok((await rect(panel(b))).width < cell.width * 2 + 2);
+  await dragDivider('vertical', { x: smallCanvas.x + 1, y: smallCanvas.y + smallCanvas.height / 4 }, 1);
   assert.deepEqual((await evaluate('window.workbench.snapshot()')).projects[0].layout, both, 'Two undersized sides have no legal drag direction');
   window.setSize(400, 860); await settle();
   const one = { ...layout, ratio: .1 };
