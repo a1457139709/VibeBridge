@@ -17,6 +17,7 @@ module.exports = async ({ window, evaluate, click, fill, until, directory, reope
       await click(`展开项目面板：${project.name}`);
       assert.deepEqual(await evaluate(`[...document.querySelectorAll('[data-project-id="${project.id}"] [data-locate-panel-id]')].map(button => button.dataset.locatePanelId)`), project.panels.map(panel => panel.id));
     }
+    await require('./titles-reopen-desktop.cjs')({ window, evaluate, until, snapshot, target: saved.projects.find(project => project.name === 'Dormant startup target') });
     console.log('PASS: real quit/reopen preserves creation order and committed layouts, resets expansion/maximize/raw titles, and starts new runs');
     return;
   }
@@ -172,5 +173,9 @@ module.exports = async ({ window, evaluate, click, fill, until, directory, reope
   await until(() => evaluate(`document.querySelectorAll('[data-project-id="${second.id}"] [data-locate-panel-id]').length === 0`));
   assert.equal(await evaluate(`document.querySelector('[data-project-id="${second.id}"] .project-link small').textContent`), '0');
   console.log('PASS: independent expansion, per-project maximize memory, long-title ellipsis with permanent actions, native swap/resize order and add/close/zero entries');
+  const dormantDirectory = join(directory, 'dormant'); await mkdir(dormantDirectory);
+  await create('Dormant startup target', dormantDirectory, 1);
+  await click(first.name);
+  await until(async () => (await evaluate('window.workbench.snapshot()')).activeProjectId === first.id);
   await writeFile(join(directory, 'titles-expected.json'), JSON.stringify(await evaluate('window.workbench.snapshot()')));
 };

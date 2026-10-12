@@ -1,3 +1,4 @@
+import { capturePointer } from './pointer-capture';
 import { agentNames, type Panel, type Layout } from '../shared/model';
 
 // A frozen copy is only a paint surface. It never owns a terminal, input or a layout.
@@ -26,9 +27,8 @@ export function beginPanelDrag({ event, handle, canvas, source, panels, layout, 
   });
   const dragged = images.find(image => image.panel.id === source)!;
   const offset = { x: event.clientX - dragged.box.x, y: event.clientY - dragged.box.y };
-  let moving = false, finished = false, target: string | undefined;
+  let moving = false, target: string | undefined;
   let ghost: HTMLDivElement | undefined, preview: HTMLDivElement | undefined;
-  handle.setPointerCapture(event.pointerId);
   const layer = (image: HTMLElement, box: DOMRect, label: string, className: string) => {
     const wrapper = document.createElement('div');
     wrapper.className = className;
@@ -48,7 +48,6 @@ export function beginPanelDrag({ event, handle, canvas, source, panels, layout, 
     document.body.append(preview);
   };
   const move = (pointer: PointerEvent) => {
-    if (pointer.pointerId !== event.pointerId) return;
     if (!moving && Math.hypot(pointer.clientX - event.clientX, pointer.clientY - event.clientY) < 5) return;
     if (!moving) {
       moving = true; consumed(); canvas.classList.add('dragging');
@@ -60,16 +59,13 @@ export function beginPanelDrag({ event, handle, canvas, source, panels, layout, 
     const under = images.find(({ box }) => pointer.clientX >= box.left && pointer.clientX < box.right && pointer.clientY >= box.top && pointer.clientY < box.bottom);
     showTarget(under?.panel.id === source ? undefined : under?.panel.id);
   };
-  const finish = (save: boolean) => {
-    if (finished) return;
-    finished = true;
-    handle.removeEventListener('pointermove', move); handle.removeEventListener('pointerup', up);
-    handle.removeEventListener('pointercancel', cancel); handle.removeEventListener('lostpointercapture', cancel);
+  const finish = (save: boolean, release?: PointerEvent) => {
+    // A release can arrive at new coordinates without a final pointermove.
+    if (release) move(release);
     window.removeEventListener('resize', cancel);
     window.removeEventListener('keydown', keydown, true);
     observer.disconnect();
     ghost?.remove(); preview?.remove(); canvas.classList.remove('dragging');
-    if (handle.hasPointerCapture(event.pointerId)) handle.releasePointerCapture(event.pointerId);
     ended();
     if (save && moving && target) {
       const swap = (node: Layout): Layout => 'panel' in node ? { panel: node.panel === source ? target! : node.panel === target ? source : node.panel }
@@ -77,12 +73,6 @@ export function beginPanelDrag({ event, handle, canvas, source, panels, layout, 
       commit(swap(original));
     }
   };
-  const up = (pointer: PointerEvent) => {
-    if (pointer.pointerId !== event.pointerId) return;
-    // A release can arrive at new coordinates without a final pointermove.
-    move(pointer); finish(true);
-  };
-  const cancel = () => finish(false);
   const keydown = (key: KeyboardEvent) => { if (key.key === 'Escape') { key.preventDefault(); key.stopImmediatePropagation(); cancel(); } };
   const bounds = canvas.getBoundingClientRect();
   const observer = new ResizeObserver(() => {
@@ -90,8 +80,7 @@ export function beginPanelDrag({ event, handle, canvas, source, panels, layout, 
     if (current.x !== bounds.x || current.y !== bounds.y || current.width !== bounds.width || current.height !== bounds.height) cancel();
   });
   observer.observe(canvas);
-  handle.addEventListener('pointermove', move); handle.addEventListener('pointerup', up);
-  handle.addEventListener('pointercancel', cancel); handle.addEventListener('lostpointercapture', cancel);
+  const cancel = capturePointer(handle, event.pointerId, { move, finish });
   window.addEventListener('resize', cancel);
   window.addEventListener('keydown', keydown, true);
   return cancel;

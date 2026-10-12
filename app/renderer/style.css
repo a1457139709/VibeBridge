@@ -171,7 +171,8 @@ textarea { resize: vertical; }
 .agent-panel[data-tiny='true'] { border-color: var(--brand); border-radius: 2px; }
 .agent-panel[data-tiny='true'] .panel-header { position: absolute; width: max-content; visibility: hidden; pointer-events: none; }
 .agent-panel[data-tiny='true'] .panel-menu { display: none; }
-.agent-panel[data-tiny='true'] .terminal-container { position: absolute; inset: 0; padding: 0; visibility: hidden; }
+/* Keep the mounted input focusable when navigation selects an icon-only panel. */
+.agent-panel[data-tiny='true'] .terminal-container { position: absolute; inset: 0; padding: 0; opacity: 0; pointer-events: none; }
 .agent-panel[data-tiny='true'] .tiny-agent-mark { display: grid; place-items: center; position: absolute; inset: 0; width: auto; overflow: hidden; font-size: min(18px, calc(var(--terminal-cell-width) * 2)); }
 
 .panel-header { touch-action: none; }
