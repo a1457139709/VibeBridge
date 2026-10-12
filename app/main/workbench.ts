@@ -69,7 +69,10 @@ export class Workbench {
     } else {
       const run = this.state.runs.find(run => run.id === event.runId);
       if (!run || run.state !== 'running' || this.expectedRuns.get(run.panelId) !== run.id) return;
-      if (event.kind === 'exit') {
+      if (event.kind === 'title') {
+        run.rawTitle = event.title;
+        this.changed();
+      } else if (event.kind === 'exit') {
         const controlled = this.controlledStops.delete(run.id);
         if (controlled) run.state = 'stopped';
         else this.state.runs = this.state.runs.filter(r => r.id !== run.id);
