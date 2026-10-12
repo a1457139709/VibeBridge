@@ -247,7 +247,7 @@ export class Workbench {
     this.quitPromise = (async () => {
       await this.operations;
       let error: unknown;
-      try { await this.settingsFile.save(this.state.settings); } catch (failure) { error = failure; }
+      try { await this.settingsFile.saveOnQuit(this.state.settings); } catch (failure) { error = failure; }
       try { await this.terminal.shutdown(); } catch (failure) { error ??= failure; }
       try { await this.store.close(); } catch (failure) { error ??= failure; }
       if (error) throw error;

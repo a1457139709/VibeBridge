@@ -72,16 +72,23 @@ export function focusTerminal(runId?: string) {
   else if (document.activeElement instanceof HTMLElement) document.activeElement.blur();
 }
 
-// Read the rendered grid rather than assuming a font's pixel width or line height.
+// Measure a rendered row's font and spacing as one unit. Grid pixels and terminal
+// cols/rows can update on different frames during fit, so their quotient is unsafe.
 export function terminalCellSize(runId?: string) {
   const screen = runId ? screens.get(runId) : undefined;
-  const grid = screen?.element.querySelector('.xterm-screen')?.getBoundingClientRect();
-  if (screen && grid?.width && grid.height) return { width: grid.width / screen.terminal.cols, height: grid.height / screen.terminal.rows };
+  const row = screen?.element.querySelector<HTMLElement>('.xterm-rows > div');
+  const rendered = row && getComputedStyle(row);
   const sample = document.createElement('span');
-  sample.textContent = 'W'; sample.style.cssText = 'position:fixed;visibility:hidden;font:13px/1.16 Menlo,Monaco,monospace';
+  sample.textContent = 'W'.repeat(32);
+  sample.style.cssText = 'position:fixed;visibility:hidden;white-space:pre;font-kerning:none';
+  sample.style.fontFamily = rendered?.fontFamily || 'Menlo,Monaco,monospace';
+  sample.style.fontSize = rendered?.fontSize || '13px';
+  sample.style.fontWeight = rendered?.fontWeight || 'normal';
+  sample.style.lineHeight = rendered?.lineHeight || '1.16';
+  sample.style.letterSpacing = rendered?.letterSpacing || 'normal';
   document.body.append(sample);
   const measured = sample.getBoundingClientRect(); sample.remove();
-  return { width: measured.width, height: measured.height };
+  return { width: measured.width / 32, height: measured.height };
 }
 
 export function observePanel(container: HTMLElement, runId?: string) {
