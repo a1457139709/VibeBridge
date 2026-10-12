@@ -38,6 +38,10 @@ test('PTY OSC 0 titles survive chunk boundaries and retain their exact raw text 
     await until(() => f.output(run.id).includes('DONE:split'));
     assert.equal(f.workbench.snapshot().runs[0].rawTitle, raw);
     assert.ok(f.output(run.id).includes(chunks.join('')), 'the original title bytes remain in terminal output');
+    const long = '  ⠋ CLI status | ' + 'Long title with  spaces 👩🏽‍💻 '.repeat(80) + ' /some/directory  ';
+    await f.emit(run.id, 'long', ['\x1b]2;' + long + '\x07']);
+    await until(() => f.output(run.id).includes('DONE:long'));
+    assert.equal(f.workbench.snapshot().runs[0].rawTitle, long);
   } finally { await f.close(); }
 });
 

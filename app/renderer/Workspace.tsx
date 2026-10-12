@@ -1,3 +1,4 @@
+import { sessionTitle } from '../shared/session-title';
 import { agentIcons } from './agent-icons';
 import { useEffect, useImperativeHandle, useRef, useState, type CSSProperties, type PointerEvent, type Ref } from 'react';
 import { agentNames, type Layout, type Project, type Run } from '../shared/model';
@@ -18,20 +19,19 @@ function TerminalView({ run }: { run?: Run }) {
   return <div className="terminal-container" ref={container}>{run?.state === 'starting' ? <div className="terminal-message">启动结果未确认，正在等待终端响应</div> : run?.state === 'failed' ? <div className="terminal-message">Agent 无法启动</div> : run?.state === 'stopped' ? <div className="terminal-message">运行已结束，请重新打开工作台</div> : !run ? <div className="terminal-message muted">正在启动…</div> : null}</div>;
 }
 
-export function Workspace({ project, runs, report, selectedPanelId, selectPanel, visible, ref }: { project: Project; runs: Run[]; report(message: string): void; selectedPanelId?: string; selectPanel(panelId: string): void; visible: boolean; ref: Ref<WorkspaceActions> }) {
+export function Workspace({ project, runs, report, selectedPanelId, selectPanel, focusRequest, maximizedPanelId, maximizePanel, locatePanel, visible, ref }: { project: Project; runs: Run[]; report(message: string): void; selectedPanelId?: string; focusRequest?: number; maximizedPanelId?: string; maximizePanel(panelId?: string): void; locatePanel(panelId: string): void; selectPanel(panelId: string): void; visible: boolean; ref: Ref<WorkspaceActions> }) {
   const [layout, setLayout] = useState(project.layout);
   const focused = project.panels.some(panel => panel.id === selectedPanelId) ? selectedPanelId : project.panels[0]?.id;
   const focusedRun = runs.find(run => run.panelId === focused && run.state === 'running');
-  const [maximized, setMaximized] = useState<string>();
+  const maximized = project.panels.some(panel => panel.id === maximizedPanelId) ? maximizedPanelId : undefined;
   useEffect(() => {
     if (!visible) return;
     const frame = requestAnimationFrame(() => focusTerminal(focusedRun?.id));
     return () => cancelAnimationFrame(frame);
-  }, [visible, focused, focusedRun?.id]);
+  }, [visible, focused, focusedRun?.id, focusRequest]);
   const [adding, setAdding] = useState(false);
   const cancelDrag = useRef<(() => void) | undefined>(undefined);
   const dragClick = useRef(false);
-  const [menuPanel, setMenuPanel] = useState<string>();
   const [resizing, setResizing] = useState(false);
   const canvas = useRef<HTMLDivElement>(null);
   const cancelResize = useRef<(() => void) | undefined>(undefined);
@@ -42,9 +42,9 @@ export function Workspace({ project, runs, report, selectedPanelId, selectPanel,
   function resetDrag() { cancelDrag.current?.(); cancelDrag.current = undefined; }
   useEffect(() => { cancelResize.current?.(); setLayout(savedLayout.current); resetDrag(); }, [layoutKey]);
   useEffect(() => { if (!visible) { cancelResize.current?.(); resetDrag(); } }, [visible]);
-  useEffect(() => { if (maximized && !project.panels.some(p => p.id === maximized)) setMaximized(undefined); }, [project.panels, maximized]);
+  useEffect(() => { if (maximizedPanelId && !maximized) maximizePanel(undefined); }, [maximizedPanelId, maximized]);
   useEffect(() => {
-    const reset = () => { cancelResize.current?.(); resetDrag(); setMenuPanel(undefined); };
+    const reset = () => { cancelResize.current?.(); resetDrag(); };
     const keydown = (event: KeyboardEvent) => { if (event.key === 'Escape') reset(); };
     window.addEventListener('blur', reset);
     window.addEventListener('keydown', keydown);
@@ -53,8 +53,8 @@ export function Workspace({ project, runs, report, selectedPanelId, selectPanel,
   const positions = layoutBoxes(layout);
   const persist = (next: Layout | null) => { setLayout(next); void window.workbench.saveLayout(project.id, next).catch(error => report(error.message)); };
   const focus = (panelId: string) => { selectPanel(panelId); focusTerminal(runs.find(r => r.panelId === panelId)?.id); };
-  const maximize = (panelId: string) => { setMenuPanel(undefined); setMaximized(maximized === panelId ? undefined : panelId); focus(panelId); };
-  const close = (panelId: string) => { setMenuPanel(undefined); void window.workbench.closePanel(project.id, panelId).catch(error => report(error.message)); };
+  const maximize = (panelId: string) => { maximizePanel(maximized === panelId ? undefined : panelId); focus(panelId); };
+  const close = (panelId: string) => { void window.workbench.closePanel(project.id, panelId).catch(error => report(error.message)); };
   useImperativeHandle(ref, () => ({ shortcut(action) {
     if (adding) return false;
     if (action === 'addPanel' && project.panels.length < 10) { setAdding(true); return true; }
@@ -64,8 +64,7 @@ export function Workspace({ project, runs, report, selectedPanelId, selectPanel,
       const panels = [...positions.panels.keys()];
       const offset = action === 'nextPanel' ? 1 : -1;
       const next = panels[(panels.indexOf(focused) + offset + panels.length) % panels.length];
-      if (maximized) setMaximized(next);
-      focus(next); return true;
+      locatePanel(next); return true;
     }
     return false;
   } }));
@@ -138,13 +137,13 @@ export function Workspace({ project, runs, report, selectedPanelId, selectPanel,
   function drag(event: PointerEvent<HTMLElement>, panelId: string) {
     if (event.button !== 0 || maximized || !layout || (event.target as HTMLElement).closest('button, [role="menu"]')) return;
     event.preventDefault();
-    cancelResize.current?.(); resetDrag(); setMenuPanel(undefined); dragClick.current = false;
+    cancelResize.current?.(); resetDrag(); dragClick.current = false;
     cancelDrag.current = beginPanelDrag({ event: event.nativeEvent, handle: event.currentTarget, canvas: canvas.current!, source: panelId,
       panels: project.panels, layout, commit: persist, consumed: () => { dragClick.current = true; }, ended: () => { cancelDrag.current = undefined; } });
   }
   const directoryEnd = project.directory.lastIndexOf('/');
   return <div className="workspace"><header className="workspace-toolbar"><strong title={project.name}>{project.name}</strong><span className="project-path" title={project.directory}><span className="path-parent">{project.directory.slice(0, directoryEnd)}</span><span className="path-leaf">{project.directory.slice(directoryEnd)}</span></span><span className="muted">{project.panels.length} 个面板</span><button aria-label="添加 Agent" disabled={project.panels.length >= 10} onClick={() => setAdding(true)}>＋</button></header>
-    <div className={`canvas ${resizing ? 'resizing' : ''}`} ref={canvas} onMouseDown={() => setMenuPanel(undefined)}>
+    <div className={`canvas ${resizing ? 'resizing' : ''}`} ref={canvas}>
       {!project.panels.length && <div className="empty"><p>这个项目还没有 Agent 面板</p><button onClick={() => setAdding(true)}>＋ 添加 Agent</button></div>}
       {project.panels.map(panel => {
         const box = positions.panels.get(panel.id);
@@ -155,15 +154,11 @@ export function Workspace({ project, runs, report, selectedPanelId, selectPanel,
         return <section key={panel.id} data-panel-id={panel.id} className={`panel-slot ${panel.agent}`} style={position}><div className={`agent-panel ${focused === panel.id ? 'focused' : ''}`}
           onMouseDown={event => { if (!(event.target as HTMLElement).closest('.panel-header')) selectPanel(panel.id); }} onFocusCapture={() => selectPanel(panel.id)}>
           <header className="panel-header" onPointerDown={event => drag(event, panel.id)} onClick={() => { if (dragClick.current) dragClick.current = false; else focus(panel.id); }}>
-            <span className="agent-title"><span className="agent-mark">{agentIcons[panel.agent]}</span>{agentNames[panel.agent]}</span><span className="panel-actions">
+            <span className="agent-title" title={sessionTitle(run)}><span className="agent-mark">{agentIcons[panel.agent]}</span><span className="session-title">{sessionTitle(run)}</span></span><span className="panel-actions">
               <button aria-label={maximized === panel.id ? '还原面板' : '放大面板'} draggable={false} onMouseDown={event => event.stopPropagation()} onClick={event => { event.stopPropagation(); maximize(panel.id); }}>⤢</button>
-              <button aria-label="更多面板操作" aria-expanded={menuPanel === panel.id} aria-haspopup="menu" draggable={false} onMouseDown={event => event.stopPropagation()} onClick={event => { event.stopPropagation(); setMenuPanel(menuPanel === panel.id ? undefined : panel.id); }}>⋯</button>
               <button aria-label="关闭面板" draggable={false} onMouseDown={event => event.stopPropagation()} onClick={event => { event.stopPropagation(); close(panel.id); }}>×</button>
             </span>
-          </header>{menuPanel === panel.id && <div className="panel-menu" role="menu" onMouseDown={event => event.stopPropagation()}>
-            <button role="menuitem" autoFocus onClick={() => maximize(panel.id)}>{maximized === panel.id ? '还原面板' : '放大面板'}</button>
-            <button role="menuitem" onClick={() => close(panel.id)}>关闭面板</button>
-          </div>}<span className="tiny-agent-mark agent-mark" role="img" aria-label={agentNames[panel.agent]}>{agentIcons[panel.agent]}</span><TerminalView run={run} />
+          </header><span className="tiny-agent-mark agent-mark" role="img" aria-label={agentNames[panel.agent]}>{agentIcons[panel.agent]}</span><TerminalView run={run} />
         </div></section>;
       })}
       {!maximized && positions.dividers.map(divider => {
@@ -175,6 +170,6 @@ export function Workspace({ project, runs, report, selectedPanelId, selectPanel,
       })}
     </div>
     {adding && <AgentPicker projectId={project.id} full={project.panels.length >= 10} close={() => setAdding(false)}
-      added={() => { setAdding(false); setMaximized(undefined); }} />}
+      added={() => { setAdding(false); maximizePanel(undefined); }} />}
   </div>;
 }

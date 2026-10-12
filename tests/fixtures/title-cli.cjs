@@ -1,10 +1,12 @@
 // Controlled terminal-title producer, exercised only through the public Workbench API.
 process.stdin.setRawMode(true);
+process.stdin.setEncoding('utf8');
 process.stdout.write(`READY:${process.pid}\r\n`);
 if (process.argv[2] === '--initial-title') process.stdout.write(`\x1b]2;${process.argv[3]}\x07`);
 let input = '';
 let commands = Promise.resolve();
 process.stdin.on('data', data => {
+  if (!input && !data.toString().startsWith('{')) { process.stdout.write(`INPUT:${data}\r\nBYTES:${Buffer.from(data).toString('hex')}\r\n`); return; }
   input += data;
   let newline;
   while ((newline = input.indexOf('\n')) !== -1) {
