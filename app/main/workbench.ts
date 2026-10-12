@@ -1,13 +1,13 @@
 import { randomUUID } from 'node:crypto';
 import { realpath, stat } from 'node:fs/promises';
 import { basename } from 'node:path';
-import { assignedAgents, arrange, insertIntoLayout, validateDraft, removeFromLayout, validateLayout, agentTypes, type AgentType, type DirectoryResult, type LaunchResult, type Layout, type Panel, type Project, type ProjectCreation, type ProjectDraft, type PanelCreation, type Settings, type Snapshot, type TerminalEvent, type WorkbenchEvent } from '../shared/model';
+import { defaultNavigation, navigationWidth, type NavigationPreferences, assignedAgents, arrange, insertIntoLayout, validateDraft, removeFromLayout, validateLayout, agentTypes, type AgentType, type DirectoryResult, type LaunchResult, type Layout, type Panel, type Project, type ProjectCreation, type ProjectDraft, type PanelCreation, type Settings, type Snapshot, type TerminalEvent, type WorkbenchEvent } from '../shared/model';
 import { ProjectStore } from './storage';
 import { SettingsFile, defaultSettings } from './settings';
 import { TerminalClient } from './terminal-client';
 
 export class Workbench {
-  private state: Snapshot = { projects: [], runs: [], activeProjectId: null, settings: defaultSettings(), startupTheme: 'system', resolvedTheme: 'light', errors: [] };
+  private state: Snapshot = { navigation: { ...defaultNavigation }, projects: [], runs: [], activeProjectId: null, settings: defaultSettings(), startupTheme: 'system', resolvedTheme: 'light', errors: [] };
   private terminal: TerminalClient;
   private listeners = new Set<(event: WorkbenchEvent) => void>();
   private operations: Promise<unknown> = Promise.resolve();
@@ -153,6 +153,12 @@ export class Workbench {
     validateLayout(layout, project.panels);
     project.layout = structuredClone(layout); this.changed();
     await this.store.save(project);
+  }); }
+  saveNavigation(preferences: NavigationPreferences) { return this.operation(async () => {
+    if (!preferences || typeof preferences.visible !== 'boolean' || !Number.isFinite(preferences.width)) throw new Error('导航偏好无效');
+    const navigation = { visible: preferences.visible, width: navigationWidth(preferences.width) };
+    await this.store.navigation(navigation);
+    this.state.navigation = navigation; this.changed();
   }); }
   sendInput(runId: string, data: string) { return this.terminal.input(runId, data); }
   resizeRun(runId: string, cols: number, rows: number) { return this.terminal.resize(runId, cols, rows); }

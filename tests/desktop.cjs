@@ -16,11 +16,14 @@ void (async () => {
   process.env.VIBEBRIDGE_DATA_DIR = directory;
   const command = { command: 'node', args: [resolve('tests/fixtures/interactive.cjs'), ...(process.env.VIBEBRIDGE_TEST_SETUP ? ['--encode-cwd'] : [])] };
   const codexCommand = process.env.VIBEBRIDGE_TEST_CODEX ? { command: 'codex', args: ['resume', '--no-daemon', '--no-alt-screen'] } : command;
-  if (!process.env.VIBEBRIDGE_TEST_REOPEN) await writeFile(`${directory}/settings.json`, JSON.stringify({ theme: process.env.VIBEBRIDGE_TEST_APPEARANCE ? 'dark' : 'light', agents: { codex: codexCommand, claude: command, pi: command } }));
+  if (!process.env.VIBEBRIDGE_TEST_REOPEN) await writeFile(`${directory}/settings.json`, process.env.VIBEBRIDGE_TEST_NOTICE_STARTUP ? '{damaged configuration' : JSON.stringify({ theme: process.env.VIBEBRIDGE_TEST_APPEARANCE ? 'dark' : 'light', agents: { codex: codexCommand, claude: command, pi: command } }));
   let answer = 0;
   let confirmations = 0;
   dialog.showMessageBox = async (_window, options) => {
-    if (options.type === 'error') throw new Error(options.detail);
+    if (options.type === 'error') {
+      if (process.env.VIBEBRIDGE_TEST_NOTICE_STARTUP) { assert.match(options.detail, /配置读取失败/); return { response: 0 }; }
+      throw new Error(options.detail);
+    }
     confirmations++;
     return { response: answer };
   };
@@ -72,6 +75,25 @@ void (async () => {
     }
   };
   try {
+    if (process.env.VIBEBRIDGE_TEST_NOTICE_STARTUP) {
+      await require('./notices-startup-desktop.cjs')({ evaluate, click, until, directory });
+      answer = 1;
+      app.once('will-quit', event => { event.preventDefault(); app.exit(0); });
+      app.quit();
+      return;
+    }
+    if (process.env.VIBEBRIDGE_TEST_NAVIGATION) {
+      await require('./navigation-desktop.cjs')({ window, evaluate, click, fill, until, directory, reopen: !!process.env.VIBEBRIDGE_TEST_REOPEN });
+      const runs = (await evaluate('window.workbench.snapshot()')).runs;
+      answer = 1;
+      app.once('will-quit', event => {
+        event.preventDefault();
+        try { for (const run of runs) if (run.pid) assert.throws(() => process.kill(run.pid, 0)); app.exit(0); }
+        catch (error) { console.error(error); app.exit(1); }
+      });
+      app.quit();
+      return;
+    }
     if (process.env.VIBEBRIDGE_TEST_SETUP) {
       await require('./setup-desktop.cjs')({ window, evaluate, click, fill, until, directory, dialog });
       const runs = (await evaluate('window.workbench.snapshot()')).runs;
@@ -337,6 +359,8 @@ void (async () => {
     await until(() => evaluate(`window.observedOutput.some(event => event.runId === ${JSON.stringify(selectedRun.id)} && event.data.includes('READY:'))`));
     await evaluate(`window.workbench.sendInput(${JSON.stringify(selectedRun.id)}, 'later')`);
     await click('折叠项目导航');
+    await until(() => evaluate(`document.querySelector('nav[aria-label="项目导航"]').getBoundingClientRect().width === 0`));
+    await click('展开项目导航');
     await click(project.name);
     await until(() => evaluate(`document.querySelectorAll('.xterm').length === 1`));
     await evaluate(`window.workbench.sendInput(${JSON.stringify(selectedRun.id)}, 'background-check')`);
@@ -359,7 +383,6 @@ void (async () => {
     await click('取消');
     await until(() => evaluate(`document.activeElement?.closest('[data-panel-id]')?.dataset.panelId === ${JSON.stringify(selectedPanel)}`));
     await verifyArrows(selectedPanel);
-    await click('展开项目导航');
     await require('./settings-desktop.cjs')({ window, evaluate, click, fill, until });
     await require('./load-desktop.cjs')({ window, evaluate, click, until });
     const { project: empty } = await create('Empty project', emptyDirectory, 1);

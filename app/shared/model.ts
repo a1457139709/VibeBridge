@@ -18,7 +18,10 @@ export interface Run { id: string; projectId: string; panelId: string; state: 'r
 export type LaunchResult = { ok: true; run: Run } | { ok: false; run: Run; error: 'Agent 无法启动' };
 export interface ProjectCreation { project: Project; launches: LaunchResult[] }
 export interface PanelCreation { panel: Panel; launch: LaunchResult }
-export interface Snapshot { projects: Project[]; activeProjectId: string | null; runs: Run[]; settings: Settings; startupTheme: Settings['theme']; resolvedTheme: 'dark' | 'light'; errors: string[] }
+export interface NavigationPreferences { visible: boolean; width: number }
+export const defaultNavigation: NavigationPreferences = { visible: true, width: 212 };
+export const navigationWidth = (width: number) => Math.max(168, Math.min(420, width));
+export interface Snapshot { navigation: NavigationPreferences; projects: Project[]; activeProjectId: string | null; runs: Run[]; settings: Settings; startupTheme: Settings['theme']; resolvedTheme: 'dark' | 'light'; errors: string[] }
 export type TerminalEvent = { kind: 'output'; runId: string; data: string } | { kind: 'started'; run: Run } | { kind: 'exit'; runId: string };
 export type WorkbenchEvent = TerminalEvent | { kind: 'snapshot'; snapshot: Snapshot } | { kind: 'error'; message: string };
 export interface DirectoryResult { valid: boolean; directory?: string; name?: string; existingProjectId?: string; existingProjectName?: string }
