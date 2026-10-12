@@ -93,6 +93,7 @@ module.exports = async function verifyNavigation({ window, evaluate, click, fill
   assert.equal((await evaluate('window.workbench.snapshot()')).settings.shortcuts.nextPanel, before.settings.shortcuts.nextPanel);
   key('Escape', []);
   assert.equal(await evaluate(`!!document.querySelector('.settings-page')`), true, 'Escape does not leave settings');
+  await click('放弃更改');
   await click(first.name);
   await until(() => evaluate(`!document.querySelector('.settings-page')`));
   assert.equal(await evaluate(`!!document.querySelector('button[aria-label="还原面板"]')`), true);

@@ -59,6 +59,7 @@ export function Workspace({ project, runs, report, selectedPanelId, selectPanel,
     if (adding) return false;
     if (action === 'addPanel' && project.panels.length < 10) { setAdding(true); return true; }
     if (!focused) return false;
+    if (action === 'closePanel') { close(maximized ?? focused); return true; }
     if (action === 'maximizePanel') { maximize(focused); return true; }
     if (action === 'nextPanel' || action === 'previousPanel') {
       const panels = [...positions.panels.keys()];

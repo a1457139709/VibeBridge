@@ -1,0 +1,71 @@
+const assert = require('node:assert/strict');
+const { mkdir, rename, rm, writeFile } = require('node:fs/promises');
+module.exports = async function verifyLeavePaths({ window, evaluate, click, fill, until, directory }) {
+  const before = await evaluate('window.workbench.snapshot()');
+  const originalProject = before.projects.find(project => project.id === before.activeProjectId);
+  const secondDirectory = `${directory}/leave-target`;
+  await mkdir(secondDirectory);
+  const { project: target } = await evaluate(`window.workbench.createProject(${JSON.stringify({ name: 'Leave target', directory: secondDirectory, total: 1, counts: { codex: 1, claude: 0, pi: 0 } })})`);
+  await click(originalProject.name);
+  await click('全局设置'); await fill('command-codex', '');
+  const shortcut = () => {
+    window.focus(); window.webContents.focus();
+    window.webContents.sendInputEvent({ type: 'keyDown', keyCode: ',', modifiers: ['meta'] });
+    window.webContents.sendInputEvent({ type: 'keyUp', keyCode: ',', modifiers: ['meta'] });
+  };
+  const exits = [() => click('全局设置'), shortcut, () => click(target.name), () => click('添加项目')];
+  for (const leave of exits) {
+    await leave(); await until(() => evaluate(`!!document.querySelector('dialog[open]')`)); await click('取消');
+    assert.ok(await evaluate(`!!document.querySelector('.settings-page')`));
+    assert.equal((await evaluate('window.workbench.snapshot()')).activeProjectId, originalProject.id);
+    await leave(); await until(() => evaluate(`!!document.querySelector('dialog[open]')`)); await click('保存并返回');
+    await until(() => evaluate(`document.activeElement.id === 'command-codex'`));
+    assert.ok(await evaluate(`!!document.querySelector('.settings-page')`));
+    assert.equal((await evaluate('window.workbench.snapshot()')).activeProjectId, originalProject.id, 'failed validation cannot run the original navigation');
+  }
+  await fill('command-codex', before.settings.agents.codex.command);
+  await fill('command-pi', '/valid-but-not-installed-pi');
+  assert.equal(await evaluate(`document.querySelector('.agent-settings.pi .command-result').textContent.trim()`), '', 'editing does not automatically check executable availability');
+  await click('外观'); await evaluate(`document.querySelector('input[value="dark"]').click()`);
+  await evaluate(`(() => { const select = document.getElementById('default-layout'); select.value = 'column'; select.dispatchEvent(new Event('change', { bubbles: true })); })()`);
+  await click('快捷键'); await evaluate(`document.getElementById('shortcut-previousProject').focus()`);
+  window.webContents.sendInputEvent({ type: 'keyDown', keyCode: 'U', modifiers: ['meta'] });
+  window.webContents.sendInputEvent({ type: 'keyUp', keyCode: 'U', modifiers: ['meta'] });
+  await until(() => evaluate(`document.getElementById('shortcut-previousProject').title === 'Command+U'`));
+  await click('外观');
+  await evaluate(`document.querySelectorAll('.notice button').forEach(button => button.click())`);
+  const effective = await evaluate('window.workbench.snapshot()');
+  await rename(`${directory}/settings.json`, `${directory}/settings-backup.json`); await mkdir(`${directory}/settings.json`);
+  try {
+    await click(target.name); await until(() => evaluate(`!!document.querySelector('dialog[open]')`));
+    const categories = await evaluate(`document.querySelector('dialog[open]').textContent`);
+    assert.match(categories, /Agent/); assert.match(categories, /外观/); assert.match(categories, /快捷键/);
+    await click('保存并返回');
+    await until(() => evaluate(`document.querySelector('.settings-status').textContent.includes('配置保存失败')`));
+    assert.equal(await evaluate(`document.querySelector('.settings-status').textContent`), '配置保存失败', 'failure reason is user-facing, without the IPC transport prefix');
+    assert.equal(await evaluate(`document.querySelector('[aria-label="设置分类"] [aria-current="page"]').textContent`), '快捷键');
+    assert.equal(await evaluate(`!!document.querySelector('.notice.success')`), false, 'failed writes never report success');
+    assert.deepEqual((await evaluate('window.workbench.snapshot()')).settings, effective.settings);
+    assert.equal((await evaluate('window.workbench.snapshot()')).activeProjectId, originalProject.id);
+    assert.equal(await evaluate(`(() => { const b = document.querySelector('.settings-status').getBoundingClientRect(); return b.top >= 44 && b.bottom < innerHeight; })()`), true, 'failure stays beside the fixed save button');
+    await mkdir('outputs', { recursive: true });
+    await evaluate('new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))');
+    await writeFile('outputs/issue-47-settings.png', (await window.webContents.capturePage()).toPNG());
+  } finally { await rm(`${directory}/settings.json`, { recursive: true }); await rename(`${directory}/settings-backup.json`, `${directory}/settings.json`); }
+  await click(target.name); await click('保存并返回');
+  await until(async () => (await evaluate('window.workbench.snapshot()')).activeProjectId === target.id);
+  await until(() => evaluate(`!document.querySelector('.settings-page')`));
+  const saved = await evaluate('window.workbench.snapshot()');
+  assert.equal(saved.settings.agents.pi.command, '/valid-but-not-installed-pi');
+  assert.equal(saved.settings.theme, 'dark'); assert.equal(saved.settings.defaultLayout, 'column');
+  assert.equal(saved.settings.shortcuts.previousProject, 'Command+U');
+  assert.equal(await evaluate('document.documentElement.dataset.theme'), 'light');
+  assert.deepEqual(saved.projects.find(p => p.id === originalProject.id).layout, originalProject.layout);
+  for (const run of effective.runs) assert.ok(saved.runs.some(current => current.id === run.id && current.pid === run.pid));
+  await click('全局设置'); await fill('command-codex', '');
+  await click('添加项目'); await click('不保存');
+  await until(() => evaluate(`!!document.getElementById('project-name')`));
+  assert.equal((await evaluate('window.workbench.snapshot()')).settings.agents.codex.command, before.settings.agents.codex.command);
+  await click(originalProject.name);
+  await until(() => evaluate(`document.activeElement?.classList.contains('xterm-helper-textarea')`));
+};
