@@ -39,6 +39,7 @@ module.exports = async function verifySettings({ window, evaluate, click, fill, 
   await until(() => evaluate(`document.querySelector('.settings-status').textContent.includes('下一个面板')`));
   assert.equal((await evaluate('window.workbench.snapshot()')).settings.shortcuts.maximizePanel, before.settings.shortcuts.maximizePanel);
   await click('‹ 返回');
+  await until(() => evaluate(`document.activeElement?.closest('[data-panel-id]')?.dataset.panelId === ${JSON.stringify(selected)}`));
   key('k');
   await until(() => evaluate(`document.activeElement?.closest('[data-panel-id]')?.dataset.panelId === ${JSON.stringify(target)}`));
   key('[', ['meta', 'shift']);

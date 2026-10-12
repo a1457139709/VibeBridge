@@ -61,6 +61,7 @@ void app.whenReady().then(async () => {
   handle('add', (service, project, agent) => service.addPanel(project, agent));
   handle('close', (service, project, panel) => service.closePanel(project, panel));
   handle('layout', (service, project, layout) => service.saveLayout(project, layout));
+  handle('navigation', (service, preferences) => service.saveNavigation(preferences));
   handle('settings', (service, settings) => service.saveSettings(settings));
   handle('check-command', (service, command) => service.checkCommand(command));
   handle('input', (service, run, data) => service.sendInput(run, data));

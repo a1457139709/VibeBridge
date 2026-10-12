@@ -1,6 +1,7 @@
-import { useRef, useState } from 'react';
+import { useImperativeHandle, useRef, useState, type Ref } from 'react';
 import { agentNames, agentTypes, type AgentCommand, type CommandCheck, type Settings } from '../shared/model';
 import { defaultShortcuts, displayShortcut, shortcutActions, shortcutFromEvent, shortcutNames, validateShortcuts, type ShortcutAction } from '../shared/shortcuts';
+import type { ReportNotice } from './Notices';
 import { agentIcons } from './agent-icons';
 
 function AgentFields({ type, value, change }: { type: typeof agentTypes[number]; value: AgentCommand; change(value: AgentCommand): void }) {
@@ -29,7 +30,9 @@ function AgentFields({ type, value, change }: { type: typeof agentTypes[number];
   </section>;
 }
 
-export function SettingsPage({ settings, startupTheme, back }: { settings: Settings; startupTheme: Settings['theme']; back(): void }) {
+export interface SettingsPageActions { requestLeave(): Promise<boolean> }
+
+export function SettingsPage({ settings, startupTheme, back, ref, report }: { settings: Settings; startupTheme: Settings['theme']; back(): void; ref: Ref<SettingsPageActions>; report: ReportNotice }) {
   const [section, setSection] = useState<'agents' | 'appearance' | 'shortcuts'>('agents');
   const [agents, setAgents] = useState(settings.agents);
   const [theme, setTheme] = useState(settings.theme);
@@ -37,15 +40,15 @@ export function SettingsPage({ settings, startupTheme, back }: { settings: Setti
   const [search, setSearch] = useState('');
   const [recording, setRecording] = useState<ShortcutAction>();
   const [error, setError] = useState('');
-  const [message, setMessage] = useState('');
   const [saving, setSaving] = useState(false);
   const pending = useRef(false);
+  useImperativeHandle(ref, () => ({ async requestLeave() { return !pending.current; } }));
   const defaults = defaultShortcuts();
   async function save(patch: Partial<Settings>) {
     if (pending.current) return;
-    pending.current = true; setSaving(true); setError(''); setMessage('');
-    try { await window.workbench.saveSettings(patch); setMessage('已保存'); }
-    catch (error) { setError((error as Error).message.replace(/^Error invoking remote method '[^']+': Error: /, '')); }
+    pending.current = true; setSaving(true); setError('');
+    try { await window.workbench.saveSettings(patch); report(patch.theme ? '配置已保存，主题重启后生效' : '配置已保存', 'success'); }
+    catch (error) { report((error as Error).message); }
     finally { pending.current = false; setSaving(false); }
   }
   const query = search.trim().toLowerCase();
@@ -53,7 +56,7 @@ export function SettingsPage({ settings, startupTheme, back }: { settings: Setti
   return <div className="settings-page">
     <div className="settings-shell"><button className="settings-back text-button" autoFocus disabled={saving} onClick={back}>‹ 返回</button>
       <h1>全局设置</h1><div className="settings-columns">
-        <nav className="settings-navigation" aria-label="设置分类">{(['agents', 'appearance', 'shortcuts'] as const).map(tab => <button key={tab} aria-current={section === tab ? 'page' : undefined} onClick={() => { setSection(tab); setError(''); setMessage(''); }}>{ { agents: 'Agent', appearance: '外观', shortcuts: '快捷键' }[tab]}</button>)}</nav>
+        <nav className="settings-navigation" aria-label="设置分类">{(['agents', 'appearance', 'shortcuts'] as const).map(tab => <button key={tab} aria-current={section === tab ? 'page' : undefined} onClick={() => { setSection(tab); setError(''); }}>{ { agents: 'Agent', appearance: '外观', shortcuts: '快捷键' }[tab]}</button>)}</nav>
         <div className="settings-content"><fieldset disabled={saving}>
           {section === 'agents' && <form onSubmit={event => { event.preventDefault(); void save({ agents }); }}>
             <p className="muted">所有项目共用这些启动设置。保存后仅影响之后启动的 Agent。</p>
@@ -90,7 +93,7 @@ export function SettingsPage({ settings, startupTheme, back }: { settings: Setti
             <p className="muted shortcut-help">仅在应用前台生效。Esc 取消录入；未处理输入继续交给选中 CLI。复制、粘贴等系统操作保留原绑定。</p>
           </>}
         </fieldset>
-          <div className="settings-status" aria-live="polite">{error ? <span className="error-text" role="alert">{error}</span> : saving ? '正在保存…' : message}</div>
+          <div className="settings-status" aria-live="polite">{error ? <span className="error-text" role="alert">{error}</span> : saving ? '正在保存…' : ''}</div>
         </div>
       </div>
     </div>

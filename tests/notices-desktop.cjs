@@ -1,0 +1,67 @@
+const assert = require('node:assert/strict');
+const { mkdir, rename, rm } = require('node:fs/promises');
+
+module.exports = async function verifyNotices({ window, evaluate, click, until, directory }) {
+  await click('全局设置');
+  await click('外观');
+  await click('保存外观设置');
+  await until(() => evaluate(`document.querySelector('.notice')?.textContent.includes('配置已保存，主题重启后生效')`));
+  assert.equal(await evaluate(`document.querySelector('.settings-status').textContent.includes('已保存')`), false, 'save feedback uses the shared notice queue');
+  const geometry = await evaluate(`(() => { const b = document.querySelector('.notice').getBoundingClientRect(); return { top: b.top, middle: (b.left + b.right) / 2, windowMiddle: innerWidth / 2 }; })()`);
+  assert.ok(geometry.top >= 44 && geometry.top < 100);
+  assert.ok(Math.abs(geometry.middle - geometry.windowMiddle) <= 1);
+  await new Promise(resolve => setTimeout(resolve, 1100));
+  await click('保存外观设置');
+  await until(() => evaluate(`document.querySelector('.settings-status').textContent !== '正在保存…'`));
+  assert.equal(await evaluate(`document.querySelectorAll('.notice').length`), 1, 'same content deduplicates');
+  await new Promise(resolve => setTimeout(resolve, 1100));
+  assert.equal(await evaluate(`document.querySelectorAll('.notice').length`), 1, 'duplicate restarts the two-second timer');
+  await until(() => evaluate(`!document.querySelector('.notice')`));
+  await click('保存外观设置');
+  await until(() => evaluate(`!!document.querySelector('.notice')`));
+  const notice = await evaluate(`(() => { const b = document.querySelector('.notice').getBoundingClientRect(); return { x: Math.round(b.x + b.width / 2), y: Math.round(b.y + b.height / 2) }; })()`);
+  window.webContents.sendInputEvent({ type: 'mouseMove', ...notice });
+  await new Promise(resolve => setTimeout(resolve, 2200));
+  assert.equal(await evaluate(`document.querySelectorAll('.notice').length`), 1, 'hover pauses the timer');
+  window.webContents.sendInputEvent({ type: 'mouseMove', x: 10, y: 200 });
+  await until(() => evaluate(`!document.querySelector('.notice')`));
+  const settings = (await evaluate('window.workbench.snapshot()')).settings;
+  await click('保存外观设置');
+  await until(() => evaluate(`!!document.querySelector('.notice.success')`));
+  await click('Agent');
+  await rename(`${directory}/settings.json`, `${directory}/settings-backup.json`);
+  await mkdir(`${directory}/settings.json`);
+  try {
+    await evaluate(`document.getElementById('command-codex').focus()`);
+    await click('保存 Agent 设置');
+    await until(() => evaluate(`document.querySelector('.notice.error')?.textContent.includes('配置保存失败')`));
+    assert.equal(await evaluate(`!!document.activeElement.closest('.notices')`), false, 'save feedback never receives input focus');
+    assert.equal(await evaluate(`document.querySelectorAll('.notice').length`), 2);
+    assert.equal(await evaluate(`(() => { const boxes = [...document.querySelectorAll('.notice')].map(element => element.getBoundingClientRect()); return boxes[0].bottom < boxes[1].top; })()`), true);
+    await click('‹ 返回');
+    await until(() => evaluate(`document.activeElement?.classList.contains('xterm-helper-textarea')`));
+    const focused = await evaluate(`document.activeElement.closest('[data-panel-id]').dataset.panelId`);
+    window.webContents.sendInputEvent({ type: 'char', keyCode: 'v' });
+    await until(() => evaluate(`window.navigationOutput.some(event => event.data.includes('INPUT:v'))`));
+    await new Promise(resolve => setTimeout(resolve, 2300));
+    assert.equal(await evaluate(`!!document.querySelector('.notice.success')`), false);
+    assert.equal(await evaluate(`!!document.querySelector('.notice.error')`), true, 'error outlives success with its independent five-second timer');
+    await until(() => evaluate(`!document.querySelector('.notice.error')`));
+    await click('全局设置');
+    await click('保存 Agent 设置');
+    await until(() => evaluate(`document.querySelector('.notice.error')?.textContent.includes('配置保存失败')`));
+    assert.deepEqual((await evaluate('window.workbench.snapshot()')).settings, settings);
+    await click('‹ 返回');
+    await until(() => evaluate(`document.activeElement?.classList.contains('xterm-helper-textarea')`));
+    const close = await evaluate(`(() => { const b = document.querySelector('.notice.error button').getBoundingClientRect(); return { x: Math.round(b.x + b.width / 2), y: Math.round(b.y + b.height / 2) }; })()`);
+    window.webContents.sendInputEvent({ type: 'mouseDown', ...close, button: 'left', clickCount: 1 });
+    window.webContents.sendInputEvent({ type: 'mouseUp', ...close, button: 'left', clickCount: 1 });
+    await until(() => evaluate(`!document.querySelector('.notice')`));
+    assert.equal(await evaluate(`document.activeElement.closest('[data-panel-id]').dataset.panelId`), focused, 'dismiss keeps terminal focus');
+    window.webContents.sendInputEvent({ type: 'mouseMove', x: 10, y: 200 });
+  } finally {
+    await rm(`${directory}/settings.json`, { recursive: true });
+    await rename(`${directory}/settings-backup.json`, `${directory}/settings.json`);
+  }
+  await click('全局设置');
+};
