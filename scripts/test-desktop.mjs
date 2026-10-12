@@ -6,6 +6,7 @@ const appearance = process.argv.includes('--appearance');
 const codex = process.argv.includes('--codex');
 const projectManagement = process.argv.includes('--project-management');
 const setup = process.argv.includes('--setup');
+const panels = process.argv.includes('--panels');
 const noticeStartup = process.argv.includes('--notices-startup');
 const settingsDrafts = process.argv.includes('--settings-drafts');
 const navigation = process.argv.includes('--navigation');
@@ -22,6 +23,7 @@ const environment = { ...process.env, VIBEBRIDGE_TEST_NODE: process.execPath, VI
   ...(navigation ? { VIBEBRIDGE_TEST_NAVIGATION: '1' } : {}),
   ...(projectManagement ? { VIBEBRIDGE_TEST_PROJECT_MANAGEMENT: '1' } : {}),
   ...(setup ? { VIBEBRIDGE_TEST_SETUP: '1' } : {}),
+  ...(panels ? { VIBEBRIDGE_TEST_PANELS: '1' } : {}),
   PATH: '/usr/bin:/bin',
   VIBEBRIDGE_TEST_ENTRY: packaged ? resolve(process.env.VIBEBRIDGE_TEST_APP ?? 'outputs/VibeBridge.app', 'Contents/Resources/app/dist/main.cjs') : resolve('dist/main.cjs') };
 delete environment.ELECTRON_RUN_AS_NODE;
