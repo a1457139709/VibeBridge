@@ -2,6 +2,14 @@ const assert = require('node:assert/strict');
 
 module.exports = async function verifyPanels({ window, evaluate, until, project, runs, directory, copyTerminal, click }) {
   const [a, b, c] = project.panels.map(panel => panel.id);
+  const screenshot = require('./desktop-evidence.cjs')(window);
+  const titles = ['Alpha billing workspace', 'Bravo review workspace', 'Charlie release workspace'];
+  for (const [index, id] of [a, b, c].entries()) {
+    const run = runs.find(run => run.panelId === id);
+    await evaluate(`window.workbench.sendInput(${JSON.stringify(run.id)}, ${JSON.stringify('title:' + titles[index])})`);
+    await until(() => evaluate(`document.querySelector('[data-panel-id="${id}"] .session-title').textContent === ${JSON.stringify(titles[index])}`));
+  }
+  runs = (await evaluate('window.workbench.snapshot()')).runs;
   const settle = () => evaluate('new Promise(resolve => setTimeout(() => requestAnimationFrame(resolve), 250))');
   const layout = { axis: 'row', ratio: .6, first: { panel: a }, second: { axis: 'column', ratio: .5, first: { panel: b }, second: { panel: c } } };
   const save = async value => { await evaluate(`window.workbench.saveLayout(${JSON.stringify(project.id)}, ${JSON.stringify(value)})`); await settle(); };
@@ -28,23 +36,40 @@ module.exports = async function verifyPanels({ window, evaluate, until, project,
   };
   window.focus(); window.webContents.focus();
   await save(layout);
+  await screenshot('panels-before-shrink');
+  if (process.env.VIBEBRIDGE_TEST_EVIDENCE) {
+    await click('添加 Agent'); await screenshot('icons-add-agent'); await click('关闭添加 Agent');
+    await click('添加项目');
+    for (const label of ['增加Codex', '增加Claude Code', '增加pi']) await click(label);
+    await evaluate(`document.querySelector('.preview').scrollIntoView({ block: 'center' })`);
+    await screenshot('icons-setup-preview');
+    await evaluate(`document.querySelector('.quantity-row').scrollIntoView({ block: 'center' })`);
+    await screenshot('icons-setup'); await click('取消'); await settle();
+    await click('全局设置'); await screenshot('icons-settings'); await click('‹ 返回'); await settle();
+  }
   await evaluate(`document.querySelector('[data-panel-id="${b}"] .panel-header').click()`);
   await until(() => evaluate(`document.activeElement?.closest('[data-panel-id]')?.dataset.panelId === ${JSON.stringify(b)}`));
   await click('全局设置'); await settle();
   await click('‹ 返回');
   await until(() => evaluate(`document.activeElement?.closest('[data-panel-id]')?.dataset.panelId === ${JSON.stringify(b)}`));
   const run = runs.find(run => run.panelId === a);
-  const [cols, rows] = await size(run);
-  const screen = await rect(`[data-panel-id="${a}"] .xterm-screen`);
-  const cell = { width: screen.width / cols, height: screen.height / rows };
   const canvas = await rect('.canvas');
   await evaluate(`window.originalTerminal = document.querySelector('[data-panel-id="${a}"] .xterm'); void 0;`);
   await dragDivider('vertical', { x: canvas.x + 1, y: canvas.y + canvas.height / 2 });
   const narrow = await rect(panel(a));
-  assert.ok(narrow.width >= cell.width * 2 + 2 - .1, `Minimum width retains two measured terminal cells; got ${narrow.width}, cell ${cell.width}`);
-  assert.ok(narrow.width <= cell.width * 2 + 3, `Shrinking reaches the character-cell minimum: width ${narrow.width}, cell ${cell.width}`);
-  assert.equal(await evaluate(`getComputedStyle(document.querySelector('[data-panel-id="${a}"] .panel-header')).visibility`), 'hidden');
-  assert.equal(await evaluate(`getComputedStyle(document.querySelector('[data-panel-id="${a}"] [role="img"]')).display`), 'grid');
+  const readableTitle = async id => {
+    const text = await evaluate(`(() => {
+      const title = document.querySelector('[data-panel-id="${id}"] .session-title');
+      const range = document.createRange(); range.setStart(title.firstChild, 0); range.setEnd(title.firstChild, Math.min(8, title.textContent.length));
+      const letters = range.getBoundingClientRect(), box = title.getBoundingClientRect();
+      return { text: title.innerText, visible: getComputedStyle(title).visibility, lettersFit: letters.width + 12 <= box.width && letters.height <= box.height };
+    })()`);
+    assert.equal(text.visible, 'visible');
+    assert.ok(text.lettersFit, `Manual minimum retains recognizable title text: ${JSON.stringify(text)}`);
+    assert.equal(text.text, await evaluate(`document.querySelector('[data-locate-panel-id="${id}"] .session-title').innerText`));
+  };
+  await readableTitle(a);
+  await screenshot('panels-manual-width');
   await evaluate(`document.querySelector('[data-panel-id="${b}"] .panel-header').click()`);
   await until(() => evaluate(`document.activeElement?.closest('[data-panel-id]')?.dataset.panelId === ${JSON.stringify(b)}`));
   const tinyLocator = await rect(`[data-locate-panel-id="${a}"]`);
@@ -55,50 +80,67 @@ module.exports = async function verifyPanels({ window, evaluate, until, project,
   await until(() => evaluate(`window.observedOutput.some(event => event.data.includes('INPUT:f'))`));
   assert.deepEqual(await evaluate(`[...new Set(window.observedOutput.filter(event => event.data.includes('INPUT:f')).map(event => event.runId))]`), [run.id], 'tiny-panel navigation delivers native input only to the target run');
   assert.equal(await evaluate(`document.querySelector('[data-panel-id="${a}"] .xterm') === window.originalTerminal`), true);
+  for (const id of [b, a, a, b, a]) {
+    await evaluate(`document.querySelector('[data-locate-panel-id="${id}"]').click()`);
+    await until(() => evaluate(`document.activeElement?.closest('[data-panel-id]')?.dataset.panelId === ${JSON.stringify(id)}`));
+    const selected = await evaluate(`({ navigation: [...document.querySelectorAll('[data-locate-panel-id][aria-current="true"]')].map(node => node.dataset.locatePanelId), panels: [...document.querySelectorAll('.canvas .agent-panel.focused')].map(node => node.closest('[data-panel-id]').dataset.panelId), borders: [...document.querySelectorAll('.canvas .agent-panel')].map(node => getComputedStyle(node).borderColor) })`);
+    assert.deepEqual(selected.navigation, [id]); assert.deepEqual(selected.panels, [id]);
+    await settle();
+    const start = await evaluate('window.observedOutput.length');
+    window.webContents.sendInputEvent({ type: 'char', keyCode: 'n' });
+    await until(() => evaluate(`window.observedOutput.slice(${start}).some(event => event.data.includes('INPUT:n'))`));
+    assert.deepEqual(await evaluate(`[...new Set(window.observedOutput.slice(${start}).filter(event => event.data.includes('INPUT:n')).map(event => event.runId))]`), [runs.find(run => run.panelId === id).id]);
+    await screenshot(id === a ? 'panels-selected-alpha' : 'panels-selected-bravo');
+  }
   await evaluate(`window.workbench.sendInput(${JSON.stringify(run.id)}, 'tiny-alive')`);
   await until(() => evaluate(`window.observedOutput.some(event => event.runId === ${JSON.stringify(run.id)} && event.data.includes('INPUT:tiny-alive'))`));
   await dragDivider('vertical', { x: canvas.x + canvas.width * .6, y: canvas.y + canvas.height / 4 });
   assert.equal(await evaluate(`getComputedStyle(document.querySelector('[data-panel-id="${a}"] .panel-header')).visibility`), 'visible');
   assert.equal(await evaluate(`window.originalTerminal === document.querySelector('[data-panel-id="${a}"] .xterm')`), true);
+  assert.match(await copyTerminal(a), /INPUT:n/, 'Restoring the panel shows native input in the original terminal');
+  await screenshot('panels-restored');
   const vertical = { axis: 'column', ratio: .6, first: { panel: a }, second: { axis: 'row', ratio: .5, first: { panel: b }, second: { panel: c } } };
   await save(vertical);
   await dragDivider('horizontal', { x: canvas.x + canvas.width / 4, y: canvas.y + 1 });
   const short = await rect(panel(a));
-  assert.ok(short.height >= cell.height * 2 + 2 - .1 && short.height <= cell.height * 2 + 3, `Minimum height is two rows plus border: ${short.height}`);
+  await screenshot('panels-manual-height');
+  await readableTitle(a);
+  const heading = await rect(`[data-panel-id="${a}"] .panel-header`);
+  assert.ok(heading.y >= short.y && heading.y + heading.height <= short.y + short.height, 'The entire title bar fits at the manual height limit');
   assert.ok(short.width > 500, 'A short panel remains wide');
   assert.deepEqual((await evaluate('window.workbench.snapshot()')).runs, runs);
-  for (const [axis, orientation, dimension, minimum] of [['row', 'vertical', 'width', cell.width * 2 + 2], ['column', 'horizontal', 'height', cell.height * 2 + 2]]) {
+  for (const [axis, orientation, dimension, minimum] of [['row', 'vertical', 'width', narrow.width], ['column', 'horizontal', 'height', short.height]]) {
     const nested = { axis, ratio: .6, first: { axis, ratio: .25, first: { panel: a }, second: { panel: b } }, second: { panel: c } };
     await save(nested);
     await dragDivider(orientation, { x: canvas.x + 1, y: canvas.y + 1 });
-    for (const id of [a, b, c]) assert.ok((await rect(panel(id)))[dimension] >= minimum - .1, `Nested ${axis} resize protects every leaf`);
+    for (const id of [a, b, c]) await readableTitle(id);
     assert.ok((await rect(panel(a)))[dimension] <= minimum + 1, 'The most constrained descendant reaches its minimum');
   }
-  console.log(`Measured ${cell.width.toFixed(3)} × ${cell.height.toFixed(3)} px character cells: normal/nested width and height bounds, tiny display, same terminal and live output passed.`);
+  console.log(`Measured title minimum ${narrow.width} × ${short.height} px: normal/nested bounds, readable titles, same terminal and live input passed.`);
   const dimensions = window.getSize();
   const both = { axis: 'row', ratio: .2, first: { axis: 'row', ratio: .5, first: { panel: a }, second: { panel: b } }, second: { panel: c } };
   await save(both);
   window.setSize(262, 860); await settle();
   let smallCanvas = await rect('.canvas');
   assert.deepEqual((await evaluate('window.workbench.snapshot()')).projects[0].layout, both, 'Window shrinking never rewrites layout ratios');
-  assert.ok((await rect(panel(a))).width < cell.width * 2 + 2);
-  assert.ok((await rect(panel(b))).width < cell.width * 2 + 2);
+  assert.ok((await rect(panel(a))).width < narrow.width);
+  assert.ok((await rect(panel(b))).width < narrow.width);
   await dragDivider('vertical', { x: smallCanvas.x + 1, y: smallCanvas.y + smallCanvas.height / 4 }, 1);
   assert.deepEqual((await evaluate('window.workbench.snapshot()')).projects[0].layout, both, 'Two undersized sides have no legal drag direction');
-  window.setSize(400, 860); await settle();
+  window.setSize(680, 860); await settle();
   const one = { ...layout, ratio: .1 };
   await save(one); smallCanvas = await rect('.canvas');
   const beforeSmall = await rect(panel(a));
   await dragDivider('vertical', { x: smallCanvas.x + 1, y: smallCanvas.y + smallCanvas.height / 4 });
   assert.deepEqual((await evaluate('window.workbench.snapshot()')).projects[0].layout, one, 'An already undersized panel cannot shrink further or jump to its minimum');
-  await dragDivider('vertical', { x: smallCanvas.x + 1, y: smallCanvas.y + smallCanvas.height / 4, via: { x: smallCanvas.x + 70, y: smallCanvas.y + smallCanvas.height / 4 } });
-  assert.ok((await rect(panel(a))).width >= cell.width * 2 + 2 - .1, 'After growing past its minimum, reversing the same drag cannot cross below it');
+  await dragDivider('vertical', { x: smallCanvas.x + 1, y: smallCanvas.y + smallCanvas.height / 4, via: { x: smallCanvas.x + 160, y: smallCanvas.y + smallCanvas.height / 4 } });
+  assert.ok((await rect(panel(a))).width >= narrow.width - .1, 'After growing past its minimum, reversing the same drag cannot cross below it');
   assert.ok((await rect(panel(a))).width > beforeSmall.width, 'An undersized panel can grow');
-  assert.ok((await rect(panel(b))).width >= cell.width * 2 + 2 - .1, 'The opposite side cannot cross its minimum');
+  assert.ok((await rect(panel(b))).width >= narrow.width - .1, 'The opposite side cannot cross its minimum');
   window.setSize(1280, 160); await settle();
   const bothShort = { ...vertical, ratio: .5 };
   await save(bothShort); smallCanvas = await rect('.canvas');
-  assert.ok((await rect(panel(a))).height < cell.height * 2 + 2);
+  assert.ok((await rect(panel(a))).height < short.height);
   await dragDivider('horizontal', { x: smallCanvas.x + smallCanvas.width / 4, y: smallCanvas.y + 1 });
   assert.deepEqual((await evaluate('window.workbench.snapshot()')).projects[0].layout, bothShort, 'Two insufficient heights prevent dragging without changing their ratio');
   window.setSize(1280, 280); await settle();
@@ -109,7 +151,7 @@ module.exports = async function verifyPanels({ window, evaluate, until, project,
   assert.deepEqual((await evaluate('window.workbench.snapshot()')).projects[0].layout, oneShort, 'An insufficient height cannot shrink further');
   await dragDivider('horizontal', { x: smallCanvas.x + smallCanvas.width / 4, y: smallCanvas.y + 70 });
   assert.ok((await rect(panel(a))).height > shortBefore.height);
-  assert.ok((await rect(panel(b))).height >= cell.height * 2 + 2 - .1);
+  assert.ok((await rect(panel(b))).height >= short.height - .1);
   window.setSize(262, 160); await settle();
   const added = await evaluate(`window.workbench.addPanel(${JSON.stringify(project.id)}, 'pi')`);
   assert.equal((await evaluate('window.workbench.snapshot()')).runs.length, runs.length + 1, 'Insufficient window space does not block a new running panel');
@@ -145,18 +187,29 @@ module.exports = async function verifyPanels({ window, evaluate, until, project,
   };
   const hover = async box => { const p = point(box); mouse('mouseMove', p.x, p.y); await settle(); };
   const release = async box => { const p = point(box); mouse('mouseUp', p.x, p.y); await settle(); };
-  const preview = label => `[aria-label="交换预览：Codex 与 ${label}"]`;
+  const opacity = selector => evaluate(`(() => { let opacity = 1; for (let node = document.querySelector(${JSON.stringify(selector)}); node; node = node.parentElement) { const style = getComputedStyle(node); if (style.visibility === 'hidden' || style.display === 'none') return 0; opacity *= Number(style.opacity); } return opacity; })()`);
   await evaluate(`window.workbench.sendInput(${JSON.stringify(run.id)}, 'later')`);
-  await begin(); await hover(target);
+  const stopRecording = await require('./desktop-evidence.cjs').record(window, 'drag');
+  await begin();
+  assert.equal(await opacity(panel(a)), 0, 'A has no opaque original while its image follows the pointer');
+  assert.equal(await opacity(panel(b)), 1, 'B stays in its original area before a target is hit');
+  await screenshot('drag-pressed');
+  await hover(target);
   assert.match(await evaluate(`document.querySelector('[aria-label="拖动中的 Codex 面板"] .xterm-rows').textContent`), /INPUT:drag-marker/, 'The moving image includes the current terminal contents');
   assert.equal(await evaluate(`getComputedStyle(document.querySelector('[aria-label="拖动中的 Codex 面板"]')).opacity`), '0.5');
   assert.equal(await evaluate(`getComputedStyle(document.querySelector('[aria-label="拖动中的 Codex 面板"]')).filter`), 'none');
-  assert.deepEqual(await rect(`${preview('Claude Code')} [aria-label="Codex"]`), target, 'A is previewed in B’s original area');
-  assert.deepEqual(await rect(`${preview('Claude Code')} [aria-label="Claude Code"]`), originalBoxes[0], 'B is previewed in A’s original area');
+  assert.equal(await opacity(panel(a)), 0);
+  assert.equal(await opacity(panel(b)), 0, 'B no longer paints in its original area');
+  assert.equal(await opacity('.panel-preview-image'), 1);
+  assert.deepEqual(await rect('.panel-preview-image'), originalBoxes[0], 'B is previewed in A’s original area');
+  assert.equal(await evaluate(`document.querySelector('.panel-preview-image .session-title').textContent`), titles[1]);
+  await screenshot('drag-hover-bravo');
   await hover(third); await hover(third);
-  assert.deepEqual(await rect(`${preview('pi')} [aria-label="Codex"]`), third, 'Moving onward previews A in C’s original area');
-  assert.deepEqual(await rect(`${preview('pi')} [aria-label="pi"]`), originalBoxes[0], 'Only A and C are swapped in the new preview');
-  assert.equal(await evaluate(`!!document.querySelector(${JSON.stringify(preview('Claude Code'))})`), false);
+  assert.deepEqual(await rect('.panel-preview-image'), originalBoxes[0], 'Only C moves into A’s original area');
+  assert.equal(await evaluate(`document.querySelector('.panel-preview-image .session-title').textContent`), titles[2]);
+  assert.equal(await opacity(panel(b)), 1, 'B returns to its original area when C becomes the target');
+  assert.equal(await opacity(panel(c)), 0);
+  await screenshot('drag-hover-charlie');
   assert.deepEqual(await Promise.all([a, b, c].map(id => rect(panel(id)))), originalBoxes, 'The real panels retain their original geometry throughout preview');
   assert.equal(await selection(), selectionBefore, 'Preview retains the existing terminal text selection');
   assert.deepEqual(await Promise.all(runs.map(size)), sizesBefore, 'CLI size reports do not change during hover');
@@ -189,19 +242,43 @@ module.exports = async function verifyPanels({ window, evaluate, until, project,
   await until(() => evaluate(`!document.querySelector('.panel-drag-image, .panel-swap-preview')`));
   await release(target);
   assert.deepEqual((await evaluate('window.workbench.snapshot()')).projects[0].layout, layout, 'Escape cancels the whole drag');
-  // Native blur must start from a focused window; injected mouse events alone do not focus it.
-  window.focus(); window.webContents.focus();
-  await until(async () => window.isFocused() && await evaluate('document.hasFocus()'));
-  await begin(); await hover(target);
-  window.blur();
-  await until(() => evaluate(`!document.querySelector('.panel-drag-image, .panel-swap-preview')`));
-  window.focus(); window.webContents.focus();
-  await until(async () => window.isFocused() && await evaluate('document.hasFocus()'));
-  await release(target);
-  assert.deepEqual((await evaluate('window.workbench.snapshot()')).projects[0].layout, layout, 'Native window blur cancels the whole drag');
+  for (const id of [a, b, c]) assert.equal(await opacity(panel(id)), 1);
+  await screenshot('drag-cancelled');
+  if (process.env.VIBEBRIDGE_TEST_SKIP_NATIVE_BLUR) console.log('SKIP: native main-window blur (desktop locked; not counted as passed).');
+  else {
+    // Native blur must start from a focused window; injected mouse events alone do not focus it.
+    require('electron').app.focus({ steal: true }); window.focus(); window.webContents.focus();
+    console.log('Checking native main-window focus before blur cancellation.');
+    await until(async () => window.isFocused() && await evaluate('document.hasFocus()'), 60000);
+    await begin(); await hover(target);
+    window.blur();
+    await until(() => evaluate(`!document.querySelector('.panel-drag-image, .panel-swap-preview')`));
+    require('electron').app.focus({ steal: true }); window.focus(); window.webContents.focus();
+    console.log('Checking native main-window focus after blur cancellation.');
+    await until(async () => window.isFocused() && await evaluate('document.hasFocus()'), 60000);
+    await release(target);
+    assert.deepEqual((await evaluate('window.workbench.snapshot()')).projects[0].layout, layout, 'Native window blur cancels the whole drag');
+    console.log('PASS: native main-window blur cancels held preview without saving.');
+  }
+  window.webContents.debugger.attach('1.3');
+  try {
+    await window.webContents.debugger.sendCommand('Emulation.setEmulatedMedia', { features: [{ name: 'prefers-reduced-motion', value: 'reduce' }] });
+    await begin(); await hover(target);
+    assert.equal(await evaluate(`document.querySelector('.panel-preview-image .session-title').textContent`), titles[1]);
+    assert.equal(await opacity(panel(a)), 0); assert.equal(await opacity(panel(b)), 0);
+    await screenshot('drag-reduced-motion');
+    window.webContents.sendInputEvent({ type: 'keyDown', keyCode: 'Escape' });
+    window.webContents.sendInputEvent({ type: 'keyUp', keyCode: 'Escape' });
+    await release(target);
+    for (const id of [a, b, c]) assert.equal(await opacity(panel(id)), 1);
+    assert.deepEqual((await evaluate('window.workbench.snapshot()')).projects[0].layout, layout);
+  } finally { await window.webContents.debugger.sendCommand('Emulation.setEmulatedMedia', { features: [] }); window.webContents.debugger.detach(); }
   await begin(); await hover(third); await release(third);
   const committed = { ...layout, first: { panel: c }, second: { ...layout.second, second: { panel: a } } };
   assert.deepEqual((await evaluate('window.workbench.snapshot()')).projects[0].layout, committed);
+  for (const id of [a, b, c]) assert.equal(await opacity(panel(id)), 1);
+  await screenshot('drag-committed');
+  await stopRecording();
   assert.equal(await evaluate(`!!document.querySelector('.panel-drag-image, .panel-swap-preview')`), false);
   assert.equal(await evaluate(`document.querySelector('.canvas .agent-panel.focused').closest('[data-panel-id]').dataset.panelId`), b, 'Commit preserves the selected panel identity');
   assert.notDeepEqual(await size(run), sizesBefore[runs.indexOf(run)], 'Only commit applies the new terminal dimensions');
@@ -214,7 +291,7 @@ module.exports = async function verifyPanels({ window, evaluate, until, project,
   assert.deepEqual((await evaluate('window.workbench.snapshot()')).projects.find(item => item.id === project.id).layout, committed);
   assert.deepEqual((await evaluate('window.workbench.snapshot()')).runs, runs, 'Project switching keeps original running instances');
   assert.equal(await evaluate(`window.originalTerminal === document.querySelector('[data-panel-id="${a}"] .xterm')`), true);
-  console.log('A↔B→A↔C, frozen full-panel images, stable targets, unchanged CLI sizes/input, live background output, source/invalid/Escape/native-blur cancellation and valid commit passed.');
+  console.log('A↔B→A↔C, frozen full-panel images, stable targets, unchanged CLI sizes/input, live background output, source/invalid/Escape cancellation and valid commit passed; native blur is reported separately.');
 };
 
 module.exports.reopen = async function verifyPanelReopen({ evaluate, until, saved }) {

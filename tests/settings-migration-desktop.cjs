@@ -6,8 +6,12 @@ module.exports = async function verifySettingsMigration({ window, evaluate, clic
   await click('全局设置'); await click('快捷键');
   assert.equal(await evaluate(`document.getElementById('shortcut-closePanel').title`), 'Command+Shift+W');
   assert.equal(await evaluate(`document.querySelectorAll('.shortcut-row input[aria-invalid="true"]').length`), 2, 'migration conflict remains visible without blocking startup');
+  await click('恢复默认设置');
+  assert.equal(await evaluate(`document.querySelectorAll('.shortcut-row input[aria-invalid="true"]').length`), 0);
+  await click('放弃更改');
+  assert.equal(await evaluate(`document.querySelectorAll('.shortcut-row input[aria-invalid="true"]').length`), 2, 'Discard restores the real conflict from migrated saved values');
   await click('外观'); await evaluate(`document.querySelector('input[value="dark"]').click()`);
-  await click('保存外观设置');
+  await click('保存');
   await until(() => evaluate(`document.querySelector('[aria-label="设置分类"] [aria-current="page"]').textContent === '快捷键'`));
   assert.match(await evaluate(`document.querySelector('.settings-status').textContent`), /存在按键冲突，未保存/);
   assert.deepEqual((await evaluate('window.workbench.snapshot()')).settings, original);

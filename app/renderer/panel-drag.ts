@@ -38,19 +38,21 @@ export function beginPanelDrag({ event, handle, canvas, source, panels, layout, 
   };
   const showTarget = (id?: string) => {
     if (id === target) return;
+    images.find(image => image.panel.id === target)?.element.classList.remove('panel-drag-hidden');
     target = id; preview?.remove(); preview = undefined;
     if (!id) return;
     const other = images.find(image => image.panel.id === id)!;
     preview = document.createElement('div'); preview.className = 'panel-swap-preview';
     preview.setAttribute('role', 'img'); preview.setAttribute('aria-label', `交换预览：${agentNames[dragged.panel.agent]} 与 ${agentNames[other.panel.agent]}`);
-    preview.append(layer(snapshot(dragged.image), other.box, agentNames[dragged.panel.agent], `panel-preview-image ${dragged.panel.agent}`),
-      layer(snapshot(other.image), dragged.box, agentNames[other.panel.agent], `panel-preview-image ${other.panel.agent}`));
+    other.element.classList.add('panel-drag-hidden');
+    preview.append(layer(snapshot(other.image), dragged.box, agentNames[other.panel.agent], `panel-preview-image ${other.panel.agent}`));
     document.body.append(preview);
   };
   const move = (pointer: PointerEvent) => {
     if (!moving && Math.hypot(pointer.clientX - event.clientX, pointer.clientY - event.clientY) < 5) return;
     if (!moving) {
       moving = true; consumed(); canvas.classList.add('dragging');
+      dragged.element.classList.add('panel-drag-hidden');
       ghost = layer(snapshot(dragged.image), dragged.box, `拖动中的 ${agentNames[dragged.panel.agent]} 面板`, `panel-drag-image ${dragged.panel.agent}`);
       document.body.append(ghost);
     }
@@ -66,6 +68,7 @@ export function beginPanelDrag({ event, handle, canvas, source, panels, layout, 
     window.removeEventListener('keydown', keydown, true);
     observer.disconnect();
     ghost?.remove(); preview?.remove(); canvas.classList.remove('dragging');
+    for (const image of images) image.element.classList.remove('panel-drag-hidden');
     ended();
     if (save && moving && target) {
       const swap = (node: Layout): Layout => 'panel' in node ? { panel: node.panel === source ? target! : node.panel === target ? source : node.panel }

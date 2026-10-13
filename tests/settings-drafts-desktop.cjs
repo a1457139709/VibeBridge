@@ -4,6 +4,7 @@ module.exports = async function verifySettingsDrafts({ window, evaluate, click, 
   await until(() => evaluate(`!!document.getElementById('project-name')`));
   const { project } = await evaluate(`window.workbench.createProject(${JSON.stringify({ name: 'Settings draft project', directory, total: 3, counts: { codex: 3, claude: 0, pi: 0 } })})`);
   await click(project.name);
+  window.focus(); window.webContents.focus();
   await until(() => evaluate(`document.activeElement?.classList.contains('xterm-helper-textarea')`));
   const key = (keyCode, modifiers = ['meta']) => {
     window.webContents.sendInputEvent({ type: 'keyDown', keyCode, modifiers });
@@ -20,7 +21,7 @@ module.exports = async function verifySettingsDrafts({ window, evaluate, click, 
   await click('Agent');
   await click('快捷键');
   assert.equal(await evaluate(`document.getElementById('shortcut-nextPanel').title`), 'Command+K');
-  await click('保存快捷键');
+  await click('保存');
   await until(async () => (await evaluate('window.workbench.snapshot()')).settings.shortcuts.nextPanel === 'Command+K');
   await click('Agent');
   await fill('command-codex', '');
@@ -29,7 +30,7 @@ module.exports = async function verifySettingsDrafts({ window, evaluate, click, 
   await click('快捷键');
   await evaluate(`document.getElementById('shortcut-previousPanel').focus()`); key('L');
   await until(() => evaluate(`document.getElementById('shortcut-previousPanel').title === 'Command+L'`));
-  await click('保存快捷键');
+  await click('保存');
   await until(async () => (await evaluate('window.workbench.snapshot()')).settings.shortcuts.previousPanel === 'Command+L');
   const partial = (await evaluate('window.workbench.snapshot()')).settings;
   assert.equal(partial.theme, before.settings.theme);
@@ -38,7 +39,7 @@ module.exports = async function verifySettingsDrafts({ window, evaluate, click, 
   assert.equal(await evaluate(`document.querySelector('input[value="dark"]').checked`), true);
   await click('Agent');
   assert.equal(await evaluate(`document.getElementById('command-codex').value`), '');
-  await click('保存 Agent 设置');
+  await click('保存');
   await until(() => evaluate(`document.getElementById('command-codex').getAttribute('aria-invalid') === 'true'`));
   assert.match(await evaluate(`document.querySelector('.settings-page').textContent`), /启动命令不能为空/);
   assert.match(await evaluate(`document.querySelector('.settings-page').textContent`), /存在需修正的设置，未保存/);
@@ -56,7 +57,9 @@ module.exports = async function verifySettingsDrafts({ window, evaluate, click, 
   await until(() => evaluate(`!document.querySelector('.settings-page')`));
   await require('./settings-conflicts-desktop.cjs')({ window, evaluate, click, until });
   await require('./settings-scroll-desktop.cjs')({ window, evaluate, click, until });
+  await require('./settings-categories-desktop.cjs')({ window, evaluate, click, fill, until, directory });
   assert.deepEqual((await evaluate('window.workbench.snapshot()')).runs, before.runs);
   await require('./settings-leave-desktop.cjs')({ window, evaluate, click, fill, until, directory });
   await require('./settings-close-desktop.cjs')({ window, evaluate, click, until });
+  await require('./settings-feedback-desktop.cjs')({ window, evaluate, click, fill, until, directory });
 };

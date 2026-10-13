@@ -71,6 +71,8 @@ hr { border: 0; border-top: 1px solid var(--line); margin: 22px 0; }
 .claude { --brand: #d28652; }
 .pi { --brand: #9c79cb; }
 .agent-mark { color: var(--brand, var(--muted)); display: inline-block; font-size: 20px; width: 23px; text-align: center; font-weight: 600; vertical-align: middle; }
+.openai-mark { display: block; width: 100%; height: auto; aspect-ratio: 1; color: #202020; }
+:root[data-theme='dark'] .openai-mark { color: #eee; }
 .preview-panel.codex, .preview-panel.claude, .preview-panel.pi { color: inherit; background: var(--surface); }
 .quantity-row { min-height: 56px; display: flex; align-items: center; justify-content: space-between; }
 .quantity-row > span { display: flex; gap: 9px; align-items: center; }
@@ -94,7 +96,7 @@ hr { border: 0; border-top: 1px solid var(--line); margin: 22px 0; }
 .panel-slot { position: absolute; padding: 4px; min-width: 0; min-height: 0; transition: left 200ms, top 200ms, width 200ms, height 200ms; }
 .resizing .panel-slot { transition: none; }
 .agent-panel { position: relative; height: 100%; border: 1px solid var(--line); border-radius: 10px; background: var(--surface); display: flex; flex-direction: column; overflow: hidden; transition: border-color 140ms, box-shadow 140ms; }
-.agent-panel.focused { border-color: var(--panel-focus, var(--brand)); box-shadow: var(--panel-ring, 0 0 0 3px color-mix(in srgb, var(--brand) 18%, transparent)); }
+.agent-panel.focused { border-color: var(--focus); box-shadow: 0 0 0 2px color-mix(in srgb, var(--focus) 35%, transparent); }
 .panel-header { height: 31px; flex-shrink: 0; display: flex; align-items: center; justify-content: space-between; padding: 0 7px 0 11px; cursor: grab; user-select: none; font-size: 11px; gap: 4px; background: var(--panel-heading, var(--surface)); border-bottom: var(--panel-heading-border, 0); }
 .agent-title { display: flex; align-items: center; gap: 6px; min-width: 0; white-space: nowrap; color: var(--muted); }
 .focused .agent-title { color: inherit; }
@@ -129,10 +131,11 @@ hr { border: 0; border-top: 1px solid var(--line); margin: 22px 0; }
 .settings-navigation button { text-align: left; border: 0; background: none; min-height: 40px; }
 .settings-navigation button[aria-current='page'] { background: var(--hover); }
 .settings-content { flex: 1; min-width: 0; display: flex; flex-direction: column; min-height: 0; }
-.settings-content-heading { flex-shrink: 0; display: flex; justify-content: space-between; align-items: center; gap: 12px; padding-bottom: 16px; }
-.settings-save { display: flex; align-items: center; justify-content: flex-end; gap: 12px; }
+.settings-content-heading { flex-shrink: 0; display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 12px; padding-bottom: 16px; }
+.settings-save { display: flex; flex-wrap: wrap; align-items: center; justify-content: flex-end; gap: 8px; margin-left: auto; }
 .settings-save button { flex-shrink: 0; }
-.settings-scroll { min-height: 0; overflow-y: auto; scrollbar-gutter: stable; padding-right: 8px; }
+.settings-scroll { min-height: 0; overflow-y: auto; scrollbar-gutter: stable; padding: 4px 20px 4px 4px; scroll-padding: 8px; }
+.settings-scroll input, .settings-scroll textarea, .settings-scroll select { scroll-margin: 4px; }
 .settings-content fieldset { border: 0; padding: 0; margin: 0; min-width: 0; }
 .settings-content h2 { font-size: 13px; font-weight: 600; margin: 0; display: flex; align-items: center; gap: 10px; }
 .settings-content p { font-size: 12px; line-height: 1.7; }
@@ -142,7 +145,8 @@ hr { border: 0; border-top: 1px solid var(--line); margin: 22px 0; }
 .command-input { font: 12px Menlo, monospace; }
 textarea, select { width: 100%; background: var(--surface); border: 1px solid var(--line); border-radius: 6px; padding: 8px 11px; }
 textarea { resize: vertical; }
-.command-result { font-size: 11px; margin-top: 7px; overflow-wrap: anywhere; }
+.command-result { font-size: 11px; overflow-wrap: anywhere; }
+.command-result:not(:empty), .agent-settings > .error-text:not(:empty) { margin-top: 7px; }
 .theme-options { display: grid; gap: 10px; margin: 22px 0; }
 .theme-options label { display: flex; align-items: center; gap: 10px; margin: 0; min-height: 36px; }
 .theme-options input { width: 16px; height: 16px; accent-color: var(--accent); }
@@ -154,7 +158,8 @@ textarea { resize: vertical; }
 .shortcut-row small { font-size: 11px; }
 .shortcut-row input { width: 170px; flex-shrink: 0; text-align: center; }
 .shortcut-help { margin-top: 22px; }
-.settings-status { font-size: 12px; color: var(--muted); }
+.settings-status { font-size: 12px; color: var(--muted); overflow-wrap: anywhere; }
+.settings-status:empty { display: none; }
 @media (max-width: 760px) { .settings-shell { padding: 20px; } .settings-columns { gap: 20px; } .settings-navigation { flex-basis: 90px; } .shortcut-row { gap: 10px; } .shortcut-row input { width: 130px; } }
 @media (max-width: 760px) { .setup { margin: 28px 20px; } }
 @media (prefers-reduced-motion: reduce) { *, *::before, *::after { transition: none !important; animation: none !important; } }
@@ -167,17 +172,17 @@ textarea { resize: vertical; }
 
 .shortcut-conflict input { border: 2px solid var(--conflict-color); background: color-mix(in srgb, var(--conflict-color) 10%, var(--surface)); }
 .shortcut-conflict-message { color: var(--conflict-color); margin: 6px 0 0; }
-.tiny-agent-mark { display: none; }
-.agent-panel[data-tiny='true'] { border-color: var(--brand); border-radius: 2px; }
-.agent-panel[data-tiny='true'] .panel-header { position: absolute; width: max-content; visibility: hidden; pointer-events: none; }
+.agent-panel[data-tiny='true'] { border-radius: 6px; }
+.agent-panel[data-tiny='true'] .panel-actions { position: absolute; right: 7px; visibility: hidden; pointer-events: none; }
 .agent-panel[data-tiny='true'] .panel-menu { display: none; }
-/* Keep the mounted input focusable when navigation selects an icon-only panel. */
+/* Preserve the original terminal and input while the title occupies the compact panel. */
 .agent-panel[data-tiny='true'] .terminal-container { position: absolute; inset: 0; padding: 0; opacity: 0; pointer-events: none; }
-.agent-panel[data-tiny='true'] .tiny-agent-mark { display: grid; place-items: center; position: absolute; inset: 0; width: auto; overflow: hidden; font-size: min(18px, calc(var(--terminal-cell-width) * 2)); }
 
 .panel-header { touch-action: none; }
 .panel-drag-image, .panel-preview-image { position: fixed; pointer-events: none; overflow: hidden; }
 .panel-drag-image { z-index: 31; opacity: .5; }
+/* Suppress paint only: the real terminal keeps its geometry, selection and input focus. */
+.panel-drag-hidden { opacity: 0; }
 .panel-swap-preview { position: fixed; inset: 0; z-index: 30; pointer-events: none; }
 .panel-swap-preview .agent-panel, .panel-drag-image .agent-panel { transition: none; }
 .dragging, .dragging .panel-header { cursor: grabbing; }
@@ -187,7 +192,7 @@ textarea { resize: vertical; }
 .project-panels { margin: 2px 0 6px 26px; display: flex; flex-direction: column; gap: 2px; min-width: 0; }
 .panel-link { display: flex; align-items: center; gap: 8px; min-width: 0; width: 100%; text-align: left; padding: 4px 8px; border: 0; background: transparent; font-size: 12px; }
 .panel-link .agent-mark { flex: 0 0 16px; width: 16px; }
-.panel-link.selected { background: var(--selection, var(--hover)); color: var(--selection-text, var(--accent)); }
+.panel-link.selected { background: var(--selection, var(--hover)); color: var(--selection-text, var(--accent)); box-shadow: inset 2px 0 var(--focus); }
 .session-title { display: block; min-width: 0; overflow: hidden; white-space: pre; text-overflow: ellipsis; line-height: 1.4; max-height: 1.4em; }
 .agent-title { flex: 1; overflow: hidden; }
 .agent-title .agent-mark { flex-shrink: 0; }

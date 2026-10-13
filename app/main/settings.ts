@@ -3,9 +3,8 @@ import { join } from 'node:path';
 import { agentNames, agentTypes, type Settings } from '../shared/model';
 import { defaultShortcuts, shortcutActions, shortcutConflicts, validateShortcutFormats, validateShortcuts } from '../shared/shortcuts';
 
-export const defaultSettings = (): Settings => ({ theme: 'system', defaultLayout: 'auto', shortcuts: defaultShortcuts(), agents: {
-  codex: { command: 'codex', args: [] }, claude: { command: 'claude', args: [] }, pi: { command: 'pi', args: [] },
-} });
+import { defaultSettings } from '../shared/settings';
+export { defaultSettings } from '../shared/settings';
 
 export class SettingsFieldError extends Error {
   constructor(public fields: Record<string, string>, message: string) { super(message); }

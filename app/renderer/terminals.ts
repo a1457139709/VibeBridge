@@ -91,6 +91,30 @@ export function terminalCellSize(runId?: string) {
   return { width: measured.width / 32, height: measured.height };
 }
 
+// Reserve a bounded, readable title prefix in the actual UI font, independent of
+// the terminal grid. A long session name must not impose an unbounded minimum.
+export function panelMinimumSize(panel: HTMLElement) {
+  const header = panel.querySelector<HTMLElement>('.panel-header')!;
+  const title = header.querySelector<HTMLElement>('.session-title')!;
+  const textStyle = getComputedStyle(title), heading = getComputedStyle(header), border = getComputedStyle(panel);
+  const sample = document.createElement('span');
+  sample.style.cssText = 'position:fixed;visibility:hidden;white-space:pre';
+  sample.style.font = textStyle.font; sample.style.letterSpacing = textStyle.letterSpacing;
+  const letters = Array.from(title.textContent || 'Untitled task');
+  sample.textContent = letters.slice(0, 12).join('') + (letters.length > 12 ? '…' : '');
+  document.body.append(sample);
+  const prefix = sample.getBoundingClientRect().width;
+  sample.textContent = 'Untitled task';
+  const textWidth = Math.max(prefix, sample.getBoundingClientRect().width);
+  sample.remove();
+  const mark = header.querySelector<HTMLElement>('.agent-mark')!;
+  return {
+    width: Math.ceil(textWidth + mark.getBoundingClientRect().width + parseFloat(getComputedStyle(mark.parentElement!).columnGap)
+      + parseFloat(heading.paddingLeft) + parseFloat(heading.paddingRight) + parseFloat(border.borderLeftWidth) + parseFloat(border.borderRightWidth)),
+    height: header.offsetHeight + parseFloat(border.borderTopWidth) + parseFloat(border.borderBottomWidth),
+  };
+}
+
 export function observePanel(container: HTMLElement, runId?: string) {
   const panel = container.closest<HTMLElement>('.agent-panel')!;
   const header = panel.querySelector<HTMLElement>('.panel-header')!;
@@ -98,19 +122,14 @@ export function observePanel(container: HTMLElement, runId?: string) {
     // A hidden settings/project view has no layout, not a genuinely tiny panel.
     if (!panel.getClientRects().length) return;
     const cell = terminalCellSize(runId);
-    const title = header.querySelector<HTMLElement>('.agent-title')!;
     const actions = header.querySelector<HTMLElement>('.panel-actions')!;
     const heading = getComputedStyle(header), terminal = getComputedStyle(container);
-    const icon = title.querySelector<HTMLElement>('.agent-mark')!;
-    // Session titles may be arbitrarily long; only minimal chrome decides tiny mode.
-    const titleChrome = icon.getBoundingClientRect().width + parseFloat(getComputedStyle(title).columnGap) + cell.width * 2;
-    const normalWidth = titleChrome + actions.scrollWidth + parseFloat(heading.paddingLeft) + parseFloat(heading.paddingRight) + parseFloat(heading.columnGap) + 2;
+    const minimum = panelMinimumSize(panel);
+    const normalWidth = minimum.width + actions.scrollWidth + parseFloat(heading.columnGap);
     // Keep measuring normal chrome even while it is removed from the tiny panel's flow.
     const normalHeight = header.offsetHeight + cell.height * 2 + parseFloat(terminal.getPropertyValue('--normal-terminal-padding')) * 2 + 2;
     const tiny = panel.clientWidth < normalWidth || panel.clientHeight < normalHeight;
     panel.dataset.tiny = String(tiny);
-    panel.style.setProperty('--terminal-cell-width', `${cell.width}px`);
-    panel.style.setProperty('--terminal-cell-height', `${cell.height}px`);
   };
   const observer = new ResizeObserver(update);
   observer.observe(panel); update();

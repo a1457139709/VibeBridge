@@ -134,6 +134,7 @@ module.exports = async ({ window, evaluate, click, fill, until, directory, reope
   const [a, b, c] = expectedOrder;
   const arranged = { axis: 'row', ratio: .55, first: { panel: a }, second: { axis: 'column', ratio: .5, first: { panel: b }, second: { panel: c } } };
   await evaluate(`window.workbench.saveLayout(${JSON.stringify(first.id)}, ${JSON.stringify(arranged)})`); await settle();
+  await evaluate(`new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve))).then(() => Promise.all(document.getAnimations().filter(animation => animation.effect.getTiming().iterations !== Infinity).map(animation => animation.finished.catch(() => {}))))`);
   const rect = selector => evaluate(`(() => { const r = document.querySelector(${JSON.stringify(selector)}).getBoundingClientRect(); return { x: r.x, y: r.y, width: r.width, height: r.height }; })()`);
   const boxes = await Promise.all(expectedOrder.map(id => rect(`[data-panel-id="${id}"]`)));
   const long = '  ⠋ CLI status | ' + 'Long title with  spaces 👩🏽‍💻 '.repeat(80) + ' /some/directory  ';

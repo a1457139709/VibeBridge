@@ -1,9 +1,9 @@
 import { sessionTitle } from '../shared/session-title';
 import { agentIcons } from './agent-icons';
 import { useEffect, useImperativeHandle, useRef, useState, type CSSProperties, type PointerEvent, type Ref } from 'react';
-import { agentNames, type Layout, type Project, type Run } from '../shared/model';
+import { type Layout, type Project, type Run } from '../shared/model';
 import { layoutBoxes, type Divider } from '../shared/layout';
-import { focusTerminal, mountTerminal, observePanel, terminalCellSize } from './terminals';
+import { focusTerminal, mountTerminal, observePanel, panelMinimumSize } from './terminals';
 import { AgentPicker } from './AgentPicker';
 import { capturePointer } from './pointer-capture';
 import { beginPanelDrag } from './panel-drag';
@@ -16,7 +16,7 @@ function TerminalView({ run }: { run?: Run }) {
   useEffect(() => {
     if (run?.state === 'running' && container.current) return mountTerminal(run.id, container.current);
   }, [run?.id, run?.state]);
-  useEffect(() => { if (container.current) return observePanel(container.current, run?.id); }, [run?.id]);
+  useEffect(() => { if (container.current) return observePanel(container.current, run?.id); }, [run?.id, run?.rawTitle]);
   return <div className="terminal-container" ref={container}>{run?.state === 'starting' ? <div className="terminal-message">启动结果未确认，正在等待终端响应</div> : run?.state === 'failed' ? <div className="terminal-message">Agent 无法启动</div> : run?.state === 'stopped' ? <div className="terminal-message">运行已结束，请重新打开工作台</div> : !run ? <div className="terminal-message muted">正在启动…</div> : null}</div>;
 }
 
@@ -89,14 +89,13 @@ export function Workspace({ project, runs, report, selectedPanelId, selectPanel,
       const box = positions.panels.get(id)!;
       const slot = canvas.current!.querySelector<HTMLElement>(`[data-panel-id="${id}"]`)!;
       const panel = slot.querySelector<HTMLElement>('.agent-panel')!;
-      const slotStyle = getComputedStyle(slot), panelStyle = getComputedStyle(panel);
-      const cell = terminalCellSize(runs.find(run => run.panelId === id)?.id);
+      const slotStyle = getComputedStyle(slot);
+      const minimum = panelMinimumSize(panel);
       const row = divider.axis === 'row';
-      const chrome = row ? parseFloat(slotStyle.paddingLeft) + parseFloat(slotStyle.paddingRight) + parseFloat(panelStyle.borderLeftWidth) + parseFloat(panelStyle.borderRightWidth)
-        : parseFloat(slotStyle.paddingTop) + parseFloat(slotStyle.paddingBottom) + parseFloat(panelStyle.borderTopWidth) + parseFloat(panelStyle.borderBottomWidth);
+      const chrome = row ? parseFloat(slotStyle.paddingLeft) + parseFloat(slotStyle.paddingRight)
+        : parseFloat(slotStyle.paddingTop) + parseFloat(slotStyle.paddingBottom);
       const current = (row ? box.width : box.height) * dimension;
-      const minimum = (row ? cell.width : cell.height) * 2 + chrome;
-      return minimum / (current / share);
+      return ((row ? minimum.width : minimum.height) + chrome) / (current / share);
     };
     const firstMinimum = Math.max(...leaves(node.first).map(id => required(id, originalRatio)));
     const secondMaximum = 1 - Math.max(...leaves(node.second).map(id => required(id, 1 - originalRatio)));
@@ -152,7 +151,7 @@ export function Workspace({ project, runs, report, selectedPanelId, selectPanel,
               <button aria-label={maximized === panel.id ? '还原面板' : '放大面板'} draggable={false} onMouseDown={event => event.stopPropagation()} onClick={event => { event.stopPropagation(); maximize(panel.id); }}>⤢</button>
               <button aria-label="关闭面板" draggable={false} onMouseDown={event => event.stopPropagation()} onClick={event => { event.stopPropagation(); close(panel.id); }}>×</button>
             </span>
-          </header><span className="tiny-agent-mark agent-mark" role="img" aria-label={agentNames[panel.agent]}>{agentIcons[panel.agent]}</span><TerminalView run={run} />
+          </header><TerminalView run={run} />
         </div></section>;
       })}
       {!maximized && positions.dividers.map(divider => {
