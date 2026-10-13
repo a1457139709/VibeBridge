@@ -28,19 +28,19 @@
 | `npm run package` 与签名校验 | 通过 |
 | `VIBEBRIDGE_TEST_APP=/Users/red/Project/VibeBridge/outputs/spec-45-observation/VibeBridge.app npm run test:desktop -- --packaged --titles` | 通过；从最终 bundle 加载产品代码与原生模块，验证标题／导航／设置保护、实际输入、布局与真实退出重开 |
 | `zsh -n 启动观察版.command` | 通过 |
-| 最终修复后的完整 `--panels` | **未完成**：前段边界、极小面板输入、预览、Escape 等已通过；原生窗口焦点前置条件被 macOS 锁屏阻挡，失焦取消及之后的提交／重开步骤待补 |
-| 交付启动脚本直接打开应用并目视确认 | **待解锁后验证**；打包桌面测试不替代这一检查 |
+| 最终 bundle 的完整 `--packaged --panels` | 用户解锁后通过：普通／嵌套边界、极小面板输入、空间不足规则、交换预览、原生失焦取消、有效提交与实际退出重开恢复全部通过 |
+| 交付启动脚本直接打开应用并目视确认 | 通过：执行实际 `启动观察版.command`，原生窗口与截图确认创建项目页面可见，页面来自交付 bundle；应用保持打开供人工验收 |
 
 桌面测试使用本机真实 Electron、受控 CLI 和隔离工作台数据，不是 CI GUI 覆盖。预期写入失败测试产生的 `EISDIR` 日志和 Electron 临时 Shared Dictionary 警告没有导致最终命令失败。CI 状态以集成分支最新 GitHub Actions 记录为准。
 
-锁屏诊断只读取系统状态：`CGSSessionScreenIsLocked=Yes`。没有绕过锁屏，也没有降低原生失焦断言。解锁后应重跑完整 `npm run test:desktop -- --panels`，随后验证交付启动入口。
+首次完整面板复验被锁屏阻挡，只读诊断为 `CGSSessionScreenIsLocked=Yes`。2026-10-13 用户回复「已解锁」后，执行 `VIBEBRIDGE_TEST_APP=/Users/red/Project/VibeBridge/outputs/spec-45-observation/VibeBridge.app npm run test:desktop -- --packaged --panels`，命令成功退出，完整首轮与重开轮均通过。没有修改产品代码或降低原生失焦断言。随后通过实际交付脚本打开应用，原生 UI 树和截图均确认创建项目页面正常显示；独立工作台数据位于交付目录的 `data/`。
 
 ## 问题状态
 
-- #46：已完成；#47：实现与自动验证已完成，可关闭。
+- #46、#47：已完成并关闭。
 - #48：代码与服务／桌面验证完成；真实 CLI 改目录重启及手动恢复历史待用户验收。
 - #49：原始标题观察版完成；真实 CLI 标题记录、明确确认和切换动效体验待用户验收，因此保持开放。
-- #50：代码完成；上述原生失焦复验和减弱动态效果的人工体验待完成，因此保持开放。
+- #50：代码与完整面板自动验证完成；减弱动态效果的人工体验待用户确认，因此保持开放。
 - #51：等待 #49 的明确确认后才开始；#45 保持开放。
 
 各功能详情见 [#46](issue-46-verification.md)、[#47](issue-47-verification.md)、[#48](issue-48-verification.md)、[#49](issue-49-verification.md)、[#50](issue-50-verification.md)；审查结论见 [独立审查](spec-45-review.md)和[修复记录](spec-45-review-fixes.md)。
