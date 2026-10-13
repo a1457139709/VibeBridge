@@ -118,7 +118,11 @@ export function panelMinimumSize(panel: HTMLElement) {
 export function observePanel(container: HTMLElement, runId?: string) {
   const panel = container.closest<HTMLElement>('.agent-panel')!;
   const header = panel.querySelector<HTMLElement>('.panel-header')!;
+  const canvas = panel.closest<HTMLElement>('.canvas')!;
   const update = () => {
+    // A live title can change the compact threshold, but a held preview must
+    // retain the real terminal's geometry until the gesture finishes.
+    if (canvas.classList.contains('dragging')) return;
     // A hidden settings/project view has no layout, not a genuinely tiny panel.
     if (!panel.getClientRects().length) return;
     const cell = terminalCellSize(runId);
@@ -132,6 +136,8 @@ export function observePanel(container: HTMLElement, runId?: string) {
     panel.dataset.tiny = String(tiny);
   };
   const observer = new ResizeObserver(update);
+  const gesture = new MutationObserver(update);
+  gesture.observe(canvas, { attributes: true, attributeFilter: ['class'] });
   observer.observe(panel); update();
-  return () => observer.disconnect();
+  return () => { observer.disconnect(); gesture.disconnect(); };
 }
