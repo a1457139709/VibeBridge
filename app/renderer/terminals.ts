@@ -71,3 +71,48 @@ export function focusTerminal(runId?: string) {
   if (screen) screen.terminal.focus();
   else if (document.activeElement instanceof HTMLElement) document.activeElement.blur();
 }
+
+// Measure a rendered row's font and spacing as one unit. Grid pixels and terminal
+// cols/rows can update on different frames during fit, so their quotient is unsafe.
+export function terminalCellSize(runId?: string) {
+  const screen = runId ? screens.get(runId) : undefined;
+  const row = screen?.element.querySelector<HTMLElement>('.xterm-rows > div');
+  const rendered = row && getComputedStyle(row);
+  const sample = document.createElement('span');
+  sample.textContent = 'W'.repeat(32);
+  sample.style.cssText = 'position:fixed;visibility:hidden;white-space:pre;font-kerning:none';
+  sample.style.fontFamily = rendered?.fontFamily || 'Menlo,Monaco,monospace';
+  sample.style.fontSize = rendered?.fontSize || '13px';
+  sample.style.fontWeight = rendered?.fontWeight || 'normal';
+  sample.style.lineHeight = rendered?.lineHeight || '1.16';
+  sample.style.letterSpacing = rendered?.letterSpacing || 'normal';
+  document.body.append(sample);
+  const measured = sample.getBoundingClientRect(); sample.remove();
+  return { width: measured.width / 32, height: measured.height };
+}
+
+export function observePanel(container: HTMLElement, runId?: string) {
+  const panel = container.closest<HTMLElement>('.agent-panel')!;
+  const header = panel.querySelector<HTMLElement>('.panel-header')!;
+  const update = () => {
+    // A hidden settings/project view has no layout, not a genuinely tiny panel.
+    if (!panel.getClientRects().length) return;
+    const cell = terminalCellSize(runId);
+    const title = header.querySelector<HTMLElement>('.agent-title')!;
+    const actions = header.querySelector<HTMLElement>('.panel-actions')!;
+    const heading = getComputedStyle(header), terminal = getComputedStyle(container);
+    const icon = title.querySelector<HTMLElement>('.agent-mark')!;
+    // Session titles may be arbitrarily long; only minimal chrome decides tiny mode.
+    const titleChrome = icon.getBoundingClientRect().width + parseFloat(getComputedStyle(title).columnGap) + cell.width * 2;
+    const normalWidth = titleChrome + actions.scrollWidth + parseFloat(heading.paddingLeft) + parseFloat(heading.paddingRight) + parseFloat(heading.columnGap) + 2;
+    // Keep measuring normal chrome even while it is removed from the tiny panel's flow.
+    const normalHeight = header.offsetHeight + cell.height * 2 + parseFloat(terminal.getPropertyValue('--normal-terminal-padding')) * 2 + 2;
+    const tiny = panel.clientWidth < normalWidth || panel.clientHeight < normalHeight;
+    panel.dataset.tiny = String(tiny);
+    panel.style.setProperty('--terminal-cell-width', `${cell.width}px`);
+    panel.style.setProperty('--terminal-cell-height', `${cell.height}px`);
+  };
+  const observer = new ResizeObserver(update);
+  observer.observe(panel); update();
+  return () => observer.disconnect();
+}

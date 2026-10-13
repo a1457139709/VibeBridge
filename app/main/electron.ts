@@ -54,11 +54,14 @@ void app.whenReady().then(async () => {
   };
   handle('snapshot', service => service.snapshot());
   handle('create', (service, draft) => service.createProject(draft));
+  handle('edit-project', (service, id, edit, restart) => service.editProject(id, edit, restart));
+  handle('delete-project', (service, id) => service.deleteProject(id));
   handle('directory', (service, directory) => service.inspectDirectory(directory));
   handle('activate', (service, id) => service.activateProject(id));
   handle('add', (service, project, agent) => service.addPanel(project, agent));
   handle('close', (service, project, panel) => service.closePanel(project, panel));
   handle('layout', (service, project, layout) => service.saveLayout(project, layout));
+  handle('navigation', (service, preferences) => service.saveNavigation(preferences));
   handle('settings', (service, settings) => service.saveSettings(settings));
   handle('check-command', (service, command) => service.checkCommand(command));
   handle('input', (service, run, data) => service.sendInput(run, data));
