@@ -22,6 +22,10 @@ _Avoid_：独立工作副本、隔离目录、面板专属目录
 某一种通过 CLI 交互的 Agent 工具，例如 Claude Code、Codex CLI 或 pi；同一类型可以有多个运行实例。
 _Avoid_：模型、厂商、会话、桌面应用
 
+**Agent 类型色（Agent Type Color）**：
+工作台中与某一种 Agent 类型固定关联、用于辨认该类型的色系；同类型的图标、面板与导航采用一致的类型色关系。类型色本身不表示是否选中或正在运行。
+_Avoid_：通用强调色、项目色、随机面板色、任务状态色
+
 **Agent 设置（Agent Settings）**：
 工作台中按 Agent 类型统一管理、供各项目使用的启动设置。
 _Avoid_：Agent 实例、会话身份、项目专属 Agent

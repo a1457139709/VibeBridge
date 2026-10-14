@@ -7,7 +7,8 @@ export function sessionTitle(agent: AgentType, rawTitle?: string): string {
     return !title || title === 'Claude Code' ? 'Untitled task' : title;
   }
   if (agent === 'codex') {
-    const title = rawTitle.trim().replace(/^[⠋⠙⠹\s]+|[⠋⠙⠹\s]+$/gu, '');
+    // Codex 0.162.1 cycles through all ten Unicode title-spinner frames.
+    const title = rawTitle.trim().replace(/^[⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏\s]+|[⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏\s]+$/gu, '');
     // Keep empty fields and overlapping separators visible as unknown formats.
     const parts = ` ${title} `.split(/(?<= )\|(?= )/u);
     if (parts.length === 1 && !title.includes('|')) return 'Untitled task';

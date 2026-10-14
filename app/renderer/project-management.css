@@ -4,7 +4,7 @@
 .project-menu { position: fixed; z-index: 20; padding: 4px; width: 160px; border: 1px solid var(--line); border-radius: 8px; background: var(--surface); box-shadow: 0 5px 22px #0002; }
 .project-menu button { display: block; width: 100%; border: 0; text-align: left; }
 .project-dialog { width: min(540px, calc(100vw - 32px)); max-height: calc(100vh - 48px); overflow: auto; margin: auto; border: 1px solid var(--line); border-radius: 12px; padding: 24px; color: inherit; background: var(--surface); box-shadow: 0 18px 60px #0003; }
-.project-dialog::backdrop { background: var(--modal-backdrop, #18291b55); }
+.project-dialog::backdrop { background: var(--modal-backdrop, #0004); }
 .project-dialog h2 { margin: 0 0 18px; font-size: 18px; }
 .project-dialog p { line-height: 1.6; }
 .project-dialog .error-text { color: var(--error, #b33e2d); }
