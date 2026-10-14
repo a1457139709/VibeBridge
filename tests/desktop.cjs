@@ -3,8 +3,8 @@ const { mkdir, readFile, writeFile } = require('node:fs/promises');
 const { resolve } = require('node:path');
 const { app, BrowserWindow, clipboard, ClipboardItem, dialog } = require('electron');
 
-async function until(check) {
-  const deadline = Date.now() + 8000;
+async function until(check, timeout = 8000) {
+  const deadline = Date.now() + timeout;
   while (!(await check())) {
     if (Date.now() > deadline) throw new Error('Timed out waiting for desktop');
     await new Promise(resolve => setTimeout(resolve, 30));
@@ -16,7 +16,7 @@ void (async () => {
   process.env.VIBEBRIDGE_DATA_DIR = directory;
   const command = { command: 'node', args: [resolve(process.env.VIBEBRIDGE_TEST_TITLES ? 'tests/fixtures/title-cli.cjs' : 'tests/fixtures/interactive.cjs'), ...(process.env.VIBEBRIDGE_TEST_SETUP ? ['--encode-cwd'] : [])] };
   const codexCommand = process.env.VIBEBRIDGE_TEST_CODEX ? { command: 'codex', args: ['resume', '--no-daemon', '--no-alt-screen'] } : command;
-  if (!process.env.VIBEBRIDGE_TEST_REOPEN) await writeFile(`${directory}/settings.json`, process.env.VIBEBRIDGE_TEST_NOTICE_STARTUP ? '{damaged configuration' : JSON.stringify({ theme: process.env.VIBEBRIDGE_TEST_APPEARANCE ? 'dark' : 'light', agents: { codex: codexCommand, claude: command, pi: command }, ...(process.env.VIBEBRIDGE_TEST_SETTINGS_MIGRATION ? { shortcuts: { previousProject: 'Command+Shift+[', nextProject: 'Command+Shift+]', previousPanel: 'Command+[', nextPanel: 'Command+Shift+W', maximizePanel: 'Command+Enter', addPanel: 'Command+N', settings: 'Command+,' } } : {}) }));
+  if (!process.env.VIBEBRIDGE_TEST_REOPEN) await writeFile(`${directory}/settings.json`, process.env.VIBEBRIDGE_TEST_NOTICE_STARTUP ? '{damaged configuration' : JSON.stringify({ theme: process.env.VIBEBRIDGE_TEST_THEME || (process.env.VIBEBRIDGE_TEST_APPEARANCE ? 'dark' : 'light'), agents: { codex: codexCommand, claude: command, pi: command }, ...(process.env.VIBEBRIDGE_TEST_SETTINGS_MIGRATION ? { shortcuts: { previousProject: 'Command+Shift+[', nextProject: 'Command+Shift+]', previousPanel: 'Command+[', nextPanel: 'Command+Shift+W', maximizePanel: 'Command+Enter', addPanel: 'Command+N', settings: 'Command+,' } } : {}) }));
   let answer = 0;
   let confirmations = 0;
   dialog.showMessageBox = async (_window, options) => {
@@ -31,6 +31,8 @@ void (async () => {
   await app.whenReady();
   await until(() => BrowserWindow.getAllWindows().length);
   const window = BrowserWindow.getAllWindows()[0];
+  window.webContents.setBackgroundThrottling(false);
+  app.focus({ steal: true }); window.focus(); window.webContents.focus();
   const evaluate = async code => {
     try { return await window.webContents.executeJavaScript(code, true); }
     catch (error) { throw new Error(`Desktop script failed: ${code}`, { cause: error }); }
@@ -199,7 +201,7 @@ void (async () => {
     await until(() => evaluate(`document.querySelector('.directory-status').textContent.includes('请选择有效的本地目录')`));
     assert.equal(await evaluate(`document.getElementById('project-name').value`), 'First project');
     await fill('project-directory', directory);
-    for (const label of ['增加Codex', '增加Claude Code', '增加pi']) await click(label);
+    for (const label of process.env.VIBEBRIDGE_TEST_PANELS ? ['增加Codex', '增加Codex', '增加Codex'] : ['增加Codex', '增加Claude Code', '增加pi']) await click(label);
     await click('取消');
     assert.equal((await evaluate('window.workbench.snapshot()')).projects.length, 0);
     await click('创建项目');
@@ -219,7 +221,7 @@ void (async () => {
     assert.equal(before.runs.length, 3);
     assert.equal(before.projects[0].name, 'First project');
     assert.equal(before.projects[0].directory, directory);
-    assert.deepEqual(before.projects[0].panels.map(panel => panel.agent), ['codex', 'claude', 'pi']);
+    assert.deepEqual(before.projects[0].panels.map(panel => panel.agent), process.env.VIBEBRIDGE_TEST_PANELS ? ['codex', 'codex', 'codex'] : ['codex', 'claude', 'pi']);
     await until(() => evaluate(`new Set(window.observedOutput.filter(event => event.data.includes('READY:')).map(event => event.runId)).size === 3`));
     if (process.env.VIBEBRIDGE_TEST_PANELS) {
       await require('./panels-desktop.cjs')({ window, evaluate, until, project: before.projects[0], runs: before.runs, directory, copyTerminal, click });
@@ -451,6 +453,7 @@ void (async () => {
     app.quit();
   } catch (error) {
     console.error(error);
+    await require('./desktop-evidence.cjs')(window)('test-failure').catch(() => {});
     answer = 1;
     app.once('will-quit', () => { app.exit(1); });
     app.quit();

@@ -88,7 +88,8 @@ function App() {
     void switchPanel(projectId, panelId).catch(error => report(error.message));
   });
   async function switchPanel(projectId: string, panelId: string) {
-    if (!state?.projects.some(project => project.id === projectId && project.panels.some(panel => panel.id === panelId))) return;
+    const target = state?.projects.find(project => project.id === projectId)?.panels.find(panel => panel.id === panelId);
+    if (!state || !target) return;
     const revision = navigationVersion.current;
     const source = state.projects.find(project => project.id === state.activeProjectId);
     const sourceMaximized = source?.panels.some(panel => panel.id === maximizedPanels[source.id]);
@@ -122,7 +123,7 @@ function App() {
       if (revision !== navigationVersion.current) return;
       if (animated) animated = await animate(true);
       if (revision === navigationVersion.current && changingMaximized && !animated) {
-        report(`已切换至：${sessionTitle(currentRuns.current.find(run => run.panelId === panelId))}`, 'success');
+        report(`已切换至：${sessionTitle(target.agent, currentRuns.current.find(run => run.panelId === panelId)?.rawTitle)}`, 'success');
       }
     } finally {
       if (revision === navigationVersion.current) setSwitchingPanels(false);
@@ -180,7 +181,7 @@ function App() {
               <button title={`${project.name} · ${project.panels.length} 个面板`} aria-label={project.name} aria-current={!settingsOpen && !setup && active?.id === project.id ? 'page' : undefined} className={`project-link ${!settingsOpen && !setup && active?.id === project.id ? 'selected' : ''}`} onClick={() => activate(project.id)}><span className="project-initial" aria-hidden="true">{projectInitial(project.name)}</span><span className="project-name">{project.name}</span><small>{project.panels.length}</small></button>
             </ProjectNavigationItem>
             {expanded && !!project.panels.length && <div className="project-panels" aria-label={`${project.name}的面板`}>{project.panels.map(panel => {
-              const title = sessionTitle(state.runs.find(run => run.panelId === panel.id));
+              const title = sessionTitle(panel.agent, state.runs.find(run => run.panelId === panel.id)?.rawTitle);
               const current = !settingsOpen && !setup && active?.id === project.id && selected === panel.id;
               return <button key={panel.id} data-locate-panel-id={panel.id} title={title} aria-current={current ? 'true' : undefined} className={`panel-link ${panel.agent} ${current ? 'selected' : ''}`} onClick={() => locatePanel(project.id, panel.id)}><span className="agent-mark" aria-hidden="true">{agentIcons[panel.agent]}</span><span className="session-title">{title}</span></button>;
             })}</div>}

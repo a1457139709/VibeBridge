@@ -3,11 +3,13 @@ import { agentNames, agentTypes, type AgentCommand, type CommandCheck, type Sett
 import { defaultShortcuts, displayShortcut, shortcutActions, shortcutFromEvent, shortcutNames, shortcutConflicts, type ShortcutAction } from '../shared/shortcuts';
 import type { ReportNotice } from './Notices';
 import { agentIcons } from './agent-icons';
+import { defaultSettings } from '../shared/settings';
 
 function AgentFields({ type, value, change, invalid }: { invalid: boolean; type: typeof agentTypes[number]; value: AgentCommand; change(value: AgentCommand): void }) {
   const [check, setCheck] = useState<CommandCheck>();
   const [checking, setChecking] = useState(false);
   const revision = useRef(0);
+  useEffect(() => () => { revision.current++; }, []);
   async function checkCommand() {
     const request = ++revision.current;
     setChecking(true); setCheck(undefined);
@@ -25,7 +27,7 @@ function AgentFields({ type, value, change, invalid }: { invalid: boolean; type:
       revision.current++; setCheck(undefined); setChecking(false); change({ ...value, command: event.target.value });
     }} />
     <div id={`command-error-${type}`} className="error-text" role={invalid ? "alert" : undefined}>{invalid ? '启动命令不能为空' : null}</div>
-    <div className={`command-result ${check && !check.available ? 'error-text' : 'muted'}`} aria-live="polite">{check ? check.available ? `命令可用：${check.path}` : check.message : '\u00a0'}</div>
+    <div className={`command-result ${check && !check.available ? 'error-text' : 'muted'}`} aria-live="polite">{check ? check.available ? `命令可用：${check.path}` : check.message : null}</div>
     <label htmlFor={`arguments-${type}`}>启动参数 <span className="muted">· 每行一个参数，无需添加引号</span></label>
     <textarea id={`arguments-${type}`} className="command-input" rows={2} value={value.args.join('\n')} spellCheck={false} onChange={event => change({ ...value, args: event.target.value ? event.target.value.split('\n') : [] })} />
   </section>;
@@ -40,6 +42,7 @@ export interface SettingsPageActions { requestLeave(): Promise<boolean> }
 export function SettingsPage({ settings, startupTheme, back, ref, report }: { settings: Settings; startupTheme: Settings['theme']; back(): void; ref: Ref<SettingsPageActions>; report: ReportNotice }) {
   const [section, setSection] = useState<Section>('agents');
   const [agents, setAgents] = useState(settings.agents);
+  const [agentRevision, setAgentRevision] = useState(0);
   const [theme, setTheme] = useState(settings.theme);
   const [defaultLayout, setDefaultLayout] = useState(settings.defaultLayout);
   const [shortcuts, setShortcuts] = useState(settings.shortcuts);
@@ -68,6 +71,12 @@ export function SettingsPage({ settings, startupTheme, back, ref, report }: { se
     const resolve = leaveDecision.current; leaveDecision.current = undefined; resolve?.(leave);
   }
   const defaults = defaultShortcuts();
+  function replaceDraft(values: Settings) {
+    setError('');
+    if (section === 'agents') { setAgents(values.agents); setAgentRevision(value => value + 1); }
+    else if (section === 'appearance') { setTheme(values.theme); setDefaultLayout(values.defaultLayout); }
+    else { setRecording(undefined); setShortcuts(values.shortcuts); }
+  }
   const conflicts = shortcutConflicts(shortcuts);
   const conflictColors = ['#bb493b', '#8960b4', '#33778f', '#927127', '#b14178', '#467944', '#5559b4', '#b56722'];
   function valid(category: Section) {
@@ -121,12 +130,14 @@ export function SettingsPage({ settings, startupTheme, back, ref, report }: { se
         <div className="settings-content">
           <header className="settings-content-heading"><h2>{sectionNames[section]} 设置</h2><div className="settings-save">
             <span className="settings-status" aria-live="polite">{error ? <span className="error-text" role="alert">{error}</span> : saving ? '正在保存…' : ''}</span>
-            <button className="primary" disabled={saving} onClick={() => void save(section)}>{ { agents: '保存 Agent 设置', appearance: '保存外观设置', shortcuts: '保存快捷键' }[section]}</button>
+            <button disabled={saving} onClick={() => replaceDraft(defaultSettings())}>恢复默认设置</button>
+            <button disabled={saving} onClick={() => replaceDraft(settings)}>放弃更改</button>
+            <button className="primary" disabled={saving} onClick={() => void save(section)}>保存</button>
           </div></header>
           <div className="settings-scroll" ref={scroll}><fieldset disabled={saving}>
           {section === 'agents' && <form onSubmit={event => { event.preventDefault(); void save('agents'); }}>
             <p className="muted">所有项目共用这些启动设置。保存后仅影响之后启动的 Agent。</p>
-            {agentTypes.map(type => <AgentFields key={type} type={type} value={agents[type]} invalid={!agents[type].command.trim()} change={value => setAgents(previous => ({ ...previous, [type]: value }))} />)}
+            {agentTypes.map(type => <AgentFields key={`${type}-${agentRevision}`} type={type} value={agents[type]} invalid={!agents[type].command.trim()} change={value => setAgents(previous => ({ ...previous, [type]: value }))} />)}
           </form>}
           {section === 'appearance' && <form onSubmit={event => { event.preventDefault(); void save('appearance'); }}>
             <h2>主题</h2><p className="muted">工作台与终端在启动时统一应用主题。</p>
@@ -137,7 +148,7 @@ export function SettingsPage({ settings, startupTheme, back, ref, report }: { se
           </form>}
           {section === 'shortcuts' && <>
             <p className="muted">选择右侧输入框，按下新的组合键；保存后立即生效。</p>
-            <div className="shortcut-search"><input aria-label="搜索操作或快捷键" placeholder="搜索操作或快捷键" value={search} onChange={event => setSearch(event.target.value)} /><button onClick={() => { setRecording(undefined); setError(''); setShortcuts(defaults); }}>恢复全部默认</button><button onClick={() => { setRecording(undefined); setError(''); setShortcuts(settings.shortcuts); }}>放弃更改</button></div>
+            <div className="shortcut-search"><input aria-label="搜索操作或快捷键" placeholder="搜索操作或快捷键" value={search} onChange={event => setSearch(event.target.value)} /></div>
             <p className="muted">{actions.length} 项操作</p>
             {actions.map(action => {
               const groupIndex = conflicts.findIndex(group => group.actions.includes(action));

@@ -29,7 +29,7 @@ app.on('window-all-closed', () => { if (exiting) app.quit(); });
 void app.whenReady().then(async () => {
   const page = pathToFileURL(join(__dirname, 'renderer/index.html')).href;
   window = new BrowserWindow({ width: 1280, height: 860, title: 'VibeBridge', titleBarStyle: 'hiddenInset',
-    backgroundColor: nativeTheme.shouldUseDarkColors ? '#202322' : '#f3f4f0',
+    backgroundColor: nativeTheme.shouldUseDarkColors ? '#141414' : '#f5f5f5',
     webPreferences: { preload: join(__dirname, 'preload.cjs'), contextIsolation: true, nodeIntegration: false, sandbox: true } });
   window.on('close', event => { if (!exiting) { event.preventDefault(); void requestQuit(); } });
   window.webContents.setWindowOpenHandler(() => ({ action: 'deny' }));
@@ -42,7 +42,7 @@ void app.whenReady().then(async () => {
   workbench = Workbench.open(app.getPath('userData'), nativeTheme.shouldUseDarkColors);
   void workbench.then(service => {
     nativeTheme.themeSource = service.snapshot().resolvedTheme;
-    window?.setBackgroundColor(service.snapshot().resolvedTheme === 'dark' ? '#202322' : '#f3f4f0');
+    window?.setBackgroundColor(service.snapshot().resolvedTheme === 'dark' ? '#141414' : '#f5f5f5');
   }).catch(() => {});
   void workbench.catch(error => dialog.showMessageBox(window!, { type: 'error', message: '工作台读取失败', detail: error.message }));
   // Install handlers before showing the page, while disk work completes asynchronously.

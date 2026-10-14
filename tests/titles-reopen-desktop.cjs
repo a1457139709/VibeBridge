@@ -3,8 +3,9 @@ const assert = require('node:assert/strict');
 module.exports = async ({ window, evaluate, until, snapshot, target }) => {
   const source = snapshot.projects.find(project => project.id === snapshot.activeProjectId);
   assert.equal(snapshot.runs.some(run => run.projectId === target.id), false, 'target is dormant after real reopen');
-  const title = '  New startup OSC | exact title  ';
-  await evaluate(`window.workbench.saveSettings(${JSON.stringify({ agents: { ...snapshot.settings.agents, codex: { ...snapshot.settings.agents.codex, args: [...snapshot.settings.agents.codex.args, '--initial-title', title] } } })})`);
+  const title = 'New startup OSC';
+  const raw = title + ' | directory';
+  await evaluate(`window.workbench.saveSettings(${JSON.stringify({ agents: { ...snapshot.settings.agents, codex: { ...snapshot.settings.agents.codex, args: [...snapshot.settings.agents.codex.args, '--initial-title', raw] } } })})`);
   assert.deepEqual((await evaluate('window.workbench.snapshot()')).runs, snapshot.runs, 'new startup command does not alter active runs');
   await evaluate(`window.titleOutput = []; window.workbench.subscribe(event => { if (event.kind === 'output') window.titleOutput.push(event); }); void 0;`);
   window.webContents.debugger.attach('1.3');

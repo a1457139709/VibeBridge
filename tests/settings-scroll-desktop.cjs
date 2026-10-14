@@ -4,7 +4,7 @@ module.exports = async function verifySettingsScroll({ window, evaluate, click, 
   await click('全局设置');
   const boxes = () => evaluate(`(() => {
     const box = element => { const b = element.getBoundingClientRect(); return { x: b.x, y: b.y, bottom: b.bottom }; };
-    return { title: box(document.querySelector('.settings-page h1')), navigation: box(document.querySelector('[aria-label="设置分类"]')), back: box([...document.querySelectorAll('button')].find(b => b.textContent === '‹ 返回')), save: box([...document.querySelectorAll('button')].find(b => b.textContent === '保存 Agent 设置')), command: box(document.getElementById('command-codex')) };
+    return { title: box(document.querySelector('.settings-page h1')), navigation: box(document.querySelector('[aria-label="设置分类"]')), back: box([...document.querySelectorAll('button')].find(b => b.textContent === '‹ 返回')), save: box([...document.querySelectorAll('button')].find(b => b.textContent === '保存')), command: box(document.getElementById('command-codex')) };
   })()`);
   await evaluate('new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))');
   const before = await boxes();

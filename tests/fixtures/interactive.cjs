@@ -24,6 +24,7 @@ const cwd = process.argv.includes('--encode-cwd') ? Buffer.from(process.cwd()).t
 process.stdout.write(`READY:${process.pid}:${cwd}\r\n`);
 process.stdin.on('data', data => {
   const text = data.toString();
+  if (text.startsWith('title:')) process.stdout.write(`\x1b]2;${text.slice(6)}\x07`);
   if (text.includes('resist')) {
     process.on('SIGTERM', () => {
       if (process.argv[2] === '--termination-file') require('node:fs').writeFileSync(process.argv[3], 'TERM:received');

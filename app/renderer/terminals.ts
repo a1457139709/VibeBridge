@@ -8,8 +8,8 @@ let theme: ITheme;
 let report: (message: string) => void;
 export function configureTerminals(dark: boolean, onError: (message: string) => void) {
   report = onError;
-  theme = dark ? { background: '#1e1e1e', foreground: '#d4d4d4', cursor: '#e6e6e6', cursorAccent: '#1e1e1e', selectionBackground: '#264f78', selectionInactiveBackground: '#3a3a3a' }
-    : { background: '#ffffff', foreground: '#25302a', cursor: '#25302a', selectionBackground: '#94b5a280' };
+  theme = dark ? { background: '#1e1e1e', foreground: '#d4d4d4', cursor: '#e6e6e6', cursorAccent: '#1e1e1e', selectionBackground: '#505050', selectionInactiveBackground: '#3a3a3a' }
+    : { background: '#ffffff', foreground: '#303030', cursor: '#303030', selectionBackground: '#b3b3b380' };
 }
 function ensure(runId: string): Screen {
   const existing = screens.get(runId);
@@ -91,28 +91,68 @@ export function terminalCellSize(runId?: string) {
   return { width: measured.width / 32, height: measured.height };
 }
 
+// Measure a bounded title in the actual UI font. Compact chrome has its own
+// dimensions so measuring it never depends on the current row/stacked layout.
+function panelMetrics(panel: HTMLElement) {
+  const header = panel.querySelector<HTMLElement>('.panel-header')!;
+  const title = header.querySelector<HTMLElement>('.session-title')!;
+  const textStyle = getComputedStyle(title), heading = getComputedStyle(header), style = getComputedStyle(panel);
+  const pixels = (name: string) => parseFloat(style.getPropertyValue(name));
+  const sample = document.createElement('span');
+  sample.style.cssText = 'position:fixed;visibility:hidden;white-space:pre';
+  sample.style.font = textStyle.font; sample.style.letterSpacing = textStyle.letterSpacing;
+  const letters = Array.from(title.textContent || 'Untitled task');
+  sample.textContent = letters.slice(0, 12).join('') + (letters.length > 12 ? '…' : '');
+  document.body.append(sample);
+  const prefix = sample.getBoundingClientRect().width;
+  sample.textContent = 'Untitled task';
+  const textWidth = Math.max(prefix, sample.getBoundingClientRect().width);
+  sample.remove();
+  const borderWidth = parseFloat(style.borderLeftWidth) + parseFloat(style.borderRightWidth);
+  const borderHeight = parseFloat(style.borderTopWidth) + parseFloat(style.borderBottomWidth);
+  const mark = pixels('--compact-mark-size'), padding = pixels('--compact-padding') * 2, gap = pixels('--panel-title-gap');
+  const line = parseFloat(textStyle.lineHeight);
+  const headerHeight = pixels('--panel-header-height');
+  const actions = header.querySelector<HTMLElement>('.panel-actions')!;
+  return {
+    // Half the bounded prefix permits two lines; icon/gap remain available even
+    // when an independently shortened panel needs a single-row strip.
+    minimum: { width: Math.ceil(textWidth / 2 + mark + gap + padding + borderWidth),
+      height: Math.ceil(Math.max(mark, line) + padding + borderHeight) },
+    normalWidth: textWidth + pixels('--panel-mark-size') + gap + pixels('--panel-header-start') + pixels('--panel-header-end')
+      + actions.scrollWidth + parseFloat(heading.columnGap),
+    headerHeight, borderHeight,
+    rowWidth: textWidth + mark + gap + padding,
+    rowHeight: Math.max(mark, line * 2) + padding,
+    stackedHeight: mark + gap + line * 2 + padding,
+  };
+}
+
+export function panelMinimumSize(panel: HTMLElement) { return panelMetrics(panel).minimum; }
+
 export function observePanel(container: HTMLElement, runId?: string) {
   const panel = container.closest<HTMLElement>('.agent-panel')!;
-  const header = panel.querySelector<HTMLElement>('.panel-header')!;
+  const canvas = panel.closest<HTMLElement>('.canvas')!;
   const update = () => {
+    // A live title can change the compact threshold, but a held preview must
+    // retain the real terminal's geometry until the gesture finishes.
+    if (canvas.classList.contains('dragging')) return;
     // A hidden settings/project view has no layout, not a genuinely tiny panel.
     if (!panel.getClientRects().length) return;
     const cell = terminalCellSize(runId);
-    const title = header.querySelector<HTMLElement>('.agent-title')!;
-    const actions = header.querySelector<HTMLElement>('.panel-actions')!;
-    const heading = getComputedStyle(header), terminal = getComputedStyle(container);
-    const icon = title.querySelector<HTMLElement>('.agent-mark')!;
-    // Session titles may be arbitrarily long; only minimal chrome decides tiny mode.
-    const titleChrome = icon.getBoundingClientRect().width + parseFloat(getComputedStyle(title).columnGap) + cell.width * 2;
-    const normalWidth = titleChrome + actions.scrollWidth + parseFloat(heading.paddingLeft) + parseFloat(heading.paddingRight) + parseFloat(heading.columnGap) + 2;
+    const terminal = getComputedStyle(container);
+    const metrics = panelMetrics(panel);
     // Keep measuring normal chrome even while it is removed from the tiny panel's flow.
-    const normalHeight = header.offsetHeight + cell.height * 2 + parseFloat(terminal.getPropertyValue('--normal-terminal-padding')) * 2 + 2;
-    const tiny = panel.clientWidth < normalWidth || panel.clientHeight < normalHeight;
+    const normalHeight = metrics.headerHeight + cell.height * 2 + parseFloat(terminal.getPropertyValue('--normal-terminal-padding')) * 2 + metrics.borderHeight;
+    const tiny = panel.clientWidth < metrics.normalWidth || panel.clientHeight < normalHeight;
     panel.dataset.tiny = String(tiny);
-    panel.style.setProperty('--terminal-cell-width', `${cell.width}px`);
-    panel.style.setProperty('--terminal-cell-height', `${cell.height}px`);
+    if (tiny) panel.dataset.compactLayout = panel.clientHeight < metrics.rowHeight ? 'strip'
+      : panel.clientWidth < metrics.rowWidth && panel.clientHeight >= metrics.stackedHeight ? 'stacked' : 'row';
+    else delete panel.dataset.compactLayout;
   };
   const observer = new ResizeObserver(update);
+  const gesture = new MutationObserver(update);
+  gesture.observe(canvas, { attributes: true, attributeFilter: ['class'] });
   observer.observe(panel); update();
-  return () => observer.disconnect();
+  return () => { observer.disconnect(); gesture.disconnect(); };
 }
