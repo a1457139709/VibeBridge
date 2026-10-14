@@ -1,7 +1,7 @@
 const assert = require('node:assert/strict');
-const { mkdir, writeFile } = require('node:fs/promises');
+const { mkdir } = require('node:fs/promises');
 
-module.exports = async function verifyNavigation({ window, evaluate, click, fill, until, reopen, directory }) {
+async function verifyNavigation({ window, evaluate, click, fill, until, reopen, directory }) {
   await until(() => evaluate(`!!document.querySelector('nav[aria-label="项目导航"]')`));
   if (reopen) {
     await until(async () => (await evaluate('window.workbench.snapshot()')).navigation.width === 312);
@@ -127,12 +127,16 @@ module.exports = async function verifyNavigation({ window, evaluate, click, fill
   await until(() => evaluate(`!document.querySelector('.settings-page')`));
   await click('展开项目导航');
   await click(first.name);
-  await require('./notices-desktop.cjs')({ window, evaluate, click, fill, until, project: first, directory });
+  await require('./scenarios/notices.cjs')({ window, evaluate, click, fill, until, project: first, directory });
   await until(() => evaluate(`!!document.querySelector('.settings-page') && !document.querySelector('.notice')`));
   await evaluate('new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))');
-  await mkdir('work/issue-46', { recursive: true });
-  await writeFile('work/issue-46/navigation-settings.png', (await window.webContents.capturePage()).toPNG());
+  await require('./support/evidence.cjs')(window)('navigation-settings');
   await click('‹ 返回');
   await click('折叠项目导航');
   await until(async () => !(await evaluate('window.workbench.snapshot()')).navigation.visible);
+}
+
+module.exports = {
+  run: verifyNavigation,
+  reopen: verifyNavigation,
 };

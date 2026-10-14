@@ -1,8 +1,8 @@
 const assert = require('node:assert/strict');
 const { mkdir, readFile, writeFile } = require('node:fs/promises');
-const { join } = require('node:path');
+const { join, resolve } = require('node:path');
 
-module.exports = async ({ window, evaluate, click, fill, until, directory, reopen }) => {
+async function verifyTitles({ window, evaluate, click, fill, until, directory, reopen }) {
   if (reopen) {
     const saved = JSON.parse(await readFile(join(directory, 'titles-expected.json'), 'utf8'));
     const active = saved.projects.find(project => project.id === saved.activeProjectId);
@@ -17,7 +17,7 @@ module.exports = async ({ window, evaluate, click, fill, until, directory, reope
       await click(`展开项目面板：${project.name}`);
       assert.deepEqual(await evaluate(`[...document.querySelectorAll('[data-project-id="${project.id}"] [data-locate-panel-id]')].map(button => button.dataset.locatePanelId)`), project.panels.map(panel => panel.id));
     }
-    await require('./titles-reopen-desktop.cjs')({ window, evaluate, until, snapshot, target: saved.projects.find(project => project.name === 'Dormant startup target') });
+    await require('./scenarios/titles-reopen.cjs')({ window, evaluate, until, snapshot, target: saved.projects.find(project => project.name === 'Dormant startup target') });
     console.log('PASS: real quit/reopen preserves creation order and committed layouts, resets expansion/maximize/raw titles, and starts new runs');
     return;
   }
@@ -32,7 +32,7 @@ module.exports = async ({ window, evaluate, click, fill, until, directory, reope
   await until(() => evaluate(`window.titleOutput.some(event => event.runId === ${JSON.stringify(firstRun.id)} && event.data.includes('READY:'))`));
   assert.deepEqual(await evaluate(`[...document.querySelectorAll('[data-locate-panel-id]')].map(button => button.dataset.locatePanelId)`), first.panels.map(panel => panel.id));
   assert.equal(await evaluate(`document.querySelector('[data-panel-id="${first.panels[0].id}"] .session-title').textContent`), 'Untitled task');
-  await require('./title-filtering-desktop.cjs')({ window, evaluate, until, project: first, runs: before.runs });
+  await require('./scenarios/title-filtering.cjs')({ window, evaluate, until, project: first, runs: before.runs });
   const raw = 'Exact session title | directory';
   const displayed = 'Exact session title';
   await evaluate(`window.workbench.sendInput(${JSON.stringify(firstRun.id)}, ${JSON.stringify(JSON.stringify({ id: 'desktop-title', chunks: ['\x1b]2;' + raw + '\x07'] }) + '\n')})`);
@@ -173,7 +173,7 @@ module.exports = async ({ window, evaluate, click, fill, until, directory, reope
   await evaluate(`document.querySelector('[data-panel-id="${added.id}"] button[aria-label="关闭面板"]').click()`);
   await until(async () => (await order()).length === 3);
   assert.deepEqual(await order(), expectedOrder);
-  await require('./title-settings-desktop.cjs')({ window, evaluate, click, fill, until, directory, first, second, locate });
+  await require('./scenarios/title-settings.cjs')({ window, evaluate, click, fill, until, directory, first, second, locate });
   for (const panel of second.panels) await evaluate(`window.workbench.closePanel(${JSON.stringify(second.id)}, ${JSON.stringify(panel.id)})`);
   await until(() => evaluate(`document.querySelectorAll('[data-project-id="${second.id}"] [data-locate-panel-id]').length === 0`));
   assert.equal(await evaluate(`document.querySelector('[data-project-id="${second.id}"] .project-link small').textContent`), '0');
@@ -183,4 +183,11 @@ module.exports = async ({ window, evaluate, click, fill, until, directory, reope
   await click(first.name);
   await until(async () => (await evaluate('window.workbench.snapshot()')).activeProjectId === first.id);
   await writeFile(join(directory, 'titles-expected.json'), JSON.stringify(await evaluate('window.workbench.snapshot()')));
+}
+
+module.exports = {
+  configure: settings => ({ ...settings, agents: Object.fromEntries(Object.keys(settings.agents)
+    .map(agent => [agent, { command: 'node', args: [resolve('tests/fixtures/title-cli.cjs')] }])) }),
+  run: verifyTitles,
+  reopen: verifyTitles,
 };

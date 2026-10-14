@@ -2,7 +2,7 @@ const assert = require('node:assert/strict');
 const { mkdir, rename, rm } = require('node:fs/promises');
 
 module.exports = async function verifyCategories({ window, evaluate, click, fill, until, directory }) {
-  const screenshot = require('./desktop-evidence.cjs')(window);
+  const screenshot = require('../support/evidence.cjs')(window);
   const before = await evaluate('window.workbench.snapshot()');
   const saved = () => evaluate('window.workbench.snapshot().then(state => state.settings)');
   const command = type => evaluate(`document.getElementById('command-${type}').value`);

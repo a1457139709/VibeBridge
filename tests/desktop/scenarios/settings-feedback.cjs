@@ -2,7 +2,7 @@ const assert = require('node:assert/strict');
 const { mkdir, symlink } = require('node:fs/promises');
 
 module.exports = async function verifyFeedback({ window, evaluate, click, fill, until, directory }) {
-  const screenshot = require('./desktop-evidence.cjs')(window);
+  const screenshot = require('../support/evidence.cjs')(window);
   const before = (await evaluate('window.workbench.snapshot()')).settings;
   await click('全局设置');
   await evaluate(`document.querySelectorAll('.notice button').forEach(button => button.click())`);

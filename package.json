@@ -9,6 +9,7 @@
     "typecheck": "tsc --noEmit",
     "test": "node scripts/test.mjs",
     "test:desktop": "node scripts/test-desktop.mjs",
+    "test:desktop:all": "node scripts/test-desktop.mjs --all",
     "build": "npm run typecheck && node scripts/build.mjs && vite build",
     "start": "node scripts/start.mjs",
     "dev": "npm run build && npm start",

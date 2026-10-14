@@ -1,7 +1,7 @@
 const assert = require('node:assert/strict');
 
 module.exports = async ({ window, evaluate, until, project, runs }) => {
-  const evidence = require('./desktop-evidence.cjs');
+  const evidence = require('../support/evidence.cjs');
   const screenshot = evidence(window);
   const panelFor = agent => project.panels.find(panel => panel.agent === agent);
   let sequence = 0;

@@ -98,6 +98,12 @@ Agent、外观和快捷键分类各自保留草稿和保存按钮；切换分类
 npm run typecheck
 npm test
 npm run build
+npm run test:desktop:all
+```
+
+`test:desktop:all` 自动发现 `tests/desktop/` 目录直属的 `*.test.cjs` 入口，按文件名顺序执行；任一流程失败即停止并返回非零退出码。新增入口不需要修改运行器或 CI。导出 `manual` 原因的入口只在明确选择时运行；当前只有真实 Codex 检查需要本机 CLI 和历史记录。以下入口用于单独复查；打包应用检查需先准备 `.app`。
+
+```sh
 npm run test:desktop
 npm run test:desktop -- --setup
 npm run test:desktop -- --appearance
@@ -106,17 +112,44 @@ npm run test:desktop -- --navigation
 npm run test:desktop -- --notices-startup
 npm run test:desktop -- --project-management
 npm run test:desktop -- --settings-drafts
+npm run test:desktop -- --settings-migration
 npm run test:desktop -- --titles
 npm run test:desktop -- --panels
+npm run test:desktop -- --list
 node scripts/test-desktop.mjs --packaged
 ```
 
-测试使用 `work/issue-24/` 下的隔离目录，以及少量可控交互程序。业务测试覆盖创建约束、独立输入与运行身份、真实尺寸变化、面板上限、启动失败、保存重开、损坏配置保护和退出子进程清理。桌面测试通过正式页面及公开业务 API 检查创建草稿、同页恢复分配后直接创建、连续创建时默认名称、原生方向键输入、视图重新挂载、取消和确认退出。
+业务测试使用 `work/issue-24/`，桌面测试为每个入口在 `work/desktop-tests/` 下创建独立目录，退出后清理；CLI 输入输出由少量可控交互程序提供。业务测试覆盖创建约束、独立输入与运行身份、真实尺寸变化、面板上限、启动失败、保存重开、损坏配置保护和退出子进程清理。桌面测试通过正式页面及公开业务 API 检查创建草稿、同页恢复分配后直接创建、连续创建时默认名称、原生方向键输入、视图重新挂载、取消和确认退出。
+
+测试目录按用途组织：
+
+- `tests/*.test.ts`：业务测试及运行器测试，由 `npm test` 自动发现。
+- `tests/desktop/*.test.cjs`：完整桌面测试，配置、操作和断言放在同一个文件，由桌面命令自动发现。
+- `tests/desktop/scenarios/`：依赖所属测试前序状态的子场景，由对应 `.test.cjs` 调用。
+- `tests/desktop/support/`：Electron 测试宿主、共用项目准备和可选截图工具；默认不保存截图。
+- `tests/fixtures/`：可控 CLI 和业务测试子进程。
+
+### 新增桌面测试
+
+例如新增 Agent 状态测试时，创建 `tests/desktop/agent-status.test.cjs`，导出包含 `async run(context)` 的对象，在函数中准备场景、执行操作并断言结果。全量命令会自动执行它；单独运行使用 `npm run test:desktop -- --agent-status`。普通辅助模块不使用 `.test.cjs` 后缀，也不需要登记。没有匹配入口、名称拼错或入口缺少 `run` 时，命令会失败。
+
+每个入口从正式应用的新数据目录开始，默认使用可控 CLI；运行器负责启动窗口、执行用例、确认退出并检查运行实例已结束。`context` 提供 `window`、`evaluate(code)`、`until(check)`、`click(label)`、`fill(id, value)`、`directory`、`dialog`、`app`、`copyTerminal(panelId)`、`verifyArrows(panelId)` 和 `confirmationCount()`。用例可返回 `{ afterQuit }`，在退出后补充持久化断言。
+
+入口按需导出以下选项，全部放在测试文件内：
+
+| 导出项 | 用途 |
+| --- | --- |
+| `configure(settings)` | 首次启动前返回测试所需配置；也可返回字符串以测试损坏的配置文件。 |
+| `reopen(context)` | 第一次正常退出后，使用同一数据目录启动新进程并验证恢复；此时 `context.reopen` 为 `true`。 |
+| `expectedDialogError` | 用正则表达式检查预期的原生启动错误对话框。 |
+| `manual` | 必须手动准备条件的原因；全量命令排除该入口，按名称仍可运行。 |
+
+测试模块在发现阶段加载，因此顶层只声明配置和函数，操作放在 `run`／`reopen` 中。参考[标题测试](tests/desktop/titles.test.cjs)、[面板测试](tests/desktop/panels.test.cjs)和[默认流程](tests/desktop/default.test.cjs)。
 
 `--setup` 聚焦创建表单，检查失焦后的红色警示、选择目录完成时按当前空名称填入、特殊字符处理、真实启动目录、emoji 显示和重复目录打开；仅替换系统目录选择器的返回结果，其余使用正式页面及业务路径。`--appearance` 使用深色启动，检查 pi 页脚 RGB 灰字、ANSI 灰字和索引灰字的实际显示对比度，并确认 CLI 强调色、淡化文字及块字符语义保留。`--codex` 是需要本机 Codex 的可选检查，通过真实键盘事件切换原生 `resume` 页的 Cwd/All；会读取本机历史列表，但不恢复会话或发送任务。这三个入口都可以与 `--packaged` 合用。`VIBEBRIDGE_TEST_APP` 可指定另一个待测 `.app` 路径，默认仍为 `outputs/VibeBridge.app`。
 
 `--packaged` 使用开发 Electron 测试宿主加载 `.app` 内的产品代码和原生模块；此外需实际打开 `.app` 检查图标启动。桌面测试将继承 PATH 缩减为 `/usr/bin:/bin`，验证登录环境中的 `node` 仍能解析并直接启动。
 
-GitHub Actions 的 [Checks 工作流](.github/workflows/checks.yml) 在 push、pull request 和手动触发时使用 macOS 执行依赖安装、Electron 二进制安装、原生 PTY 重建、运行时检查、类型检查、业务测试和构建。桌面入口在具备 GUI/PTY 条件的本机执行，尚未加入远端 CI；远端执行结果以 PR Checks 为准，检查通过不代表合并已被分支保护强制拦截。
+GitHub Actions 的 [Checks 工作流](.github/workflows/checks.yml) 在 push、pull request 和手动触发时使用 macOS 执行依赖安装、Electron 二进制安装、原生 PTY 重建、运行时检查、类型检查、业务测试、构建及自动发现的桌面回归。桌面回归失败时上传 `macos-desktop-failure-log`，包含标准输出和错误输出，保留 7 天；不生成截图或录屏。远端执行结果以 PR Checks 为准，检查通过不代表合并已被分支保护强制拦截。
 
 人工验收结果维护在 GitHub：[第二阶段 QA #53](https://github.com/a1457139709/VibeBridge/issues/53)、[SPEC #57 QA #60](https://github.com/a1457139709/VibeBridge/issues/60)及 [#61 后续反馈](https://github.com/a1457139709/VibeBridge/issues/61)。本地保留 [#58 验证](docs/issue-58-verification.md)、[#59 验证](docs/issue-59-verification.md)、[#61 验证](docs/issue-61-verification.md)与上述待执行指南；历史记录中的“未推送”等状态以各轮记录时间为准。第一阶段修复与第二阶段交付的旧验证文档可从 [Git 历史](https://github.com/a1457139709/VibeBridge/tree/389c25b/docs)查阅。
