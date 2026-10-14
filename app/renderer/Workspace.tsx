@@ -11,12 +11,12 @@ import type { ShortcutAction } from '../shared/shortcuts';
 
 export interface WorkspaceActions { shortcut(action: ShortcutAction): boolean }
 
-function TerminalView({ run }: { run?: Run }) {
+function TerminalView({ run, title }: { run?: Run; title: string }) {
   const container = useRef<HTMLDivElement>(null);
   useEffect(() => {
     if (run?.state === 'running' && container.current) return mountTerminal(run.id, container.current);
   }, [run?.id, run?.state]);
-  useEffect(() => { if (container.current) return observePanel(container.current, run?.id); }, [run?.id, run?.rawTitle]);
+  useEffect(() => { if (container.current) return observePanel(container.current, run?.id); }, [run?.id, title]);
   return <div className="terminal-container" ref={container}>{run?.state === 'starting' ? <div className="terminal-message">启动结果未确认，正在等待终端响应</div> : run?.state === 'failed' ? <div className="terminal-message">Agent 无法启动</div> : run?.state === 'stopped' ? <div className="terminal-message">运行已结束，请重新打开工作台</div> : !run ? <div className="terminal-message muted">正在启动…</div> : null}</div>;
 }
 
@@ -142,16 +142,17 @@ export function Workspace({ project, runs, report, selectedPanelId, selectPanel,
         const box = positions.panels.get(panel.id);
         if (!box) return null;
         const run = runs.find(run => run.panelId === panel.id);
+        const title = sessionTitle(panel.agent, run?.rawTitle);
         const position: CSSProperties = maximized === panel.id ? { left: 0, top: 0, width: '100%', height: '100%', zIndex: 2 }
           : { left: `${box.x * 100}%`, top: `${box.y * 100}%`, width: `${box.width * 100}%`, height: `${box.height * 100}%`, visibility: maximized ? 'hidden' : 'visible' };
         return <section key={panel.id} data-panel-id={panel.id} className={`panel-slot ${panel.agent}`} style={position}><div className={`agent-panel ${focused === panel.id ? 'focused' : ''}`}
           onMouseDown={event => { if (!(event.target as HTMLElement).closest('.panel-header')) selectPanel(panel.id); }} onFocusCapture={() => selectPanel(panel.id)}>
           <header className="panel-header" onPointerDown={event => drag(event, panel.id)} onClick={() => { if (dragClick.current) dragClick.current = false; else focus(panel.id); }}>
-            <span className="agent-title" title={sessionTitle(run)}><span className="agent-mark">{agentIcons[panel.agent]}</span><span className="session-title">{sessionTitle(run)}</span></span><span className="panel-actions">
+            <span className="agent-title" title={title}><span className="agent-mark">{agentIcons[panel.agent]}</span><span className="session-title">{title}</span></span><span className="panel-actions">
               <button aria-label={maximized === panel.id ? '还原面板' : '放大面板'} draggable={false} onMouseDown={event => event.stopPropagation()} onClick={event => { event.stopPropagation(); maximize(panel.id); }}>⤢</button>
               <button aria-label="关闭面板" draggable={false} onMouseDown={event => event.stopPropagation()} onClick={event => { event.stopPropagation(); close(panel.id); }}>×</button>
             </span>
-          </header><TerminalView run={run} />
+          </header><TerminalView run={run} title={title} />
         </div></section>;
       })}
       {!maximized && positions.dividers.map(divider => {

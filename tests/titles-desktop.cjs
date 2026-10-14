@@ -23,8 +23,8 @@ module.exports = async ({ window, evaluate, click, fill, until, directory, reope
   }
   await until(() => evaluate(`!!document.querySelector('.setup')`));
   await evaluate(`window.titleOutput = []; window.workbench.subscribe(event => { if (event.kind === 'output') window.titleOutput.push(event); }); void 0;`);
-  const create = (name, path, total) => evaluate(`window.workbench.createProject(${JSON.stringify({ name, directory: path, total, counts: { codex: total, claude: 0, pi: 0 } })})`);
-  const first = (await create('First title project', directory, 3)).project;
+  const create = (name, path, total, counts = { codex: total, claude: 0, pi: 0 }) => evaluate(`window.workbench.createProject(${JSON.stringify({ name, directory: path, total, counts })})`);
+  const first = (await create('First title project', directory, 3, { codex: 1, claude: 1, pi: 1 })).project;
   await click(first.name);
   await until(() => evaluate(`document.querySelectorAll('.xterm').length === 3`));
   const before = await evaluate('window.workbench.snapshot()');
@@ -32,13 +32,15 @@ module.exports = async ({ window, evaluate, click, fill, until, directory, reope
   await until(() => evaluate(`window.titleOutput.some(event => event.runId === ${JSON.stringify(firstRun.id)} && event.data.includes('READY:'))`));
   assert.deepEqual(await evaluate(`[...document.querySelectorAll('[data-locate-panel-id]')].map(button => button.dataset.locatePanelId)`), first.panels.map(panel => panel.id));
   assert.equal(await evaluate(`document.querySelector('[data-panel-id="${first.panels[0].id}"] .session-title').textContent`), 'Untitled task');
-  const raw = ' ✳ Exact raw title | directory ';
+  await require('./title-filtering-desktop.cjs')({ window, evaluate, until, project: first, runs: before.runs });
+  const raw = 'Exact session title | directory';
+  const displayed = 'Exact session title';
   await evaluate(`window.workbench.sendInput(${JSON.stringify(firstRun.id)}, ${JSON.stringify(JSON.stringify({ id: 'desktop-title', chunks: ['\x1b]2;' + raw + '\x07'] }) + '\n')})`);
-  await until(() => evaluate(`document.querySelector('[data-panel-id="${first.panels[0].id}"] .session-title').textContent === ${JSON.stringify(raw)}`));
-  assert.equal(await evaluate(`document.querySelector('[data-locate-panel-id="${first.panels[0].id}"] .session-title').textContent`), raw);
+  await until(() => evaluate(`document.querySelector('[data-panel-id="${first.panels[0].id}"] .session-title').textContent === ${JSON.stringify(displayed)}`));
+  assert.equal(await evaluate(`document.querySelector('[data-locate-panel-id="${first.panels[0].id}"] .session-title').textContent`), displayed);
   assert.equal(await evaluate(`document.querySelectorAll('[aria-label="更多面板操作"]').length`), 0);
   assert.equal(await evaluate(`getComputedStyle(document.querySelector('.session-title')).whiteSpace`), 'pre');
-  assert.equal(await evaluate(`document.querySelector('[data-locate-panel-id="${first.panels[0].id}"]').title`), raw);
+  assert.equal(await evaluate(`document.querySelector('[data-locate-panel-id="${first.panels[0].id}"]').title`), displayed);
   // Clicking the already selected item must take focus back from navigation and deliver input once.
   window.focus(); window.webContents.focus();
   await evaluate(`document.querySelector('[data-locate-panel-id="${first.panels[0].id}"]').focus(); document.querySelector('[data-locate-panel-id="${first.panels[0].id}"]').click()`);
@@ -46,7 +48,7 @@ module.exports = async ({ window, evaluate, click, fill, until, directory, reope
   window.webContents.sendInputEvent({ type: 'char', keyCode: 'q' });
   await until(() => evaluate(`window.titleOutput.some(event => event.data.includes('INPUT:q'))`));
   assert.deepEqual(await evaluate(`[...new Set(window.titleOutput.filter(event => event.data.includes('INPUT:q')).map(event => event.runId))]`), [firstRun.id]);
-  console.log('PASS: shared raw title, creation-ordered navigation, removed More menu and same-selected native refocus');
+  console.log('PASS: shared filtered title, creation-ordered navigation, removed More menu and same-selected native refocus');
   if (process.env.VIBEBRIDGE_TEST_SCREENSHOT) await writeFile(process.env.VIBEBRIDGE_TEST_SCREENSHOT, (await window.webContents.capturePage()).toPNG());
   const secondDirectory = join(directory, 'second'); await mkdir(secondDirectory);
   const second = (await create('Second title project', secondDirectory, 2)).project;
@@ -82,8 +84,9 @@ module.exports = async ({ window, evaluate, click, fill, until, directory, reope
   console.log('PASS: cross-project split/maximize mode follows the source, preserves native input and restores saved layouts');
 
   const targetRun = runs.find(run => run.panelId === second.panels[0].id);
-  const targetTitle = ' π -  keep  spaces - directory ';
-  await evaluate(`window.workbench.sendInput(${JSON.stringify(targetRun.id)}, ${JSON.stringify(JSON.stringify({ id: 'target-title', chunks: ['\x1b]2;' + targetTitle + '\x07'] }) + '\n')})`);
+  const targetTitle = 'keep  spaces';
+  const targetRaw = targetTitle + ' | directory';
+  await evaluate(`window.workbench.sendInput(${JSON.stringify(targetRun.id)}, ${JSON.stringify(JSON.stringify({ id: 'target-title', chunks: ['\x1b]2;' + targetRaw + '\x07'] }) + '\n')})`);
   await until(() => evaluate(`document.querySelector('[data-locate-panel-id="${second.panels[0].id}"] .session-title').textContent === ${JSON.stringify(targetTitle)}`));
   window.webContents.debugger.attach('1.3');
   try {
@@ -96,7 +99,7 @@ module.exports = async ({ window, evaluate, click, fill, until, directory, reope
     assert.equal(await evaluate(`document.activeElement?.closest('[data-panel-id]')?.dataset.panelId`), second.panels[0].id);
     assert.equal(await evaluate(`getComputedStyle(document.querySelector('.notice.success > span:nth-child(2)')).whiteSpace`), 'pre-wrap');
   } finally { await window.webContents.debugger.sendCommand('Emulation.setEmulatedMedia', { features: [] }); window.webContents.debugger.detach(); }
-  console.log('PASS: reduced motion switches directly, shares the exact raw title in notice and retains native input focus');
+  console.log('PASS: reduced motion switches directly, shares the filtered title in notice and retains native input focus');
 
   // Observe the real browser animations and geometry without replacing the animation implementation.
   await evaluate(`window.motionSamples = []; window.motionAnimations = new Set(); window.motionStart = performance.now(); window.motionSampling = true;
@@ -137,11 +140,12 @@ module.exports = async ({ window, evaluate, click, fill, until, directory, reope
   await evaluate(`new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve))).then(() => Promise.all(document.getAnimations().filter(animation => animation.effect.getTiming().iterations !== Infinity).map(animation => animation.finished.catch(() => {}))))`);
   const rect = selector => evaluate(`(() => { const r = document.querySelector(${JSON.stringify(selector)}).getBoundingClientRect(); return { x: r.x, y: r.y, width: r.width, height: r.height }; })()`);
   const boxes = await Promise.all(expectedOrder.map(id => rect(`[data-panel-id="${id}"]`)));
-  const long = '  ⠋ CLI status | ' + 'Long title with  spaces 👩🏽‍💻 '.repeat(80) + ' /some/directory  ';
-  await evaluate(`window.workbench.sendInput(${JSON.stringify(firstRun.id)}, ${JSON.stringify(JSON.stringify({ id: 'long-title', chunks: ['\x1b]2;' + long + '\x07'] }) + '\n')})`);
+  const long = 'Long title with  spaces 👩🏽‍💻 '.repeat(80).trim();
+  const longRaw = long + ' | /some/directory';
+  await evaluate(`window.workbench.sendInput(${JSON.stringify(firstRun.id)}, ${JSON.stringify(JSON.stringify({ id: 'long-title', chunks: ['\x1b]2;' + longRaw + '\x07'] }) + '\n')})`);
   try { await until(() => evaluate(`document.querySelector('[data-locate-panel-id="${a}"]').title === ${JSON.stringify(long)}`)); }
   catch (error) { console.error(await evaluate(`({ title: document.querySelector('[data-locate-panel-id="${a}"]').title, tail: window.titleOutput.filter(event => event.runId === ${JSON.stringify(firstRun.id)}).map(event => event.data).join('').slice(-500) })`)); throw error; }
-  assert.deepEqual(await Promise.all(expectedOrder.map(id => rect(`[data-panel-id="${id}"]`))), boxes, 'A long raw title cannot enlarge its layout slot');
+  assert.deepEqual(await Promise.all(expectedOrder.map(id => rect(`[data-panel-id="${id}"]`))), boxes, 'A long session title cannot enlarge its layout slot');
   for (const selector of [`[data-panel-id="${a}"] .session-title`, `[data-locate-panel-id="${a}"] .session-title`]) {
     assert.deepEqual(await evaluate(`(() => { const e = document.querySelector(${JSON.stringify(selector)}), s = getComputedStyle(e); return { ellipsis: s.textOverflow, whitespace: s.whiteSpace, clipped: e.scrollWidth > e.clientWidth, oneLine: e.clientHeight <= parseFloat(s.lineHeight) + 1 }; })()`), { ellipsis: 'ellipsis', whitespace: 'pre', clipped: true, oneLine: true });
   }

@@ -6,7 +6,7 @@ module.exports = async function verifyPanels({ window, evaluate, until, project,
   const titles = ['Alpha billing workspace', 'Bravo review workspace', 'Charlie release workspace'];
   for (const [index, id] of [a, b, c].entries()) {
     const run = runs.find(run => run.panelId === id);
-    await evaluate(`window.workbench.sendInput(${JSON.stringify(run.id)}, ${JSON.stringify('title:' + titles[index])})`);
+    await evaluate(`window.workbench.sendInput(${JSON.stringify(run.id)}, ${JSON.stringify('title:' + titles[index] + ' | directory')})`);
     await until(() => evaluate(`document.querySelector('[data-panel-id="${id}"] .session-title').textContent === ${JSON.stringify(titles[index])}`));
   }
   runs = (await evaluate('window.workbench.snapshot()')).runs;
@@ -170,7 +170,7 @@ module.exports = async function verifyPanels({ window, evaluate, until, project,
   await until(() => evaluate(`!!document.querySelector('.panel-swap-preview')`));
   const titleOutputStart = await evaluate('window.observedOutput.length');
   const wideTitle = 'WWWWWWWWWWWW title changed during drag';
-  await evaluate(`window.workbench.sendInput(${JSON.stringify(run.id)}, ${JSON.stringify('title:' + wideTitle)})`);
+  await evaluate(`window.workbench.sendInput(${JSON.stringify(run.id)}, ${JSON.stringify('title:' + wideTitle + ' | directory')})`);
   await until(() => evaluate(`document.querySelector('${panel(a)} .session-title').textContent === ${JSON.stringify(wideTitle)}`));
   await settle();
   assert.deepEqual(await rect(`${panel(a)} .terminal-container`), terminalBeforeTitle, 'Live OSC title changes must not alter real terminal geometry during a held preview');
@@ -180,7 +180,7 @@ module.exports = async function verifyPanels({ window, evaluate, until, project,
   window.webContents.sendInputEvent({ type: 'keyUp', keyCode: 'Escape' });
   mouse('mouseUp', titleTarget.x + 30, titleTarget.y + 12);
   await until(() => evaluate(`!document.querySelector('.panel-swap-preview') && document.querySelector('${panel(a)}').dataset.tiny === 'true'`));
-  await evaluate(`window.workbench.sendInput(${JSON.stringify(run.id)}, ${JSON.stringify('title:' + titles[0])})`);
+  await evaluate(`window.workbench.sendInput(${JSON.stringify(run.id)}, ${JSON.stringify('title:' + titles[0] + ' | directory')})`);
   await until(() => evaluate(`document.querySelector('${panel(a)} .session-title').textContent === ${JSON.stringify(titles[0])}`));
   console.log('Live OSC title updates preserve real terminal geometry and PTY size throughout a held preview; compact layout updates after cancellation.');
   await save(layout);
