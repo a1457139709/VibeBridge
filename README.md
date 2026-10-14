@@ -4,7 +4,7 @@ macOS 本地多项目 Agent CLI 工作台。正式应用代码在 `app/`；产�
 
 第一阶段实现覆盖 [#24：创建项目并启动 Agent 工作区](https://github.com/a1457139709/VibeBridge/issues/24)、[#25：动态面板与布局操作](https://github.com/a1457139709/VibeBridge/issues/25)、[#26：多项目切换与重开恢复](https://github.com/a1457139709/VibeBridge/issues/26)、[#27：全局设置、主题与快捷键](https://github.com/a1457139709/VibeBridge/issues/27) 和 [#28：退出、故障清理与完整流程验收](https://github.com/a1457139709/VibeBridge/issues/28)。提供真实 PTY/xterm.js、SQLite 保存、动态面板、布局调整、项目切换、统一设置与退出清理、本地应用打包。真实 CLI、输入法及视觉体验的待验收步骤见验证记录。
 
-本次 `implement/spec-45` 分支交付 [#45 第二阶段交互](https://github.com/a1457139709/VibeBridge/issues/45)的标题观察版：项目编辑与删除、可隐藏／调宽的导航、面板定位、原始终端标题、设置分类草稿、快捷键冲突提示、面板最小尺寸与交换预览。真实 CLI 与动效的人工验收见 [观察版验收指南](docs/spec-45-human-acceptance.md)。标题暂时原样显示；[#51](https://github.com/a1457139709/VibeBridge/issues/51) 的过滤规则必须等用户确认观察结果后实施。
+当前版本在 [#45 第二阶段交互](https://github.com/a1457139709/VibeBridge/issues/45)基础上，包含 [#58 UI 修复](https://github.com/a1457139709/VibeBridge/issues/58)、[#59 会话标题过滤](https://github.com/a1457139709/VibeBridge/issues/59)及 [#61 类型色与紧凑面板](https://github.com/a1457139709/VibeBridge/issues/61)：设置各分类统一提供恢复默认、放弃与保存；面板缩小时保留会话标题和 Agent 类型标识；交换预览期间保持原终端几何。面板、导航与切换提示共用过滤后的会话标题，Codex 首尾动画符号覆盖已确认的十帧。真实 CLI 与动效的人工验收见 [SPEC #57 QA](docs/spec-57-qa.md)及 [#61 复验指南](docs/issue-61-qa.md)，Codex 真实忙闲与 Claude 账号条件相关验收仍未完成。
 
 ## 本地运行
 
@@ -119,4 +119,4 @@ node scripts/test-desktop.mjs --packaged
 
 GitHub Actions 的 [Checks 工作流](.github/workflows/checks.yml) 在 push、pull request 和手动触发时使用 macOS 执行依赖安装、Electron 二进制安装、原生 PTY 重建、运行时检查、类型检查、业务测试和构建。桌面入口在具备 GUI/PTY 条件的本机执行，尚未加入远端 CI；远端执行结果以 PR Checks 为准，检查通过不代表合并已被分支保护强制拦截。
 
-第一阶段修复见 [#32 验证记录](docs/issue-32-verification.md)。第二阶段各工单的执行结果见 `docs/issue-46-verification.md` 至 `docs/issue-50-verification.md`；用户需要操作的真实 CLI 与动效案例集中在 [观察版验收指南](docs/spec-45-human-acceptance.md)。
+人工验收结果维护在 GitHub：[第二阶段 QA #53](https://github.com/a1457139709/VibeBridge/issues/53)、[SPEC #57 QA #60](https://github.com/a1457139709/VibeBridge/issues/60)及 [#61 后续反馈](https://github.com/a1457139709/VibeBridge/issues/61)。本地保留 [#58 验证](docs/issue-58-verification.md)、[#59 验证](docs/issue-59-verification.md)、[#61 验证](docs/issue-61-verification.md)与上述待执行指南；历史记录中的“未推送”等状态以各轮记录时间为准。第一阶段修复与第二阶段交付的旧验证文档可从 [Git 历史](https://github.com/a1457139709/VibeBridge/tree/389c25b/docs)查阅。
