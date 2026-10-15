@@ -52,7 +52,7 @@ module.exports = async function verifySettings({ window, evaluate, click, fill, 
   key('[', ['meta', 'shift']);
   await until(async () => (await evaluate('window.workbench.snapshot()')).activeProjectId !== project.id);
   const otherName = await evaluate(`(async () => { const snap = await window.workbench.snapshot(); return snap.projects.find(p => p.id === snap.activeProjectId).name; })()`);
-  await until(() => evaluate(`document.querySelector('.project-link[aria-current="page"]')?.textContent === ${JSON.stringify(otherName)}`));
+  await until(() => evaluate(`document.querySelector('button.project-link[aria-label=${JSON.stringify(otherName)}]')?.getAttribute('aria-current') === 'page'`));
   key(']', ['meta', 'shift']);
   await until(() => evaluate(`document.activeElement?.closest('[data-panel-id]')?.dataset.panelId === ${JSON.stringify(target)}`));
   window.webContents.sendInputEvent({ type: 'char', keyCode: 'u' });
