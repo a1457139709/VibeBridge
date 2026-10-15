@@ -102,12 +102,18 @@ async function verifyTitles({ window, evaluate, click, fill, until, directory, r
   console.log('PASS: reduced motion switches directly, shares the filtered title in notice and retains native input focus');
 
   // Observe the real browser animations and geometry without replacing the animation implementation.
-  await evaluate(`window.motionSamples = []; window.motionAnimations = new Set(); window.motionStart = performance.now(); window.motionSampling = true;
-    const sample = () => { if (!window.motionSampling) return; for (const animation of document.getAnimations()) {
-      if (animation.effect?.target?.classList.contains('canvas')) { window.motionAnimations.add(animation); window.motionSamples.push({ time: performance.now(), project: document.querySelector('.workspace-toolbar strong')?.textContent, transform: getComputedStyle(animation.effect.target).transform }); }
-    } requestAnimationFrame(sample); }; requestAnimationFrame(sample); void 0;`);
-  await locate(first.panels[2].id, 'w');
-  const motion = await evaluate(`(() => { window.motionSampling = false; return { samples: window.motionSamples, animations: [...window.motionAnimations].map(animation => ({ duration: animation.effect.getTiming().duration, frames: animation.effect.getKeyframes().map(frame => frame.transform) })) }; })()`);
+  await until(() => evaluate(`!matchMedia('(prefers-reduced-motion: reduce)').matches`));
+  let motion;
+  for (let attempt = 0; attempt < 3; attempt++) {
+    await evaluate(`window.motionSamples = []; window.motionAnimations = new Set(); window.motionStart = performance.now(); window.motionSampling = true;
+      const sample = () => { if (!window.motionSampling) return; for (const animation of document.getAnimations()) {
+        if (animation.effect?.target?.classList.contains('canvas')) { window.motionAnimations.add(animation); window.motionSamples.push({ time: performance.now(), project: document.querySelector('.workspace-toolbar strong')?.textContent, transform: getComputedStyle(animation.effect.target).transform }); }
+      } requestAnimationFrame(sample); }; requestAnimationFrame(sample); void 0;`);
+    await locate(first.panels[2].id, attempt ? undefined : 'w');
+    motion = await evaluate(`(() => { window.motionSampling = false; return { samples: window.motionSamples, animations: [...window.motionAnimations].map(animation => ({ duration: animation.effect.getTiming().duration, frames: animation.effect.getKeyframes().map(frame => frame.transform) })) }; })()`);
+    if (motion.animations.length) break;
+    await locate(second.panels[0].id);
+  }
   assert.equal(motion.animations.length, 2);
   assert.deepEqual(motion.animations.map(animation => animation.duration), [100, 100]);
   assert.deepEqual(motion.animations.map(animation => animation.frames), [['scale(1)', 'scale(0.96)'], ['scale(0.96)', 'scale(1)']]);
