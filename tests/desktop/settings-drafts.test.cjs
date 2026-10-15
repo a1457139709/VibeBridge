@@ -24,6 +24,7 @@ module.exports = {
     assert.equal(await evaluate(`document.getElementById('shortcut-nextPanel').title`), 'Command+K');
     await click('保存');
     await until(async () => (await evaluate('window.workbench.snapshot()')).settings.shortcuts.nextPanel === 'Command+K');
+    await until(() => evaluate(`document.querySelector('.settings-scroll fieldset')?.disabled === false`));
     await click('Agent');
     await fill('command-codex', '');
     await click('外观');
@@ -33,6 +34,7 @@ module.exports = {
     await until(() => evaluate(`document.getElementById('shortcut-previousPanel').title === 'Command+L'`));
     await click('保存');
     await until(async () => (await evaluate('window.workbench.snapshot()')).settings.shortcuts.previousPanel === 'Command+L');
+    await until(() => evaluate(`document.querySelector('.settings-scroll fieldset')?.disabled === false`));
     const partial = (await evaluate('window.workbench.snapshot()')).settings;
     assert.equal(partial.theme, before.settings.theme);
     assert.equal(partial.agents.codex.command, before.settings.agents.codex.command);

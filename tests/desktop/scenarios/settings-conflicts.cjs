@@ -3,9 +3,16 @@ module.exports = async function verifyConflicts({ window, evaluate, click, until
   const before = (await evaluate('window.workbench.snapshot()')).settings.shortcuts;
   await click('全局设置'); await click('快捷键');
   const record = async (action, keyCode, modifiers = ['meta']) => {
-    await evaluate(`document.getElementById('shortcut-${action}').focus()`);
-    window.webContents.sendInputEvent({ type: 'keyDown', keyCode, modifiers });
-    window.webContents.sendInputEvent({ type: 'keyUp', keyCode, modifiers });
+    const binding = `Command+${keyCode}`;
+    for (let attempt = 0; attempt < 5; attempt++) {
+      await evaluate(`document.getElementById('shortcut-${action}').focus()`);
+      window.webContents.sendInputEvent({ type: 'keyDown', keyCode, modifiers });
+      window.webContents.sendInputEvent({ type: 'keyUp', keyCode, modifiers });
+      const applied = await until(() => evaluate(`document.getElementById('shortcut-${action}').title === '${binding}'`), 1000)
+        .then(() => true, () => false);
+      if (applied) return;
+    }
+    throw new Error(`Recording ${binding} for ${action} did not take effect`);
   };
   await record('previousProject', 'K');
   await record('nextProject', 'K');

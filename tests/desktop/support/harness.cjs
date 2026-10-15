@@ -66,7 +66,7 @@ void (async () => {
   };
   // Select and copy visible terminal text through the native UI, without inspecting xterm internals.
   const copyTerminal = async panelId => {
-    const previous = await Promise.all((await clipboard.read()).map(async item =>
+    const previous = await Promise.all((await clipboard.read()).filter(item => item.types.length).map(async item =>
       new ClipboardItem(Object.fromEntries(await Promise.all(item.types.map(async type => [type, await item.getType(type)]))))));
     try {
       clipboard.clear();
