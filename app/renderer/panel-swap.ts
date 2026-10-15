@@ -1,4 +1,3 @@
-import { capturePointer } from './pointer-capture';
 import { agentNames, type Panel, type Layout } from '../shared/model';
 
 // A frozen copy is only a paint surface. It never owns a terminal, input or a layout.
@@ -16,10 +15,10 @@ function snapshot(element: HTMLElement) {
   return copy;
 }
 
-export function beginPanelDrag({ event, handle, canvas, source, panels, layout, commit, consumed, ended }: {
-  event: PointerEvent; handle: HTMLElement; canvas: HTMLElement; source: string; panels: Panel[]; layout: Layout;
-  commit(layout: Layout): void; consumed(): void; ended(): void;
-}): () => void {
+export function createSwapPreview({ event, canvas, source, panels, layout, consumed }: {
+  event: PointerEvent; canvas: HTMLElement; source: string; panels: Panel[]; layout: Layout;
+  consumed(): void;
+}) {
   const original = structuredClone(layout);
   const images = panels.map(panel => {
     const element = canvas.querySelector<HTMLElement>(`[data-panel-id="${panel.id}"] .agent-panel`)!;
@@ -61,30 +60,19 @@ export function beginPanelDrag({ event, handle, canvas, source, panels, layout, 
     const under = images.find(({ box }) => pointer.clientX >= box.left && pointer.clientX < box.right && pointer.clientY >= box.top && pointer.clientY < box.bottom);
     showTarget(under?.panel.id === source ? undefined : under?.panel.id);
   };
-  const finish = (save: boolean, release?: PointerEvent) => {
-    // A release can arrive at new coordinates without a final pointermove.
-    if (release) move(release);
-    window.removeEventListener('resize', cancel);
-    window.removeEventListener('keydown', keydown, true);
-    observer.disconnect();
-    ghost?.remove(); preview?.remove(); canvas.classList.remove('dragging');
-    for (const image of images) image.element.classList.remove('panel-drag-hidden');
-    ended();
-    if (save && moving && target) {
+  return {
+    move,
+    result(release: PointerEvent): Layout | undefined {
+      // Pointerup may be delivered without a final pointermove.
+      move(release);
+      if (!moving || !target) return;
       const swap = (node: Layout): Layout => 'panel' in node ? { panel: node.panel === source ? target! : node.panel === target ? source : node.panel }
         : { ...node, first: swap(node.first), second: swap(node.second) };
-      commit(swap(original));
-    }
+      return swap(original);
+    },
+    dispose() {
+      ghost?.remove(); preview?.remove(); canvas.classList.remove('dragging');
+      for (const image of images) image.element.classList.remove('panel-drag-hidden');
+    },
   };
-  const keydown = (key: KeyboardEvent) => { if (key.key === 'Escape') { key.preventDefault(); key.stopImmediatePropagation(); cancel(); } };
-  const bounds = canvas.getBoundingClientRect();
-  const observer = new ResizeObserver(() => {
-    const current = canvas.getBoundingClientRect();
-    if (current.x !== bounds.x || current.y !== bounds.y || current.width !== bounds.width || current.height !== bounds.height) cancel();
-  });
-  observer.observe(canvas);
-  const cancel = capturePointer(handle, event.pointerId, { move, finish });
-  window.addEventListener('resize', cancel);
-  window.addEventListener('keydown', keydown, true);
-  return cancel;
 }

@@ -101,3 +101,4 @@ npm run test:desktop:all
 - `app/main/storage-worker.ts`：工作线程中的 SQLite 事务，避免阻塞主进程。
 - `app/main/settings.ts`：串行、完整临时写入后替换的配置保存。
 - `app/renderer/terminals.ts`：xterm.js 实例及有界滚动缓冲，视图卸载不结束运行。
+- `app/renderer/panel-interactions.ts`：面板布局交互入口，统一交换预览、分隔线约束、取消与面板测量调度；[职责与验证记录](docs/issue-63-verification.md)。

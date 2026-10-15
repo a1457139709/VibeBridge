@@ -61,6 +61,21 @@ module.exports = {
     const run = runs.find(run => run.panelId === a);
     const canvas = await rect('.canvas');
     await evaluate(`window.originalTerminal = document.querySelector('[data-panel-id="${a}"] .xterm'); void 0;`);
+    const beforeResizeSize = await size(run);
+    const liveDivider = await rect('.divider[aria-orientation="vertical"]');
+    mouse('mouseDown', liveDivider.x + 2, liveDivider.y + liveDivider.height / 4);
+    mouse('mouseMove', canvas.x + 1, liveDivider.y + liveDivider.height / 4);
+    await until(() => evaluate(`document.querySelector('${panel(a)}').dataset.tiny === 'true'`));
+    await settle();
+    assert.notDeepEqual(await size(run), beforeResizeSize, 'A held divider updates the actual PTY size before release');
+    assert.deepEqual((await evaluate('window.workbench.snapshot()')).projects[0].layout, layout, 'A held divider has not saved its live layout');
+    window.webContents.sendInputEvent({ type: 'keyDown', keyCode: 'Escape' });
+    window.webContents.sendInputEvent({ type: 'keyUp', keyCode: 'Escape' });
+    mouse('mouseUp', canvas.x + 1, liveDivider.y + liveDivider.height / 4); await settle();
+    assert.deepEqual(await size(run), beforeResizeSize, 'Cancelling the divider restores the original PTY size');
+    assert.equal(await evaluate(`document.querySelector('${panel(a)}').dataset.tiny`), 'false');
+    assert.equal(await evaluate(`document.querySelector('[data-panel-id="${a}"] .xterm') === window.originalTerminal`), true);
+    console.log('Held divider updates real geometry, compact presentation and PTY size without saving; Escape restores all three.');
     await dragDivider('vertical', { x: canvas.x + 1, y: canvas.y + canvas.height / 2 });
     const narrow = await rect(panel(a));
     const readableTitle = async id => {
@@ -189,6 +204,26 @@ module.exports = {
     await evaluate(`window.workbench.sendInput(${JSON.stringify(run.id)}, ${JSON.stringify('title:' + titles[0] + ' | directory')})`);
     await until(() => evaluate(`document.querySelector('${panel(a)} .session-title').textContent === ${JSON.stringify(titles[0])}`));
     console.log('Live OSC title updates preserve real terminal geometry and PTY size throughout a held preview; compact layout updates after cancellation.');
+    await settle();
+    const beforeTitleCommit = await rect(`${panel(a)} .terminal-container`);
+    mouse('mouseDown', titleSource.x + 30, titleSource.y + 12);
+    mouse('mouseMove', titleTarget.x + 30, titleTarget.y + 12);
+    await until(() => evaluate(`!!document.querySelector('.panel-swap-preview')`));
+    for (const changed of [wideTitle, 'WWWWWWWWWWWW newest title before commit']) {
+      await evaluate(`window.workbench.sendInput(${JSON.stringify(run.id)}, ${JSON.stringify('title:' + changed + ' | directory')})`);
+      await until(() => evaluate(`document.querySelector('${panel(a)} .session-title').textContent === ${JSON.stringify(changed)}`));
+      await settle();
+      assert.deepEqual(await rect(`${panel(a)} .terminal-container`), beforeTitleCommit);
+    }
+    mouse('mouseUp', titleTarget.x + 30, titleTarget.y + 12);
+    await until(async () => (await evaluate('window.workbench.snapshot()')).projects[0].layout.first.panel === b);
+    await settle();
+    assert.equal(await evaluate(`document.querySelector('${panel(a)}').dataset.tiny`), 'false', 'Commit measures the latest title in the final, wider layout');
+    assert.notDeepEqual(await rect(`${panel(a)} .terminal-container`), beforeTitleCommit);
+    assert.equal(await evaluate(`document.querySelector('[data-panel-id="${a}"] .xterm') === window.originalTerminal`), true);
+    await evaluate(`window.workbench.sendInput(${JSON.stringify(run.id)}, ${JSON.stringify('title:' + titles[0] + ' | directory')})`);
+    await until(() => evaluate(`document.querySelector('${panel(a)} .session-title').textContent === ${JSON.stringify(titles[0])}`));
+    console.log('Repeated title snapshots preserve a held preview; commit measures the final layout without replacing the terminal.');
     await save(layout);
     await evaluate(`window.workbench.sendInput(${JSON.stringify(run.id)}, 'drag-marker')`);
     await until(() => evaluate(`document.querySelector('[data-panel-id="${a}"] .xterm-rows').textContent.includes('INPUT:drag-marker')`));
@@ -317,7 +352,13 @@ module.exports = {
     assert.deepEqual((await evaluate('window.workbench.snapshot()')).runs, runs);
     const otherDirectory = `${directory}/switch-project`;
     await require('node:fs/promises').mkdir(otherDirectory);
+    const switchingSource = await rect(`${panel(a)} .panel-header`), switchingTarget = await rect(panel(c));
+    mouse('mouseDown', switchingSource.x + 30, switchingSource.y + 12);
+    mouse('mouseMove', switchingTarget.x + 30, switchingTarget.y + 12);
+    await until(() => evaluate(`!!document.querySelector('.panel-swap-preview')`));
     const other = await evaluate(`window.workbench.createProject(${JSON.stringify({ name: 'Other project', directory: otherDirectory, total: 1, counts: { codex: 0, claude: 0, pi: 1 } })})`);
+    await until(() => evaluate(`!document.querySelector('.panel-drag-image, .panel-swap-preview')`));
+    mouse('mouseUp', switchingTarget.x + 30, switchingTarget.y + 12);
     await evaluate(`window.workbench.closePanel(${JSON.stringify(other.project.id)}, ${JSON.stringify(other.project.panels[0].id)})`);
     await evaluate(`window.workbench.activateProject(${JSON.stringify(project.id)})`); await settle();
     assert.deepEqual((await evaluate('window.workbench.snapshot()')).projects.find(item => item.id === project.id).layout, committed);
