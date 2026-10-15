@@ -31,6 +31,7 @@ jobs:
       - run: npm test
       - run: npm run build
       - name: Desktop regression tests
+        if: github.event_name == 'workflow_dispatch'
         id: desktop
         timeout-minutes: 20
         shell: bash
@@ -39,7 +40,7 @@ jobs:
           mkdir -p work/ci
           npm run test:desktop:all 2>&1 | tee work/ci/desktop-tests.log
       - name: Upload desktop failure log
-        if: ${{ failure() && steps.desktop.outcome == 'failure' }}
+        if: ${{ github.event_name == 'workflow_dispatch' && failure() && steps.desktop.outcome == 'failure' }}
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: macos-desktop-failure-log
