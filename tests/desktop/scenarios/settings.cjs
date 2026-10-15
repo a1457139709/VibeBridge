@@ -51,7 +51,8 @@ module.exports = async function verifySettings({ window, evaluate, click, fill, 
   await until(() => evaluate(`document.activeElement?.closest('[data-panel-id]')?.dataset.panelId === ${JSON.stringify(target)}`));
   key('[', ['meta', 'shift']);
   await until(async () => (await evaluate('window.workbench.snapshot()')).activeProjectId !== project.id);
-  await until(() => evaluate(`document.querySelector('.workspace-toolbar strong')?.textContent !== ${JSON.stringify(project.name)}`));
+  const otherName = await evaluate(`(async () => { const snap = await window.workbench.snapshot(); return snap.projects.find(p => p.id === snap.activeProjectId).name; })()`);
+  await until(() => evaluate(`document.querySelector('.project-link[aria-current="page"]')?.textContent === ${JSON.stringify(otherName)}`));
   key(']', ['meta', 'shift']);
   await until(() => evaluate(`document.activeElement?.closest('[data-panel-id]')?.dataset.panelId === ${JSON.stringify(target)}`));
   window.webContents.sendInputEvent({ type: 'char', keyCode: 'u' });
