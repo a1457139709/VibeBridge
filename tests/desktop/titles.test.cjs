@@ -125,6 +125,19 @@ async function verifyTitles({ window, evaluate, click, fill, until, directory, r
   assert.ok(motion.samples.some(sample => sample.transform !== 'none' && sample.transform !== 'matrix(1, 0, 0, 1, 0, 0)'));
   assert.ok(motion.samples.at(-1).time - motion.samples[0].time >= 140, 'The outgoing and incoming halves render sequentially');
   console.log('PASS: native browser renders sequential 100ms shrink/grow halves, preserving focus and live CLI input');
+  const beforeRapid = await evaluate('window.workbench.snapshot()');
+  const accepted = second.panels[0].id, rejected = second.panels[1].id;
+  await evaluate(`document.querySelector('[data-locate-panel-id="${rejected}"]').click(); document.querySelector('[data-locate-panel-id="${accepted}"]').click()`);
+  await until(() => evaluate(`!document.querySelector('.locating-panel') && document.activeElement?.closest('[data-panel-id]')?.dataset.panelId === ${JSON.stringify(accepted)}`));
+  const rapidOutput = await evaluate('window.titleOutput.length');
+  window.webContents.sendInputEvent({ type: 'char', keyCode: 'R' });
+  await until(() => evaluate(`window.titleOutput.slice(${rapidOutput}).some(event => event.data.includes('INPUT:R'))`));
+  assert.deepEqual(await evaluate(`[...new Set(window.titleOutput.slice(${rapidOutput}).filter(event => event.data.includes('INPUT:R')).map(event => event.runId))]`), [runs.find(run => run.panelId === accepted).id]);
+  const afterRapid = await evaluate('window.workbench.snapshot()');
+  assert.deepEqual(afterRapid.runs, beforeRapid.runs);
+  assert.deepEqual(afterRapid.projects, beforeRapid.projects);
+  await locate(first.panels[2].id);
+  console.log('PASS: rapid native navigation cancels the old animation, delivers input only to the accepted panel and preserves runs/layouts');
   // Project heading switches retain per-project viewing state; disclosure has no run side effects.
   await click(second.name);
   await until(() => restored(second.panels[0].id));

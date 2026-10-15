@@ -68,8 +68,9 @@ export function mountTerminal(runId: string, container: HTMLElement) {
 }
 export function focusTerminal(runId?: string) {
   const screen = runId ? screens.get(runId) : undefined;
-  if (screen) screen.terminal.focus();
-  else if (document.activeElement instanceof HTMLElement) document.activeElement.blur();
+  if (!screen?.element.isConnected || !screen.element.checkVisibility() || !screen.element.clientWidth || !screen.element.clientHeight) return false;
+  screen.terminal.focus();
+  return document.activeElement === screen.terminal.textarea;
 }
 
 // Measure a rendered row's font and spacing as one unit. Grid pixels and terminal
