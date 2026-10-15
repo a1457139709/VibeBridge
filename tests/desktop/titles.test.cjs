@@ -102,6 +102,9 @@ async function verifyTitles({ window, evaluate, click, fill, until, directory, r
   console.log('PASS: reduced motion switches directly, shares the filtered title in notice and retains native input focus');
 
   // Observe the real browser animations and geometry without replacing the animation implementation.
+  window.webContents.debugger.attach('1.3');
+  await window.webContents.debugger.sendCommand('Emulation.setEmulatedMedia', { features: [{ name: 'prefers-reduced-motion', value: 'no-preference' }] });
+  window.webContents.debugger.detach();
   await until(() => evaluate(`!matchMedia('(prefers-reduced-motion: reduce)').matches`));
   let motion;
   for (let attempt = 0; attempt < 3; attempt++) {
