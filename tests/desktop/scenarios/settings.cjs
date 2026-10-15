@@ -36,6 +36,7 @@ module.exports = async function verifySettings({ window, evaluate, click, fill, 
   await until(() => evaluate(`document.getElementById('shortcut-nextPanel').title === 'Command+K'`));
   await click('保存');
   await until(async () => (await evaluate('window.workbench.snapshot()')).settings.shortcuts.nextPanel === 'Command+K');
+  await until(() => evaluate(`document.querySelector('.settings-scroll fieldset')?.disabled === false`));
   await evaluate(`document.getElementById('shortcut-maximizePanel').focus()`);
   key('k');
   await until(() => evaluate(`document.getElementById('shortcut-maximizePanel').title === 'Command+K'`));
@@ -62,6 +63,7 @@ module.exports = async function verifySettings({ window, evaluate, click, fill, 
   await click('恢复默认设置');
   await click('保存');
   await until(async () => (await evaluate('window.workbench.snapshot()')).settings.shortcuts.nextPanel === 'Command+]');
+  await until(() => evaluate(`document.querySelector('.settings-scroll fieldset')?.disabled === false`));
   assert.deepEqual((await evaluate('window.workbench.snapshot()')).settings.shortcuts, before.settings.shortcuts);
   await click('外观');
   await evaluate(`document.querySelector('input[name="theme"][value="dark"]').click()`);
