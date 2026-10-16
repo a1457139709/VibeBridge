@@ -22,14 +22,18 @@ const validKey = (key: string) => /^[A-Z0-9]$/.test(key) || Object.values(codeKe
   || /^F([1-9]|1[0-9]|2[0-4])$/.test(key);
 
 // One canonical spelling is shared by hand-edited settings, the recorder and dispatch.
+export function shortcutFormatError(binding: unknown): string | undefined {
+  if (typeof binding !== 'string') return '快捷键无效，请使用 Command、Control 或 Alt 组合键';
+  const parts = binding.split('+'), key = parts.pop()!;
+  const modifiers = ['Command', 'Control', 'Alt', 'Shift'].filter(modifier => parts.includes(modifier));
+  if (!validKey(key) || !parts.some(modifier => ['Command', 'Control', 'Alt'].includes(modifier)) || [...modifiers, key].join('+') !== binding)
+    return '快捷键无效，请使用 Command、Control 或 Alt 组合键';
+}
+
 export function validateShortcutFormats(shortcuts: Shortcuts): void {
   for (const action of shortcutActions) {
-    const binding = shortcuts?.[action];
-    if (typeof binding !== 'string') throw new Error(`快捷键无效：${shortcutNames[action]}`);
-    const parts = binding.split('+'), key = parts.pop()!;
-    const modifiers = ['Command', 'Control', 'Alt', 'Shift'].filter(modifier => parts.includes(modifier));
-    if (!validKey(key) || !parts.some(modifier => ['Command', 'Control', 'Alt'].includes(modifier)) || [...modifiers, key].join('+') !== binding)
-      throw new Error(`快捷键无效：${shortcutNames[action]}，请使用 Command、Control 或 Alt 组合键`);
+    const error = shortcutFormatError(shortcuts?.[action]);
+    if (error) throw new Error(`${shortcutNames[action]}：${error}`);
   }
 }
 
@@ -37,7 +41,8 @@ export interface ShortcutConflict { binding: string; actions: ShortcutAction[]; 
 export function shortcutConflicts(shortcuts: Shortcuts): ShortcutConflict[] {
   const groups = new Map<string, ShortcutAction[]>();
   for (const action of shortcutActions) {
-    const binding = shortcuts[action];
+    const binding = shortcuts?.[action];
+    if (shortcutFormatError(binding)) continue;
     groups.set(binding, [...groups.get(binding) ?? [], action]);
   }
   return [...groups].filter(([binding, actions]) => actions.length > 1 || reserved[binding])

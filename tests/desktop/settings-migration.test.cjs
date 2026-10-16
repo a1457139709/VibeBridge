@@ -10,7 +10,10 @@ module.exports = {
     await until(() => evaluate(`!!document.getElementById('project-name')`));
     const original = (await evaluate('window.workbench.snapshot()')).settings;
     assert.deepEqual((await evaluate('window.workbench.snapshot()')).errors, []);
-    await click('全局设置'); await click('快捷键');
+    assert.ok(await evaluate(`!!document.querySelector('[aria-label="快捷键迁移提醒"]')`));
+    await require('./support/evidence.cjs')(window)('settings-migration-reminder');
+    await click('打开快捷键设置');
+    assert.equal(await evaluate(`document.querySelector('[aria-label="设置分类"] [aria-current="page"]').textContent`), '快捷键');
     assert.equal(await evaluate(`document.getElementById('shortcut-closePanel').title`), 'Command+Shift+W');
     assert.equal(await evaluate(`document.querySelectorAll('.shortcut-row input[aria-invalid="true"]').length`), 2, 'migration conflict remains visible without blocking startup');
     await click('恢复默认设置');
@@ -30,6 +33,7 @@ module.exports = {
     await click('‹ 返回'); await click('保存并返回');
     await until(() => evaluate(`!document.querySelector('.settings-page')`));
     const saved = (await evaluate('window.workbench.snapshot()')).settings;
+    assert.equal(await evaluate(`!!document.querySelector('[aria-label="快捷键迁移提醒"]')`), false);
     assert.equal(saved.theme, 'dark'); assert.equal(saved.shortcuts.nextPanel, 'Command+K');
     assert.deepEqual(saved.agents, original.agents); assert.equal(saved.defaultLayout, original.defaultLayout);
     await click('全局设置'); await fill('command-codex', '/unsaved-quit-draft');
@@ -38,5 +42,10 @@ module.exports = {
       assert.deepEqual(JSON.parse(await readFile(`${directory}/settings.json`, 'utf8')), saved);
       assert.equal(confirmationCount(), 1, 'quit retains its one native confirmation and drops settings drafts');
     } };
+  },
+  async reopen({ evaluate, until }) {
+    await until(() => evaluate(`!!document.getElementById('project-name')`));
+    assert.equal(await evaluate(`!!document.querySelector('[aria-label="快捷键迁移提醒"]')`), false);
+    assert.equal((await evaluate('window.workbench.snapshot()')).settings.shortcuts.nextPanel, 'Command+K');
   },
 };

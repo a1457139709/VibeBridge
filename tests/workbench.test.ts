@@ -143,7 +143,7 @@ test('damaged configuration is reported and preserved instead of being overwritt
   const workbench = await Workbench.open(directory);
   try {
     assert.match(workbench.snapshot().errors.join('\n'), /配置读取失败/);
-    await assert.rejects(workbench.saveSettings(workbench.snapshot().settings), /未覆盖原配置/);
+    assert.deepEqual(await workbench.saveSettings(workbench.snapshot().settings), { ok: false, kind: 'storage', message: '配置读取失败，未覆盖原配置；请修正后重新启动' });
     await assert.rejects(workbench.quit(), /未覆盖原配置/);
     assert.equal(await readFile(`${directory}/settings.json`, 'utf8'), damaged);
   } finally { await rm(directory, { recursive: true, force: true }); }

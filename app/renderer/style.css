@@ -30,6 +30,8 @@ input { width: 100%; height: 36px; border: 1px solid var(--line); border-radius:
 .wordmark { font-weight: 650; letter-spacing: -.3px; }
 
 .app-body { display: flex; flex: 1; min-height: 0; }
+.settings-migration-notice { display: flex; align-items: center; flex-wrap: wrap; gap: 8px 12px; padding: 10px 16px; border-bottom: 1px solid var(--line); background: var(--surface); }
+.settings-migration-notice span { flex: 1; min-width: min(280px, 100%); }
 .workbench-page { height: 100%; }
 .workbench-page[hidden] { display: none; }
 .navigation { position: relative; width: min(var(--navigation-width), max(0px, calc(100vw - 160px))); flex-shrink: 0; padding: 0; border-right: 1px solid var(--line); display: flex; flex-direction: column; gap: 0; background: var(--navigation, var(--canvas)); }

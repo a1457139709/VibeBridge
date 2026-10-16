@@ -57,11 +57,14 @@ test('shortcut conflicts name the existing action and retain effective bindings 
     const shortcuts = { ...original, nextPanel: 'Command+K' };
     await workbench.saveSettings({ shortcuts });
     assert.equal(workbench.snapshot().settings.shortcuts.nextPanel, 'Command+K');
-    await assert.rejects(workbench.saveSettings({ shortcuts: { ...shortcuts, maximizePanel: 'Command+K' } }), /下一个面板/);
-    await assert.rejects(workbench.saveSettings({ shortcuts: { ...shortcuts, previousPanel: 'Command+K' } }), /下一个面板/);
-    assert.deepEqual(workbench.snapshot().settings.shortcuts, shortcuts);
-    await assert.rejects(workbench.saveSettings({ shortcuts: { ...shortcuts, nextPanel: 'Command+C' } }), /复制/);
-    assert.deepEqual(workbench.snapshot().settings.shortcuts, shortcuts);
+    for (const [patch, message] of [
+      [{ maximizePanel: 'Command+K' }, /下一个面板/], [{ previousPanel: 'Command+K' }, /下一个面板/], [{ nextPanel: 'Command+C' }, /复制/],
+    ] as const) {
+      const result = await workbench.saveSettings({ shortcuts: { ...shortcuts, ...patch } });
+      assert.ok(!result.ok && result.kind === 'validation');
+      assert.match(result.issues.map(issue => issue.message).join('；'), message);
+      assert.deepEqual(workbench.snapshot().settings.shortcuts, shortcuts);
+    }
     await workbench.saveSettings({ shortcuts: original });
     assert.deepEqual(workbench.snapshot().settings.shortcuts, original);
   } finally { await workbench.quit(); await rm(directory, { recursive: true, force: true }); }

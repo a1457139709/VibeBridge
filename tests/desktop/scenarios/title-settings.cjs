@@ -25,7 +25,7 @@ module.exports = async ({ window, evaluate, click, fill, until, directory, first
   await unchanged();
   assert.equal(await evaluate(`document.getElementById('command-codex').value`), '');
   await request(); await dialog(); await click('保存并返回');
-  await until(() => evaluate(`document.getElementById('command-codex').getAttribute('aria-invalid') === 'true' && !document.querySelector('.settings-leave[open]')`));
+  await until(() => evaluate(`document.getElementById('command-codex').getAttribute('aria-invalid') === 'true' && !document.querySelector('.settings-leave[open]') && !document.querySelector('.settings-save .primary').disabled`));
   await unchanged();
   await fill('command-codex', process.env.VIBEBRIDGE_TEST_NODE);
   await rename(join(directory, 'settings.json'), join(directory, 'title-settings-backup.json'));
