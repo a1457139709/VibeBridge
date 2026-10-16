@@ -42,6 +42,7 @@ module.exports = async function verifySettings({ window, evaluate, click, fill, 
   await until(() => evaluate(`document.getElementById('shortcut-maximizePanel').title === 'Command+K'`));
   await until(() => evaluate(`document.querySelector('.shortcut-conflict-message')?.textContent.includes('面板')`));
   await click('保存');
+  await until(() => evaluate(`document.querySelector('.settings-status').textContent.includes('存在按键冲突，未保存')`));
   assert.match(await evaluate(`document.querySelector('.settings-status').textContent`), /存在按键冲突，未保存/);
   assert.equal((await evaluate('window.workbench.snapshot()')).settings.shortcuts.maximizePanel, before.settings.shortcuts.maximizePanel);
   await click('放弃更改');

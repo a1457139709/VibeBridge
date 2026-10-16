@@ -1,11 +1,12 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
+import { chmod, mkdir, mkdtemp, readFile, rm } from 'node:fs/promises';
 import { resolve } from 'node:path';
 import { Workbench } from '../app/main/workbench';
 
+test.before(async () => { await mkdir('work/issue-65', { recursive: true }); });
+
 test('a settings submission reports every field problem and commits none of its categories', async () => {
-  await mkdir('work/issue-65', { recursive: true });
   const directory = await mkdtemp(resolve('work/issue-65/validation-'));
   const workbench = await Workbench.open(directory);
   try {
@@ -42,13 +43,13 @@ test('a real whole-submission write failure preserves the file and current setti
     const original = await readFile(`${directory}/settings.json`, 'utf8');
     const patch = { agents: { ...before.agents, pi: { command: '/new-pi', args: ['new'] } }, theme: 'dark' as const,
       defaultLayout: 'column' as const, shortcuts: { ...before.shortcuts, nextPanel: 'Command+K' } };
-    await mkdir(`${directory}/settings.json.tmp`);
-    await writeFile(`${directory}/settings.json.tmp/block-write`, 'block temporary file creation');
+    await chmod(`${directory}/settings.json`, 0o400);
+    await chmod(directory, 0o500);
     try {
       assert.deepEqual(await workbench.saveSettings(patch), { ok: false, kind: 'storage', message: '配置保存失败' });
       assert.deepEqual(workbench.snapshot().settings, before);
       assert.equal(await readFile(`${directory}/settings.json`, 'utf8'), original);
-    } finally { await rm(`${directory}/settings.json.tmp`, { recursive: true }); }
+    } finally { await chmod(directory, 0o700); await chmod(`${directory}/settings.json`, 0o600); }
     const result = await workbench.saveSettings(patch);
     assert.deepEqual(result, { ok: true, settings: { ...before, ...patch } });
     await workbench.quit();

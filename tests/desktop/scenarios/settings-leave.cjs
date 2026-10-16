@@ -1,5 +1,5 @@
 const assert = require('node:assert/strict');
-const { mkdir, readFile, rm, writeFile } = require('node:fs/promises');
+const { chmod, mkdir, readFile, writeFile } = require('node:fs/promises');
 module.exports = async function verifyLeavePaths({ window, evaluate, click, fill, until, directory }) {
   const before = await evaluate('window.workbench.snapshot()');
   const originalProject = before.projects.find(project => project.id === before.activeProjectId);
@@ -36,8 +36,8 @@ module.exports = async function verifyLeavePaths({ window, evaluate, click, fill
   await evaluate(`document.querySelectorAll('.notice button').forEach(button => button.click())`);
   const effective = await evaluate('window.workbench.snapshot()');
   const originalFile = await readFile(`${directory}/settings.json`, 'utf8');
-  await mkdir(`${directory}/settings.json.tmp`);
-  await writeFile(`${directory}/settings.json.tmp/block-write`, 'block temporary file creation');
+  await chmod(`${directory}/settings.json`, 0o400);
+  await chmod(directory, 0o500);
   try {
     await click(target.name); await until(() => evaluate(`!!document.querySelector('dialog[open]')`));
     const categories = await evaluate(`document.querySelector('dialog[open]').textContent`);
@@ -54,7 +54,7 @@ module.exports = async function verifyLeavePaths({ window, evaluate, click, fill
     await mkdir('outputs', { recursive: true });
     await evaluate('new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))');
     await writeFile('outputs/issue-47-settings.png', (await window.webContents.capturePage()).toPNG());
-  } finally { await rm(`${directory}/settings.json.tmp`, { recursive: true }); }
+  } finally { await chmod(directory, 0o700); await chmod(`${directory}/settings.json`, 0o600); }
   assert.equal(await evaluate(`document.querySelector('input[value="dark"]').checked`), true);
   assert.equal(await evaluate(`document.getElementById('default-layout').value`), 'column');
   await click('Agent'); assert.equal(await evaluate(`document.getElementById('command-pi').value`), '/valid-but-not-installed-pi');

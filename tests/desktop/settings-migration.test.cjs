@@ -11,6 +11,7 @@ module.exports = {
     const original = (await evaluate('window.workbench.snapshot()')).settings;
     assert.deepEqual((await evaluate('window.workbench.snapshot()')).errors, []);
     assert.ok(await evaluate(`!!document.querySelector('[aria-label="快捷键迁移提醒"]')`));
+    await require('./support/evidence.cjs')(window)('settings-migration-reminder');
     await click('打开快捷键设置');
     assert.equal(await evaluate(`document.querySelector('[aria-label="设置分类"] [aria-current="page"]').textContent`), '快捷键');
     assert.equal(await evaluate(`document.getElementById('shortcut-closePanel').title`), 'Command+Shift+W');
