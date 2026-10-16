@@ -7,9 +7,10 @@ import { defaultNavigation, navigationWidth, type NavigationPreferences, assigne
 import { ProjectStore } from './storage';
 import { SettingsFile, defaultSettings } from './settings';
 import { TerminalClient } from './terminal-client';
+import type { SettingsSaveResult } from '../shared/settings';
 
 export class Workbench {
-  private state: Snapshot = { navigation: { ...defaultNavigation }, projects: [], runs: [], activeProjectId: null, settings: defaultSettings(), startupTheme: 'system', resolvedTheme: 'light', errors: [] };
+  private state: Snapshot = { navigation: { ...defaultNavigation }, projects: [], runs: [], activeProjectId: null, settings: defaultSettings(), settingsMigrationConflict: false, startupTheme: 'system', resolvedTheme: 'light', errors: [] };
   private terminal: TerminalClient;
   private listeners = new Set<(event: WorkbenchEvent) => void>();
   private operations: Promise<unknown> = Promise.resolve();
@@ -36,6 +37,7 @@ export class Workbench {
       Object.assign(workbench.state, await store.load());
       try { workbench.state.settings = await workbench.settingsFile.read(); }
       catch (error) { workbench.state.errors.push((error as Error).message); }
+      workbench.state.settingsMigrationConflict = workbench.settingsFile.hasMigrationConflict;
       workbench.state.startupTheme = workbench.state.settings.theme;
       workbench.state.resolvedTheme = workbench.state.startupTheme === 'system' ? (systemDark ? 'dark' : 'light') : workbench.state.startupTheme;
       return workbench;
@@ -233,13 +235,13 @@ export class Workbench {
   resizeRun(runId: string, cols: number, rows: number) { return this.terminal.resize(runId, cols, rows); }
   acknowledgeOutput(runId: string, characters: number) { this.terminal.acknowledgeOutput(runId, characters); }
   checkCommand(command: string) { return this.terminal.checkCommand(command); }
-  saveSettings(patch: Partial<Settings>) {
+  saveSettings(patch: Partial<Settings>): Promise<SettingsSaveResult> {
     const update = structuredClone(patch);
     return this.operation(async () => {
-      const settings = { ...this.state.settings, ...update };
-      await this.settingsFile.save(settings);
-      this.state.settings = structuredClone(settings); this.changed();
-    });
+      const result = await this.settingsFile.commit(this.state.settings, update);
+      if (result.ok) { this.state.settings = structuredClone(result.settings); this.state.settingsMigrationConflict = false; this.changed(); }
+      return result;
+    }).catch(() => ({ ok: false, kind: 'unavailable', message: '设置暂时无法保存，请稍后重试' }));
   }
   quit(): Promise<void> {
     if (this.quitPromise) return this.quitPromise;

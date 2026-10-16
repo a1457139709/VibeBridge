@@ -12,6 +12,7 @@ import { usePanelLocation } from './panel-location';
 import { Notices, useNotices } from './Notices';
 import { SettingsPage, type SettingsPageActions } from './SettingsPage';
 import { shortcutActions, shortcutFromEvent } from '../shared/shortcuts';
+import type { SettingsCategory } from '../shared/settings';
 import { configureTerminals, reconcileTerminals, terminalEvent } from './terminals';
 import '@xterm/xterm/css/xterm.css';
 import './style.css';
@@ -24,6 +25,8 @@ function App() {
   const [draft, setDraft] = useState(newDraft);
   const [setup, setSetup] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [initialSettingsCategory, setInitialSettingsCategory] = useState<SettingsCategory>();
+  const [migrationDismissed, setMigrationDismissed] = useState(false);
   const settingsPage = useRef<SettingsPageActions>(null);
   const leavingSettings = useRef(false);
   const workspace = useRef<WorkspaceActions>(null);
@@ -68,7 +71,11 @@ function App() {
   const navigate = (action: () => void) => {
     if (settingsOpen) void leaveSettings(action); else action();
   };
-  const toggleSettings = () => { if (settingsOpen) void leaveSettings(); else location.leaveWorkbench(() => setSettingsOpen(true)); };
+  const openSettings = (category?: SettingsCategory) => {
+    if (settingsOpen) { if (category) settingsPage.current?.showCategory(category); }
+    else location.leaveWorkbench(() => { setInitialSettingsCategory(category); setSettingsOpen(true); });
+  };
+  const toggleSettings = () => { if (settingsOpen) void leaveSettings(); else openSettings(); };
   const activate = (id: string) => navigate(() => location.openProject(id));
   const create = () => navigate(() => location.leaveWorkbench(() => setSetup(true)));
   const locatePanel = (projectId: string, panelId: string) => navigate(() => location.locatePanel(projectId, panelId));
@@ -113,6 +120,11 @@ function App() {
     <header className="system-bar"><div className="system-brand"><button aria-label={collapsed ? '展开项目导航' : '折叠项目导航'} aria-expanded={!collapsed} disabled={!state} onClick={() => {
       if (state) void window.workbench.saveNavigation({ ...state.navigation, visible: collapsed }).catch(error => report(error.message));
     }}>☷</button><span className="wordmark">VibeBridge</span></div></header>
+    {state?.settingsMigrationConflict && !migrationDismissed && <aside className="settings-migration-notice" role="status" aria-label="快捷键迁移提醒">
+      <span>新增的默认快捷键与已有绑定冲突。可稍后处理，保存设置前需修正冲突。</span>
+      <button onClick={() => openSettings('shortcuts')}>打开快捷键设置</button>
+      <button aria-label="关闭快捷键迁移提醒" onClick={() => setMigrationDismissed(true)}>稍后处理</button>
+    </aside>}
     <div className="app-body"><nav className={`navigation ${collapsed ? 'collapsed' : ''}`} aria-label="项目导航">
       <div className="navigation-projects"><div className="nav-heading">工作项目</div>
         {state?.projects.map(project => {
@@ -138,7 +150,7 @@ function App() {
       <div className={`workbench-page ${location.locating ? 'locating-panel' : ''}`} hidden={settingsOpen} inert={settingsOpen}>
         {!state ? <div className="empty">正在打开工作台…</div> : setup ? <Setup defaultLayout={state.settings.defaultLayout} draft={draft} change={setDraft} cancel={() => setSetup(false)} created={id => { setDraft(newDraft()); activate(id); }} openProject={activate} report={report} /> : active ? <Workspace ref={workspace} visible={!settingsOpen} key={active.id} project={active} runs={state.runs} report={report} location={location} /> : <div className="empty"><p>让你的 Agent 在同一个工作台中并行工作</p><button className="primary" onClick={create}>创建项目</button></div>}
       </div>
-      {state && settingsOpen && <SettingsPage ref={settingsPage} settings={state.settings} startupTheme={state.startupTheme} report={report} back={() => void leaveSettings()} />}
+      {state && settingsOpen && <SettingsPage ref={settingsPage} settings={state.settings} startupTheme={state.startupTheme} initialCategory={initialSettingsCategory} report={report} back={() => void leaveSettings()} />}
     </main></div>
     <Notices notices={notices} dismiss={dismiss} />
   </div>;

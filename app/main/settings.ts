@@ -1,23 +1,14 @@
 import { readFile, writeFile, rename, mkdir, rm } from 'node:fs/promises';
 import { join } from 'node:path';
-import { agentNames, agentTypes, type Settings } from '../shared/model';
-import { defaultShortcuts, shortcutActions, shortcutConflicts, validateShortcutFormats, validateShortcuts } from '../shared/shortcuts';
+import type { Settings } from '../shared/model';
+import { defaultShortcuts, shortcutActions, shortcutConflicts, validateShortcuts } from '../shared/shortcuts';
 
-import { defaultSettings } from '../shared/settings';
+import { defaultSettings, settingsIssues, type SettingsSaveResult } from '../shared/settings';
 export { defaultSettings } from '../shared/settings';
 
-export class SettingsFieldError extends Error {
-  constructor(public fields: Record<string, string>, message: string) { super(message); }
-}
-
 export function validateSettings(value: Settings, allowShortcutConflicts = false): void {
-  if (!value || !['system', 'dark', 'light'].includes(value.theme) || !['auto', 'row', 'column'].includes(value.defaultLayout) || agentTypes.some(type => {
-    const command = value.agents?.[type];
-    return !command || typeof command.command !== 'string' || !Array.isArray(command.args) || command.args.some(arg => typeof arg !== 'string');
-  })) throw new Error('配置文件损坏，请修正 settings.json 后重新启动');
-  const empty = agentTypes.filter(type => !value.agents[type].command.trim());
-  if (empty.length) throw new SettingsFieldError(Object.fromEntries(empty.map(type => [`agents.${type}.command`, '启动命令不能为空'])), `${agentNames[empty[0]]}：启动命令不能为空`);
-  if (allowShortcutConflicts) validateShortcutFormats(value.shortcuts); else validateShortcuts(value.shortcuts);
+  const issues = settingsIssues(value).filter(issue => !allowShortcutConflicts || issue.code !== 'conflict');
+  if (issues.length) throw new Error(issues.map(issue => issue.message).join('；'));
 }
 
 export class SettingsFile {
@@ -25,6 +16,7 @@ export class SettingsFile {
   private readable = true;
   private migratedConflict = false;
   constructor(private directory: string) {}
+  get hasMigrationConflict() { return this.migratedConflict; }
   async read(): Promise<Settings> {
     try {
       const value = JSON.parse(await readFile(join(this.directory, 'settings.json'), 'utf8'));
@@ -44,9 +36,19 @@ export class SettingsFile {
     }
   }
   saveOnQuit(settings: Settings): Promise<void> {
-    // A compatible missing-action migration is an in-memory draft until the user resolves it.
+    // Preserve the original file until the user repairs a missing-action migration conflict.
     if (this.readable && this.migratedConflict && shortcutConflicts(settings.shortcuts).length) return Promise.resolve();
     return this.save(settings);
+  }
+  async commit(current: Settings, patch: Partial<Settings>): Promise<SettingsSaveResult> {
+    const settings = { ...current, ...patch };
+    const issues = settingsIssues(settings);
+    if (issues.length) return { ok: false, kind: 'validation', issues };
+    try {
+      await this.save(settings);
+      this.migratedConflict = false;
+      return { ok: true, settings };
+    } catch (error) { return { ok: false, kind: 'storage', message: (error as Error).message }; }
   }
   save(settings: Settings): Promise<void> {
     validateSettings(settings);

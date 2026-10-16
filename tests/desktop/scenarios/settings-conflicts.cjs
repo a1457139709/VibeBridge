@@ -29,10 +29,11 @@ module.exports = async function verifyConflicts({ window, evaluate, click, until
   assert.match(await evaluate(`document.getElementById('shortcut-previousProject').closest('.shortcut-row').textContent`), /切换到下一个项目.*切换到下一个面板.*打开全局设置/);
   assert.match(await evaluate(`document.getElementById('shortcut-addPanel').closest('.shortcut-row').textContent`), /系统.*复制/);
   await click('保存');
+  await until(() => evaluate(`document.querySelector('.settings-status').textContent.includes('存在按键冲突，未保存')`));
   assert.match(await evaluate(`document.querySelector('.settings-page').textContent`), /存在按键冲突，未保存/);
   assert.deepEqual((await evaluate('window.workbench.snapshot()')).settings.shortcuts, before);
   await click('‹ 返回'); await click('保存并返回');
-  await until(() => evaluate(`!document.querySelector('dialog[open]')`));
+  await until(() => evaluate(`!document.querySelector('dialog[open]') && !document.querySelector('.settings-save .primary').disabled`));
   assert.ok(await evaluate(`!!document.querySelector('.settings-page')`));
   await click('放弃更改');
   assert.equal(await evaluate(`document.getElementById('shortcut-nextPanel').title`), 'Command+K');

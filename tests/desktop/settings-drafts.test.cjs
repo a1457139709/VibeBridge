@@ -43,7 +43,7 @@ module.exports = {
     await click('Agent');
     assert.equal(await evaluate(`document.getElementById('command-codex').value`), '');
     await click('保存');
-    await until(() => evaluate(`document.getElementById('command-codex').getAttribute('aria-invalid') === 'true'`));
+    await until(() => evaluate(`document.querySelector('.settings-status').textContent.includes('存在需修正的设置，未保存')`));
     assert.match(await evaluate(`document.querySelector('.settings-page').textContent`), /启动命令不能为空/);
     assert.match(await evaluate(`document.querySelector('.settings-page').textContent`), /存在需修正的设置，未保存/);
     await until(() => evaluate(`document.activeElement.id === 'command-codex'`));

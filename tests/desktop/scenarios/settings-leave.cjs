@@ -1,5 +1,5 @@
 const assert = require('node:assert/strict');
-const { mkdir, rename, rm, writeFile } = require('node:fs/promises');
+const { mkdir, readFile, rm, writeFile } = require('node:fs/promises');
 module.exports = async function verifyLeavePaths({ window, evaluate, click, fill, until, directory }) {
   const before = await evaluate('window.workbench.snapshot()');
   const originalProject = before.projects.find(project => project.id === before.activeProjectId);
@@ -35,7 +35,9 @@ module.exports = async function verifyLeavePaths({ window, evaluate, click, fill
   await click('外观');
   await evaluate(`document.querySelectorAll('.notice button').forEach(button => button.click())`);
   const effective = await evaluate('window.workbench.snapshot()');
-  await rename(`${directory}/settings.json`, `${directory}/settings-backup.json`); await mkdir(`${directory}/settings.json`);
+  const originalFile = await readFile(`${directory}/settings.json`, 'utf8');
+  await mkdir(`${directory}/settings.json.tmp`);
+  await writeFile(`${directory}/settings.json.tmp/block-write`, 'block temporary file creation');
   try {
     await click(target.name); await until(() => evaluate(`!!document.querySelector('dialog[open]')`));
     const categories = await evaluate(`document.querySelector('dialog[open]').textContent`);
@@ -43,15 +45,20 @@ module.exports = async function verifyLeavePaths({ window, evaluate, click, fill
     await click('保存并返回');
     await until(() => evaluate(`document.querySelector('.settings-status').textContent.includes('配置保存失败')`));
     assert.equal(await evaluate(`document.querySelector('.settings-status').textContent`), '配置保存失败', 'failure reason is user-facing, without the IPC transport prefix');
-    assert.equal(await evaluate(`document.querySelector('[aria-label="设置分类"] [aria-current="page"]').textContent`), '快捷键');
+    assert.equal(await evaluate(`document.querySelector('[aria-label="设置分类"] [aria-current="page"]').textContent`), '外观');
     assert.equal(await evaluate(`!!document.querySelector('.notice.success')`), false, 'failed writes never report success');
     assert.deepEqual((await evaluate('window.workbench.snapshot()')).settings, effective.settings);
+    assert.equal(await readFile(`${directory}/settings.json`, 'utf8'), originalFile);
     assert.equal((await evaluate('window.workbench.snapshot()')).activeProjectId, originalProject.id);
     assert.equal(await evaluate(`(() => { const b = document.querySelector('.settings-status').getBoundingClientRect(); return b.top >= 44 && b.bottom < innerHeight; })()`), true, 'failure stays beside the fixed save button');
     await mkdir('outputs', { recursive: true });
     await evaluate('new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))');
     await writeFile('outputs/issue-47-settings.png', (await window.webContents.capturePage()).toPNG());
-  } finally { await rm(`${directory}/settings.json`, { recursive: true }); await rename(`${directory}/settings-backup.json`, `${directory}/settings.json`); }
+  } finally { await rm(`${directory}/settings.json.tmp`, { recursive: true }); }
+  assert.equal(await evaluate(`document.querySelector('input[value="dark"]').checked`), true);
+  assert.equal(await evaluate(`document.getElementById('default-layout').value`), 'column');
+  await click('Agent'); assert.equal(await evaluate(`document.getElementById('command-pi').value`), '/valid-but-not-installed-pi');
+  await click('快捷键'); assert.equal(await evaluate(`document.getElementById('shortcut-previousProject').title`), 'Command+U');
   await click(target.name); await click('保存并返回');
   await until(async () => (await evaluate('window.workbench.snapshot()')).activeProjectId === target.id);
   await until(() => evaluate(`!document.querySelector('.settings-page')`));

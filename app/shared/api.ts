@@ -1,4 +1,5 @@
 import type { NavigationPreferences, AgentType, CommandCheck, DirectoryResult, Layout, ProjectCreation, PanelCreation, ProjectDraft, ProjectEdit, ProjectEditResult, Settings, Snapshot, WorkbenchEvent } from './model';
+import type { SettingsSaveResult } from './settings';
 
 export interface DesktopAPI {
   snapshot(): Promise<Snapshot>;
@@ -12,7 +13,7 @@ export interface DesktopAPI {
   closePanel(projectId: string, panelId: string): Promise<void>;
   saveLayout(projectId: string, layout: Layout | null): Promise<void>;
   saveNavigation(preferences: NavigationPreferences): Promise<void>;
-  saveSettings(settings: Partial<Settings>): Promise<void>;
+  saveSettings(settings: Partial<Settings>): Promise<SettingsSaveResult>;
   checkCommand(command: string): Promise<CommandCheck>;
   sendInput(runId: string, data: string): Promise<void>;
   resizeRun(runId: string, cols: number, rows: number): Promise<void>;
