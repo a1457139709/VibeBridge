@@ -1,11 +1,8 @@
-import { useEffect, useRef, useState, type CSSProperties, type PointerEvent } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { createRoot } from 'react-dom/client';
 import type {} from '../shared/api';
-import { newDraft, navigationWidth, type Snapshot } from '../shared/model';
-import { capturePointer } from './pointer-capture';
-import { sessionTitle } from '../shared/session-title';
-import { agentIcons } from './agent-icons';
-import { ProjectNavigationItem } from './ProjectManagement';
+import { newDraft, type Snapshot } from '../shared/model';
+import { useProjectNavigation } from './ProjectNavigation';
 import { Setup } from './Setup';
 import { Workspace, type WorkspaceActions } from './Workspace';
 import { usePanelLocation } from './panel-location';
@@ -17,9 +14,6 @@ import { configureTerminals, reconcileTerminals, terminalEvent } from './termina
 import '@xterm/xterm/css/xterm.css';
 import './style.css';
 
-const nameSegments = new Intl.Segmenter(undefined, { granularity: 'grapheme' });
-const projectInitial = (name: string) => nameSegments.segment(name)[Symbol.iterator]().next().value?.segment.toUpperCase() ?? '';
-
 function App() {
   const [state, setState] = useState<Snapshot>();
   const [draft, setDraft] = useState(newDraft);
@@ -30,15 +24,6 @@ function App() {
   const settingsPage = useRef<SettingsPageActions>(null);
   const leavingSettings = useRef(false);
   const workspace = useRef<WorkspaceActions>(null);
-  const collapsed = state ? !state.navigation.visible : false;
-  const [dragWidth, setDragWidth] = useState<number>();
-  const cancelResize = useRef<(() => void) | undefined>(undefined);
-  useEffect(() => () => cancelResize.current?.(), []);
-  const [expandedProjects, setExpandedProjects] = useState<Record<string, boolean>>({});
-  useEffect(() => {
-    const id = state?.activeProjectId;
-    if (id) setExpandedProjects(previous => previous[id] === undefined ? { ...previous, [id]: true } : previous);
-  }, [state?.activeProjectId]);
   const { notices, report, dismiss } = useNotices();
   const location = usePanelLocation({ snapshot: state, visible: !settingsOpen && !setup,
     activateProject: id => window.workbench.activateProject(id), showWorkbench: () => setSetup(false), report });
@@ -79,24 +64,8 @@ function App() {
   const activate = (id: string) => navigate(() => location.openProject(id));
   const create = () => navigate(() => location.leaveWorkbench(() => setSetup(true)));
   const locatePanel = (projectId: string, panelId: string) => navigate(() => location.locatePanel(projectId, panelId));
-  function resizeNavigation(event: PointerEvent<HTMLDivElement>) {
-    if (!state || event.button !== 0) return;
-    event.preventDefault(); cancelResize.current?.();
-    const element = event.currentTarget, start = event.clientX;
-    const width = element.parentElement!.getBoundingClientRect().width;
-    let next = width;
-    const move = (pointer: globalThis.PointerEvent) => {
-      next = navigationWidth(width + pointer.clientX - start); setDragWidth(next);
-    };
-    const finish = (commit: boolean) => {
-      window.removeEventListener('blur', cancel); cancelResize.current = undefined;
-      if (commit) void window.workbench.saveNavigation({ ...state.navigation, width: next }).catch(error => report(error.message)).finally(() => setDragWidth(undefined));
-      else setDragWidth(undefined);
-    };
-    const cancel = capturePointer(element, event.pointerId, { move, finish });
-    cancelResize.current = cancel;
-    window.addEventListener('blur', cancel);
-  }
+  const navigation = useProjectNavigation({ snapshot: state, page: settingsOpen ? 'settings' : setup ? 'setup' : 'workbench',
+    view: location.view, openProject: activate, locatePanel, createProject: create, toggleSettings, report });
   const active = state?.projects.find(project => project.id === state.activeProjectId);
   useEffect(() => {
     const keydown = (event: KeyboardEvent) => {
@@ -116,37 +85,14 @@ function App() {
     window.addEventListener('keydown', keydown, true);
     return () => window.removeEventListener('keydown', keydown, true);
   }, [state, setup, settingsOpen]);
-  return <div className={`app ${collapsed ? 'navigation-collapsed' : ''}`} style={{ '--navigation-width': `${dragWidth ?? state?.navigation.width ?? 212}px` } as CSSProperties}>
-    <header className="system-bar"><div className="system-brand"><button aria-label={collapsed ? '展开项目导航' : '折叠项目导航'} aria-expanded={!collapsed} disabled={!state} onClick={() => {
-      if (state) void window.workbench.saveNavigation({ ...state.navigation, visible: collapsed }).catch(error => report(error.message));
-    }}>☷</button><span className="wordmark">VibeBridge</span></div></header>
+  return <div className="app">
+    <header className="system-bar"><div className="system-brand">{navigation.toggle}<span className="wordmark">VibeBridge</span></div></header>
     {state?.settingsMigrationConflict && !migrationDismissed && <aside className="settings-migration-notice" role="status" aria-label="快捷键迁移提醒">
       <span>新增的默认快捷键与已有绑定冲突。可稍后处理，保存设置前需修正冲突。</span>
       <button onClick={() => openSettings('shortcuts')}>打开快捷键设置</button>
       <button aria-label="关闭快捷键迁移提醒" onClick={() => setMigrationDismissed(true)}>稍后处理</button>
     </aside>}
-    <div className="app-body"><nav className={`navigation ${collapsed ? 'collapsed' : ''}`} aria-label="项目导航">
-      <div className="navigation-projects"><div className="nav-heading">工作项目</div>
-        {state?.projects.map(project => {
-          const expanded = expandedProjects[project.id] ?? active?.id === project.id;
-          const selected = location.view(project.id).selected;
-          return <section key={project.id} className="project-group" data-project-id={project.id}>
-            <ProjectNavigationItem project={project} runs={state.runs} openProject={activate}>
-              <button className="project-disclosure" aria-label={`${expanded ? '收起' : '展开'}项目面板：${project.name}`} aria-expanded={expanded} onClick={() => setExpandedProjects(previous => ({ ...previous, [project.id]: !expanded }))}>{expanded ? '⌄' : '›'}</button>
-              <button title={`${project.name} · ${project.panels.length} 个面板`} aria-label={project.name} aria-current={!settingsOpen && !setup && active?.id === project.id ? 'page' : undefined} className={`project-link ${!settingsOpen && !setup && active?.id === project.id ? 'selected' : ''}`} onClick={() => activate(project.id)}><span className="project-initial" aria-hidden="true">{projectInitial(project.name)}</span><span className="project-name">{project.name}</span><small>{project.panels.length}</small></button>
-            </ProjectNavigationItem>
-            {expanded && !!project.panels.length && <div className="project-panels" aria-label={`${project.name}的面板`}>{project.panels.map(panel => {
-              const title = sessionTitle(panel.agent, state.runs.find(run => run.panelId === panel.id)?.rawTitle);
-              const current = !settingsOpen && !setup && active?.id === project.id && selected === panel.id;
-              return <button key={panel.id} data-locate-panel-id={panel.id} title={title} aria-current={current ? 'true' : undefined} className={`panel-link ${panel.agent} ${current ? 'selected' : ''}`} onClick={() => locatePanel(project.id, panel.id)}><span className="agent-mark" aria-hidden="true">{agentIcons[panel.agent]}</span><span className="session-title">{title}</span></button>;
-            })}</div>}
-          </section>;
-        })}
-        <button className={`add-project ${!settingsOpen && setup ? 'selected' : ''}`} aria-label="添加项目" aria-current={!settingsOpen && setup ? 'page' : undefined} onClick={create}><span>＋</span>添加项目</button>
-      </div>
-      <div className="nav-footer"><span>本地 Agent 工作台</span><button className={`settings-entry ${settingsOpen ? 'selected' : ''}`} aria-label="全局设置" aria-current={settingsOpen ? 'page' : undefined} disabled={!state} onClick={toggleSettings}>⚙</button></div>
-      <div className="navigation-resize" role="separator" aria-label="调整项目导航宽度" aria-orientation="vertical" onPointerDown={resizeNavigation} />
-    </nav><main>
+    <div className="app-body">{navigation.sidebar}<main>
       <div className={`workbench-page ${location.locating ? 'locating-panel' : ''}`} hidden={settingsOpen} inert={settingsOpen}>
         {!state ? <div className="empty">正在打开工作台…</div> : setup ? <Setup defaultLayout={state.settings.defaultLayout} draft={draft} change={setDraft} cancel={() => setSetup(false)} created={id => { setDraft(newDraft()); activate(id); }} openProject={activate} report={report} /> : active ? <Workspace ref={workspace} visible={!settingsOpen} key={active.id} project={active} runs={state.runs} report={report} location={location} /> : <div className="empty"><p>让你的 Agent 在同一个工作台中并行工作</p><button className="primary" onClick={create}>创建项目</button></div>}
       </div>
