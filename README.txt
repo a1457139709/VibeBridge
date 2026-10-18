@@ -28,7 +28,8 @@ The bottom bar does not get taller when projects are added.
 The beige area is a prototype control surface, not product UI. It includes
 compact panels, dense projects, long titles, all-zero counts, light/dark themes,
 narrow width. Zero counts always remain visible and dimmed. Busy glyphs are static in this revision.
-Click a nonzero count to list matching panels, then a result to locate it.
+Accepted: click a nonzero count to list matching panels, then select a result
+to locate it. Zero counts are disabled.
 Use maximize and settings-draft controls to inspect the proposed locate behavior.
 Viewing does not clear Done / Error. "Not started" is shown for an unstarted
 project rather than creating zero counts for a running project.
@@ -58,3 +59,12 @@ This is a UI discussion artifact, not production acceptance or CLI evidence.
 Round 3: removed the visible project title and divider from C only.
 
 User confirmed keeping dimmed zero counts. The hide-zero comparison control was removed.
+
+Latest placement proposal: C opens the panel list immediately above the clicked
+count, aligned to its left edge and clamped inside the workbench. This keeps
+the interaction near the bottom-left controls instead of across the window.
+The open count is highlighted. Escape, the close button or repeating the count
+closes the list and returns focus to the trigger; outside click also dismisses.
+The left-bottom anchoring is a recommendation awaiting user feedback.
+
+The anchored popup and Escape dismissal were observed in Safari.
