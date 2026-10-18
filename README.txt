@@ -1,4 +1,4 @@
-VibeBridge Agent status UI — round 3 throwaway prototype
+VibeBridge Agent status UI — round 4 throwaway prototype
 
 Open index.html directly, or run from this directory:
   python3 -m http.server 4178 --bind 127.0.0.1
@@ -9,7 +9,7 @@ Only Needs input / Done / Error are counted in this revision.
 The five state glyphs and their position left of Agent type marks were accepted.
 Busy remains a panel/navigation state; "remove Busy" is interpreted here as
 removing its summary count. Zero counts stay visible and dimmed, as explicitly selected.
-Other interaction details remain candidates.
+The accepted interactions and remaining candidates are distinguished below.
 
 C: a single 34px bar across the bottom of the workbench, always visible.
    Shows only status counts, with no project title or title separator.
@@ -27,10 +27,16 @@ The bottom bar does not get taller when projects are added.
 
 The beige area is a prototype control surface, not product UI. It includes
 compact panels, dense projects, long titles, all-zero counts, light/dark themes,
-narrow width. Zero counts always remain visible and dimmed. Busy glyphs are static in this revision.
+narrow width. Zero counts always remain visible and dimmed. All status glyphs are static, as selected.
 Accepted: click a nonzero count to list matching panels, then select a result
 to locate it. Zero counts are disabled.
-Use maximize and settings-draft controls to inspect the proposed locate behavior.
+Settings keeps the last viewed project's summary, with live simulated counts.
+Use the next-state control while on settings to see the counts update.
+Panel location inherits the source view: tiled stays tiled; maximized stays
+maximized on the target panel. Settings retains the view from before entry.
+Project-title navigation restores that project's previous demo view.
+The browser demo focuses the target panel; it has no real terminal input.
+Use maximize and settings-draft controls to inspect these paths.
 Viewing does not clear Done / Error. "Not started" is shown for an unstarted
 project rather than creating zero counts for a running project.
 
@@ -60,11 +66,25 @@ Round 3: removed the visible project title and divider from C only.
 
 User confirmed keeping dimmed zero counts. The hide-zero comparison control was removed.
 
-Latest placement proposal: C opens the panel list immediately above the clicked
+Accepted placement: C opens the panel list immediately above the clicked
 count, aligned to its left edge and clamped inside the workbench. This keeps
 the interaction near the bottom-left controls instead of across the window.
 The open count is highlighted. Escape, the close button or repeating the count
 closes the list and returns focus to the trigger; outside click also dismisses.
-The left-bottom anchoring is a recommendation awaiting user feedback.
+The user accepted the bottom-left anchoring and the list opening, switching,
+closing, and panel selection interactions. Selecting another count switches
+the list; selecting a panel closes it and locates that panel.
+
+The user accepted keeping the bar visible on settings and showing the last
+viewed project's changing counts. All five state glyphs remain static.
+The not-started sample and the finer draft-cancellation behavior are still
+discussion candidates, not decisions. Production navigation starts a project
+on first entry; this sample does not demonstrate startup or CLI behavior.
 
 The anchored popup and Escape dismissal were observed in Safari.
+
+Round 4 validation: script syntax checked. In Safari, locating a Needs input
+panel from a maximized Busy panel kept the target maximized and focused it.
+While settings was open with a simulated draft, advancing that panel's state
+changed the summary from 1 Needs input / 1 Done to 0 Needs input / 2 Done.
+The draft and settings page remained present. Demo reset after validation.
