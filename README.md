@@ -14,13 +14,13 @@ macOS 本地多项目 Agent CLI 工作台。在一个窗口中管理多个项目
 ## 环境要求
 
 - macOS
-- Node.js 22.12 或以上
-- 本机已安装并登录 `codex`、`claude`、`pi`
+- Node.js 22.22.2+（22.x）、24.15+（24.x）或 26+，与组件测试依赖要求一致
+- 操作真实 Agent 时需安装并登录对应的 `codex`、`claude` 或 `pi`；自动测试只使用可控 CLI
 
 ## 安装与运行
 
 ```sh
-npm ci
+npm ci                             # 同时通过 prepare 安装 Husky pre-commit 钩子
 npx --no-install install-electron   # 下载锁定的 Electron 运行时二进制
 npm run rebuild:terminal            # 重建原生 PTY 模块
 npm run prepare:runtime             # 运行时预检
@@ -75,24 +75,40 @@ npm run package
 
 ## 验证
 
+完成上面的开发依赖与原生运行时安装后，普通 `git commit` 会自动运行同一个无窗口检查入口：
+
 ```sh
-npm run typecheck
-npm test
-npm run build
-npm run test:desktop:all
+npm run check                      # typecheck → 单元／模块测试 → 组件测试
 ```
 
-`test:desktop:all` 自动发现 `tests/desktop/` 目录直属的 `*.test.cjs` 入口，按文件名顺序执行，任一失败即停止并返回非零退出码。单独复查使用 `npm run test:desktop -- --setup`（或 `--appearance`、`--titles`、`--panels` 等，`--list` 列出全部入口）。导出 `manual` 原因的入口不参与全量，按名称仍可运行，例如 `--codex` 需要本机 Codex CLI 和历史记录。打包应用检查先准备 `.app`，再运行 `node scripts/test-desktop.mjs --packaged`；`VIBEBRIDGE_TEST_APP` 可指定另一个待测 `.app` 路径。
+任一阶段失败会以非零状态阻止提交，输出保留具体失败文件和断言。检查直接读取当前工作区，不创建暂存快照、不自动暂存或藏起修改；提交者负责保证工作区与拟提交内容一致。`npm ci` 的 `prepare` 安装钩子，已有检出可运行 `npm run prepare` 重新安装，`git config --get core.hooksPath` 应为 `.husky/_`。不要用 `--ignore-scripts` 跳过标准安装中的钩子步骤。
 
-测试目录按用途组织：
+本地检查完整运行既有真实 PTY、存储、输入路由、运行生命周期和进程清理测试。Electron 仅以 `ELECTRON_RUN_AS_NODE=1` 运行模块测试；组件使用 jsdom 和可控 `window.workbench` 接口，均不创建桌面或报告窗口，也不操作系统焦点。单个测试文件排查：
 
-- `tests/*.test.ts`：业务测试及运行器测试，由 `npm test` 自动发现。
-- `tests/desktop/*.test.cjs`：桌面测试入口，由桌面命令自动发现。
-- `tests/desktop/scenarios/`：依赖所属测试前序状态的子场景。
-- `tests/desktop/support/`：Electron 测试宿主与共用工具。
-- `tests/fixtures/`：可控 CLI 和业务测试子进程。
+```sh
+npm test -- tests/project-management.test.ts
+npm run test:components -- tests/components/Setup.test.tsx
+npm run typecheck
+npm run build                      # 只构建，不启动应用
+```
 
-新增桌面测试：创建 `tests/desktop/<name>.test.cjs`，导出包含 `async run(context)` 的对象，可选导出 `configure(settings)`、`reopen(context)`、`expectedDialogError`、`manual`；全量命令自动执行，`npm run test:desktop -- --<name>` 单独运行。参考 [默认流程](tests/desktop/default.test.cjs)。
+PR 自动在 GitHub 托管 `macos-15` 上执行两个检查：
+
+- **Code checks**：同一 `npm run check` 入口及生产构建。
+- **Desktop checks**：构建后串行运行应用启动/IPC、可控 CLI 终端输入输出/进程清理、保存配置和布局后重开恢复三条流程。
+
+`main` 的合并必需检查为 **Code checks** 和 **Desktop checks**，要求与最新 main 同步；任一未通过不能正常合并。分支保护属于 GitHub 仓库设置，复制仓库时也需在目标仓库设置这两个名称，单有工作流文件不足以限制合并。工作流只在 PR、main 推送及手动触发时运行，无夜间任务。
+
+桌面用例只在云端运行。`npm run test:desktop -- --list` 可安全列出入口；排查使用 GitHub Actions 的 Checks 工作流，单条云端命令为 `npm run test:desktop -- --terminal`（或 `--startup`、`--restore`）。本机执行桌面命令会拒绝启动，不能作为本地失败的自动回退。每条用例独立隔离数据，保存/重开流程内部共享同一数据目录；失败日志、截图和快照通过 `macos-desktop-failure` artifact 保留七天。
+
+外观、实际拖拽/缩放、复杂焦点和真实 CLI 兼容性由用户手动验收。完整的旧桌面断言去向和验收清单见 [测试分层盘点](docs/testing/desktop-migration.md)。恢复布局只恢复项目、面板配置和排列；CLI 启动为新运行实例，不表示恢复会话。
+
+测试目录：
+
+- `tests/*.test.ts`：公共规则、无窗口模块/集成测试，以及用替身进程验证的 Git 钩子和桌面运行器测试。
+- `tests/components/*.test.tsx`：进程内组件测试，独立于原生桌面交互。
+- `tests/desktop/*.test.cjs`：仅保留三类云端贯通流程；`support/` 为宿主和失败诊断。
+- `tests/fixtures/`：可控 CLI 和业务测试子进程，不读取个人 Agent 历史。
 
 ## 代码结构
 
@@ -101,4 +117,4 @@ npm run test:desktop:all
 - `app/main/storage-worker.ts`：工作线程中的 SQLite 事务，避免阻塞主进程。
 - `app/main/settings.ts`：串行、完整临时写入后替换的配置保存。
 - `app/renderer/terminals.ts`：xterm.js 实例及有界滚动缓冲，视图卸载不结束运行。
-- `app/renderer/panel-interactions.ts`：面板布局交互入口，统一交换预览、分隔线约束、取消与面板测量调度；[职责与验证记录](docs/issue-63-verification.md)。
+- `app/renderer/panel-interactions.ts`：面板布局交互入口，统一交换预览、分隔线约束、取消与面板测量调度。

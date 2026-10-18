@@ -2,6 +2,7 @@ name: Checks
 
 on:
   push:
+    branches: [main]
   pull_request:
   workflow_dispatch:
 
@@ -13,8 +14,8 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  macos:
-    name: macOS typecheck, tests and build
+  code:
+    name: Code checks
     runs-on: macos-15
     timeout-minutes: 30
     steps:
@@ -27,23 +28,33 @@ jobs:
       - run: npx --no-install install-electron
       - run: npm run rebuild:terminal
       - run: npm run prepare:runtime
-      - run: npm run typecheck
-      - run: npm test
+      - run: npm run check
       - run: npm run build
-      - name: Desktop regression tests
-        if: github.event_name == 'workflow_dispatch'
+  desktop:
+    name: Desktop checks
+    needs: code
+    runs-on: macos-15
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: '24'
+          cache: npm
+      - run: npm ci
+      - run: npx --no-install install-electron
+      - run: npm run rebuild:terminal
+      - run: npm run prepare:runtime
+      - run: npm run build
+      - name: Critical desktop flows
         id: desktop
-        timeout-minutes: 20
-        shell: bash
-        run: |
-          set -o pipefail
-          mkdir -p work/ci
-          npm run test:desktop:all 2>&1 | tee work/ci/desktop-tests.log
-      - name: Upload desktop failure log
-        if: ${{ github.event_name == 'workflow_dispatch' && failure() && steps.desktop.outcome == 'failure' }}
+        timeout-minutes: 10
+        run: npm run test:desktop:all
+      - name: Upload desktop failure diagnostics
+        if: ${{ failure() && steps.desktop.outcome == 'failure' }}
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
-          name: macos-desktop-failure-log
-          path: work/ci/desktop-tests.log
+          name: macos-desktop-failure
+          path: work/desktop-artifacts/
           retention-days: 7
-          if-no-files-found: error
+          if-no-files-found: warn

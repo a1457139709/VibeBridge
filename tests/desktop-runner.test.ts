@@ -30,6 +30,7 @@ Promise.resolve().then(() => (reopen ? suite.reopen : suite.run)({ directory, re
     write: (name: string, source: string) => writeFile(`${directory}/tests/desktop/${name}`, source),
     run: (...args: string[]) => spawnSync(node, ['scripts/test-desktop.mjs', ...args], {
       cwd: directory, encoding: 'utf8', timeout: 10000,
+      env: { ...process.env, CI: 'true', GITHUB_ACTIONS: 'true', RUNNER_OS: 'macOS' },
     }),
     events: async (): Promise<Array<{ file: string; reopen: boolean; directory: string }>> =>
       (await readFile(`${directory}/events.jsonl`, 'utf8')).trim().split('\n').map(line => JSON.parse(line)),
@@ -75,6 +76,25 @@ test('a newly added failing desktop entry fails the command, reports the error, 
     assert.match(result.stderr, /FAIL: desktop suite b-agent-status/);
     assert.equal((await f.events()).length, 2);
     assert.deepEqual(await readdir(`${f.directory}/work/desktop-tests`), []);
+    const artifacts = await readdir(`${f.directory}/work/desktop-artifacts`);
+    assert.equal(artifacts.length, 1, 'successful suites discard their diagnostic directories');
+    const log = await readFile(`${f.directory}/work/desktop-artifacts/${artifacts[0]}/run/process.log`, 'utf8');
+    assert.match(log, /status check started/); assert.match(log, /AGENT-STATUS-FAIL/);
+  } finally { await f.close(); }
+});
+
+test('desktop execution refuses local machines before launching Electron, but listing is safe', async () => {
+  const f = await fixture();
+  try {
+    await f.write('smoke.test.cjs', 'module.exports = { run() {} };');
+    const run = (...args: string[]) => spawnSync(process.env.VIBEBRIDGE_TEST_NODE!, ['scripts/test-desktop.mjs', ...args], {
+      cwd: f.directory, encoding: 'utf8', env: { ...process.env, CI: '', GITHUB_ACTIONS: '', RUNNER_OS: '' },
+    });
+    assert.equal(run('--list').status, 0);
+    const result = run('--all');
+    assert.notEqual(result.status, 0);
+    assert.match(result.stderr, /GitHub-hosted macOS/);
+    await assert.rejects(f.events(), /ENOENT/);
   } finally { await f.close(); }
 });
 
