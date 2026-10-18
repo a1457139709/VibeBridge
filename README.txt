@@ -1,17 +1,18 @@
-VibeBridge Agent status UI — round 2 throwaway prototype
+VibeBridge Agent status UI — round 3 throwaway prototype
 
 Open index.html directly, or run from this directory:
   python3 -m http.server 4178 --bind 127.0.0.1
 Then open http://127.0.0.1:4178/?variant=C
 
-Current question: which location works best for a CURRENT-PROJECT summary?
+Selected placement: C, a permanent bottom bar for the CURRENT-PROJECT summary.
 Only Needs input / Done / Error are counted in this revision.
 The five state glyphs and their position left of Agent type marks were accepted.
 Busy remains a panel/navigation state; "remove Busy" is interpreted here as
 removing its summary count. Zero display and other new behaviors remain candidates.
 
 C: a single 34px bar across the bottom of the workbench, always visible.
-   Names the current project. Stays visible when navigation is hidden or while
+   Shows only status counts, with no project title or title separator.
+   Keeps the project context in its accessible label. Visible when navigation is hidden or while
    editing settings; on settings it describes the last active project.
 A: a fixed section at the bottom of project navigation, separated from its
    scrolling project list by a divider. Hides with the whole navigation.
@@ -40,7 +41,8 @@ English labels are shown; this is not a complete application language spec.
 Do not copy, adapt, import or reuse this prototype's code, software design,
 data models or patterns in production. Production implementation must be written
 independently from approved specifications, issue resolutions and architecture.
-No summary placement has been approved. The branch is never merged; no PR.
+C was selected; its leftmost project title was removed at user request.
+Remaining interaction details are still under discussion. No merge or PR.
 
 Decision ticket:
 https://github.com/a1457139709/VibeBridge/issues/72
@@ -51,3 +53,5 @@ The first-round A/B/C comparison is preserved in commit:
 Round 2: JavaScript syntax checked and C visually observed in Safari, showing a
 single bottom bar with only current-project Needs input / Done / Error counts.
 This is a UI discussion artifact, not production acceptance or CLI evidence.
+
+Round 3: removed the visible project title and divider from C only.

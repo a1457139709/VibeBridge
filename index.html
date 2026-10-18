@@ -13,7 +13,7 @@
 .current-status .count:hover:not(:disabled){background:var(--hover)}
 .status-project{font-size:11px;color:var(--muted);max-width:180px}
 .bottom-status{height:34px;border-top:1px solid var(--line);display:flex;align-items:center;gap:18px;padding:0 14px}
-.bottom-status .status-project{padding-right:18px;border-right:1px solid var(--line)}
+
 .bottom-status .counts{flex-wrap:nowrap;gap:10px}
 .nav-status{border-top:1px solid var(--line);padding:12px 14px 8px}
 .nav-status .status-project{display:block;max-width:100%;margin-bottom:8px}
@@ -32,7 +32,7 @@
 .bottom-status~.toast{bottom:42px}
 .lab .legend .status{color:#514e48}
 .lab .legend .status.input{color:#875900}.lab .legend .status.error{color:#b33e2d}.lab .legend .status.done{color:#35735d}
-@media(max-width:600px){.bottom-status{gap:5px;padding:0 6px}.bottom-status .status-project{max-width:100px;padding-right:6px}.bottom-status .counts{gap:0}.current-status .count{padding:2px 4px}}
+@media(max-width:600px){.bottom-status{gap:5px;padding:0 6px}.bottom-status .counts{gap:0}.current-status .count{padding:2px 4px}}
 </style>
 <div id="app"></div>
 <div class="lab">
@@ -64,7 +64,7 @@ function counts(p){return Object.fromEntries(['input','done','error'].map(s=>[s,
 function countButtons(p){let c=counts(p),keys=Object.keys(c).filter(s=>$('#zeros').value==='show'||c[s]);return keys.length?keys.map(s=>`<button class="count ${c[s]?'':'zero'}" data-filter="${p.id}|${s}" ${c[s]?'':'disabled'} aria-label="${p.name}: ${c[s]} ${labels[s]}">${icon(s)}<span><b>${c[s]}</b> ${labels[s]}</span></button>`).join(''):'<span class="muted" style="padding:5px">No active counts</span>'}
 function running(){return projects.filter(p=>p.running)}
 function summaryContent(){let p=projects.find(p=>p.id===active);return `<div class="sheet-title"><strong>${p.name}</strong><button class="plain" data-action="dismiss" aria-label="Close summary">×</button></div><p>Current project</p><div class="counts">${countButtons(p)}</div>`}
-function currentStatus(where){let p=projects.find(p=>p.id===active);return `<section class="current-status ${where}" aria-label="Current project status: ${p.name}">${where==='toolbar-status'?'':`<span class="status-project truncate" title="${p.name}">${p.name}</span>`}<div class="counts">${p.running?countButtons(p):'<span class="muted no-status">Not started</span>'}</div></section>`}
+function currentStatus(where){let p=projects.find(p=>p.id===active);return `<section class="current-status ${where}" aria-label="Current project status: ${p.name}">${where==='toolbar-status'||where==='bottom-status'?'':`<span class="status-project truncate" title="${p.name}">${p.name}</span>`}<div class="counts">${p.running?countButtons(p):'<span class="muted no-status">Not started</span>'}</div></section>`}
 function nav(){return `<nav class="nav" aria-label="Project navigation"><div class="nav-scroll"><div class="nav-heading">WORK PROJECTS</div>${projects.map(p=>`<section class="project-section"><div class="project-row"><button class="plain" data-expand="${p.id}" aria-label="${expanded.has(p.id)?'Collapse':'Expand'} ${p.name}" aria-expanded="${expanded.has(p.id)}">${expanded.has(p.id)?'⌄':'›'}</button><button class="plain project-button ${active===p.id&&!settings?'selected':''}" data-project="${p.id}" title="${p.name}"><span class="initial">${p.name[0]}</span><span class="truncate">${p.name}</span><small>${p.agents.length}</small></button></div>${expanded.has(p.id)?p.agents.map(a=>`<button class="plain nav-agent ${a.agent} ${selected===a.id&&!settings?'selected':''}" data-locate="${p.id}|${a.id}" title="${a.title} · ${labels[a.state]}">${icon(a.state)}${mark(a.agent)}<span class="truncate">${a.title}</span></button>`).join(''):''}</section>`).join('')}</div>${variant==='A'?currentStatus('nav-status'):''}<div class="nav-footer"><span>Local Agent workbench</span><button class="plain" data-action="settings" aria-label="Settings">⚙</button></div></nav>`}
 function panel(p,a,i){let compact=scene==='compact'&&!maximized,small=compact&&i!==1,shape=i===0?'vertical':i===4?'strip':'';let line={busy:'Working through the remaining changes…',input:'May I apply these changes?\n\n  Allow once    Allow for this session    Deny',done:'The review is ready.\n\nSee the notes above for the findings.',error:'The last request could not continue.',ready:'What would you like to work on?'}[a.state];return `<article id="panel-${a.id}" tabindex="-1" class="panel ${a.agent} ${selected===a.id?'focused':''} ${small?'small '+shape:''}" data-select="${a.id}" aria-label="${a.title}, ${labels[a.state]}"><header><span class="identity">${icon(a.state,true)}${mark(a.agent)}</span><span class="truncate" title="${a.title}">${a.title}</span><button class="plain" data-max="${a.id}" aria-label="${maximized?'Restore layout':'Maximize panel'}">⤢</button></header><div class="terminal"><span class="agent-mark ${a.agent}" style="width:auto;font-size:13px">${a.agent==='claude'?'Claude Code':a.agent==='codex'?'Codex CLI':'pi'}</span><span class="muted"> · ~/Projects/${p.name.replaceAll(' ','-')}</span>\n\n${line}<span class="prompt muted">› ${a.state==='input'?'Choose an option':a.state==='busy'?'esc to interrupt':'Send a message'}</span></div></article>`}
 function render(){let p=projects.find(p=>p.id===active);document.documentElement.dataset.theme=$('#theme').checked?'dark':'light';
