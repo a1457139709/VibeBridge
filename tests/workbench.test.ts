@@ -1,9 +1,11 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { mkdtemp, readFile, writeFile, rm } from 'node:fs/promises';
+import { mkdir, mkdtemp, readFile, writeFile, rm } from 'node:fs/promises';
 import { resolve } from 'node:path';
 import { Workbench } from '../app/main/workbench';
 import type { WorkbenchEvent } from '../app/shared/model';
+
+test.before(async () => { await mkdir('work/issue-24', { recursive: true }); });
 
 async function until(check: () => boolean) {
   const deadline = Date.now() + 5000;
