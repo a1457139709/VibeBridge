@@ -1,8 +1,10 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { mkdtemp, readFile, rm } from 'node:fs/promises';
+import { mkdir, mkdtemp, readFile, rm } from 'node:fs/promises';
 import { resolve } from 'node:path';
 import { Workbench } from '../app/main/workbench';
+
+test.before(async () => { await mkdir('work/issue-24', { recursive: true }); });
 
 test('navigation preferences default open and survive project deletion and reopening independently from user settings', async () => {
   const directory = await mkdtemp(resolve('work/issue-24/navigation-'));
