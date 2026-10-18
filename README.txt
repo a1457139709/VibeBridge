@@ -1,4 +1,4 @@
-VibeBridge Agent status UI — round 4 throwaway prototype
+VibeBridge Agent status UI — round 5 throwaway prototype
 
 Open index.html directly, or run from this directory:
   python3 -m http.server 4178 --bind 127.0.0.1
@@ -9,7 +9,7 @@ Only Needs input / Done / Error are counted in this revision.
 The five state glyphs and their position left of Agent type marks were accepted.
 Busy remains a panel/navigation state; "remove Busy" is interpreted here as
 removing its summary count. Zero counts stay visible and dimmed, as explicitly selected.
-The accepted interactions and remaining candidates are distinguished below.
+The selected UI is C. A/B remain historical comparison assets.
 
 C: a single 34px bar across the bottom of the workbench, always visible.
    Shows only status counts, with no project title or title separator.
@@ -37,8 +37,18 @@ maximized on the target panel. Settings retains the view from before entry.
 Project-title navigation restores that project's previous demo view.
 The browser demo focuses the target panel; it has no real terminal input.
 Use maximize and settings-draft controls to inspect these paths.
-Viewing does not clear Done / Error. "Not started" is shown for an unstarted
-project rather than creating zero counts for a running project.
+Viewing does not clear Done / Error. The first-use scene has no projects and
+keeps the bar present with no contents, as selected. An existing project with
+no Agent panels still has three dimmed zero counts. The former permanent
+"Not started" current-project sample was removed: production starts a project
+on first entry, and the browser prototype does not demonstrate that lifecycle.
+
+Opening the list on settings does not leave settings. Selecting a result
+uses the same leave-settings flow as navigation and Back. Save and leave,
+Don't save, Cancel, and save-failure handling belong to that shared flow.
+Successful save/discard continues to the intended panel; cancellation or
+failure stays on settings with drafts preserved. The demo has a shared
+in-memory navigation guard, but no real save validation or failure handling.
 
 This static browser mirror imitates the current app's visible chrome and type
 marks. It is isolated because the Electron page needs the desktop bridge.
@@ -50,7 +60,7 @@ Do not copy, adapt, import or reuse this prototype's code, software design,
 data models or patterns in production. Production implementation must be written
 independently from approved specifications, issue resolutions and architecture.
 C was selected; its leftmost project title was removed at user request.
-Remaining interaction details are still under discussion. No merge or PR.
+All choices are captured in the decision ticket. No merge or PR.
 
 Decision ticket:
 https://github.com/a1457139709/VibeBridge/issues/72
@@ -77,9 +87,8 @@ the list; selecting a panel closes it and locates that panel.
 
 The user accepted keeping the bar visible on settings and showing the last
 viewed project's changing counts. All five state glyphs remain static.
-The not-started sample and the finer draft-cancellation behavior are still
-discussion candidates, not decisions. Production navigation starts a project
-on first entry; this sample does not demonstrate startup or CLI behavior.
+Leaving settings reuses the existing shared mechanism, as explicitly selected.
+First use keeps an empty bar. No new save/leave mechanism is introduced.
 
 The anchored popup and Escape dismissal were observed in Safari.
 
@@ -88,3 +97,7 @@ panel from a maximized Busy panel kept the target maximized and focused it.
 While settings was open with a simulated draft, advancing that panel's state
 changed the summary from 1 Needs input / 1 Done to 0 Needs input / 2 Done.
 The draft and settings page remained present. Demo reset after validation.
+
+Round 5 validation: script syntax checked. In Safari, selecting the first-use
+scene showed no projects and a visible, empty full-width bottom bar, with no
+status glyphs, counts, or placeholder inside that bar.
