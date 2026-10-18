@@ -8,7 +8,8 @@ Selected placement: C, a permanent bottom bar for the CURRENT-PROJECT summary.
 Only Needs input / Done / Error are counted in this revision.
 The five state glyphs and their position left of Agent type marks were accepted.
 Busy remains a panel/navigation state; "remove Busy" is interpreted here as
-removing its summary count. Zero display and other new behaviors remain candidates.
+removing its summary count. Zero counts stay visible and dimmed, as explicitly selected.
+Other interaction details remain candidates.
 
 C: a single 34px bar across the bottom of the workbench, always visible.
    Shows only status counts, with no project title or title separator.
@@ -26,7 +27,7 @@ The bottom bar does not get taller when projects are added.
 
 The beige area is a prototype control surface, not product UI. It includes
 compact panels, dense projects, long titles, all-zero counts, light/dark themes,
-narrow width and zero visibility. Busy glyphs are static in this revision.
+narrow width. Zero counts always remain visible and dimmed. Busy glyphs are static in this revision.
 Click a nonzero count to list matching panels, then a result to locate it.
 Use maximize and settings-draft controls to inspect the proposed locate behavior.
 Viewing does not clear Done / Error. "Not started" is shown for an unstarted
@@ -55,3 +56,5 @@ single bottom bar with only current-project Needs input / Done / Error counts.
 This is a UI discussion artifact, not production acceptance or CLI evidence.
 
 Round 3: removed the visible project title and divider from C only.
+
+User confirmed keeping dimmed zero counts. The hide-zero comparison control was removed.
