@@ -7,9 +7,10 @@
   "main": "dist/main.cjs",
   "scripts": {
     "prepare": "husky",
+    "check:source-paths": "node scripts/check-source-paths.mjs",
     "check:staged-size": "node scripts/check-staged-file-size.mjs",
     "prepare:runtime": "node scripts/prepare.mjs",
-    "check": "npm run typecheck && npm test && npm run test:components",
+    "check": "npm run check:source-paths && npm run typecheck && npm test && npm run test:components",
     "typecheck": "tsc --noEmit",
     "test": "node scripts/test.mjs",
     "test:components": "node scripts/test-components.mjs",

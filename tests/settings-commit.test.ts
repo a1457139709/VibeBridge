@@ -1,13 +1,11 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { chmod, mkdir, mkdtemp, readFile, rm } from 'node:fs/promises';
-import { resolve } from 'node:path';
+import { chmod, readFile } from 'node:fs/promises';
 import { Workbench } from '../app/main/workbench';
+import { testDirectory } from './support/directory';
 
-test.before(async () => { await mkdir('work/issue-65', { recursive: true }); });
-
-test('a settings submission reports every field problem and commits none of its categories', async () => {
-  const directory = await mkdtemp(resolve('work/issue-65/validation-'));
+test('a settings submission reports every field problem and commits none of its categories', async context => {
+  const directory = await testDirectory(context, 'settings-commit-validation');
   const workbench = await Workbench.open(directory);
   try {
     const before = workbench.snapshot().settings;
@@ -31,11 +29,11 @@ test('a settings submission reports every field problem and commits none of its 
     assert.equal(saved.ok, true);
     assert.equal(workbench.snapshot().settings.theme, 'dark');
     assert.equal(workbench.snapshot().settings.agents.pi.command, '/unavailable-but-valid');
-  } finally { await workbench.quit(); await rm(directory, { recursive: true, force: true }); }
+  } finally { await workbench.quit(); }
 });
 
-test('a real whole-submission write failure preserves the file and current settings, then retries as one commit', async () => {
-  const directory = await mkdtemp(resolve('work/issue-65/write-'));
+test('a real whole-submission write failure preserves the file and current settings, then retries as one commit', async context => {
+  const directory = await testDirectory(context, 'settings-commit-storage');
   let workbench = await Workbench.open(directory);
   try {
     const before = workbench.snapshot().settings;
@@ -55,5 +53,5 @@ test('a real whole-submission write failure preserves the file and current setti
     await workbench.quit();
     workbench = await Workbench.open(directory);
     assert.deepEqual(workbench.snapshot().settings, { ...before, ...patch });
-  } finally { await workbench.quit(); await rm(directory, { recursive: true, force: true }); }
+  } finally { await workbench.quit(); }
 });

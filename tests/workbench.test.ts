@@ -1,11 +1,10 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { mkdir, mkdtemp, readFile, writeFile, rm } from 'node:fs/promises';
+import { readFile, writeFile } from 'node:fs/promises';
 import { resolve } from 'node:path';
 import { Workbench } from '../app/main/workbench';
+import { testDirectory } from './support/directory';
 import type { WorkbenchEvent } from '../app/shared/model';
-
-test.before(async () => { await mkdir('work/issue-24', { recursive: true }); });
 
 async function until(check: () => boolean) {
   const deadline = Date.now() + 5000;
@@ -15,8 +14,8 @@ async function until(check: () => boolean) {
   }
 }
 
-test('project creation rejects incomplete allocation and invalid directories without creating projects', async () => {
-  const dataDirectory = await mkdtemp(resolve('work/issue-24/check-'));
+test('project creation rejects incomplete allocation and invalid directories without creating projects', async context => {
+  const dataDirectory = await testDirectory(context, 'workbench-project-validation');
   const workbench = await Workbench.open(dataDirectory);
   try {
     const draft = { name: 'Example', directory: dataDirectory, total: 3, counts: { codex: 0, claude: 0, pi: 0 } };
@@ -33,12 +32,11 @@ test('project creation rejects incomplete allocation and invalid directories wit
     assert.deepEqual(workbench.snapshot().runs, []);
   } finally {
     await workbench.quit();
-    await rm(dataDirectory, { recursive: true, force: true });
   }
 });
 
-test('confirmed projects start independent runs in the selected directory and reject stale input', async () => {
-  const dataDirectory = await mkdtemp(resolve('work/issue-24/check-'));
+test('confirmed projects start independent runs in the selected directory and reject stale input', async context => {
+  const dataDirectory = await testDirectory(context, 'workbench-input-routing');
   const workbench = await Workbench.open(dataDirectory);
   const events: WorkbenchEvent[] = [];
   const unsubscribe = workbench.subscribe(event => events.push(event));
@@ -67,12 +65,11 @@ test('confirmed projects start independent runs in the selected directory and re
   } finally {
     unsubscribe();
     await workbench.quit();
-    await rm(dataDirectory, { recursive: true, force: true });
   }
 });
 
-test('quit cleans up runs and detached children while preserving the saved workspace for new runs', async () => {
-  const dataDirectory = await mkdtemp(resolve('work/issue-24/check-'));
+test('quit cleans up runs and detached children while preserving the saved workspace for new runs', async context => {
+  const dataDirectory = await testDirectory(context, 'workbench-quit');
   let workbench = await Workbench.open(dataDirectory);
   try {
     const settings = workbench.snapshot().settings;
@@ -111,12 +108,11 @@ test('quit cleans up runs and detached children while preserving the saved works
     assert.deepEqual(workbench.snapshot().projects[0].panels.map(p => p.id), [project.panels[1].id]);
   } finally {
     await workbench.quit();
-    await rm(dataDirectory, { recursive: true, force: true });
   }
 });
 
-test('shared panel operations enforce the limit and report launch failure without substituting another Agent', async () => {
-  const dataDirectory = await mkdtemp(resolve('work/issue-24/check-'));
+test('shared panel operations enforce the limit and report launch failure without substituting another Agent', async context => {
+  const dataDirectory = await testDirectory(context, 'workbench-panel-limit');
   const workbench = await Workbench.open(dataDirectory);
   try {
     const settings = workbench.snapshot().settings;
@@ -135,11 +131,11 @@ test('shared panel operations enforce the limit and report launch failure withou
     assert.ok(rejected?.status === 'rejected');
     assert.match(rejected.reason.message, /最多 10/);
     assert.equal(workbench.snapshot().projects[0].panels.length, 10);
-  } finally { await workbench.quit(); await rm(dataDirectory, { recursive: true, force: true }); }
+  } finally { await workbench.quit(); }
 });
 
-test('damaged configuration is reported and preserved instead of being overwritten on quit', async () => {
-  const directory = await mkdtemp(resolve('work/issue-24/check-'));
+test('damaged configuration is reported and preserved instead of being overwritten on quit', async context => {
+  const directory = await testDirectory(context, 'workbench-damaged-settings');
   const damaged = '{ accidentally truncated';
   await writeFile(`${directory}/settings.json`, damaged);
   const workbench = await Workbench.open(directory);
@@ -148,16 +144,14 @@ test('damaged configuration is reported and preserved instead of being overwritt
     assert.deepEqual(await workbench.saveSettings(workbench.snapshot().settings), { ok: false, kind: 'storage', message: '配置读取失败，未覆盖原配置；请修正后重新启动' });
     await assert.rejects(workbench.quit(), /未覆盖原配置/);
     assert.equal(await readFile(`${directory}/settings.json`, 'utf8'), damaged);
-  } finally { await rm(directory, { recursive: true, force: true }); }
+  } finally { await workbench.quit().catch(() => {}); }
 });
 
-test('a project database read failure does not overwrite the existing user configuration', async () => {
-  const directory = await mkdtemp(resolve('work/issue-24/check-'));
+test('a project database read failure does not overwrite the existing user configuration', async context => {
+  const directory = await testDirectory(context, 'workbench-damaged-storage');
   const settings = '{ "theme": "dark", "agents": { "codex": { "command": "custom-codex", "args": [] }, "claude": { "command": "claude", "args": [] }, "pi": { "command": "pi", "args": [] } } }';
   await writeFile(`${directory}/settings.json`, settings);
   await writeFile(`${directory}/projects.sqlite`, 'damaged database');
-  try {
-    await assert.rejects(Workbench.open(directory));
-    assert.equal(await readFile(`${directory}/settings.json`, 'utf8'), settings);
-  } finally { await rm(directory, { recursive: true, force: true }); }
+  await assert.rejects(Workbench.open(directory));
+  assert.equal(await readFile(`${directory}/settings.json`, 'utf8'), settings);
 });

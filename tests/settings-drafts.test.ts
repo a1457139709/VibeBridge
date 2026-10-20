@@ -1,12 +1,11 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { mkdtemp, mkdir, readFile, writeFile, rm } from 'node:fs/promises';
-import { resolve } from 'node:path';
+import { mkdir, readFile, writeFile, rm } from 'node:fs/promises';
 import { Workbench } from '../app/main/workbench';
+import { testDirectory } from './support/directory';
 
-test('legacy shortcuts gain close-panel and a newly introduced default conflict remains editable without failing quit or rewriting the file', async () => {
-  await mkdir('work/issue-47', { recursive: true });
-  const directory = await mkdtemp(resolve('work/issue-47/migration-'));
+test('legacy shortcuts gain close-panel and a newly introduced default conflict remains editable without failing quit or rewriting the file', async context => {
+  const directory = await testDirectory(context, 'settings-drafts-migration');
   const original = JSON.stringify({ theme: 'dark', defaultLayout: 'row', agents: {
     codex: { command: 'custom-codex', args: ['custom'] }, claude: { command: 'claude', args: [] }, pi: { command: 'pi', args: [] },
   }, shortcuts: { previousProject: 'Command+Shift+[', nextProject: 'Command+Shift+]', previousPanel: 'Command+[', nextPanel: 'Command+Shift+W', maximizePanel: 'Command+Enter', addPanel: 'Command+N', settings: 'Command+,' } });
@@ -34,12 +33,11 @@ test('legacy shortcuts gain close-panel and a newly introduced default conflict 
     assert.equal(workbench.snapshot().settings.shortcuts.closePanel, 'Command+Shift+W');
     assert.equal(workbench.snapshot().settings.shortcuts.nextPanel, 'Command+K');
     assert.equal(workbench.snapshot().settings.theme, 'dark');
-  } finally { await workbench.quit(); await rm(directory, { recursive: true, force: true }); }
+  } finally { await workbench.quit(); }
 });
 
-test('empty Agent commands return field errors while failed partial saves retain every effective category', async () => {
-  await mkdir('work/issue-47', { recursive: true });
-  const directory = await mkdtemp(resolve('work/issue-47/validation-'));
+test('empty Agent commands return field errors while failed partial saves retain every effective category', async context => {
+  const directory = await testDirectory(context, 'settings-drafts-validation');
   const workbench = await Workbench.open(directory);
   try {
     const before = workbench.snapshot().settings;
@@ -60,12 +58,11 @@ test('empty Agent commands return field errors while failed partial saves retain
     assert.deepEqual(await workbench.saveSettings({ agents: { ...before.agents, pi: { command: '/not-installed-but-valid', args: [] } } }), { ok: false, kind: 'storage', message: '配置保存失败' });
     assert.deepEqual(workbench.snapshot().settings, saved);
     await rm(`${directory}/settings.json`, { recursive: true });
-  } finally { await workbench.quit(); await rm(directory, { recursive: true, force: true }); }
+  } finally { await workbench.quit(); }
 });
 
-test('missing-action migration does not excuse duplicate bindings already present in the old file', async () => {
-  await mkdir('work/issue-47', { recursive: true });
-  const directory = await mkdtemp(resolve('work/issue-47/invalid-legacy-'));
+test('missing-action migration does not excuse duplicate bindings already present in the old file', async context => {
+  const directory = await testDirectory(context, 'settings-drafts-legacy-conflicts');
   let workbench = await Workbench.open(directory);
   const settings = workbench.snapshot().settings;
   await workbench.quit();
@@ -78,5 +75,5 @@ test('missing-action migration does not excuse duplicate bindings already presen
     assert.deepEqual(await workbench.saveSettings({ theme: 'dark' }), { ok: false, kind: 'storage', message: '配置读取失败，未覆盖原配置；请修正后重新启动' });
     await assert.rejects(workbench.quit(), /未覆盖原配置/);
     assert.equal(await readFile(`${directory}/settings.json`, 'utf8'), original);
-  } finally { await workbench.quit().catch(() => {}); await rm(directory, { recursive: true, force: true }); }
+  } finally { await workbench.quit().catch(() => {}); }
 });
