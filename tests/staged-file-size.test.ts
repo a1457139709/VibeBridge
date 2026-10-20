@@ -1,16 +1,18 @@
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
-import { chmod, copyFile, mkdir, mkdtemp, rm, symlink, writeFile } from 'node:fs/promises';
+import { copyFile, mkdir, mkdtemp, readFile, rm, symlink, writeFile } from 'node:fs/promises';
 import { dirname, resolve } from 'node:path';
 import test from 'node:test';
 
 async function fixture() {
   await mkdir('work', { recursive: true });
   const directory = await mkdtemp(resolve('work/staged-file-size-'));
-  const env = { ...process.env, GIT_CONFIG_GLOBAL: '/dev/null', GIT_CONFIG_NOSYSTEM: '1',
-    npm_config_cache: `${directory}/npm-cache` };
-  const run = (command: string, args: string[]) => spawnSync(command, args, {
-    cwd: directory, env, encoding: 'utf8', timeout: 10000,
+  // A nested test repository must never inherit the real commit's index or Git directory.
+  const env = Object.fromEntries(Object.entries(process.env).filter(([key]) => !key.startsWith('GIT_')));
+  Object.assign(env, { GIT_CONFIG_GLOBAL: '/dev/null', GIT_CONFIG_NOSYSTEM: '1', HUSKY: '1',
+    npm_config_cache: `${directory}/npm-cache` });
+  const run = (command: string, args: string[], extra = {}) => spawnSync(command, args, {
+    cwd: directory, env: { ...env, ...extra }, encoding: 'utf8', timeout: 10000,
   });
   const git = (...args: string[]) => {
     const result = run('git', args);
@@ -19,13 +21,19 @@ async function fixture() {
   };
   try {
     await mkdir(`${directory}/scripts`);
-    await mkdir(`${directory}/.githooks`);
-    for (const file of ['scripts/check-staged-file-size.mjs', '.githooks/pre-commit', '.gitattributes', 'package.json']) {
+    await mkdir(`${directory}/.husky`);
+    for (const file of ['scripts/check-staged-file-size.mjs', '.husky/pre-commit', '.gitattributes']) {
       await copyFile(file, `${directory}/${file}`);
     }
-    await chmod(`${directory}/.githooks/pre-commit`, 0o755);
+    const { scripts } = JSON.parse(await readFile('package.json', 'utf8'));
+    // The existing commit-gate test covers the full check chain; isolate file-size behavior here.
+    await writeFile(`${directory}/package.json`, JSON.stringify({ private: true, type: 'module',
+      scripts: { prepare: scripts.prepare, check: 'node --version' } }));
+    await mkdir(`${directory}/node_modules/.bin`, { recursive: true });
+    await symlink(resolve('node_modules/husky/bin.mjs'), `${directory}/node_modules/.bin/husky`);
     git('init', '--quiet');
-    git('config', 'core.hooksPath', '.githooks');
+    const installed = run('npm', ['run', 'prepare']);
+    assert.equal(installed.status, 0, installed.stderr);
     return {
       directory, git, run,
       write: async (file: string, content: string) => {
@@ -48,10 +56,7 @@ async function fixture() {
 test('prepare installs the hook; real commits accept 20,000 bytes and reject 20,001 bytes', async () => {
   const f = await fixture();
   try {
-    f.git('config', '--unset', 'core.hooksPath');
-    const installed = f.run('npm', ['run', 'prepare']);
-    assert.equal(installed.status, 0, installed.stderr);
-    assert.equal(f.git('config', '--get', 'core.hooksPath').trim(), '.githooks');
+    assert.equal(f.git('config', '--get', 'core.hooksPath').trim(), '.husky/_');
     await f.write('source.ts', 'a'.repeat(20000));
     f.git('add', '--', 'source.ts');
     assert.equal(f.commit().status, 0);
@@ -82,13 +87,10 @@ test('only staged blobs count, including both directions of partial staging', as
     assert.equal(f.git('ls-files', '--stage'), indexBefore);
     // Commits selecting paths use an alternate index, which the hook must honor.
     const alternateIndex = `${f.directory}/alternate-index`;
-    const loaded = spawnSync('git', ['read-tree', '--empty'], {
-      cwd: f.directory, env: { ...process.env, GIT_INDEX_FILE: alternateIndex }, encoding: 'utf8',
-    });
+    const loaded = f.run('git', ['read-tree', '--empty'], { GIT_INDEX_FILE: alternateIndex });
     assert.equal(loaded.status, 0, loaded.stderr);
-    const checked = spawnSync(process.env.VIBEBRIDGE_TEST_NODE ?? process.execPath, ['scripts/check-staged-file-size.mjs'], {
-      cwd: f.directory, env: { ...process.env, GIT_INDEX_FILE: alternateIndex }, encoding: 'utf8',
-    });
+    const checked = f.run(process.env.VIBEBRIDGE_TEST_NODE ?? process.execPath,
+      ['scripts/check-staged-file-size.mjs'], { GIT_INDEX_FILE: alternateIndex });
     assert.equal(checked.status, 0, checked.stderr);
   } finally { await f.close(); }
 });

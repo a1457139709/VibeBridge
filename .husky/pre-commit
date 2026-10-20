@@ -1,0 +1,2 @@
+node scripts/check-staged-file-size.mjs
+npm run check

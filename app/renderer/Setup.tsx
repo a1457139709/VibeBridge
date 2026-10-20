@@ -1,5 +1,5 @@
 import { agentIcons } from './agent-icons';
-import { useEffect, useState, type Dispatch, type SetStateAction } from 'react';
+import { useEffect, useRef, useState, type Dispatch, type SetStateAction } from 'react';
 import { agentNames, agentTypes, arrange, assignedAgents, type DefaultLayout, type DirectoryResult, type ProjectDraft } from '../shared/model';
 import { layoutBoxes } from '../shared/layout';
 import { projectNameError, projectNameFromDirectory, projectNameHasControls } from '../shared/project-name';
@@ -14,6 +14,7 @@ export function Setup({ draft, change, cancel, created, openProject, report, def
   const [nameInputError, setNameInputError] = useState('');
   const [choosing, setChoosing] = useState(false);
   const [busy, setBusy] = useState(false);
+  const pending = useRef(false);
   const directory = inspection?.path === draft.directory ? inspection.result : undefined;
   const checking = !!draft.directory && !directory;
   const nameError = projectNameError(draft.name);
@@ -48,11 +49,12 @@ export function Setup({ draft, change, cancel, created, openProject, report, def
   const preview = Array.from({ length: Math.max(draft.total, assigned) }, (_, index) => String(index));
   const boxes = layoutBoxes(arrange(preview, defaultLayout)).panels;
   async function submit() {
+    if (pending.current) return;
     if (!canCreate) { setNameTouched(true); setDirectoryTouched(true); return; }
-    setBusy(true);
+    pending.current = true; setBusy(true);
     try { created((await window.workbench.createProject(draft)).project.id); }
     catch (error) { report((error as Error).message); }
-    finally { setBusy(false); }
+    finally { pending.current = false; setBusy(false); }
   }
   return <div className="setup-scroll"><form className="setup" onSubmit={event => { event.preventDefault(); void submit(); }}>
     <h1>创建项目</h1><p className="muted intro">选择一个本地目录，开始并行工作。</p>
