@@ -5,6 +5,8 @@
   "type": "module",
   "main": "dist/main.cjs",
   "scripts": {
+    "prepare": "git config core.hooksPath .githooks",
+    "check:staged-size": "node scripts/check-staged-file-size.mjs",
     "prepare:runtime": "node scripts/prepare.mjs",
     "typecheck": "tsc --noEmit",
     "test": "node scripts/test.mjs",

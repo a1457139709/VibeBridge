@@ -75,6 +75,16 @@ npm run package
 
 ## 验证
 
+`npm ci` 会通过 `prepare` 安装仓库的 Git pre-commit hook；已有依赖时可运行 `npm run prepare` 启用。
+每次提交只检查暂存区中新增或修改的普通文件（包含重命名目标），以暂存版本的字节数 / 4 估算 token；
+超过 5,000 token（20,000 字节）会阻止提交，恰好等于上限可提交。未暂存的内容、删除项、符号链接和子模块不参与检查。
+可运行 `npm run check:staged-size` 手动检查，失败消息包含按职责拆分代码、测试或文档、更新引用并重新暂存的具体步骤。
+
+Git 不记录文件是否由 Agent 编写，因此默认检查全部普通文件，以暂存的 `.gitattributes` 标注工具产物例外。
+常见锁文件、`generated/` 下的文件以及 `*.generated.*`、`*.gen.*` 已标记为 `linguist-generated`；
+其他代码生成产物或第三方副本应按实际路径标记 `linguist-generated` 或 `linguist-vendored`，并暂存 `.gitattributes`。
+不要为手写代码、测试或文档添加豁免。
+
 ```sh
 npm run typecheck
 npm test

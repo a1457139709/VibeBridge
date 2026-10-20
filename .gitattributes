@@ -1,0 +1,12 @@
+# Tool-owned files are excluded from the staged file-size limit.
+package-lock.json linguist-generated
+npm-shrinkwrap.json linguist-generated
+pnpm-lock.yaml linguist-generated
+yarn.lock linguist-generated
+bun.lock linguist-generated
+bun.lockb linguist-generated
+
+# Mark other generated or vendored paths explicitly as they are added.
+**/generated/** linguist-generated
+*.generated.* linguist-generated
+*.gen.* linguist-generated
