@@ -7,6 +7,7 @@
   "main": "dist/main.cjs",
   "scripts": {
     "prepare": "husky",
+    "check:staged-size": "node scripts/check-staged-file-size.mjs",
     "prepare:runtime": "node scripts/prepare.mjs",
     "check": "npm run typecheck && npm test && npm run test:components",
     "typecheck": "tsc --noEmit",

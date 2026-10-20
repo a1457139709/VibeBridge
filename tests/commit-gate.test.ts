@@ -4,13 +4,14 @@ import { spawnSync } from 'node:child_process';
 import { chmod, copyFile, mkdir, mkdtemp, readFile, rm, symlink, writeFile } from 'node:fs/promises';
 import { resolve } from 'node:path';
 
-test('installed pre-commit checks the working tree, blocks each failing check and leaves the index untouched', async () => {
+test('installed pre-commit blocks oversized staged files before working-tree checks and leaves the index untouched', async () => {
   await mkdir('work/commit-gate', { recursive: true });
   const directory = await mkdtemp(resolve('work/commit-gate/repo-'));
   // A hook's Git environment points at the caller's index. Never inherit it into
   // the disposable repository used to exercise the real Git hook protocol.
   const env = Object.fromEntries(Object.entries(process.env).filter(([key]) => !key.startsWith('GIT_')));
-  Object.assign(env, { GIT_CONFIG_NOSYSTEM: '1', GIT_CONFIG_GLOBAL: '/dev/null', HUSKY: '1' });
+  Object.assign(env, { GIT_CONFIG_NOSYSTEM: '1', GIT_CONFIG_GLOBAL: '/dev/null', HUSKY: '1',
+    npm_config_cache: `${directory}/npm-cache` });
   const run = (command: string, args: string[], extra = {}) => spawnSync(command, args, { cwd: directory,
     env: { ...env, ...extra }, encoding: 'utf8', timeout: 30000 });
   const git = (...args: string[]) => {
@@ -26,6 +27,7 @@ test('installed pre-commit checks the working tree, blocks each failing check an
     await writeFile(`${directory}/package.json`, JSON.stringify({ private: true, type: 'module', scripts }));
     await mkdir(`${directory}/.husky`); await copyFile('.husky/pre-commit', `${directory}/.husky/pre-commit`);
     await mkdir(`${directory}/scripts`); await mkdir(`${directory}/node_modules/.bin`, { recursive: true });
+    await copyFile('scripts/check-staged-file-size.mjs', `${directory}/scripts/check-staged-file-size.mjs`);
     await symlink(resolve('node_modules/husky/bin.mjs'), `${directory}/node_modules/.bin/husky`);
     const check = (stage: string) => `import { appendFileSync, readFileSync } from 'node:fs';
 appendFileSync('checks.jsonl', JSON.stringify({ stage: '${stage}', input: readFileSync('sample.txt', 'utf8') }) + '\\n');
@@ -38,6 +40,17 @@ if (process.env.FAIL_CHECK === '${stage}') { console.error('FAILED:${stage}'); p
     const installed = run('npm', ['run', 'prepare']);
     assert.equal(installed.status, 0, installed.stderr);
     assert.equal(git('config', '--get', 'core.hooksPath'), '.husky/_');
+    await writeFile(`${directory}/sample.txt`, 'x'.repeat(20001)); git('add', 'sample.txt');
+    await writeFile(`${directory}/sample.txt`, 'small unstaged replacement');
+    const oversizedIndex = git('diff', '--cached'), oversizedWorktree = git('diff');
+    await writeFile(`${directory}/checks.jsonl`, '');
+    const oversized = run('git', ['commit', '-m', 'Oversized staged file']);
+    assert.notEqual(oversized.status, 0);
+    assert.match(oversized.stdout + oversized.stderr, /5000\.25 tokens \(20001 bytes\)/);
+    assert.equal(await readFile(`${directory}/checks.jsonl`, 'utf8'), '', 'Size failures stop before any working-tree checks');
+    assert.equal(git('rev-parse', 'HEAD'), originalHead);
+    assert.equal(git('diff', '--cached'), oversizedIndex);
+    assert.equal(git('diff'), oversizedWorktree);
     await writeFile(`${directory}/sample.txt`, 'staged'); git('add', 'sample.txt');
     await writeFile(`${directory}/sample.txt`, 'working tree');
     const staged = git('diff', '--cached'), unstaged = git('diff');

@@ -75,13 +75,22 @@ npm run package
 
 ## 验证
 
-完成上面的开发依赖与原生运行时安装后，普通 `git commit` 会自动运行同一个无窗口检查入口：
+完成上面的开发依赖与原生运行时安装后，普通 `git commit` 会先检查暂存文件大小，再运行同一个无窗口检查入口：
 
 ```sh
 npm run check                      # typecheck → 单元／模块测试 → 组件测试
 ```
 
-任一阶段失败会以非零状态阻止提交，输出保留具体失败文件和断言。检查直接读取当前工作区，不创建暂存快照、不自动暂存或藏起修改；提交者负责保证工作区与拟提交内容一致。`npm ci` 的 `prepare` 安装钩子，已有检出可运行 `npm run prepare` 重新安装，`git config --get core.hooksPath` 应为 `.husky/_`。不要用 `--ignore-scripts` 跳过标准安装中的钩子步骤。
+任一阶段失败会以非零状态阻止提交，输出保留具体失败文件和断言。后续无窗口检查直接读取当前工作区，不创建暂存快照、不自动暂存或藏起修改；提交者负责保证工作区与拟提交内容一致。`npm ci` 的 `prepare` 安装钩子，已有检出可运行 `npm run prepare` 重新安装，`git config --get core.hooksPath` 应为 `.husky/_`。不要用 `--ignore-scripts` 跳过标准安装中的钩子步骤。
+
+文件大小检查只读取暂存区中新增或修改的普通文件（包含重命名目标），按字节数 / 4 估算 token。
+超过 5,000 token（20,000 字节）会在后续检查启动前阻止提交，恰好等于上限可提交；失败消息给出按职责拆分、更新引用、验证和重新暂存的步骤。
+未暂存内容、删除项、符号链接和子模块不参与大小检查；可用 `npm run check:staged-size` 单独运行。
+
+Git 不记录文件是否由 Agent 编写，因此默认检查全部普通文件，以暂存的 `.gitattributes` 标注工具产物例外。
+常见锁文件、`generated/` 下的文件以及 `*.generated.*`、`*.gen.*` 已标记为 `linguist-generated`；
+其他代码生成产物或第三方副本应按实际路径标记 `linguist-generated` 或 `linguist-vendored`，并暂存 `.gitattributes`。
+不要为手写代码、测试或文档添加豁免。后续 `npm run check` 仍按上文检查当前工作区。
 
 本地检查完整运行既有真实 PTY、存储、输入路由、运行生命周期和进程清理测试。Electron 仅以 `ELECTRON_RUN_AS_NODE=1` 运行模块测试；组件使用 jsdom 和可控 `window.workbench` 接口，均不创建桌面或报告窗口，也不操作系统焦点。单个测试文件排查：
 
