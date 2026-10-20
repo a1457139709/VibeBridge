@@ -1,12 +1,12 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
+import { mkdir, writeFile } from 'node:fs/promises';
 import { resolve } from 'node:path';
 import { Workbench } from '../app/main/workbench';
+import { testDirectory } from './support/directory';
 
-test('saved preferences apply at their intended boundaries and manual edits apply on reopen', async () => {
-  await mkdir('work/issue-27', { recursive: true });
-  const directory = await mkdtemp(resolve('work/issue-27/settings-'));
+test('saved preferences apply at their intended boundaries and manual edits apply on reopen', async context => {
+  const directory = await testDirectory(context, 'settings-persistence');
   let workbench = await Workbench.open(directory, true);
   try {
     assert.equal(workbench.snapshot().startupTheme, 'system');
@@ -45,12 +45,11 @@ test('saved preferences apply at their intended boundaries and manual edits appl
     await writeFile(resolve(directory, 'settings.json'), JSON.stringify({ ...workbench.snapshot().settings, theme: 'dark' }));
     workbench = await Workbench.open(directory, false);
     assert.equal(workbench.snapshot().resolvedTheme, 'dark');
-  } finally { await workbench.quit(); await rm(directory, { recursive: true, force: true }); }
+  } finally { await workbench.quit(); }
 });
 
-test('shortcut conflicts name the existing action and retain effective bindings until a valid save', async () => {
-  await mkdir('work/issue-27', { recursive: true });
-  const directory = await mkdtemp(resolve('work/issue-27/shortcuts-'));
+test('shortcut conflicts name the existing action and retain effective bindings until a valid save', async context => {
+  const directory = await testDirectory(context, 'settings-shortcuts');
   const workbench = await Workbench.open(directory);
   try {
     const original = workbench.snapshot().settings.shortcuts;
@@ -67,5 +66,5 @@ test('shortcut conflicts name the existing action and retain effective bindings 
     }
     await workbench.saveSettings({ shortcuts: original });
     assert.deepEqual(workbench.snapshot().settings.shortcuts, original);
-  } finally { await workbench.quit(); await rm(directory, { recursive: true, force: true }); }
+  } finally { await workbench.quit(); }
 });

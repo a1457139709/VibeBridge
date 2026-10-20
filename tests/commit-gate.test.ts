@@ -32,6 +32,7 @@ test('installed pre-commit blocks oversized staged files before working-tree che
     const check = (stage: string) => `import { appendFileSync, readFileSync } from 'node:fs';
 appendFileSync('checks.jsonl', JSON.stringify({ stage: '${stage}', input: readFileSync('sample.txt', 'utf8') }) + '\\n');
 if (process.env.FAIL_CHECK === '${stage}') { console.error('FAILED:${stage}'); process.exit(1); }`;
+    await writeFile(`${directory}/scripts/check-source-paths.mjs`, check('source-paths'));
     await writeFile(`${directory}/scripts/typecheck.mjs`, check('typecheck'));
     await writeFile(`${directory}/scripts/test.mjs`, check('modules'));
     await writeFile(`${directory}/scripts/test-components.mjs`, check('components'));
@@ -54,7 +55,7 @@ if (process.env.FAIL_CHECK === '${stage}') { console.error('FAILED:${stage}'); p
     await writeFile(`${directory}/sample.txt`, 'staged'); git('add', 'sample.txt');
     await writeFile(`${directory}/sample.txt`, 'working tree');
     const staged = git('diff', '--cached'), unstaged = git('diff');
-    const stages = ['typecheck', 'modules', 'components'];
+    const stages = ['source-paths', 'typecheck', 'modules', 'components'];
     for (const [index, stage] of stages.entries()) {
       await writeFile(`${directory}/checks.jsonl`, '');
       const result = run('git', ['commit', '-m', `Fails ${stage}`], { FAIL_CHECK: stage });
