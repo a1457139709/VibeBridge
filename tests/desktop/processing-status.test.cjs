@@ -66,13 +66,15 @@ module.exports = {
       const handle = await evaluate(`(() => { const rect = document.querySelector('.divider').getBoundingClientRect();
         const canvas = document.querySelector('.canvas').getBoundingClientRect();
         return { x: Math.round(rect.x + rect.width / 2), y: Math.round(rect.y + rect.height / 2), left: canvas.left, top: canvas.top }; })()`);
-      window.webContents.sendInputEvent({ type: 'mouseDown', x: handle.x, y: handle.y, button: 'left', clickCount: 1 });
+      // Electron's button identifies the changed button; modifiers carry the
+      // held buttons across movement so Chromium retains pointer capture.
+      window.webContents.sendInputEvent({ type: 'mouseDown', x: handle.x, y: handle.y, button: 'left', modifiers: ['leftbuttondown'], clickCount: 1 });
       // Native input dispatch is asynchronous. Observe capture and preview before
       // releasing, then require a persisted resize before starting another drag.
       await until(() => evaluate('document.querySelector(".canvas").classList.contains("resizing")'));
       const destination = { x: axis === 'row' ? Math.round(handle.left + size) : handle.x,
         y: axis === 'column' ? Math.round(handle.top + size) : handle.y };
-      window.webContents.sendInputEvent({ type: 'mouseMove', ...destination, button: 'left' });
+      window.webContents.sendInputEvent({ type: 'mouseMove', ...destination, button: 'left', modifiers: ['leftbuttondown'] });
       await until(() => evaluate(`(() => {
         const panel = document.querySelector('[data-panel-id="${runs[0].panelId}"]').getBoundingClientRect();
         const canvas = document.querySelector('.canvas').getBoundingClientRect();
