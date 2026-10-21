@@ -55,6 +55,7 @@ module.exports = {
     // Drag actual split handles to a compact row, then the enforced width/height
     // minima. The status/type pair stays horizontal in all three presentations.
     window.setContentSize(1280, 860);
+    await until(() => evaluate('document.documentElement.clientWidth === 1280'));
     for (const [axis, size, presentation] of [['row', 180, 'row'], ['row', 1, 'stacked'], ['column', 1, 'strip']]) {
       const remaining = runs.slice(1).map(run => run.panelId);
       const rest = ids => ids.length === 1 ? { panel: ids[0] }
@@ -66,10 +67,20 @@ module.exports = {
         const canvas = document.querySelector('.canvas').getBoundingClientRect();
         return { x: Math.round(rect.x + rect.width / 2), y: Math.round(rect.y + rect.height / 2), left: canvas.left, top: canvas.top }; })()`);
       window.webContents.sendInputEvent({ type: 'mouseDown', x: handle.x, y: handle.y, button: 'left', clickCount: 1 });
+      // Native input dispatch is asynchronous. Observe capture and preview before
+      // releasing, then require a persisted resize before starting another drag.
+      await until(() => evaluate('document.querySelector(".canvas").classList.contains("resizing")'));
       const destination = { x: axis === 'row' ? Math.round(handle.left + size) : handle.x,
         y: axis === 'column' ? Math.round(handle.top + size) : handle.y };
       window.webContents.sendInputEvent({ type: 'mouseMove', ...destination, button: 'left' });
+      await until(() => evaluate(`(() => {
+        const panel = document.querySelector('[data-panel-id="${runs[0].panelId}"]').getBoundingClientRect();
+        const canvas = document.querySelector('.canvas').getBoundingClientRect();
+        return ${axis === 'row' ? 'panel.width < canvas.width * .49' : 'panel.height < canvas.height * .49'};
+      })()`));
       window.webContents.sendInputEvent({ type: 'mouseUp', ...destination, button: 'left', clickCount: 1 });
+      await until(() => evaluate('!document.querySelector(".canvas").classList.contains("resizing")'));
+      await until(async () => (await evaluate('window.workbench.snapshot()')).projects.find(project => project.id === projectId).layout.ratio < .49);
       await until(() => evaluate(`document.querySelector('[data-panel-id="${runs[0].panelId}"] .agent-panel').dataset.compactLayout === '${presentation}'`));
       await checkGeometry();
     }
