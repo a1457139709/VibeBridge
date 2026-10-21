@@ -1,0 +1,30 @@
+const readline = require('node:readline');
+const http = require('node:http');
+
+// A real PTY program using the same reporting credentials as launch integrations.
+const context = JSON.parse(process.env.VIBEBRIDGE_STATUS_CONTEXT || '{}');
+let sequence = 0;
+function report(payload, overrides = {}, destination = context, sequenced = true) {
+  return new Promise(resolve => {
+    if (!destination.url) return resolve('unavailable');
+    const body = JSON.stringify({ version: 1, runId: context.runId, token: context.token,
+      agent: context.agent, scope: 'main', sequence: sequenced ? ++sequence : undefined, payload, ...overrides });
+    const request = http.request(destination.url, { method: 'POST', headers: { 'content-type': 'application/json' } }, response => {
+      response.resume(); response.on('end', () => resolve(response.statusCode));
+    });
+    request.on('error', () => resolve('unavailable'));
+    request.end(body);
+  });
+}
+let pending = Promise.resolve();
+readline.createInterface({ input: process.stdin }).on('line', line => {
+  pending = pending.then(async () => {
+    const message = JSON.parse(line);
+    if (message.exit !== undefined) process.exit(message.exit);
+    if (message.context) process.stdout.write(`CONTEXT:${JSON.stringify(context)}\n`);
+    if (message.payload) await report(message.payload, message.overrides, message.destination, !message.unsequenced);
+    if (message.output) process.stdout.write(message.output);
+    process.stdout.write(`ACK:${message.id}\n`);
+  });
+});
+process.stdout.write('STATUS-CLI-READY\n');

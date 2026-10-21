@@ -6,6 +6,7 @@ import { agentIcons } from './agent-icons';
 import type { PanelLocation } from './panel-location';
 import { capturePointer } from './pointer-capture';
 import { ProjectNavigationItem } from './ProjectManagement';
+import { ProcessingStatusIcon, processingLabels } from './ProcessingStatusIcon';
 
 const nameSegments = new Intl.Segmenter(undefined, { granularity: 'grapheme' });
 const projectInitial = (name: string) => nameSegments.segment(name)[Symbol.iterator]().next().value?.segment.toUpperCase() ?? '';
@@ -129,9 +130,11 @@ export function useProjectNavigation(host: Host, api: Pick<DesktopAPI, 'saveNavi
               <button title={`${project.name} · ${project.panels.length} 个面板`} aria-label={project.name} aria-current={active ? 'page' : undefined} className={`project-link ${active ? 'selected' : ''}`} onClick={() => host.openProject(project.id)}><span className="project-initial" aria-hidden="true">{projectInitial(project.name)}</span><span className="project-name">{project.name}</span><small>{project.panels.length}</small></button>
             </ProjectNavigationItem>
             {expanded && !!project.panels.length && <div className="project-panels" aria-label={`${project.name}的面板`}>{project.panels.map(panel => {
-              const title = sessionTitle(panel.agent, snapshot.runs.find(run => run.panelId === panel.id)?.rawTitle);
+              const run = snapshot.runs.find(run => run.panelId === panel.id);
+              const title = sessionTitle(panel.agent, run?.rawTitle);
+              const status = run && snapshot.processing.runs[run.id];
               const current = active && selected === panel.id;
-              return <button key={panel.id} data-locate-panel-id={panel.id} title={title} aria-current={current ? 'true' : undefined} className={`panel-link ${panel.agent} ${current ? 'selected' : ''}`} onClick={() => host.locatePanel(project.id, panel.id)}><span className="agent-mark" aria-hidden="true">{agentIcons[panel.agent]}</span><span className="session-title">{title}</span></button>;
+              return <button key={panel.id} data-locate-panel-id={panel.id} title={status ? `${processingLabels[status]} · ${title}` : title} aria-label={status ? `${processingLabels[status]} · ${title}` : title} aria-current={current ? 'true' : undefined} className={`panel-link ${panel.agent} ${current ? 'selected' : ''}`} onClick={() => host.locatePanel(project.id, panel.id)}><span className="agent-symbols"><ProcessingStatusIcon state={status} /><span className="agent-mark" aria-hidden="true">{agentIcons[panel.agent]}</span></span><span className="session-title">{title}</span></button>;
             })}</div>}
           </section>;
         })}

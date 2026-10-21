@@ -61,7 +61,7 @@ export class TerminalClient {
       });
     });
   }
-  start(value: { id: string; panelId: string; projectId: string; directory: string; command: AgentCommand }) { return this.request<Run>('start', value); }
+  start(value: { id: string; panelId: string; projectId: string; directory: string; command: AgentCommand; integration: Record<string, string> }) { return this.request<Run>('start', value); }
   checkCommand(command: string) { return this.request<CommandCheck>('check-command', command); }
   input(runId: string, data: string) { return this.request<void>('input', { runId, data }); }
   resize(runId: string, cols: number, rows: number) { return this.closing ? Promise.resolve() : this.request<void>('resize', { runId, cols, rows }); }

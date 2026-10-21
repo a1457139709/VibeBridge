@@ -8,9 +8,11 @@ import { ProjectStore } from './storage';
 import { SettingsFile, defaultSettings } from './settings';
 import { TerminalClient } from './terminal-client';
 import type { SettingsSaveResult } from '../shared/settings';
+import { ProcessingStatus } from './processing-status';
 
 export class Workbench {
-  private state: Snapshot = { navigation: { ...defaultNavigation }, projects: [], runs: [], activeProjectId: null, settings: defaultSettings(), settingsMigrationConflict: false, startupTheme: 'system', resolvedTheme: 'light', errors: [] };
+  private state: Omit<Snapshot, 'processing'> = { navigation: { ...defaultNavigation }, projects: [], runs: [], activeProjectId: null, settings: defaultSettings(), settingsMigrationConflict: false, startupTheme: 'system', resolvedTheme: 'light', errors: [] };
+  private processing = new ProcessingStatus(() => this.changed());
   private terminal: TerminalClient;
   private listeners = new Set<(event: WorkbenchEvent) => void>();
   private operations: Promise<unknown> = Promise.resolve();
@@ -24,7 +26,7 @@ export class Workbench {
     this.terminal = new TerminalClient(directory, event => this.terminalEvent(event), (message, stopped) => {
       if (stopped) {
         this.terminalFailure = message;
-        for (const run of this.state.runs) if (run.state === 'running' || run.state === 'starting') run.state = 'stopped';
+        for (const run of this.state.runs) if (run.state === 'running' || run.state === 'starting') { run.state = 'stopped'; this.processing.forget(run.id); }
         this.changed();
       }
       this.report(message);
@@ -43,11 +45,11 @@ export class Workbench {
       return workbench;
     } catch (error) {
       workbench.quitting = true;
-      await Promise.allSettled([workbench.terminal.shutdown(), store.close()]);
+      await Promise.allSettled([workbench.terminal.shutdown(), workbench.processing.close(), store.close()]);
       throw error;
     }
   }
-  snapshot(): Snapshot { return structuredClone(this.state); }
+  snapshot(): Snapshot { return structuredClone({ ...this.state, processing: this.processing.project(this.state.projects, this.state.runs) }); }
   subscribe(listener: (event: WorkbenchEvent) => void) { this.listeners.add(listener); return () => { this.listeners.delete(listener); }; }
   private emit(event: WorkbenchEvent) { for (const listener of this.listeners) listener(event); }
   private changed() { this.emit({ kind: 'snapshot', snapshot: this.snapshot() }); }
@@ -66,15 +68,18 @@ export class Workbench {
   private terminalEvent(event: TerminalEvent) {
     if (event.kind === 'started') {
       if (this.expectedRuns.get(event.run.panelId) !== event.run.id) return;
+      this.processing.lifecycle(event.run);
       this.state.runs = this.state.runs.filter(run => run.panelId !== event.run.panelId).concat(event.run);
       this.changed();
     } else {
       const run = this.state.runs.find(run => run.id === event.runId);
       if (!run || run.state !== 'running' || this.expectedRuns.get(run.panelId) !== run.id) return;
-      if (event.kind === 'title') {
+      if (event.kind === 'stopping') this.processing.stopping(run.id);
+      else if (event.kind === 'title') {
         run.rawTitle = event.title;
         this.changed();
       } else if (event.kind === 'exit') {
+        this.processing.forget(run.id);
         const controlled = this.controlledStops.delete(run.id);
         if (controlled) run.state = 'stopped';
         else this.state.runs = this.state.runs.filter(r => r.id !== run.id);
@@ -164,7 +169,8 @@ export class Workbench {
     const id = randomUUID();
     this.expectedRuns.set(panel.id, id);
     try {
-      const run = await this.terminal.start({ id, panelId: panel.id, projectId: project.id, directory: project.directory, command: this.state.settings.agents[panel.agent] });
+      const integration = await this.processing.prepare(id, panel.agent);
+      const run = await this.terminal.start({ id, panelId: panel.id, projectId: project.id, directory: project.directory, command: this.state.settings.agents[panel.agent], integration });
       return run.state === 'failed' ? { ok: false, run, error: 'Agent 无法启动' } : { ok: true, run };
     } catch (error) {
       // A missing response is not proof that the process never started. Preserve any
@@ -251,6 +257,7 @@ export class Workbench {
       let error: unknown;
       try { await this.settingsFile.saveOnQuit(this.state.settings); } catch (failure) { error = failure; }
       try { await this.terminal.shutdown(); } catch (failure) { error ??= failure; }
+      try { await this.processing.close(); } catch (failure) { error ??= failure; }
       try { await this.store.close(); } catch (failure) { error ??= failure; }
       if (error) throw error;
     })();

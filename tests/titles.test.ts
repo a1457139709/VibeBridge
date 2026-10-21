@@ -109,6 +109,8 @@ test('a delayed genuine start replaces the uncertain starting run and then accep
     const created = await f.workbench.createProject({ name: 'Delayed', directory: secondDirectory, total: 1, counts: { codex: 1, claude: 0, pi: 0 } });
     const pending = created.launches[0].run;
     assert.equal(pending.state, 'starting'); assert.equal(pending.rawTitle, undefined);
+    assert.equal(f.workbench.snapshot().processing.runs[pending.id], undefined);
+    assert.equal(f.workbench.snapshot().processing.projects[created.project.id].error.count, 0);
     process.kill(host, 'SIGCONT'); host = undefined;
     await until(() => f.workbench.snapshot().runs.some(run => run.id === pending.id && run.rawTitle === ' Late title | raw '));
     assert.equal(f.workbench.snapshot().runs.find(run => run.id === pending.id)!.state, 'running');
