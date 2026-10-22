@@ -6,6 +6,7 @@ await build({
     preload: 'app/main/preload.ts',
     terminal: 'app/terminal/host.ts',
     storage: 'app/main/storage-worker.ts',
+    'codex-hook': 'app/main/codex-hook.ts',
   },
   outdir: 'dist', outExtension: { '.js': '.cjs' },
   bundle: true, platform: 'node', format: 'cjs', target: 'node22',

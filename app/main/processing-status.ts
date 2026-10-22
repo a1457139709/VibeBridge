@@ -1,12 +1,14 @@
 import { randomUUID } from 'node:crypto';
 import { createServer, type Server } from 'node:http';
-import type { AgentType, Project, Run } from '../shared/model';
+import type { AgentCommand, AgentType, Project, Run } from '../shared/model';
 import type { AttentionState, AttentionGroup, ProcessingProjection, ProcessingState } from '../shared/processing-status';
 import { interpretStatus, type StatusMemory } from './status-events';
+import { codexLaunch } from './codex-launch';
+import { CodexEvents } from './codex-events';
 
 interface Observation {
   agent: AgentType; token: string; since: number; accepting: boolean; running: boolean;
-  state?: ProcessingState; sequence?: number; occurredAt?: number; ids: Set<string>; memory: StatusMemory;
+  state?: ProcessingState; sequence?: number; occurredAt?: number; ids: Set<string>; memory: StatusMemory; codex?: CodexEvents;
 }
 
 /** Run-scoped ingestion and projection; see docs/processing-status.md for the wire contract.
@@ -21,13 +23,14 @@ export class ProcessingStatus {
   private endpoint?: Promise<string>;
   constructor(private changed: () => void) {}
 
-  async prepare(runId: string, agent: AgentType): Promise<Record<string, string>> {
+  async prepare(runId: string, agent: AgentType, command: AgentCommand) {
     const observation: Observation = { agent, token: randomUUID(), since: Date.now(), accepting: true, running: false, ids: new Set(), memory: {} };
     this.observations.set(runId, observation);
     try {
       const url = await (this.endpoint ??= this.listen());
-      return { VIBEBRIDGE_STATUS_CONTEXT: JSON.stringify({ url, runId, agent, token: observation.token }) };
-    } catch { return {}; } // Observation must never prevent a terminal launch.
+      return { command: agent === 'codex' ? codexLaunch(command) : command,
+        integration: { VIBEBRIDGE_STATUS_CONTEXT: JSON.stringify({ url, runId, agent, token: observation.token }) } };
+    } catch { return { command, integration: {} as Record<string, string> }; } // Observation must never prevent a terminal launch.
   }
 
   lifecycle(run: Run) {
@@ -109,10 +112,15 @@ export class ProcessingStatus {
       || (typeof event.occurredAt === 'number' && event.occurredAt < observation.since)
       || (typeof event.occurredAt === 'number' && observation.occurredAt !== undefined && event.occurredAt < observation.occurredAt)
       || (typeof event.expiresAt === 'number' && event.expiresAt <= Date.now())) return 204;
+    let payload = event.payload as Record<string, unknown>;
+    if (event.source === 'codex-hook' && observation.agent === 'codex') {
+      const accepted = (observation.codex ??= new CodexEvents()).accept(payload);
+      if (!accepted) return 204;
+      payload = accepted;
+    }
     if (typeof event.id === 'string') observation.ids.add(event.id);
     if (typeof event.sequence === 'number') observation.sequence = event.sequence;
     if (typeof event.occurredAt === 'number') observation.occurredAt = event.occurredAt;
-    const payload = event.payload as Record<string, unknown>;
     const state = interpretStatus(observation.agent, payload, observation.memory);
     if (state === 'error') observation.memory = {};
     if (state !== 'keep' && observation.state !== state) {

@@ -169,8 +169,8 @@ export class Workbench {
     const id = randomUUID();
     this.expectedRuns.set(panel.id, id);
     try {
-      const integration = await this.processing.prepare(id, panel.agent);
-      const run = await this.terminal.start({ id, panelId: panel.id, projectId: project.id, directory: project.directory, command: this.state.settings.agents[panel.agent], integration });
+      const launch = await this.processing.prepare(id, panel.agent, this.state.settings.agents[panel.agent]);
+      const run = await this.terminal.start({ id, panelId: panel.id, projectId: project.id, directory: project.directory, ...launch });
       return run.state === 'failed' ? { ok: false, run, error: 'Agent 无法启动' } : { ok: true, run };
     } catch (error) {
       // A missing response is not proof that the process never started. Preserve any

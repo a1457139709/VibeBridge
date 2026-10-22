@@ -126,8 +126,8 @@ test('Codex waiting, tool failures, compaction and confirmed interruption preser
     };
     await check({ hook_event_name: 'SessionStart', source: 'startup' }, 'ready');
     await check({ hook_event_name: 'UserPromptSubmit' }, 'busy');
-    await check({ hook_event_name: 'PermissionRequest' }, 'needs-input');
-    await check({ hook_event_name: 'PostToolUseFailure', tool_name: 'shell' }, 'busy');
+    await check({ hook_event_name: 'PermissionRequest', tool_use_id: 'approval' }, 'needs-input');
+    await check({ hook_event_name: 'PostToolUseFailure', tool_name: 'shell', tool_use_id: 'approval' }, 'busy');
     await check({ hook_event_name: 'PreCompact' }, 'busy');
     await check({ hook_event_name: 'SessionStart', source: 'compact' }, 'busy');
     await check({ hook_event_name: 'SubagentStop' }, 'busy');
