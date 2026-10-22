@@ -1,0 +1,5 @@
+.agent-symbols { display: inline-flex; align-items: center; gap: 6px; flex-shrink: 0; }
+.processing-status { display: inline-flex; width: 14px; height: 14px; flex: 0 0 14px; color: var(--accent); border-radius: 2px; }
+.processing-status svg { display: block; width: 100%; height: 100%; }
+.processing-status:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+.processing-error { color: var(--error, #a4362b); }

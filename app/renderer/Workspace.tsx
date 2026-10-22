@@ -8,6 +8,8 @@ import { AgentPicker } from './AgentPicker';
 import { createPanelInteractions, type PanelInteractionContext } from './panel-interactions';
 import type { ShortcutAction } from '../shared/shortcuts';
 import { useWorkspacePanelLocation, type PanelLocation } from './panel-location';
+import type { ProcessingProjection } from '../shared/processing-status';
+import { ProcessingStatusIcon } from './ProcessingStatusIcon';
 
 export interface WorkspaceActions { shortcut(action: ShortcutAction): boolean }
 
@@ -19,7 +21,7 @@ function TerminalView({ run }: { run?: Run }) {
   return <div className="terminal-container" ref={container}>{run?.state === 'starting' ? <div className="terminal-message">启动结果未确认，正在等待终端响应</div> : run?.state === 'failed' ? <div className="terminal-message">Agent 无法启动</div> : run?.state === 'stopped' ? <div className="terminal-message">运行已结束，请重新打开工作台</div> : !run ? <div className="terminal-message muted">正在启动…</div> : null}</div>;
 }
 
-export function Workspace({ project, runs, report, location, visible, ref }: { project: Project; runs: Run[]; report(message: string): void; location: PanelLocation; visible: boolean; ref: Ref<WorkspaceActions> }) {
+export function Workspace({ project, runs, processing, report, location, visible, ref }: { project: Project; runs: Run[]; processing: ProcessingProjection; report(message: string): void; location: PanelLocation; visible: boolean; ref: Ref<WorkspaceActions> }) {
   const [layout, setLayout] = useState(project.layout);
   const [adding, setAdding] = useState(false);
   const canvas = useRef<HTMLDivElement>(null);
@@ -62,7 +64,7 @@ export function Workspace({ project, runs, report, location, visible, ref }: { p
         return <section key={panel.id} data-panel-id={panel.id} className={`panel-slot ${panel.agent}`} style={position}><div className={`agent-panel ${focused === panel.id ? 'focused' : ''}`}
           onMouseDown={event => { if (!(event.target as HTMLElement).closest('.panel-header')) viewing.select(panel.id); }} onFocusCapture={() => viewing.focusChanged(panel.id)}>
           <header className="panel-header" onPointerDown={event => interactions.current?.startSwap(event.nativeEvent, event.currentTarget, panel.id)} onClick={() => viewing.focus(panel.id)}>
-            <span className="agent-title" title={title}><span className="agent-mark">{agentIcons[panel.agent]}</span><span className="session-title">{title}</span></span><span className="panel-actions">
+            <span className="agent-title" title={title}><span className="agent-symbols"><ProcessingStatusIcon state={run && processing.runs[run.id]} focusable /><span className="agent-mark" aria-hidden="true">{agentIcons[panel.agent]}</span></span><span className="session-title">{title}</span></span><span className="panel-actions">
               <button aria-label={maximized === panel.id ? '还原面板' : '放大面板'} draggable={false} onMouseDown={event => event.stopPropagation()} onClick={event => { event.stopPropagation(); viewing.toggleMaximize(panel.id); }}>⤢</button>
               <button aria-label="关闭面板" draggable={false} onMouseDown={event => event.stopPropagation()} onClick={event => { event.stopPropagation(); close(panel.id); }}>×</button>
             </span>

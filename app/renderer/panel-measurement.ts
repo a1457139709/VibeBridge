@@ -20,18 +20,20 @@ function panelMetrics(panel: HTMLElement) {
   const borderWidth = parseFloat(style.borderLeftWidth) + parseFloat(style.borderRightWidth);
   const borderHeight = parseFloat(style.borderTopWidth) + parseFloat(style.borderBottomWidth);
   const mark = pixels('--compact-mark-size'), padding = pixels('--compact-padding') * 2, gap = pixels('--panel-title-gap');
+  const status = header.querySelector<HTMLElement>('.processing-status');
+  const statusWidth = status ? status.getBoundingClientRect().width + gap : 0;
   const line = parseFloat(textStyle.lineHeight);
   const headerHeight = pixels('--panel-header-height');
   const actions = header.querySelector<HTMLElement>('.panel-actions')!;
   return {
     // Half the bounded prefix permits two lines; icon/gap remain available even
     // when an independently shortened panel needs a single-row strip.
-    minimum: { width: Math.ceil(textWidth / 2 + mark + gap + padding + borderWidth),
+    minimum: { width: Math.ceil(textWidth / 2 + mark + statusWidth + gap + padding + borderWidth),
       height: Math.ceil(Math.max(mark, line) + padding + borderHeight) },
-    normalWidth: textWidth + pixels('--panel-mark-size') + gap + pixels('--panel-header-start') + pixels('--panel-header-end')
+    normalWidth: textWidth + pixels('--panel-mark-size') + statusWidth + gap + pixels('--panel-header-start') + pixels('--panel-header-end')
       + actions.scrollWidth + parseFloat(heading.columnGap),
     headerHeight, borderHeight,
-    rowWidth: textWidth + mark + gap + padding,
+    rowWidth: textWidth + mark + statusWidth + gap + padding,
     rowHeight: Math.max(mark, line * 2) + padding,
     stackedHeight: mark + gap + line * 2 + padding,
   };

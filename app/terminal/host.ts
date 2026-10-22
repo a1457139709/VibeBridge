@@ -39,6 +39,7 @@ async function stop(id: string) {
   if (!entry) return;
   if (entry.stop) return entry.stop;
   entry.stopping = true;
+  event({ kind: 'stopping', runId: id });
   entry.stop = (async () => {
     await sample();
     await stopProcesses(entry.processes, `${owner}:${id}`, () => drainAfterKill(entry));
@@ -53,7 +54,7 @@ function shutdown(): Promise<void> {
   if (shuttingDown) return shuttingDown;
   closing = true;
   clearInterval(sampler);
-  for (const entry of runs.values()) entry.stopping = true;
+  for (const entry of runs.values()) { entry.stopping = true; event({ kind: 'stopping', runId: entry.run.id }); }
   shuttingDown = (async () => {
     await sampling;
     await stopProcesses([...runs.values()].flatMap(entry => entry.processes), owner, () => {
@@ -74,13 +75,13 @@ async function handle(operation: string, value: any) {
     } catch (error) { return { available: false, message: `命令不可用，请检查程序路径及执行权限：${(error as Error).message}` }; }
   }
   if (operation === 'start') {
-    const { id, panelId, projectId, directory, command } = value as { id: string; panelId: string; projectId: string; directory: string; command: AgentCommand };
+    const { id, panelId, projectId, directory, command, integration } = value as { id: string; panelId: string; projectId: string; directory: string; command: AgentCommand; integration: Record<string, string> };
     try {
       environment ??= commandEnvironment();
       const env = await environment;
       const program = await executable(command.command, env);
       if (closing) throw new Error('工作台正在退出');
-      const terminal = pty.spawn(program, command.args, { cwd: directory, env: { ...env, VIBEBRIDGE_RUN_OWNER: `${owner}:${id}` }, name: 'xterm-256color', cols: 80, rows: 24 });
+      const terminal = pty.spawn(program, command.args, { cwd: directory, env: { ...env, ...integration, VIBEBRIDGE_RUN_OWNER: `${owner}:${id}` }, name: 'xterm-256color', cols: 80, rows: 24 });
       const run: Run = { id, panelId, projectId, pid: terminal.pid, state: 'running' };
       const entry = { run, terminal, processes: [] as ProcessIdentity[], stopping: false, outstanding: 0, paused: false, draining: false };
       runs.set(id, entry);
