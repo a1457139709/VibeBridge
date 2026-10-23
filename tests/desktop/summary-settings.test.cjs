@@ -100,6 +100,16 @@ module.exports = {
     await evaluate('new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))');
     assert.equal(await evaluate('document.activeElement?.classList.contains("xterm-helper-textarea")'), false);
     await f.choose('done', second); await f.receiveInput(second, 'explicit-selection-after-cancel');
+    const added = await evaluate(`window.workbench.addPanel(${JSON.stringify(f.projectId)}, 'codex')`);
+    await f.send(added.launch.run, { payload: { hook_event_name: 'Stop' } });
+    await f.choose('done', added.launch.run); await f.receiveInput(added.launch.run, 'before-live-exit');
+    await f.open('done');
+    await evaluate(`window.workbench.closePanel(${JSON.stringify(f.projectId)}, ${JSON.stringify(added.panel.id)})`);
+    await until(() => evaluate('document.querySelectorAll(".summary-list li").length === 1'));
+    await evaluate('new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))');
+    assert.ok(await evaluate('!!document.activeElement.closest(".summary-list")'), 'a background exit cannot steal keyboard focus from an open list');
+    await click('Close panel list');
+    await f.choose('done', second); await f.receiveInput(second, 'after-live-list-update');
     console.log('Live settings summary, cancel, validation, real failed write/retry, whole-draft save, discard and disappearing targets passed.');
   },
 };
