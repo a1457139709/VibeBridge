@@ -2,7 +2,7 @@ import { useLayoutEffect, useRef, useState, type RefObject } from 'react';
 import type { Project, Snapshot } from '../shared/model';
 import { sessionTitle } from '../shared/session-title';
 import type { ReportNotice } from './Notices';
-import { focusTerminal } from './terminals';
+import { focusTerminal, terminalHasFocus } from './terminals';
 
 interface View { selected?: string; maximized?: string }
 interface Host {
@@ -48,6 +48,8 @@ function createLocation(initial: Host, changed: () => void) {
   let focusBlocked = false;
   const project = (id?: string | null) => host.snapshot?.projects.find(item => item.id === id);
   const view = (item?: Project) => validView(item, item && views.get(item.id));
+  const focusKey = (projectId: string, panelId?: string) => JSON.stringify([projectId, panelId,
+    host.snapshot?.runs.find(run => run.panelId === panelId && run.state === 'running')?.id]);
   const notify = () => { if (!disposed) changed(); };
   function cancel() {
     current = undefined;
@@ -121,8 +123,11 @@ function createLocation(initial: Host, changed: () => void) {
     if (focusBlocked || !actual || actual.projectId !== focusProject) return;
     const operation = current;
     if (operation && (operation.projectId !== actual.projectId || operation.stage === 'outgoing' || operation.stage === 'activating')) return;
-    const run = host.snapshot?.runs.find(item => item.panelId === actual.view.selected && item.state === 'running');
-    const key = JSON.stringify([actual.projectId, actual.view.selected, run?.id]);
+    const active = document.activeElement;
+    // Snapshot changes may update the displayed selection while a control or
+    // list owns the keyboard. Only an explicit location may take that focus.
+    if (!operation && focusedKey !== undefined && active !== document.body && active !== document.documentElement && !terminalHasFocus()) return;
+    const key = focusKey(actual.projectId, actual.view.selected);
     if (focusedKey !== key || (operation && !operation.focusSettled)) {
       if (focus(actual.view.selected)) { focusedKey = key; if (operation) operation.focusSettled = true; }
       else schedule();
@@ -174,16 +179,16 @@ function createLocation(initial: Host, changed: () => void) {
     if (disposed || suspended || !host.visible || host.snapshot?.activeProjectId !== projectId
       || !target?.panels.some(panel => panel.id === panelId)) return;
     cancel(); focusProject = projectId; focusBlocked = false;
-    if (intent !== 'select') focusedKey = undefined;
     const previous = view(target);
+    if (intent !== 'select' || previous.selected !== panelId) focusedKey = undefined;
     select(projectId, { selected: panelId, maximized: intent === 'maximize' ? previous.maximized === panelId ? undefined : panelId : previous.maximized });
     // Header/maximize actions historically accept input immediately when their
     // terminal is already visible. Only an unmounted/hidden target needs a frame.
     if (intent !== 'select' && connection?.projectId === projectId && focus(panelId)) {
-      const run = host.snapshot?.runs.find(item => item.panelId === panelId && item.state === 'running');
-      focusedKey = JSON.stringify([projectId, panelId, run?.id]);
+      focusedKey = focusKey(projectId, panelId);
     }
     schedule();
+    return true;
   }
   return {
     view,
@@ -215,7 +220,9 @@ function createLocation(initial: Host, changed: () => void) {
     },
     select: interact,
     focus: (projectId: string, panelId: string) => interact(projectId, panelId, 'focus'),
-    focusChanged(projectId: string, panelId: string) { if (!focusing) interact(projectId, panelId); },
+    focusChanged(projectId: string, panelId: string) {
+      if (!focusing && interact(projectId, panelId)) focusedKey = focusKey(projectId, panelId);
+    },
     toggleMaximize(projectId: string, panelId: string) { interact(projectId, panelId, 'maximize'); },
     panelAdded(projectId: string) {
       if (disposed || suspended || host.snapshot?.activeProjectId !== projectId) return;

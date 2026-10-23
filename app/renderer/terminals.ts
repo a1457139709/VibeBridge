@@ -72,6 +72,9 @@ export function focusTerminal(runId?: string) {
   screen.terminal.focus();
   return document.activeElement === screen.terminal.textarea;
 }
+export function terminalHasFocus() {
+  return [...screens.values()].some(screen => document.activeElement === screen.terminal.textarea);
+}
 
 // Measure a rendered row's font and spacing as one unit. Grid pixels and terminal
 // cols/rows can update on different frames during fit, so their quotient is unsafe.
