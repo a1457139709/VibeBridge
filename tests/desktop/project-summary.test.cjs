@@ -37,14 +37,10 @@ module.exports = {
     await evaluate(`document.querySelector('[data-panel-id="${first.panelId}"] .terminal-container').style.display = ''`);
     await evaluate('new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))');
     assert.ok(await f.focused(second));
-    const terminal = await evaluate(`(() => {
-      const box = document.querySelector('[data-panel-id="${second.panelId}"] .terminal-container').getBoundingClientRect();
-      return { x: Math.round(box.x + box.width / 2), y: Math.round(box.y + box.height / 2) };
-    })()`);
     const recordVisible = () => evaluate(`document.querySelector('[data-panel-id="${second.panelId}"] .xterm-rows').textContent.includes('RECEIVED:split-selection')`);
     for (let step = 0; step < 20 && !(await recordVisible()); step++) {
-      // Electron's native wheel delta is positive toward earlier terminal rows.
-      window.webContents.sendInputEvent({ type: 'mouseWheel', ...terminal, deltaY: 80, canScroll: true });
+      window.webContents.sendInputEvent({ type: 'keyDown', keyCode: 'PageUp', modifiers: ['shift'] });
+      window.webContents.sendInputEvent({ type: 'keyUp', keyCode: 'PageUp', modifiers: ['shift'] });
       await evaluate('new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))');
     }
     assert.ok(await recordVisible(), 'earlier output remains accessible through terminal scrollback');
