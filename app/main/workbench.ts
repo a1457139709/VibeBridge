@@ -12,7 +12,7 @@ import { ProcessingStatus } from './processing-status';
 
 export class Workbench {
   private state: Omit<Snapshot, 'processing'> = { navigation: { ...defaultNavigation }, projects: [], runs: [], activeProjectId: null, settings: defaultSettings(), settingsMigrationConflict: false, startupTheme: 'system', resolvedTheme: 'light', errors: [] };
-  private processing = new ProcessingStatus(() => this.changed());
+  private processing: ProcessingStatus;
   private terminal: TerminalClient;
   private listeners = new Set<(event: WorkbenchEvent) => void>();
   private operations: Promise<unknown> = Promise.resolve();
@@ -23,6 +23,7 @@ export class Workbench {
   private quitting = false;
   private quitPromise?: Promise<void>;
   private constructor(directory: string, private store: ProjectStore, private settingsFile: SettingsFile) {
+    this.processing = new ProcessingStatus(() => this.changed(), directory);
     this.terminal = new TerminalClient(directory, event => this.terminalEvent(event), (message, stopped) => {
       if (stopped) {
         this.terminalFailure = message;
@@ -169,7 +170,7 @@ export class Workbench {
     const id = randomUUID();
     this.expectedRuns.set(panel.id, id);
     try {
-      const launch = await this.processing.prepare(id, panel.agent, this.state.settings.agents[panel.agent]);
+      const launch = await this.processing.prepare(id, panel.agent, this.state.settings.agents[panel.agent], project.directory);
       const run = await this.terminal.start({ id, panelId: panel.id, projectId: project.id, directory: project.directory, ...launch });
       return run.state === 'failed' ? { ok: false, run, error: 'Agent 无法启动' } : { ok: true, run };
     } catch (error) {

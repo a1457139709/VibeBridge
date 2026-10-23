@@ -1,9 +1,10 @@
 import type { AgentType } from '../shared/model';
 import type { ProcessingState } from '../shared/processing-status';
+import { claudeStatus, type ClaudeMemory } from './claude-status';
 
 type Payload = Record<string, unknown>;
 type Transition = ProcessingState | 'keep';
-export interface StatusMemory { stopReason?: string; codexWaits?: Set<string>; codexTurn?: string }
+export interface StatusMemory { stopReason?: string; codexWaits?: Set<string>; codexTurn?: string; claude?: ClaudeMemory }
 
 function codex(event: Payload, memory: StatusMemory): Transition {
   const name = event.hook_event_name ?? event.type;
@@ -32,20 +33,6 @@ function codex(event: Payload, memory: StatusMemory): Transition {
     case 'PreToolUse': return 'busy';
     case 'Stop': case 'agent-turn-complete': return 'done';
     case 'Interrupt': return event.confirmed === true && event.can_accept_input === true ? 'ready' : 'keep';
-    case 'SessionEnd': case 'SubagentStart': case 'SubagentStop': case 'Notification': return 'keep';
-    default: return 'error';
-  }
-}
-
-function claude(event: Payload): Transition {
-  switch (event.hook_event_name) {
-    case 'SessionStart': return event.source === 'compact' ? 'busy' : 'ready';
-    case 'UserPromptSubmit': case 'PostToolUse': case 'PostToolUseFailure':
-    case 'PreCompact': case 'PostCompact': case 'ElicitationResult': return 'busy';
-    case 'PreToolUse': return event.tool_name === 'AskUserQuestion' ? 'needs-input' : 'busy';
-    case 'PermissionRequest': case 'Elicitation': return 'needs-input';
-    case 'Stop': return 'done';
-    case 'StopFailure': return 'error';
     case 'SessionEnd': case 'SubagentStart': case 'SubagentStop': case 'Notification': return 'keep';
     default: return 'error';
   }
@@ -81,6 +68,6 @@ export function interpretStatus(agent: AgentType, event: Payload, memory: Status
   if (event.observation === 'restored') return 'keep';
   if (event.observation === 'lost' || event.observation === 'unavailable') return 'error';
   if (agent === 'codex') return codex(event, memory);
-  if (agent === 'claude') return claude(event);
+  if (agent === 'claude') return claudeStatus(event, memory.claude ??= {});
   return pi(event, memory);
 }

@@ -7,6 +7,7 @@ await build({
     terminal: 'app/terminal/host.ts',
     storage: 'app/main/storage-worker.ts',
     'codex-hook': 'app/main/codex-hook.ts',
+    'claude-hook': 'app/main/claude-hook.ts',
   },
   outdir: 'dist', outExtension: { '.js': '.cjs' },
   bundle: true, platform: 'node', format: 'cjs', target: 'node22',
