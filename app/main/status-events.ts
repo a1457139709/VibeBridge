@@ -1,10 +1,11 @@
 import type { AgentType } from '../shared/model';
 import type { ProcessingState } from '../shared/processing-status';
 import { claudeStatus, type ClaudeMemory } from './claude-status';
+import { piStatus, type PiMemory } from './pi-status';
 
 type Payload = Record<string, unknown>;
 type Transition = ProcessingState | 'keep';
-export interface StatusMemory { stopReason?: string; codexWaits?: Set<string>; codexTurn?: string; claude?: ClaudeMemory }
+export interface StatusMemory { pi?: PiMemory; codexWaits?: Set<string>; codexTurn?: string; claude?: ClaudeMemory }
 
 function codex(event: Payload, memory: StatusMemory): Transition {
   const name = event.hook_event_name ?? event.type;
@@ -38,36 +39,11 @@ function codex(event: Payload, memory: StatusMemory): Transition {
   }
 }
 
-function pi(event: Payload, memory: StatusMemory): Transition {
-  switch (event.type) {
-    case 'session_start': delete memory.stopReason; return 'ready';
-    case 'agent_start': case 'auto_retry_start': delete memory.stopReason; return 'busy';
-    case 'ui_prompt_start': return 'needs-input';
-    case 'ui_prompt_end': case 'tool_execution_start': case 'tool_execution_update': case 'tool_execution_end':
-    case 'auto_compaction_start': case 'auto_compaction_end': case 'auto_retry_end': return 'busy';
-    case 'message_end': {
-      const message = event.message;
-      if (message && typeof message === 'object' && 'role' in message && message.role === 'assistant') {
-        memory.stopReason = 'stopReason' in message && typeof message.stopReason === 'string' ? message.stopReason : undefined;
-      }
-      return 'keep';
-    }
-    case 'agent_settled': {
-      const reason = memory.stopReason;
-      delete memory.stopReason;
-      return reason === 'stop' ? 'done' : reason === 'aborted' ? 'ready' : 'error';
-    }
-    case 'agent_end': case 'turn_start': case 'turn_end': case 'message_start': case 'message_update':
-    case 'session_shutdown': return 'keep';
-    default: return 'error';
-  }
-}
-
 // CLI protocol differences stay inside the status module, without a plugin registry.
 export function interpretStatus(agent: AgentType, event: Payload, memory: StatusMemory): Transition {
   if (event.observation === 'restored') return 'keep';
   if (event.observation === 'lost' || event.observation === 'unavailable') return 'error';
   if (agent === 'codex') return codex(event, memory);
   if (agent === 'claude') return claudeStatus(event, memory.claude ??= {});
-  return pi(event, memory);
+  return piStatus(event, memory.pi ??= {});
 }

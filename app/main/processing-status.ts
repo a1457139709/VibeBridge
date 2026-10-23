@@ -7,6 +7,7 @@ import { codexLaunch } from './codex-launch';
 import { CodexEvents } from './codex-events';
 import { claudeLaunch } from './claude-launch';
 import { ClaudeEvents } from './claude-events';
+import { piLaunch } from './pi-launch';
 
 interface Observation {
   agent: AgentType; token: string; since: number; accepting: boolean; running: boolean;
@@ -34,6 +35,7 @@ export class ProcessingStatus {
       const url = await (this.endpoint ??= this.listen());
       let prepared = command;
       if (agent === 'codex') prepared = codexLaunch(command);
+      if (agent === 'pi') prepared = piLaunch(command);
       if (agent === 'claude') {
         const launch = await claudeLaunch(command, directory, this.resourceDirectory);
         prepared = launch.command;

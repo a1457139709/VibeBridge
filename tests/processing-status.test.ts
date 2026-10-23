@@ -188,7 +188,10 @@ test('pi settles only with a final assistant outcome and keeps automatic retries
     await check({ type: 'agent_settled' }, 'error');
     await check({ type: 'agent_start' }, 'busy');
     await check({ type: 'message_end', message: { role: 'assistant', stopReason: 'aborted' } }, 'busy');
-    await check({ type: 'agent_settled' }, 'ready');
+    await check({ type: 'agent_settled' }, 'error');
+    await check({ type: 'agent_start' }, 'busy');
+    await check({ type: 'message_end', message: { role: 'assistant', stopReason: 'aborted' } }, 'busy');
+    await check({ type: 'agent_settled', isIdle: true, hasPendingMessages: false }, 'ready');
     await check({ type: 'agent_start' }, 'busy');
     await check({ type: 'message_end', message: { role: 'assistant', stopReason: 'error' } }, 'busy');
     await check({ type: 'agent_settled' }, 'error');

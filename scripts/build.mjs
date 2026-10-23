@@ -13,3 +13,6 @@ await build({
   bundle: true, platform: 'node', format: 'cjs', target: 'node22',
   external: ['electron', 'node-pty'], sourcemap: true,
 });
+
+await build({ entryPoints: ['app/main/pi-extension.ts'], outdir: 'dist', outExtension: { '.js': '.mjs' },
+  bundle: true, platform: 'node', format: 'esm', target: 'node22', sourcemap: true });
