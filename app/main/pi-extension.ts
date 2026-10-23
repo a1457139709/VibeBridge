@@ -55,6 +55,7 @@ export default function install(pi: ExtensionAPI) {
         const assistant = messages.findLast(message => message?.role === 'assistant');
         payload.finalStopReason = typeof assistant?.stopReason === 'string' ? assistant.stopReason : null;
       }
+      if (name === 'agent_settled') payload.aborted = event.aborted;
       if (name.startsWith('session_') && name.includes('compact')) {
         payload.reason = event.reason; payload.willRetry = event.willRetry; payload.aborted = event.aborted;
       }

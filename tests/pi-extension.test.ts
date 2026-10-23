@@ -197,6 +197,40 @@ test('pi final outcomes require settlement without queued continuation, and retr
   } finally { await f.close(); }
 });
 
+test('pi confirmed run cancellation returns Ready even without an aborted assistant message', async () => {
+  const f = await fixture();
+  try {
+    const { launches: [{ run }] } = await f.create();
+    for (const stopReason of ['error', 'stop', undefined]) {
+      await f.send(run.id, { type: 'agent_start' });
+      if (stopReason) await f.send(run.id, { type: 'message_end', message: { role: 'assistant', stopReason } });
+      await f.send(run.id, { type: 'agent_end' });
+      await f.send(run.id, { type: 'agent_settled', aborted: true });
+      assert.equal(f.workbench.snapshot().processing.runs[run.id], 'ready', String(stopReason));
+    }
+  } finally { await f.close(); }
+});
+
+test('pi cancellation requires no pending work and does not hide extension UI waits or real failure', async () => {
+  const f = await fixture();
+  try {
+    const { launches: [{ run }] } = await f.create();
+    await f.send(run.id, { type: 'agent_start' });
+    await f.send(run.id, { type: 'message_end', message: { role: 'assistant', stopReason: 'error' } });
+    await f.send(run.id, { type: 'agent_settled', aborted: true }, { pendingMessages: true });
+    assert.equal(f.workbench.snapshot().processing.runs[run.id], 'busy');
+    await f.send(run.id, { type: 'ui_prompt_start' });
+    await f.send(run.id, { type: 'agent_settled', aborted: true });
+    assert.equal(f.workbench.snapshot().processing.runs[run.id], 'needs-input');
+    await f.send(run.id, { type: 'ui_prompt_end' });
+    assert.equal(f.workbench.snapshot().processing.runs[run.id], 'ready');
+    await f.send(run.id, { type: 'agent_start' });
+    await f.send(run.id, { type: 'message_end', message: { role: 'assistant', stopReason: 'error' } });
+    await f.send(run.id, { type: 'agent_settled', aborted: false });
+    assert.equal(f.workbench.snapshot().processing.runs[run.id], 'error');
+  } finally { await f.close(); }
+});
+
 test('pi extension UI waits outlive unrelated tools and restore the latest effective idle or processing fact', async () => {
   const f = await fixture();
   try {

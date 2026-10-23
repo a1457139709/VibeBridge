@@ -46,8 +46,11 @@ export function piStatus(event: Record<string, unknown>, memory: PiMemory): Proc
       if (event.isIdle === false || event.hasPendingMessages === true) { memory.state = 'busy'; break; }
       const reason = memory.stopReason;
       delete memory.stopReason;
-      memory.state = memory.compactionFailed ? 'error' : reason === 'stop' ? 'done'
-        : reason === 'aborted' && event.isIdle === true && event.hasPendingMessages === false ? 'ready' : 'error';
+      // A run can be cancelled after its last assistant message, so settlement
+      // can confirm interruption without an assistant stopReason of aborted.
+      const interrupted = event.aborted === true || reason === 'aborted';
+      memory.state = interrupted ? event.isIdle === true && event.hasPendingMessages === false ? 'ready' : 'error'
+        : memory.compactionFailed ? 'error' : reason === 'stop' ? 'done' : 'error';
       break;
     }
     case 'agent_end':
