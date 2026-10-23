@@ -43,7 +43,8 @@ module.exports = {
     })()`);
     const recordVisible = () => evaluate(`document.querySelector('[data-panel-id="${second.panelId}"] .xterm-rows').textContent.includes('RECEIVED:split-selection')`);
     for (let step = 0; step < 20 && !(await recordVisible()); step++) {
-      window.webContents.sendInputEvent({ type: 'mouseWheel', ...terminal, deltaY: -80, canScroll: true });
+      // Electron's native wheel delta is positive toward earlier terminal rows.
+      window.webContents.sendInputEvent({ type: 'mouseWheel', ...terminal, deltaY: 80, canScroll: true });
       await evaluate('new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))');
     }
     assert.ok(await recordVisible(), 'earlier output remains accessible through terminal scrollback');
