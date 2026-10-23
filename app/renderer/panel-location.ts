@@ -16,6 +16,7 @@ interface Connection { projectId: string; canvas: HTMLElement; view: View }
 interface Location {
   projectId: string;
   panelId?: string;
+  runId?: string;
   stage: 'outgoing' | 'activating' | 'presenting' | 'entering';
   changingMaximized: boolean;
   animated: boolean;
@@ -44,6 +45,7 @@ function createLocation(initial: Host, changed: () => void) {
   let focusProject = host.snapshot?.activeProjectId;
   let focusedKey: string | undefined;
   let focusing = false;
+  let focusBlocked = false;
   const project = (id?: string | null) => host.snapshot?.projects.find(item => item.id === id);
   const view = (item?: Project) => validView(item, item && views.get(item.id));
   const notify = () => { if (!disposed) changed(); };
@@ -53,6 +55,17 @@ function createLocation(initial: Host, changed: () => void) {
     if (frame !== undefined) cancelAnimationFrame(frame);
     frame = undefined;
     notify();
+  }
+  function targetExists(projectId: string, panelId?: string, runId?: string) {
+    const target = project(projectId);
+    return !!target && (!panelId || target.panels.some(panel => panel.id === panelId))
+      && (!runId || host.snapshot?.runs.some(run => run.id === runId && run.panelId === panelId && run.projectId === projectId && run.state === 'running'));
+  }
+  function rejectTarget() {
+    cancel(); focusBlocked = true; focusedKey = undefined;
+    // A fallback view keeps the workspace usable, but is not an input target
+    // authorized by the cancelled request. Wait for an explicit new selection.
+    if (document.activeElement instanceof HTMLElement && connection?.canvas.contains(document.activeElement)) document.activeElement.blur();
   }
   function select(projectId: string, next: View) {
     if (sameView(view(project(projectId)), next)) return;
@@ -105,7 +118,7 @@ function createLocation(initial: Host, changed: () => void) {
   function progress() {
     frame = undefined;
     const actual = connected();
-    if (!actual || actual.projectId !== focusProject) return;
+    if (focusBlocked || !actual || actual.projectId !== focusProject) return;
     const operation = current;
     if (operation && (operation.projectId !== actual.projectId || operation.stage === 'outgoing' || operation.stage === 'activating')) return;
     const run = host.snapshot?.runs.find(item => item.panelId === actual.view.selected && item.state === 'running');
@@ -126,15 +139,16 @@ function createLocation(initial: Host, changed: () => void) {
     }
     complete(operation);
   }
-  async function open(projectId: string, panelId?: string) {
+  async function open(projectId: string, panelId?: string, runId?: string) {
+    if (disposed) return;
     const target = project(projectId);
-    if (disposed || !target || (panelId && !target.panels.some(panel => panel.id === panelId))) return;
+    if (!target || !targetExists(projectId, panelId, runId)) { rejectTarget(); return; }
     const sourceView = view(project(host.snapshot?.activeProjectId));
     const changingMaximized = !!panelId && !!sourceView.maximized
       && (host.snapshot?.activeProjectId !== projectId || sourceView.maximized !== panelId);
     cancel();
-    focusProject = projectId; focusedKey = undefined;
-    const operation: Location = { projectId, panelId: panelId ?? view(target).selected, stage: 'outgoing', changingMaximized,
+    focusProject = projectId; focusedKey = undefined; focusBlocked = false;
+    const operation: Location = { projectId, panelId: panelId ?? view(target).selected, runId, stage: 'outgoing', changingMaximized,
       animated: changingMaximized && !matchMedia('(prefers-reduced-motion: reduce)').matches,
       animationDone: false, focusSettled: false };
     current = operation; notify();
@@ -159,7 +173,7 @@ function createLocation(initial: Host, changed: () => void) {
     const target = project(projectId);
     if (disposed || suspended || !host.visible || host.snapshot?.activeProjectId !== projectId
       || !target?.panels.some(panel => panel.id === panelId)) return;
-    cancel(); focusProject = projectId;
+    cancel(); focusProject = projectId; focusBlocked = false;
     if (intent !== 'select') focusedKey = undefined;
     const previous = view(target);
     select(projectId, { selected: panelId, maximized: intent === 'maximize' ? previous.maximized === panelId ? undefined : panelId : previous.maximized });
@@ -175,14 +189,14 @@ function createLocation(initial: Host, changed: () => void) {
     view,
     get locating() { return !!current; },
     openProject: (id: string) => { void open(id); },
-    locatePanel: (projectId: string, panelId: string) => { void open(projectId, panelId); },
+    locatePanel: (projectId: string, panelId: string, runId?: string) => { void open(projectId, panelId, runId); },
     leaveWorkbench(changePage: () => void) { cancel(); suspended = true; focusedKey = undefined; changePage(); },
     update(next: Host) {
       const wasVisible = host.visible;
       host = next;
       if (!host.visible && wasVisible) { cancel(); suspended = true; focusedKey = undefined; }
       if (host.visible && !wasVisible) { suspended = false; if (!current) focusProject = host.snapshot?.activeProjectId; }
-      if (current && (!project(current.projectId) || (current.panelId && !project(current.projectId)?.panels.some(panel => panel.id === current!.panelId)))) cancel();
+      if (current && !targetExists(current.projectId, current.panelId, current.runId)) rejectTarget();
       for (const [id, saved] of views) {
         const item = project(id);
         if (!item) { views.delete(id); notify(); }
@@ -205,7 +219,7 @@ function createLocation(initial: Host, changed: () => void) {
     toggleMaximize(projectId: string, panelId: string) { interact(projectId, panelId, 'maximize'); },
     panelAdded(projectId: string) {
       if (disposed || suspended || host.snapshot?.activeProjectId !== projectId) return;
-      cancel(); focusProject = projectId; select(projectId, { ...view(project(projectId)), maximized: undefined }); schedule();
+      cancel(); focusProject = projectId; focusBlocked = false; select(projectId, { ...view(project(projectId)), maximized: undefined }); schedule();
     },
     mount() { disposed = false; },
     dispose() { disposed = true; cancel(); connection = undefined; },

@@ -3,6 +3,7 @@ import { createRoot } from 'react-dom/client';
 import type {} from '../shared/api';
 import { newDraft, type Snapshot } from '../shared/model';
 import { useProjectNavigation } from './ProjectNavigation';
+import { ProjectSummary } from './ProjectSummary';
 import { Setup } from './Setup';
 import { Workspace, type WorkspaceActions } from './Workspace';
 import { usePanelLocation } from './panel-location';
@@ -14,6 +15,7 @@ import { configureTerminals, reconcileTerminals, terminalEvent } from './termina
 import '@xterm/xterm/css/xterm.css';
 import './style.css';
 import './processing-status.css';
+import './project-summary.css';
 
 function App() {
   const [state, setState] = useState<Snapshot>();
@@ -64,7 +66,7 @@ function App() {
   const toggleSettings = () => { if (settingsOpen) void leaveSettings(); else openSettings(); };
   const activate = (id: string) => navigate(() => location.openProject(id));
   const create = () => navigate(() => location.leaveWorkbench(() => setSetup(true)));
-  const locatePanel = (projectId: string, panelId: string) => navigate(() => location.locatePanel(projectId, panelId));
+  const locatePanel = (projectId: string, panelId: string, runId?: string) => navigate(() => location.locatePanel(projectId, panelId, runId));
   const navigation = useProjectNavigation({ snapshot: state, page: settingsOpen ? 'settings' : setup ? 'setup' : 'workbench',
     view: location.view, openProject: activate, locatePanel, createProject: create, toggleSettings, report });
   const active = state?.projects.find(project => project.id === state.activeProjectId);
@@ -99,6 +101,7 @@ function App() {
       </div>
       {state && settingsOpen && <SettingsPage ref={settingsPage} settings={state.settings} startupTheme={state.startupTheme} initialCategory={initialSettingsCategory} report={report} back={() => void leaveSettings()} />}
     </main></div>
+    <ProjectSummary snapshot={state} locatePanel={locatePanel} />
     <Notices notices={notices} dismiss={dismiss} />
   </div>;
 }
