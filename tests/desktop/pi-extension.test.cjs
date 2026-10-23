@@ -15,8 +15,8 @@ module.exports = {
       await until(() => evaluate(`${label(run, 'data-panel-id')} === ${JSON.stringify(expected)}`));
       assert.equal(await evaluate(label(run, 'data-locate-panel-id')), expected);
     }
-    async function emit(run, payload) {
-      await evaluate(`window.workbench.sendInput(${JSON.stringify(run.id)}, ${JSON.stringify(JSON.stringify({ id: payload.type, payload }) + '\n')})`);
+    async function emit(run, payload, options = {}) {
+      await evaluate(`window.workbench.sendInput(${JSON.stringify(run.id)}, ${JSON.stringify(JSON.stringify({ id: payload.type, payload, ...options }) + '\n')})`);
     }
     for (const run of runs) await check(run, 'Ready');
     await emit(runs[0], { type: 'agent_start' });
@@ -34,6 +34,17 @@ module.exports = {
     await check(runs[1], 'Busy');
     await emit(runs[1], { type: 'agent_settled' });
     await check(runs[1], 'Done'); await check(runs[0], 'Needs input');
+    for (let i = 0; i < 2; i++) {
+      await emit(runs[1], { type: 'session_before_compact', reason: 'manual' }, { idle: false });
+      await check(runs[1], 'Busy');
+    }
+    await emit(runs[1], { type: 'session_compact', reason: 'manual', willRetry: false }, { idle: false });
+    await check(runs[1], 'Busy');
+    await emit(runs[1], { type: 'session_compact', reason: 'manual', willRetry: false }, { idle: true });
+    await check(runs[1], 'Done'); await check(runs[0], 'Needs input');
+    const compacted = await evaluate('window.workbench.snapshot()');
+    assert.deepEqual(compacted.processing.projects[created.project.id].done,
+      { count: 1, members: [{ panelId: runs[1].panelId, runId: runs[1].id }] });
     await emit(runs[0], { type: 'ui_prompt_end' });
     await check(runs[0], 'Busy');
     await emit(runs[0], { type: 'message_end', message: { role: 'assistant', stopReason: 'error' } });

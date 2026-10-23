@@ -24,13 +24,16 @@ export function piStatus(event: Record<string, unknown>, memory: PiMemory): Proc
     case 'auto_compaction_start': case 'auto_compaction_end': case 'auto_retry_end':
       memory.state = 'busy'; break;
     case 'session_before_compact':
-      memory.beforeCompaction = memory.state; memory.state = 'busy'; break;
+      // An earlier extension can start another manual compaction before this
+      // observer receives the first completion. Keep the original idle result.
+      memory.beforeCompaction ??= memory.state ?? 'error'; memory.state = 'busy'; break;
     case 'session_compact': case 'session_compact_failed':
       memory.compactionFailed = event.type === 'session_compact_failed' && event.aborted !== true;
       if (event.reason === 'manual' && event.isIdle === true && event.hasPendingMessages === false && event.willRetry === false) {
-        memory.state = memory.compactionFailed ? 'error' : memory.beforeCompaction ?? 'error';
+        memory.state = memory.compactionFailed ? 'error' : memory.beforeCompaction ?? memory.state ?? 'error';
+        delete memory.beforeCompaction;
       } else memory.state = 'busy';
-      delete memory.beforeCompaction;
+      if (event.reason !== 'manual') delete memory.beforeCompaction;
       break;
     case 'message_end': {
       const message = event.message;
@@ -46,6 +49,7 @@ export function piStatus(event: Record<string, unknown>, memory: PiMemory): Proc
       if (event.isIdle === false || event.hasPendingMessages === true) { memory.state = 'busy'; break; }
       const reason = memory.stopReason;
       delete memory.stopReason;
+      delete memory.beforeCompaction;
       // A run can be cancelled after its last assistant message, so settlement
       // can confirm interruption without an assistant stopReason of aborted.
       const interrupted = event.aborted === true || reason === 'aborted';
