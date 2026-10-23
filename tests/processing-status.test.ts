@@ -140,9 +140,7 @@ test('Codex waiting, tool failures, compaction and confirmed interruption preser
   } finally { await f.close(); }
 });
 
-test('Claude separates blocking input and individual tool failure from a failed main turn', {
-  skip: process.env.VIBEBRIDGE_TEST_CLAUDE !== '1' && 'Enable Claude tests in the manual Checks workflow on GitHub.',
-}, async () => {
+test('Claude separates blocking input and individual tool failure from a failed main turn', async () => {
   const f = await fixture();
   try {
     const { launches: [{ run }] } = await f.create('claude');

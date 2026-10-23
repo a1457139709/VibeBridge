@@ -25,11 +25,11 @@ PermissionRequest lacks a tool-use ID. The adapter binds its input digest to a t
 
 ## Test entry points
 
-`npm test`, `npm run check` and the pre-commit hook exclude `tests/claude-*.test.ts` and skip the Claude-specific case in `tests/processing-status.test.ts`. Selecting a Claude module suite explicitly is also refused locally. Shared Workbench tests still use harmless fixture commands for all Agent Types; no automated test invokes the installed Claude CLI or contacts its service.
+`npm test`, `npm run check` and the pre-commit hook include the Claude module suites. They launch `tests/fixtures/claude-hooks.cjs` with Node.js inside a real PTY, exercising production command hooks and Workbench state with simulated native events. They do not launch the installed Claude program, log into an account, or contact Claude's service. Shared Workbench tests also use controlled fixture commands for all Agent Types.
 
-To run the preserved Claude suites, push the workflow changes to the default branch, then open GitHub Actions → **Checks** → **Run workflow** and enable **Run Claude hook tests**. The manual macOS run opts into the module suites through `VIBEBRIDGE_TEST_CLAUDE=1` and explicitly selects the desktop Claude suite; push/PR runs and unchecked manual runs skip both. `npm test -- --list` lists the selected module files without executing them. Desktop suites remain restricted to GitHub-hosted macOS.
+The existing GitHub Actions **Checks** workflow includes these module suites and the Claude production desktop suite on normal push/PR runs and manual **Run workflow** runs. Desktop suites remain restricted to GitHub-hosted macOS and use the same simulated CLI; no account credentials are needed.
 
-These suites use simulated native events and require no Claude credentials. Real CLI acceptance is a separate, user-controlled activity; it is not invoked by these commands or this workflow.
+Real CLI acceptance is a separate, user-controlled activity. Starting the actual Claude program, authentication and model requests are not invoked by these test commands or this workflow. Simulated tests cannot prove that a real Claude version emits the expected events. The agent must not automatically run or retry real Claude acceptance; the user performs it manually.
 
 ## Approximation and evidence limits
 

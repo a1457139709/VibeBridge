@@ -2,7 +2,6 @@ const assert = require('node:assert/strict');
 const { resolve } = require('node:path');
 
 module.exports = {
-  manual: 'Enable Claude tests in the manual Checks workflow on GitHub.',
   async run({ window, evaluate, until, directory }) {
     const command = { command: process.env.VIBEBRIDGE_TEST_NODE, args: [resolve('tests/fixtures/claude-hooks.cjs')] };
     const settings = await evaluate('window.workbench.snapshot().then(snapshot => snapshot.settings)');

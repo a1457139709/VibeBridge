@@ -79,7 +79,7 @@ npm run package
 npm run check                      # 运行本地无窗口检查
 ```
 
-Claude hooks 专项测试保留在仓库中，本地检查和普通 CI 默认跳过。需要时在 GitHub Actions → **Checks** → **Run workflow** 勾选 **Run Claude hook tests**；这些测试使用模拟 CLI，不需要 Claude 账号。详见 [Claude 测试入口](docs/claude-status.md#test-entry-points)。
+本地检查包含 Claude hooks 的模拟 CLI 测试，不会启动真实 Claude 或访问其服务。生产桌面测试在 GitHub Actions **Checks** 中运行，也可通过 **Run workflow** 手动触发。真实 Claude 验收由用户手动进行，详见 [Claude 测试入口](docs/claude-status.md#test-entry-points)。
 
 ## 代码结构
 
