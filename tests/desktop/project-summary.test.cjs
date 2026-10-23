@@ -37,7 +37,16 @@ module.exports = {
     await evaluate(`document.querySelector('[data-panel-id="${first.panelId}"] .terminal-container').style.display = ''`);
     await evaluate('new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))');
     assert.ok(await f.focused(second));
-    assert.ok(await evaluate(`document.querySelector('[data-panel-id="${second.panelId}"] .xterm-rows').textContent.includes('RECEIVED:split-selection')`));
+    const terminal = await evaluate(`(() => {
+      const box = document.querySelector('[data-panel-id="${second.panelId}"] .terminal-container').getBoundingClientRect();
+      return { x: Math.round(box.x + box.width / 2), y: Math.round(box.y + box.height / 2) };
+    })()`);
+    const recordVisible = () => evaluate(`document.querySelector('[data-panel-id="${second.panelId}"] .xterm-rows').textContent.includes('RECEIVED:split-selection')`);
+    for (let step = 0; step < 20 && !(await recordVisible()); step++) {
+      window.webContents.sendInputEvent({ type: 'mouseWheel', ...terminal, deltaY: -80, canScroll: true });
+      await evaluate('new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))');
+    }
+    assert.ok(await recordVisible(), 'earlier output remains accessible through terminal scrollback');
     const unchanged = await f.snapshot();
     assert.deepEqual(unchanged.runs.map(run => [run.id, run.pid]), initial.runs.map(run => [run.id, run.pid]));
     assert.deepEqual(unchanged.projects[0].layout, layout);
