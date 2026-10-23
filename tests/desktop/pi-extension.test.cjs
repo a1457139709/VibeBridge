@@ -2,12 +2,13 @@ const assert = require('node:assert/strict');
 const { resolve } = require('node:path');
 
 module.exports = {
-  async run({ window, evaluate, until, directory }) {
+  async run({ window, evaluate, until, click, directory }) {
     const command = { command: process.env.VIBEBRIDGE_TEST_NODE, args: [resolve('tests/fixtures/pi-extension.cjs')] };
     const settings = await evaluate('window.workbench.snapshot().then(snapshot => snapshot.settings)');
     await evaluate(`window.workbench.saveSettings(${JSON.stringify({ agents: { ...settings.agents, pi: command } })})`);
     const created = await evaluate(`window.workbench.createProject(${JSON.stringify({ name: 'pi extension panels', directory,
       total: 2, counts: { codex: 0, claude: 0, pi: 2 } })})`);
+    await click(created.project.name);
     const runs = created.launches.map(launch => launch.run);
     const label = (run, selector) => `document.querySelector('[${selector}="${run.panelId}"] .processing-status')?.getAttribute('aria-label')`;
     async function check(run, expected) {
