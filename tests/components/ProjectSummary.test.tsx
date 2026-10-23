@@ -5,6 +5,7 @@ import { createRef, useEffect, useState } from 'react';
 import { act, cleanup, render, screen, within } from '@testing-library/react';
 import { userEvent } from '@testing-library/user-event';
 import { ProjectSummary } from '../../app/renderer/ProjectSummary';
+import { Localization } from '../../app/renderer/Localization';
 import { SettingsPage, type SettingsPageActions } from '../../app/renderer/SettingsPage';
 import { defaultSettings } from '../../app/shared/settings';
 import type { Snapshot, WorkbenchEvent } from '../../app/shared/model';
@@ -40,12 +41,12 @@ function fixture(saveSettings?: DesktopAPI['saveSettings']) {
       void window.workbench.snapshot().then(setState);
       return window.workbench.subscribe(event => { if (event.kind === 'snapshot') setState(event.snapshot); });
     }, []);
-    return <><button>Outside</button>
-      {saveSettings && state && <SettingsPage ref={settings} settings={state.settings} startupTheme="light" report={() => {}} back={() => {}} />}
+    return <Localization language={state?.settings.language ?? 'en'}><button>Outside</button>
+      {saveSettings && state && <SettingsPage initialCategory="agents" ref={settings} settings={state.settings} startupTheme="light" report={() => {}} back={() => {}} />}
       <ProjectSummary snapshot={state} locatePanel={(...target) => {
         if (saveSettings) void settings.current!.requestLeave().then(leave => { if (leave) located.push(target); });
         else located.push(target);
-      }} /></>;
+      }} /></Localization>;
   }
   render(<Summary />);
   return { snapshot, located, user: userEvent.setup(),
@@ -134,22 +135,46 @@ test('clicking blank space in the bottom bar dismisses the list', async () => {
   assert.ok(!screen.queryByRole('dialog'));
 });
 
+test('language changes update an open list without replacing it or translating real session titles', async () => {
+  const { user, snapshot, update, located } = fixture();
+  await screen.findByRole('button', { name: '2 Done' });
+  snapshot.runs[0].rawTitle = undefined;
+  snapshot.runs[1].rawTitle = 'Untitled task | project';
+  await update();
+  await user.click(screen.getByRole('button', { name: '2 Done' }));
+  const list = screen.getByRole('dialog', { name: 'Done' });
+  const members = within(list).getAllByRole('listitem');
+  assert.equal(members[0].textContent, 'Untitled taskCodex');
+  assert.equal(members[1].textContent, 'Untitled taskCodex');
+  await user.keyboard('{ArrowDown}');
+  snapshot.settings.language = 'zh-CN';
+  await update();
+  assert.equal(screen.getByRole('dialog', { name: '本轮结束' }), list);
+  assert.equal(within(list).getAllByRole('listitem')[0], members[0]);
+  assert.equal(members[0].textContent, '未命名任务Codex');
+  assert.equal(members[1].textContent, 'Untitled taskCodex');
+  assert.equal(document.activeElement, members[1].querySelector('button'));
+  assert.ok(screen.getByRole('button', { name: '1 等待输入' }));
+  await user.keyboard('{Enter}');
+  assert.deepEqual(located, [['project', 'second', 'second']]);
+});
+
 test('a pending settings save protects edits and leave requests and preserves the selected run even if its list member disappears', async () => {
   const pending = deferred<SettingsSaveResult>();
   const patches: Parameters<DesktopAPI['saveSettings']>[0][] = [];
   const { user, snapshot, update, located } = fixture(patch => { patches.push(patch); return pending.promise; });
   await screen.findByRole('button', { name: '2 Done' });
-  const input = screen.getAllByRole<HTMLInputElement>('textbox', { name: '启动命令' })[0];
+  const input = screen.getAllByRole<HTMLInputElement>('textbox', { name: 'Launch command' })[0];
   await user.type(input, '-draft');
   await user.click(screen.getByRole('button', { name: '2 Done' }));
   await user.click(screen.getByRole('button', { name: /Session first/ }));
-  await user.click(screen.getByRole('button', { name: '保存并返回' }));
+  await user.click(screen.getByRole('button', { name: 'Save and return' }));
   assert.equal(patches.length, 1);
   await user.type(input, '-ignored');
-  await user.click(screen.getByRole('button', { name: '保存' }));
-  await user.click(screen.getByRole('button', { name: '外观' }));
+  await user.click(screen.getByRole('button', { name: 'Save' }));
+  await user.click(screen.getByRole('button', { name: 'Appearance' }));
   assert.equal(input.value, 'codex-draft');
-  assert.equal(screen.getByRole<HTMLButtonElement>('button', { name: '‹ 返回' }).disabled, true);
+  assert.equal(screen.getByRole<HTMLButtonElement>('button', { name: '‹ Back' }).disabled, true);
   await user.click(screen.getByRole('button', { name: '2 Done' }));
   await user.click(screen.getByRole('button', { name: /Session second/ }));
   assert.deepEqual(located, []);

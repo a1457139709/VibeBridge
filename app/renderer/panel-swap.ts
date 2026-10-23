@@ -1,4 +1,5 @@
-import { agentNames, type Panel, type Layout } from '../shared/model';
+import { agentNames, type Panel, type Layout, type Language } from '../shared/model';
+import { localize } from '../shared/localization';
 
 // A frozen copy is only a paint surface. It never owns a terminal, input or a layout.
 function snapshot(element: HTMLElement) {
@@ -15,10 +16,12 @@ function snapshot(element: HTMLElement) {
   return copy;
 }
 
-export function createSwapPreview({ event, canvas, source, panels, layout, consumed }: {
+export function createSwapPreview({ event, canvas, source, panels, layout, consumed, language = 'en' }: {
   event: PointerEvent; canvas: HTMLElement; source: string; panels: Panel[]; layout: Layout;
+  language?: Language;
   consumed(): void;
 }) {
+  const { t } = localize(language);
   const original = structuredClone(layout);
   const images = panels.map(panel => {
     const element = canvas.querySelector<HTMLElement>(`[data-panel-id="${panel.id}"] .agent-panel`)!;
@@ -42,7 +45,7 @@ export function createSwapPreview({ event, canvas, source, panels, layout, consu
     if (!id) return;
     const other = images.find(image => image.panel.id === id)!;
     preview = document.createElement('div'); preview.className = 'panel-swap-preview';
-    preview.setAttribute('role', 'img'); preview.setAttribute('aria-label', `交换预览：${agentNames[dragged.panel.agent]} 与 ${agentNames[other.panel.agent]}`);
+    preview.setAttribute('role', 'img'); preview.setAttribute('aria-label', t('swapPreview', { first: agentNames[dragged.panel.agent], second: agentNames[other.panel.agent] }));
     other.element.classList.add('panel-drag-hidden');
     preview.append(layer(snapshot(other.image), dragged.box, agentNames[other.panel.agent], `panel-preview-image ${other.panel.agent}`));
     document.body.append(preview);
@@ -52,7 +55,7 @@ export function createSwapPreview({ event, canvas, source, panels, layout, consu
     if (!moving) {
       moving = true; consumed(); canvas.classList.add('dragging');
       dragged.element.classList.add('panel-drag-hidden');
-      ghost = layer(snapshot(dragged.image), dragged.box, `拖动中的 ${agentNames[dragged.panel.agent]} 面板`, `panel-drag-image ${dragged.panel.agent}`);
+      ghost = layer(snapshot(dragged.image), dragged.box, t('draggingPanel', { agent: agentNames[dragged.panel.agent] }), `panel-drag-image ${dragged.panel.agent}`);
       document.body.append(ghost);
     }
     ghost!.style.left = `${pointer.clientX - offset.x}px`; ghost!.style.top = `${pointer.clientY - offset.y}px`;

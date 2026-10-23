@@ -1,3 +1,4 @@
+import { message } from '../app/shared/messages';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFile, writeFile } from 'node:fs/promises';
@@ -19,14 +20,14 @@ test('project creation rejects incomplete allocation and invalid directories wit
   const workbench = await Workbench.open(dataDirectory);
   try {
     const draft = { name: 'Example', directory: dataDirectory, total: 3, counts: { codex: 0, claude: 0, pi: 0 } };
-    await assert.rejects(workbench.createProject(draft), /分配/);
-    await assert.rejects(workbench.createProject({ ...draft, total: 1, counts: { codex: 1, claude: 0, pi: 0 }, directory: `${dataDirectory}/missing` }), /目录/);
-    await assert.rejects(workbench.createProject({ ...draft, name: ' ', total: 1, counts: { codex: 1, claude: 0, pi: 0 } }), /名称/);
+    await assert.rejects(workbench.createProject(draft), /assignmentInvalid/);
+    await assert.rejects(workbench.createProject({ ...draft, total: 1, counts: { codex: 1, claude: 0, pi: 0 }, directory: `${dataDirectory}/missing` }), /projectDirectoryInvalid|projectDuplicate/);
+    await assert.rejects(workbench.createProject({ ...draft, name: ' ', total: 1, counts: { codex: 1, claude: 0, pi: 0 } }), /nameRequired|nameControls/);
     const settings = workbench.snapshot().settings;
     settings.agents.codex = { command: '/no-such-test-agent', args: [] };
     await workbench.saveSettings(settings);
     for (const name of ['Manual\u001bname', 'Manual\nname', 'Manual\u2028name']) {
-      await assert.rejects(workbench.createProject({ ...draft, name, total: 1, counts: { codex: 1, claude: 0, pi: 0 } }), /控制字符/);
+      await assert.rejects(workbench.createProject({ ...draft, name, total: 1, counts: { codex: 1, claude: 0, pi: 0 } }), /nameControls/);
     }
     assert.deepEqual(workbench.snapshot().projects, []);
     assert.deepEqual(workbench.snapshot().runs, []);
@@ -58,10 +59,10 @@ test('confirmed projects start independent runs in the selected directory and re
     await workbench.resizeRun(runs[1].id, 93, 27);
     await until(() => output(runs[1].id).includes('SIZE:93x27'));
     assert.equal((await workbench.inspectDirectory(`${dataDirectory}/.`)).existingProjectId, project.id);
-    await assert.rejects(workbench.createProject({ name: 'Duplicate', directory: dataDirectory, total: 1, counts: { codex: 1, claude: 0, pi: 0 } }), /已有项目/);
+    await assert.rejects(workbench.createProject({ name: 'Duplicate', directory: dataDirectory, total: 1, counts: { codex: 1, claude: 0, pi: 0 } }), /projectDirectoryExists/);
     await workbench.sendInput(runs[1].id, 'exit');
     await until(() => workbench.snapshot().projects[0].panels.length === 2);
-    await assert.rejects(workbench.sendInput(runs[1].id, 'stale'), /运行已失效/);
+    await assert.rejects(workbench.sendInput(runs[1].id, 'stale'), /runInvalid/);
   } finally {
     unsubscribe();
     await workbench.quit();
@@ -101,7 +102,7 @@ test('quit cleans up runs and detached children while preserving the saved works
     assert.deepEqual(workbench.snapshot().settings, settings);
     await workbench.activateProject(project.id);
     assert.ok(workbench.snapshot().runs.every(r => !oldRuns.some(old => old.id === r.id)));
-    await assert.rejects(workbench.sendInput(oldRuns[0].id, 'old-run'), /运行已失效/);
+    await assert.rejects(workbench.sendInput(oldRuns[0].id, 'old-run'), /runInvalid/);
     await workbench.closePanel(project.id, project.panels[0].id);
     await workbench.quit();
     workbench = await Workbench.open(dataDirectory);
@@ -120,16 +121,16 @@ test('shared panel operations enforce the limit and report launch failure withou
     await workbench.saveSettings(settings);
     const { project, launches } = await workbench.createProject({ name: 'Limit', directory: dataDirectory, total: 10, counts: { codex: 0, claude: 0, pi: 10 } });
     assert.equal(launches.length, 10);
-    assert.ok(launches.every(launch => !launch.ok && launch.error === 'Agent 无法启动'));
+    assert.ok(launches.every(launch => !launch.ok && launch.error === message('launchFailed')));
     assert.ok(workbench.snapshot().runs.every(run => run.state === 'failed'));
     assert.ok(workbench.snapshot().projects[0].panels.every(panel => panel.agent === 'pi'));
-    await assert.rejects(workbench.addPanel(project.id, 'codex'), /最多 10/);
+    await assert.rejects(workbench.addPanel(project.id, 'codex'), /panelLimit/);
     await workbench.closePanel(project.id, project.panels[0].id);
     const additions = await Promise.allSettled([workbench.addPanel(project.id, 'pi'), workbench.addPanel(project.id, 'pi')]);
     assert.equal(additions.filter(result => result.status === 'fulfilled').length, 1);
     const rejected = additions.find(result => result.status === 'rejected');
     assert.ok(rejected?.status === 'rejected');
-    assert.match(rejected.reason.message, /最多 10/);
+    assert.match(rejected.reason.message, /panelLimit/);
     assert.equal(workbench.snapshot().projects[0].panels.length, 10);
   } finally { await workbench.quit(); }
 });
@@ -140,9 +141,9 @@ test('damaged configuration is reported and preserved instead of being overwritt
   await writeFile(`${directory}/settings.json`, damaged);
   const workbench = await Workbench.open(directory);
   try {
-    assert.match(workbench.snapshot().errors.join('\n'), /配置读取失败/);
-    assert.deepEqual(await workbench.saveSettings(workbench.snapshot().settings), { ok: false, kind: 'storage', message: '配置读取失败，未覆盖原配置；请修正后重新启动' });
-    await assert.rejects(workbench.quit(), /未覆盖原配置/);
+    assert.match(workbench.snapshot().errors.join('\n'), /settingsReadFailed/);
+    assert.deepEqual(await workbench.saveSettings(workbench.snapshot().settings), { ok: false, kind: 'storage', message: message('settingsUnreadable') });
+    await assert.rejects(workbench.quit(), /settingsUnreadable/);
     assert.equal(await readFile(`${directory}/settings.json`, 'utf8'), damaged);
   } finally { await workbench.quit().catch(() => {}); }
 });

@@ -43,11 +43,11 @@ test('editing a name or the same real directory preserves panels, layout and the
     await f.workbench.editProject(project.id, { name: 'Renamed', directory: link }, false);
     assert.deepEqual(f.workbench.snapshot().runs, before.runs);
     for (const name of ['', '  ', 'line\nbreak', 'bad\u001bname']) {
-      await assert.rejects(f.workbench.editProject(project.id, { name, directory: f.directory }, false), /名称/);
+      await assert.rejects(f.workbench.editProject(project.id, { name, directory: f.directory }, false), /nameRequired|nameControls/);
     }
     const file = join(f.directory, 'file'); await writeFile(file, 'keep');
     for (const directory of ['', file, join(f.directory, 'missing')]) {
-      await assert.rejects(f.workbench.editProject(project.id, { name: 'Invalid', directory }, false), /目录/);
+      await assert.rejects(f.workbench.editProject(project.id, { name: 'Invalid', directory }, false), /projectDirectoryInvalid|projectDuplicate/);
     }
     assert.equal(f.workbench.snapshot().projects[0].name, 'Renamed');
   } finally { await f.close(); }
@@ -184,10 +184,10 @@ test('failed saves do not mutate names or stop runs and failed deletion keeps al
     database.exec('BEGIN IMMEDIATE'); // External filesystem/database fault, never a mocked collaborator.
     const unchanged = await f.workbench.editProject(project.id, { name: project.name, directory: project.directory }, false);
     assert.deepEqual(unchanged.project, project);
-    await assert.rejects(f.workbench.editProject(project.id, { name: 'Unsaved', directory: target }, true), /保存/);
+    await assert.rejects(f.workbench.editProject(project.id, { name: 'Unsaved', directory: target }, true), /projectStorageFailed/);
     assert.deepEqual(f.workbench.snapshot().projects, [project]);
     assert.deepEqual(f.workbench.snapshot().runs, [run]);
-    await assert.rejects(f.workbench.deleteProject(project.id), /保存/);
+    await assert.rejects(f.workbench.deleteProject(project.id), /projectStorageFailed/);
     assert.deepEqual(f.workbench.snapshot().projects, [project]);
     assert.equal(f.workbench.snapshot().activeProjectId, project.id);
     assert.equal(f.workbench.snapshot().runs[0].state, 'stopped');
@@ -212,7 +212,7 @@ test('a terminal stop timeout reports a saved edit and leaves panel records inta
     host = Number(f.output(run.id).match(/HOST:(\d+)/)![1]);
     process.kill(host, 'SIGSTOP');
     const result = await f.workbench.editProject(project.id, { name: 'Saved with stop failure', directory: target }, true);
-    assert.match(result.error!, /已保存.*停止失败.*未重新启动/);
+    assert.match(result.error!, /projectRestartFailed/);
     assert.deepEqual(result.launches, []);
     assert.equal(result.project.directory, target);
     assert.deepEqual(f.workbench.snapshot().projects[0].panels, project.panels);
@@ -235,7 +235,7 @@ test('deletion after a terminal manager failure does not claim cleanup succeeded
     const host = Number(f.output(run.id).match(/HOST:(\d+)/)![1]);
     process.kill(host, 'SIGKILL');
     await until(() => f.workbench.snapshot().runs[0]?.state === 'stopped');
-    await assert.rejects(f.workbench.deleteProject(project.id), /项目未删除.*终端管理进程/);
+    await assert.rejects(f.workbench.deleteProject(project.id), /projectDeleteFailed.*terminalHostExited/);
     assert.deepEqual(f.workbench.snapshot().projects, [project]);
     await until(() => !alive(run.pid!));
   } finally { await f.close().catch(async () => { await rm(f.directory, { recursive: true, force: true }); }); }
@@ -261,8 +261,8 @@ test('a start response timeout returns an explicit per-panel uncertain result wh
       assert.equal(result.project.directory, target);
       assert.equal(result.launches.length, 1);
       assert.equal(result.launches[0].ok, false);
-      assert.match(result.launches[0].ok ? '' : result.launches[0].error, /启动结果未确认.*超时/);
-      await assert.rejects(f.workbench.deleteProject(project.id), /项目未删除.*超时/);
+      assert.match(result.launches[0].ok ? '' : result.launches[0].error, /launchUnconfirmed.*terminalTimeout/);
+      await assert.rejects(f.workbench.deleteProject(project.id), /projectDeleteFailed.*terminalTimeout/);
       assert.deepEqual(f.workbench.snapshot().projects[0].panels, project.panels);
     } finally { unsubscribe(); }
     process.kill(host, 'SIGCONT'); host = undefined;

@@ -1,3 +1,4 @@
+import { message } from './messages';
 import { layoutBoxes } from './layout';
 import type { Shortcuts } from './shortcuts';
 import { projectNameError } from './project-name';
@@ -13,7 +14,8 @@ export type Layout = { panel: string } | { axis: 'row' | 'column'; ratio: number
 export interface Project { id: string; name: string; directory: string; panels: Panel[]; layout: Layout | null }
 export interface AgentCommand { command: string; args: string[] }
 export type DefaultLayout = 'auto' | 'row' | 'column';
-export interface Settings { theme: 'system' | 'dark' | 'light'; defaultLayout: DefaultLayout; agents: Record<AgentType, AgentCommand>; shortcuts: Shortcuts }
+export type Language = 'en' | 'zh-CN';
+export interface Settings { language: Language; theme: 'system' | 'dark' | 'light'; defaultLayout: DefaultLayout; agents: Record<AgentType, AgentCommand>; shortcuts: Shortcuts }
 export type CommandCheck = { available: true; path: string } | { available: false; message: string };
 export interface Run { id: string; projectId: string; panelId: string; state: 'running' | 'starting' | 'failed' | 'stopped'; pid?: number; rawTitle?: string }
 export type LaunchResult = { ok: true; run: Run } | { ok: false; run: Run; error: string };
@@ -36,9 +38,9 @@ export function assignedAgents(draft: ProjectDraft): AgentType[] {
 export function validateDraft(draft: ProjectDraft): void {
   const nameError = projectNameError(draft.name);
   if (nameError) throw new Error(nameError);
-  if (!Number.isInteger(draft.total) || draft.total < 1 || draft.total > 10) throw new Error('窗口总数须为 1 至 10');
+  if (!Number.isInteger(draft.total) || draft.total < 1 || draft.total > 10) throw new Error(message('windowCountInvalid'));
   if (agentTypes.some(type => !Number.isInteger(draft.counts[type]) || draft.counts[type] < 0 || draft.counts[type] > 10)
-    || agentTypes.reduce((sum, type) => sum + draft.counts[type], 0) !== draft.total) throw new Error('Agent 分配数量须等于窗口总数');
+    || agentTypes.reduce((sum, type) => sum + draft.counts[type], 0) !== draft.total) throw new Error(message('assignmentInvalid'));
 }
 
 export function arrange(ids: string[], preference: DefaultLayout = 'auto'): Layout | null {
@@ -73,13 +75,13 @@ export function insertIntoLayout(layout: Layout | null, panelId: string): Layout
 export function validateLayout(layout: Layout | null, panels: Panel[]): void {
   const ids: string[] = [];
   const visit = (node: Layout, depth: number) => {
-    if (!node || depth > 10) throw new Error('布局无效');
+    if (!node || depth > 10) throw new Error(message('layoutInvalid'));
     if ('panel' in node) ids.push(node.panel);
     else {
-      if (!['row', 'column'].includes(node.axis) || !Number.isFinite(node.ratio) || node.ratio <= 0 || node.ratio >= 1) throw new Error('布局无效');
+      if (!['row', 'column'].includes(node.axis) || !Number.isFinite(node.ratio) || node.ratio <= 0 || node.ratio >= 1) throw new Error(message('layoutInvalid'));
       visit(node.first, depth + 1); visit(node.second, depth + 1);
     }
   };
   if (layout) visit(layout, 0);
-  if (ids.length !== panels.length || new Set(ids).size !== ids.length || panels.some(p => !ids.includes(p.id))) throw new Error('布局与面板不一致');
+  if (ids.length !== panels.length || new Set(ids).size !== ids.length || panels.some(p => !ids.includes(p.id))) throw new Error(message('layoutMismatch'));
 }

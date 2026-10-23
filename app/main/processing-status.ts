@@ -8,6 +8,7 @@ import { CodexEvents } from './codex-events';
 import { claudeLaunch } from './claude-launch';
 import { ClaudeEvents } from './claude-events';
 import { piLaunch } from './pi-launch';
+import { message, detail } from '../shared/messages';
 
 interface Observation {
   agent: AgentType; token: string; since: number; accepting: boolean; running: boolean;
@@ -166,6 +167,8 @@ export class ProcessingStatus {
     }
     const results = await Promise.allSettled(this.cleanups);
     const failures = results.flatMap(result => result.status === 'rejected' ? [result.reason] : []);
-    if (failures.length) throw new AggregateError(failures, 'Unable to clean up status integration resources');
+    if (failures.length) throw new AggregateError(failures, message('statusCleanupFailed', {
+      reasons: failures.map(error => detail(error instanceof Error ? error.message : String(error))),
+    }));
   }
 }

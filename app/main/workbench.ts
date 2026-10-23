@@ -1,5 +1,6 @@
+import { message, detail } from '../shared/messages';
 import { projectNameError } from '../shared/project-name';
-import type { ProjectEdit, ProjectEditResult } from '../shared/model';
+import type { Language, ProjectEdit, ProjectEditResult } from '../shared/model';
 import { randomUUID } from 'node:crypto';
 import { realpath, stat } from 'node:fs/promises';
 import { basename } from 'node:path';
@@ -9,6 +10,12 @@ import { SettingsFile, defaultSettings } from './settings';
 import { TerminalClient } from './terminal-client';
 import type { SettingsSaveResult } from '../shared/settings';
 import { ProcessingStatus } from './processing-status';
+
+export class WorkbenchOpenError extends Error {
+  constructor(error: unknown, readonly language: Language) {
+    super(error instanceof Error ? error.message : String(error), { cause: error });
+  }
+}
 
 export class Workbench {
   private state: Omit<Snapshot, 'processing'> = { navigation: { ...defaultNavigation }, projects: [], runs: [], activeProjectId: null, settings: defaultSettings(), settingsMigrationConflict: false, startupTheme: 'system', resolvedTheme: 'light', errors: [] };
@@ -34,20 +41,24 @@ export class Workbench {
     });
   }
   static async open(directory: string, systemDark = false) {
-    const store = await ProjectStore.open(directory);
-    const workbench = new Workbench(directory, store, new SettingsFile(directory));
+    const settingsFile = new SettingsFile(directory);
+    let settings = defaultSettings();
+    const errors: string[] = [];
+    try { settings = await settingsFile.read(); }
+    catch (error) { errors.push((error as Error).message); }
+    let store: ProjectStore | undefined;
     try {
-      Object.assign(workbench.state, await store.load());
-      try { workbench.state.settings = await workbench.settingsFile.read(); }
-      catch (error) { workbench.state.errors.push((error as Error).message); }
-      workbench.state.settingsMigrationConflict = workbench.settingsFile.hasMigrationConflict;
-      workbench.state.startupTheme = workbench.state.settings.theme;
+      store = await ProjectStore.open(directory);
+      const projects = await store.load();
+      const workbench = new Workbench(directory, store, settingsFile);
+      Object.assign(workbench.state, projects, { settings, errors });
+      workbench.state.settingsMigrationConflict = settingsFile.hasMigrationConflict;
+      workbench.state.startupTheme = settings.theme;
       workbench.state.resolvedTheme = workbench.state.startupTheme === 'system' ? (systemDark ? 'dark' : 'light') : workbench.state.startupTheme;
       return workbench;
     } catch (error) {
-      workbench.quitting = true;
-      await Promise.allSettled([workbench.terminal.shutdown(), workbench.processing.close(), store.close()]);
-      throw error;
+      await store?.close().catch(() => {});
+      throw new WorkbenchOpenError(error, settings.language);
     }
   }
   snapshot(): Snapshot { return structuredClone({ ...this.state, processing: this.processing.project(this.state.projects, this.state.runs) }); }
@@ -56,14 +67,14 @@ export class Workbench {
   private changed() { this.emit({ kind: 'snapshot', snapshot: this.snapshot() }); }
   private report(message: string) { this.state.errors.push(message); this.emit({ kind: 'error', message }); }
   private operation<T>(action: () => Promise<T>): Promise<T> {
-    if (this.quitting) return Promise.reject(new Error('工作台正在退出'));
+    if (this.quitting) return Promise.reject(new Error(message('quitting')));
     const result = this.operations.then(action);
     this.operations = result.catch(() => {});
     return result;
   }
   private project(id: string) {
     const project = this.state.projects.find(p => p.id === id);
-    if (!project) throw new Error('项目不存在');
+    if (!project) throw new Error(message('projectMissing'));
     return project;
   }
   private terminalEvent(event: TerminalEvent) {
@@ -104,8 +115,8 @@ export class Workbench {
   createProject(draft: ProjectDraft): Promise<ProjectCreation> { return this.operation(async () => {
     validateDraft(draft);
     const directory = await this.inspectDirectory(draft.directory);
-    if (!directory.valid) throw new Error('项目目录无效');
-    if (directory.existingProjectId) throw new Error('该目录已有项目，请打开已有项目');
+    if (!directory.valid) throw new Error(message('projectDirectoryInvalid'));
+    if (directory.existingProjectId) throw new Error(message('projectDirectoryExists'));
     const panels = assignedAgents(draft).map(agent => ({ id: randomUUID(), agent }));
     const project = { id: randomUUID(), name: draft.name.trim(), directory: directory.directory!, panels, layout: arrange(panels.map(p => p.id), this.state.settings.defaultLayout) };
     await this.store.save(project);
@@ -121,8 +132,8 @@ export class Workbench {
     const nameError = projectNameError(edit.name);
     if (nameError) throw new Error(nameError);
     const directory = await this.inspectDirectory(edit.directory);
-    if (!directory.valid) throw new Error('项目目录无效');
-    if (directory.existingProjectId && directory.existingProjectId !== id) throw new Error(`此目录已添加为项目『${directory.existingProjectName}』，请打开已有项目`);
+    if (!directory.valid) throw new Error(message('projectDirectoryInvalid'));
+    if (directory.existingProjectId && directory.existingProjectId !== id) throw new Error(message('projectDuplicate', { name: directory.existingProjectName! }));
     const next = { ...project, name: edit.name.trim(), directory: directory.directory! };
     const changedDirectory = project.directory !== next.directory;
     if (!changedDirectory && project.name === next.name) return { project: structuredClone(project), launches: [] };
@@ -131,7 +142,7 @@ export class Workbench {
     const result: ProjectEditResult = { project: structuredClone(project), launches: [] };
     if (changedDirectory && restart && this.visited.has(id)) {
       const failures = await this.stopProject(project);
-      if (failures.length) result.error = `项目已保存，但停止失败，未重新启动：${failures.join('；')}`;
+      if (failures.length) result.error = message('projectRestartFailed', { reasons: failures.map(detail) });
       else for (const panel of project.panels) result.launches.push(await this.startPanel(project, panel));
     }
     return result;
@@ -139,7 +150,7 @@ export class Workbench {
   deleteProject(id: string) { return this.operation(async () => {
     const project = this.project(id);
     const failures = await this.stopProject(project);
-    if (failures.length) throw new Error(`项目未删除，停止失败：${failures.join('；')}`);
+    if (failures.length) throw new Error(message('projectDeleteFailed', { reasons: failures.map(detail) }));
     const index = this.state.projects.indexOf(project);
     const nextActive = this.state.activeProjectId === id
       ? this.state.projects[index + 1]?.id ?? this.state.projects[index - 1]?.id ?? null
@@ -162,7 +173,7 @@ export class Workbench {
       // Mark before requesting cleanup: its exit event can arrive before the response.
       this.controlledStops.add(run.id);
       try { await this.terminal.stop(run.id); }
-      catch (error) { failures.push(`面板 ${project.panels.findIndex(panel => panel.id === run.panelId) + 1}：${(error as Error).message}`); }
+      catch (error) { failures.push(message('panelFailure', { number: project.panels.findIndex(panel => panel.id === run.panelId) + 1, reason: detail((error as Error).message) })); }
     }
     return failures;
   }
@@ -172,14 +183,14 @@ export class Workbench {
     try {
       const launch = await this.processing.prepare(id, panel.agent, this.state.settings.agents[panel.agent], project.directory);
       const run = await this.terminal.start({ id, panelId: panel.id, projectId: project.id, directory: project.directory, ...launch });
-      return run.state === 'failed' ? { ok: false, run, error: 'Agent 无法启动' } : { ok: true, run };
+      return run.state === 'failed' ? { ok: false, run, error: message('launchFailed') } : { ok: true, run };
     } catch (error) {
       // A missing response is not proof that the process never started. Preserve any
       // observed run and keep accepting its later events instead of retrying implicitly.
       const observed = this.state.runs.find(run => run.id === id);
       const run = observed ?? { id, panelId: panel.id, projectId: project.id, state: 'starting' as const };
       if (!observed) this.terminalEvent({ kind: 'started', run });
-      return { ok: false, run: structuredClone(run), error: `启动结果未确认：${(error as Error).message}` };
+      return { ok: false, run: structuredClone(run), error: message('launchUnconfirmed', { reason: detail((error as Error).message) }) };
     }
   }
   private async startProject(project: Project): Promise<LaunchResult[]> {
@@ -202,8 +213,8 @@ export class Workbench {
   }); }
   addPanel(projectId: string, agent: AgentType): Promise<PanelCreation> { return this.operation(async () => {
     const project = this.project(projectId);
-    if (!agentTypes.includes(agent)) throw new Error('Agent 类型无效');
-    if (project.panels.length >= 10) throw new Error('每个项目最多 10 个面板');
+    if (!agentTypes.includes(agent)) throw new Error(message('agentInvalid'));
+    if (project.panels.length >= 10) throw new Error(message('panelLimit'));
     const panel = { id: randomUUID(), agent };
     const next = { ...project, panels: [...project.panels, panel], layout: insertIntoLayout(project.layout, panel.id) };
     await this.store.save(next);
@@ -221,7 +232,7 @@ export class Workbench {
     this.changed();
   }
   closePanel(projectId: string, panelId: string) { return this.operation(async () => {
-    if (!this.project(projectId).panels.some(p => p.id === panelId)) throw new Error('面板不存在');
+    if (!this.project(projectId).panels.some(p => p.id === panelId)) throw new Error(message('panelMissing'));
     const run = this.state.runs.find(r => r.panelId === panelId && (r.state === 'running' || r.state === 'starting'));
     if (run) await this.terminal.stop(run.id);
     await this.removePanel(projectId, panelId);
@@ -233,7 +244,7 @@ export class Workbench {
     await this.store.save(project);
   }); }
   saveNavigation(preferences: NavigationPreferences) { return this.operation(async () => {
-    if (!preferences || typeof preferences.visible !== 'boolean' || !Number.isFinite(preferences.width)) throw new Error('导航偏好无效');
+    if (!preferences || typeof preferences.visible !== 'boolean' || !Number.isFinite(preferences.width)) throw new Error(message('navigationInvalid'));
     const navigation = { visible: preferences.visible, width: navigationWidth(preferences.width) };
     await this.store.navigation(navigation);
     this.state.navigation = navigation; this.changed();
@@ -248,7 +259,7 @@ export class Workbench {
       const result = await this.settingsFile.commit(this.state.settings, update);
       if (result.ok) { this.state.settings = structuredClone(result.settings); this.state.settingsMigrationConflict = false; this.changed(); }
       return result;
-    }).catch(() => ({ ok: false, kind: 'unavailable', message: '设置暂时无法保存，请稍后重试' }));
+    }).catch(() => ({ ok: false, kind: 'unavailable', message: message('settingsUnavailable') }));
   }
   quit(): Promise<void> {
     if (this.quitPromise) return this.quitPromise;

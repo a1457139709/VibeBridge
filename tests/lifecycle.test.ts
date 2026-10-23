@@ -33,7 +33,7 @@ test('a surviving terminal manager cleans all projects after main-process SIGKIL
     await until(() => pids.every(pid => !alive(pid)));
     console.log(`Main fault cleanup: ${Date.now() - started} ms`);
     assert.ok(alive(unrelated.pid!));
-    assert.match(await readFile(join(directory, 'last-failure.json'), 'utf8'), /主进程连接已断开/);
+    assert.match(await readFile(join(directory, 'last-failure.json'), 'utf8'), /mainDisconnected/);
     const reopened = await Workbench.open(directory);
     try {
       assert.deepEqual(reopened.snapshot().projects, snapshot.projects);

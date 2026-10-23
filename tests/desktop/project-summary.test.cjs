@@ -17,14 +17,14 @@ module.exports = {
     assert.deepEqual(await evaluate('[...document.querySelectorAll(".summary-entry")].map(button => button.textContent)'), ['1 Needs input', '2 Done', '0 Error']);
     await f.choose('done', second); await f.receiveInput(second, 'split-selection');
     assert.equal(await visiblePanels(evaluate), 3);
-    await evaluate(`document.querySelector('[data-panel-id="${first.panelId}"] button[aria-label="放大面板"]').click()`);
+    await evaluate(`document.querySelector('[data-panel-id="${first.panelId}"] button[aria-label="Maximize panel"]').click()`);
     await f.choose('done', second); await f.receiveInput(second, 'maximized-selection');
     assert.equal(await visiblePanels(evaluate), 1);
-    await click('全局设置');
+    await click('Global settings'); await click('Agent');
     await f.choose('done', first); await f.receiveInput(first, 'settings-maximized-selection');
     assert.equal(await visiblePanels(evaluate), 1);
-    await click('还原面板');
-    await click('全局设置');
+    await click('Restore panel');
+    await click('Global settings'); await click('Agent');
     await f.choose('done', second); await f.receiveInput(second, 'settings-split-selection');
     assert.equal(await visiblePanels(evaluate), 3);
 
@@ -70,39 +70,45 @@ module.exports = {
       await evaluate(`window.workbench.createProject(${JSON.stringify({ name: `Dense project ${i} ${'long '.repeat(12)}`, directory: path, total: 1, counts: { codex: 1, claude: 0, pi: 0 } })})`);
     }
     await click(project.name);
-    for (const theme of ['light', 'dark']) {
-      await evaluate(`document.documentElement.dataset.theme = ${JSON.stringify(theme)}`);
-      for (const size of [[1280, 860], [640, 480]]) {
-        window.setContentSize(...size);
-        await until(() => evaluate(`document.documentElement.clientWidth === ${size[0]}`));
-        for (const collapsed of [false, true]) {
-          if (collapsed) await click('折叠项目导航');
-          await f.open('done');
-          const geometry = await evaluate(`(() => {
-            const bar = document.querySelector('.project-summary').getBoundingClientRect();
-            const list = document.querySelector('.summary-list').getBoundingClientRect();
-            const trigger = document.querySelector('.summary-entry[aria-expanded=true]').getBoundingClientRect();
-            const scroll = document.querySelector('.summary-list ul');
-            return { barHeight: bar.height, bottom: bar.bottom, windowHeight: innerHeight,
-              contained: list.left >= 0 && list.top >= 0 && list.right <= innerWidth && list.bottom < bar.top,
-              adjacent: Math.abs(list.left - trigger.left) < 1 && bar.top - list.bottom < 6,
-              scrolling: scroll.scrollHeight > scroll.clientHeight,
-              entriesVisible: [...document.querySelectorAll('.summary-entry')].every(entry => {
-                const box = entry.getBoundingClientRect(); return box.left >= 0 && box.right <= innerWidth && box.top >= bar.top && box.bottom <= bar.bottom;
-              }) };
-          })()`);
-          assert.equal(geometry.barHeight, 36); assert.equal(geometry.bottom, geometry.windowHeight);
-          assert.ok(geometry.contained); assert.ok(geometry.adjacent); assert.ok(geometry.scrolling); assert.ok(geometry.entriesVisible);
-          f.nativeKey('Escape');
-          await until(() => evaluate('!document.querySelector(".summary-list")'));
-          assert.equal(await evaluate('document.activeElement.getAttribute("aria-label")'), '10 Done');
-          if (collapsed) await click('展开项目导航');
+    for (const language of ['en', 'zh-CN']) {
+      await evaluate(`window.workbench.saveSettings({ language: ${JSON.stringify(language)} })`);
+      await until(() => evaluate(`document.documentElement.lang === ${JSON.stringify(language)}`));
+      for (const theme of ['light', 'dark']) {
+        await evaluate(`document.documentElement.dataset.theme = ${JSON.stringify(theme)}`);
+        for (const size of [[1280, 860], [640, 480]]) {
+          window.setContentSize(...size);
+          await until(() => evaluate(`document.documentElement.clientWidth === ${size[0]}`));
+          for (const collapsed of [false, true]) {
+            if (collapsed) await click(language === 'en' ? 'Collapse project navigation' : '折叠项目导航');
+            await f.open('done');
+            const geometry = await evaluate(`(() => {
+              const bar = document.querySelector('.project-summary').getBoundingClientRect();
+              const list = document.querySelector('.summary-list').getBoundingClientRect();
+              const trigger = document.querySelector('.summary-entry[aria-expanded=true]').getBoundingClientRect();
+              const scroll = document.querySelector('.summary-list ul');
+              return { barHeight: bar.height, bottom: bar.bottom, windowHeight: innerHeight,
+                contained: list.left >= 0 && list.top >= 0 && list.right <= innerWidth && list.bottom < bar.top,
+                adjacent: Math.abs(list.left - trigger.left) < 1 && bar.top - list.bottom < 6,
+                scrolling: scroll.scrollHeight > scroll.clientHeight,
+                entriesVisible: [...document.querySelectorAll('.summary-entry')].every(entry => {
+                  const box = entry.getBoundingClientRect(); return box.left >= 0 && box.right <= innerWidth && box.top >= bar.top && box.bottom <= bar.bottom;
+                }) };
+            })()`);
+            assert.equal(geometry.barHeight, 36); assert.equal(geometry.bottom, geometry.windowHeight);
+            assert.ok(geometry.contained); assert.ok(geometry.adjacent); assert.ok(geometry.scrolling); assert.ok(geometry.entriesVisible);
+            f.nativeKey('Escape');
+            await until(() => evaluate('!document.querySelector(".summary-list")'));
+            assert.equal(await evaluate('document.activeElement.getAttribute("aria-label")'), language === 'en' ? '10 Done' : '10 本轮结束');
+            if (collapsed) await click(language === 'en' ? 'Expand project navigation' : '展开项目导航');
+          }
         }
       }
     }
+    await evaluate('window.workbench.saveSettings({ language: "en" })');
+    await until(() => evaluate('document.documentElement.lang === "en"'));
     // Persisted configuration is tested in a second Electron process; temporary
     // maximize must not overwrite the layout, and old runs must not be resumed.
-    await evaluate(`document.querySelector('[data-panel-id="${second.panelId}"] button[aria-label="放大面板"]').click()`);
+    await evaluate(`document.querySelector('[data-panel-id="${second.panelId}"] button[aria-label="Maximize panel"]').click()`);
     await writeFile(`${directory}/summary-expected.json`, JSON.stringify(await f.snapshot()));
     console.log('Summary lists preserve real input recipients, source viewing mode, records and runs; projection, keyboard and constrained geometry passed.');
   },
@@ -114,7 +120,7 @@ module.exports = {
     assert.deepEqual(current.projects, saved.projects);
     assert.ok(current.runs.every(run => !saved.runs.some(old => old.id === run.id)));
     await until(async () => await visiblePanels(evaluate) === active.panels.length);
-    assert.equal(await evaluate('document.querySelectorAll(".canvas button[aria-label=还原面板]").length'), 0);
+    assert.equal(await evaluate(`document.querySelectorAll('.canvas button[aria-label="Restore panel"]').length`), 0);
     console.log('Reopening retained the saved layout, with fresh runs and no persisted temporary maximize.');
   },
 };

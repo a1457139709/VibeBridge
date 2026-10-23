@@ -5,6 +5,7 @@ import { useEffect, useState } from 'react';
 import { act, cleanup, render, screen, within } from '@testing-library/react';
 import { userEvent } from '@testing-library/user-event';
 import { useProjectNavigation } from '../../app/renderer/ProjectNavigation';
+import { Localization } from '../../app/renderer/Localization';
 import { defaultSettings } from '../../app/main/settings';
 import type { Snapshot, WorkbenchEvent } from '../../app/shared/model';
 import { provideWorkbench } from './support/workbench';
@@ -34,6 +35,9 @@ test('navigation reads the shared projection, exposes all five states to keyboar
       void window.workbench.snapshot().then(setState);
       return window.workbench.subscribe(event => { if (event.kind === 'snapshot') setState(event.snapshot); });
     }, []);
+    return <Localization language={state?.settings.language ?? 'en'}><NavigationView state={state} /></Localization>;
+  }
+  function NavigationView({ state }: { state?: Snapshot }) {
     const navigation = useProjectNavigation({ snapshot: state, page: 'workbench', view: () => ({ selected: 'done' }),
       openProject: () => {}, locatePanel: (_project, panel) => located.push(panel), createProject: () => {}, toggleSettings: () => {}, report: () => {} });
     return <>{navigation.toggle}{navigation.sidebar}</>;
@@ -52,14 +56,24 @@ test('navigation reads the shared projection, exposes all five states to keyboar
   await user.click(screen.getByRole('button', { name: /Done.*Session done/ }));
   assert.deepEqual(located, ['done']);
   assert.ok(screen.getByRole('img', { name: 'Done' }));
-  await user.click(screen.getByRole('button', { name: '折叠项目导航' }));
-  assert.equal(screen.getByRole('button', { name: '展开项目导航' }).getAttribute('aria-expanded'), 'false');
+  const icons = screen.getAllByRole('img');
+  const chinese = structuredClone(snapshot);
+  chinese.settings.language = 'zh-CN';
+  await act(async () => { for (const listener of listeners) listener({ kind: 'snapshot', snapshot: chinese }); });
+  assert.deepEqual(screen.getAllByRole('img'), icons);
+  for (const label of ['就绪', '处理中', '等待输入', '本轮结束', '异常']) {
+    const icon = screen.getByRole('img', { name: label });
+    assert.ok(icon.closest('button')!.getAttribute('title')?.includes(label));
+  }
+  await act(async () => { for (const listener of listeners) listener({ kind: 'snapshot', snapshot }); });
+  await user.click(screen.getByRole('button', { name: 'Collapse project navigation' }));
+  assert.equal(screen.getByRole('button', { name: 'Expand project navigation' }).getAttribute('aria-expanded'), 'false');
   const updated = structuredClone(snapshot);
   updated.activeProjectId = 'elsewhere';
   updated.processing.runs.busy = 'needs-input';
   updated.processing.projects.project['needs-input'] = { count: 2, members: [{ panelId: 'busy', runId: 'busy' }, { panelId: 'needs-input', runId: 'needs-input' }] };
   await act(async () => { for (const listener of listeners) listener({ kind: 'snapshot', snapshot: updated }); });
-  await user.click(screen.getByRole('button', { name: '展开项目导航' }));
+  await user.click(screen.getByRole('button', { name: 'Expand project navigation' }));
   assert.equal(screen.getAllByRole('img', { name: 'Needs input' }).length, 2);
   assert.ok(screen.getByRole('img', { name: 'Done' }));
 });

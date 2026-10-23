@@ -1,3 +1,4 @@
+import { message, detail } from '../shared/messages';
 import { observeTitles } from './titles';
 import * as pty from 'node-pty';
 import type { AgentCommand, Run, TerminalEvent } from '../shared/model';
@@ -67,12 +68,12 @@ function shutdown(): Promise<void> {
 
 async function handle(operation: string, value: any) {
   if (operation === 'shutdown') { await shutdown(); return; }
-  if (closing) throw new Error('工作台正在退出');
+  if (closing) throw new Error(message('quitting'));
   if (operation === 'check-command') {
     try {
       environment ??= commandEnvironment();
       return { available: true, path: await executable(value, await environment) };
-    } catch (error) { return { available: false, message: `命令不可用，请检查程序路径及执行权限：${(error as Error).message}` }; }
+    } catch (error) { return { available: false, message: message('commandUnavailable', { reason: detail((error as Error).message) }) }; }
   }
   if (operation === 'start') {
     const { id, panelId, projectId, directory, command, integration } = value as { id: string; panelId: string; projectId: string; directory: string; command: AgentCommand; integration: Record<string, string> };
@@ -80,7 +81,7 @@ async function handle(operation: string, value: any) {
       environment ??= commandEnvironment();
       const env = await environment;
       const program = await executable(command.command, env);
-      if (closing) throw new Error('工作台正在退出');
+      if (closing) throw new Error(message('quitting'));
       const terminal = pty.spawn(program, command.args, { cwd: directory, env: { ...env, ...integration, VIBEBRIDGE_RUN_OWNER: `${owner}:${id}` }, name: 'xterm-256color', cols: 80, rows: 24 });
       const run: Run = { id, panelId, projectId, pid: terminal.pid, state: 'running' };
       const entry = { run, terminal, processes: [] as ProcessIdentity[], stopping: false, outstanding: 0, paused: false, draining: false };
@@ -114,15 +115,15 @@ async function handle(operation: string, value: any) {
   if (operation === 'resize' && (!entry || entry.stopping)) return;
   // A stopping run still shows its panel until cleanup ends; drop typing or terminal replies meanwhile.
   if (operation === 'input' && entry?.stopping) return;
-  if (!entry || entry.stopping) throw new Error('运行已失效');
+  if (!entry || entry.stopping) throw new Error(message('runInvalid'));
   if (operation === 'input') {
-    if (typeof value.data !== 'string' || value.data.length > 1024 * 1024) throw new Error('终端输入无效');
+    if (typeof value.data !== 'string' || value.data.length > 1024 * 1024) throw new Error(message('terminalInputInvalid'));
     entry.terminal.write(value.data);
   } else if (operation === 'resize') {
-    if (![value.cols, value.rows].every(n => Number.isInteger(n) && n >= 1 && n <= 1000)) throw new Error('终端尺寸无效');
+    if (![value.cols, value.rows].every(n => Number.isInteger(n) && n >= 1 && n <= 1000)) throw new Error(message('terminalSizeInvalid'));
     entry.terminal.resize(value.cols, value.rows);
   } else if (operation === 'stop') await stop(value.runId);
-  else throw new Error('未知终端操作');
+  else throw new Error(message('terminalOperationUnknown'));
 }
 
 let requests = Promise.resolve();
@@ -148,7 +149,7 @@ process.on('disconnect', () => {
   void (async () => {
     let cleanupError: unknown;
     try { await shutdown(); } catch (error) { cleanupError = error; }
-    if (unexpected) await recordFailure(process.env.VIBEBRIDGE_FAULT_FILE!, 'main', '主进程连接已断开', cleanupError);
+    if (unexpected) await recordFailure(process.env.VIBEBRIDGE_FAULT_FILE!, 'main', message('mainDisconnected'), cleanupError);
     else if (cleanupError) console.error(cleanupError);
-  })().catch(error => console.error('故障记录保存失败：', error.message)).finally(() => process.exit());
+  })().catch(error => console.error(message('failureRecordFailed', { reason: detail(error.message) }))).finally(() => process.exit());
 });

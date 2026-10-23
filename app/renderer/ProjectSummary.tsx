@@ -1,21 +1,24 @@
+import { useLocalization } from './Localization';
 import { useEffect, useId, useLayoutEffect, useRef, useState } from 'react';
 import { agentNames, type Snapshot } from '../shared/model';
 import type { AttentionState } from '../shared/processing-status';
 import { sessionTitle } from '../shared/session-title';
 import { agentIcons } from './agent-icons';
-import { ProcessingStatusIcon, processingLabels } from './ProcessingStatusIcon';
+import { ProcessingStatusIcon } from './ProcessingStatusIcon';
 import type { PanelLocation } from './panel-location';
 
 const states: AttentionState[] = ['needs-input', 'done', 'error'];
 
 export function ProjectSummary({ snapshot, locatePanel }: { snapshot?: Snapshot; locatePanel: PanelLocation['locatePanel'] }) {
+  const { t } = useLocalization();
   const project = snapshot?.projects.find(item => item.id === snapshot.activeProjectId);
-  return <footer className="project-summary" role="region" aria-label="Current project summary">
+  return <footer className="project-summary" role="region" aria-label={t('projectSummary')}>
     {project && snapshot && <SummaryEntries key={project.id} snapshot={snapshot} projectId={project.id} locatePanel={locatePanel} />}
   </footer>;
 }
 
 function SummaryEntries({ snapshot, projectId, locatePanel }: { snapshot: Snapshot; projectId: string; locatePanel: PanelLocation['locatePanel'] }) {
+  const { t, language } = useLocalization();
   const [open, setOpen] = useState<AttentionState>();
   const id = useId();
   const container = useRef<HTMLDivElement>(null);
@@ -39,11 +42,14 @@ function SummaryEntries({ snapshot, projectId, locatePanel }: { snapshot: Snapsh
       if (trigger && popup) popup.style.left = `${Math.max(8, Math.min(trigger.getBoundingClientRect().left, window.innerWidth - popup.offsetWidth - 8))}px`;
     };
     position();
+    window.addEventListener('resize', position);
+    return () => window.removeEventListener('resize', position);
+  }, [open, language]);
+  useLayoutEffect(() => {
+    if (!open) return;
     const members = list.current?.querySelectorAll<HTMLButtonElement>('li button');
     members?.[fromEnd.current ? members.length - 1 : 0]?.focus();
     fromEnd.current = false;
-    window.addEventListener('resize', position);
-    return () => window.removeEventListener('resize', position);
   }, [open]);
   useLayoutEffect(() => {
     if (open && focusedMember.current && !groups[open].members.some(member => member.runId === focusedMember.current)
@@ -64,16 +70,16 @@ function SummaryEntries({ snapshot, projectId, locatePanel }: { snapshot: Snapsh
     document.addEventListener('keydown', escape);
     return () => { document.removeEventListener('pointerdown', outside); document.removeEventListener('keydown', escape); };
   }, [open]);
-  return <div ref={container} className="summary-entries" tabIndex={-1}>{states.map(state => <button key={state} className="summary-entry" aria-label={`${groups[state].count} ${processingLabels[state]}`}
+  return <div ref={container} className="summary-entries" tabIndex={-1}>{states.map(state => <button key={state} className="summary-entry" aria-label={`${groups[state].count} ${t(state)}`}
     ref={button => { if (button) triggers.current.set(state, button); else triggers.current.delete(state); }}
     disabled={!groups[state].count} aria-expanded={open === state} aria-controls={open === state ? id : undefined} aria-haspopup="dialog"
     onKeyDown={event => {
       if (event.key === 'ArrowDown' || event.key === 'ArrowUp') { event.preventDefault(); fromEnd.current = event.key === 'ArrowUp'; setOpen(state); }
     }}
     onClick={() => setOpen(previous => previous === state ? undefined : state)}>
-    <ProcessingStatusIcon state={state} /><span>{groups[state].count} {processingLabels[state]}</span>
+    <ProcessingStatusIcon state={state} /><span>{groups[state].count} {t(state)}</span>
   </button>)}
-    {open && <section ref={list} id={id} className="summary-list" role="dialog" aria-label={processingLabels[open]}
+    {open && <section ref={list} id={id} className="summary-list" role="dialog" aria-label={t(open)}
       onFocusCapture={event => { focusedMember.current = (event.target as HTMLElement).closest('li')?.dataset.runId; }} onKeyDown={event => {
       if (!['ArrowDown', 'ArrowUp', 'Home', 'End'].includes(event.key)) return;
       const members = [...event.currentTarget.querySelectorAll<HTMLButtonElement>('li button')];
@@ -83,17 +89,17 @@ function SummaryEntries({ snapshot, projectId, locatePanel }: { snapshot: Snapsh
         : (index + (event.key === 'ArrowDown' ? 1 : -1) + members.length) % members.length;
       event.preventDefault(); members[next].focus(); members[next].scrollIntoView({ block: 'nearest' });
     }}>
-      <header><strong>{processingLabels[open]}</strong><button aria-label="Close panel list" onClick={() => close(true)}>×</button></header>
+      <header><strong>{t(open)}</strong><button aria-label={t('closePanelList')} onClick={() => close(true)}>×</button></header>
       <ul>{groups[open].members.map(member => {
         const panel = project.panels.find(item => item.id === member.panelId)!;
         const run = snapshot.runs.find(item => item.id === member.runId);
-        const title = sessionTitle(panel.agent, run?.rawTitle);
+        const title = sessionTitle(panel.agent, run?.rawTitle, t('untitled'));
         return <li key={member.runId} data-run-id={member.runId}><button className={`summary-panel ${panel.agent}`} title={`${agentNames[panel.agent]} · ${title}`}
           onClick={() => { setOpen(undefined); locatePanel(projectId, member.panelId, member.runId); }}>
           <span className="agent-mark" aria-hidden="true">{agentIcons[panel.agent]}</span><span className="session-title">{title}</span><small>{agentNames[panel.agent]}</small>
         </button></li>;
       })}</ul>
-      {!groups[open].count && <p className="muted">No matching panels</p>}
+      {!groups[open].count && <p className="muted">{t('noMatchingPanels')}</p>}
     </section>}
   </div>;
 }

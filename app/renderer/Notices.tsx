@@ -1,3 +1,4 @@
+import { useLocalization } from './Localization';
 import { useCallback, useEffect, useRef, useState } from 'react';
 
 export type NoticeKind = 'success' | 'error';
@@ -20,6 +21,7 @@ export function useNotices() {
 }
 
 function NoticeItem({ notice, dismiss }: { notice: Notice; dismiss(id: number): void }) {
+  const { t, text } = useLocalization();
   const hovered = useRef(false);
   const remaining = useRef(0);
   const started = useRef(0);
@@ -40,10 +42,11 @@ function NoticeItem({ notice, dismiss }: { notice: Notice; dismiss(id: number): 
     stopTimer();
   }} onMouseLeave={() => { hovered.current = false; startTimer(); }}>
     <span className="notice-icon" aria-hidden="true">{notice.kind === 'success' ? '✓' : '!'}</span>
-    <span>{notice.message}</span><button aria-label="关闭提示" onMouseDown={event => event.preventDefault()} onClick={() => dismiss(notice.id)}>×</button>
+    <span>{text(notice.message)}</span><button aria-label={t('dismissNotice')} onMouseDown={event => event.preventDefault()} onClick={() => dismiss(notice.id)}>×</button>
   </div>;
 }
 
 export function Notices({ notices, dismiss }: Pick<ReturnType<typeof useNotices>, 'notices' | 'dismiss'>) {
-  return <div className="notices" aria-label="临时提示">{notices.map(notice => <NoticeItem key={notice.id} notice={notice} dismiss={dismiss} />)}</div>;
+  const { t } = useLocalization();
+  return <div className="notices" aria-label={t('notices')}>{notices.map(notice => <NoticeItem key={notice.id} notice={notice} dismiss={dismiss} />)}</div>;
 }

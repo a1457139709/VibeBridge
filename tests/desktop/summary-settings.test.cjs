@@ -12,13 +12,13 @@ module.exports = {
     const leaveDialog = () => evaluate('!!document.querySelector(".settings-leave[open]")');
     const assertDrafts = async expectedCommand => {
       await click('Agent'); assert.equal(await evaluate('document.getElementById("command-codex").value'), expectedCommand);
-      await click('外观'); assert.ok(await evaluate('document.querySelector("input[value=dark]").checked'));
-      await click('快捷键'); assert.equal(await evaluate('document.getElementById("shortcut-nextPanel").getAttribute("title")'), 'Command+K');
+      await click('Appearance'); assert.ok(await evaluate('document.querySelector("input[value=dark]").checked'));
+      await click('Keyboard shortcuts'); assert.equal(await evaluate('document.getElementById("shortcut-nextPanel").getAttribute("title")'), 'Command+K');
     };
-    await click('全局设置');
+    await click('Global settings'); await click('Agent');
     await fill('command-codex', `${command}-draft`);
-    await click('外观'); await evaluate('document.querySelector("input[value=dark]").click()');
-    await click('快捷键');
+    await click('Appearance'); await evaluate('document.querySelector("input[value=dark]").click()');
+    await click('Keyboard shortcuts');
     await evaluate('document.getElementById("shortcut-nextPanel").dispatchEvent(new KeyboardEvent("keydown", { key: "k", code: "KeyK", metaKey: true, bubbles: true }))');
 
     await f.open('done');
@@ -32,10 +32,10 @@ module.exports = {
     assert.deepEqual((await f.snapshot()).settings, before.settings);
 
     await f.choose('done', first);
-    await until(leaveDialog); await click('取消');
+    await until(leaveDialog); await click('Cancel');
     assert.ok(await settingsVisible()); await assertDrafts(`${command}-draft`);
     await click('Agent'); await fill('command-codex', '');
-    await f.choose('done', first); await until(leaveDialog); await click('保存并返回');
+    await f.choose('done', first); await until(leaveDialog); await click('Save and return');
     await until(() => evaluate('document.getElementById("command-codex")?.getAttribute("aria-invalid") === "true"'));
     assert.ok(await settingsVisible()); await assertDrafts('');
     assert.deepEqual((await f.snapshot()).settings, before.settings);
@@ -51,8 +51,8 @@ module.exports = {
     await rename(`${directory}/settings.json`, `${directory}/settings.backup`);
     await mkdir(`${directory}/settings.json`);
     try {
-      await f.choose('done', first); await until(leaveDialog); await click('保存并返回');
-      await until(() => evaluate('document.querySelector(".settings-page [role=alert]")?.textContent.includes("配置保存失败")'));
+      await f.choose('done', first); await until(leaveDialog); await click('Save and return');
+      await until(() => evaluate('document.querySelector(".settings-page [role=alert]")?.textContent.includes("Could not save settings")'));
       assert.ok(await settingsVisible());
       assert.deepEqual((await f.snapshot()).settings, before.settings);
       await assertDrafts(command);
@@ -62,7 +62,7 @@ module.exports = {
       await rm(`${directory}/settings.json`, { recursive: true });
       await rename(`${directory}/settings.backup`, `${directory}/settings.json`);
     }
-    await f.choose('done', second); await until(leaveDialog); await click('保存并返回');
+    await f.choose('done', second); await until(leaveDialog); await click('Save and return');
     await until(async () => !(await settingsVisible()));
     await f.receiveInput(second, 'saved-settings-selection');
     const saved = await f.snapshot();
@@ -72,18 +72,18 @@ module.exports = {
     assert.deepEqual(JSON.parse(await readFile(`${directory}/settings.json`, 'utf8')), expected);
     assert.deepEqual(saved.runs.map(run => [run.id, run.pid]), before.runs.map(run => [run.id, run.pid]));
 
-    await click('全局设置'); await fill('command-codex', 'discard-this-draft');
-    await f.choose('done', first); await until(leaveDialog); await click('不保存');
+    await click('Global settings'); await click('Agent'); await fill('command-codex', 'discard-this-draft');
+    await f.choose('done', first); await until(leaveDialog); await click('Don’t save');
     await f.receiveInput(first, 'discarded-settings-selection');
     assert.deepEqual((await f.snapshot()).settings, expected);
-    await click('全局设置'); assert.equal(await evaluate('document.getElementById("command-codex").value'), command);
+    await click('Global settings'); await click('Agent'); assert.equal(await evaluate('document.getElementById("command-codex").value'), command);
 
     // The selected panel can disappear while the confirmation is open. A
     // successful settings decision must never retarget input to a survivor.
     await fill('command-codex', 'another-discarded-draft');
     await f.choose('done', third); await until(leaveDialog);
     await evaluate(`window.workbench.closePanel(${JSON.stringify(f.projectId)}, ${JSON.stringify(third.panelId)})`);
-    await click('不保存');
+    await click('Don’t save');
     await until(async () => !(await settingsVisible()));
     await evaluate('new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))');
     assert.equal(await evaluate('document.activeElement?.classList.contains("xterm-helper-textarea")'), false);

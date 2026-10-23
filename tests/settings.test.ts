@@ -21,7 +21,7 @@ test('saved preferences apply at their intended boundaries and manual edits appl
     const layout = { axis: 'row' as const, ratio: 0.7, first: { panel: project.panels[1].id }, second: { panel: project.panels[0].id } };
     await workbench.saveLayout(project.id, layout);
     await Promise.all([
-      workbench.saveSettings({ theme: 'light', defaultLayout: 'column' }),
+      workbench.saveSettings({ language: 'zh-CN', theme: 'light', defaultLayout: 'column' }),
       workbench.saveSettings({ agents: { ...settings.agents, codex: { command: '/missing-agent', args: ['changed'] } } }),
     ]);
     assert.equal(workbench.snapshot().resolvedTheme, 'dark');
@@ -57,7 +57,7 @@ test('shortcut conflicts name the existing action and retain effective bindings 
     await workbench.saveSettings({ shortcuts });
     assert.equal(workbench.snapshot().settings.shortcuts.nextPanel, 'Command+K');
     for (const [patch, message] of [
-      [{ maximizePanel: 'Command+K' }, /下一个面板/], [{ previousPanel: 'Command+K' }, /下一个面板/], [{ nextPanel: 'Command+C' }, /复制/],
+      [{ maximizePanel: 'Command+K' }, /nextPanel/], [{ previousPanel: 'Command+K' }, /nextPanel/], [{ nextPanel: 'Command+C' }, /copy/],
     ] as const) {
       const result = await workbench.saveSettings({ shortcuts: { ...shortcuts, ...patch } });
       assert.ok(!result.ok && result.kind === 'validation');

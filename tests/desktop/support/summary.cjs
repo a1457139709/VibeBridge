@@ -35,8 +35,12 @@ module.exports = async context => {
     await until(() => evaluate(`document.querySelector('[data-panel-id="${run.panelId}"] .xterm-rows').textContent.includes(${JSON.stringify(`RECEIVED:${marker}`)})`));
   };
   const open = async state => {
-    const group = (await snapshot()).processing.projects[projectId][state];
-    await click(`${group.count} ${ { 'needs-input': 'Needs input', done: 'Done', error: 'Error' }[state]}`);
+    const current = await snapshot();
+    const group = current.processing.projects[projectId][state];
+    const labels = current.settings.language === 'zh-CN'
+      ? { 'needs-input': '等待输入', done: '本轮结束', error: '异常' }
+      : { 'needs-input': 'Needs input', done: 'Done', error: 'Error' };
+    await click(`${group.count} ${labels[state]}`);
     await until(() => evaluate('!!document.querySelector(".summary-list")'));
   };
   const choose = async (state, run) => {

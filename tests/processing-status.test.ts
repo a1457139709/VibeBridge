@@ -1,3 +1,4 @@
+import { message } from '../app/shared/messages';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { mkdir, mkdtemp, rm } from 'node:fs/promises';
@@ -289,7 +290,7 @@ test('launch failures use launch feedback and contribute no processing state or 
     await f.workbench.saveSettings({ agents: { ...f.workbench.snapshot().settings.agents, codex: { command: join(f.directory, 'missing-cli'), args: [] } } });
     const result = await f.workbench.createProject({ name: 'Launch failure', directory: f.directory, total: 1, counts: { codex: 1, claude: 0, pi: 0 } });
     assert.equal(result.launches[0].ok, false);
-    assert.equal(result.launches[0].ok ? '' : result.launches[0].error, 'Agent 无法启动');
+    assert.equal(result.launches[0].ok ? '' : result.launches[0].error, message('launchFailed'));
     assert.deepEqual(f.workbench.snapshot().processing.runs, {});
     assert.equal(f.workbench.snapshot().processing.projects[result.project.id].error.count, 0);
   } finally { await f.close(); }

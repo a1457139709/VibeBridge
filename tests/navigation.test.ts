@@ -40,7 +40,7 @@ test('navigation remains usable for out-of-range widths and invalid requests do 
     assert.deepEqual(workbench.snapshot().navigation, { visible: false, width: 420 });
     await workbench.saveNavigation({ visible: true, width: 0 });
     assert.deepEqual(workbench.snapshot().navigation, { visible: true, width: 168 });
-    await assert.rejects(workbench.saveNavigation({ visible: true, width: NaN }), /导航偏好无效/);
+    await assert.rejects(workbench.saveNavigation({ visible: true, width: NaN }), /navigationInvalid/);
     assert.deepEqual(workbench.snapshot().navigation, { visible: true, width: 168 });
   } finally { await workbench.quit(); }
 });

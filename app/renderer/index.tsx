@@ -1,3 +1,4 @@
+import { Localization, useLocalization } from './Localization';
 import { useEffect, useRef, useState } from 'react';
 import { createRoot } from 'react-dom/client';
 import type {} from '../shared/api';
@@ -11,7 +12,7 @@ import { Notices, useNotices } from './Notices';
 import { SettingsPage, type SettingsPageActions } from './SettingsPage';
 import { shortcutActions, shortcutFromEvent } from '../shared/shortcuts';
 import type { SettingsCategory } from '../shared/settings';
-import { configureTerminals, reconcileTerminals, terminalEvent } from './terminals';
+import { configureTerminals, reconcileTerminals, terminalEvent, setTerminalLanguage } from './terminals';
 import '@xterm/xterm/css/xterm.css';
 import './style.css';
 import './processing-status.css';
@@ -19,6 +20,16 @@ import './project-summary.css';
 
 function App() {
   const [state, setState] = useState<Snapshot>();
+  useEffect(() => {
+    const language = state?.settings.language ?? 'en';
+    document.documentElement.lang = language;
+    setTerminalLanguage(language);
+  }, [state?.settings.language]);
+  return <Localization language={state?.settings.language ?? 'en'}><WorkbenchView state={state} setState={setState} /></Localization>;
+}
+
+function WorkbenchView({ state, setState }: { state?: Snapshot; setState(snapshot: Snapshot): void }) {
+  const { t } = useLocalization();
   const [draft, setDraft] = useState(newDraft);
   const [setup, setSetup] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
@@ -90,14 +101,14 @@ function App() {
   }, [state, setup, settingsOpen]);
   return <div className="app">
     <header className="system-bar"><div className="system-brand">{navigation.toggle}<span className="wordmark">VibeBridge</span></div></header>
-    {state?.settingsMigrationConflict && !migrationDismissed && <aside className="settings-migration-notice" role="status" aria-label="快捷键迁移提醒">
-      <span>新增的默认快捷键与已有绑定冲突。可稍后处理，保存设置前需修正冲突。</span>
-      <button onClick={() => openSettings('shortcuts')}>打开快捷键设置</button>
-      <button aria-label="关闭快捷键迁移提醒" onClick={() => setMigrationDismissed(true)}>稍后处理</button>
+    {state?.settingsMigrationConflict && !migrationDismissed && <aside className="settings-migration-notice" role="status" aria-label={t('migrationNotice')}>
+      <span>{t('migrationHelp')}</span>
+      <button onClick={() => openSettings('shortcuts')}>{t('openShortcuts')}</button>
+      <button aria-label={t('dismissMigration')} onClick={() => setMigrationDismissed(true)}>{t('later')}</button>
     </aside>}
     <div className="app-body">{navigation.sidebar}<main>
       <div className={`workbench-page ${location.locating ? 'locating-panel' : ''}`} hidden={settingsOpen} inert={settingsOpen}>
-        {!state ? <div className="empty">正在打开工作台…</div> : setup ? <Setup defaultLayout={state.settings.defaultLayout} draft={draft} change={setDraft} cancel={() => setSetup(false)} created={id => { setDraft(newDraft()); activate(id); }} openProject={activate} report={report} /> : active ? <Workspace ref={workspace} visible={!settingsOpen} key={active.id} project={active} runs={state.runs} processing={state.processing} report={report} location={location} /> : <div className="empty"><p>让你的 Agent 在同一个工作台中并行工作</p><button className="primary" onClick={create}>创建项目</button></div>}
+        {!state ? <div className="empty">{t('opening')}</div> : setup ? <Setup defaultLayout={state.settings.defaultLayout} draft={draft} change={setDraft} cancel={() => setSetup(false)} created={id => { setDraft(newDraft()); activate(id); }} openProject={activate} report={report} /> : active ? <Workspace ref={workspace} visible={!settingsOpen} key={active.id} project={active} runs={state.runs} processing={state.processing} report={report} location={location} /> : <div className="empty"><p>{t('welcome')}</p><button className="primary" onClick={create}>{t('createProject')}</button></div>}
       </div>
       {state && settingsOpen && <SettingsPage ref={settingsPage} settings={state.settings} startupTheme={state.startupTheme} initialCategory={initialSettingsCategory} report={report} back={() => void leaveSettings()} />}
     </main></div>

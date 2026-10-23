@@ -1,6 +1,7 @@
 import { useLayoutEffect, useRef, useState, type RefObject } from 'react';
 import type { Project, Snapshot } from '../shared/model';
 import { sessionTitle } from '../shared/session-title';
+import { localize } from '../shared/localization';
 import type { ReportNotice } from './Notices';
 import { focusTerminal, terminalHasFocus } from './terminals';
 
@@ -113,7 +114,11 @@ function createLocation(initial: Host, changed: () => void) {
       || connected()?.projectId !== operation.projectId) return;
     if (operation.changingMaximized && !operation.animated) {
       const target = project(operation.projectId)?.panels.find(panel => panel.id === operation.panelId);
-      if (target) host.report(`已切换至：${sessionTitle(target.agent, host.snapshot?.runs.find(run => run.panelId === target.id)?.rawTitle)}`, 'success');
+      if (target) {
+        const { t } = localize(host.snapshot?.settings.language ?? 'en');
+        host.report(t('locatedPanel', { title: sessionTitle(target.agent,
+          host.snapshot?.runs.find(run => run.panelId === target.id)?.rawTitle, t('untitled')) }), 'success');
+      }
     }
     current = undefined; notify();
   }

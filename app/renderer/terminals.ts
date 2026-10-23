@@ -1,11 +1,18 @@
 import { Terminal, type ITheme } from '@xterm/xterm';
 import { FitAddon } from '@xterm/addon-fit';
-import type { Run, WorkbenchEvent } from '../shared/model';
+import type { Language, Run, WorkbenchEvent } from '../shared/model';
+import { localize } from '../shared/localization';
 
 interface Screen { terminal: Terminal; fit: FitAddon; element: HTMLDivElement; observer: ResizeObserver; opened: boolean; consumed: number }
 const screens = new Map<string, Screen>();
 let theme: ITheme;
 let report: (message: string) => void;
+export function setTerminalLanguage(language: Language) {
+  const { t } = localize(language);
+  Terminal.strings.promptLabel = t('terminalInput');
+  Terminal.strings.tooMuchOutput = t('terminalTooMuchOutput');
+  for (const screen of screens.values()) screen.terminal.textarea?.setAttribute('aria-label', t('terminalInput'));
+}
 export function configureTerminals(dark: boolean, onError: (message: string) => void) {
   report = onError;
   theme = dark ? { background: '#1e1e1e', foreground: '#d4d4d4', cursor: '#e6e6e6', cursorAccent: '#1e1e1e', selectionBackground: '#505050', selectionInactiveBackground: '#3a3a3a' }
