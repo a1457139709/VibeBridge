@@ -17,6 +17,9 @@ export class WorkbenchOpenError extends Error {
   }
 }
 
+// An unconfirmed launch may still be running, so only a confirmed failure counts.
+const notStarted = (launch: LaunchResult) => !launch.ok && launch.error === message('launchFailed');
+
 export class Workbench {
   private state: Omit<Snapshot, 'processing'> = { navigation: { ...defaultNavigation }, projects: [], runs: [], activeProjectId: null, settings: defaultSettings(), settingsMigrationConflict: false, startupTheme: 'system', resolvedTheme: 'light', errors: [] };
   private processing: ProcessingStatus;
@@ -125,6 +128,7 @@ export class Workbench {
     await this.store.active(project.id);
     this.changed();
     const launches = await this.startProject(project);
+    await this.withdrawPanels(project, launches.filter(notStarted).map(launch => launch.run.panelId));
     return { project: structuredClone(project), launches };
   }); }
   editProject(id: string, edit: ProjectEdit, restart: boolean): Promise<ProjectEditResult> { return this.operation(async () => {
@@ -220,15 +224,22 @@ export class Workbench {
     await this.store.save(next);
     Object.assign(project, next); this.changed();
     const launch = await this.startPanel(project, panel);
+    if (notStarted(launch)) await this.withdrawPanels(project, [panel.id]);
     return { panel: structuredClone(panel), launch };
   }); }
-  private async removePanel(projectId: string, panelId: string) {
-    const project = this.project(projectId);
-    const next = { ...project, panels: project.panels.filter(p => p.id !== panelId), layout: removeFromLayout(project.layout, panelId) };
+  // Undoes the addition of panels whose Agent never started. Restored layouts keep
+  // their failed panels; this is neither closing a panel nor a run exit.
+  private withdrawPanels(project: Project, panelIds: string[]) {
+    return panelIds.length ? this.dropPanels(project, panelIds) : Promise.resolve();
+  }
+  private removePanel(projectId: string, panelId: string) { return this.dropPanels(this.project(projectId), [panelId]); }
+  private async dropPanels(project: Project, panelIds: string[]) {
+    const next = { ...project, panels: project.panels.filter(p => !panelIds.includes(p.id)),
+      layout: panelIds.reduce((layout, id) => removeFromLayout(layout, id), project.layout) };
     await this.store.save(next);
     Object.assign(project, next);
-    this.expectedRuns.delete(panelId);
-    this.state.runs = this.state.runs.filter(r => r.panelId !== panelId);
+    for (const id of panelIds) this.expectedRuns.delete(id);
+    this.state.runs = this.state.runs.filter(r => !panelIds.includes(r.panelId));
     this.changed();
   }
   closePanel(projectId: string, panelId: string) { return this.operation(async () => {

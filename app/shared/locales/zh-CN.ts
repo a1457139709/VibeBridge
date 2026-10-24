@@ -81,6 +81,8 @@ export const chinese: Record<keyof typeof english, string> = {
   "closeAgentPicker": "关闭添加 Agent",
   "launchPending": "启动结果未确认，正在等待终端响应",
   "launchFailed": "Agent 无法启动",
+  "openAgentSettings": "打开 Agent 设置",
+  "setupLaunchFailed": "项目已创建。无法启动的 Agent 未添加为面板。",
   "runStopped": "运行已结束，请重新打开工作台",
   "starting": "正在启动…",
   "panelCount": "{count} 个面板",

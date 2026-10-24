@@ -5,19 +5,20 @@ import { useState } from 'react';
 import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { userEvent } from '@testing-library/user-event';
 import { Setup } from '../../app/renderer/Setup';
-import { newDraft, type DirectoryResult, type ProjectCreation, type ProjectDraft } from '../../app/shared/model';
+import { newDraft, type DirectoryResult, type LaunchResult, type ProjectCreation, type ProjectDraft } from '../../app/shared/model';
+import { message } from '../../app/shared/messages';
 import { deferred, provideWorkbench } from './support/workbench';
 
 afterEach(cleanup);
 
 function renderSetup(initial = newDraft()) {
-  const created = mock.fn(), cancel = mock.fn(), openProject = mock.fn(), report = mock.fn();
+  const created = mock.fn(), cancel = mock.fn(), openProject = mock.fn(), report = mock.fn(), openAgentSettings = mock.fn();
   function Form() {
     const [draft, change] = useState(initial);
-    return <Setup draft={draft} change={change} {...{ created, cancel, openProject, report }} defaultLayout="auto" />;
+    return <Setup draft={draft} change={change} {...{ created, cancel, openProject, report, openAgentSettings }} defaultLayout="auto" />;
   }
   render(<Form />);
-  return { user: userEvent.setup(), created, cancel, openProject, report };
+  return { user: userEvent.setup(), created, cancel, openProject, report, openAgentSettings };
 }
 
 const validDraft: ProjectDraft = { name: 'Project', directory: '/projects/example', total: 1, counts: { codex: 1, claude: 0, pi: 0 } };
@@ -27,7 +28,7 @@ test('choosing a directory uses the latest handwritten project name and cancella
   provideWorkbench({ chooseDirectory: () => choice.promise, inspectDirectory: async () => ({ valid: true }) });
   function Form() {
     const [draft, change] = useState(newDraft);
-    return <Setup draft={draft} change={change} cancel={() => {}} created={() => {}} openProject={() => {}} report={() => {}} defaultLayout="auto" />;
+    return <Setup draft={draft} change={change} cancel={() => {}} created={() => {}} openProject={() => {}} report={() => {}} openAgentSettings={() => {}} defaultLayout="auto" />;
   }
   const user = userEvent.setup();
   render(<Form />);
@@ -139,4 +140,43 @@ test('choosing fills an empty name, while chooser and inspection failures preser
   assert.deepEqual(report.mock.calls[1].arguments, ['目录选择失败']);
   assert.equal(screen.getByRole<HTMLInputElement>('textbox', { name: 'Local directory' }).value, '/projects/Example');
   assert.equal(screen.getByRole<HTMLButtonElement>('button', { name: 'Choose local directory' }).disabled, false);
+});
+
+function launch(panelId: string, ok: boolean): LaunchResult {
+  const run = { id: `run-${panelId}`, panelId, projectId: 'created', state: ok ? 'running' as const : 'failed' as const };
+  return ok ? { ok, run } : { ok, run, error: message('launchFailed') };
+}
+
+test('creation shows each panel launch result when some Agents cannot start, and leads to Agent settings', async () => {
+  const draft: ProjectDraft = { ...validDraft, total: 3, counts: { codex: 2, claude: 0, pi: 1 } };
+  const result: ProjectCreation = { project: { id: 'created', name: 'Project', directory: draft.directory, panels: [{ id: 'a', agent: 'codex' }, { id: 'b', agent: 'codex' }], layout: null },
+    launches: [launch('a', true), launch('b', true), launch('c', false)] };
+  provideWorkbench({ inspectDirectory: async () => ({ valid: true }), createProject: async () => result });
+  const { user, created, openAgentSettings } = renderSetup(draft);
+  const create = screen.getByRole<HTMLButtonElement>('button', { name: 'Create and start' });
+  await waitFor(() => assert.equal(create.disabled, false));
+  await user.click(create);
+  assert.equal(created.mock.callCount(), 0);
+  assert.ok(screen.getByText('Project created. Panels whose Agent could not start were not added.'));
+  assert.deepEqual(screen.getAllByRole('listitem').map(item => item.textContent), [
+    'Panel 1 · Codex: Started successfully', 'Panel 2 · Codex: Started successfully', 'Panel 3 · pi: Agent could not start']);
+  await user.click(screen.getByRole('button', { name: 'Open Agent settings' }));
+  assert.deepEqual(created.mock.calls.map(call => call.arguments), [['created']]);
+  assert.equal(openAgentSettings.mock.callCount(), 1);
+});
+
+test('creation where no Agent starts reports every panel and opens the empty project when done', async () => {
+  const draft: ProjectDraft = { ...validDraft, total: 2, counts: { codex: 0, claude: 1, pi: 1 } };
+  const result: ProjectCreation = { project: { id: 'created', name: 'Project', directory: draft.directory, panels: [], layout: null },
+    launches: [launch('a', false), launch('b', false)] };
+  provideWorkbench({ inspectDirectory: async () => ({ valid: true }), createProject: async () => result });
+  const { user, created, openAgentSettings } = renderSetup(draft);
+  const create = screen.getByRole<HTMLButtonElement>('button', { name: 'Create and start' });
+  await waitFor(() => assert.equal(create.disabled, false));
+  await user.click(create);
+  assert.deepEqual(screen.getAllByRole('listitem').map(item => item.textContent), [
+    'Panel 1 · Claude Code: Agent could not start', 'Panel 2 · pi: Agent could not start']);
+  await user.click(screen.getByRole('button', { name: 'Done' }));
+  assert.deepEqual(created.mock.calls.map(call => call.arguments), [['created']]);
+  assert.equal(openAgentSettings.mock.callCount(), 0);
 });

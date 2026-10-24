@@ -23,7 +23,7 @@ test('switching language preserves project input and old notice identity and exp
     provideWorkbench({ chooseDirectory: async () => { throw new Error(message('environmentFailed')); },
       saveSettings: async patch => { const next = { ...settings, ...patch }; setSettings(next); return { ok: true, settings: next }; } });
     return <Localization language={settings.language}>
-      <Setup draft={draft} change={setDraft} defaultLayout="auto" cancel={() => {}} created={() => {}} openProject={() => {}} report={report} />
+      <Setup draft={draft} change={setDraft} defaultLayout="auto" cancel={() => {}} created={() => {}} openProject={() => {}} report={report} openAgentSettings={() => {}} />
       <SettingsPage settings={settings} startupTheme="system" ref={null} back={() => {}} report={report} />
       <Notices notices={notices} dismiss={dismiss} />
     </Localization>;

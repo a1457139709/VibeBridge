@@ -2,7 +2,7 @@ import { useLocalization } from './Localization';
 import { message } from '../shared/messages';
 import { agentIcons } from './agent-icons';
 import { useEffect, useRef, useState, type Dispatch, type SetStateAction } from 'react';
-import { agentNames, agentTypes, arrange, assignedAgents, type DefaultLayout, type DirectoryResult, type ProjectDraft } from '../shared/model';
+import { agentNames, agentTypes, arrange, assignedAgents, type AgentType, type DefaultLayout, type DirectoryResult, type LaunchResult, type ProjectDraft } from '../shared/model';
 import { layoutBoxes } from '../shared/layout';
 import { projectNameError, projectNameFromDirectory, projectNameHasControls } from '../shared/project-name';
 
@@ -10,7 +10,7 @@ function Stepper({ label, value, decrease, increase, canDecrease, canIncrease }:
   const { t } = useLocalization();
   return <div className="stepper"><button type="button" aria-label={t('decrease', { label })} disabled={!canDecrease} onClick={decrease}>−</button><output>{value}</output><button type="button" aria-label={t('increase', { label })} disabled={!canIncrease} onClick={increase}>＋</button></div>;
 }
-export function Setup({ draft, change, cancel, created, openProject, report, defaultLayout }: { draft: ProjectDraft; change: Dispatch<SetStateAction<ProjectDraft>>; cancel(): void; created(id: string): void; openProject(id: string): void; report(message: string): void; defaultLayout: DefaultLayout }) {
+export function Setup({ draft, change, cancel, created, openProject, report, openAgentSettings, defaultLayout }: { draft: ProjectDraft; change: Dispatch<SetStateAction<ProjectDraft>>; cancel(): void; created(id: string): void; openProject(id: string): void; report(message: string): void; openAgentSettings(): void; defaultLayout: DefaultLayout }) {
   const { t, text } = useLocalization();
   const [inspection, setInspection] = useState<{ path: string; result: DirectoryResult }>();
   const [nameTouched, setNameTouched] = useState(false);
@@ -18,6 +18,7 @@ export function Setup({ draft, change, cancel, created, openProject, report, def
   const [nameInputError, setNameInputError] = useState('');
   const [choosing, setChoosing] = useState(false);
   const [busy, setBusy] = useState(false);
+  const [launched, setLaunched] = useState<{ projectId: string; agents: AgentType[]; launches: LaunchResult[] }>();
   const pending = useRef(false);
   const directory = inspection?.path === draft.directory ? inspection.result : undefined;
   const checking = !!draft.directory && !directory;
@@ -56,9 +57,23 @@ export function Setup({ draft, change, cancel, created, openProject, report, def
     if (pending.current) return;
     if (!canCreate) { setNameTouched(true); setDirectoryTouched(true); return; }
     pending.current = true; setBusy(true);
-    try { created((await window.workbench.createProject(draft)).project.id); }
+    try {
+      // Panels launch in allocation order; failed ones are already withdrawn from the project.
+      const agents = assignedAgents(draft);
+      const { project, launches } = await window.workbench.createProject(draft);
+      if (launches.every(launch => launch.ok)) created(project.id);
+      else setLaunched({ projectId: project.id, agents, launches });
+    }
     catch (error) { report((error as Error).message); }
     finally { pending.current = false; setBusy(false); }
+  }
+  if (launched) {
+    const failed = launched.launches.some(launch => !launch.ok && launch.error === message('launchFailed'));
+    return <div className="setup-scroll"><section className="setup">
+      <h1>{t('createProject')}</h1>{failed && <p role="status">{t('setupLaunchFailed')}</p>}
+      <ul className="project-launch-results">{launched.launches.map((launch, index) => <li key={launch.run.panelId} className={launch.ok ? '' : 'error-text'}>{t('panelLaunchResult', { number: index + 1, agent: agentNames[launched.agents[index]], result: launch.ok ? t('launchSuccess') : text(launch.error) })}</li>)}</ul>
+      <div className="setup-actions">{failed && <button type="button" onClick={() => { created(launched.projectId); openAgentSettings(); }}>{t('openAgentSettings')}</button>}<button type="button" className="primary" autoFocus onClick={() => created(launched.projectId)}>{t('finish')}</button></div>
+    </section></div>;
   }
   return <div className="setup-scroll"><form className="setup" onSubmit={event => { event.preventDefault(); void submit(); }}>
     <h1>{t('createProject')}</h1><p className="muted intro">{t('setupIntro')}</p>
