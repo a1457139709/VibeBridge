@@ -23,7 +23,9 @@ The mappings remain approximations:
 | SessionStart: startup, resume, clear, fork | Ready |
 | UserPromptSubmit; ordinary tools; compaction; compact SessionStart | Busy |
 | PermissionRequest | Needs input |
-| Matching PostToolUse after permission request | Busy; other pending tool waits remain Needs input |
+| PreToolUse(request_user_input) | Needs input, pending by `tool_use_id` |
+| Matching PostToolUse after permission request or question | Busy; other pending tool waits remain Needs input |
+| PreToolUse(request_user_input_async) | Busy: ordinary tool activity |
 | Stop or an existing agent-turn-complete report | Done |
 | Main Interrupt with a turn ID | Ready: the native hook runs after detaching the active turn |
 | SessionEnd; child events | Keep current state |
@@ -31,9 +33,17 @@ The mappings remain approximations:
 
 Unrelated tool activity does not clear a known permission wait. A matching result, a new prompt, main completion or confirmed interruption can resolve it. Current native PermissionRequest input omits `tool_use_id`: such an unidentified wait remains until a new turn, completion or interruption, even after an approval may have been answered. An arbitrary PostToolUse cannot prove which request it resolved. A tool's nonzero exit is still tool activity, not proof of a failed turn. The generic reporting interface continues to require explicit interruption confirmation; only the native adapter applies the verified Interrupt contract.
 
+## Structured questions
+
+A main-run `PreToolUse(request_user_input)` is itself evidence of waiting for the user; no `blocking` annotation is required, and generic reports that still send `blocking: true` are accepted. In 0.163.0 the handler awaits the answer in every allowed mode until it is answered, cancelled or automatically resolved. Its Plan-only `is_blocking` flag controls only whether the TUI may resolve the question automatically, and only the root thread can ask. `permission_mode` describes approval policy and must not be treated as Plan/Default mode.
+
+The question is a pending wait keyed by `tool_use_id`, or by tool name when that ID is missing. Its matching PostToolUse (or PostToolUseFailure from a generic report) removes it; the run returns to Busy only when no other wait, such as a permission request, remains. Codex runs PostToolUse only for successful results. An answer or automatic resolution succeeds; cancelling in the TUI (Esc or Ctrl-C) interrupts the turn, so the confirmed Interrupt clears the wait. A new turn, UserPromptSubmit, Stop and run exit also clear it. `request_user_input_async` returns immediately and remains ordinary tool activity. Child questions cannot change the main run.
+
+Known limitation: in Default mode, if the user does nothing, Needs input lasts up to about two minutes before automatic resolution returns the run to Busy. This matches the actual wait. The source evidence covers only 0.163.0; later versions are adjusted after real validation.
+
 ## Limits to verify with a real CLI
 
-`PreToolUse(request_user_input)` and its PostToolUse are structured-question candidates. The current native payload does not attest collaboration mode or blocking behavior. In particular, `permission_mode` describes approval policy and must not be treated as Plan/Default mode. The reporter therefore does not invent `blocking: true` from a tool name. Evidence-confirmed generic reports can use that annotation; native unconfirmed calls remain Busy. `request_user_input_async` remains ordinary tool activity. Default-mode free-text questions have no confirmed universal waiting signal. Experimental question availability, mode differences and nonblocking variants must be recorded separately in real validation.
+Default-mode free-text questions have no confirmed universal waiting signal. Experimental question availability and mode differences must be recorded separately in real validation.
 
 UserPromptSubmit can be observed before another hook rejects submission. PermissionRequest can be observed before another hook grants or denies permission. Stop can be observed before a hook requests continuation; it has no success/failure field. These can transiently or persistently misclassify state until a later reliable event. Network/server failures without an applicable hook may leave Busy. The adapter does not infer outcomes from terminal text, titles, process liveness or elapsed time.
 
