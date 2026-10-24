@@ -47,7 +47,7 @@ test('adding and closing a panel preserve unrelated regions, existing runs and t
     await workbench.closePanel(project.id, added.panel.id);
     assert.throws(() => process.kill(childPid, 0));
     assert.throws(() => process.kill(added.launch.run.pid!, 0));
-    await assert.rejects(workbench.sendInput(added.launch.run.id, 'stale'), /运行已失效/);
+    await assert.rejects(workbench.sendInput(added.launch.run.id, 'stale'), /runInvalid/);
     assert.deepEqual(workbench.snapshot().projects[0].layout, layout);
     assert.deepEqual(workbench.snapshot().runs, originalRuns);
     await workbench.quit();
@@ -80,13 +80,13 @@ test('normal and abnormal run exits remove panels, while launch failure and quit
     const added = await workbench.addPanel(project.id, 'codex');
     assert.notEqual(added.launch.run.id, old.id);
     await until(() => events.some(e => e.kind === 'output' && e.runId === added.launch.run.id && e.data.includes('READY:')));
-    await assert.rejects(workbench.sendInput(old.id, 'old-input'), /运行已失效/);
+    await assert.rejects(workbench.sendInput(old.id, 'old-input'), /runInvalid/);
     await workbench.sendInput(added.launch.run.id, 'exit');
     await until(() => workbench.snapshot().projects[0].panels.length === 0);
     const abnormal = await workbench.addPanel(project.id, 'claude');
     assert.equal(abnormal.launch.ok, true);
     await until(() => workbench.snapshot().projects[0].panels.length === 0);
-    await assert.rejects(workbench.sendInput(abnormal.launch.run.id, 'old-input'), /运行已失效/);
+    await assert.rejects(workbench.sendInput(abnormal.launch.run.id, 'old-input'), /runInvalid/);
     const failed = await workbench.addPanel(project.id, 'pi');
     assert.equal(failed.launch.ok, false);
     await workbench.quit();
@@ -119,14 +119,14 @@ test('terminal manager failure cleans up runs without removing saved panel confi
     orphanPid = Number(output.match(/ORPHAN:(\d+)/)![1]);
     process.kill(Number(output.match(/HOST:(\d+)/)![1]), 'SIGKILL');
     hostStopped = true;
-    await until(() => workbench.snapshot().errors.some(message => message.includes('终端管理进程已结束')));
+    await until(() => workbench.snapshot().errors.some(message => message.includes('terminalHostExited')));
     await until(() => [...runs.map(run => run.pid!), orphanPid].every(pid => {
       try { process.kill(pid, 0); return false; } catch { return true; }
     }));
     assert.deepEqual(workbench.snapshot().projects, [project, second]);
     assert.ok(workbench.snapshot().runs.every(run => run.state !== 'running'));
-    await assert.rejects(workbench.sendInput(runs[0].id, 'after-fault'), /终端管理进程已结束/);
-    await assert.rejects(workbench.quit(), /终端管理进程已结束/);
+    await assert.rejects(workbench.sendInput(runs[0].id, 'after-fault'), /terminalHostExited/);
+    await assert.rejects(workbench.quit(), /terminalHostExited/);
     assert.match(await readFile(resolve(directory, 'last-failure.json'), 'utf8'), /SIGKILL/);
     workbench = await Workbench.open(directory);
     hostStopped = false;

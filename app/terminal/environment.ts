@@ -1,3 +1,4 @@
+import { message } from '../shared/messages';
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
 import { access, stat } from 'node:fs/promises';
@@ -10,7 +11,7 @@ export async function commandEnvironment(): Promise<Record<string, string>> {
   // A login shell is used only to read the user's environment. Agents never run through it.
   const { stdout } = await execute(shell, ['-ilc', "printf '\\0VIBEBRIDGE_ENV\\0'; /usr/bin/env -0"], { timeout: 5000, maxBuffer: 1024 * 1024 });
   const marker = '\0VIBEBRIDGE_ENV\0';
-  if (!stdout.includes(marker)) throw new Error('无法读取本机命令环境');
+  if (!stdout.includes(marker)) throw new Error(message('environmentFailed'));
   const environment: Record<string, string> = {};
   for (const entry of stdout.slice(stdout.indexOf(marker) + marker.length).split('\0')) {
     const separator = entry.indexOf('=');
@@ -29,5 +30,5 @@ export async function executable(command: string, environment: Record<string, st
   for (const path of paths) {
     try { await access(path, constants.X_OK); if ((await stat(path)).isFile()) return path; } catch { /* next PATH entry */ }
   }
-  throw new Error('Agent 无法启动');
+  throw new Error(message('launchFailed'));
 }

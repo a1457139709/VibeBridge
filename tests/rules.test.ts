@@ -1,3 +1,4 @@
+import { message } from '../app/shared/messages';
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { projectNameError, projectNameFromDirectory } from '../app/shared/project-name';
@@ -7,9 +8,9 @@ import { defaultShortcuts, shortcutConflicts, shortcutFromEvent, shortcutFormatE
 import { sessionTitle } from '../app/shared/session-title';
 
 test('project names reject controls and clean only automatic directory names', () => {
-  assert.equal(projectNameError('  '), '请输入项目名称');
+  assert.equal(projectNameError('  '), message('nameRequired'));
   for (const control of ['\n', '\r', '\t', '\u0000', '\u007f', '\u0085', '\u2028', '\u2029']) {
-    assert.equal(projectNameError(`name${control}tail`), '项目名称不能包含换行或控制字符');
+    assert.equal(projectNameError(`name${control}tail`), message('nameControls'));
   }
   assert.equal(projectNameError('  👩🏽‍💻 Name " $ &  '), '');
   assert.equal(projectNameFromDirectory('/projects/  👩🏽‍💻 Name\r\nnext\t\u0001\u007f  /'), '👩🏽‍💻 Name next');
@@ -20,8 +21,8 @@ test('Agent allocations require integral bounded counts and exactly the project 
   const draft: ProjectDraft = { name: 'Example', directory: '/', total: 3, counts: { codex: 1, claude: 0, pi: 2 } };
   assert.doesNotThrow(() => validateDraft(draft));
   assert.deepEqual(assignedAgents(draft), ['codex', 'pi', 'pi']);
-  for (const total of [0, 11, 1.5, NaN]) assert.throws(() => validateDraft({ ...draft, total }), /窗口总数/);
-  for (const count of [-1, 0.5, 11, NaN, 0, 2]) assert.throws(() => validateDraft({ ...draft, counts: { ...draft.counts, codex: count } }), /分配数量/);
+  for (const total of [0, 11, 1.5, NaN]) assert.throws(() => validateDraft({ ...draft, total }), /windowCountInvalid/);
+  for (const count of [-1, 0.5, 11, NaN, 0, 2]) assert.throws(() => validateDraft({ ...draft, counts: { ...draft.counts, codex: count } }), /assignmentInvalid/);
   assert.doesNotThrow(() => validateDraft({ ...draft, total: 10, counts: { codex: 10, claude: 0, pi: 0 } }));
 });
 
@@ -36,9 +37,9 @@ test('nested layout coordinates preserve spatial relationships and invalid saves
   ]);
   const panels = ['a', 'b', 'c'].map(id => ({ id, agent: 'codex' as const }));
   assert.doesNotThrow(() => validateLayout(layout, panels));
-  for (const ratio of [0, 1, -.1, NaN, Infinity]) assert.throws(() => validateLayout({ ...layout, ratio }, panels), /布局无效/);
-  assert.throws(() => validateLayout({ ...layout, first: { panel: 'b' } }, panels), /布局与面板不一致/);
-  assert.throws(() => validateLayout(null, panels), /布局与面板不一致/);
+  for (const ratio of [0, 1, -.1, NaN, Infinity]) assert.throws(() => validateLayout({ ...layout, ratio }, panels), /layoutInvalid/);
+  assert.throws(() => validateLayout({ ...layout, first: { panel: 'b' } }, panels), /layoutMismatch/);
+  assert.throws(() => validateLayout(null, panels), /layoutMismatch/);
   assert.equal(arrange([]), null);
   assert.deepEqual(arrange(['a']), { panel: 'a' });
   assert.deepEqual(arrange(['a', 'b'], 'column'), { axis: 'column', ratio: .5, first: { panel: 'a' }, second: { panel: 'b' } });
@@ -54,7 +55,7 @@ test('shortcut recording uses physical keys, ignores composition and distinguish
   for (const binding of ['Shift+W', 'Shift+Command+W', 'Command+Command+W', 'Command+Escape', 'Command+k']) assert.ok(shortcutFormatError(binding));
   assert.deepEqual(shortcutConflicts({ ...defaultShortcuts(), previousPanel: 'Command+K', nextPanel: 'Command+K', addPanel: 'Command+C' }), [
     { binding: 'Command+K', actions: ['previousPanel', 'nextPanel'], system: undefined },
-    { binding: 'Command+C', actions: ['addPanel'], system: '复制' },
+    { binding: 'Command+C', actions: ['addPanel'], system: message('copy') },
   ]);
 });
 

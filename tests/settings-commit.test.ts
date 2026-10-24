@@ -1,3 +1,4 @@
+import { message } from '../app/shared/messages';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { chmod, readFile } from 'node:fs/promises';
@@ -39,12 +40,12 @@ test('a real whole-submission write failure preserves the file and current setti
     const before = workbench.snapshot().settings;
     await workbench.saveSettings(before);
     const original = await readFile(`${directory}/settings.json`, 'utf8');
-    const patch = { agents: { ...before.agents, pi: { command: '/new-pi', args: ['new'] } }, theme: 'dark' as const,
+    const patch = { language: 'zh-CN' as const, agents: { ...before.agents, pi: { command: '/new-pi', args: ['new'] } }, theme: 'dark' as const,
       defaultLayout: 'column' as const, shortcuts: { ...before.shortcuts, nextPanel: 'Command+K' } };
     await chmod(`${directory}/settings.json`, 0o400);
     await chmod(directory, 0o500);
     try {
-      assert.deepEqual(await workbench.saveSettings(patch), { ok: false, kind: 'storage', message: '配置保存失败' });
+      assert.deepEqual(await workbench.saveSettings(patch), { ok: false, kind: 'storage', message: message('settingsWriteFailed') });
       assert.deepEqual(workbench.snapshot().settings, before);
       assert.equal(await readFile(`${directory}/settings.json`, 'utf8'), original);
     } finally { await chmod(directory, 0o700); await chmod(`${directory}/settings.json`, 0o600); }

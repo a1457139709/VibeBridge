@@ -1,3 +1,4 @@
+import { message, detail } from '../shared/messages';
 import { readFile, writeFile, rename, mkdir, rm } from 'node:fs/promises';
 import { join } from 'node:path';
 import type { Settings } from '../shared/model';
@@ -8,7 +9,7 @@ export { defaultSettings } from '../shared/settings';
 
 export function validateSettings(value: Settings, allowShortcutConflicts = false): void {
   const issues = settingsIssues(value).filter(issue => !allowShortcutConflicts || issue.code !== 'conflict');
-  if (issues.length) throw new Error(issues.map(issue => issue.message).join('；'));
+  if (issues.length) throw new Error(message('validationFailed', { reasons: issues.map(issue => detail(issue.message)) }));
 }
 
 export class SettingsFile {
@@ -20,8 +21,8 @@ export class SettingsFile {
   async read(): Promise<Settings> {
     try {
       const value = JSON.parse(await readFile(join(this.directory, 'settings.json'), 'utf8'));
-      if (!value || typeof value !== 'object' || Array.isArray(value)) throw new Error('配置文件损坏');
-      if (value.shortcuts !== undefined && (!value.shortcuts || typeof value.shortcuts !== 'object' || Array.isArray(value.shortcuts))) throw new Error('快捷键配置无效');
+      if (!value || typeof value !== 'object' || Array.isArray(value)) throw new Error(message('settingsCorrupt'));
+      if (value.shortcuts !== undefined && (!value.shortcuts || typeof value.shortcuts !== 'object' || Array.isArray(value.shortcuts))) throw new Error(message('shortcutsInvalid'));
       const missing = shortcutActions.filter(action => value.shortcuts?.[action] === undefined);
       const settings: Settings = { ...defaultSettings(), ...value, shortcuts: { ...defaultShortcuts(), ...value.shortcuts } };
       validateSettings(settings, true);
@@ -32,7 +33,7 @@ export class SettingsFile {
     } catch (error) {
       if ((error as NodeJS.ErrnoException).code === 'ENOENT') return defaultSettings();
       this.readable = false;
-      throw new Error(`配置读取失败，请检查 settings.json：${(error as Error).message}`, { cause: error });
+      throw new Error(message('settingsReadFailed', { reason: detail((error as Error).message) }), { cause: error });
     }
   }
   saveOnQuit(settings: Settings): Promise<void> {
@@ -52,7 +53,7 @@ export class SettingsFile {
   }
   save(settings: Settings): Promise<void> {
     validateSettings(settings);
-    if (!this.readable) return Promise.reject(new Error('配置读取失败，未覆盖原配置；请修正后重新启动'));
+    if (!this.readable) return Promise.reject(new Error(message('settingsUnreadable')));
     const contents = JSON.stringify(settings, null, 2) + '\n';
     const write = this.writes.then(async () => {
       const temporary = join(this.directory, 'settings.json.tmp');
@@ -62,7 +63,7 @@ export class SettingsFile {
         await rename(temporary, join(this.directory, 'settings.json'));
       } catch (error) {
         await rm(temporary, { force: true }).catch(() => {});
-        throw new Error('配置保存失败', { cause: error });
+        throw new Error(message('settingsWriteFailed'), { cause: error });
       }
     });
     this.writes = write.catch(() => {});

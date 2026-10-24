@@ -1,3 +1,4 @@
+import { message } from '../shared/messages';
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
 
@@ -10,7 +11,7 @@ export async function processTable(includeOwners = false): Promise<ProcessIdenti
     : ['-axo', 'pid=,ppid=,lstart=,state='];
   let stdout: string;
   try { ({ stdout } = await execute('/bin/ps', args, { timeout: 1000, maxBuffer: 16 * 1024 * 1024, env: { ...process.env, LC_ALL: 'C' } })); }
-  catch { throw new Error('无法检查受管进程'); }
+  catch { throw new Error(message('processInspectionFailed')); }
   return stdout.split('\n').flatMap(line => {
     const match = line.trim().match(/^(\d+)\s+(\d+)\s+(\w{3}\s+\w{3}\s+\d+\s+[\d:]+\s+\d{4})\s+(\S+)(.*)$/);
     if (!match || match[4].includes('Z')) return [];
@@ -51,5 +52,5 @@ export async function stopProcesses(known: ProcessIdentity[], owner?: string, af
       remaining = descendants(await processTable(!!owner), remaining, owner);
     }
   }
-  if (remaining.length) throw new Error('部分受管进程未能在时限内结束');
+  if (remaining.length) throw new Error(message('processStopFailed'));
 }

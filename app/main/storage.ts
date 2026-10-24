@@ -1,3 +1,4 @@
+import { message, detail } from '../shared/messages';
 import { Worker } from 'node:worker_threads';
 import { mkdir } from 'node:fs/promises';
 import { join } from 'node:path';
@@ -12,7 +13,7 @@ export class ProjectStore {
     this.worker = new Worker(join(__dirname, 'storage.cjs'), { workerData: { file: join(directory, 'projects.sqlite') } });
     this.worker.on('message', ({ id, result, error }) => {
       const request = this.pending.get(id); this.pending.delete(id);
-      if (error) request?.reject(new Error(`项目保存或读取失败：${error}`)); else request?.resolve(result);
+      if (error) request?.reject(new Error(message('projectStorageFailed', { reason: detail(error) }))); else request?.resolve(result);
     });
     const failed = (error: Error) => {
       this.failure = error;
@@ -20,7 +21,7 @@ export class ProjectStore {
       this.pending.clear();
     };
     this.worker.on('error', failed);
-    this.worker.on('exit', () => failed(new Error('项目存储已关闭')));
+    this.worker.on('exit', () => failed(new Error(message('projectStorageClosed'))));
   }
   static async open(directory: string) { await mkdir(directory, { recursive: true }); return new ProjectStore(directory); }
   private request<T>(operation: string, value?: unknown): Promise<T> {

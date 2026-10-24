@@ -1,7 +1,10 @@
 import { app, BrowserWindow, dialog, ipcMain, Menu, nativeTheme } from 'electron';
 import { join } from 'node:path';
 import { pathToFileURL } from 'node:url';
-import { Workbench } from './workbench';
+import { Workbench, WorkbenchOpenError } from './workbench';
+import type { Language } from '../shared/model';
+import { localize } from '../shared/localization';
+import { message } from '../shared/messages';
 
 app.setName('VibeBridge');
 // Also permits isolated local acceptance runs without touching the user's projects.
@@ -10,15 +13,30 @@ let window: BrowserWindow | undefined;
 let workbench: Promise<Workbench>;
 let exiting = false;
 let confirming = false;
+let language: Language = 'en';
+
+function updateNativeLanguage(next: Language) {
+  language = next;
+  const { t } = localize(language);
+  Menu.setApplicationMenu(Menu.buildFromTemplate([
+    { label: 'VibeBridge', submenu: [{ role: 'about', label: t('about') }, { type: 'separator' },
+      { role: 'hide', label: t('hideWorkbench') }, { role: 'hideOthers', label: t('hideOthers') }, { role: 'unhide', label: t('showAll') },
+      { type: 'separator' }, { role: 'quit', label: t('quitWorkbench') }] },
+    { label: t('editMenu'), submenu: [{ role: 'undo', label: t('undo') }, { role: 'redo', label: t('redo') }, { type: 'separator' },
+      { role: 'cut', label: t('cut') }, { role: 'copy', label: t('copy') }, { role: 'paste', label: t('paste') }, { role: 'selectAll', label: t('selectAll') }] },
+    { label: t('windowMenu'), submenu: [{ role: 'minimize', label: t('minimize') }, { role: 'zoom', label: t('zoom') }] },
+  ]));
+}
 
 async function requestQuit() {
   if (exiting || confirming) return;
   confirming = true;
-  const answer = await dialog.showMessageBox(window!, { type: 'question', message: '退出 VibeBridge？',
-    detail: '将保存项目和布局，并结束所有项目中正在运行的 Agent。', buttons: ['取消', '退出'], defaultId: 0, cancelId: 0 });
+  const { t, text } = localize(language);
+  const answer = await dialog.showMessageBox(window!, { type: 'question', message: t('quitQuestion'),
+    detail: t('quitDetail'), buttons: [t('cancel'), t('quit')], defaultId: 0, cancelId: 0 });
   if (answer.response === 0) { confirming = false; return; }
   try { await (await workbench).quit(); }
-  catch (error) { await dialog.showMessageBox(window!, { type: 'error', message: '退出时发生错误', detail: (error as Error).message }); }
+  catch (error) { await dialog.showMessageBox(window!, { type: 'error', message: t('quitError'), detail: text((error as Error).message) }); }
   exiting = true;
   app.quit();
 }
@@ -34,22 +52,29 @@ void app.whenReady().then(async () => {
   window.on('close', event => { if (!exiting) { event.preventDefault(); void requestQuit(); } });
   window.webContents.setWindowOpenHandler(() => ({ action: 'deny' }));
   window.webContents.on('will-navigate', event => event.preventDefault());
-  Menu.setApplicationMenu(Menu.buildFromTemplate([
-    { label: 'VibeBridge', submenu: [{ role: 'about' }, { type: 'separator' }, { role: 'hide' }, { role: 'hideOthers' }, { role: 'unhide' }, { type: 'separator' }, { role: 'quit' }] },
-    { label: '编辑', submenu: [{ role: 'undo' }, { role: 'redo' }, { type: 'separator' }, { role: 'cut' }, { role: 'copy' }, { role: 'paste' }, { role: 'selectAll' }] },
-    { label: '窗口', submenu: [{ role: 'minimize' }, { role: 'zoom' }] },
-  ]));
+  updateNativeLanguage(language);
   workbench = Workbench.open(app.getPath('userData'), nativeTheme.shouldUseDarkColors);
   void workbench.then(service => {
+    updateNativeLanguage(service.snapshot().settings.language);
+    service.subscribe(event => {
+      if (event.kind === 'snapshot' && event.snapshot.settings.language !== language) updateNativeLanguage(event.snapshot.settings.language);
+    });
     nativeTheme.themeSource = service.snapshot().resolvedTheme;
     window?.setBackgroundColor(service.snapshot().resolvedTheme === 'dark' ? '#141414' : '#f5f5f5');
   }).catch(() => {});
-  void workbench.catch(error => dialog.showMessageBox(window!, { type: 'error', message: '工作台读取失败', detail: error.message }));
+  void workbench.catch(error => {
+    if (error instanceof WorkbenchOpenError) updateNativeLanguage(error.language);
+    return dialog.showMessageBox(window!, { type: 'error', message: localize(language).t('workbenchReadFailed'), detail: localize(language).text(error.message) });
+  });
   // Install handlers before showing the page, while disk work completes asynchronously.
   const handle = (name: string, action: (service: Workbench, ...args: any[]) => unknown) => {
     ipcMain.handle(`workbench:${name}`, async (event, ...args) => {
-      if (event.sender !== window!.webContents || event.senderFrame?.url !== page) throw new Error('无效工作台请求');
-      return action(await workbench, ...args);
+      if (event.sender !== window!.webContents || event.senderFrame?.url !== page) throw new Error(message('requestInvalid'));
+      try { return await action(await workbench, ...args); }
+      catch (error) {
+        if (error instanceof WorkbenchOpenError) throw new Error(localize(error.language).text(error.message));
+        throw error;
+      }
     });
   };
   handle('snapshot', service => service.snapshot());
@@ -72,7 +97,8 @@ void app.whenReady().then(async () => {
     }
   });
   handle('choose-directory', async () => {
-    const choice = await dialog.showOpenDialog(window!, { properties: ['openDirectory'] });
+    const { t } = localize(language);
+    const choice = await dialog.showOpenDialog(window!, { title: t('chooseDirectory'), buttonLabel: t('selectDirectory'), properties: ['openDirectory'] });
     return choice.canceled ? null : choice.filePaths[0];
   });
   let ready = false;

@@ -1,3 +1,4 @@
+import { useLocalization } from './Localization';
 import { useEffect, useLayoutEffect, useRef, useState, type CSSProperties, type PointerEvent } from 'react';
 import type { DesktopAPI } from '../shared/api';
 import { defaultNavigation, navigationWidth, type NavigationPreferences, type Snapshot } from '../shared/model';
@@ -6,7 +7,7 @@ import { agentIcons } from './agent-icons';
 import type { PanelLocation } from './panel-location';
 import { capturePointer } from './pointer-capture';
 import { ProjectNavigationItem } from './ProjectManagement';
-import { ProcessingStatusIcon, processingLabels } from './ProcessingStatusIcon';
+import { ProcessingStatusIcon } from './ProcessingStatusIcon';
 
 const nameSegments = new Intl.Segmenter(undefined, { granularity: 'grapheme' });
 const projectInitial = (name: string) => nameSegments.segment(name)[Symbol.iterator]().next().value?.segment.toUpperCase() ?? '';
@@ -26,6 +27,7 @@ interface Host {
 // share navigation interaction state; page permission and panel location stay
 // with the host callbacks and the read-only view supplied by panel-location.
 export function useProjectNavigation(host: Host, api: Pick<DesktopAPI, 'saveNavigation' | 'subscribe'> = window.workbench) {
+  const { t } = useLocalization();
   const { snapshot, page } = host;
   const [preferences, setPreferences] = useState(defaultNavigation);
   const confirmed = useRef(defaultNavigation);
@@ -117,31 +119,31 @@ export function useProjectNavigation(host: Host, api: Pick<DesktopAPI, 'saveNavi
 
   const collapsed = !preferences.visible;
   return {
-    toggle: <button aria-label={collapsed ? '展开项目导航' : '折叠项目导航'} aria-expanded={!collapsed} disabled={!snapshot} onClick={toggle}>☷</button>,
-    sidebar: <nav className={`navigation ${collapsed ? 'collapsed' : ''}`} aria-label="项目导航" style={{ '--navigation-width': `${preferences.width}px` } as CSSProperties}>
-      <div className="navigation-projects"><div className="nav-heading">工作项目</div>
+    toggle: <button aria-label={collapsed ? t('expandNavigation') : t('collapseNavigation')} aria-expanded={!collapsed} disabled={!snapshot} onClick={toggle}>☷</button>,
+    sidebar: <nav className={`navigation ${collapsed ? 'collapsed' : ''}`} aria-label={t('projectNavigation')} style={{ '--navigation-width': `${preferences.width}px` } as CSSProperties}>
+      <div className="navigation-projects"><div className="nav-heading">{t('projects')}</div>
         {snapshot?.projects.map(project => {
           const expanded = expandedProjects[project.id] ?? snapshot.activeProjectId === project.id;
           const selected = host.view(project.id).selected;
           const active = page === 'workbench' && snapshot.activeProjectId === project.id;
           return <section key={project.id} className="project-group" data-project-id={project.id}>
             <ProjectNavigationItem project={project} runs={snapshot.runs} openProject={host.openProject}>
-              <button className="project-disclosure" aria-label={`${expanded ? '收起' : '展开'}项目面板：${project.name}`} aria-expanded={expanded} onClick={() => setExpandedProjects(previous => ({ ...previous, [project.id]: !expanded }))}>{expanded ? '⌄' : '›'}</button>
-              <button title={`${project.name} · ${project.panels.length} 个面板`} aria-label={project.name} aria-current={active ? 'page' : undefined} className={`project-link ${active ? 'selected' : ''}`} onClick={() => host.openProject(project.id)}><span className="project-initial" aria-hidden="true">{projectInitial(project.name)}</span><span className="project-name">{project.name}</span><small>{project.panels.length}</small></button>
+              <button className="project-disclosure" aria-label={t(expanded ? 'collapseProject' : 'expandProject', { name: project.name })} aria-expanded={expanded} onClick={() => setExpandedProjects(previous => ({ ...previous, [project.id]: !expanded }))}>{expanded ? '⌄' : '›'}</button>
+              <button title={`${project.name} · ${t('panelCount', { count: project.panels.length })}`} aria-label={project.name} aria-current={active ? 'page' : undefined} className={`project-link ${active ? 'selected' : ''}`} onClick={() => host.openProject(project.id)}><span className="project-initial" aria-hidden="true">{projectInitial(project.name)}</span><span className="project-name">{project.name}</span><small>{project.panels.length}</small></button>
             </ProjectNavigationItem>
-            {expanded && !!project.panels.length && <div className="project-panels" aria-label={`${project.name}的面板`}>{project.panels.map(panel => {
+            {expanded && !!project.panels.length && <div className="project-panels" aria-label={t('projectPanels', { name: project.name })}>{project.panels.map(panel => {
               const run = snapshot.runs.find(run => run.panelId === panel.id);
-              const title = sessionTitle(panel.agent, run?.rawTitle);
+              const title = sessionTitle(panel.agent, run?.rawTitle, t('untitled'));
               const status = run && snapshot.processing.runs[run.id];
               const current = active && selected === panel.id;
-              return <button key={panel.id} data-locate-panel-id={panel.id} title={status ? `${processingLabels[status]} · ${title}` : title} aria-label={status ? `${processingLabels[status]} · ${title}` : title} aria-current={current ? 'true' : undefined} className={`panel-link ${panel.agent} ${current ? 'selected' : ''}`} onClick={() => host.locatePanel(project.id, panel.id)}><span className="agent-symbols"><ProcessingStatusIcon state={status} /><span className="agent-mark" aria-hidden="true">{agentIcons[panel.agent]}</span></span><span className="session-title">{title}</span></button>;
+              return <button key={panel.id} data-locate-panel-id={panel.id} title={status ? `${t(status)} · ${title}` : title} aria-label={status ? `${t(status)} · ${title}` : title} aria-current={current ? 'true' : undefined} className={`panel-link ${panel.agent} ${current ? 'selected' : ''}`} onClick={() => host.locatePanel(project.id, panel.id)}><span className="agent-symbols"><ProcessingStatusIcon state={status} /><span className="agent-mark" aria-hidden="true">{agentIcons[panel.agent]}</span></span><span className="session-title">{title}</span></button>;
             })}</div>}
           </section>;
         })}
-        <button className={`add-project ${page === 'setup' ? 'selected' : ''}`} aria-label="添加项目" aria-current={page === 'setup' ? 'page' : undefined} onClick={host.createProject}><span>＋</span>添加项目</button>
+        <button className={`add-project ${page === 'setup' ? 'selected' : ''}`} aria-label={t('addProject')} aria-current={page === 'setup' ? 'page' : undefined} onClick={host.createProject}><span>＋</span>{t('addProject')}</button>
       </div>
-      <div className="nav-footer"><span>本地 Agent 工作台</span><button className={`settings-entry ${page === 'settings' ? 'selected' : ''}`} aria-label="全局设置" aria-current={page === 'settings' ? 'page' : undefined} disabled={!snapshot} onClick={host.toggleSettings}>⚙</button></div>
-      <div className="navigation-resize" role="separator" aria-label="调整项目导航宽度" aria-orientation="vertical" onPointerDown={resize} />
+      <div className="nav-footer"><span>{t('localWorkbench')}</span><button className={`settings-entry ${page === 'settings' ? 'selected' : ''}`} aria-label={t('settings')} aria-current={page === 'settings' ? 'page' : undefined} disabled={!snapshot} onClick={host.toggleSettings}>⚙</button></div>
+      <div className="navigation-resize" role="separator" aria-label={t('resizeNavigation')} aria-orientation="vertical" onPointerDown={resize} />
     </nav>,
   };
 }

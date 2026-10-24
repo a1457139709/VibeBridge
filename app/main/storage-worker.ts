@@ -1,3 +1,4 @@
+import { message } from '../shared/messages';
 import { parentPort, workerData } from 'node:worker_threads';
 import { DatabaseSync } from 'node:sqlite';
 import { defaultNavigation, type Project } from '../shared/model';
@@ -48,7 +49,7 @@ parentPort!.on('message', ({ id, operation, value }) => {
     } else if (operation === 'navigation') {
       db.prepare('INSERT INTO workspace (id, navigation) VALUES (1,?) ON CONFLICT(id) DO UPDATE SET navigation=excluded.navigation').run(JSON.stringify(value));
     } else if (operation === 'close') db.close();
-    else throw new Error('未知保存操作');
+    else throw new Error(message('storageOperationUnknown'));
     parentPort!.postMessage({ id, result });
   } catch (error) { parentPort!.postMessage({ id, error: String(error) }); }
 });

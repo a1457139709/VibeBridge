@@ -1,3 +1,4 @@
+import { message, detail } from '../shared/messages';
 import { fork, type ChildProcess } from 'node:child_process';
 import { join } from 'node:path';
 import { randomUUID } from 'node:crypto';
@@ -43,18 +44,18 @@ export class TerminalClient {
           try { await stopProcesses(this.processes, this.owner); }
           catch (error) { cleanupError = error; onFailure((error as Error).message); }
           await recordFailure(faultFile, 'terminal', error.message, cleanupError);
-        })().catch(error => onFailure(`故障记录保存失败：${error.message}`));
+        })().catch(error => onFailure(message('failureRecordFailed', { reason: detail(error.message) })));
       }
     };
     this.child.on('error', fail);
-    this.child.on('exit', (code, signal) => fail(new Error(`终端管理进程已结束（${signal ?? `退出码 ${code}`}）`)));
+    this.child.on('exit', (code, signal) => fail(new Error(message('terminalHostExited', { reason: signal ?? detail(message('exitCode', { code: code ?? '' })) }))));
   }
   private request<T>(operation: string, value?: unknown): Promise<T> {
-    if (this.closing && operation !== 'shutdown') return Promise.reject(new Error('工作台正在退出'));
+    if (this.closing && operation !== 'shutdown') return Promise.reject(new Error(message('quitting')));
     if (this.failure) return Promise.reject(this.failure);
     return new Promise((resolve, reject) => {
       const id = ++this.sequence;
-      const timer = setTimeout(() => { this.pending.delete(id); reject(new Error('终端操作超时')); }, 10000);
+      const timer = setTimeout(() => { this.pending.delete(id); reject(new Error(message('terminalTimeout'))); }, 10000);
       this.pending.set(id, { resolve, reject, timer });
       this.child.send({ id, operation, value }, error => {
         if (error) { clearTimeout(timer); this.pending.delete(id); reject(error); }
@@ -78,7 +79,7 @@ export class TerminalClient {
       let timer: NodeJS.Timeout | undefined;
       try {
         await Promise.race([this.exited, new Promise<never>((_, reject) => {
-          timer = setTimeout(() => reject(new Error('终端管理进程退出超时')), 1000);
+          timer = setTimeout(() => reject(new Error(message('terminalQuitTimeout'))), 1000);
         })]);
       } finally { clearTimeout(timer); }
     } catch (error) {

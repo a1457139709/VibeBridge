@@ -1,3 +1,4 @@
+import { message } from '../shared/messages';
 import { contextBridge, ipcRenderer } from 'electron';
 import type { DesktopAPI } from '../shared/api';
 
@@ -13,7 +14,7 @@ const api: DesktopAPI = {
   closePanel: (project, panel) => ipcRenderer.invoke('workbench:close', project, panel),
   saveLayout: (project, layout) => ipcRenderer.invoke('workbench:layout', project, layout),
   saveNavigation: preferences => ipcRenderer.invoke('workbench:navigation', preferences),
-  saveSettings: settings => ipcRenderer.invoke('workbench:settings', settings).catch(() => ({ ok: false, kind: 'unavailable', message: '设置暂时无法保存，请稍后重试' })),
+  saveSettings: settings => ipcRenderer.invoke('workbench:settings', settings).catch(() => ({ ok: false, kind: 'unavailable', message: message('settingsUnavailable') })),
   checkCommand: command => ipcRenderer.invoke('workbench:check-command', command),
   sendInput: (run, data) => ipcRenderer.invoke('workbench:input', run, data),
   resizeRun: (run, cols, rows) => ipcRenderer.invoke('workbench:resize', run, cols, rows),

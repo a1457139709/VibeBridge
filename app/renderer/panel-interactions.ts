@@ -1,4 +1,4 @@
-import type { Layout, Panel } from '../shared/model';
+import type { Language, Layout, Panel } from '../shared/model';
 import type { Divider } from '../shared/layout';
 import { capturePointer } from './pointer-capture';
 import { createSwapPreview } from './panel-swap';
@@ -6,6 +6,7 @@ import { measurePanel } from './panel-measurement';
 import { createResizePreview } from './panel-resize';
 
 export interface PanelInteractionContext {
+  language?: Language;
   projectId: string;
   // The latest saved layout, never the temporary layout emitted by presentLayout.
   layout: Layout | null;
@@ -121,6 +122,7 @@ export function createPanelInteractions(canvas: HTMLElement, context: PanelInter
         || (event.target as HTMLElement).closest('button, [role="menu"]')) return;
       event.preventDefault(); suppressClick = false;
       const preview = createSwapPreview({ event, canvas, source: panelId, panels: current.panels, layout: displayed!,
+        language: current.language,
         consumed: () => { suppressClick = true; } });
       track('swap', event, handle, preview);
     },

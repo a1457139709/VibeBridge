@@ -1,3 +1,4 @@
+import { message } from '../app/shared/messages';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { mkdir, mkdtemp, rm } from 'node:fs/promises';
@@ -126,8 +127,8 @@ test('Codex waiting, tool failures, compaction and confirmed interruption preser
     };
     await check({ hook_event_name: 'SessionStart', source: 'startup' }, 'ready');
     await check({ hook_event_name: 'UserPromptSubmit' }, 'busy');
-    await check({ hook_event_name: 'PermissionRequest' }, 'needs-input');
-    await check({ hook_event_name: 'PostToolUseFailure', tool_name: 'shell' }, 'busy');
+    await check({ hook_event_name: 'PermissionRequest', tool_use_id: 'approval' }, 'needs-input');
+    await check({ hook_event_name: 'PostToolUseFailure', tool_name: 'shell', tool_use_id: 'approval' }, 'busy');
     await check({ hook_event_name: 'PreCompact' }, 'busy');
     await check({ hook_event_name: 'SessionStart', source: 'compact' }, 'busy');
     await check({ hook_event_name: 'SubagentStop' }, 'busy');
@@ -154,8 +155,8 @@ test('Claude separates blocking input and individual tool failure from a failed 
     await check({ hook_event_name: 'PostToolUse', tool_name: 'AskUserQuestion' }, 'busy');
     await check({ hook_event_name: 'Elicitation' }, 'needs-input');
     await check({ hook_event_name: 'ElicitationResult' }, 'busy');
-    await check({ hook_event_name: 'PermissionRequest' }, 'needs-input');
-    await check({ hook_event_name: 'PostToolUseFailure' }, 'busy');
+    await check({ hook_event_name: 'PermissionRequest', tool_use_id: 'approval' }, 'needs-input');
+    await check({ hook_event_name: 'PostToolUseFailure', tool_use_id: 'approval' }, 'busy');
     await check({ hook_event_name: 'PreCompact' }, 'busy');
     await check({ hook_event_name: 'SubagentStop' }, 'busy');
     await check({ hook_event_name: 'StopFailure' }, 'error');
@@ -188,7 +189,10 @@ test('pi settles only with a final assistant outcome and keeps automatic retries
     await check({ type: 'agent_settled' }, 'error');
     await check({ type: 'agent_start' }, 'busy');
     await check({ type: 'message_end', message: { role: 'assistant', stopReason: 'aborted' } }, 'busy');
-    await check({ type: 'agent_settled' }, 'ready');
+    await check({ type: 'agent_settled' }, 'error');
+    await check({ type: 'agent_start' }, 'busy');
+    await check({ type: 'message_end', message: { role: 'assistant', stopReason: 'aborted' } }, 'busy');
+    await check({ type: 'agent_settled', isIdle: true, hasPendingMessages: false }, 'ready');
     await check({ type: 'agent_start' }, 'busy');
     await check({ type: 'message_end', message: { role: 'assistant', stopReason: 'error' } }, 'busy');
     await check({ type: 'agent_settled' }, 'error');
@@ -286,7 +290,7 @@ test('launch failures use launch feedback and contribute no processing state or 
     await f.workbench.saveSettings({ agents: { ...f.workbench.snapshot().settings.agents, codex: { command: join(f.directory, 'missing-cli'), args: [] } } });
     const result = await f.workbench.createProject({ name: 'Launch failure', directory: f.directory, total: 1, counts: { codex: 1, claude: 0, pi: 0 } });
     assert.equal(result.launches[0].ok, false);
-    assert.equal(result.launches[0].ok ? '' : result.launches[0].error, 'Agent 无法启动');
+    assert.equal(result.launches[0].ok ? '' : result.launches[0].error, message('launchFailed'));
     assert.deepEqual(f.workbench.snapshot().processing.runs, {});
     assert.equal(f.workbench.snapshot().processing.projects[result.project.id].error.count, 0);
   } finally { await f.close(); }

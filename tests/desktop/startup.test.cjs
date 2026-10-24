@@ -2,7 +2,7 @@ const assert = require('node:assert/strict');
 
 module.exports = {
   async run({ evaluate, directory }) {
-    assert.equal(await evaluate('document.querySelector("h1").textContent'), '创建项目');
+    assert.equal(await evaluate('document.querySelector("h1").textContent'), 'Create project');
     const snapshot = await evaluate('window.workbench.snapshot()');
     assert.deepEqual(snapshot.projects, []);
     assert.deepEqual(snapshot.runs, []);

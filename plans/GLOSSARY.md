@@ -95,7 +95,7 @@ _Avoid_：恢复 Agent 对话、恢复进程、自动续写任务
 _Avoid_：面板、进程、终端画面、单轮回复、业务任务
 
 **会话标题（Session Title）**：
-Agent CLI 为会话自动生成或由用户在 CLI 中修改的名称；工作台只显示它，不生成也不修改，尚未命名时统一显示为 Untitled task。
+Agent CLI 为会话自动生成或由用户在 CLI 中修改的名称；工作台只显示它，不生成也不修改。尚未命名时显示随界面语言切换的工作台占位（English 为 Untitled task，简体中文为“未命名任务”），真实会话标题保持原样。
 _Avoid_：任务名称、面板别名、终端标题、Agent 类型名
 
 **历史会话（Historical Session）**：

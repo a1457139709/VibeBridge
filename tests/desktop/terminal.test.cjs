@@ -16,9 +16,9 @@ module.exports = {
     await until(() => evaluate('/CHILD:\\d+/.test(window.output)'));
     const child = Number(await evaluate('window.output.match(/CHILD:(\\d+)/)[1]'));
     process.kill(child, 0);
-    await click('关闭面板');
+    await click('Close panel');
     await until(async () => !(await evaluate('window.workbench.snapshot()')).runs.length);
-    await until(() => evaluate('document.body.innerText.includes("这个项目还没有 Agent 面板")'));
+    await until(() => evaluate('document.body.innerText.includes("This project has no Agent Panels yet")'));
     assert.throws(() => process.kill(run.pid, 0));
     assert.throws(() => process.kill(child, 0));
     console.log('Native terminal input rendered its CLI echo; closing the panel removed the run and descendant.');

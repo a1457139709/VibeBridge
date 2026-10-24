@@ -1,9 +1,7 @@
+import { useLocalization } from './Localization';
 import type { ReactNode } from 'react';
 import type { ProcessingState } from '../shared/processing-status';
 
-export const processingLabels: Record<ProcessingState, string> = {
-  ready: 'Ready', busy: 'Busy', 'needs-input': 'Needs input', done: 'Done', error: 'Error',
-};
 const shapes: Record<ProcessingState, ReactNode> = {
   ready: <circle cx="10" cy="10" r="6.5" />,
   busy: <path d="M10 3.5a6.5 6.5 0 0 1 5.6 3.2M15.6 13.3a6.5 6.5 0 0 1-5.6 3.2M4.4 13.3a6.5 6.5 0 0 1 0-6.6" />,
@@ -13,8 +11,9 @@ const shapes: Record<ProcessingState, ReactNode> = {
 };
 
 export function ProcessingStatusIcon({ state, focusable = false }: { state?: ProcessingState; focusable?: boolean }) {
+  const { t } = useLocalization();
   if (!state) return null;
-  const label = processingLabels[state];
+  const label = t(state);
   return <span className={`processing-status processing-${state}`} role="img" aria-label={label} title={label}
     tabIndex={focusable ? 0 : undefined} onPointerDown={event => { if (focusable) event.stopPropagation(); }}
     onClick={event => { if (focusable) event.stopPropagation(); }}>

@@ -1,3 +1,4 @@
+import { message } from '../app/shared/messages';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { mkdir, readFile, writeFile, rm } from 'node:fs/promises';
@@ -42,7 +43,7 @@ test('empty Agent commands return field errors while failed partial saves retain
   try {
     const before = workbench.snapshot().settings;
     assert.deepEqual(await workbench.saveSettings({ agents: { ...before.agents, codex: { command: '  ', args: [] } } }), {
-      ok: false, kind: 'validation', issues: [{ category: 'agents', field: 'agents.codex.command', code: 'required', message: '启动命令不能为空' }],
+      ok: false, kind: 'validation', issues: [{ category: 'agents', field: 'agents.codex.command', code: 'required', message: message('commandRequired') }],
     });
     const invalid = await workbench.saveSettings({ shortcuts: { ...before.shortcuts, closePanel: 'Shift+W' } });
     assert.ok(!invalid.ok && invalid.kind === 'validation');
@@ -55,7 +56,7 @@ test('empty Agent commands return field errors while failed partial saves retain
     const saved = workbench.snapshot().settings;
     await rm(`${directory}/settings.json`);
     await mkdir(`${directory}/settings.json`);
-    assert.deepEqual(await workbench.saveSettings({ agents: { ...before.agents, pi: { command: '/not-installed-but-valid', args: [] } } }), { ok: false, kind: 'storage', message: '配置保存失败' });
+    assert.deepEqual(await workbench.saveSettings({ agents: { ...before.agents, pi: { command: '/not-installed-but-valid', args: [] } } }), { ok: false, kind: 'storage', message: message('settingsWriteFailed') });
     assert.deepEqual(workbench.snapshot().settings, saved);
     await rm(`${directory}/settings.json`, { recursive: true });
   } finally { await workbench.quit(); }
@@ -71,9 +72,9 @@ test('missing-action migration does not excuse duplicate bindings already presen
   await writeFile(`${directory}/settings.json`, original);
   workbench = await Workbench.open(directory);
   try {
-    assert.match(workbench.snapshot().errors.join('\n'), /快捷键冲突/);
-    assert.deepEqual(await workbench.saveSettings({ theme: 'dark' }), { ok: false, kind: 'storage', message: '配置读取失败，未覆盖原配置；请修正后重新启动' });
-    await assert.rejects(workbench.quit(), /未覆盖原配置/);
+    assert.match(workbench.snapshot().errors.join('\n'), /shortcutConflict/);
+    assert.deepEqual(await workbench.saveSettings({ theme: 'dark' }), { ok: false, kind: 'storage', message: message('settingsUnreadable') });
+    await assert.rejects(workbench.quit(), /settingsUnreadable/);
     assert.equal(await readFile(`${directory}/settings.json`, 'utf8'), original);
   } finally { await workbench.quit().catch(() => {}); }
 });
