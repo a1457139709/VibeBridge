@@ -14,7 +14,8 @@ function codex(event: Payload, memory: StatusMemory): Transition {
     memory.codexWaits?.clear();
   }
   const tool = typeof event.tool_use_id === 'string' ? event.tool_use_id : '';
-  if (name === 'PermissionRequest' || (name === 'PreToolUse' && event.tool_name === 'request_user_input' && event.blocking === true)) {
+  // The native handler awaits the answer in every mode; Plan-only blocking just disables auto-resolution.
+  if (name === 'PermissionRequest' || (name === 'PreToolUse' && event.tool_name === 'request_user_input')) {
     (memory.codexWaits ??= new Set()).add(tool || (name === 'PreToolUse' ? 'request_user_input' : ''));
     return 'needs-input';
   }
