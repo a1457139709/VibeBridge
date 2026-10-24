@@ -1,0 +1,205 @@
+<!doctype html>
+<!-- THROWAWAY UI PROTOTYPE for #105: unified status icons, Busy spins. ?variant=A|B|C
+     A = outline ring as decided, B = tinted ring fill, C = neutral ring + colored glyph.
+     Independent, in-memory visual demo. Never reuse its code or design in production. -->
+<html lang="zh-CN" data-theme="dark">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Status Icons Prototype</title>
+<style>
+:root{font:13px -apple-system,BlinkMacSystemFont,"PingFang SC",sans-serif;color:#303030;background:#e9e4d8;color-scheme:light;
+  --canvas:#f5f5f5;--surface:#fff;--line:#dedede;--muted:#737373;--hover:#ebebeb;--accent:#303030;--nav:#f5f5f5;--heading:#fff;--focus:#737373;
+  --st-ready:#8c8c8c;--st-busy:#303030;--st-input:#946000;--st-done:#2d7766;--st-error:#b33e2d;}
+:root[data-theme=dark]{color:#d4d4d4;background:#24221d;color-scheme:dark;
+  --canvas:#141414;--surface:#1e1e1e;--line:#343434;--muted:#a1a1a1;--hover:#2b2b2b;--accent:#e5e5e5;--nav:#181818;--heading:#232323;--focus:#a3a3a3;
+  --st-ready:#8a8a8a;--st-busy:#e5e5e5;--st-input:#e9be5f;--st-done:#8fd0c0;--st-error:#f19989;}
+.codex{--brand:#348153}.claude{--brand:#b66c37}.pi{--brand:#8356b3}
+:root[data-theme=dark] .codex{--brand:#71bb8c}:root[data-theme=dark] .claude{--brand:#e2a173}:root[data-theme=dark] .pi{--brand:#b499db}
+*{box-sizing:border-box}body{margin:0;padding:12px 12px 72px}button,select{font:inherit;color:inherit}
+h2{font-size:12px;font-weight:600;margin:18px 0 8px;color:var(--muted);text-transform:uppercase;letter-spacing:.04em}
+/* prototype control surface (not product UI) */
+.controls{display:flex;flex-wrap:wrap;gap:8px 16px;align-items:center;padding:10px 12px;border-radius:8px;background:#d8cfbb;color:#3a3326;font-size:12px}
+:root[data-theme=dark] .controls{background:#3a352b;color:#e6dcc6}
+.controls label{display:inline-flex;gap:5px;align-items:center}.controls button{border:1px solid #0003;border-radius:6px;background:#fff6;padding:3px 9px;cursor:pointer}
+.controls .note{flex-basis:100%;opacity:.8}
+.stage{background:var(--canvas);border:1px solid var(--line);border-radius:8px;padding:12px;color:inherit}
+:root .stage{color:#303030}:root[data-theme=dark] .stage{color:#d4d4d4}
+/* status icon */
+.st{display:inline-flex;width:14px;height:14px;flex:0 0 14px}.st svg{display:block;width:100%;height:100%;overflow:visible}
+.st-ready{color:var(--st-ready)}.st-busy{color:var(--st-busy)}.st-needs-input{color:var(--st-input)}.st-done{color:var(--st-done)}.st-error{color:var(--st-error)}
+.spin{transform-origin:10px 10px;animation:spin 1.5s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+@media (prefers-reduced-motion:reduce){.spin{animation:none}}
+.rm .spin{animation:none}
+.big .st{width:56px;height:56px;flex-basis:56px}
+/* icon sheet */
+.sheet{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:8px}
+.cell{background:var(--surface);border:1px solid var(--line);border-radius:6px;padding:10px;display:flex;flex-direction:column;gap:8px;align-items:center;font-size:12px}
+.cell .row{display:flex;gap:10px;align-items:center}
+.onsel{padding:3px 6px;border-radius:4px;background:color-mix(in srgb,var(--brand) 12%,var(--surface));box-shadow:inset 2px 0 var(--brand)}
+.mark{color:var(--brand);font-weight:600;font-size:16px;width:16px;text-align:center;line-height:1}
+.mark svg{width:15px;height:15px;vertical-align:-2px}
+.sym{display:inline-flex;gap:6px;align-items:center}
+.clash{display:grid;grid-template-columns:auto repeat(5,auto);gap:6px 18px;align-items:center;background:var(--surface);border:1px solid var(--line);border-radius:6px;padding:10px;width:max-content;max-width:100%;overflow:auto;font-size:12px}
+/* mini workbench */
+.wb{display:flex;flex-direction:column;height:520px;border:1px solid var(--line);border-radius:8px;overflow:hidden;background:var(--canvas)}
+.wb-body{display:flex;flex:1;min-height:0}
+.nav{width:230px;flex-shrink:0;background:var(--nav);border-right:1px solid var(--line);padding:8px 6px;overflow:auto}
+.proj{font-size:12px;font-weight:600;padding:6px 8px 4px;color:var(--muted)}.proj.cur{color:inherit}
+.link{display:flex;gap:8px;align-items:center;padding:4px 8px;font-size:12px;border-radius:4px;min-width:0}
+.link.sel{background:color-mix(in srgb,var(--brand) 12%,var(--surface));box-shadow:inset 2px 0 var(--brand)}
+.title{overflow:hidden;white-space:nowrap;text-overflow:ellipsis;min-width:0}
+.grid{flex:1;display:grid;grid-template-columns:repeat(3,minmax(0,1fr));grid-auto-rows:minmax(0,1fr);gap:6px;padding:6px;min-width:0}
+.panel{border:1px solid var(--line);border-radius:6px;background:var(--surface);display:flex;flex-direction:column;min-height:0;overflow:hidden}
+.panel.focused{border-color:var(--brand);box-shadow:0 0 0 2px color-mix(in srgb,var(--brand) 35%,transparent)}
+.ph{height:28px;display:flex;align-items:center;gap:6px;padding:0 8px;font-size:11px;background:var(--heading);border-bottom:1px solid var(--line)}
+.ph .act{margin-left:auto;color:var(--muted);letter-spacing:4px}
+.ph .st{cursor:pointer}
+.term{flex:1;padding:8px;font:11px/1.5 ui-monospace,Menlo,monospace;color:var(--muted);overflow:hidden;white-space:pre}
+.bar{flex:0 0 36px;border-top:1px solid var(--line);background:var(--nav);display:flex;align-items:center;gap:4px;padding:0 8px}
+.entry{display:inline-flex;gap:6px;align-items:center;padding:0 8px;min-height:28px;font-size:12px;font-variant-numeric:tabular-nums;border-radius:6px}
+.entry.zero{opacity:.45}
+/* compact */
+.compact{display:flex;gap:6px;flex-wrap:wrap;align-items:stretch}
+.tiny{width:96px;height:72px;border-radius:6px;border:1px solid var(--line);background:color-mix(in srgb,var(--brand) 12%,var(--surface));display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;font-size:11px;padding:4px;text-align:center}
+.strip{height:26px;border-radius:6px;border:1px solid var(--line);background:color-mix(in srgb,var(--brand) 12%,var(--surface));display:flex;align-items:center;gap:6px;padding:0 8px;font-size:11px;width:220px}
+.state-dump{font:11px/1.5 ui-monospace,Menlo,monospace;color:var(--muted);margin-top:8px;white-space:pre-wrap}
+/* floating switcher (not product UI) */
+.switcher{position:fixed;left:50%;bottom:14px;transform:translateX(-50%);display:flex;gap:4px;align-items:center;background:#111;color:#fff;border-radius:999px;padding:4px;box-shadow:0 6px 20px #0006;z-index:9;font-size:12px}
+.switcher button{background:transparent;border:0;color:#fff;width:30px;height:28px;border-radius:999px;cursor:pointer;font-size:15px}
+.switcher button:hover{background:#333}.switcher span{padding:0 10px;min-width:240px;text-align:center}
+</style>
+</head>
+<body>
+<div class="controls">
+  <b>原型控制区（非产品界面）</b>
+  <label>主题 <select id="theme"><option value="dark">深色</option><option value="light">浅色</option></select></label>
+  <label>语言 <select id="lang"><option value="zh">简体中文</option><option value="en">English</option></select></label>
+  <label><input type="checkbox" id="rm"> 模拟“减少动态效果”</label>
+  <label><input type="checkbox" id="sync" checked> Busy 同相位</label>
+  <span>场景：<button data-preset="mixed">混合</button> <button data-preset="busy">6 个全部 Busy</button> <button data-preset="each">五态各一</button></span>
+  <span class="note">点击面板标题里的状态图标可以循环切换该面板的状态，用来检查“离开 Busy 立即停止”。←/→ 或底部箭头切换变体。系统本身开启减少动态效果时，动画也会停止。</span>
+</div>
+
+<div class="stage">
+  <h2 id="h-sheet"></h2>
+  <div class="sheet" id="sheet"></div>
+
+  <h2 id="h-clash"></h2>
+  <div class="clash" id="clash"></div>
+
+  <h2 id="h-wb"></h2>
+  <div class="wb">
+    <div class="wb-body"><nav class="nav" id="nav"></nav><main class="grid" id="grid"></main></div>
+    <footer class="bar" id="bar"></footer>
+  </div>
+
+  <h2 id="h-compact"></h2>
+  <div class="compact" id="compact"></div>
+  <div class="state-dump" id="dump"></div>
+</div>
+
+<div class="switcher"><button id="prev" aria-label="previous">‹</button><span id="vlabel"></span><button id="next" aria-label="next">›</button></div>
+
+<script src="openai-mark.js"></script>
+<script>
+const VARIANTS = {A:'线框圆环（按决议）', B:'浅色底填充圆环', C:'中性圆环 + 着色符号'};
+const STATES = ['ready','busy','needs-input','done','error'];
+const L = {
+  zh:{ready:'就绪',busy:'处理中','needs-input':'等待输入',done:'本轮结束',error:'异常',
+      sheet:'图标表 · 14px 实际尺寸 / 选中行背景 / 4 倍放大',clash:'撞色检查 · 状态图标紧挨 Agent 类型标识',
+      wb:'工作台 · 面板标题、项目导航、底栏（当前项目）',compact:'紧凑布局 · 最小面板与矮条'},
+  en:{ready:'Ready',busy:'Busy','needs-input':'Needs input',done:'Done',error:'Error',
+      sheet:'Icon sheet · 14px actual / on selected row / 4× zoom',clash:'Clash check · status icon beside Agent type mark',
+      wb:'Workbench · panel header, project navigation, bottom bar (current project)',compact:'Compact · minimal panels and strips'},
+};
+const OPENAI = window.OPENAI_MARK;
+const MARK = {codex:OPENAI, claude:'✳', pi:'π'};
+
+let variant = new URLSearchParams(location.search).get('variant') || 'A';
+if (!VARIANTS[variant]) variant = 'A';
+let lang = 'zh';
+const PRESETS = {
+  mixed:['busy','busy','needs-input','busy','done','busy'],
+  busy:['busy','busy','busy','busy','busy','busy'],
+  each:['ready','busy','needs-input','done','error','busy'],
+};
+const panels = [
+  {agent:'codex', title:'重构状态投影模块'},
+  {agent:'claude',title:'修复 pi compaction 结果丢失'},
+  {agent:'pi',    title:'Write release notes for v0.2'},
+  {agent:'claude',title:'Investigate flaky scrollback test on CI runner'},
+  {agent:'codex', title:'更新设置页的语言选项'},
+  {agent:'pi',    title:'检查窄窗口布局'},
+].map((p,i)=>({...p,state:PRESETS.mixed[i]}));
+const background = [{agent:'claude',title:'docs: 同步 README',state:'needs-input'},{agent:'codex',title:'lint 规则升级',state:'busy'}];
+let focused = 1;
+
+function glyph(state){
+  const ring = 'M10 2.75a7.25 7.25 0 1 1 0 14.5a7.25 7.25 0 1 1 0-14.5';
+  const C = variant==='C';
+  const ringStroke = C ? 'var(--muted)' : 'currentColor';
+  const ringOpacity = C ? .55 : 1;
+  const fill = variant==='B' ? 'currentColor' : 'none';
+  const sw = C ? 1.5 : 1.8, gw = C ? 2 : 1.8;
+  const base = `<circle cx="10" cy="10" r="7.25" fill="${fill}" fill-opacity=".16" stroke="${ringStroke}" stroke-opacity="${ringOpacity}" stroke-width="${sw}"/>`;
+  const inner = {
+    ready:'',
+    busy:'',
+    'needs-input':`<path d="M10 6.2v4.3" stroke-width="${gw}"/><circle cx="10" cy="13.4" r="1.05" fill="currentColor" stroke="none"/>`,
+    done:`<path d="m6.7 10.2 2.2 2.2 4.4-4.5" stroke-width="${gw}"/>`,
+    error:`<path d="m7.6 7.6 4.8 4.8m0-4.8-4.8 4.8" stroke-width="${gw}"/>`,
+  }[state];
+  if (state==='busy'){
+    const track = `<circle cx="10" cy="10" r="7.25" fill="${fill}" fill-opacity=".12" stroke="${C?'var(--muted)':'currentColor'}" stroke-opacity="${C?.45:.28}" stroke-width="${sw}"/>`;
+    const sync = document.getElementById('sync').checked;
+    const delay = sync ? -(performance.now() % 1500) : -Math.random()*1500;
+    return `<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${track}<g class="spin" style="animation-delay:${delay.toFixed(0)}ms"><path d="M10 2.75a7.25 7.25 0 0 1 7.25 7.25" stroke-width="${gw}"/></g></svg>`;
+  }
+  return `<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${base}${inner}</svg>`;
+}
+const icon = s => `<span class="st st-${s}" role="img" aria-label="${L[lang][s]}" title="${L[lang][s]}">${glyph(s)}</span>`;
+const mark = a => `<span class="mark ${a}" aria-hidden="true">${MARK[a]}</span>`;
+const sym = (s,a) => `<span class="sym ${a}">${icon(s)}${mark(a)}</span>`;
+
+function render(){
+  const t = L[lang];
+  document.getElementById('h-sheet').textContent = t.sheet;
+  document.getElementById('h-clash').textContent = t.clash;
+  document.getElementById('h-wb').textContent = t.wb;
+  document.getElementById('h-compact').textContent = t.compact;
+  document.getElementById('sheet').innerHTML = STATES.map(s=>`<div class="cell"><div class="row">${icon(s)}<span>${t[s]}</span></div><div class="row onsel claude">${sym(s,'claude')}<span class="title">${t[s]}</span></div><div class="big">${icon(s)}</div></div>`).join('');
+  document.getElementById('clash').innerHTML = '<span></span>' + STATES.map(s=>`<b>${t[s]}</b>`).join('') +
+    ['codex','claude','pi'].map(a=>`<span>${a}</span>` + STATES.map(s=>sym(s,a)).join('')).join('');
+  document.getElementById('nav').innerHTML =
+    `<div class="proj cur">VibeBridge</div>` + panels.map((p,i)=>`<div class="link ${p.agent} ${i===focused?'sel':''}"><span class="sym">${icon(p.state)}${mark(p.agent)}</span><span class="title">${p.title}</span></div>`).join('') +
+    `<div class="proj">docs-site</div>` + background.map(p=>`<div class="link ${p.agent}"><span class="sym">${icon(p.state)}${mark(p.agent)}</span><span class="title">${p.title}</span></div>`).join('') +
+    `<div class="proj">▸ playground</div>`;
+  document.getElementById('grid').innerHTML = panels.map((p,i)=>`<section class="panel ${p.agent} ${i===focused?'focused':''}"><div class="ph"><span class="sym" data-cycle="${i}">${icon(p.state)}${mark(p.agent)}</span><span class="title">${p.title}</span><span class="act">⤢ ✕</span></div><div class="term">${p.state==='busy'?'• Working (12s · esc to interrupt)':p.state==='needs-input'?'? Allow command: npm test\n  1. Yes  2. No':p.state==='done'?'✓ Turn complete':p.state==='error'?'✗ stream error':'>'}</div></section>`).join('');
+  const count = s => panels.filter(p=>p.state===s).length;
+  document.getElementById('bar').innerHTML = ['needs-input','done','error'].map(s=>`<span class="entry ${count(s)?'':'zero'}">${icon(s)}<span>${count(s)} ${t[s]}</span></span>`).join('');
+  document.getElementById('compact').innerHTML = panels.slice(0,4).map(p=>`<div class="tiny ${p.agent}">${sym(p.state,p.agent)}<span class="title" style="white-space:normal">${p.title.slice(0,18)}</span></div>`).join('') +
+    `<div style="display:flex;flex-direction:column;gap:6px">${panels.slice(2,5).map(p=>`<div class="strip ${p.agent}">${sym(p.state,p.agent)}<span class="title">${p.title}</span></div>`).join('')}</div>`;
+  document.getElementById('vlabel').textContent = `${variant} · ${VARIANTS[variant]}`;
+  document.getElementById('dump').textContent = `state: variant=${variant} theme=${document.documentElement.dataset.theme} lang=${lang} reducedMotion(sim)=${document.getElementById('rm').checked} sync=${document.getElementById('sync').checked}\npanels: ${panels.map(p=>p.state).join(', ')}`;
+}
+
+function setVariant(v){ variant=v; const u=new URL(location.href); u.searchParams.set('variant',v); history.replaceState(null,'',u); render(); }
+const keys = Object.keys(VARIANTS);
+const step = d => setVariant(keys[(keys.indexOf(variant)+d+keys.length)%keys.length]);
+document.getElementById('prev').onclick = ()=>step(-1);
+document.getElementById('next').onclick = ()=>step(1);
+addEventListener('keydown', e=>{ if (e.target.closest('input,textarea,select,[contenteditable]')) return; if(e.key==='ArrowLeft')step(-1); if(e.key==='ArrowRight')step(1); });
+document.getElementById('theme').onchange = e=>{ document.documentElement.dataset.theme=e.target.value; render(); };
+document.getElementById('lang').onchange = e=>{ lang=e.target.value; document.documentElement.lang = lang==='zh'?'zh-CN':'en'; render(); };
+document.getElementById('rm').onchange = e=>{ document.documentElement.classList.toggle('rm', e.target.checked); render(); };
+document.getElementById('sync').onchange = render;
+document.querySelectorAll('[data-preset]').forEach(b=>b.onclick=()=>{ PRESETS[b.dataset.preset].forEach((s,i)=>panels[i].state=s); render(); });
+document.getElementById('grid').addEventListener('click', e=>{
+  const c = e.target.closest('[data-cycle]'); if(!c) return;
+  const p = panels[+c.dataset.cycle]; p.state = STATES[(STATES.indexOf(p.state)+1)%STATES.length]; focused=+c.dataset.cycle; render();
+});
+render();
+</script>
+</body>
+</html>
