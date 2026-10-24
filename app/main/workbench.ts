@@ -4,7 +4,7 @@ import type { Language, ProjectEdit, ProjectEditResult } from '../shared/model';
 import { randomUUID } from 'node:crypto';
 import { realpath, stat } from 'node:fs/promises';
 import { basename } from 'node:path';
-import { defaultNavigation, navigationWidth, type NavigationPreferences, assignedAgents, arrange, insertIntoLayout, validateDraft, removeFromLayout, validateLayout, agentTypes, type AgentType, type DirectoryResult, type LaunchResult, type Layout, type Panel, type Project, type ProjectCreation, type ProjectDraft, type PanelCreation, type Settings, type Snapshot, type TerminalEvent, type WorkbenchEvent } from '../shared/model';
+import { defaultNavigation, navigationWidth, type NavigationPreferences, assignedAgents, arrange, insertIntoLayout, validateDraft, removeFromLayout, validateLayout, agentTypes, type AgentType, type DirectoryResult, launchFailed, type LaunchResult, type Layout, type Panel, type Project, type ProjectCreation, type ProjectDraft, type PanelCreation, type Settings, type Snapshot, type TerminalEvent, type WorkbenchEvent } from '../shared/model';
 import { ProjectStore } from './storage';
 import { SettingsFile, defaultSettings } from './settings';
 import { TerminalClient } from './terminal-client';
@@ -16,9 +16,6 @@ export class WorkbenchOpenError extends Error {
     super(error instanceof Error ? error.message : String(error), { cause: error });
   }
 }
-
-// An unconfirmed launch may still be running, so only a confirmed failure counts.
-const notStarted = (launch: LaunchResult) => !launch.ok && launch.error === message('launchFailed');
 
 export class Workbench {
   private state: Omit<Snapshot, 'processing'> = { navigation: { ...defaultNavigation }, projects: [], runs: [], activeProjectId: null, settings: defaultSettings(), settingsMigrationConflict: false, startupTheme: 'system', resolvedTheme: 'light', errors: [] };
@@ -128,7 +125,7 @@ export class Workbench {
     await this.store.active(project.id);
     this.changed();
     const launches = await this.startProject(project);
-    await this.withdrawPanels(project, launches.filter(notStarted).map(launch => launch.run.panelId));
+    await this.withdrawPanels(project, launches.filter(launchFailed).map(launch => launch.run.panelId));
     return { project: structuredClone(project), launches };
   }); }
   editProject(id: string, edit: ProjectEdit, restart: boolean): Promise<ProjectEditResult> { return this.operation(async () => {
@@ -224,16 +221,16 @@ export class Workbench {
     await this.store.save(next);
     Object.assign(project, next); this.changed();
     const launch = await this.startPanel(project, panel);
-    if (notStarted(launch)) await this.withdrawPanels(project, [panel.id]);
+    if (launchFailed(launch)) await this.withdrawPanels(project, [panel.id]);
     return { panel: structuredClone(panel), launch };
   }); }
   // Undoes the addition of panels whose Agent never started. Restored layouts keep
   // their failed panels; this is neither closing a panel nor a run exit.
-  private withdrawPanels(project: Project, panelIds: string[]) {
-    return panelIds.length ? this.dropPanels(project, panelIds) : Promise.resolve();
+  private async withdrawPanels(project: Project, panelIds: string[]) {
+    if (panelIds.length) await this.removePanels(project, panelIds);
   }
-  private removePanel(projectId: string, panelId: string) { return this.dropPanels(this.project(projectId), [panelId]); }
-  private async dropPanels(project: Project, panelIds: string[]) {
+  private removePanel(projectId: string, panelId: string) { return this.removePanels(this.project(projectId), [panelId]); }
+  private async removePanels(project: Project, panelIds: string[]) {
     const next = { ...project, panels: project.panels.filter(p => !panelIds.includes(p.id)),
       layout: panelIds.reduce((layout, id) => removeFromLayout(layout, id), project.layout) };
     await this.store.save(next);

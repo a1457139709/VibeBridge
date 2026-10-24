@@ -1,8 +1,7 @@
 import { useLocalization } from './Localization';
 import { useEffect, useRef, useState } from 'react';
-import { agentNames, agentTypes } from '../shared/model';
+import { agentNames, agentTypes, launchFailed } from '../shared/model';
 import { agentIcons } from './agent-icons';
-import { message } from '../shared/messages';
 
 export function AgentPicker({ projectId, full, close, added, openAgentSettings }: {
   projectId: string; full: boolean; close(): void; added(): void; openAgentSettings(): void;
@@ -10,8 +9,7 @@ export function AgentPicker({ projectId, full, close, added, openAgentSettings }
   const { t, text } = useLocalization();
   const dialog = useRef<HTMLDialogElement>(null);
   const [busy, setBusy] = useState(false);
-  const [error, setError] = useState('');
-  const launchFailed = error === message('launchFailed');
+  const [failure, setFailure] = useState<{ error: string; settings: boolean }>();
   useEffect(() => {
     const element = dialog.current!;
     element.showModal();
@@ -22,14 +20,14 @@ export function AgentPicker({ projectId, full, close, added, openAgentSettings }
     <button className="picker-close" aria-label={t('closeAgentPicker')} onClick={close}>×</button>
     {agentTypes.map(type => <button key={type} autoFocus={type === 'codex'} className={`agent-option ${type}`} disabled={busy || full}
       onClick={async () => {
-        setBusy(true); setError('');
+        setBusy(true); setFailure(undefined);
         try {
           const result = await window.workbench.addPanel(projectId, type);
-          if (result.launch.ok) added(); else setError(result.launch.error);
-        } catch (error) { setError((error as Error).message); }
+          if (result.launch.ok) added(); else setFailure({ error: result.launch.error, settings: launchFailed(result.launch) });
+        } catch (error) { setFailure({ error: (error as Error).message, settings: false }); }
         finally { setBusy(false); }
       }}><span className="agent-mark">{agentIcons[type]}</span>{agentNames[type]}</button>)}
-    {error && <p className="error-text" role="alert">{text(error)}</p>}
-    {launchFailed && <button className="picker-settings" onClick={() => { close(); openAgentSettings(); }}>{t('openAgentSettings')}</button>}
+    {failure && <p className="error-text" role="alert">{text(failure.error)}</p>}
+    {failure?.settings && <button className="picker-settings" onClick={() => { close(); openAgentSettings(); }}>{t('openAgentSettings')}</button>}
   </dialog>;
 }

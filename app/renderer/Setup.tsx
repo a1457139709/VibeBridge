@@ -2,7 +2,7 @@ import { useLocalization } from './Localization';
 import { message } from '../shared/messages';
 import { agentIcons } from './agent-icons';
 import { useEffect, useRef, useState, type Dispatch, type SetStateAction } from 'react';
-import { agentNames, agentTypes, arrange, assignedAgents, type AgentType, type DefaultLayout, type DirectoryResult, type LaunchResult, type ProjectDraft } from '../shared/model';
+import { agentNames, agentTypes, arrange, assignedAgents, launchFailed, type AgentType, type DefaultLayout, type DirectoryResult, type LaunchResult, type ProjectDraft } from '../shared/model';
 import { layoutBoxes } from '../shared/layout';
 import { projectNameError, projectNameFromDirectory, projectNameHasControls } from '../shared/project-name';
 
@@ -68,7 +68,7 @@ export function Setup({ draft, change, cancel, created, openProject, report, ope
     finally { pending.current = false; setBusy(false); }
   }
   if (launched) {
-    const failed = launched.launches.some(launch => !launch.ok && launch.error === message('launchFailed'));
+    const failed = launched.launches.some(launchFailed);
     return <div className="setup-scroll"><section className="setup">
       <h1>{t('createProject')}</h1>{failed && <p role="status">{t('setupLaunchFailed')}</p>}
       <ul className="project-launch-results">{launched.launches.map((launch, index) => <li key={launch.run.panelId} className={launch.ok ? '' : 'error-text'}>{t('panelLaunchResult', { number: index + 1, agent: agentNames[launched.agents[index]], result: launch.ok ? t('launchSuccess') : text(launch.error) })}</li>)}</ul>
