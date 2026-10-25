@@ -53,6 +53,11 @@ module.exports = {
         for (const phase of phases) assert.ok(Math.min(Math.abs(phase - phases[0]), busyPeriod - Math.abs(phase - phases[0])) < 50, `Busy phases ${phases}`);
       } else assert.deepEqual(phases, []);
     };
+    // The host's own motion setting must not decide the result; emulate each preference explicitly.
+    console.log(`Host prefers reduced motion: ${await evaluate("matchMedia('(prefers-reduced-motion: reduce)').matches")}`);
+    window.webContents.debugger.attach();
+    const motion = value => window.webContents.debugger.sendCommand('Emulation.setEmulatedMedia', { features: [{ name: 'prefers-reduced-motion', value }] });
+    await motion('no-preference');
     let reducedMotion = false;
     const busyPeriod = 1500; // processing-spin duration in processing-status.css
     for (const language of ['en', 'zh-CN']) {
@@ -110,14 +115,11 @@ module.exports = {
     }
     await evaluate('window.workbench.saveSettings({ language: "en" })');
     await until(() => evaluate('document.documentElement.lang === "en"'));
-    window.webContents.debugger.attach();
-    try {
-      await window.webContents.debugger.sendCommand('Emulation.setEmulatedMedia', { features: [{ name: 'prefers-reduced-motion', value: 'reduce' }] });
-      reducedMotion = true;
-      await checkGeometry();
-      await window.webContents.debugger.sendCommand('Emulation.setEmulatedMedia', { features: [] });
-      reducedMotion = false;
-    } finally { window.webContents.debugger.detach(); }
+    await motion('reduce');
+    reducedMotion = true;
+    await checkGeometry();
+    await motion('no-preference');
+    reducedMotion = false;
     await evaluate(`document.querySelector('[data-panel-id="${runs[3].panelId}"] button[aria-label="Maximize panel"]').click()`);
     await checkGeometry();
     await until(() => evaluate(`document.activeElement.closest('[data-panel-id]')?.dataset.panelId === '${runs[3].panelId}' && document.activeElement.classList.contains('xterm-helper-textarea')`));
