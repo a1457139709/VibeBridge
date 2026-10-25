@@ -3,7 +3,9 @@ import assert from 'node:assert/strict';
 import { mkdir, mkdtemp, readFile, rm } from 'node:fs/promises';
 import { resolve } from 'node:path';
 import { Workbench } from '../app/main/workbench';
-import type { WorkbenchEvent } from '../app/shared/model';
+import type { Snapshot, WorkbenchEvent } from '../app/shared/model';
+import { message } from '../app/shared/messages';
+import { layoutBoxes } from '../app/shared/layout';
 
 async function until(check: () => boolean) {
   const deadline = Date.now() + 5000;
@@ -56,13 +58,12 @@ test('adding and closing a panel preserve unrelated regions, existing runs and t
   } finally { await workbench.quit(); await rm(directory, { recursive: true, force: true }); }
 });
 
-test('normal and abnormal run exits remove panels, while launch failure and quit preserve them', async () => {
+test('normal and abnormal run exits remove panels', async () => {
   const directory = await mkdtemp(resolve('work/panels-'));
   let workbench = await Workbench.open(directory);
   try {
     const settings = workbench.snapshot().settings;
     settings.agents.codex = { command: process.env.VIBEBRIDGE_TEST_NODE!, args: [resolve('tests/fixtures/interactive.cjs')] };
-    settings.agents.pi = { command: '/no-such-agent', args: [] };
     // A successfully spawned CLI can exit before the caller receives its launch result.
     settings.agents.claude = { command: '/usr/bin/false', args: [] };
     await workbench.saveSettings(settings);
@@ -87,12 +88,109 @@ test('normal and abnormal run exits remove panels, while launch failure and quit
     assert.equal(abnormal.launch.ok, true);
     await until(() => workbench.snapshot().projects[0].panels.length === 0);
     await assert.rejects(workbench.sendInput(abnormal.launch.run.id, 'old-input'), /runInvalid/);
-    const failed = await workbench.addPanel(project.id, 'pi');
-    assert.equal(failed.launch.ok, false);
+  } finally { await workbench.quit(); await rm(directory, { recursive: true, force: true }); }
+});
+
+test('quitting the Workbench preserves panels and layout', async () => {
+  const directory = await mkdtemp(resolve('work/panels-'));
+  let workbench = await Workbench.open(directory);
+  try {
+    const settings = workbench.snapshot().settings;
+    settings.agents.codex = { command: process.env.VIBEBRIDGE_TEST_NODE!, args: [resolve('tests/fixtures/interactive.cjs')] };
+    await workbench.saveSettings(settings);
+    await workbench.createProject({ name: 'Quit', directory, total: 2, counts: { codex: 2, claude: 0, pi: 0 } });
+    const [project] = workbench.snapshot().projects;
+    assert.equal(project.panels.length, 2);
     await workbench.quit();
     workbench = await Workbench.open(directory);
-    assert.deepEqual(workbench.snapshot().projects[0].panels, [failed.panel]);
-    assert.deepEqual(workbench.snapshot().projects[0].layout, { panel: failed.panel.id });
+    assert.deepEqual(workbench.snapshot().projects, [project]);
+  } finally { await workbench.quit(); await rm(directory, { recursive: true, force: true }); }
+});
+
+test('an added panel whose Agent cannot start is withdrawn, and adding succeeds once the command is fixed', async () => {
+  const directory = await mkdtemp(resolve('work/panels-'));
+  let workbench = await Workbench.open(directory);
+  try {
+    const settings = workbench.snapshot().settings;
+    settings.agents.codex = { command: process.env.VIBEBRIDGE_TEST_NODE!, args: [resolve('tests/fixtures/interactive.cjs')] };
+    settings.agents.pi = { command: '/no-such-agent', args: [] };
+    await workbench.saveSettings(settings);
+    let output = '';
+    workbench.subscribe(event => { if (event.kind === 'output') output += event.data; });
+    await workbench.createProject({ name: 'Withdraw', directory, total: 2, counts: { codex: 2, claude: 0, pi: 0 } });
+    const before = workbench.snapshot();
+    const snapshots: Snapshot[] = [];
+    workbench.subscribe(event => { if (event.kind === 'snapshot') snapshots.push(event.snapshot); });
+    const failed = await workbench.addPanel(before.projects[0].id, 'pi');
+    assert.equal(failed.launch.ok, false);
+    assert.equal(!failed.launch.ok && failed.launch.error, message('launchFailed'));
+    const after = workbench.snapshot();
+    assert.deepEqual(after.projects, before.projects);
+    assert.deepEqual(after.runs, before.runs);
+    assert.deepEqual(snapshots.at(-1)!.projects, before.projects);
+    assert.equal(after.processing.runs[failed.launch.run.id], undefined);
+    assert.deepEqual(after.processing.projects, before.processing.projects);
+    await until(() => output.includes('READY:'));
+    await workbench.sendInput(before.runs[1].id, 'still-alive');
+    await until(() => output.includes('INPUT:still-alive'));
+    await workbench.quit();
+    workbench = await Workbench.open(directory);
+    assert.deepEqual(workbench.snapshot().projects, before.projects);
+    await workbench.activateProject(before.projects[0].id);
+    await workbench.saveSettings({ agents: { ...settings.agents, pi: settings.agents.codex } });
+    const fixed = await workbench.addPanel(before.projects[0].id, 'pi');
+    assert.equal(fixed.launch.ok, true);
+    assert.equal(workbench.snapshot().projects[0].panels.length, 3);
+  } finally { await workbench.quit(); await rm(directory, { recursive: true, force: true }); }
+});
+
+test('project creation withdraws only the panels whose Agent cannot start, keeping the project even when none start', async () => {
+  const directory = await mkdtemp(resolve('work/panels-'));
+  let workbench = await Workbench.open(directory);
+  try {
+    const settings = workbench.snapshot().settings;
+    settings.agents.codex = { command: process.env.VIBEBRIDGE_TEST_NODE!, args: [resolve('tests/fixtures/interactive.cjs')] };
+    settings.agents.pi = { command: '/no-such-agent', args: [] };
+    await workbench.saveSettings(settings);
+    const partial = await workbench.createProject({ name: 'Partial', directory, total: 3, counts: { codex: 2, claude: 0, pi: 1 } });
+    assert.deepEqual(partial.launches.map(launch => launch.ok), [true, true, false]);
+    const started = partial.launches.filter(launch => launch.ok).map(launch => launch.run.panelId);
+    assert.deepEqual(partial.project.panels.map(panel => panel.id), started);
+    assert.deepEqual(partial.project.panels.map(panel => panel.agent), ['codex', 'codex']);
+    assert.deepEqual([...layoutBoxes(partial.project.layout).panels.keys()].sort(), [...started].sort());
+    assert.deepEqual(workbench.snapshot().projects, [partial.project]);
+    assert.ok(workbench.snapshot().runs.every(run => started.includes(run.panelId)));
+    await mkdir(resolve(directory, 'none'));
+    const none = await workbench.createProject({ name: 'None', directory: resolve(directory, 'none'), total: 2, counts: { codex: 0, claude: 0, pi: 2 } });
+    assert.deepEqual(none.launches.map(launch => launch.ok), [false, false]);
+    assert.deepEqual(none.project.panels, []);
+    assert.equal(none.project.layout, null);
+    assert.equal(workbench.snapshot().activeProjectId, none.project.id);
+    await workbench.quit();
+    workbench = await Workbench.open(directory);
+    assert.deepEqual(workbench.snapshot().projects, [partial.project, none.project]);
+  } finally { await workbench.quit(); await rm(directory, { recursive: true, force: true }); }
+});
+
+test('restoring a layout keeps panels whose Agent cannot start', async () => {
+  const directory = await mkdtemp(resolve('work/panels-'));
+  let workbench = await Workbench.open(directory);
+  try {
+    const settings = workbench.snapshot().settings;
+    settings.agents.codex = { command: process.env.VIBEBRIDGE_TEST_NODE!, args: [resolve('tests/fixtures/interactive.cjs')] };
+    await workbench.saveSettings(settings);
+    const { project } = await workbench.createProject({ name: 'Restore', directory, total: 2, counts: { codex: 2, claude: 0, pi: 0 } });
+    await workbench.saveSettings({ agents: { ...settings.agents, codex: { command: '/no-such-agent', args: [] } } });
+    await workbench.quit();
+    workbench = await Workbench.open(directory);
+    await workbench.activateProject(project.id);
+    const snapshot = workbench.snapshot();
+    assert.deepEqual(snapshot.projects, [project]);
+    assert.deepEqual(snapshot.runs.map(run => run.state), ['failed', 'failed']);
+    assert.equal(snapshot.processing.projects[project.id]?.error.count ?? 0, 0);
+    await workbench.quit();
+    workbench = await Workbench.open(directory);
+    assert.deepEqual(workbench.snapshot().projects, [project]);
   } finally { await workbench.quit(); await rm(directory, { recursive: true, force: true }); }
 });
 

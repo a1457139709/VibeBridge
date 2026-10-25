@@ -117,13 +117,11 @@ test('shared panel operations enforce the limit and report launch failure withou
   const workbench = await Workbench.open(dataDirectory);
   try {
     const settings = workbench.snapshot().settings;
-    settings.agents.pi = { command: '/no-such-agent', args: [] };
+    settings.agents.pi = { command: process.env.VIBEBRIDGE_TEST_NODE!, args: [resolve('tests/fixtures/interactive.cjs')] };
     await workbench.saveSettings(settings);
     const { project, launches } = await workbench.createProject({ name: 'Limit', directory: dataDirectory, total: 10, counts: { codex: 0, claude: 0, pi: 10 } });
     assert.equal(launches.length, 10);
-    assert.ok(launches.every(launch => !launch.ok && launch.error === message('launchFailed')));
-    assert.ok(workbench.snapshot().runs.every(run => run.state === 'failed'));
-    assert.ok(workbench.snapshot().projects[0].panels.every(panel => panel.agent === 'pi'));
+    assert.ok(launches.every(launch => launch.ok));
     await assert.rejects(workbench.addPanel(project.id, 'codex'), /panelLimit/);
     await workbench.closePanel(project.id, project.panels[0].id);
     const additions = await Promise.allSettled([workbench.addPanel(project.id, 'pi'), workbench.addPanel(project.id, 'pi')]);
@@ -132,6 +130,12 @@ test('shared panel operations enforce the limit and report launch failure withou
     assert.ok(rejected?.status === 'rejected');
     assert.match(rejected.reason.message, /panelLimit/);
     assert.equal(workbench.snapshot().projects[0].panels.length, 10);
+    await workbench.saveSettings({ agents: { ...settings.agents, codex: { command: '/no-such-agent', args: [] } } });
+    await workbench.closePanel(project.id, project.panels[1].id);
+    const failed = await workbench.addPanel(project.id, 'codex');
+    assert.equal(failed.launch.ok ? '' : failed.launch.error, message('launchFailed'));
+    assert.equal(failed.panel.agent, 'codex');
+    assert.deepEqual(workbench.snapshot().projects[0].panels.map(panel => panel.agent), Array(9).fill('pi'));
   } finally { await workbench.quit(); }
 });
 

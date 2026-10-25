@@ -23,7 +23,7 @@ function TerminalView({ run }: { run?: Run }) {
   return <div className="terminal-container" ref={container}>{run?.state === 'starting' ? <div className="terminal-message">{t('launchPending')}</div> : run?.state === 'failed' ? <div className="terminal-message">{t('launchFailed')}</div> : run?.state === 'stopped' ? <div className="terminal-message">{t('runStopped')}</div> : !run ? <div className="terminal-message muted">{t('starting')}</div> : null}</div>;
 }
 
-export function Workspace({ project, runs, processing, report, location, visible, ref }: { project: Project; runs: Run[]; processing: ProcessingProjection; report(message: string): void; location: PanelLocation; visible: boolean; ref: Ref<WorkspaceActions> }) {
+export function Workspace({ project, runs, processing, report, openAgentSettings, location, visible, ref }: { project: Project; runs: Run[]; processing: ProcessingProjection; report(message: string): void; openAgentSettings(): void; location: PanelLocation; visible: boolean; ref: Ref<WorkspaceActions> }) {
   const { t, language } = useLocalization();
   const [layout, setLayout] = useState(project.layout);
   const [adding, setAdding] = useState(false);
@@ -83,6 +83,6 @@ export function Workspace({ project, runs, processing, report, location, visible
       })}
     </div>
     {adding && <AgentPicker projectId={project.id} full={project.panels.length >= 10} close={() => setAdding(false)}
-      added={() => { setAdding(false); viewing.panelAdded(); }} />}
+      added={() => { setAdding(false); viewing.panelAdded(); }} openAgentSettings={openAgentSettings} />}
   </div>;
 }

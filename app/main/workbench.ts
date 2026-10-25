@@ -4,7 +4,7 @@ import type { Language, ProjectEdit, ProjectEditResult } from '../shared/model';
 import { randomUUID } from 'node:crypto';
 import { realpath, stat } from 'node:fs/promises';
 import { basename } from 'node:path';
-import { defaultNavigation, navigationWidth, type NavigationPreferences, assignedAgents, arrange, insertIntoLayout, validateDraft, removeFromLayout, validateLayout, agentTypes, type AgentType, type DirectoryResult, type LaunchResult, type Layout, type Panel, type Project, type ProjectCreation, type ProjectDraft, type PanelCreation, type Settings, type Snapshot, type TerminalEvent, type WorkbenchEvent } from '../shared/model';
+import { defaultNavigation, navigationWidth, type NavigationPreferences, assignedAgents, arrange, insertIntoLayout, validateDraft, removeFromLayout, validateLayout, agentTypes, type AgentType, type DirectoryResult, launchFailed, type LaunchResult, type Layout, type Panel, type Project, type ProjectCreation, type ProjectDraft, type PanelCreation, type Settings, type Snapshot, type TerminalEvent, type WorkbenchEvent } from '../shared/model';
 import { ProjectStore } from './storage';
 import { SettingsFile, defaultSettings } from './settings';
 import { TerminalClient } from './terminal-client';
@@ -125,6 +125,7 @@ export class Workbench {
     await this.store.active(project.id);
     this.changed();
     const launches = await this.startProject(project);
+    await this.withdrawPanels(project, launches.filter(launchFailed).map(launch => launch.run.panelId));
     return { project: structuredClone(project), launches };
   }); }
   editProject(id: string, edit: ProjectEdit, restart: boolean): Promise<ProjectEditResult> { return this.operation(async () => {
@@ -220,15 +221,22 @@ export class Workbench {
     await this.store.save(next);
     Object.assign(project, next); this.changed();
     const launch = await this.startPanel(project, panel);
+    if (launchFailed(launch)) await this.withdrawPanels(project, [panel.id]);
     return { panel: structuredClone(panel), launch };
   }); }
-  private async removePanel(projectId: string, panelId: string) {
-    const project = this.project(projectId);
-    const next = { ...project, panels: project.panels.filter(p => p.id !== panelId), layout: removeFromLayout(project.layout, panelId) };
+  // Undoes the addition of panels whose Agent never started. Restored layouts keep
+  // their failed panels; this is neither closing a panel nor a run exit.
+  private async withdrawPanels(project: Project, panelIds: string[]) {
+    if (panelIds.length) await this.removePanels(project, panelIds);
+  }
+  private removePanel(projectId: string, panelId: string) { return this.removePanels(this.project(projectId), [panelId]); }
+  private async removePanels(project: Project, panelIds: string[]) {
+    const next = { ...project, panels: project.panels.filter(p => !panelIds.includes(p.id)),
+      layout: panelIds.reduce((layout, id) => removeFromLayout(layout, id), project.layout) };
     await this.store.save(next);
     Object.assign(project, next);
-    this.expectedRuns.delete(panelId);
-    this.state.runs = this.state.runs.filter(r => r.panelId !== panelId);
+    for (const id of panelIds) this.expectedRuns.delete(id);
+    this.state.runs = this.state.runs.filter(r => !panelIds.includes(r.panelId));
     this.changed();
   }
   closePanel(projectId: string, panelId: string) { return this.operation(async () => {
