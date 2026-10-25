@@ -4,12 +4,11 @@ import type { Language, ProjectEdit, ProjectEditResult } from '../shared/model';
 import { randomUUID } from 'node:crypto';
 import { realpath, stat } from 'node:fs/promises';
 import { basename } from 'node:path';
-import { defaultNavigation, navigationWidth, type NavigationPreferences, assignedAgents, arrange, insertIntoLayout, validateDraft, removeFromLayout, validateLayout, agentTypes, type AgentType, type DirectoryResult, launchFailed, type LaunchResult, type Layout, type Panel, type Project, type ProjectCreation, type ProjectDraft, type PanelCreation, type Settings, type Snapshot, type TerminalEvent, type WorkbenchEvent } from '../shared/model';
+import { defaultNavigation, navigationWidth, type NavigationPreferences, assignedAgents, arrange, insertIntoLayout, validateDraft, removeFromLayout, validateLayout, agentTypes, type AgentType, type DirectoryResult, launchFailed, type LaunchResult, type Layout, type Panel, type Project, type ProjectCreation, type ProjectDraft, type PanelCreation, type Settings, type Snapshot, type WorkbenchEvent } from '../shared/model';
 import { ProjectStore } from './storage';
 import { SettingsFile, defaultSettings } from './settings';
-import { TerminalClient } from './terminal-client';
 import type { SettingsSaveResult } from '../shared/settings';
-import { ProcessingStatus } from './processing-status';
+import { RunSupervision } from './run-supervision';
 
 export class WorkbenchOpenError extends Error {
   constructor(error: unknown, readonly language: Language) {
@@ -18,27 +17,21 @@ export class WorkbenchOpenError extends Error {
 }
 
 export class Workbench {
-  private state: Omit<Snapshot, 'processing'> = { navigation: { ...defaultNavigation }, projects: [], runs: [], activeProjectId: null, settings: defaultSettings(), settingsMigrationConflict: false, startupTheme: 'system', resolvedTheme: 'light', errors: [] };
-  private processing: ProcessingStatus;
-  private terminal: TerminalClient;
+  private state: Omit<Snapshot, 'processing' | 'runs'> = { navigation: { ...defaultNavigation }, projects: [], activeProjectId: null, settings: defaultSettings(), settingsMigrationConflict: false, startupTheme: 'system', resolvedTheme: 'light', errors: [] };
+  private supervision: RunSupervision;
   private listeners = new Set<(event: WorkbenchEvent) => void>();
   private operations: Promise<unknown> = Promise.resolve();
   private visited = new Set<string>();
-  private expectedRuns = new Map<string, string>();
-  private terminalFailure?: string;
-  private controlledStops = new Set<string>();
   private quitting = false;
   private quitPromise?: Promise<void>;
   private constructor(directory: string, private store: ProjectStore, private settingsFile: SettingsFile) {
-    this.processing = new ProcessingStatus(() => this.changed(), directory);
-    this.terminal = new TerminalClient(directory, event => this.terminalEvent(event), (message, stopped) => {
-      if (stopped) {
-        this.terminalFailure = message;
-        for (const run of this.state.runs) if (run.state === 'running' || run.state === 'starting') { run.state = 'stopped'; this.processing.forget(run.id); }
-        this.changed();
-      }
-      this.report(message);
-    });
+    this.supervision = new RunSupervision(directory, { changed: () => this.changed(), emit: event => this.emit(event), report: message => this.report(message),
+      onRunExited: run => {
+        if (!this.quitting) void this.operation(async () => {
+          if (!this.supervision.expects(run)) return;
+          await this.removePanel(run.projectId, run.panelId);
+        }).catch(error => this.report(error.message));
+      } });
   }
   static async open(directory: string, systemDark = false) {
     const settingsFile = new SettingsFile(directory);
@@ -61,7 +54,7 @@ export class Workbench {
       throw new WorkbenchOpenError(error, settings.language);
     }
   }
-  snapshot(): Snapshot { return structuredClone({ ...this.state, processing: this.processing.project(this.state.projects, this.state.runs) }); }
+  snapshot(): Snapshot { return structuredClone({ ...this.state, runs: this.supervision.runs(), processing: this.supervision.projection(this.state.projects) }); }
   subscribe(listener: (event: WorkbenchEvent) => void) { this.listeners.add(listener); return () => { this.listeners.delete(listener); }; }
   private emit(event: WorkbenchEvent) { for (const listener of this.listeners) listener(event); }
   private changed() { this.emit({ kind: 'snapshot', snapshot: this.snapshot() }); }
@@ -76,33 +69,6 @@ export class Workbench {
     const project = this.state.projects.find(p => p.id === id);
     if (!project) throw new Error(message('projectMissing'));
     return project;
-  }
-  private terminalEvent(event: TerminalEvent) {
-    if (event.kind === 'started') {
-      if (this.expectedRuns.get(event.run.panelId) !== event.run.id) return;
-      this.processing.lifecycle(event.run);
-      this.state.runs = this.state.runs.filter(run => run.panelId !== event.run.panelId).concat(event.run);
-      this.changed();
-    } else {
-      const run = this.state.runs.find(run => run.id === event.runId);
-      if (!run || run.state !== 'running' || this.expectedRuns.get(run.panelId) !== run.id) return;
-      if (event.kind === 'stopping') this.processing.stopping(run.id);
-      else if (event.kind === 'title') {
-        run.rawTitle = event.title;
-        this.changed();
-      } else if (event.kind === 'exit') {
-        this.processing.forget(run.id);
-        const controlled = this.controlledStops.delete(run.id);
-        if (controlled) run.state = 'stopped';
-        else this.state.runs = this.state.runs.filter(r => r.id !== run.id);
-        if (!this.quitting && !controlled) void this.operation(async () => {
-          if (this.expectedRuns.get(run.panelId) !== run.id) return;
-          await this.removePanel(run.projectId, run.panelId);
-        }).catch(error => this.report(error.message));
-        this.changed();
-      }
-    }
-    this.emit(event);
   }
   async inspectDirectory(path: string): Promise<DirectoryResult> {
     try {
@@ -159,42 +125,15 @@ export class Workbench {
     // Records and the active-project pointer are removed in the same transaction.
     await this.store.delete(id, nextActive);
     this.state.projects = this.state.projects.filter(item => item.id !== id);
-    this.state.runs = this.state.runs.filter(run => run.projectId !== id);
-    for (const panel of project.panels) this.expectedRuns.delete(panel.id);
+    this.supervision.release(project.panels.map(panel => panel.id));
     this.visited.delete(id);
     const activateNext = this.state.activeProjectId === id;
     this.state.activeProjectId = nextActive;
     this.changed();
     if (activateNext && nextActive) await this.startProject(this.project(nextActive));
   }); }
-  private async stopProject(project: Project): Promise<string[]> {
-    if (this.terminalFailure && this.state.runs.some(run => run.projectId === project.id)) return [this.terminalFailure];
-    const failures: string[] = [];
-    for (const run of this.state.runs.filter(run => run.projectId === project.id && (run.state === 'running' || run.state === 'starting'))) {
-      // Mark before requesting cleanup: its exit event can arrive before the response.
-      this.controlledStops.add(run.id);
-      try { await this.terminal.stop(run.id); }
-      catch (error) { failures.push(message('panelFailure', { number: project.panels.findIndex(panel => panel.id === run.panelId) + 1, reason: detail((error as Error).message) })); }
-    }
-    return failures;
-  }
-  private async startPanel(project: Project, panel: Panel): Promise<LaunchResult> {
-    const id = randomUUID();
-    this.expectedRuns.set(panel.id, id);
-    try {
-      const launch = await this.processing.prepare(id, panel.agent, this.state.settings.agents[panel.agent], project.directory);
-      const run = await this.terminal.start({ id, panelId: panel.id, projectId: project.id, directory: project.directory, ...launch });
-      return run.state === 'failed' ? { ok: false, run, error: message('launchFailed') } : { ok: true, run };
-    } catch (error) {
-      // A missing response is not proof that the process never started. Preserve any
-      // observed run and keep accepting its later events instead of retrying implicitly.
-      // A failed terminal host has already stopped everything it ran and reports nothing more.
-      const observed = this.state.runs.find(run => run.id === id);
-      const run = observed ?? { id, panelId: panel.id, projectId: project.id, state: this.terminalFailure ? 'stopped' as const : 'starting' as const };
-      if (!observed) this.terminalEvent({ kind: 'started', run });
-      return { ok: false, run: structuredClone(run), error: message('launchUnconfirmed', { reason: detail((error as Error).message) }) };
-    }
-  }
+  private stopProject(project: Project) { return this.supervision.stopProject(project); }
+  private startPanel(project: Project, panel: Panel) { return this.supervision.start(project, panel, this.state.settings.agents[panel.agent]); }
   private async startProject(project: Project): Promise<LaunchResult[]> {
     if (this.visited.has(project.id)) return [];
     this.visited.add(project.id);
@@ -236,14 +175,12 @@ export class Workbench {
       layout: panelIds.reduce((layout, id) => removeFromLayout(layout, id), project.layout) };
     await this.store.save(next);
     Object.assign(project, next);
-    for (const id of panelIds) this.expectedRuns.delete(id);
-    this.state.runs = this.state.runs.filter(r => !panelIds.includes(r.panelId));
+    this.supervision.release(panelIds);
     this.changed();
   }
   closePanel(projectId: string, panelId: string) { return this.operation(async () => {
     if (!this.project(projectId).panels.some(p => p.id === panelId)) throw new Error(message('panelMissing'));
-    const run = this.state.runs.find(r => r.panelId === panelId && (r.state === 'running' || r.state === 'starting'));
-    if (run) await this.terminal.stop(run.id);
+    await this.supervision.stopPanel(panelId);
     await this.removePanel(projectId, panelId);
   }); }
   saveLayout(projectId: string, layout: Layout | null) { return this.operation(async () => {
@@ -258,10 +195,10 @@ export class Workbench {
     await this.store.navigation(navigation);
     this.state.navigation = navigation; this.changed();
   }); }
-  sendInput(runId: string, data: string) { return this.terminal.input(runId, data); }
-  resizeRun(runId: string, cols: number, rows: number) { return this.terminal.resize(runId, cols, rows); }
-  acknowledgeOutput(runId: string, characters: number) { this.terminal.acknowledgeOutput(runId, characters); }
-  checkCommand(command: string) { return this.terminal.checkCommand(command); }
+  sendInput(runId: string, data: string) { return this.supervision.input(runId, data); }
+  resizeRun(runId: string, cols: number, rows: number) { return this.supervision.resize(runId, cols, rows); }
+  acknowledgeOutput(runId: string, characters: number) { this.supervision.acknowledgeOutput(runId, characters); }
+  checkCommand(command: string) { return this.supervision.checkCommand(command); }
   saveSettings(patch: Partial<Settings>): Promise<SettingsSaveResult> {
     const update = structuredClone(patch);
     return this.operation(async () => {
@@ -277,8 +214,7 @@ export class Workbench {
       await this.operations;
       let error: unknown;
       try { await this.settingsFile.saveOnQuit(this.state.settings); } catch (failure) { error = failure; }
-      try { await this.terminal.shutdown(); } catch (failure) { error ??= failure; }
-      try { await this.processing.close(); } catch (failure) { error ??= failure; }
+      try { await this.supervision.shutdown(); } catch (failure) { error ??= failure; }
       try { await this.store.close(); } catch (failure) { error ??= failure; }
       if (error) throw error;
     })();
