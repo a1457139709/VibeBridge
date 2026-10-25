@@ -20,7 +20,7 @@ test('navigation reads the shared projection, exposes all five states to keyboar
       panels: ['ready', 'busy', 'needs-input', 'done', 'error', 'starting'].map(id => ({ id, agent: 'codex' })) }],
     runs: ['ready', 'busy', 'needs-input', 'done', 'error', 'starting'].map(id => ({ id, panelId: id, projectId: 'project', state: id === 'starting' ? 'starting' : 'running', rawTitle: `Session ${id} | project` })),
     processing: { runs: { ready: 'ready', busy: 'busy', 'needs-input': 'needs-input', done: 'done', error: 'error' },
-      projects: { project: { 'needs-input': { count: 1, members: [{ panelId: 'needs-input', runId: 'needs-input' }] },
+      projects: { project: { ready: { count: 1, members: [{ panelId: 'ready', runId: 'ready' }] }, 'needs-input': { count: 1, members: [{ panelId: 'needs-input', runId: 'needs-input' }] },
         done: { count: 1, members: [{ panelId: 'done', runId: 'done' }] }, error: { count: 1, members: [{ panelId: 'error', runId: 'error' }] } } } },
   };
   const listeners = new Set<(event: WorkbenchEvent) => void>();

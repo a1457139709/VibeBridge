@@ -1,5 +1,13 @@
+:root { --status-ready: #8a8a8a; --status-busy: var(--accent); --status-needs-input: #a86f00; --status-done: #0f7f7a; --status-error: var(--error, #a4362b); }
+:root[data-theme='dark'] { --status-ready: #8f8f8f; --status-needs-input: #e3ad3c; --status-done: #4cc2bb; }
 .agent-symbols { display: inline-flex; align-items: center; gap: 6px; flex-shrink: 0; }
-.processing-status { display: inline-flex; width: 14px; height: 14px; flex: 0 0 14px; color: var(--accent); border-radius: 2px; }
+.processing-status { display: inline-flex; width: 14px; height: 14px; flex: 0 0 14px; color: var(--status-ready); border-radius: 2px; }
 .processing-status svg { display: block; width: 100%; height: 100%; }
 .processing-status:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
-.processing-error { color: var(--error, #a4362b); }
+.processing-busy { color: var(--status-busy); }
+.processing-busy svg { animation: processing-spin 1.5s linear infinite; }
+.processing-needs-input { color: var(--status-needs-input); }
+.processing-done { color: var(--status-done); }
+.processing-error { color: var(--status-error); }
+@keyframes processing-spin { to { transform: rotate(1turn); } }
+@media (prefers-reduced-motion: reduce) { .processing-busy svg { animation: none; } }

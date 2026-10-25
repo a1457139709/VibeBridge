@@ -1,7 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import { createServer, type Server } from 'node:http';
 import type { AgentCommand, AgentType, Project, Run } from '../shared/model';
-import type { AttentionState, AttentionGroup, ProcessingProjection, ProcessingState } from '../shared/processing-status';
+import { isSummaryState, summaryStates, type SummaryState, type SummaryGroup, type ProcessingProjection, type ProcessingState } from '../shared/processing-status';
 import { interpretStatus, type StatusMemory } from './status-events';
 import { codexLaunch } from './codex-launch';
 import { CodexEvents } from './codex-events';
@@ -68,15 +68,14 @@ export class ProcessingStatus {
   project(projects: Project[], runs: Run[]): ProcessingProjection {
     const projection: ProcessingProjection = { runs: {}, projects: {} };
     for (const project of projects) {
-      const groups: Record<AttentionState, AttentionGroup> = projection.projects[project.id] = {
-        'needs-input': { count: 0, members: [] }, done: { count: 0, members: [] }, error: { count: 0, members: [] },
-      };
+      const groups = projection.projects[project.id] = {} as Record<SummaryState, SummaryGroup>;
+      for (const state of summaryStates) groups[state] = { count: 0, members: [] };
       for (const panel of project.panels) {
         const run = runs.find(run => run.panelId === panel.id && run.projectId === project.id && run.state === 'running');
         if (!run) continue;
         const state = this.observations.get(run.id)?.state ?? 'error';
         projection.runs[run.id] = state;
-        if (state === 'needs-input' || state === 'done' || state === 'error') {
+        if (isSummaryState(state)) {
           groups[state].members.push({ panelId: panel.id, runId: run.id });
           groups[state].count++;
         }

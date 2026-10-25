@@ -14,7 +14,7 @@ module.exports = {
     const layout = { axis: 'row', ratio: .3, first: { panel: first.panelId },
       second: { axis: 'column', ratio: .4, first: { panel: second.panelId }, second: { panel: third.panelId } } };
     await evaluate(`window.workbench.saveLayout(${JSON.stringify(f.projectId)}, ${JSON.stringify(layout)})`);
-    assert.deepEqual(await evaluate('[...document.querySelectorAll(".summary-entry")].map(button => button.textContent)'), ['1 Needs input', '2 Done', '0 Error']);
+    assert.deepEqual(await evaluate('[...document.querySelectorAll(".summary-entry")].map(button => button.textContent)'), ['0 Ready', '1 Needs input', '2 Done', '0 Error']);
     await f.choose('done', second); await f.receiveInput(second, 'split-selection');
     assert.equal(await visiblePanels(evaluate), 3);
     await evaluate(`document.querySelector('[data-panel-id="${first.panelId}"] button[aria-label="Maximize panel"]').click()`);
@@ -104,13 +104,41 @@ module.exports = {
         }
       }
     }
+    // A bar too narrow for four names collapses every entry to icon and count
+    // together; names remain in each entry's accessible name and tooltip.
+    for (const language of ['en', 'zh-CN']) {
+      await evaluate(`window.workbench.saveSettings({ language: ${JSON.stringify(language)} })`);
+      await until(() => evaluate(`document.documentElement.lang === ${JSON.stringify(language)}`));
+      for (const [width, collapsed] of [[1280, false], [360, true]]) {
+        window.setContentSize(width, 480);
+        await until(() => evaluate(`document.documentElement.clientWidth === ${width}`));
+        for (const navigation of ['Collapse project navigation', 'Expand project navigation']) {
+          await evaluate('new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))');
+          const entries = await evaluate(`(() => {
+            const bar = document.querySelector('.project-summary').getBoundingClientRect();
+            return [...document.querySelectorAll('.summary-entry')].map(entry => {
+              const box = entry.getBoundingClientRect();
+              return { named: entry.querySelector('.summary-name').checkVisibility(), label: entry.getAttribute('aria-label'), title: entry.title,
+                inside: box.left >= bar.left && box.right <= bar.right && box.top >= bar.top && box.bottom <= bar.bottom, barHeight: bar.height };
+            });
+          })()`);
+          assert.equal(entries.length, 4);
+          for (const entry of entries) {
+            assert.equal(entry.named, !collapsed, `${entry.label} at ${width}px`);
+            assert.ok(entry.inside); assert.equal(entry.barHeight, 36); assert.equal(entry.title, entry.label);
+          }
+          await click(language === 'en' ? navigation : navigation.startsWith('Collapse') ? '折叠项目导航' : '展开项目导航');
+        }
+      }
+    }
+    window.setContentSize(1280, 860);
     await evaluate('window.workbench.saveSettings({ language: "en" })');
     await until(() => evaluate('document.documentElement.lang === "en"'));
     // Persisted configuration is tested in a second Electron process; temporary
     // maximize must not overwrite the layout, and old runs must not be resumed.
     await evaluate(`document.querySelector('[data-panel-id="${second.panelId}"] button[aria-label="Maximize panel"]').click()`);
     await writeFile(`${directory}/summary-expected.json`, JSON.stringify(await f.snapshot()));
-    console.log('Summary lists preserve real input recipients, source viewing mode, records and runs; projection, keyboard and constrained geometry passed.');
+    console.log('Summary lists preserve real input recipients, source viewing mode, records and runs; projection, keyboard, constrained geometry and the four-entry narrow collapse passed.');
   },
   async reopen({ evaluate, until, directory }) {
     const saved = JSON.parse(await readFile(`${directory}/summary-expected.json`, 'utf8'));

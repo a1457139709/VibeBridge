@@ -1,4 +1,4 @@
-.project-summary { position: relative; z-index: 6; flex: 0 0 36px; min-height: 36px; border-top: 1px solid var(--line); background: var(--navigation, var(--canvas)); }
+.project-summary { container: project-summary / inline-size; position: relative; z-index: 6; flex: 0 0 36px; min-height: 36px; border-top: 1px solid var(--line); background: var(--navigation, var(--canvas)); }
 .summary-entries { display: flex; align-items: center; gap: 4px; height: 100%; padding: 0 8px; }
 .summary-entry { display: inline-flex; align-items: center; gap: 6px; border: 1px solid transparent; background: transparent; min-height: 28px; padding: 0 8px; font-size: 12px; white-space: nowrap; font-variant-numeric: tabular-nums; }
 .summary-entry[aria-expanded='true'] { background: var(--selection, var(--hover)); border-color: var(--line); }
@@ -12,7 +12,9 @@
 .summary-panel .session-title { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .summary-panel small { font-size: 11px; flex-shrink: 0; }
 .summary-panel:focus-visible { outline-offset: -2px; }
-@media (max-width: 380px) {
+/* Four entries stop fitting with names near this width in either language; all collapse together. */
+@container project-summary (max-width: 440px) {
   .summary-entries { gap: 0; padding: 0 4px; }
-  .summary-entry { gap: 4px; padding: 0 4px; font-size: 11px; }
+  .summary-entry { gap: 4px; padding: 0 6px; }
+  .summary-name { display: none; }
 }

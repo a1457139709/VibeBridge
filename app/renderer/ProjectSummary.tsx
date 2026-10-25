@@ -1,13 +1,12 @@
 import { useLocalization } from './Localization';
 import { useEffect, useId, useLayoutEffect, useRef, useState } from 'react';
 import { agentNames, type Snapshot } from '../shared/model';
-import type { AttentionState } from '../shared/processing-status';
+import { summaryStates, type SummaryState } from '../shared/processing-status';
 import { sessionTitle } from '../shared/session-title';
 import { agentIcons } from './agent-icons';
 import { ProcessingStatusIcon } from './ProcessingStatusIcon';
 import type { PanelLocation } from './panel-location';
 
-const states: AttentionState[] = ['needs-input', 'done', 'error'];
 
 export function ProjectSummary({ snapshot, locatePanel }: { snapshot?: Snapshot; locatePanel: PanelLocation['locatePanel'] }) {
   const { t } = useLocalization();
@@ -19,11 +18,11 @@ export function ProjectSummary({ snapshot, locatePanel }: { snapshot?: Snapshot;
 
 function SummaryEntries({ snapshot, projectId, locatePanel }: { snapshot: Snapshot; projectId: string; locatePanel: PanelLocation['locatePanel'] }) {
   const { t, language } = useLocalization();
-  const [open, setOpen] = useState<AttentionState>();
+  const [open, setOpen] = useState<SummaryState>();
   const id = useId();
   const container = useRef<HTMLDivElement>(null);
   const list = useRef<HTMLElement>(null);
-  const triggers = useRef(new Map<AttentionState, HTMLButtonElement>());
+  const triggers = useRef(new Map<SummaryState, HTMLButtonElement>());
   const fromEnd = useRef(false);
   const focusedMember = useRef<string | undefined>(undefined);
   const groups = snapshot.processing.projects[projectId];
@@ -70,15 +69,18 @@ function SummaryEntries({ snapshot, projectId, locatePanel }: { snapshot: Snapsh
     document.addEventListener('keydown', escape);
     return () => { document.removeEventListener('pointerdown', outside); document.removeEventListener('keydown', escape); };
   }, [open]);
-  return <div ref={container} className="summary-entries" tabIndex={-1}>{states.map(state => <button key={state} className="summary-entry" aria-label={`${groups[state].count} ${t(state)}`}
+  return <div ref={container} className="summary-entries" tabIndex={-1}>{summaryStates.map(state => {
+    const label = `${groups[state].count} ${t(state)}`;
+    return <button key={state} className="summary-entry" aria-label={label} title={label}
     ref={button => { if (button) triggers.current.set(state, button); else triggers.current.delete(state); }}
     disabled={!groups[state].count} aria-expanded={open === state} aria-controls={open === state ? id : undefined} aria-haspopup="dialog"
     onKeyDown={event => {
       if (event.key === 'ArrowDown' || event.key === 'ArrowUp') { event.preventDefault(); fromEnd.current = event.key === 'ArrowUp'; setOpen(state); }
     }}
     onClick={() => setOpen(previous => previous === state ? undefined : state)}>
-    <ProcessingStatusIcon state={state} /><span>{groups[state].count} {t(state)}</span>
-  </button>)}
+    <ProcessingStatusIcon state={state} /><span>{groups[state].count}<span className="summary-name"> {t(state)}</span></span>
+  </button>;
+  })}
     {open && <section ref={list} id={id} className="summary-list" role="dialog" aria-label={t(open)}
       onFocusCapture={event => { focusedMember.current = (event.target as HTMLElement).closest('li')?.dataset.runId; }} onKeyDown={event => {
       if (!['ArrowDown', 'ArrowUp', 'Home', 'End'].includes(event.key)) return;

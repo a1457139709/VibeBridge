@@ -34,15 +34,32 @@ module.exports = {
         return panels.map(panel => {
           const icon = panel.querySelector('.processing-status'), mark = panel.querySelector('.agent-mark');
           const a = icon.getBoundingClientRect(), b = mark.getBoundingClientRect(), bounds = panel.getBoundingClientRect();
-          const style = getComputedStyle(icon);
+          const style = getComputedStyle(icon.querySelector('svg'));
           return { leftOfType: a.right <= b.left, visible: a.width >= 13 && a.height >= 13
             && a.left >= bounds.left && a.right <= bounds.right && a.top >= bounds.top && a.bottom <= bounds.bottom,
-            static: style.animationName === 'none', label: icon.getAttribute('aria-label') };
+            static: style.animationName === 'none', busy: icon.classList.contains('processing-busy'), label: icon.getAttribute('aria-label') };
         });
       })()`);
       assert.ok(result.length);
-      for (const icon of result) { assert.ok(icon.leftOfType); assert.ok(icon.visible); assert.ok(icon.static); assert.ok(icon.label); }
+      for (const icon of result) {
+        assert.ok(icon.leftOfType); assert.ok(icon.visible); assert.ok(icon.label);
+        assert.equal(icon.static, !icon.busy || reducedMotion, `${icon.label} moves only while Busy and motion is allowed`);
+      }
+      // Every rendered Busy icon, in panels and navigation, turns in one shared phase.
+      const phases = await evaluate(`[...document.querySelectorAll('.processing-busy svg')].flatMap(icon => icon.getAnimations())
+        .map(animation => animation.currentTime % ${busyPeriod})`);
+      if (!reducedMotion) {
+        assert.ok(phases.length >= 1);
+        for (const phase of phases) assert.ok(Math.min(Math.abs(phase - phases[0]), busyPeriod - Math.abs(phase - phases[0])) < 50, `Busy phases ${phases}`);
+      } else assert.deepEqual(phases, []);
     };
+    // The host's own motion setting must not decide the result; emulate each preference explicitly.
+    console.log(`Host prefers reduced motion: ${await evaluate("matchMedia('(prefers-reduced-motion: reduce)').matches")}`);
+    window.webContents.debugger.attach();
+    const motion = value => window.webContents.debugger.sendCommand('Emulation.setEmulatedMedia', { features: [{ name: 'prefers-reduced-motion', value }] });
+    await motion('no-preference');
+    let reducedMotion = false;
+    const busyPeriod = 1500; // processing-spin duration in processing-status.css
     for (const language of ['en', 'zh-CN']) {
       await evaluate(`window.workbench.saveSettings({ language: ${JSON.stringify(language)} })`);
       await until(() => evaluate(`document.documentElement.lang === ${JSON.stringify(language)}`));
@@ -98,6 +115,11 @@ module.exports = {
     }
     await evaluate('window.workbench.saveSettings({ language: "en" })');
     await until(() => evaluate('document.documentElement.lang === "en"'));
+    await motion('reduce');
+    reducedMotion = true;
+    await checkGeometry();
+    await motion('no-preference');
+    reducedMotion = false;
     await evaluate(`document.querySelector('[data-panel-id="${runs[3].panelId}"] button[aria-label="Maximize panel"]').click()`);
     await checkGeometry();
     await until(() => evaluate(`document.activeElement.closest('[data-panel-id]')?.dataset.panelId === '${runs[3].panelId}' && document.activeElement.classList.contains('xterm-helper-textarea')`));
@@ -107,6 +129,6 @@ module.exports = {
     window.webContents.sendInputEvent({ type: 'keyUp', keyCode: 'Enter' });
     await until(async () => (await evaluate('window.workbench.snapshot()')).processing.runs[runs[3].id] === 'busy');
     assert.equal((await evaluate('window.workbench.snapshot()')).processing.runs[runs[4].id], 'error');
-    console.log('Five static status shapes agree between panels and navigation; theme, narrow-window and native-input checks passed.');
+    console.log('Five status shapes agree between panels and navigation, Busy alone turns in one phase or rests under reduced motion; theme, narrow-window and native-input checks passed.');
   },
 };

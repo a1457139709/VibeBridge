@@ -20,9 +20,10 @@ function fixture(saveSettings?: DesktopAPI['saveSettings']) {
     navigation: { visible: true, width: 212 }, activeProjectId: 'project', settings: defaultSettings(),
     settingsMigrationConflict: false, startupTheme: 'light', resolvedTheme: 'light', errors: [],
     projects: [{ id: 'project', name: 'Project title stays out of the bar', directory: '/project', layout: null,
-      panels: ['first', 'second', 'third'].map(id => ({ id, agent: 'codex' })) }],
-    runs: ['first', 'second', 'third'].map(id => ({ id, panelId: id, projectId: 'project', state: 'running', rawTitle: `Session ${id} | project` })),
-    processing: { runs: { first: 'done', second: 'done', third: 'needs-input' }, projects: { project: {
+      panels: ['first', 'second', 'third', 'fresh'].map(id => ({ id, agent: 'codex' })) }],
+    runs: ['first', 'second', 'third', 'fresh'].map(id => ({ id, panelId: id, projectId: 'project', state: 'running', rawTitle: `Session ${id} | project` })),
+    processing: { runs: { first: 'done', second: 'done', third: 'needs-input', fresh: 'ready' }, projects: { project: {
+      ready: { count: 1, members: [{ panelId: 'fresh', runId: 'fresh' }] },
       'needs-input': { count: 1, members: [{ panelId: 'third', runId: 'third' }] },
       done: { count: 2, members: [{ panelId: 'first', runId: 'first' }, { panelId: 'second', runId: 'second' }] },
       error: { count: 0, members: [] },
@@ -58,8 +59,9 @@ test('summary uses projected counts in fixed order and always lists members befo
   const { user, located } = fixture();
   const bar = await screen.findByRole('region', { name: 'Current project summary' });
   await screen.findByRole('button', { name: '1 Needs input' });
-  assert.deepEqual(within(bar).getAllByRole('button').map(button => button.textContent), ['1 Needs input', '2 Done', '0 Error']);
+  assert.deepEqual(within(bar).getAllByRole('button').map(button => button.textContent), ['1 Ready', '1 Needs input', '2 Done', '0 Error']);
   assert.equal(bar.textContent?.includes('Project title'), false);
+  for (const entry of within(bar).getAllByRole('button')) assert.equal(entry.title, entry.getAttribute('aria-label'), 'names survive a collapse to icon and count');
   assert.equal(within(bar).getByRole<HTMLButtonElement>('button', { name: '0 Error' }).disabled, true);
   await user.click(within(bar).getByRole('button', { name: '1 Needs input' }));
   const list = screen.getByRole('dialog', { name: 'Needs input' });
@@ -68,6 +70,9 @@ test('summary uses projected counts in fixed order and always lists members befo
   await user.click(within(list).getByRole('button', { name: /Session third/ }));
   assert.deepEqual(located, [['project', 'third', 'third']]);
   assert.ok(!screen.queryByRole('dialog'));
+  await user.click(within(bar).getByRole('button', { name: '1 Ready' }));
+  await user.click(within(screen.getByRole('dialog', { name: 'Ready' })).getByRole('button', { name: /Session fresh/ }));
+  assert.deepEqual(located.at(-1), ['project', 'fresh', 'fresh']);
 });
 
 test('keyboard users can choose members, switch lists and return to the triggering entry on Escape or close', async () => {
