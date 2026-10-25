@@ -188,8 +188,9 @@ export class Workbench {
     } catch (error) {
       // A missing response is not proof that the process never started. Preserve any
       // observed run and keep accepting its later events instead of retrying implicitly.
+      // A failed terminal host has already stopped everything it ran and reports nothing more.
       const observed = this.state.runs.find(run => run.id === id);
-      const run = observed ?? { id, panelId: panel.id, projectId: project.id, state: 'starting' as const };
+      const run = observed ?? { id, panelId: panel.id, projectId: project.id, state: this.terminalFailure ? 'stopped' as const : 'starting' as const };
       if (!observed) this.terminalEvent({ kind: 'started', run });
       return { ok: false, run: structuredClone(run), error: message('launchUnconfirmed', { reason: detail((error as Error).message) }) };
     }
