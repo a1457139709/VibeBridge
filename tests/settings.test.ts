@@ -13,6 +13,7 @@ test('saved preferences apply at their intended boundaries and manual edits appl
     assert.equal(workbench.snapshot().resolvedTheme, 'dark');
     const settings = workbench.snapshot().settings;
     settings.agents.codex = { command: process.env.VIBEBRIDGE_TEST_NODE!, args: [resolve('tests/fixtures/interactive.cjs')] };
+    settings.agents.claude = settings.agents.codex;
     await workbench.saveSettings(settings);
     const { project } = await workbench.createProject({ name: 'Settings', directory, total: 2, counts: { codex: 2, claude: 0, pi: 0 } });
     const runs = workbench.snapshot().runs;
@@ -30,11 +31,11 @@ test('saved preferences apply at their intended boundaries and manual edits appl
     assert.deepEqual(workbench.snapshot().projects[0].layout, layout);
     const added = await workbench.addPanel(project.id, 'codex');
     assert.equal(added.launch.ok, false);
-    assert.deepEqual(workbench.snapshot().runs.slice(0, 2), runs);
-    await workbench.closePanel(project.id, added.panel.id);
+    assert.deepEqual(workbench.snapshot().runs, runs);
+    assert.deepEqual(workbench.snapshot().projects[0], { ...project, layout });
     const nextDirectory = resolve(directory, 'next');
     await mkdir(nextDirectory);
-    const next = await workbench.createProject({ name: 'New layout', directory: nextDirectory, total: 2, counts: { codex: 2, claude: 0, pi: 0 } });
+    const next = await workbench.createProject({ name: 'New layout', directory: nextDirectory, total: 2, counts: { codex: 0, claude: 2, pi: 0 } });
     assert.equal(next.project.layout && 'axis' in next.project.layout && next.project.layout.axis, 'column');
     await workbench.quit();
     workbench = await Workbench.open(directory, true);

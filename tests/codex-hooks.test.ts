@@ -99,6 +99,57 @@ test('permission waits survive unrelated tool activity and end on the matching t
   } finally { await f.close(); }
 });
 
+test('native structured questions wait for the user until their own tool result', async () => {
+  const f = await fixture();
+  try {
+    const { launches: [{ run }] } = await f.create();
+    const check = async (payload: object, expected: string) => {
+      await f.send(run.id, { turn_id: 'turn', ...payload });
+      assert.equal(f.workbench.snapshot().processing.runs[run.id], expected, JSON.stringify(payload));
+    };
+    const ask = (tool_use_id?: string) => ({ hook_event_name: 'PreToolUse', tool_name: 'request_user_input', tool_use_id });
+    await check({ hook_event_name: 'UserPromptSubmit' }, 'busy');
+    await check({ hook_event_name: 'PreToolUse', tool_use_id: 'async', tool_name: 'request_user_input_async' }, 'busy');
+    await check(ask('question'), 'needs-input');
+    await check({ hook_event_name: 'PreToolUse', tool_use_id: 'read', tool_name: 'Bash' }, 'needs-input');
+    await check({ hook_event_name: 'PostToolUse', tool_use_id: 'read', tool_name: 'Bash' }, 'needs-input');
+    await check({ hook_event_name: 'PostToolUse', tool_use_id: 'question', tool_name: 'request_user_input' }, 'busy');
+    await check(ask(), 'needs-input');
+    await check({ hook_event_name: 'PostToolUse', tool_name: 'request_user_input' }, 'busy');
+    await check({ hook_event_name: 'PermissionRequest', tool_use_id: 'approval', tool_name: 'Bash' }, 'needs-input');
+    await check(ask('both'), 'needs-input');
+    await check({ hook_event_name: 'PostToolUse', tool_use_id: 'both', tool_name: 'request_user_input' }, 'needs-input');
+    await check({ hook_event_name: 'PostToolUse', tool_use_id: 'approval', tool_name: 'Bash' }, 'busy');
+    await check({ ...ask('child'), agent_id: 'child', agent_type: 'worker' }, 'busy');
+  } finally { await f.close(); }
+});
+
+test('native structured question waits end with the turn that asked them', async () => {
+  const f = await fixture();
+  try {
+    const { launches: [{ run }] } = await f.create();
+    const check = async (payload: object, expected: string) => {
+      await f.send(run.id, payload);
+      assert.equal(f.workbench.snapshot().processing.runs[run.id], expected, JSON.stringify(payload));
+    };
+    const ask = (turn_id: string) => check({ hook_event_name: 'PreToolUse', turn_id, tool_use_id: turn_id, tool_name: 'request_user_input' }, 'needs-input');
+    const tool = (turn_id: string) => check({ hook_event_name: 'PreToolUse', turn_id, tool_use_id: `${turn_id}-tool`, tool_name: 'Bash' }, 'busy');
+    await check({ hook_event_name: 'UserPromptSubmit', turn_id: 'cancelled' }, 'busy');
+    await ask('cancelled');
+    await check({ hook_event_name: 'Interrupt', turn_id: 'cancelled' }, 'ready');
+    await tool('cancelled');
+    await check({ hook_event_name: 'UserPromptSubmit', turn_id: 'stopped' }, 'busy');
+    await ask('stopped');
+    await check({ hook_event_name: 'Stop', turn_id: 'stopped' }, 'done');
+    await tool('stopped');
+    await ask('abandoned');
+    await tool('replacement');
+    await ask('resubmitted');
+    await check({ hook_event_name: 'UserPromptSubmit', turn_id: 'resubmitted' }, 'busy');
+    await tool('resubmitted');
+  } finally { await f.close(); }
+});
+
 test('invocation hooks preserve existing hook commands and user launch settings', async () => {
   const args = ['-c=hooks.UserPromptSubmit=[{hooks=[{type="command",command="printf USER-HOOK-RAN"}]}]',
     '-c', 'model="user-selected-model"'];

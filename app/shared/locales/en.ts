@@ -116,6 +116,8 @@ export const english = {
   "closeAgentPicker": "Close Add Agent",
   "launchPending": "Launch unconfirmed; waiting for the terminal to respond",
   "launchFailed": "Agent could not start",
+  "openAgentSettings": "Open Agent settings",
+  "setupLaunchFailed": "Project created. Panels whose Agent could not start were not added.",
   "runStopped": "Run ended. Reopen the Workbench.",
   "starting": "Starting…",
   "panelCount": "{count} panels",

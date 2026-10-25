@@ -134,8 +134,10 @@ test('Codex waiting, tool failures, compaction and confirmed interruption preser
     await check({ hook_event_name: 'SubagentStop' }, 'busy');
     await check({ hook_event_name: 'Interrupt' }, 'busy');
     await check({ hook_event_name: 'Interrupt', confirmed: true, can_accept_input: true }, 'ready');
-    await check({ hook_event_name: 'PreToolUse', tool_name: 'request_user_input', blocking: true }, 'needs-input');
+    await check({ hook_event_name: 'PreToolUse', tool_name: 'request_user_input' }, 'needs-input');
     await check({ hook_event_name: 'PostToolUse', tool_name: 'request_user_input' }, 'busy');
+    await check({ hook_event_name: 'PreToolUse', tool_name: 'request_user_input', tool_use_id: 'question' }, 'needs-input');
+    await check({ hook_event_name: 'PostToolUseFailure', tool_name: 'request_user_input', tool_use_id: 'question' }, 'busy');
     await check({ hook_event_name: 'Stop' }, 'done');
     await check({ hook_event_name: 'SessionEnd' }, 'done');
   } finally { await f.close(); }
@@ -241,6 +243,8 @@ test('background panels retain independent memberships, exits remove them, and q
     await f.send(first.id, { payload: { hook_event_name: 'UserPromptSubmit' } });
     assert.equal(f.workbench.snapshot().activeProjectId, other.project.id);
     assert.equal(groups().done.count, 1, 'background membership continues updating');
+    await f.send(second.id, { payload: { hook_event_name: 'PreToolUse', tool_name: 'request_user_input' } });
+    assert.equal(groups()['needs-input'].count, 2);
     for (const [run, code] of [[first, 0], [second, 2]] as const) {
       await f.workbench.sendInput(run.id, JSON.stringify({ exit: code }) + '\n');
       await until(() => !f.workbench.snapshot().projects.find(p => p.id === project.id)!.panels.some(p => p.id === run.panelId));
