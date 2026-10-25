@@ -112,6 +112,7 @@ export class RunSupervision {
   /** Forgets runs of panels that no longer exist; their late events are ignored. */
   release(panelIds: string[]) {
     for (const id of panelIds) this.expectedRuns.delete(id);
+    for (const run of this.list) if (panelIds.includes(run.panelId)) this.processing.forget(run.id);
     this.list = this.list.filter(r => !panelIds.includes(r.panelId));
   }
   input(runId: string, data: string) { return this.terminal.input(runId, data); }
