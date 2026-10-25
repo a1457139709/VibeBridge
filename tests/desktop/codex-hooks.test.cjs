@@ -32,6 +32,17 @@ module.exports = {
     await check(runs[1], 'Done'); await check(runs[0], 'Needs input');
     await emit(runs[0], { hook_event_name: 'PostToolUse', turn_id: 'first', tool_use_id: 'approval', tool_name: 'Bash' });
     await check(runs[0], 'Busy');
-    console.log('Production Codex hook launch and reporter drive matching panel/navigation states with isolated same-directory runs.');
+    const needsInputEntry = count => `document.querySelector('.summary-entry[aria-label="${count} Needs input"]')`;
+    await emit(runs[0], { hook_event_name: 'PreToolUse', turn_id: 'first', tool_use_id: 'question', tool_name: 'request_user_input' });
+    await check(runs[0], 'Needs input'); await check(runs[1], 'Done');
+    await until(() => evaluate(`${needsInputEntry(1)}?.disabled === false`));
+    await evaluate(`${needsInputEntry(1)}.click()`);
+    await until(() => evaluate('!!document.querySelector(".summary-list")'));
+    assert.deepEqual(await evaluate('[...document.querySelectorAll(".summary-list [data-run-id]")].map(item => item.dataset.runId)'), [runs[0].id]);
+    await evaluate(`${needsInputEntry(1)}.click()`);
+    await emit(runs[0], { hook_event_name: 'PostToolUse', turn_id: 'first', tool_use_id: 'question', tool_name: 'request_user_input' });
+    await check(runs[0], 'Busy');
+    await until(() => evaluate(`${needsInputEntry(0)}?.disabled === true`));
+    console.log('Production Codex hook launch and reporter drive matching panel/navigation/summary states with isolated same-directory runs.');
   },
 };
