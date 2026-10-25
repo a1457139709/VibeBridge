@@ -38,7 +38,7 @@ class FakeTerminal implements Terminal {
 }
 
 async function fixture(context: TestContext) {
-  const directory = await testDirectory(context, 'run-supervision');
+  const directory = await testDirectory(context, 'run-lifecycle-cleanup');
   const exited: Run[] = [], errors: string[] = [], emitted: TerminalEvent[] = [];
   let changes = 0;
   let onShutdown = async () => {};
@@ -125,11 +125,13 @@ test('stopping a project marks its runs stopped even though each exit arrives be
   assert.deepEqual([await f.report(first.id), await f.report(second.id)], [403, 403]);
 });
 
-test('stopping a panel ends its run like an exit, and released panels drop their runs and observations', async context => {
+test('stopping a panel is a controlled stop, and released panels drop their runs and observations', async context => {
   const f = await fixture(context);
   const { run: closed } = await f.start(f.project.panels[0]);
   await f.supervision.stopPanel(closed.panelId);
-  assert.deepEqual(f.exited.map(run => run.id), [closed.id]);
+  assert.equal(f.run(closed.id)?.state, 'stopped');
+  assert.deepEqual(f.exited, [], 'closing a panel is not a run exit');
+  assert.equal(await f.report(closed.id), 403);
   f.terminal.answer = 'none';
   const { run: pending } = await f.start(f.project.panels[1]);
   f.supervision.release([pending.panelId]);
@@ -137,6 +139,15 @@ test('stopping a panel ends its run like an exit, and released panels drop their
   assert.equal(await f.report(pending.id), 403, 'a released panel keeps no observation, even for an unconfirmed launch');
   f.terminal.event({ kind: 'started', run: { ...pending, state: 'running' } });
   assert.equal(f.run(pending.id), undefined, 'late events of a released panel are ignored');
+});
+
+test('a run whose panel stop failed still counts as exiting on its own when it later exits', async context => {
+  const f = await fixture(context);
+  const { run } = await f.start();
+  f.terminal.stop = async () => { throw new Error(message('terminalTimeout')); };
+  await assert.rejects(f.supervision.stopPanel(run.panelId), /terminalTimeout/);
+  f.terminal.event({ kind: 'exit', runId: run.id });
+  assert.deepEqual(f.exited.map(item => item.id), [run.id]);
 });
 
 test('events of a replaced run are ignored', async context => {

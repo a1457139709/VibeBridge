@@ -8,6 +8,8 @@ import { TerminalClient } from './terminal-client';
 export type Terminal = Pick<TerminalClient, 'start' | 'checkCommand' | 'input' | 'resize' | 'stop' | 'acknowledgeOutput' | 'shutdown'>;
 export type TerminalFactory = (onEvent: (event: TerminalEvent) => void, onFailure: (message: string, stopped?: boolean) => void) => Terminal;
 
+const live = (run: Run) => run.state === 'running' || run.state === 'starting';
+
 export interface SupervisionCallbacks {
   /** A run, its processing state or the run list changed. */
   changed(): void;
@@ -41,7 +43,7 @@ export class RunSupervision {
     this.terminal = terminal(event => this.terminalEvent(event), (message, stopped) => {
       if (stopped) {
         this.terminalFailure = message;
-        for (const run of this.list) if (run.state === 'running' || run.state === 'starting') { run.state = 'stopped'; this.processing.forget(run.id); }
+        for (const run of this.list) if (live(run)) { run.state = 'stopped'; this.processing.forget(run.id); }
         callbacks.changed();
       }
       callbacks.report(message);
@@ -96,7 +98,7 @@ export class RunSupervision {
   async stopProject(project: Project): Promise<string[]> {
     if (this.terminalFailure && this.list.some(run => run.projectId === project.id)) return [this.terminalFailure];
     const failures: string[] = [];
-    for (const run of this.list.filter(run => run.projectId === project.id && (run.state === 'running' || run.state === 'starting'))) {
+    for (const run of this.list.filter(run => run.projectId === project.id && live(run))) {
       // Mark before requesting cleanup: its exit event can arrive before the response.
       this.controlledStops.add(run.id);
       try { await this.terminal.stop(run.id); }
@@ -104,10 +106,14 @@ export class RunSupervision {
     }
     return failures;
   }
-  /** Stops the panel's live run, which then exits like a run ending on its own. */
+  /** Stops the panel's live run as a controlled stop. If the stop fails, a later exit
+   * counts as the run ending on its own again. */
   async stopPanel(panelId: string) {
-    const run = this.list.find(r => r.panelId === panelId && (r.state === 'running' || r.state === 'starting'));
-    if (run) await this.terminal.stop(run.id);
+    const run = this.list.find(r => r.panelId === panelId && live(r));
+    if (!run) return;
+    this.controlledStops.add(run.id);
+    try { await this.terminal.stop(run.id); }
+    catch (error) { this.controlledStops.delete(run.id); throw error; }
   }
   /** Forgets runs of panels that no longer exist; their late events are ignored. */
   release(panelIds: string[]) {
