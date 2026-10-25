@@ -34,7 +34,7 @@ module.exports = {
         return panels.map(panel => {
           const icon = panel.querySelector('.processing-status'), mark = panel.querySelector('.agent-mark');
           const a = icon.getBoundingClientRect(), b = mark.getBoundingClientRect(), bounds = panel.getBoundingClientRect();
-          const style = getComputedStyle(icon);
+          const style = getComputedStyle(icon.querySelector('svg'));
           return { leftOfType: a.right <= b.left, visible: a.width >= 13 && a.height >= 13
             && a.left >= bounds.left && a.right <= bounds.right && a.top >= bounds.top && a.bottom <= bounds.bottom,
             static: style.animationName === 'none', busy: icon.classList.contains('processing-busy'), label: icon.getAttribute('aria-label') };
