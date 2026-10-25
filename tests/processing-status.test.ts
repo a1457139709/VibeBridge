@@ -231,12 +231,16 @@ test('background panels retain independent memberships, exits remove them, and q
   try {
     const { project, launches } = await f.create('codex', 3);
     const [first, second, third] = launches.map(launch => launch.run);
+    const groups = () => f.workbench.snapshot().processing.projects[project.id];
+    for (const run of launches.map(launch => launch.run)) await f.send(run.id, { payload: { hook_event_name: 'SessionStart', source: 'startup' } });
+    assert.deepEqual(groups().ready, { count: 3, members: [first, second, third].map(run => ({ panelId: run.panelId, runId: run.id })) },
+      'fresh runs are listed as Ready before they accept a turn');
     for (const run of [first, second]) await f.send(run.id, { payload: { hook_event_name: 'Stop', session_id: 'shared' } });
     await f.send(third.id, { payload: { hook_event_name: 'PermissionRequest' } });
     const background = join(f.directory, 'background'); await mkdir(background);
     const other = await f.create('codex', 1, background);
     await f.send(other.launches[0].run.id, { payload: { hook_event_name: 'Unclassified' } });
-    const groups = () => f.workbench.snapshot().processing.projects[project.id];
+    assert.equal(groups().ready.count, 0);
     assert.deepEqual(groups().done, { count: 2, members: [first, second].map(run => ({ panelId: run.panelId, runId: run.id })) });
     assert.equal(groups()['needs-input'].count, 1);
     assert.equal(f.workbench.snapshot().processing.projects[other.project.id].error.count, 1);
@@ -251,7 +255,7 @@ test('background panels retain independent memberships, exits remove them, and q
       assert.equal(f.workbench.snapshot().processing.runs[run.id], undefined);
     }
     await f.workbench.closePanel(project.id, third.panelId);
-    assert.deepEqual(groups(), { 'needs-input': { count: 0, members: [] }, done: { count: 0, members: [] }, error: { count: 0, members: [] } });
+    assert.deepEqual(groups(), { ready: { count: 0, members: [] }, 'needs-input': { count: 0, members: [] }, done: { count: 0, members: [] }, error: { count: 0, members: [] } });
     await f.workbench.quit();
     const reopened = await Workbench.open(f.directory);
     try {

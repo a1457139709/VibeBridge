@@ -8,7 +8,7 @@ Workbench prepares credentials for every launch, then passes their environment t
 
 The host's stopping fact revokes report acceptance. Exit removes observations and membership. Controlled restarts and shutdown retain panel configuration according to the existing Workbench lifecycle. Main-process shutdown closes the reporting listener, discards all credentials and observations, and awaits adapter resource cleanup. Claude file-based invocation settings use private temporary files, removed on exit, launch failure or shutdown. There are no persistent processing records, additional observers, or additional process managers.
 
-Every accepted visible transition publishes through the existing Workbench snapshot subscription. `snapshot.processing.runs` contains states keyed by run ID. `snapshot.processing.projects` contains Needs input, Done, and Error groups for every project, each with `count` and `{panelId, runId}` members in panel order. These are computed together from running panels and the same observations. Frontends consume them directly, including background projects; they do not recount, deduplicate by session, or interpret events.
+Every accepted visible transition publishes through the existing Workbench snapshot subscription. `snapshot.processing.runs` contains states keyed by run ID. `snapshot.processing.projects` contains Ready, Needs input, Done, and Error groups for every project (Busy is never summarized), each with `count` and `{panelId, runId}` members in panel order. These are computed together from running panels and the same observations. Frontends consume them directly, including background projects; they do not recount, deduplicate by session, or interpret events.
 
 ## Reporting contract
 
