@@ -37,8 +37,6 @@ test('pi settles only with a final assistant outcome and keeps automatic retries
   check({ type: 'tool_execution_end', isError: true }, 'busy');
   check(assistant('error'), 'busy');
   check({ type: 'agent_end' }, 'busy');
-  check({ type: 'auto_retry_start' }, 'busy');
-  check({ type: 'auto_retry_end', success: true }, 'busy');
   check(assistant('stop'), 'busy');
   check({ type: 'agent_settled' }, 'done');
   check({ type: 'agent_start' }, 'busy');

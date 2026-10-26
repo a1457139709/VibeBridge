@@ -20,7 +20,7 @@ class PiInterpreter implements StatusInterpreter {
         delete this.evidence.beforeCompaction; delete this.evidence.compactionFailed;
         this.evidence.state = event.isIdle === false || event.hasPendingMessages === true ? 'busy' : 'ready';
         break;
-      case 'agent_start': case 'auto_retry_start':
+      case 'agent_start':
         delete this.evidence.stopReason; delete this.evidence.compactionFailed; delete this.evidence.beforeCompaction;
         this.evidence.state = 'busy'; break;
       case 'ui_prompt_start': this.evidence.waiting = true; break;
@@ -28,9 +28,7 @@ class PiInterpreter implements StatusInterpreter {
         this.evidence.waiting = false;
         if (event.isIdle !== true || event.hasPendingMessages === true) this.evidence.state = 'busy';
         break;
-      case 'tool_execution_start': case 'tool_execution_update': case 'tool_execution_end':
-      case 'auto_compaction_start': case 'auto_compaction_end': case 'auto_retry_end':
-        this.evidence.state = 'busy'; break;
+      case 'tool_execution_start': case 'tool_execution_end': this.evidence.state = 'busy'; break;
       case 'session_before_compact':
         // An earlier extension can start another manual compaction before this
         // observer receives the first completion. Keep the original idle result.
@@ -44,9 +42,9 @@ class PiInterpreter implements StatusInterpreter {
         if (event.reason !== 'manual') delete this.evidence.beforeCompaction;
         break;
       case 'message_end': {
-        const message = event.message;
-        if (message && typeof message === 'object' && 'role' in message && message.role === 'assistant') {
-          this.evidence.stopReason = 'stopReason' in message && typeof message.stopReason === 'string' ? message.stopReason : undefined;
+        const message = event.message as Payload;
+        if (message.role === 'assistant') {
+          this.evidence.stopReason = typeof message.stopReason === 'string' ? message.stopReason : undefined;
           // Threshold compaction may fail between tool turns without another
           // agent_start. A newer assistant outcome supersedes that failure.
           delete this.evidence.compactionFailed;
@@ -66,10 +64,8 @@ class PiInterpreter implements StatusInterpreter {
         break;
       }
       case 'agent_end':
-        if ('finalStopReason' in event) this.evidence.stopReason = typeof event.finalStopReason === 'string' ? event.finalStopReason : undefined;
+        this.evidence.stopReason = typeof event.finalStopReason === 'string' ? event.finalStopReason : undefined;
         return 'keep';
-      case 'turn_start': case 'turn_end': case 'message_start': case 'message_update':
-      case 'session_shutdown': return 'keep';
       default: return 'error';
     }
     return this.evidence.waiting ? 'needs-input' : this.evidence.state ?? 'error';

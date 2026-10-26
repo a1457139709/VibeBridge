@@ -62,7 +62,7 @@ const contracts: Record<AgentType, Contract> = {
     busy: [fact('agent_start')],
     waiting: [fact('agent_start'), fact('ui_prompt_start')],
     done: [fact('agent_start'), fact('message_end', { message: { role: 'assistant', stopReason: 'stop' } }), fact('agent_settled', { isIdle: true })],
-    auxiliary: [fact('agent_start'), fact('turn_start')],
+    auxiliary: [fact('agent_start'), fact('message_end', { message: { role: 'user' } })],
     unclassified: [fact('unclassified')],
     progress: () => fact('tool_execution_start'),
     retired: null,
