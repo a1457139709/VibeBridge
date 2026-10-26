@@ -7,8 +7,8 @@ type Fields<T extends string> = T extends `${string}{${infer Field}}${infer Rest
 export type MessageArguments<K extends MessageId> = [Fields<typeof english[K]>] extends [never]
   ? [values?: never] : [values: Record<Fields<typeof english[K]>, MessageValue>];
 
-// Existing error/notice channels cross Electron and child-process boundaries as
-// strings. Carry an explicit envelope instead of matching translated sentences.
+// Error and notice channels cross Electron and child-process boundaries as
+// strings, so a message travels as an envelope of its id and values.
 // This module has no runtime dependency on React or either dictionary.
 export const messagePrefix = 'VibeBridge.message:';
 export function message<K extends MessageId>(id: K, ...args: MessageArguments<K>): string {

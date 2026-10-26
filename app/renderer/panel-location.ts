@@ -187,8 +187,8 @@ function createLocation(initial: Host, changed: () => void) {
     const previous = view(target);
     if (intent !== 'select' || previous.selected !== panelId) focusedKey = undefined;
     select(projectId, { selected: panelId, maximized: intent === 'maximize' ? previous.maximized === panelId ? undefined : panelId : previous.maximized });
-    // Header/maximize actions historically accept input immediately when their
-    // terminal is already visible. Only an unmounted/hidden target needs a frame.
+    // Header/maximize actions focus an already visible terminal at once, so it
+    // accepts input immediately. Only an unmounted/hidden target needs a frame.
     if (intent !== 'select' && connection?.projectId === projectId && focus(panelId)) {
       focusedKey = focusKey(projectId, panelId);
     }

@@ -5,7 +5,7 @@ import { Workbench } from '../app/main/workbench';
 import { testDirectory } from './support/directory';
 import { localize } from '../app/shared/localization';
 
-test('new and legacy settings default to English, while saved Chinese survives reopening with existing settings', async context => {
+test('settings without a saved language default to English, while saved Chinese survives reopening with other settings', async context => {
   const directory = await testDirectory(context, 'language-persistence');
   let workbench = await Workbench.open(directory);
   try {

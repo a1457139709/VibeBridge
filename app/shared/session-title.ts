@@ -7,7 +7,7 @@ export function sessionTitle(agent: AgentType, rawTitle?: string, placeholder = 
     return !title || title === 'Claude Code' ? placeholder : title;
   }
   if (agent === 'codex') {
-    // Codex 0.162.1 cycles through all ten Unicode title-spinner frames.
+    // Codex's title spinner cycles through all ten Unicode braille frames.
     const title = rawTitle.trim().replace(/^[⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏\s]+|[⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏\s]+$/gu, '');
     // Keep empty fields and overlapping separators visible as unknown formats.
     const parts = ` ${title} `.split(/(?<= )\|(?= )/u);
