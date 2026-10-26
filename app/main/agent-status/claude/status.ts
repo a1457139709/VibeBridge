@@ -27,7 +27,7 @@ async function prepare({ command, directory, resourceDirectory }: Launch): Promi
   const existing = settings.hooks ?? {};
   if (typeof existing !== 'object' || Array.isArray(existing)) throw new Error('Invalid Claude hooks');
   const hooks: Record<string, unknown> = { ...existing };
-  const reporter = reporterCommand('claude-hook.cjs');
+  const reporter = reporterCommand('claude-reporter.cjs');
   for (const event of events) {
     const handlers = hooks[event] ?? [];
     if (!Array.isArray(handlers)) throw new Error('Invalid Claude hook handlers');

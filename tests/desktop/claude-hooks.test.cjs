@@ -3,7 +3,7 @@ const { resolve } = require('node:path');
 
 module.exports = {
   async run({ window, evaluate, until, click, directory }) {
-    const command = { command: process.env.VIBEBRIDGE_TEST_NODE, args: [resolve('tests/fixtures/claude-hooks.cjs')] };
+    const command = { command: process.env.VIBEBRIDGE_TEST_NODE, args: [resolve('tests/fixtures/claude-cli.cjs')] };
     const settings = await evaluate('window.workbench.snapshot().then(snapshot => snapshot.settings)');
     await evaluate(`window.workbench.saveSettings(${JSON.stringify({ agents: { ...settings.agents, claude: command } })})`);
     const created = await evaluate(`window.workbench.createProject(${JSON.stringify({ name: 'Claude hook panels', directory,

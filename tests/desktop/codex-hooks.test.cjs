@@ -4,7 +4,7 @@ const { resolve } = require('node:path');
 module.exports = {
   async run(context) {
     const { evaluate, until } = context;
-    const command = { command: process.env.VIBEBRIDGE_TEST_NODE, args: [resolve('tests/fixtures/codex-hooks.cjs')] };
+    const command = { command: process.env.VIBEBRIDGE_TEST_NODE, args: [resolve('tests/fixtures/codex-cli.cjs')] };
     const settings = await evaluate('window.workbench.snapshot().then(snapshot => snapshot.settings)');
     await evaluate(`window.workbench.saveSettings(${JSON.stringify({ agents: { ...settings.agents, codex: command } })})`);
     const created = await require('./support/project.cjs')(context, 'Codex hook panels');

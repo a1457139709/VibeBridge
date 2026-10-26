@@ -28,7 +28,7 @@ function launch(command: AgentCommand): AgentCommand {
     if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) throw new Error('Invalid Codex hook override');
     Object.assign(hooks, parsed);
   }
-  const reporter = reporterCommand('codex-hook.cjs');
+  const reporter = reporterCommand('codex-reporter.cjs');
   const added = events.flatMap(event => {
     const existing = hooks[event] ?? [];
     if (!Array.isArray(existing)) throw new Error('Invalid Codex hook handlers');

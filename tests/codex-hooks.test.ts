@@ -25,7 +25,7 @@ async function fixture(args: string[] = []) {
     if (event.kind === 'output') workbench.acknowledgeOutput(event.runId, event.data.length);
   });
   const output = (id: string) => events.flatMap(e => e.kind === 'output' && e.runId === id ? [e.data] : []).join('');
-  const command = { command: process.env.VIBEBRIDGE_TEST_NODE!, args: [resolve('tests/fixtures/codex-hooks.cjs'), ...args] };
+  const command = { command: process.env.VIBEBRIDGE_TEST_NODE!, args: [resolve('tests/fixtures/codex-cli.cjs'), ...args] };
   try { await workbench.saveSettings({ agents: { ...workbench.snapshot().settings.agents, codex: command } }); }
   catch (error) { await close(); throw error; }
   let sequence = 0;

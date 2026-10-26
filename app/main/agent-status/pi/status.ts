@@ -82,7 +82,7 @@ export const pi: StatusAdapter = {
   async prepare({ command }) {
     const boundary = command.args.indexOf('--');
     const index = boundary < 0 ? command.args.length : boundary;
-    return { command: { ...command, args: [...command.args.slice(0, index), '--extension', join(__dirname, 'pi-extension.mjs'), ...command.args.slice(index)] } };
+    return { command: { ...command, args: [...command.args.slice(0, index), '--extension', join(__dirname, 'pi-reporter.mjs'), ...command.args.slice(index)] } };
   },
   observe: () => new PiInterpreter(),
 };
