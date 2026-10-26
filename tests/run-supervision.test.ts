@@ -2,7 +2,7 @@ import test, { type TestContext } from 'node:test';
 import assert from 'node:assert/strict';
 import { message } from '../app/shared/messages';
 import { RunSupervision, type Terminal } from '../app/main/run-supervision';
-import type { CommandCheck, Panel, Project, Run, TerminalEvent } from '../app/shared/model';
+import { launchFailed, type CommandCheck, type Panel, type Project, type Run, type TerminalEvent } from '../app/shared/model';
 import { testDirectory } from './support/directory';
 
 type Start = Parameters<Terminal['start']>[0];
@@ -83,6 +83,7 @@ test('a failed launch reports launch failure and releases its observation at onc
   f.terminal.answer = 'failed';
   const launch = await f.start();
   assert.deepEqual(launch.ok ? '' : launch.error, message('launchFailed'));
+  assert.equal(launchFailed(launch), true);
   assert.equal(f.run(launch.run.id)?.state, 'failed');
   assert.equal(await f.report(launch.run.id), 403);
 });
@@ -92,6 +93,7 @@ test('an unconfirmed launch stays starting and observed, then accepts the host\'
   f.terminal.answer = 'none';
   const launch = await f.start();
   assert.match(launch.ok ? '' : launch.error, /launchUnconfirmed.*terminalTimeout/);
+  assert.equal(launchFailed(launch), false, 'an unconfirmed launch is not a launch failure');
   assert.equal(f.run(launch.run.id)?.state, 'starting');
   assert.equal(await f.report(launch.run.id), 204, 'an unconfirmed launch may still be running');
   const { id, panelId, projectId } = launch.run;

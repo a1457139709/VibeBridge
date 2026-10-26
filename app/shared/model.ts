@@ -20,7 +20,7 @@ export type CommandCheck = { available: true; path: string } | { available: fals
 export interface Run { id: string; projectId: string; panelId: string; state: 'running' | 'starting' | 'failed' | 'stopped'; pid?: number; rawTitle?: string }
 export type LaunchResult = { ok: true; run: Run } | { ok: false; run: Run; error: string };
 // An unconfirmed launch may still be running, so only a confirmed failure counts.
-export const launchFailed = (launch: LaunchResult) => !launch.ok && launch.error === message('launchFailed');
+export const launchFailed = (launch: LaunchResult) => !launch.ok && launch.run.state === 'failed';
 export interface ProjectCreation { project: Project; launches: LaunchResult[] }
 export interface ProjectEdit { name: string; directory: string }
 export interface ProjectEditResult { project: Project; launches: LaunchResult[]; error?: string }
