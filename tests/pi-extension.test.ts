@@ -100,7 +100,7 @@ test('pi parallel runs and replacement runs reject child, stale and retired laun
     const context = JSON.parse(f.output(run.id).match(/CONTEXT:([^\r\n]+)/)![1]);
     const post = async (overrides: object = {}) => {
       const response = await fetch(context.url, { method: 'POST', body: JSON.stringify({ ...context, version: 1,
-        source: 'pi-extension', scope: 'main', payload: { type: 'session_start' }, ...overrides }) });
+        scope: 'main', payload: { type: 'session_start' }, ...overrides }) });
       await response.text(); return response.status;
     };
     for (const overrides of [{ scope: 'child', sequence: 1000 }, { sequence: 0 }, { runId: other.id }, { occurredAt: 1 }, { expiresAt: 1 }]) {

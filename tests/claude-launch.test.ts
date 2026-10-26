@@ -79,7 +79,7 @@ test('Claude observation loss requires a fresh event and retired run credentials
     assert.equal(f.workbench.snapshot().processing.runs[run.id], 'error');
     const post = async (payload: object, overrides: object = {}) => {
       const response = await fetch(context.url, { method: 'POST', body: JSON.stringify({ ...context, version: 1,
-        source: 'claude-hook', scope: 'main', payload, ...overrides }) });
+        scope: 'main', payload, ...overrides }) });
       await response.text(); return response.status;
     };
     assert.equal(await post({ observation: 'restored' }), 204);

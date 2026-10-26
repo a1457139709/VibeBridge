@@ -73,8 +73,9 @@ test('current-run validation discards unrelated, child, stale, duplicate and exp
   try {
     const { launches: [{ run: first }, { run: second }] } = await f.create('codex', 2);
     const state = (id: string) => f.workbench.snapshot().processing.runs[id];
-    await f.send(first.id, { payload: { hook_event_name: 'Stop', session_id: 'shared' }, overrides: { sequence: 10, id: 'completion' } });
-    await f.send(second.id, { payload: { hook_event_name: 'UserPromptSubmit', session_id: 'shared' } });
+    // Both runs report the same CLI session identity; only launch credentials associate a report.
+    await f.send(first.id, { payload: { hook_event_name: 'Stop' }, overrides: { sequence: 10, id: 'completion' } });
+    await f.send(second.id, { payload: { hook_event_name: 'UserPromptSubmit' } });
     assert.equal(state(first.id), 'done'); assert.equal(state(second.id), 'busy');
     const before = f.events.filter(event => event.kind === 'snapshot').length;
     for (const overrides of [
@@ -235,7 +236,7 @@ test('background panels retain independent memberships, exits remove them, and q
     for (const run of launches.map(launch => launch.run)) await f.send(run.id, { payload: { hook_event_name: 'SessionStart', source: 'startup' } });
     assert.deepEqual(groups().ready, { count: 3, members: [first, second, third].map(run => ({ panelId: run.panelId, runId: run.id })) },
       'fresh runs are listed as Ready before they accept a turn');
-    for (const run of [first, second]) await f.send(run.id, { payload: { hook_event_name: 'Stop', session_id: 'shared' } });
+    for (const run of [first, second]) await f.send(run.id, { payload: { hook_event_name: 'Stop' } });
     await f.send(third.id, { payload: { hook_event_name: 'PermissionRequest' } });
     const background = join(f.directory, 'background'); await mkdir(background);
     const other = await f.create('codex', 1, background);

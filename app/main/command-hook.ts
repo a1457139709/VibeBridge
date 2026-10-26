@@ -6,7 +6,7 @@ async function report(agent: 'codex' | 'claude', payload: Payload) {
   const context = JSON.parse(process.env.VIBEBRIDGE_STATUS_CONTEXT ?? '{}');
   const url = new URL(context.url);
   if (url.protocol !== 'http:' || url.hostname !== '127.0.0.1' || context.agent !== agent) return;
-  const body = JSON.stringify({ ...context, version: 1, source: `${agent}-hook`, scope: 'main', payload });
+  const body = JSON.stringify({ ...context, version: 1, scope: 'main', payload });
   await new Promise<void>(resolve => {
     const req = request(url, { method: 'POST', headers: { 'content-type': 'application/json' } }, response => {
       response.resume(); response.once('end', resolve);

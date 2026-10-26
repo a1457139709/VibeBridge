@@ -135,12 +135,12 @@ export class ProcessingStatus {
       || (typeof event.occurredAt === 'number' && observation.occurredAt !== undefined && event.occurredAt < observation.occurredAt)
       || (typeof event.expiresAt === 'number' && event.expiresAt <= Date.now())) return 204;
     let payload = event.payload as Record<string, unknown>;
-    if (event.source === 'codex-hook' && observation.agent === 'codex') {
+    if (observation.agent === 'codex') {
       const accepted = (observation.codex ??= new CodexEvents()).accept(payload);
       if (!accepted) return 204;
       payload = accepted;
     }
-    if (event.source === 'claude-hook' && observation.agent === 'claude') {
+    if (observation.agent === 'claude') {
       const accepted = (observation.claude ??= new ClaudeEvents()).accept(payload);
       if (!accepted) return 204;
       payload = accepted;

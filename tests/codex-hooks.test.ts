@@ -193,7 +193,7 @@ test('closed runs revoke native credentials and late turns cannot overwrite a ne
     const freshRun = fresh.launch.run;
     await until(() => f.workbench.snapshot().processing.runs[freshRun.id] === 'ready');
     const response = await fetch(context.url, { method: 'POST', body: JSON.stringify({ ...context, version: 1,
-      source: 'codex-hook', scope: 'main', payload: { hook_event_name: 'Stop', session_id: 'late', turn_id: 'old' } }) });
+      scope: 'main', payload: { hook_event_name: 'Stop', session_id: 'late', turn_id: 'old' } }) });
     await response.text();
     assert.equal(response.status, 403);
     assert.equal(f.workbench.snapshot().processing.runs[freshRun.id], 'ready');
@@ -240,11 +240,27 @@ test('discarded native child reports cannot consume ordering metadata of the mai
     const session_id = `session-${run.pid}`;
     const report = async (sequence: number, payload: object) => {
       const response = await fetch(context.url, { method: 'POST', body: JSON.stringify({ ...context, version: 1,
-        source: 'codex-hook', scope: 'main', sequence, payload: { session_id, ...payload } }) });
+        scope: 'main', sequence, payload: { session_id, ...payload } }) });
       await response.text(); assert.equal(response.status, 204);
     };
     await report(100, { hook_event_name: 'Stop', agent_id: 'child' });
     await report(10, { hook_event_name: 'UserPromptSubmit', turn_id: 'main' });
+    assert.equal(f.workbench.snapshot().processing.runs[run.id], 'busy');
+  } finally { await f.close(); }
+});
+
+test('identity checks apply to every authenticated Codex report, including one from another session', async () => {
+  const f = await fixture();
+  try {
+    const { launches: [{ run }] } = await f.create();
+    await f.send(run.id, { hook_event_name: 'UserPromptSubmit', turn_id: 'main' });
+    await f.workbench.sendInput(run.id, JSON.stringify({ id: 'context', context: true }) + '\n');
+    await until(() => f.output(run.id).includes('ACK:context'));
+    const context = JSON.parse(f.output(run.id).match(/CONTEXT:([^\r\n]+)/)![1]);
+    const response = await fetch(context.url, { method: 'POST', body: JSON.stringify({ ...context, version: 1,
+      scope: 'main', payload: { hook_event_name: 'Stop', session_id: 'another', turn_id: 'main' } }) });
+    await response.text();
+    assert.equal(response.status, 204);
     assert.equal(f.workbench.snapshot().processing.runs[run.id], 'busy');
   } finally { await f.close(); }
 });

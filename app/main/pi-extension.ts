@@ -26,7 +26,7 @@ export default function install(pi: ExtensionAPI) {
   if (!delivery) { delivery = { sequence: 0, pending: Promise.resolve(), lost: false }; deliveries.set(context.token, delivery); }
   const source = delivery;
   function send(payload: Payload): Promise<boolean> {
-    const body = JSON.stringify({ ...context, version: 1, source: 'pi-extension', scope: 'main', sequence: ++source.sequence, payload });
+    const body = JSON.stringify({ ...context, version: 1, scope: 'main', sequence: ++source.sequence, payload });
     return new Promise(resolve => {
       const req = request(url, { method: 'POST', headers: { 'content-type': 'application/json' } }, response => {
         response.resume(); response.once('end', () => resolve(response.statusCode === 204));
