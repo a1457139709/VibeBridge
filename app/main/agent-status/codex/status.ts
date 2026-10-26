@@ -58,8 +58,8 @@ class CodexInterpreter implements StatusInterpreter {
   discardEvidence() { this.waits.clear(); }
 
   /** Interpret identity only after the outer run capability was authenticated.
-   * No receipt-time sequence is invented: only identifiable retired sessions,
-   * turns and repeated source boundaries can be excluded.
+   * Only identifiable retired sessions, turns and repeated source boundaries
+   * are excluded.
    */
   private identify(event: Payload, session: string): Payload | undefined {
     const name = event.hook_event_name;

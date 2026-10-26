@@ -8,7 +8,7 @@ import { claude } from './agent-status/claude/status';
 import { pi } from './agent-status/pi/status';
 import { message, detail } from '../shared/messages';
 
-// CLI protocol differences stay behind this closed table, without a plugin registry.
+// CLI protocol differences stay behind this closed table.
 const adapters: Record<AgentType, StatusAdapter> = { codex, claude, pi };
 
 interface Observation {

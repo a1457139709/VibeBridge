@@ -75,7 +75,7 @@ class ClaudeInterpreter implements StatusInterpreter {
   private clearWaits() { this.questions.clear(); this.permissions.clear(); this.elicitations.clear(); }
 
   /** Native identity checks run after capability authentication. Independent hook
-   * processes cannot invent a shared sequence; only recognizable stale facts drop.
+   * processes share no order, so only recognizable stale facts drop.
    */
   private identify(event: Payload, session: string): Payload | undefined {
     const name = event.hook_event_name;

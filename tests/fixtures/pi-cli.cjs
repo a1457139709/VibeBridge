@@ -38,7 +38,6 @@ readline.createInterface({ input: process.stdin }).on('line', line => {
     const message = JSON.parse(line);
     if (message.idle !== undefined) idle = message.idle;
     pendingMessages = message.pendingMessages ?? false;
-    if (message.reload) { await emit({ type: 'session_shutdown' }); await load(); }
     if (message.context) console.log(`CONTEXT:${process.env.VIBEBRIDGE_STATUS_CONTEXT}`);
     if (message.arguments) console.log(`ARGUMENTS:${JSON.stringify(args)}`);
     if (message.payload) await emit(message.payload);
