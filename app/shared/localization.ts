@@ -3,6 +3,9 @@ import { messagePrefix, type MessageArguments, type MessageId, type MessageValue
 import { english } from './locales/en';
 import { chinese } from './locales/zh-CN';
 
+/** Electron prefixes errors that cross IPC; the message is what follows. */
+export const remoteErrorText = (value: string) => value.replace(/^Error invoking remote method '[^']+': Error: /, '');
+
 export function localize(language: Language) {
   const separator = language === 'zh-CN' ? '、' : ', ';
   const valueText = (value: MessageValue): string => {
@@ -14,7 +17,7 @@ export function localize(language: Language) {
     return (language === 'zh-CN' ? chinese : english)[id].replace(/\{(\w+)\}/g, (_, key: string) => valueText(values[key] ?? ''));
   }
   function text(value: string): string {
-    const input = value.replace(/^Error invoking remote method '[^']+': Error: /, '');
+    const input = remoteErrorText(value);
     if (!input.startsWith(messagePrefix)) return input;
     try {
       const parsed = JSON.parse(input.slice(messagePrefix.length));

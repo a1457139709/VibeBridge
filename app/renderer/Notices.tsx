@@ -1,3 +1,4 @@
+import { remoteErrorText } from '../shared/localization';
 import { useLocalization } from './Localization';
 import { useCallback, useEffect, useRef, useState } from 'react';
 
@@ -9,7 +10,7 @@ export function useNotices() {
   const [notices, setNotices] = useState<Notice[]>([]);
   const sequence = useRef(0);
   const report: ReportNotice = useCallback((message, kind = 'error') => {
-    const text = message.replace(/^Error invoking remote method '[^']+': Error: /, '');
+    const text = remoteErrorText(message);
     if (!text) return;
     const revision = ++sequence.current;
     setNotices(previous => previous.some(notice => notice.message === text)
