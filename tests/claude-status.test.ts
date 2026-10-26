@@ -26,7 +26,6 @@ test('Claude separates blocking input and individual tool failure from a failed 
   check({ hook_event_name: 'PreCompact' }, 'busy');
   check({ hook_event_name: 'SubagentStop' }, 'busy');
   check({ hook_event_name: 'StopFailure' }, 'error');
-  check({ hook_event_name: 'Notification' }, 'error');
   check({ hook_event_name: 'UserPromptSubmit' }, 'busy');
   check({ hook_event_name: 'Stop' }, 'done');
 });

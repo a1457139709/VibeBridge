@@ -62,7 +62,7 @@ async function fixture(context: TestContext) {
     // Reports as the Agent's own status integration would: 204 while observed, 403 once released.
     async report(runId: string) {
       const context = credentials.get(runId)!;
-      const response = await fetch(context.url, { method: 'POST', body: JSON.stringify({ ...context, version: 1, scope: 'main', payload: {} }) });
+      const response = await fetch(context.url, { method: 'POST', body: JSON.stringify({ ...context, payload: {} }) });
       await response.text();
       return response.status;
     } };

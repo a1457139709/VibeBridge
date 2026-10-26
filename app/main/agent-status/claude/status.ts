@@ -75,7 +75,7 @@ class ClaudeInterpreter implements StatusInterpreter {
   private clearWaits() { this.questions.clear(); this.permissions.clear(); this.elicitations.clear(); }
 
   /** Native identity checks run after capability authentication. Independent hook
-   * processes cannot invent a shared sequence; only recognizable stale facts drop.
+   * processes share no order, so only recognizable stale facts drop.
    */
   private identify(event: Payload, session: string): Payload | undefined {
     const name = event.hook_event_name;
@@ -168,7 +168,7 @@ class ClaudeInterpreter implements StatusInterpreter {
       case 'PreCompact': case 'PostCompact': return waiting ? 'needs-input' : 'busy';
       case 'Stop': return 'done';
       case 'StopFailure': return 'error';
-      case 'SessionEnd': case 'SubagentStart': case 'SubagentStop': case 'Notification': return 'keep';
+      case 'SessionEnd': case 'SubagentStart': case 'SubagentStop': return 'keep';
       default: return 'error';
     }
   }

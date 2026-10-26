@@ -7,8 +7,8 @@ interface Evidence {
   beforeCompaction?: ProcessingState; compactionFailed?: boolean;
 }
 
-/** The reporter runs inside the pi process, subscribes to no child session and sequences
- * its own reports, so ProcessingStatus's ordering checks leave no separate identity to verify.
+/** The reporter runs inside the pi process, subscribes to no child session and delivers
+ * its reports in order through one queue, so there is no separate identity to verify.
  */
 class PiInterpreter implements StatusInterpreter {
   private evidence: Evidence = {};

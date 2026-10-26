@@ -8,16 +8,16 @@ import { claude } from './agent-status/claude/status';
 import { pi } from './agent-status/pi/status';
 import { message, detail } from '../shared/messages';
 
-// CLI protocol differences stay behind this closed table, without a plugin registry.
+// CLI protocol differences stay behind this closed table.
 const adapters: Record<AgentType, StatusAdapter> = { codex, claude, pi };
 
 interface Observation {
-  agent: AgentType; token: string; since: number; accepting: boolean; running: boolean;
-  state?: ProcessingState; sequence?: number; occurredAt?: number; ids: Set<string>; interpreter: StatusInterpreter;
+  agent: AgentType; token: string; accepting: boolean; running: boolean;
+  state?: ProcessingState; interpreter: StatusInterpreter;
   cleanup?: () => Promise<void>;
 }
 
-/** Run-scoped ingestion and projection; see docs/processing-status.md for the wire contract.
+/** Run-scoped ingestion and projection; see docs/processing-status.md for the report format.
  * prepare precedes launch, lifecycle uses only terminal-host facts. Reports during startup
  * are retained but invisible until running. Stopping revokes credentials; no result persists.
  * A running instance without a reliable observation is Error, never inferred from PTY data.
@@ -31,7 +31,7 @@ export class ProcessingStatus {
   constructor(private changed: () => void, private resourceDirectory: string) {}
 
   async prepare(runId: string, agent: AgentType, command: AgentCommand, directory: string) {
-    const observation: Observation = { agent, token: randomUUID(), since: Date.now(), accepting: true, running: false, ids: new Set(),
+    const observation: Observation = { agent, token: randomUUID(), accepting: true, running: false,
       interpreter: adapters[agent].observe() };
     this.observations.set(runId, observation);
     try {
@@ -117,27 +117,12 @@ export class ProcessingStatus {
     const observation = typeof event.runId === 'string' ? this.observations.get(event.runId) : undefined;
     // Authenticate this launch before interpreting even an unfamiliar event.
     if (!observation?.accepting || event.token !== observation.token || event.agent !== observation.agent) return 403;
-    if (event.version !== 1 || !event.payload || typeof event.payload !== 'object' || Array.isArray(event.payload)
-      || (event.scope !== 'main' && event.scope !== 'child')) return 400;
-    if (event.scope === 'child') return 204;
-    if (event.id !== undefined && (typeof event.id !== 'string' || !event.id || event.id.length > 256)) return 400;
-    if (event.sequence !== undefined && (typeof event.sequence !== 'number' || !Number.isSafeInteger(event.sequence) || event.sequence < 0)) return 400;
-    for (const field of ['occurredAt', 'expiresAt']) {
-      if (event[field] !== undefined && (typeof event[field] !== 'number' || !Number.isFinite(event[field]))) return 400;
-    }
-    if ((typeof event.id === 'string' && observation.ids.has(event.id))
-      || (typeof event.sequence === 'number' && observation.sequence !== undefined && event.sequence <= observation.sequence)
-      || (typeof event.occurredAt === 'number' && event.occurredAt < observation.since)
-      || (typeof event.occurredAt === 'number' && observation.occurredAt !== undefined && event.occurredAt < observation.occurredAt)
-      || (typeof event.expiresAt === 'number' && event.expiresAt <= Date.now())) return 204;
-    // Observation reports belong to the reporting contract; adapters see only CLI facts.
+    if (!event.payload || typeof event.payload !== 'object' || Array.isArray(event.payload)) return 400;
+    // Observation loss belongs to the Status Reporter transport; adapters see only CLI facts.
     const payload = event.payload as Record<string, unknown>;
-    const state = 'observation' in payload ? payload.observation === 'restored' ? 'keep' : 'error'
-      : observation.interpreter.accept(payload);
+    if ('observation' in payload && payload.observation !== 'lost' && payload.observation !== 'unavailable') return 400;
+    const state = 'observation' in payload ? 'error' : observation.interpreter.accept(payload);
     if (state === 'discard') return 204;
-    if (typeof event.id === 'string') observation.ids.add(event.id);
-    if (typeof event.sequence === 'number') observation.sequence = event.sequence;
-    if (typeof event.occurredAt === 'number') observation.occurredAt = event.occurredAt;
     if (state === 'error') observation.interpreter.discardEvidence();
     if (state !== 'keep' && observation.state !== state) {
       observation.state = state;

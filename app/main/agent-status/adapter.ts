@@ -4,12 +4,12 @@ import type { ProcessingState } from '../../shared/processing-status';
 
 export type Payload = Record<string, unknown>;
 export type Transition = ProcessingState | 'keep';
-/** Discard: an identifiable stale, duplicate or child fact; it cannot change state or ordering. */
+/** Discard: an identifiable stale, duplicate or child fact; it cannot change state. */
 export type Outcome = Transition | 'discard';
 export interface Launch { command: AgentCommand; directory: string; resourceDirectory: string }
 export interface PreparedLaunch { command: AgentCommand; cleanup?: () => Promise<void> }
 
-/** One per Agent Type, held in ProcessingStatus's closed table rather than a plugin registry.
+/** One per Agent Type, held in ProcessingStatus's closed table.
  * See docs/processing-status.md for the rules every adapter shares.
  */
 export interface StatusAdapter {

@@ -58,8 +58,8 @@ class CodexInterpreter implements StatusInterpreter {
   discardEvidence() { this.waits.clear(); }
 
   /** Interpret identity only after the outer run capability was authenticated.
-   * No receipt-time sequence is invented: only identifiable retired sessions,
-   * turns and repeated source boundaries can be excluded.
+   * Only identifiable retired sessions, turns and repeated source boundaries
+   * are excluded.
    */
   private identify(event: Payload, session: string): Payload | undefined {
     const name = event.hook_event_name;
@@ -101,37 +101,36 @@ class CodexInterpreter implements StatusInterpreter {
         this.seen.add(key);
       }
     }
-    // Native Interrupt is root-only and dispatched after detaching the active
-    // turn. Generic reports still require explicit confirmation annotations.
-    if (name === 'Interrupt' && turn) return { ...event, confirmed: true, can_accept_input: true };
     return event;
   }
 
   private classify(event: Payload): Transition {
     const name = event.hook_event_name;
     const tool = typeof event.tool_use_id === 'string' ? event.tool_use_id : '';
+    // Native Interrupt is root-only and dispatched after detaching the active turn.
+    const interrupted = name === 'Interrupt' && typeof event.turn_id === 'string' && event.turn_id !== '';
     // The native handler awaits the answer in every mode; Plan-only blocking just disables auto-resolution.
     if (name === 'PermissionRequest' || (name === 'PreToolUse' && event.tool_name === 'request_user_input')) {
       this.waits.add(tool || (name === 'PreToolUse' ? 'request_user_input' : ''));
       return 'needs-input';
     }
-    if (name === 'PostToolUse' || name === 'PostToolUseFailure') {
+    if (name === 'PostToolUse') {
       if (tool) this.waits.delete(tool);
       else if (event.tool_name === 'request_user_input') this.waits.delete('request_user_input');
     }
     if (['UserPromptSubmit', 'Stop'].includes(String(name))
       || (name === 'SessionStart' && event.source !== 'compact')
-      || (name === 'Interrupt' && event.confirmed === true && event.can_accept_input === true)) this.waits.clear();
-    if (this.waits.size && ['PreToolUse', 'PostToolUse', 'PostToolUseFailure', 'PreCompact', 'PostCompact'].includes(String(name))) return 'needs-input';
+      || interrupted) this.waits.clear();
+    if (this.waits.size && ['PreToolUse', 'PostToolUse', 'PreCompact', 'PostCompact'].includes(String(name))) return 'needs-input';
     switch (name) {
       case 'SessionStart': return event.source === 'compact' ? 'busy'
         : ['startup', 'resume', 'clear', 'fork'].includes(String(event.source)) ? 'ready' : 'error';
-      case 'UserPromptSubmit': case 'PostToolUse': case 'PostToolUseFailure':
+      case 'UserPromptSubmit': case 'PostToolUse':
       case 'PreCompact': case 'PostCompact': return 'busy';
       case 'PreToolUse': return 'busy';
       case 'Stop': return 'done';
-      case 'Interrupt': return event.confirmed === true && event.can_accept_input === true ? 'ready' : 'keep';
-      case 'SessionEnd': case 'SubagentStart': case 'SubagentStop': case 'Notification': return 'keep';
+      case 'Interrupt': return interrupted ? 'ready' : 'keep';
+      case 'SessionEnd': case 'SubagentStart': case 'SubagentStop': return 'keep';
       default: return 'error';
     }
   }

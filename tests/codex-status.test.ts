@@ -11,21 +11,21 @@ function started(defaults: Payload = {}) {
   return (payload: Payload, expected: string) => assert.equal(accept(payload), expected, JSON.stringify(payload));
 }
 
-test('Codex waiting, tool failures, compaction and confirmed interruption preserve turn semantics', () => {
+test('Codex waiting, compaction and native interruption preserve turn semantics', () => {
   const check = started();
   check({ hook_event_name: 'SessionStart', source: 'startup' }, 'ready');
   check({ hook_event_name: 'UserPromptSubmit' }, 'busy');
   check({ hook_event_name: 'PermissionRequest', tool_use_id: 'approval' }, 'needs-input');
-  check({ hook_event_name: 'PostToolUseFailure', tool_name: 'shell', tool_use_id: 'approval' }, 'busy');
+  check({ hook_event_name: 'PostToolUse', tool_name: 'shell', tool_use_id: 'approval' }, 'busy');
   check({ hook_event_name: 'PreCompact' }, 'busy');
   check({ hook_event_name: 'SessionStart', source: 'compact' }, 'busy');
   check({ hook_event_name: 'SubagentStop' }, 'busy');
   check({ hook_event_name: 'Interrupt' }, 'busy');
-  check({ hook_event_name: 'Interrupt', confirmed: true, can_accept_input: true }, 'ready');
+  check({ hook_event_name: 'Interrupt', turn_id: 'turn' }, 'ready');
   check({ hook_event_name: 'PreToolUse', tool_name: 'request_user_input' }, 'needs-input');
   check({ hook_event_name: 'PostToolUse', tool_name: 'request_user_input' }, 'busy');
   check({ hook_event_name: 'PreToolUse', tool_name: 'request_user_input', tool_use_id: 'question' }, 'needs-input');
-  check({ hook_event_name: 'PostToolUseFailure', tool_name: 'request_user_input', tool_use_id: 'question' }, 'busy');
+  check({ hook_event_name: 'PostToolUse', tool_name: 'request_user_input', tool_use_id: 'question' }, 'busy');
   check({ hook_event_name: 'Stop' }, 'done');
   check({ hook_event_name: 'SessionEnd' }, 'done');
 });
@@ -34,7 +34,7 @@ test('Codex child events, other sessions and retired sessions cannot change the 
   const check = started();
   check({ hook_event_name: 'UserPromptSubmit', turn_id: 'one' }, 'busy');
   for (const hook_event_name of ['SubagentStart', 'PreToolUse', 'PostToolUse', 'SubagentStop', 'Stop']) {
-    check({ hook_event_name, agent_id: 'child', agent_type: 'worker', turn_id: 'child-turn' }, 'busy');
+    check({ hook_event_name, agent_id: 'child', turn_id: 'child-turn' }, 'busy');
   }
   check({ hook_event_name: 'Stop', session_id: 'another', turn_id: 'one' }, 'busy');
   check({ hook_event_name: 'SessionEnd' }, 'busy');
@@ -82,7 +82,7 @@ test('Codex structured questions wait for the user until their own tool result',
   check(ask('both'), 'needs-input');
   check({ hook_event_name: 'PostToolUse', tool_use_id: 'both', tool_name: 'request_user_input' }, 'needs-input');
   check({ hook_event_name: 'PostToolUse', tool_use_id: 'approval', tool_name: 'Bash' }, 'busy');
-  check({ ...ask('child'), agent_id: 'child', agent_type: 'worker' }, 'busy');
+  check({ ...ask('child'), agent_id: 'child' }, 'busy');
 });
 
 test('Codex structured question waits end with the turn that asked them', () => {

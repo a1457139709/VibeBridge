@@ -68,63 +68,24 @@ test('official reports drive Ready, Busy and Done while terminal activity preser
   } finally { await f.close(); }
 });
 
-test('current-run validation discards unrelated, child, stale, duplicate and expired reports before classification', async () => {
+test('only the launch credentials associate a report, and rejected reports publish nothing', async () => {
   const f = await fixture();
   try {
     const { launches: [{ run: first }, { run: second }] } = await f.create('codex', 2);
     const state = (id: string) => f.workbench.snapshot().processing.runs[id];
     // Both runs report the same CLI session identity; only launch credentials associate a report.
-    await f.send(first.id, { payload: { hook_event_name: 'Stop' }, overrides: { sequence: 10, id: 'completion' } });
+    await f.send(first.id, { payload: { hook_event_name: 'Stop' } });
     await f.send(second.id, { payload: { hook_event_name: 'UserPromptSubmit' } });
     assert.equal(state(first.id), 'done'); assert.equal(state(second.id), 'busy');
     const before = f.events.filter(event => event.kind === 'snapshot').length;
-    for (const overrides of [
-      { runId: second.id }, { token: 'wrong' }, { agent: 'pi' }, { scope: 'child', sequence: 1000 },
-      { sequence: 9 }, { sequence: 10 }, { sequence: 11, id: 'completion' },
-      { sequence: 11, occurredAt: 1 }, { sequence: 11, expiresAt: 1 },
-    ]) await f.send(first.id, { payload: { hook_event_name: 'unclassified' }, overrides });
-    assert.equal(state(first.id), 'done'); assert.equal(state(second.id), 'busy');
-    assert.equal(f.events.filter(event => event.kind === 'snapshot').length, before, 'discarded reports publish no false transition');
-    await f.send(first.id, { payload: { hook_event_name: 'unclassified' }, overrides: { sequence: 11 } });
-    assert.equal(state(first.id), 'error', 'a current, valid but unmapped event is Error');
-    await f.send(first.id, { payload: { hook_event_name: 'UserPromptSubmit' }, overrides: { sequence: 12 } });
-    assert.equal(state(first.id), 'busy', 'discarded child sequence did not poison main-run ordering');
-  } finally { await f.close(); }
-});
-
-test('source timestamps reject identifiable late reports even when no sequence is available', async () => {
-  const f = await fixture();
-  try {
-    const { launches: [{ run }] } = await f.create();
-    const earlier = Date.now();
-    await new Promise(resolve => setTimeout(resolve, 5));
-    await f.send(run.id, { unsequenced: true, payload: { hook_event_name: 'Stop' }, overrides: { occurredAt: Date.now() } });
-    await f.send(run.id, { unsequenced: true, payload: { hook_event_name: 'Unclassified' }, overrides: { occurredAt: earlier } });
-    assert.equal(f.workbench.snapshot().processing.runs[run.id], 'done');
-  } finally { await f.close(); }
-});
-
-test('malformed scope cannot masquerade as a main event or consume its sequence', async () => {
-  const f = await fixture();
-  try {
-    const { launches: [{ run }] } = await f.create();
-    await f.send(run.id, { payload: { hook_event_name: 'Stop' } });
-    for (const scope of [['child'], ['main'], null, 1]) {
-      await f.send(run.id, { payload: { hook_event_name: 'Unclassified' }, overrides: { scope, sequence: 1000 } });
-      assert.equal(f.workbench.snapshot().processing.runs[run.id], 'done');
+    for (const overrides of [{ runId: second.id }, { token: 'wrong' }, { agent: 'pi' }, { payload: [] }]) {
+      await f.send(first.id, { payload: { hook_event_name: 'unclassified' }, overrides });
     }
-    await f.send(run.id, { payload: { hook_event_name: 'UserPromptSubmit' } });
-    assert.equal(f.workbench.snapshot().processing.runs[run.id], 'busy');
-  } finally { await f.close(); }
-});
-
-test('discarded child reports cannot consume ordering metadata of the main run', async () => {
-  const f = await fixture();
-  try {
-    const { launches: [{ run }] } = await f.create();
-    await f.send(run.id, { payload: { hook_event_name: 'Stop', agent_id: 'child' }, overrides: { sequence: 100 } });
-    await f.send(run.id, { payload: { hook_event_name: 'UserPromptSubmit' }, overrides: { sequence: 10 } });
-    assert.equal(f.workbench.snapshot().processing.runs[run.id], 'busy');
+    await f.send(first.id, { payload: { observation: 'restored' } });
+    assert.equal(state(first.id), 'done'); assert.equal(state(second.id), 'busy');
+    assert.equal(f.events.filter(event => event.kind === 'snapshot').length, before, 'rejected reports publish no false transition');
+    await f.send(first.id, { payload: { hook_event_name: 'unclassified' } });
+    assert.equal(state(first.id), 'error', 'a current, valid but unmapped event is Error');
   } finally { await f.close(); }
 });
 
@@ -151,7 +112,7 @@ test('observation loss leaves a usable terminal and recovery requires fresh reli
     await f.send(run.id, { payload: { type: 'message_end', message: { role: 'assistant', stopReason: 'stop' } } });
     await f.send(run.id, { payload: { observation: 'lost' } });
     assert.equal(state(), 'error');
-    await f.send(run.id, { payload: { observation: 'restored' }, output: 'terminal still accepts input' });
+    await f.send(run.id, { output: 'terminal still accepts input' });
     assert.ok(f.output(run.id).includes('terminal still accepts input'));
     assert.equal(state(), 'error');
     await f.send(run.id, { payload: { type: 'agent_settled' } });
@@ -223,7 +184,7 @@ test('restarting a panel revokes old report credentials and never inherits Done'
     assert.notEqual(fresh.id, run.id); assert.equal(fresh.panelId, run.panelId);
     assert.equal(f.workbench.snapshot().processing.runs[fresh.id], 'error');
     await f.send(fresh.id, { payload: { hook_event_name: 'SessionStart', source: 'startup' } });
-    const response = await fetch(context.url, { method: 'POST', body: JSON.stringify({ ...context, version: 1, scope: 'main', payload: { hook_event_name: 'Unclassified' } }) });
+    const response = await fetch(context.url, { method: 'POST', body: JSON.stringify({ ...context, payload: { hook_event_name: 'Unclassified' } }) });
     await response.text();
     assert.equal(response.status, 403);
     assert.equal(f.workbench.snapshot().processing.runs[fresh.id], 'ready');
