@@ -1,4 +1,4 @@
-import { request } from 'node:http';
+import { report, reportingContext } from '../reporter';
 
 type Payload = Record<string, unknown>;
 interface Context { isIdle(): boolean; hasPendingMessages(): boolean }
@@ -11,32 +11,15 @@ const runtime = globalThis as typeof globalThis & { [key]?: Map<string, Delivery
  * decisions or child-session subscriptions are installed by this observer.
  */
 export default function install(pi: ExtensionAPI) {
-  let context: { url: string; runId: string; agent: string; token: string };
-  let url: URL;
-  try {
-    context = JSON.parse(process.env.VIBEBRIDGE_STATUS_CONTEXT ?? '{}');
-    url = new URL(context.url);
-    if (url.protocol !== 'http:' || url.hostname !== '127.0.0.1' || context.agent !== 'pi'
-      || typeof context.runId !== 'string' || typeof context.token !== 'string') return;
-  } catch { return; }
+  const context = reportingContext('pi');
+  if (!context) return;
   // Pi /reload can replace the extension module within the same process. Keep
   // one source sequence and delivery queue for this launch across those loads.
   const deliveries = runtime[key] ??= new Map();
   let delivery = deliveries.get(context.token);
   if (!delivery) { delivery = { sequence: 0, pending: Promise.resolve(), lost: false }; deliveries.set(context.token, delivery); }
   const source = delivery;
-  function send(payload: Payload): Promise<boolean> {
-    const body = JSON.stringify({ ...context, version: 1, source: 'pi-extension', scope: 'main', sequence: ++source.sequence, payload });
-    return new Promise(resolve => {
-      const req = request(url, { method: 'POST', headers: { 'content-type': 'application/json' } }, response => {
-        response.resume(); response.once('end', () => resolve(response.statusCode === 204));
-      });
-      const timer = setTimeout(() => req.destroy(), 1500);
-      req.once('close', () => { clearTimeout(timer); resolve(false); });
-      req.once('error', () => resolve(false));
-      req.end(body);
-    });
-  }
+  const send = (payload: Payload) => report(context, payload, ++source.sequence);
   const events = ['session_start', 'session_switch', 'session_fork', 'session_tree', 'session_shutdown',
     'agent_start', 'agent_end', 'agent_settled', 'message_end', 'ui_prompt_start', 'ui_prompt_end',
     'tool_execution_start', 'tool_execution_end', 'session_before_compact', 'session_compact', 'session_compact_failed'];

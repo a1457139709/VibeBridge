@@ -11,10 +11,10 @@ const directory = await mkdtemp(resolve('work/module-tests/run-'));
 try {
   await build({ entryPoints: entries, outdir: directory, bundle: true, platform: 'node',
     format: 'cjs', outExtension: { '.js': '.cjs' }, external: ['node-pty', 'electron'] });
-  await build({ entryPoints: { storage: 'app/main/storage-worker.ts', terminal: 'app/terminal/host.ts', 'codex-hook': 'app/main/codex-hook.ts', 'claude-hook': 'app/main/claude-hook.ts', 'workbench-process': 'tests/fixtures/workbench-process.ts' }, outdir: directory, bundle: true,
+  await build({ entryPoints: { storage: 'app/main/storage-worker.ts', terminal: 'app/terminal/host.ts', 'codex-reporter': 'app/main/agent-status/codex/reporter.ts', 'claude-reporter': 'app/main/agent-status/claude/reporter.ts', 'workbench-process': 'tests/fixtures/workbench-process.ts' }, outdir: directory, bundle: true,
     platform: 'node', format: 'cjs', outExtension: { '.js': '.cjs' }, external: ['node-pty'] });
   const binary = resolve('node_modules/electron/dist', (await readFile('node_modules/electron/path.txt', 'utf8')).trim());
-  await build({ entryPoints: ['app/main/pi-extension.ts'], outdir: directory, bundle: true,
+  await build({ entryPoints: { 'pi-reporter': 'app/main/agent-status/pi/reporter.ts' }, outdir: directory, bundle: true,
     platform: 'node', format: 'esm', outExtension: { '.js': '.mjs' } });
   const result = spawnSync(binary, ['--test', ...entries.map(f => resolve(directory, basename(f).replace('.ts', '.cjs')))],
     { stdio: 'inherit', env: { ...process.env, ELECTRON_RUN_AS_NODE: '1', VIBEBRIDGE_TEST_NODE: process.execPath } });

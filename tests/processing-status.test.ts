@@ -73,8 +73,9 @@ test('current-run validation discards unrelated, child, stale, duplicate and exp
   try {
     const { launches: [{ run: first }, { run: second }] } = await f.create('codex', 2);
     const state = (id: string) => f.workbench.snapshot().processing.runs[id];
-    await f.send(first.id, { payload: { hook_event_name: 'Stop', session_id: 'shared' }, overrides: { sequence: 10, id: 'completion' } });
-    await f.send(second.id, { payload: { hook_event_name: 'UserPromptSubmit', session_id: 'shared' } });
+    // Both runs report the same CLI session identity; only launch credentials associate a report.
+    await f.send(first.id, { payload: { hook_event_name: 'Stop' }, overrides: { sequence: 10, id: 'completion' } });
+    await f.send(second.id, { payload: { hook_event_name: 'UserPromptSubmit' } });
     assert.equal(state(first.id), 'done'); assert.equal(state(second.id), 'busy');
     const before = f.events.filter(event => event.kind === 'snapshot').length;
     for (const overrides of [
@@ -117,87 +118,26 @@ test('malformed scope cannot masquerade as a main event or consume its sequence'
   } finally { await f.close(); }
 });
 
-test('Codex waiting, tool failures, compaction and confirmed interruption preserve turn semantics', async () => {
+test('discarded child reports cannot consume ordering metadata of the main run', async () => {
   const f = await fixture();
   try {
     const { launches: [{ run }] } = await f.create();
-    const check = async (payload: object, expected: string) => {
-      await f.send(run.id, { payload });
-      assert.equal(f.workbench.snapshot().processing.runs[run.id], expected, JSON.stringify(payload));
-    };
-    await check({ hook_event_name: 'SessionStart', source: 'startup' }, 'ready');
-    await check({ hook_event_name: 'UserPromptSubmit' }, 'busy');
-    await check({ hook_event_name: 'PermissionRequest', tool_use_id: 'approval' }, 'needs-input');
-    await check({ hook_event_name: 'PostToolUseFailure', tool_name: 'shell', tool_use_id: 'approval' }, 'busy');
-    await check({ hook_event_name: 'PreCompact' }, 'busy');
-    await check({ hook_event_name: 'SessionStart', source: 'compact' }, 'busy');
-    await check({ hook_event_name: 'SubagentStop' }, 'busy');
-    await check({ hook_event_name: 'Interrupt' }, 'busy');
-    await check({ hook_event_name: 'Interrupt', confirmed: true, can_accept_input: true }, 'ready');
-    await check({ hook_event_name: 'PreToolUse', tool_name: 'request_user_input' }, 'needs-input');
-    await check({ hook_event_name: 'PostToolUse', tool_name: 'request_user_input' }, 'busy');
-    await check({ hook_event_name: 'PreToolUse', tool_name: 'request_user_input', tool_use_id: 'question' }, 'needs-input');
-    await check({ hook_event_name: 'PostToolUseFailure', tool_name: 'request_user_input', tool_use_id: 'question' }, 'busy');
-    await check({ hook_event_name: 'Stop' }, 'done');
-    await check({ hook_event_name: 'SessionEnd' }, 'done');
+    await f.send(run.id, { payload: { hook_event_name: 'Stop', agent_id: 'child' }, overrides: { sequence: 100 } });
+    await f.send(run.id, { payload: { hook_event_name: 'UserPromptSubmit' }, overrides: { sequence: 10 } });
+    assert.equal(f.workbench.snapshot().processing.runs[run.id], 'busy');
   } finally { await f.close(); }
 });
 
-test('Claude separates blocking input and individual tool failure from a failed main turn', async () => {
+test('a launch configuration that cannot be safely extended starts the original command, observed as Error', async () => {
   const f = await fixture();
   try {
-    const { launches: [{ run }] } = await f.create('claude');
-    const check = async (payload: object, expected: string) => {
-      await f.send(run.id, { payload });
-      assert.equal(f.workbench.snapshot().processing.runs[run.id], expected, JSON.stringify(payload));
-    };
-    await check({ hook_event_name: 'SessionStart' }, 'ready');
-    await check({ hook_event_name: 'UserPromptSubmit' }, 'busy');
-    await check({ hook_event_name: 'PreToolUse', tool_name: 'AskUserQuestion' }, 'needs-input');
-    await check({ hook_event_name: 'PostToolUse', tool_name: 'AskUserQuestion' }, 'busy');
-    await check({ hook_event_name: 'Elicitation' }, 'needs-input');
-    await check({ hook_event_name: 'ElicitationResult' }, 'busy');
-    await check({ hook_event_name: 'PermissionRequest', tool_use_id: 'approval' }, 'needs-input');
-    await check({ hook_event_name: 'PostToolUseFailure', tool_use_id: 'approval' }, 'busy');
-    await check({ hook_event_name: 'PreCompact' }, 'busy');
-    await check({ hook_event_name: 'SubagentStop' }, 'busy');
-    await check({ hook_event_name: 'StopFailure' }, 'error');
-    await check({ hook_event_name: 'Notification' }, 'error');
-    await check({ hook_event_name: 'UserPromptSubmit' }, 'busy');
-    await check({ hook_event_name: 'Stop' }, 'done');
-  } finally { await f.close(); }
-});
-
-test('pi settles only with a final assistant outcome and keeps automatic retries Busy', async () => {
-  const f = await fixture();
-  try {
-    const { launches: [{ run }] } = await f.create('pi');
-    const check = async (payload: object, expected: string) => {
-      await f.send(run.id, { payload });
-      assert.equal(f.workbench.snapshot().processing.runs[run.id], expected, JSON.stringify(payload));
-    };
-    await check({ type: 'session_start' }, 'ready');
-    await check({ type: 'agent_start' }, 'busy');
-    await check({ type: 'ui_prompt_start' }, 'needs-input');
-    await check({ type: 'ui_prompt_end' }, 'busy');
-    await check({ type: 'tool_execution_end', isError: true }, 'busy');
-    await check({ type: 'message_end', message: { role: 'assistant', stopReason: 'error' } }, 'busy');
-    await check({ type: 'agent_end' }, 'busy');
-    await check({ type: 'auto_retry_start' }, 'busy');
-    await check({ type: 'auto_retry_end', success: true }, 'busy');
-    await check({ type: 'message_end', message: { role: 'assistant', stopReason: 'stop' } }, 'busy');
-    await check({ type: 'agent_settled' }, 'done');
-    await check({ type: 'agent_start' }, 'busy');
-    await check({ type: 'agent_settled' }, 'error');
-    await check({ type: 'agent_start' }, 'busy');
-    await check({ type: 'message_end', message: { role: 'assistant', stopReason: 'aborted' } }, 'busy');
-    await check({ type: 'agent_settled' }, 'error');
-    await check({ type: 'agent_start' }, 'busy');
-    await check({ type: 'message_end', message: { role: 'assistant', stopReason: 'aborted' } }, 'busy');
-    await check({ type: 'agent_settled', isIdle: true, hasPendingMessages: false }, 'ready');
-    await check({ type: 'agent_start' }, 'busy');
-    await check({ type: 'message_end', message: { role: 'assistant', stopReason: 'error' } }, 'busy');
-    await check({ type: 'agent_settled' }, 'error');
+    const command = { command: process.env.VIBEBRIDGE_TEST_NODE!, args: [resolve('tests/fixtures/status-cli.cjs'), '-c', 'hooks=1'] };
+    await f.workbench.saveSettings({ agents: { ...f.workbench.snapshot().settings.agents, codex: command } });
+    const { launches: [{ run }] } = await f.create();
+    await f.send(run.id, { context: true, payload: { hook_event_name: 'UserPromptSubmit' }, output: 'still interactive' });
+    assert.ok(f.output(run.id).includes('CONTEXT:{}'), 'no reporting credentials are issued');
+    assert.ok(f.output(run.id).includes('still interactive'));
+    assert.equal(f.workbench.snapshot().processing.runs[run.id], 'error');
   } finally { await f.close(); }
 });
 
@@ -235,7 +175,7 @@ test('background panels retain independent memberships, exits remove them, and q
     for (const run of launches.map(launch => launch.run)) await f.send(run.id, { payload: { hook_event_name: 'SessionStart', source: 'startup' } });
     assert.deepEqual(groups().ready, { count: 3, members: [first, second, third].map(run => ({ panelId: run.panelId, runId: run.id })) },
       'fresh runs are listed as Ready before they accept a turn');
-    for (const run of [first, second]) await f.send(run.id, { payload: { hook_event_name: 'Stop', session_id: 'shared' } });
+    for (const run of [first, second]) await f.send(run.id, { payload: { hook_event_name: 'Stop' } });
     await f.send(third.id, { payload: { hook_event_name: 'PermissionRequest' } });
     const background = join(f.directory, 'background'); await mkdir(background);
     const other = await f.create('codex', 1, background);

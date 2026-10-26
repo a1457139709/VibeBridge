@@ -1,5 +1,5 @@
 import { createHash } from 'node:crypto';
-import { commandHook } from './command-hook';
+import { reportCommandHook } from '../reporter';
 
 function canonical(value: unknown): string {
   if (Array.isArray(value)) return `[${value.map(canonical).join(',')}]`;
@@ -8,7 +8,7 @@ function canonical(value: unknown): string {
   return JSON.stringify(value);
 }
 
-commandHook('claude', raw => {
+reportCommandHook('claude', raw => {
   const payload = Object.fromEntries(['hook_event_name', 'session_id', 'source', 'prompt_id', 'agent_id',
     'tool_name', 'tool_use_id', 'mcp_server_name', 'elicitation_id'].filter(key => key in raw).map(key => [key, raw[key]]));
   // PermissionRequest omits tool_use_id. Match exact tool inputs without sending

@@ -42,9 +42,26 @@ There is no claim of perfect ordering when a source supplies no ordering informa
 
 Report `{ "observation": "lost" }` or `{ "observation": "unavailable" }` only with evidence. Both project Error and discard cached outcome evidence. `{ "observation": "restored" }` does not restore an old state; a fresh reliable event must establish it. An unavailable listener must not stop terminal launch or input. No heartbeat timeout infers a failure.
 
+## Agent Type adapters
+
+Each Agent Type has one adapter under `app/main/agent-status/<agent>/`, implementing the `StatusAdapter` contract in `app/main/agent-status/adapter.ts`. `ProcessingStatus` holds them in a closed table keyed by Agent Type: CLI protocol differences stay inside this module, with no plugin registry or runtime extension point. Callers never see an adapter.
+
+- `prepare` adds the Agent Type's Status Reporter to one launch and may return a cleanup for invocation resources. It never rewrites user files and throws when existing configuration cannot be safely extended; `ProcessingStatus` then launches the original command without reporting credentials.
+- `observe` creates one interpreter per Agent Run. Its `accept` receives only authenticated, current main-run CLI facts after envelope validation and ordering checks, never observation reports, and returns a state, Keep, or Discard for an identifiable child, stale or duplicate fact. Discarded facts consume no ordering metadata.
+- After every Error, whether classified, reported as observation loss or caused by listener failure, `ProcessingStatus` calls `discardEvidence`. It discards outcome evidence such as pending waits, tools in progress and held stop reasons, and keeps session identity and duplicate records so stale facts stay discarded.
+
+Status Reporters live beside their adapters as `<agent>/reporter.ts`, bundled as `<agent>-reporter.cjs` or `.mjs`, and share the transport in `app/main/agent-status/reporter.ts`. They run inside the CLI process, so the payload they send is the boundary between the two.
+
+To add an Agent Type:
+
+1. Add `app/main/agent-status/<agent>/status.ts` and `reporter.ts`, a build entry for the reporter in `scripts/build.mjs` and `scripts/test.mjs`, and the adapter's entry in the `ProcessingStatus` table (TypeScript rejects a missing one).
+2. Add its samples to `tests/agent-status-contract.test.ts` and pass the contract.
+3. Test its interpretation rules through the adapter interface, and its launch and Status Reporter with a CLI double in `tests/fixtures/<agent>-cli.cjs` inside a real PTY.
+4. Document trust, preservation, identity and evidence limits in `docs/<agent>-status.md`.
+
 ## CLI interpretation and evidence boundary
 
-The three concrete adapters are internal to this module, dispatched by `app/main/status-events.ts`. They implement the mapping decisions in [spec #89](https://github.com/a1457139709/VibeBridge/issues/89). Hook payloads use `hook_event_name`; pi events use `type`. pi's assistant `message_end.message.stopReason` is held until `agent_settled`; retries reset that evidence and `agent_end` alone never means Done. Error also clears cached outcome evidence.
+The mapping decisions are in [spec #89](https://github.com/a1457139709/VibeBridge/issues/89). Hook payloads use `hook_event_name`; pi events use `type`. pi's assistant `message_end.message.stopReason` is held until `agent_settled`; retries reset that evidence and `agent_end` alone never means Done. Error also clears cached outcome evidence.
 
 Codex treats a main-run `PreToolUse(request_user_input)` as waiting for the user; see [Codex status integration](codex-status.md). Its generic interruption mapping requires both `confirmed: true` and `can_accept_input: true`. These are evidence annotations the integration must supply after validating the actual CLI behavior, not assumptions based on terminal text. Without them, incomplete interruption evidence preserves state.
 

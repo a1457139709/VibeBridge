@@ -32,7 +32,7 @@ async function load() {
   if (discovered >= 0) (await import(pathToFileURL(resolve(args[discovered + 1])).href)).default(api);
   await emit({ type: 'session_start' });
 }
-let pending = load().then(() => console.log('PI-EXTENSION-READY'));
+let pending = load().then(() => console.log('CLI-DOUBLE-READY'));
 readline.createInterface({ input: process.stdin }).on('line', line => {
   pending = pending.then(async () => {
     const message = JSON.parse(line);
