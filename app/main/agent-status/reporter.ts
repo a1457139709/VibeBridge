@@ -16,8 +16,8 @@ export function reportingContext(agent: string): ReportingContext | undefined {
 }
 
 /** Post one main-run report. Resolves whether it was processed; never rejects or outlives its timeout. */
-export function report(context: ReportingContext, payload: Payload, sequence?: number): Promise<boolean> {
-  const body = JSON.stringify({ ...context, version: 1, scope: 'main', sequence, payload });
+export function report(context: ReportingContext, payload: Payload): Promise<boolean> {
+  const body = JSON.stringify({ runId: context.runId, agent: context.agent, token: context.token, payload });
   return new Promise(resolve => {
     const req = request(context.url, { method: 'POST', headers: { 'content-type': 'application/json' } }, response => {
       response.resume(); response.once('end', () => resolve(response.statusCode === 204));

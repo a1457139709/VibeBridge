@@ -47,7 +47,7 @@ test('pi settlement uses the final assistant outcome after existing extensions r
   } finally { await f.close(); }
 });
 
-test('pi preserves explicit extensions and arguments, and reload retains the source ordering', async () => {
+test('pi preserves explicit extensions and arguments, and reports still arrive after reload', async () => {
   const f = await fixture('pi', ['--no-extensions', '-e', './existing.mjs', '--', 'literal --extension']);
   try {
     const source = `export default pi => { pi.on('session_start', async () => { console.log('EXISTING_EXTENSION_OK'); }); };`;

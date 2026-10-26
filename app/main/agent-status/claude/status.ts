@@ -168,7 +168,7 @@ class ClaudeInterpreter implements StatusInterpreter {
       case 'PreCompact': case 'PostCompact': return waiting ? 'needs-input' : 'busy';
       case 'Stop': return 'done';
       case 'StopFailure': return 'error';
-      case 'SessionEnd': case 'SubagentStart': case 'SubagentStop': case 'Notification': return 'keep';
+      case 'SessionEnd': case 'SubagentStart': case 'SubagentStop': return 'keep';
       default: return 'error';
     }
   }

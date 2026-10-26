@@ -3,7 +3,7 @@ import { report, reportingContext } from '../reporter';
 type Payload = Record<string, unknown>;
 interface Context { isIdle(): boolean; hasPendingMessages(): boolean }
 interface ExtensionAPI { on(name: string, handler: (event: Payload, context: Context) => Promise<void>): void }
-interface Delivery { sequence: number; pending: Promise<void>; lost: boolean }
+interface Delivery { pending: Promise<void>; lost: boolean }
 const key = Symbol.for('vibebridge.pi.status.delivery');
 const runtime = globalThis as typeof globalThis & { [key]?: Map<string, Delivery> };
 
@@ -14,12 +14,12 @@ export default function install(pi: ExtensionAPI) {
   const context = reportingContext('pi');
   if (!context) return;
   // Pi /reload can replace the extension module within the same process. Keep
-  // one source sequence and delivery queue for this launch across those loads.
+  // one delivery queue for this launch across those loads, so reports stay in order.
   const deliveries = runtime[key] ??= new Map();
   let delivery = deliveries.get(context.token);
-  if (!delivery) { delivery = { sequence: 0, pending: Promise.resolve(), lost: false }; deliveries.set(context.token, delivery); }
+  if (!delivery) { delivery = { pending: Promise.resolve(), lost: false }; deliveries.set(context.token, delivery); }
   const source = delivery;
-  const send = (payload: Payload) => report(context, payload, ++source.sequence);
+  const send = (payload: Payload) => report(context, payload);
   const events = ['session_start', 'session_switch', 'session_fork', 'session_tree', 'session_shutdown',
     'agent_start', 'agent_end', 'agent_settled', 'message_end', 'ui_prompt_start', 'ui_prompt_end',
     'tool_execution_start', 'tool_execution_end', 'session_before_compact', 'session_compact', 'session_compact_failed'];
