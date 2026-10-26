@@ -26,7 +26,7 @@ The mappings remain approximations:
 | PreToolUse(request_user_input) | Needs input, pending by `tool_use_id` |
 | Matching PostToolUse after permission request or question | Busy; other pending tool waits remain Needs input |
 | PreToolUse(request_user_input_async) | Busy: ordinary tool activity |
-| Stop or an existing agent-turn-complete report | Done |
+| Stop | Done |
 | Main Interrupt with a turn ID | Ready: the native hook runs after detaching the active turn |
 | SessionEnd; child events | Keep current state |
 | Unclassified valid main event; reported observation loss | Error |

@@ -119,7 +119,7 @@ class CodexInterpreter implements StatusInterpreter {
       if (tool) this.waits.delete(tool);
       else if (event.tool_name === 'request_user_input') this.waits.delete('request_user_input');
     }
-    if (['UserPromptSubmit', 'Stop', 'agent-turn-complete'].includes(String(name))
+    if (['UserPromptSubmit', 'Stop'].includes(String(name))
       || (name === 'SessionStart' && event.source !== 'compact')
       || (name === 'Interrupt' && event.confirmed === true && event.can_accept_input === true)) this.waits.clear();
     if (this.waits.size && ['PreToolUse', 'PostToolUse', 'PostToolUseFailure', 'PreCompact', 'PostCompact'].includes(String(name))) return 'needs-input';
@@ -129,7 +129,7 @@ class CodexInterpreter implements StatusInterpreter {
       case 'UserPromptSubmit': case 'PostToolUse': case 'PostToolUseFailure':
       case 'PreCompact': case 'PostCompact': return 'busy';
       case 'PreToolUse': return 'busy';
-      case 'Stop': case 'agent-turn-complete': return 'done';
+      case 'Stop': return 'done';
       case 'Interrupt': return event.confirmed === true && event.can_accept_input === true ? 'ready' : 'keep';
       case 'SessionEnd': case 'SubagentStart': case 'SubagentStop': case 'Notification': return 'keep';
       default: return 'error';
