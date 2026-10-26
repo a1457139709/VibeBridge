@@ -2,17 +2,18 @@ import { randomUUID } from 'node:crypto';
 import { createServer, type Server } from 'node:http';
 import type { AgentCommand, AgentType, Project, Run } from '../shared/model';
 import { isSummaryState, summaryStates, type SummaryState, type SummaryGroup, type ProcessingProjection, type ProcessingState } from '../shared/processing-status';
-import { interpretStatus, type StatusMemory } from './status-events';
-import { codexLaunch } from './codex-launch';
-import { CodexEvents } from './codex-events';
-import { claudeLaunch } from './claude-launch';
-import { ClaudeEvents } from './claude-events';
-import { piLaunch } from './pi-launch';
+import type { StatusAdapter, StatusInterpreter } from './agent-status/adapter';
+import { codex } from './agent-status/codex/status';
+import { claude } from './agent-status/claude/status';
+import { pi } from './agent-status/pi/status';
 import { message, detail } from '../shared/messages';
+
+// CLI protocol differences stay behind this closed table, without a plugin registry.
+const adapters: Record<AgentType, StatusAdapter> = { codex, claude, pi };
 
 interface Observation {
   agent: AgentType; token: string; since: number; accepting: boolean; running: boolean;
-  state?: ProcessingState; sequence?: number; occurredAt?: number; ids: Set<string>; memory: StatusMemory; codex?: CodexEvents; claude?: ClaudeEvents;
+  state?: ProcessingState; sequence?: number; occurredAt?: number; ids: Set<string>; interpreter: StatusInterpreter;
   cleanup?: () => Promise<void>;
 }
 
@@ -30,19 +31,14 @@ export class ProcessingStatus {
   constructor(private changed: () => void, private resourceDirectory: string) {}
 
   async prepare(runId: string, agent: AgentType, command: AgentCommand, directory: string) {
-    const observation: Observation = { agent, token: randomUUID(), since: Date.now(), accepting: true, running: false, ids: new Set(), memory: {} };
+    const observation: Observation = { agent, token: randomUUID(), since: Date.now(), accepting: true, running: false, ids: new Set(),
+      interpreter: adapters[agent].observe() };
     this.observations.set(runId, observation);
     try {
       const url = await (this.endpoint ??= this.listen());
-      let prepared = command;
-      if (agent === 'codex') prepared = codexLaunch(command);
-      if (agent === 'pi') prepared = piLaunch(command);
-      if (agent === 'claude') {
-        const launch = await claudeLaunch(command, directory, this.resourceDirectory);
-        prepared = launch.command;
-        observation.cleanup = launch.cleanup;
-      }
-      return { command: prepared,
+      const prepared = await adapters[agent].prepare({ command, directory, resourceDirectory: this.resourceDirectory });
+      observation.cleanup = prepared.cleanup;
+      return { command: prepared.command,
         integration: { VIBEBRIDGE_STATUS_CONTEXT: JSON.stringify({ url, runId, agent, token: observation.token }) } };
     } catch { return { command, integration: {} as Record<string, string> }; } // Observation must never prevent a terminal launch.
   }
@@ -105,7 +101,7 @@ export class ProcessingStatus {
       server.requestTimeout = 5000;
       server.on('error', error => {
         reject(error);
-        for (const observation of this.observations.values()) { observation.state = 'error'; observation.memory = {}; }
+        for (const observation of this.observations.values()) { observation.state = 'error'; observation.interpreter.discardEvidence(); }
         this.changed();
       });
       server.listen(0, '127.0.0.1', () => {
@@ -134,22 +130,12 @@ export class ProcessingStatus {
       || (typeof event.occurredAt === 'number' && event.occurredAt < observation.since)
       || (typeof event.occurredAt === 'number' && observation.occurredAt !== undefined && event.occurredAt < observation.occurredAt)
       || (typeof event.expiresAt === 'number' && event.expiresAt <= Date.now())) return 204;
-    let payload = event.payload as Record<string, unknown>;
-    if (observation.agent === 'codex') {
-      const accepted = (observation.codex ??= new CodexEvents()).accept(payload);
-      if (!accepted) return 204;
-      payload = accepted;
-    }
-    if (observation.agent === 'claude') {
-      const accepted = (observation.claude ??= new ClaudeEvents()).accept(payload);
-      if (!accepted) return 204;
-      payload = accepted;
-    }
+    const state = observation.interpreter.accept(event.payload as Record<string, unknown>);
+    if (state === 'discard') return 204;
     if (typeof event.id === 'string') observation.ids.add(event.id);
     if (typeof event.sequence === 'number') observation.sequence = event.sequence;
     if (typeof event.occurredAt === 'number') observation.occurredAt = event.occurredAt;
-    const state = interpretStatus(observation.agent, payload, observation.memory);
-    if (state === 'error') observation.memory = {};
+    if (state === 'error') observation.interpreter.discardEvidence();
     if (state !== 'keep' && observation.state !== state) {
       observation.state = state;
       if (observation.running) this.changed();
