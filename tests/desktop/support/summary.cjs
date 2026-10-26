@@ -14,9 +14,12 @@ module.exports = async context => {
   const snapshot = () => evaluate('window.workbench.snapshot()');
   const runs = (await snapshot()).runs;
   let sequence = 0;
+  // Every run reports one shared CLI session ID; a different session's facts are discarded.
+  const session = 'same-session';
   const send = async (run, message) => {
     const id = `summary-${++sequence}`;
-    await evaluate(`window.workbench.sendInput(${JSON.stringify(run.id)}, ${JSON.stringify(JSON.stringify({ ...message, id }) + '\n')})`);
+    const payload = message.payload && { session_id: session, ...message.payload };
+    await evaluate(`window.workbench.sendInput(${JSON.stringify(run.id)}, ${JSON.stringify(JSON.stringify({ ...message, payload, id }) + '\n')})`);
     await until(() => evaluate(`window.summaryOutput[${JSON.stringify(run.id)}]?.includes(${JSON.stringify(`ACK:${id}\r\n`)})`));
   };
   const nativeKey = keyCode => {
@@ -49,7 +52,7 @@ module.exports = async context => {
     await until(() => evaluate('!document.querySelector(".summary-list")'));
   };
   for (const [index, run] of runs.entries()) await send(run, {
-    payload: { hook_event_name: index === 2 ? 'PermissionRequest' : 'Stop', session_id: 'same-session' },
+    payload: { hook_event_name: index === 2 ? 'PermissionRequest' : 'Stop' },
     output: `\x1b]2;Summary session ${index + 1} with a long title | project\x07`,
   });
   return { projectId, runs, snapshot, send, nativeKey, focused, receiveInput, open, choose };
