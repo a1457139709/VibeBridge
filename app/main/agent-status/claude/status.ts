@@ -63,8 +63,6 @@ class ClaudeInterpreter implements StatusInterpreter {
   private elicitations = new Set<string>();
 
   accept(event: Payload): Outcome {
-    if (event.observation === 'restored') return 'keep';
-    if (event.observation === 'lost' || event.observation === 'unavailable') { this.activeTools.clear(); return 'error'; }
     if (event.agent_id || event.hook_event_name === 'SubagentStart' || event.hook_event_name === 'SubagentStop') return 'discard';
     const session = event.session_id;
     if (typeof session !== 'string' || !session) return 'error';
@@ -72,7 +70,9 @@ class ClaudeInterpreter implements StatusInterpreter {
     return known ? this.classify(known) : 'discard';
   }
 
-  discardEvidence() { this.questions.clear(); this.permissions.clear(); this.elicitations.clear(); }
+  discardEvidence() { this.clearWaits(); this.activeTools.clear(); }
+
+  private clearWaits() { this.questions.clear(); this.permissions.clear(); this.elicitations.clear(); }
 
   /** Native identity checks run after capability authentication. Independent hook
    * processes cannot invent a shared sequence; only recognizable stale facts drop.
@@ -149,7 +149,7 @@ class ClaudeInterpreter implements StatusInterpreter {
     const permission = tool ? `id:${tool}` : typeof event.tool_input_hash === 'string' ? `input:${event.tool_input_hash}` : '?';
     const elicitation = JSON.stringify([event.mcp_server_name ?? '', event.elicitation_id ?? '']);
     if (['UserPromptSubmit', 'Stop', 'StopFailure'].includes(String(name)) || (name === 'SessionStart' && event.source !== 'compact')) {
-      this.discardEvidence();
+      this.clearWaits();
     }
     if (name === 'PreToolUse' && event.tool_name === 'AskUserQuestion') this.questions.add(tool);
     if (name === 'PermissionRequest') this.permissions.add(permission);

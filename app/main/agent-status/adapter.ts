@@ -22,7 +22,7 @@ export interface StatusAdapter {
 }
 
 export interface StatusInterpreter {
-  /** An authenticated main-run payload. Identity checks and classification share this state. */
+  /** An authenticated main-run CLI fact, never an observation report. Identity checks and classification share this state. */
   accept(payload: Payload): Outcome;
   /** Called after every Error: discard outcome evidence, keep session identity and duplicate records. */
   discardEvidence(): void;

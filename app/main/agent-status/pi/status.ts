@@ -14,8 +14,6 @@ class PiInterpreter implements StatusInterpreter {
   private evidence: Evidence = {};
 
   accept(event: Payload): Outcome {
-    if (event.observation === 'restored') return 'keep';
-    if (event.observation === 'lost' || event.observation === 'unavailable') return 'error';
     switch (event.type) {
       case 'session_start': case 'session_switch': case 'session_fork': case 'session_tree':
         delete this.evidence.stopReason;

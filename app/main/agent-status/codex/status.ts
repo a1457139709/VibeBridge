@@ -48,8 +48,6 @@ class CodexInterpreter implements StatusInterpreter {
   private waits = new Set<string>();
 
   accept(event: Payload): Outcome {
-    if (event.observation === 'restored') return 'keep';
-    if (event.observation === 'lost' || event.observation === 'unavailable') return 'error';
     if (event.agent_id || event.hook_event_name === 'SubagentStart' || event.hook_event_name === 'SubagentStop') return 'discard';
     const session = event.session_id;
     if (typeof session !== 'string' || !session) return 'error';

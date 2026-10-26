@@ -130,7 +130,10 @@ export class ProcessingStatus {
       || (typeof event.occurredAt === 'number' && event.occurredAt < observation.since)
       || (typeof event.occurredAt === 'number' && observation.occurredAt !== undefined && event.occurredAt < observation.occurredAt)
       || (typeof event.expiresAt === 'number' && event.expiresAt <= Date.now())) return 204;
-    const state = observation.interpreter.accept(event.payload as Record<string, unknown>);
+    // Observation reports belong to the reporting contract; adapters see only CLI facts.
+    const payload = event.payload as Record<string, unknown>;
+    const state = 'observation' in payload ? payload.observation === 'restored' ? 'keep' : 'error'
+      : observation.interpreter.accept(payload);
     if (state === 'discard') return 204;
     if (typeof event.id === 'string') observation.ids.add(event.id);
     if (typeof event.sequence === 'number') observation.sequence = event.sequence;
