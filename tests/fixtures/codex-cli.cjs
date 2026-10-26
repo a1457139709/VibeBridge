@@ -27,7 +27,7 @@ async function emit(payload) {
     child.stdin.end(JSON.stringify(input));
   })));
 }
-let pending = emit({ hook_event_name: 'SessionStart', source: 'startup' }).then(() => console.log('CODEX-HOOKS-READY'));
+let pending = emit({ hook_event_name: 'SessionStart', source: 'startup' }).then(() => console.log('CLI-DOUBLE-READY'));
 readline.createInterface({ input: process.stdin }).on('line', line => {
   pending = pending.then(async () => {
     const message = JSON.parse(line);

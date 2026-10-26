@@ -28,7 +28,7 @@ async function emit(payload, malformed) {
       child.stdin.end(malformed ? '{' : JSON.stringify(input));
     })));
 }
-let pending = emit({ hook_event_name: 'SessionStart', source: 'startup' }).then(() => console.log('CLAUDE-HOOKS-READY'));
+let pending = emit({ hook_event_name: 'SessionStart', source: 'startup' }).then(() => console.log('CLI-DOUBLE-READY'));
 readline.createInterface({ input: process.stdin }).on('line', line => {
   pending = pending.then(async () => {
     const message = JSON.parse(line);
