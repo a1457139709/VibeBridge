@@ -82,7 +82,7 @@ npm run package
 npm run check                      # 运行本地无窗口检查
 ```
 
-本地检查包含 Claude hooks 的模拟 CLI 测试，不会启动真实 Claude 或访问其服务。生产桌面测试在 GitHub Actions **Checks** 中运行，也可通过 **Run workflow** 手动触发。真实 Claude 验收由用户手动进行，详见 [Claude 测试入口](docs/claude-status.md#test-entry-points)。
+本地检查用模拟 CLI 测试 Codex、Claude Code 和 pi 的状态上报，不会启动真实 CLI 或访问其服务。生产桌面测试在 GitHub Actions **Checks** 中运行，也可通过 **Run workflow** 手动触发。真实 CLI 验收由用户手动进行。
 
 ## 代码结构
 

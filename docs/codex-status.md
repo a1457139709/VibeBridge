@@ -33,13 +33,13 @@ Unrelated tool activity does not clear a known permission wait. A matching resul
 
 ## Structured questions
 
-A main-run `PreToolUse(request_user_input)` is itself evidence of waiting for the user. The handler awaits the answer in every allowed mode until it is answered, cancelled or automatically resolved. Its Plan-only `is_blocking` flag controls only whether the TUI may resolve the question automatically, and only the root thread can ask.
+A main-run `PreToolUse(request_user_input)` is Needs input in every collaboration mode until the question is answered, cancelled or automatically resolved.
 
 The question is a pending wait keyed by `tool_use_id`, or by tool name when that ID is missing. Its matching PostToolUse removes it; the run returns to Busy only when no other wait, such as a permission request, remains. Codex runs PostToolUse only for successful results: an answer or automatic resolution succeeds, while cancelling in the TUI (Esc or Ctrl-C) interrupts the turn, and that Interrupt clears the wait. A new turn, UserPromptSubmit, Stop and run exit also clear it. `request_user_input_async` returns immediately and remains ordinary tool activity. Child questions cannot change the main run.
 
 ## Known limits
 
-These describe Codex 0.163.0, the version the hook and question behavior was read from.
+These describe Codex 0.163.0.
 
 - In Default mode, if the user does nothing, Needs input lasts up to about two minutes before automatic resolution returns the run to Busy. This matches the actual wait.
 - Default-mode free-text questions have no confirmed waiting signal.
