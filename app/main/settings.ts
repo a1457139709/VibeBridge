@@ -2,7 +2,7 @@ import { message, detail } from '../shared/messages';
 import { readFile, writeFile, rename, mkdir, rm } from 'node:fs/promises';
 import { join } from 'node:path';
 import type { Settings } from '../shared/model';
-import { defaultShortcuts, shortcutActions, shortcutConflicts, type ShortcutAction } from '../shared/shortcuts';
+import { defaultShortcuts, shortcutActions, shortcutConflicts, type ShortcutAction, type Shortcuts } from '../shared/shortcuts';
 
 import { defaultSettings, settingsIssues, type SettingsIssue, type SettingsSaveResult } from '../shared/settings';
 export { defaultSettings } from '../shared/settings';
@@ -11,7 +11,7 @@ function rejectIssues(issues: SettingsIssue[]): void {
   if (issues.length) throw new Error(message('validationFailed', { reasons: issues.map(issue => detail(issue.message)) }));
 }
 
-export function validateSettings(value: Settings): void { rejectIssues(settingsIssues(value)); }
+function validateSettings(value: Settings): void { rejectIssues(settingsIssues(value)); }
 
 // Defaulted actions whose default binding matches a user-written action, when that is every conflict.
 // Any conflict the user wrote, including one with a system shortcut, leaves nothing to tolerate.
@@ -55,18 +55,18 @@ export class SettingsFile {
   async commit(current: Settings, patch: Partial<Settings>): Promise<SettingsSaveResult> {
     const settings = { ...current, ...patch };
     // Saving shortcuts must resolve a default shortcut conflict; other categories save around it.
-    const resolving = 'shortcuts' in patch;
-    const issues = settingsIssues(settings).filter(issue => resolving || !this.hasDefaultShortcutConflict || issue.code !== 'conflict');
+    const savingShortcuts = 'shortcuts' in patch;
+    const issues = settingsIssues(settings).filter(issue => savingShortcuts || !this.hasDefaultShortcutConflict || issue.code !== 'conflict');
     if (issues.length) return { ok: false, kind: 'validation', issues };
     const shortcuts = Object.fromEntries(Object.entries(settings.shortcuts)
-      .filter(([action]) => resolving || !this.conflictingDefaults.includes(action as ShortcutAction)));
+      .filter(([action]) => savingShortcuts || !this.conflictingDefaults.includes(action as ShortcutAction)));
     try {
       await this.write({ ...settings, shortcuts });
-      if (resolving) this.conflictingDefaults = [];
+      if (savingShortcuts) this.conflictingDefaults = [];
       return { ok: true, settings };
     } catch (error) { return { ok: false, kind: 'storage', message: (error as Error).message }; }
   }
-  private write(settings: object): Promise<void> {
+  private write(settings: Omit<Settings, 'shortcuts'> & { shortcuts: Partial<Shortcuts> }): Promise<void> {
     if (!this.readable) return Promise.reject(new Error(message('settingsUnreadable')));
     const contents = JSON.stringify(settings, null, 2) + '\n';
     const write = this.writes.then(async () => {
