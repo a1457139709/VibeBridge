@@ -20,6 +20,7 @@ const api: DesktopAPI = {
   resizeRun: (run, cols, rows) => ipcRenderer.invoke('workbench:resize', run, cols, rows),
   acknowledgeOutput: (run, characters) => ipcRenderer.send('workbench:output-consumed', run, characters),
   ready: () => ipcRenderer.invoke('workbench:ready'),
+  quit: () => ipcRenderer.invoke('workbench:quit'),
   subscribe: listener => {
     const receive = (_event: Electron.IpcRendererEvent, value: Parameters<typeof listener>[0]) => listener(value);
     ipcRenderer.on('workbench:event', receive);

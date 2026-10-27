@@ -17,7 +17,7 @@ export class WorkbenchOpenError extends Error {
 }
 
 export class Workbench {
-  private state: Omit<Snapshot, 'processing' | 'runs'> = { navigation: { ...defaultNavigation }, projects: [], activeProjectId: null, settings: defaultSettings(), settingsMigrationConflict: false, startupTheme: 'system', resolvedTheme: 'light', errors: [] };
+  private state: Omit<Snapshot, 'processing' | 'runs'> = { navigation: { ...defaultNavigation }, projects: [], activeProjectId: null, settings: defaultSettings(), defaultShortcutConflict: false, startupTheme: 'system', resolvedTheme: 'light', errors: [] };
   private supervision: RunSupervision;
   private listeners = new Set<(event: WorkbenchEvent) => void>();
   private operations: Promise<unknown> = Promise.resolve();
@@ -45,7 +45,7 @@ export class Workbench {
       const projects = await store.load();
       const workbench = new Workbench(directory, store, settingsFile);
       Object.assign(workbench.state, projects, { settings, errors });
-      workbench.state.settingsMigrationConflict = settingsFile.hasMigrationConflict;
+      workbench.state.defaultShortcutConflict = settingsFile.hasDefaultShortcutConflict;
       workbench.state.startupTheme = settings.theme;
       workbench.state.resolvedTheme = workbench.state.startupTheme === 'system' ? (systemDark ? 'dark' : 'light') : workbench.state.startupTheme;
       return workbench;
@@ -203,7 +203,7 @@ export class Workbench {
     const update = structuredClone(patch);
     return this.operation(async () => {
       const result = await this.settingsFile.commit(this.state.settings, update);
-      if (result.ok) { this.state.settings = structuredClone(result.settings); this.state.settingsMigrationConflict = false; this.changed(); }
+      if (result.ok) { this.state.settings = structuredClone(result.settings); this.state.defaultShortcutConflict = this.settingsFile.hasDefaultShortcutConflict; this.changed(); }
       return result;
     }).catch(() => ({ ok: false, kind: 'unavailable', message: message('settingsUnavailable') }));
   }

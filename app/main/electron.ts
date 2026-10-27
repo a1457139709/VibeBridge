@@ -101,6 +101,7 @@ void app.whenReady().then(async () => {
     const choice = await dialog.showOpenDialog(window!, { title: t('chooseDirectory'), buttonLabel: t('selectDirectory'), properties: ['openDirectory'] });
     return choice.canceled ? null : choice.filePaths[0];
   });
+  handle('quit', () => { void requestQuit(); });
   let ready = false;
   handle('ready', async service => {
     if (ready) return;

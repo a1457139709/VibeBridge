@@ -18,7 +18,7 @@ afterEach(cleanup);
 function fixture(saveSettings?: DesktopAPI['saveSettings']) {
   const snapshot: Snapshot = {
     navigation: { visible: true, width: 212 }, activeProjectId: 'project', settings: defaultSettings(),
-    settingsMigrationConflict: false, startupTheme: 'light', resolvedTheme: 'light', errors: [],
+    defaultShortcutConflict: false, startupTheme: 'light', resolvedTheme: 'light', errors: [],
     projects: [{ id: 'project', name: 'Project title stays out of the bar', directory: '/project', layout: null,
       panels: ['first', 'second', 'third', 'fresh'].map(id => ({ id, agent: 'codex' })) }],
     runs: ['first', 'second', 'third', 'fresh'].map(id => ({ id, panelId: id, projectId: 'project', state: 'running', rawTitle: `Session ${id} | project` })),
@@ -43,7 +43,7 @@ function fixture(saveSettings?: DesktopAPI['saveSettings']) {
       return window.workbench.subscribe(event => { if (event.kind === 'snapshot') setState(event.snapshot); });
     }, []);
     return <Localization language={state?.settings.language ?? 'en'}><button>Outside</button>
-      {saveSettings && state && <SettingsPage initialCategory="agents" ref={settings} settings={state.settings} startupTheme="light" report={() => {}} back={() => {}} />}
+      {saveSettings && state && <SettingsPage defaultShortcutConflict={false} initialCategory="agents" ref={settings} settings={state.settings} startupTheme="light" report={() => {}} back={() => {}} />}
       <ProjectSummary snapshot={state} locatePanel={(...target) => {
         if (saveSettings) void settings.current!.requestLeave().then(leave => { if (leave) located.push(target); });
         else located.push(target);

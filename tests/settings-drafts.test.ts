@@ -5,34 +5,72 @@ import { mkdir, readFile, writeFile, rm } from 'node:fs/promises';
 import { Workbench } from '../app/main/workbench';
 import { testDirectory } from './support/directory';
 
-test('legacy shortcuts gain close-panel and a newly introduced default conflict remains editable without failing quit or rewriting the file', async context => {
-  const directory = await testDirectory(context, 'settings-drafts-migration');
-  const original = JSON.stringify({ theme: 'dark', defaultLayout: 'row', agents: {
+// closePanel is missing, so its default Command+Shift+W matches the user's nextPanel binding.
+// maximizePanel is missing too, and its default matches nothing.
+async function writeDefaultShortcutConflict(directory: string) {
+  const contents = JSON.stringify({ theme: 'dark', defaultLayout: 'row', agents: {
     codex: { command: 'custom-codex', args: ['custom'] }, claude: { command: 'claude', args: [] }, pi: { command: 'pi', args: [] },
-  }, shortcuts: { previousProject: 'Command+Shift+[', nextProject: 'Command+Shift+]', previousPanel: 'Command+[', nextPanel: 'Command+Shift+W', maximizePanel: 'Command+Enter', addPanel: 'Command+N', settings: 'Command+,' } });
-  await writeFile(`${directory}/settings.json`, original);
+  }, shortcuts: { previousProject: 'Command+Shift+[', nextProject: 'Command+Shift+]', previousPanel: 'Command+[', nextPanel: 'Command+Shift+W', addPanel: 'Command+N', settings: 'Command+,' } });
+  await writeFile(`${directory}/settings.json`, contents);
+  return contents;
+}
+const storedSettings = async (directory: string) => JSON.parse(await readFile(`${directory}/settings.json`, 'utf8'));
+
+test('a default shortcut conflict is reported at startup and quitting leaves settings.json untouched', async context => {
+  const directory = await testDirectory(context, 'settings-default-conflict-startup');
+  const original = await writeDefaultShortcutConflict(directory);
   let workbench = await Workbench.open(directory);
   try {
-    const settings = workbench.snapshot().settings;
+    const { settings, errors, defaultShortcutConflict } = workbench.snapshot();
     assert.equal(settings.shortcuts.closePanel, 'Command+Shift+W');
     assert.equal(settings.shortcuts.nextPanel, 'Command+Shift+W');
+    assert.equal(settings.shortcuts.maximizePanel, 'Command+Enter');
     assert.equal(settings.agents.codex.command, 'custom-codex');
-    assert.deepEqual(workbench.snapshot().errors, []);
-    assert.equal(workbench.snapshot().settingsMigrationConflict, true);
-    const result = await workbench.saveSettings({ theme: 'light' });
-    assert.ok(!result.ok && result.kind === 'validation');
-    assert.deepEqual(result.issues.map(issue => issue.field), ['shortcuts.nextPanel', 'shortcuts.closePanel']);
+    assert.deepEqual(errors, []);
+    assert.equal(defaultShortcutConflict, true);
     await workbench.quit();
     assert.equal(await readFile(`${directory}/settings.json`, 'utf8'), original);
     workbench = await Workbench.open(directory);
-    assert.equal(workbench.snapshot().settingsMigrationConflict, true);
-    await workbench.saveSettings({ shortcuts: { ...settings.shortcuts, nextPanel: 'Command+K' } });
-    assert.equal(workbench.snapshot().settingsMigrationConflict, false);
+    assert.equal(workbench.snapshot().defaultShortcutConflict, true);
+  } finally { await workbench.quit(); }
+});
+
+test('saving another category during a default shortcut conflict persists it without the conflicting default', async context => {
+  const directory = await testDirectory(context, 'settings-default-conflict-other-category');
+  await writeDefaultShortcutConflict(directory);
+  let workbench = await Workbench.open(directory);
+  try {
+    assert.ok((await workbench.saveSettings({ theme: 'light' })).ok);
+    assert.equal(workbench.snapshot().settings.theme, 'light');
+    assert.equal(workbench.snapshot().defaultShortcutConflict, true);
+    const stored = await storedSettings(directory);
+    assert.equal(stored.theme, 'light');
+    assert.equal('closePanel' in stored.shortcuts, false);
+    assert.equal(stored.shortcuts.maximizePanel, 'Command+Enter');
+    const unresolved = await workbench.saveSettings({ shortcuts: workbench.snapshot().settings.shortcuts });
+    assert.ok(!unresolved.ok && unresolved.kind === 'validation');
+    assert.deepEqual(unresolved.issues.map(issue => issue.field), ['shortcuts.nextPanel', 'shortcuts.closePanel']);
+    assert.equal(workbench.snapshot().defaultShortcutConflict, true);
     await workbench.quit();
     workbench = await Workbench.open(directory);
-    assert.equal(workbench.snapshot().settingsMigrationConflict, false);
-    assert.equal(workbench.snapshot().settings.shortcuts.closePanel, 'Command+Shift+W');
-    assert.equal(workbench.snapshot().settings.shortcuts.nextPanel, 'Command+K');
+    assert.equal(workbench.snapshot().defaultShortcutConflict, true);
+    assert.equal(workbench.snapshot().settings.theme, 'light');
+  } finally { await workbench.quit(); }
+});
+
+test('saving shortcuts that resolve a default shortcut conflict clears it and persists every action', async context => {
+  const directory = await testDirectory(context, 'settings-default-conflict-resolved');
+  await writeDefaultShortcutConflict(directory);
+  let workbench = await Workbench.open(directory);
+  try {
+    const shortcuts = { ...workbench.snapshot().settings.shortcuts, nextPanel: 'Command+K' };
+    assert.ok((await workbench.saveSettings({ shortcuts })).ok);
+    assert.equal(workbench.snapshot().defaultShortcutConflict, false);
+    assert.deepEqual((await storedSettings(directory)).shortcuts, shortcuts);
+    await workbench.quit();
+    workbench = await Workbench.open(directory);
+    assert.equal(workbench.snapshot().defaultShortcutConflict, false);
+    assert.deepEqual(workbench.snapshot().settings.shortcuts, shortcuts);
     assert.equal(workbench.snapshot().settings.theme, 'dark');
   } finally { await workbench.quit(); }
 });
@@ -62,13 +100,13 @@ test('empty Agent commands return field errors while failed partial saves retain
   } finally { await workbench.quit(); }
 });
 
-test('missing-action migration does not excuse duplicate bindings already present in the old file', async context => {
-  const directory = await testDirectory(context, 'settings-drafts-legacy-conflicts');
+test('user-written duplicate bindings are not excused by a default shortcut conflict', async context => {
+  const directory = await testDirectory(context, 'settings-user-written-conflicts');
   let workbench = await Workbench.open(directory);
   const settings = workbench.snapshot().settings;
   await workbench.quit();
-  const { closePanel: _missing, ...old } = settings.shortcuts;
-  const original = JSON.stringify({ ...settings, shortcuts: { ...old, nextPanel: 'Command+Shift+W', previousPanel: 'Command+Shift+W' } });
+  const { closePanel: _missing, ...written } = settings.shortcuts;
+  const original = JSON.stringify({ ...settings, shortcuts: { ...written, nextPanel: 'Command+Shift+W', previousPanel: 'Command+Shift+W' } });
   await writeFile(`${directory}/settings.json`, original);
   workbench = await Workbench.open(directory);
   try {

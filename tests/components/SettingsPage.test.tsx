@@ -11,10 +11,10 @@ import { deferred, provideWorkbench } from './support/workbench';
 
 afterEach(cleanup);
 
-function renderSettings(settings = defaultSettings()) {
+function renderSettings(settings = defaultSettings(), defaultShortcutConflict = false) {
   const ref = createRef<SettingsPageActions>();
   const report = mock.fn();
-  render(<SettingsPage initialCategory="agents" settings={settings} startupTheme={settings.theme} ref={ref} back={() => {}} report={report} />);
+  render(<SettingsPage initialCategory="agents" settings={settings} defaultShortcutConflict={defaultShortcutConflict} startupTheme={settings.theme} ref={ref} back={() => {}} report={report} />);
   return { user: userEvent.setup(), ref, report };
 }
 const click = (user: ReturnType<typeof userEvent.setup>, name: string) => user.click(screen.getByRole('button', { name }));
@@ -166,4 +166,45 @@ test('late command checks cannot replace feedback for a newer or discarded draft
   await act(async () => discarded.resolve({ available: true, path: '/discarded-command' }));
   assert.equal(command().value, 'codex');
   assert.equal(screen.queryByText('Command available: /discarded-command'), null);
+});
+
+function defaultShortcutConflictSettings(): Settings {
+  const settings = defaultSettings();
+  return { ...settings, shortcuts: { ...settings.shortcuts, nextPanel: settings.shortcuts.closePanel } };
+}
+
+test('during a default shortcut conflict every leave asks to fix shortcuts, even without drafts, and offers no way to leave unsaved', async () => {
+  provideWorkbench({});
+  const { user, ref } = renderSettings(defaultShortcutConflictSettings(), true);
+  let leave!: Promise<boolean>;
+  act(() => { leave = ref.current!.requestLeave(); });
+  const dialog = screen.getByRole('dialog');
+  assert.equal(dialog.querySelector('p')!.textContent, 'Shortcuts have conflicts. Fix and save them before returning.');
+  assert.deepEqual([...dialog.querySelectorAll('button')].map(button => button.textContent), ['Cancel', 'Save and return']);
+  await click(user, 'Cancel');
+  assert.equal(await leave, false);
+  await user.type(command(), '-draft');
+  act(() => { leave = ref.current!.requestLeave(); });
+  assert.deepEqual([...screen.getByRole('dialog').querySelectorAll('p')].map(paragraph => paragraph.textContent),
+    ['Shortcuts have conflicts. Fix and save them before returning.', 'Unsaved changes in: Agent']);
+  await click(user, 'Cancel');
+  assert.equal(await leave, false);
+});
+
+test('save and return during a default shortcut conflict submits shortcuts and stays on the conflicting field when it fails', async () => {
+  const settings = defaultShortcutConflictSettings();
+  const saveSettings = mock.fn(async (_patch: Partial<Settings>): Promise<SettingsSaveResult> => ({ ok: false, kind: 'validation', issues: [
+    { category: 'shortcuts', field: 'shortcuts.nextPanel', code: 'conflict', message: 'Shortcut conflict: Close panel' },
+    { category: 'shortcuts', field: 'shortcuts.closePanel', code: 'conflict', message: 'Shortcut conflict: Next panel' },
+  ] }));
+  provideWorkbench({ saveSettings });
+  const { user, ref } = renderSettings(settings, true);
+  let leave!: Promise<boolean>;
+  act(() => { leave = ref.current!.requestLeave(); });
+  await click(user, 'Save and return');
+  assert.equal(await leave, false);
+  assert.deepEqual(saveSettings.mock.calls.map(call => call.arguments), [[{ shortcuts: settings.shortcuts }]]);
+  assert.ok(screen.getByRole('heading', { name: 'Keyboard shortcuts settings' }));
+  assert.equal(document.activeElement, screen.getByRole('textbox', { name: 'Next panel' }));
+  assert.ok(screen.getByText('Shortcut conflicts prevent saving'));
 });
