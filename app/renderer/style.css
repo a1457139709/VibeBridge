@@ -30,8 +30,6 @@ input { width: 100%; height: 36px; border: 1px solid var(--line); border-radius:
 .wordmark { font-weight: 650; letter-spacing: -.3px; }
 
 .app-body { display: flex; flex: 1; min-height: 0; }
-.settings-migration-notice { display: flex; align-items: center; flex-wrap: wrap; gap: 8px 12px; padding: 10px 16px; border-bottom: 1px solid var(--line); background: var(--surface); }
-.settings-migration-notice span { flex: 1; min-width: min(280px, 100%); }
 .workbench-page { height: 100%; }
 .workbench-page[hidden] { display: none; }
 .navigation { position: relative; width: min(var(--navigation-width), max(0px, calc(100vw - 160px))); flex-shrink: 0; padding: 0; border-right: 1px solid var(--line); display: flex; flex-direction: column; gap: 0; background: var(--navigation, var(--canvas)); }
@@ -168,10 +166,10 @@ textarea { resize: vertical; }
 @media (prefers-reduced-motion: reduce) { *, *::before, *::after { transition: none !important; animation: none !important; } }
 
 .command-input[aria-invalid="true"] { border-color: var(--error, #b33e2d); }
-.settings-leave { color: var(--text); background: var(--canvas); border: 1px solid var(--line); border-radius: 12px; max-width: 460px; padding: 24px; }
-.settings-leave::backdrop { background: var(--modal-backdrop, #0004); }
-.settings-leave h2 { margin-top: 0; }
-.settings-leave .dialog-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 24px; }
+.settings-leave, .default-shortcut-conflict { color: var(--text); background: var(--canvas); border: 1px solid var(--line); border-radius: 12px; max-width: 460px; padding: 24px; }
+.settings-leave::backdrop, .default-shortcut-conflict::backdrop { background: var(--modal-backdrop, #0004); }
+.settings-leave h2, .default-shortcut-conflict h2 { margin-top: 0; }
+.settings-leave .dialog-actions, .default-shortcut-conflict .dialog-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 24px; }
 
 .shortcut-conflict input { border: 2px solid var(--conflict-color); background: color-mix(in srgb, var(--conflict-color) 10%, var(--surface)); }
 .shortcut-conflict-message { color: var(--conflict-color); margin: 6px 0 0; }

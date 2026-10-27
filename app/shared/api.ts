@@ -20,5 +20,7 @@ export interface DesktopAPI {
   acknowledgeOutput(runId: string, characters: number): void;
   subscribe(listener: (event: WorkbenchEvent) => void): () => void;
   ready(): Promise<void>;
+  /** Starts the same confirmed quit as the application menu. */
+  quit(): Promise<void>;
 }
 declare global { interface Window { workbench: DesktopAPI } }

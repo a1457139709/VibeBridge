@@ -28,7 +28,7 @@ export interface PanelCreation { panel: Panel; launch: LaunchResult }
 export interface NavigationPreferences { visible: boolean; width: number }
 export const defaultNavigation: NavigationPreferences = { visible: true, width: 212 };
 export const navigationWidth = (width: number) => Math.max(168, Math.min(420, width));
-export interface Snapshot { processing: ProcessingProjection; navigation: NavigationPreferences; projects: Project[]; activeProjectId: string | null; runs: Run[]; settings: Settings; settingsMigrationConflict: boolean; startupTheme: Settings['theme']; resolvedTheme: 'dark' | 'light'; errors: string[] }
+export interface Snapshot { processing: ProcessingProjection; navigation: NavigationPreferences; projects: Project[]; activeProjectId: string | null; runs: Run[]; settings: Settings; defaultShortcutConflict: boolean; startupTheme: Settings['theme']; resolvedTheme: 'dark' | 'light'; errors: string[] }
 export type TerminalEvent = { kind: 'title'; runId: string; title: string } | { kind: 'output'; runId: string; data: string } | { kind: 'started'; run: Run } | { kind: 'stopping'; runId: string } | { kind: 'exit'; runId: string };
 export type WorkbenchEvent = TerminalEvent | { kind: 'snapshot'; snapshot: Snapshot } | { kind: 'error'; message: string };
 export interface DirectoryResult { valid: boolean; directory?: string; name?: string; existingProjectId?: string; existingProjectName?: string }

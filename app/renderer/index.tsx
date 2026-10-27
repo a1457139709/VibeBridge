@@ -10,6 +10,7 @@ import { Workspace, type WorkspaceActions } from './Workspace';
 import { usePanelLocation } from './panel-location';
 import { Notices, useNotices } from './Notices';
 import { SettingsPage, type SettingsPageActions } from './SettingsPage';
+import { DefaultShortcutConflictDialog } from './DefaultShortcutConflict';
 import { shortcutActions, shortcutFromEvent } from '../shared/shortcuts';
 import type { SettingsCategory } from '../shared/settings';
 import { configureTerminals, reconcileTerminals, terminalEvent, setTerminalLanguage } from './terminals';
@@ -34,7 +35,6 @@ function WorkbenchView({ state, setState }: { state?: Snapshot; setState(snapsho
   const [setup, setSetup] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [initialSettingsCategory, setInitialSettingsCategory] = useState<SettingsCategory>();
-  const [migrationDismissed, setMigrationDismissed] = useState(false);
   const settingsPage = useRef<SettingsPageActions>(null);
   const leavingSettings = useRef(false);
   const workspace = useRef<WorkspaceActions>(null);
@@ -102,19 +102,15 @@ function WorkbenchView({ state, setState }: { state?: Snapshot; setState(snapsho
   }, [state, setup, settingsOpen]);
   return <div className="app">
     <header className="system-bar"><div className="system-brand">{navigation.toggle}<span className="wordmark">VibeBridge</span></div></header>
-    {state?.settingsMigrationConflict && !migrationDismissed && <aside className="settings-migration-notice" role="status" aria-label={t('migrationNotice')}>
-      <span>{t('migrationHelp')}</span>
-      <button onClick={() => openSettings('shortcuts')}>{t('openShortcuts')}</button>
-      <button aria-label={t('dismissMigration')} onClick={() => setMigrationDismissed(true)}>{t('later')}</button>
-    </aside>}
     <div className="app-body">{navigation.sidebar}<main>
       <div className={`workbench-page ${location.locating ? 'locating-panel' : ''}`} hidden={settingsOpen} inert={settingsOpen}>
         {!state ? <div className="empty">{t('opening')}</div> : setup ? <Setup defaultLayout={state.settings.defaultLayout} draft={draft} change={setDraft} cancel={() => setSetup(false)} created={id => { setDraft(newDraft()); activate(id); }} openProject={activate} report={report} openAgentSettings={openAgentSettings} /> : active ? <Workspace ref={workspace} visible={!settingsOpen} key={active.id} project={active} runs={state.runs} processing={state.processing} report={report} openAgentSettings={openAgentSettings} location={location} /> : <div className="empty"><p>{t('welcome')}</p><button className="primary" onClick={create}>{t('createProject')}</button></div>}
       </div>
-      {state && settingsOpen && <SettingsPage ref={settingsPage} settings={state.settings} startupTheme={state.startupTheme} initialCategory={initialSettingsCategory} report={report} back={() => void leaveSettings()} />}
+      {state && settingsOpen && <SettingsPage ref={settingsPage} settings={state.settings} defaultShortcutConflict={state.defaultShortcutConflict} startupTheme={state.startupTheme} initialCategory={initialSettingsCategory} report={report} back={() => void leaveSettings()} />}
     </main></div>
     <ProjectSummary snapshot={state} locatePanel={locatePanel} />
     <Notices notices={notices} dismiss={dismiss} />
+    {state?.defaultShortcutConflict && !settingsOpen && <DefaultShortcutConflictDialog openShortcuts={() => openSettings('shortcuts')} />}
   </div>;
 }
 createRoot(document.getElementById('root')!).render(<App />);
