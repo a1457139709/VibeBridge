@@ -1,6 +1,7 @@
 const assert = require('node:assert/strict');
 const { readFile } = require('node:fs/promises');
 const { Menu, dialog } = require('electron');
+const { panelViews, runsOf } = require('./support/panel-views.cjs');
 
 module.exports = {
   async run(context) {
@@ -65,8 +66,8 @@ module.exports = {
     for (const [language, save] of [['zh-CN', 'Save'], ['en', '保存'], ['zh-CN', 'Save']]) {
       await selectLanguage(language); await click(save);
       await until(async () => (await f.snapshot()).settings.language === language);
-      assert.deepEqual((await f.snapshot()).runs.map(run => [run.id, run.pid]), before.runs.map(run => [run.id, run.pid]));
-      assert.deepEqual((await f.snapshot()).processing, before.processing);
+      assert.deepEqual(runsOf(await f.snapshot()).map(run => [run.id, run.pid]), runsOf(before).map(run => [run.id, run.pid]));
+      assert.deepEqual(panelViews(await f.snapshot()).map(panel => panel.status), panelViews(before).map(panel => panel.status));
       assert.ok(await evaluate('window.languageScreens.every(screen => screen.isConnected && [...document.querySelectorAll(".terminal-screen")].includes(screen))'));
     }
     await click('‹ 返回');

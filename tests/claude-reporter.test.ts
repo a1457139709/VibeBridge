@@ -4,6 +4,7 @@ import { existsSync } from 'node:fs';
 import { access, readFile, stat, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { fixture, until } from './support/cli-double';
+import { showing, statusOf } from './support/panel-views';
 
 test('Claude loads the invocation hooks, and unreadable hook input becomes Error until a fresh fact', async () => {
   const f = await fixture('claude');
@@ -14,9 +15,9 @@ test('Claude loads the invocation hooks, and unreadable hook input becomes Error
     assert.equal(f.state(run.id), 'busy');
     await f.send(run.id, { hook_event_name: 'Stop' });
     assert.equal(f.state(run.id), 'done');
-    for (const event of f.events) if (event.kind === 'snapshot' && event.snapshot.processing.runs[run.id] === 'done') {
-      assert.deepEqual(event.snapshot.processing.projects[project.id].done,
-        { count: 1, members: [{ panelId: run.panelId, runId: run.id }] });
+    for (const event of f.events) if (event.kind === 'snapshot' && statusOf(event.snapshot, run.id) === 'done') {
+      assert.deepEqual(showing(event.snapshot, project.id, 'done'),
+        [[run.panelId, run.id]]);
     }
     await f.send(run.id, { hook_event_name: 'UserPromptSubmit' }, { malformed: true, output: 'terminal remains usable' });
     assert.ok(f.output(run.id).includes('terminal remains usable'));

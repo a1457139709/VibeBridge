@@ -1,13 +1,13 @@
 import { useLocalization } from './Localization';
 import { message } from '../shared/messages';
 import { useEffect, useRef, useState, type ReactNode } from 'react';
-import { type DirectoryResult, type Project, type ProjectEditResult, type Run } from '../shared/model';
+import { type DirectoryResult, type Project, type ProjectEditResult, type ProjectView } from '../shared/model';
 import { projectNameError, projectNameHasControls } from '../shared/project-name';
 import { LaunchResults } from './LaunchResults';
 import './project-management.css';
 
-export function ProjectNavigationItem({ project, runs, openProject, children }: {
-  project: Project; runs: Run[]; openProject(id: string): void; children: ReactNode;
+export function ProjectNavigationItem({ project, openProject, children }: {
+  project: ProjectView; openProject(id: string): void; children: ReactNode;
 }) {
   const { t } = useLocalization();
   const [menu, setMenu] = useState<{ x: number; y: number }>();
@@ -29,7 +29,7 @@ export function ProjectNavigationItem({ project, runs, openProject, children }: 
       <button role="menuitem" onClick={() => { setMenu(undefined); setAction('edit'); }}>{t('editProject')}</button>
       <button role="menuitem" onClick={() => { setMenu(undefined); setAction('delete'); }}>{t('deleteProject')}</button>
     </div>}
-    {action === 'edit' && <ProjectEditor project={project} running={runs.filter(run => run.projectId === project.id && run.state === 'running').length} close={() => setAction(undefined)} openProject={id => { setAction(undefined); openProject(id); }} />}
+    {action === 'edit' && <ProjectEditor project={project} running={project.panels.filter(panel => panel.run?.state === 'running').length} close={() => setAction(undefined)} openProject={id => { setAction(undefined); openProject(id); }} />}
     {action === 'delete' && <DeleteProject project={project} close={() => setAction(undefined)} />}
   </div>;
 }

@@ -1,6 +1,6 @@
 # Processing status integration
 
-`ProcessingStatus` in the main process owns run association, CLI event interpretation and the processing projection. The terminal host remains the authority for process lifecycle. Status is never derived from terminal input, output, titles, liveness or silence.
+`ProcessingStatus` in the main process owns run association, CLI event interpretation and the processing state each run displays. The terminal host remains the authority for process lifecycle. Status is never derived from terminal input, output, titles, liveness or silence.
 
 ## Lifecycle and publication
 
@@ -8,7 +8,7 @@ Workbench prepares reporting credentials for every launch and passes them to the
 
 The host's stopping fact revokes report acceptance. Exit removes observations and membership. Main-process shutdown closes the reporting listener, discards all credentials and observations, and awaits adapter resource cleanup.
 
-Every accepted visible transition publishes through the existing Workbench snapshot subscription. `snapshot.processing.runs` contains states keyed by run ID. `snapshot.processing.projects` contains Ready, Needs input, Done, and Error groups for every project (Busy is never summarized), each with `count` and `{panelId, runId}` members in panel order. These are computed together from running panels and the same observations. Frontends consume them directly, including background projects; they do not recount, deduplicate by session, or interpret events.
+Every accepted visible transition publishes through the existing Workbench snapshot subscription. Each panel in `snapshot.projects[].panels` is a panel view carrying its current run and, while that run is running, its `status`: the observed state, or Error without a reliable observation. Panels without a running run have no `status`. Frontends read status from the same panel views everywhere, including background projects; the project summary groups the current project's panels by `status` into Ready, Needs input, Done and Error in panel order (Busy is never summarized), so counts and members come from one projection. Frontends do not deduplicate by session or interpret events.
 
 ## Reports
 

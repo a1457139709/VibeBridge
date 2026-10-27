@@ -7,6 +7,7 @@ import { createServer } from 'node:http';
 import type { AddressInfo } from 'node:net';
 import { pathToFileURL } from 'node:url';
 import { fixture, until } from './support/cli-double';
+import { showing, statusOf } from './support/panel-views';
 
 test('pi loads the invocation extension, and session shutdown leaves a usable terminal with Error', async () => {
   const f = await fixture('pi');
@@ -20,10 +21,10 @@ test('pi loads the invocation extension, and session shutdown leaves a usable te
     assert.equal(f.state(run.id), 'busy');
     await f.send(run.id, { type: 'agent_settled' });
     assert.equal(f.state(run.id), 'done');
-    const snapshots = f.events.flatMap(e => e.kind === 'snapshot' && e.snapshot.processing.runs[run.id] === 'done' ? [e.snapshot] : []);
+    const snapshots = f.events.flatMap(e => e.kind === 'snapshot' && statusOf(e.snapshot, run.id) === 'done' ? [e.snapshot] : []);
     assert.ok(snapshots.length);
-    for (const snapshot of snapshots) assert.deepEqual(snapshot.processing.projects[project.id].done,
-      { count: 1, members: [{ panelId: run.panelId, runId: run.id }] });
+    for (const snapshot of snapshots) assert.deepEqual(showing(snapshot, project.id, 'done'),
+      [[run.panelId, run.id]]);
     await f.send(run.id, { type: 'agent_start' });
     await f.send(run.id, { type: 'message_end', message: { role: 'assistant', stopReason: 'stop' } });
     await f.send(run.id, { type: 'session_shutdown' });

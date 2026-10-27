@@ -1,5 +1,6 @@
 const assert = require('node:assert/strict');
 const { resolve } = require('node:path');
+const { showing } = require('./support/panel-views.cjs');
 
 module.exports = {
   async run({ window, evaluate, until, click, directory }) {
@@ -25,7 +26,7 @@ module.exports = {
     await emit(runs[0], { hook_event_name: 'PreToolUse', tool_name: 'AskUserQuestion', tool_use_id: 'question' });
     await check(runs[0], 'Needs input');
     const snapshot = await evaluate('window.workbench.snapshot()');
-    assert.deepEqual(snapshot.processing.projects[project]['needs-input'], { count: 1, members: [{ panelId: runs[0].panelId, runId: runs[0].id }] });
+    assert.deepEqual(showing(snapshot, project, 'needs-input'), [[runs[0].panelId, runs[0].id]]);
     await emit(runs[1], { hook_event_name: 'Stop' });
     await check(runs[1], 'Done'); await check(runs[0], 'Needs input');
     await emit(runs[0], { hook_event_name: 'PostToolUse', tool_name: 'AskUserQuestion', tool_use_id: 'question' });

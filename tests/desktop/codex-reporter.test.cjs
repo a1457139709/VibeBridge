@@ -1,5 +1,6 @@
 const assert = require('node:assert/strict');
 const { resolve } = require('node:path');
+const { runsOf, showing } = require('./support/panel-views.cjs');
 
 module.exports = {
   async run(context) {
@@ -10,7 +11,7 @@ module.exports = {
     const created = await require('./support/project.cjs')(context, 'Codex hook panels');
     const project = created.activeProjectId;
     await evaluate(`window.workbench.addPanel(${JSON.stringify(project)}, 'codex')`);
-    const runs = (await evaluate('window.workbench.snapshot()')).runs;
+    const runs = runsOf(await evaluate('window.workbench.snapshot()'));
     assert.equal(runs.length, 2);
     const label = (run, selector) => `document.querySelector('[${selector}="${run.panelId}"] .processing-status')?.getAttribute('aria-label')`;
     async function check(run, expected) {
@@ -26,7 +27,7 @@ module.exports = {
     await emit(runs[0], { hook_event_name: 'PermissionRequest', turn_id: 'first', tool_use_id: 'approval', tool_name: 'Bash' });
     await check(runs[0], 'Needs input');
     const snapshot = await evaluate('window.workbench.snapshot()');
-    assert.deepEqual(snapshot.processing.projects[project]['needs-input'], { count: 1, members: [{ panelId: runs[0].panelId, runId: runs[0].id }] });
+    assert.deepEqual(showing(snapshot, project, 'needs-input'), [[runs[0].panelId, runs[0].id]]);
     await emit(runs[1], { hook_event_name: 'UserPromptSubmit', turn_id: 'second' });
     await emit(runs[1], { hook_event_name: 'Stop', turn_id: 'second' });
     await check(runs[1], 'Done'); await check(runs[0], 'Needs input');

@@ -1,6 +1,6 @@
 import { Terminal, type ITheme } from '@xterm/xterm';
 import { FitAddon } from '@xterm/addon-fit';
-import type { Language, Run, WorkbenchEvent } from '../shared/model';
+import type { Language, ProjectView, WorkbenchEvent } from '../shared/model';
 import { localize } from '../shared/localization';
 
 interface Screen { terminal: Terminal; fit: FitAddon; element: HTMLDivElement; observer: ResizeObserver; opened: boolean; consumed: number }
@@ -56,9 +56,10 @@ export function terminalEvent(event: WorkbenchEvent) {
   }
   if (event.kind === 'exit') dispose(event.runId);
 }
-export function reconcileTerminals(runs: Run[]) {
-  for (const run of runs) if (run.state === 'running') ensure(run.id);
-  for (const id of screens.keys()) if (!runs.some(run => run.id === id && run.state === 'running')) dispose(id);
+export function reconcileTerminals(projects: ProjectView[]) {
+  const running = new Set(projects.flatMap(project => project.panels.flatMap(({ run }) => run?.state === 'running' ? [run.id] : [])));
+  for (const id of running) ensure(id);
+  for (const id of screens.keys()) if (!running.has(id)) dispose(id);
 }
 function dispose(runId: string) {
   const screen = screens.get(runId);

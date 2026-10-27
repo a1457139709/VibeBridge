@@ -1,5 +1,6 @@
 const assert = require('node:assert/strict');
 const { resolve } = require('node:path');
+const { runsOf, statusOf } = require('./support/panel-views.cjs');
 
 module.exports = {
   async run(context) {
@@ -9,7 +10,7 @@ module.exports = {
     const created = await require('./support/project.cjs')(context, 'Status panels');
     const projectId = created.activeProjectId;
     for (let index = 0; index < 4; index++) await evaluate(`window.workbench.addPanel(${JSON.stringify(projectId)}, 'codex')`);
-    const runs = (await evaluate('window.workbench.snapshot()')).runs;
+    const runs = runsOf(await evaluate('window.workbench.snapshot()'));
     const cases = [
       ['ready', 'Ready', { hook_event_name: 'SessionStart', source: 'startup' }],
       ['busy', 'Busy', { hook_event_name: 'UserPromptSubmit' }],
@@ -26,7 +27,7 @@ module.exports = {
     // Real keyboard focus must expose the same label, without clearing Done.
     await evaluate(`document.querySelector('[data-panel-id="${runs[3].panelId}"] .processing-status').focus()`);
     assert.equal(await evaluate('document.activeElement.getAttribute("aria-label")'), 'Done');
-    assert.equal((await evaluate('window.workbench.snapshot()')).processing.runs[runs[3].id], 'done');
+    assert.equal(statusOf(await evaluate('window.workbench.snapshot()'), runs[3].id), 'done');
 
     const checkGeometry = async () => {
       const result = await evaluate(`(() => {
@@ -127,8 +128,8 @@ module.exports = {
     for (const character of input) window.webContents.sendInputEvent({ type: 'char', keyCode: character });
     window.webContents.sendInputEvent({ type: 'keyDown', keyCode: 'Enter' });
     window.webContents.sendInputEvent({ type: 'keyUp', keyCode: 'Enter' });
-    await until(async () => (await evaluate('window.workbench.snapshot()')).processing.runs[runs[3].id] === 'busy');
-    assert.equal((await evaluate('window.workbench.snapshot()')).processing.runs[runs[4].id], 'error');
+    await until(async () => statusOf(await evaluate('window.workbench.snapshot()'), runs[3].id) === 'busy');
+    assert.equal(statusOf(await evaluate('window.workbench.snapshot()'), runs[4].id), 'error');
     console.log('Five status shapes agree between panels and navigation, Busy alone turns in one phase or rests under reduced motion; theme, narrow-window and native-input checks passed.');
   },
 };

@@ -5,6 +5,7 @@ import { mkdtemp, readFile, rm } from 'node:fs/promises';
 import { resolve, join } from 'node:path';
 import { Workbench } from '../app/main/workbench';
 import type { Snapshot } from '../app/shared/model';
+import { runsOf, storedProjects } from './support/panel-views';
 
 const alive = (pid: number) => { try { process.kill(pid, 0); return true; } catch { return false; } };
 async function until(check: () => boolean) {
@@ -27,7 +28,7 @@ test('a surviving terminal manager cleans all projects after main-process SIGKIL
       main.once('message', message => { clearTimeout(timer); resolve(message as any); });
       main.once('exit', () => { clearTimeout(timer); reject(new Error('Main fixture exited early')); });
     });
-    pids = [host, orphan, ...snapshot.runs.map(run => run.pid!)];
+    pids = [host, orphan, ...runsOf(snapshot).map(run => run.pid!)];
     main.kill('SIGKILL');
     const started = Date.now();
     await until(() => pids.every(pid => !alive(pid)));
@@ -36,9 +37,9 @@ test('a surviving terminal manager cleans all projects after main-process SIGKIL
     assert.match(await readFile(join(directory, 'last-failure.json'), 'utf8'), /mainDisconnected/);
     const reopened = await Workbench.open(directory);
     try {
-      assert.deepEqual(reopened.snapshot().projects, snapshot.projects);
+      assert.deepEqual(storedProjects(reopened.snapshot()), storedProjects(snapshot));
       assert.equal(reopened.snapshot().activeProjectId, snapshot.activeProjectId);
-      assert.deepEqual(reopened.snapshot().runs, []);
+      assert.deepEqual(runsOf(reopened.snapshot()), []);
     } finally { await reopened.quit(); }
   } finally {
     main.kill('SIGKILL'); unrelated.kill('SIGKILL');
@@ -58,7 +59,7 @@ test('quit requests termination before forcing a refusing run, and keeps its pan
     settings.agents.codex = { command: process.env.VIBEBRIDGE_TEST_NODE!, args: [resolve('tests/fixtures/interactive.cjs'), '--termination-file', terminationFile] };
     await workbench.saveSettings(settings);
     const { project } = await workbench.createProject({ name: 'Refusing run', directory, total: 1, counts: { codex: 1, claude: 0, pi: 0 } });
-    const run = workbench.snapshot().runs[0];
+    const run = runsOf(workbench.snapshot())[0];
     await until(() => output.includes('READY:'));
     await workbench.sendInput(run.id, 'resist stream');
     // This consumer withholds parser credit. Signals must still reach a paused run and cleanup stay bounded.
@@ -71,7 +72,7 @@ test('quit requests termination before forcing a refusing run, and keeps its pan
     assert.ok(elapsed >= 1900 && elapsed < 5000, `forced cleanup took ${elapsed} ms`);
     assert.equal(alive(run.pid!), false);
     const reopened = await Workbench.open(directory);
-    try { assert.deepEqual(reopened.snapshot().projects, [project]); }
+    try { assert.deepEqual(storedProjects(reopened.snapshot()), [project]); }
     finally { await reopened.quit(); }
     console.log(`Refusing run cleanup: ${elapsed} ms`);
   } finally { await workbench.quit(); await rm(directory, { recursive: true, force: true }); }

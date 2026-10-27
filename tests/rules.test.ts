@@ -5,7 +5,6 @@ import { projectNameError, projectNameFromDirectory } from '../app/shared/projec
 import { arrange, assignedAgents, validateDraft, validateLayout, type ProjectDraft } from '../app/shared/model';
 import { layoutBoxes } from '../app/shared/layout';
 import { defaultShortcuts, shortcutConflicts, shortcutFromEvent, shortcutFormatError } from '../app/shared/shortcuts';
-import { sessionTitle } from '../app/shared/session-title';
 
 test('project names reject controls and clean only automatic directory names', () => {
   assert.equal(projectNameError('  '), message('nameRequired'));
@@ -57,17 +56,4 @@ test('shortcut recording uses physical keys, ignores composition and distinguish
     { binding: 'Command+K', actions: ['previousPanel', 'nextPanel'], system: undefined },
     { binding: 'Command+C', actions: ['addPanel'], system: message('copy') },
   ]);
-});
-
-test('session titles preserve meaningful text, filter known CLI decorations and retain ambiguous forms', () => {
-  for (const [agent, raw, expected] of [
-    ['claude', '✳ Claude Code', 'Untitled task'], ['claude', '◐ Review  A ✳ B 👩🏽‍💻 ◑', 'Review  A ✳ B 👩🏽‍💻'],
-    ['codex', '⠋ Respond to greeting | VibeBridge ⠹', 'Respond to greeting'], ['codex', 'VibeBridge', 'Untitled task'],
-    ['codex', 'name | | directory', 'name | | directory'], ['codex', ' | directory', '| directory'],
-    ['pi', 'π - A', 'Untitled task'], ['pi', 'π - Read  A + B 👩🏽‍💻 - directory', 'Read  A + B 👩🏽‍💻'],
-    ['pi', 'π - A - B - C', 'π - A - B - C'], ['pi', 'Custom  π title ✳', 'Custom  π title ✳'],
-  ] as const) assert.equal(sessionTitle(agent, raw), expected);
-  for (const agent of ['claude', 'codex', 'pi'] as const) {
-    assert.equal(sessionTitle(agent), 'Untitled task'); assert.equal(sessionTitle(agent, '   '), 'Untitled task');
-  }
 });

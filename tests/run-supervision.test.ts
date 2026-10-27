@@ -2,7 +2,7 @@ import test, { type TestContext } from 'node:test';
 import assert from 'node:assert/strict';
 import { message } from '../app/shared/messages';
 import { RunSupervision, type Terminal } from '../app/main/run-supervision';
-import type { CommandCheck, Panel, Project, Run, TerminalEvent } from '../app/shared/model';
+import type { CommandCheck, Panel, Project, Run, TerminalEvent, WorkbenchEvent } from '../app/shared/model';
 import { testDirectory } from './support/directory';
 
 type Start = Parameters<Terminal['start']>[0];
@@ -39,7 +39,7 @@ class FakeTerminal implements Terminal {
 
 async function fixture(context: TestContext) {
   const directory = await testDirectory(context, 'run-lifecycle-cleanup');
-  const exited: Run[] = [], errors: string[] = [], emitted: TerminalEvent[] = [];
+  const exited: Run[] = [], errors: string[] = [], emitted: WorkbenchEvent[] = [];
   let changes = 0;
   let onShutdown = async () => {};
   let terminal!: FakeTerminal;
@@ -58,7 +58,8 @@ async function fixture(context: TestContext) {
       if (start) credentials.set(launch.run.id, JSON.parse(start.integration.VIBEBRIDGE_STATUS_CONTEXT));
       return launch;
     },
-    run: (id: string) => supervision.runs().find(run => run.id === id),
+    runs: () => project.panels.flatMap(panel => supervision.panelView(panel).run ?? []),
+    run: (id: string) => project.panels.map(panel => supervision.panelView(panel).run).find(run => run?.id === id),
     // Reports as the Agent's own status integration would: 204 while observed, 403 once released.
     async report(runId: string) {
       const context = credentials.get(runId)!;
@@ -97,13 +98,29 @@ test('an unconfirmed launch stays starting and observed, then accepts the host\'
   assert.equal(await f.report(launch.run.id), 204, 'an unconfirmed launch may still be running');
   const { id, panelId, projectId } = launch.run;
   f.terminal.event({ kind: 'started', run: { id, panelId, projectId, state: 'running', pid: 2 } });
-  f.terminal.event({ kind: 'title', runId: id, title: 'Late title' });
+  f.terminal.event({ kind: 'title', runId: id, title: '⠋ Late title | project' });
   assert.equal(f.run(id)?.state, 'running');
-  assert.equal(f.run(id)?.rawTitle, 'Late title');
+  assert.equal(f.run(id)?.title, 'Late title');
   f.terminal.event({ kind: 'exit', runId: id });
   assert.equal(f.run(id), undefined);
   assert.deepEqual(f.exited.map(run => run.id), [id]);
   assert.equal(await f.report(id), 403);
+});
+
+test('a title spinner animating while busy publishes nothing until the session title changes', async context => {
+  const f = await fixture(context);
+  const { run } = await f.start();
+  const changes = f.changes(), emitted = f.emitted.length;
+  for (const frame of ['⠋', '⠙', '⠹', '⠸', '⠼']) f.terminal.event({ kind: 'title', runId: run.id, title: `${frame} Fix tests | project` });
+  assert.equal(f.run(run.id)?.title, 'Fix tests');
+  assert.equal(f.changes(), changes + 1, 'only the first frame changes the session title');
+  f.terminal.event({ kind: 'title', runId: run.id, title: '⠴ Review | project' });
+  assert.equal(f.run(run.id)?.title, 'Review');
+  assert.equal(f.changes(), changes + 2);
+  f.terminal.event({ kind: 'title', runId: run.id, title: 'project' });
+  assert.equal(f.run(run.id)?.title, undefined, 'a title without a session name has no session title');
+  assert.equal(f.changes(), changes + 3);
+  assert.equal(f.emitted.length, emitted, 'title events stay in the main process');
 });
 
 test('a run exiting on its own leaves the run list and is reported as exited, not stopped', async context => {
@@ -132,6 +149,7 @@ test('stopping a panel is a controlled stop, and released panels drop their runs
   await f.supervision.stopPanel(closed.panelId);
   assert.equal(f.run(closed.id)?.state, 'stopped');
   assert.deepEqual(f.exited, [], 'closing a panel is not a run exit');
+  assert.deepEqual(f.emitted.map(event => event.kind), ['started', 'exit'], 'the host\'s stopping fact stays in the main process');
   assert.equal(await f.report(closed.id), 403);
   f.terminal.answer = 'none';
   const { run: pending } = await f.start(f.project.panels[1]);
@@ -155,13 +173,13 @@ test('events of a replaced run are ignored', async context => {
   const f = await fixture(context);
   const { run: old } = await f.start();
   const { run: current } = await f.start();
-  assert.deepEqual(f.supervision.runs().map(run => run.id), [current.id]);
+  assert.deepEqual(f.runs().map(run => run.id), [current.id]);
   const emitted = f.emitted.length;
-  for (const event of [{ kind: 'title', runId: old.id, title: 'Stale' }, { kind: 'output', runId: old.id, data: 'stale' }, { kind: 'exit', runId: old.id }] as TerminalEvent[]) f.terminal.event(event);
+  for (const event of [{ kind: 'title', runId: old.id, title: 'Stale | project' }, { kind: 'output', runId: old.id, data: 'stale' }, { kind: 'exit', runId: old.id }] as TerminalEvent[]) f.terminal.event(event);
   f.terminal.event({ kind: 'started', run: { ...old, state: 'running' } });
   assert.equal(f.emitted.length, emitted);
   assert.deepEqual(f.exited, []);
-  assert.deepEqual(f.supervision.runs().map(run => [run.id, run.rawTitle]), [[current.id, undefined]]);
+  assert.deepEqual(f.runs().map(run => [run.id, run.title]), [[current.id, undefined]]);
 });
 
 test('a terminal host failure stops every run, releases observations and refuses later stops and launches', async context => {
@@ -170,7 +188,7 @@ test('a terminal host failure stops every run, releases observations and refuses
   f.terminal.answer = 'none';
   const { run: pending } = await f.start(f.project.panels[1]);
   f.terminal.crash('host gone');
-  assert.deepEqual(f.supervision.runs().map(item => item.state), ['stopped', 'stopped']);
+  assert.deepEqual(f.runs().map(item => item.state), ['stopped', 'stopped']);
   assert.deepEqual([await f.report(run.id), await f.report(pending.id)], [403, 403]);
   assert.deepEqual(f.errors, ['host gone']);
   assert.deepEqual(await f.supervision.stopProject(f.project), ['host gone']);

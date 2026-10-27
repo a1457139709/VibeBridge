@@ -12,16 +12,14 @@ import { provideWorkbench } from './support/workbench';
 
 afterEach(cleanup);
 
-test('navigation reads the shared projection, exposes all five states to keyboard users, and keeps background updates', async () => {
+test('navigation reads each panel view\'s state, exposes all five states to keyboard users, and keeps background updates', async () => {
   const snapshot: Snapshot = {
     navigation: { visible: true, width: 212 }, activeProjectId: 'project', settings: defaultSettings(),
     defaultShortcutConflict: false, startupTheme: 'light', resolvedTheme: 'light', errors: [],
     projects: [{ id: 'project', name: 'Project', directory: '/project', layout: null,
-      panels: ['ready', 'busy', 'needs-input', 'done', 'error', 'starting'].map(id => ({ id, agent: 'codex' })) }],
-    runs: ['ready', 'busy', 'needs-input', 'done', 'error', 'starting'].map(id => ({ id, panelId: id, projectId: 'project', state: id === 'starting' ? 'starting' : 'running', rawTitle: `Session ${id} | project` })),
-    processing: { runs: { ready: 'ready', busy: 'busy', 'needs-input': 'needs-input', done: 'done', error: 'error' },
-      projects: { project: { ready: { count: 1, members: [{ panelId: 'ready', runId: 'ready' }] }, 'needs-input': { count: 1, members: [{ panelId: 'needs-input', runId: 'needs-input' }] },
-        done: { count: 1, members: [{ panelId: 'done', runId: 'done' }] }, error: { count: 1, members: [{ panelId: 'error', runId: 'error' }] } } } },
+      panels: [...(['ready', 'busy', 'needs-input', 'done', 'error'] as const).map(id => ({ id, agent: 'codex' as const,
+        run: { id, panelId: id, projectId: 'project', state: 'running' as const, title: `Session ${id}` }, status: id })),
+      { id: 'starting', agent: 'codex', run: { id: 'starting', panelId: 'starting', projectId: 'project', state: 'starting', title: 'Session starting' } }] }],
   };
   const listeners = new Set<(event: WorkbenchEvent) => void>();
   const located: string[] = [];
@@ -70,8 +68,7 @@ test('navigation reads the shared projection, exposes all five states to keyboar
   assert.equal(screen.getByRole('button', { name: 'Expand project navigation' }).getAttribute('aria-expanded'), 'false');
   const updated = structuredClone(snapshot);
   updated.activeProjectId = 'elsewhere';
-  updated.processing.runs.busy = 'needs-input';
-  updated.processing.projects.project['needs-input'] = { count: 2, members: [{ panelId: 'busy', runId: 'busy' }, { panelId: 'needs-input', runId: 'needs-input' }] };
+  updated.projects[0].panels[1].status = 'needs-input';
   await act(async () => { for (const listener of listeners) listener({ kind: 'snapshot', snapshot: updated }); });
   await user.click(screen.getByRole('button', { name: 'Expand project navigation' }));
   assert.equal(screen.getAllByRole('img', { name: 'Needs input' }).length, 2);

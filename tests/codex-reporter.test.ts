@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { fixture } from './support/cli-double';
+import { showing } from './support/panel-views';
 
 test('Codex loads the session hooks and its reporter projects a native terminal turn', async () => {
   const f = await fixture('codex');
@@ -11,8 +12,8 @@ test('Codex loads the session hooks and its reporter projects a native terminal 
     assert.equal(f.state(run.id), 'busy');
     await f.send(run.id, { hook_event_name: 'Stop', turn_id: 'turn-1', stop_hook_active: false });
     assert.equal(f.state(run.id), 'done');
-    assert.deepEqual(f.workbench.snapshot().processing.projects[project.id].done,
-      { count: 1, members: [{ panelId: run.panelId, runId: run.id }] });
+    assert.deepEqual(showing(f.workbench.snapshot(), project.id, 'done'),
+      [[run.panelId, run.id]]);
     assert.ok(f.output(run.id).includes('ACK:2'), 'native terminal input remains available');
   } finally { await f.close(); }
 });

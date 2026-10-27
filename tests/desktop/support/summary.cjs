@@ -1,5 +1,6 @@
 const assert = require('node:assert/strict');
 const { resolve } = require('node:path');
+const { runsOf, showing } = require('./panel-views.cjs');
 
 module.exports = async context => {
   const { evaluate, until, click, window } = context;
@@ -12,7 +13,7 @@ module.exports = async context => {
   const projectId = created.activeProjectId;
   for (let i = 0; i < 2; i++) await evaluate(`window.workbench.addPanel(${JSON.stringify(projectId)}, 'codex')`);
   const snapshot = () => evaluate('window.workbench.snapshot()');
-  const runs = (await snapshot()).runs;
+  const runs = runsOf(await snapshot());
   let sequence = 0;
   // Every run reports one shared CLI session ID; a different session's facts are discarded.
   const session = 'same-session';
@@ -39,11 +40,11 @@ module.exports = async context => {
   };
   const open = async state => {
     const current = await snapshot();
-    const group = current.processing.projects[projectId][state];
+    const count = showing(current, projectId, state).length;
     const labels = current.settings.language === 'zh-CN'
       ? { ready: '就绪', 'needs-input': '等待输入', done: '本轮结束', error: '异常' }
       : { ready: 'Ready', 'needs-input': 'Needs input', done: 'Done', error: 'Error' };
-    await click(`${group.count} ${labels[state]}`);
+    await click(`${count} ${labels[state]}`);
     await until(() => evaluate('!!document.querySelector(".summary-list")'));
   };
   const choose = async (state, run) => {

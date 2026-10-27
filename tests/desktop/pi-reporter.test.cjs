@@ -1,5 +1,6 @@
 const assert = require('node:assert/strict');
 const { resolve } = require('node:path');
+const { showing } = require('./support/panel-views.cjs');
 
 module.exports = {
   async run({ window, evaluate, until, click, directory }) {
@@ -26,8 +27,8 @@ module.exports = {
     await emit(runs[0], { type: 'tool_execution_end', isError: true });
     await check(runs[0], 'Needs input');
     const snapshot = await evaluate('window.workbench.snapshot()');
-    assert.deepEqual(snapshot.processing.projects[created.project.id]['needs-input'],
-      { count: 1, members: [{ panelId: runs[0].panelId, runId: runs[0].id }] });
+    assert.deepEqual(showing(snapshot, created.project.id, 'needs-input'),
+      [[runs[0].panelId, runs[0].id]]);
     await emit(runs[1], { type: 'agent_start' });
     await emit(runs[1], { type: 'message_end', message: { role: 'assistant', stopReason: 'stop' } });
     await emit(runs[1], { type: 'agent_end' });
@@ -43,8 +44,8 @@ module.exports = {
     await emit(runs[1], { type: 'session_compact', reason: 'manual', willRetry: false }, { idle: true });
     await check(runs[1], 'Done'); await check(runs[0], 'Needs input');
     const compacted = await evaluate('window.workbench.snapshot()');
-    assert.deepEqual(compacted.processing.projects[created.project.id].done,
-      { count: 1, members: [{ panelId: runs[1].panelId, runId: runs[1].id }] });
+    assert.deepEqual(showing(compacted, created.project.id, 'done'),
+      [[runs[1].panelId, runs[1].id]]);
     await emit(runs[0], { type: 'ui_prompt_end' });
     await check(runs[0], 'Busy');
     await emit(runs[0], { type: 'message_end', message: { role: 'assistant', stopReason: 'error' } });

@@ -2,7 +2,6 @@ import { useLocalization } from './Localization';
 import { useEffect, useLayoutEffect, useRef, useState, type CSSProperties, type PointerEvent } from 'react';
 import type { DesktopAPI } from '../shared/api';
 import { defaultNavigation, navigationWidth, type NavigationPreferences, type Snapshot } from '../shared/model';
-import { sessionTitle } from '../shared/session-title';
 import { agentIcons } from './agent-icons';
 import type { PanelLocation } from './panel-location';
 import { capturePointer } from './pointer-capture';
@@ -127,14 +126,13 @@ export function useProjectNavigation(host: Host, api: Pick<DesktopAPI, 'saveNavi
           const selected = host.view(project.id).selected;
           const active = page === 'workbench' && snapshot.activeProjectId === project.id;
           return <section key={project.id} className="project-group" data-project-id={project.id}>
-            <ProjectNavigationItem project={project} runs={snapshot.runs} openProject={host.openProject}>
+            <ProjectNavigationItem project={project} openProject={host.openProject}>
               <button className="project-disclosure" aria-label={t(expanded ? 'collapseProject' : 'expandProject', { name: project.name })} aria-expanded={expanded} onClick={() => setExpandedProjects(previous => ({ ...previous, [project.id]: !expanded }))}>{expanded ? '⌄' : '›'}</button>
               <button title={`${project.name} · ${t('panelCount', { count: project.panels.length })}`} aria-label={project.name} aria-current={active ? 'page' : undefined} className={`project-link ${active ? 'selected' : ''}`} onClick={() => host.openProject(project.id)}><span className="project-initial" aria-hidden="true">{projectInitial(project.name)}</span><span className="project-name">{project.name}</span><small>{project.panels.length}</small></button>
             </ProjectNavigationItem>
             {expanded && !!project.panels.length && <div className="project-panels" aria-label={t('projectPanels', { name: project.name })}>{project.panels.map(panel => {
-              const run = snapshot.runs.find(run => run.panelId === panel.id);
-              const title = sessionTitle(panel.agent, run?.rawTitle, t('untitled'));
-              const status = run && snapshot.processing.runs[run.id];
+              const title = panel.run?.title ?? t('untitled');
+              const { status } = panel;
               const current = active && selected === panel.id;
               return <button key={panel.id} data-locate-panel-id={panel.id} title={status ? `${t(status)} · ${title}` : title} aria-label={status ? `${t(status)} · ${title}` : title} aria-current={current ? 'true' : undefined} className={`panel-link ${panel.agent} ${current ? 'selected' : ''}`} onClick={() => host.locatePanel(project.id, panel.id)}><span className="agent-symbols"><ProcessingStatusIcon state={status} /><span className="agent-mark" aria-hidden="true">{agentIcons[panel.agent]}</span></span><span className="session-title">{title}</span></button>;
             })}</div>}

@@ -8,26 +8,23 @@ import { ProjectSummary } from '../../app/renderer/ProjectSummary';
 import { Localization } from '../../app/renderer/Localization';
 import { SettingsPage, type SettingsPageActions } from '../../app/renderer/SettingsPage';
 import { defaultSettings } from '../../app/shared/settings';
-import type { Snapshot, WorkbenchEvent } from '../../app/shared/model';
+import type { PanelView, Snapshot, WorkbenchEvent } from '../../app/shared/model';
+import type { ProcessingState } from '../../app/shared/processing-status';
 import type { DesktopAPI } from '../../app/shared/api';
 import type { SettingsSaveResult } from '../../app/shared/settings';
 import { deferred, provideWorkbench } from './support/workbench';
 
 afterEach(cleanup);
 
+const panel = (id: string, status: ProcessingState): PanelView =>
+  ({ id, agent: 'codex', run: { id, panelId: id, projectId: 'project', state: 'running', title: `Session ${id}` }, status });
+
 function fixture(saveSettings?: DesktopAPI['saveSettings']) {
   const snapshot: Snapshot = {
     navigation: { visible: true, width: 212 }, activeProjectId: 'project', settings: defaultSettings(),
     defaultShortcutConflict: false, startupTheme: 'light', resolvedTheme: 'light', errors: [],
     projects: [{ id: 'project', name: 'Project title stays out of the bar', directory: '/project', layout: null,
-      panels: ['first', 'second', 'third', 'fresh'].map(id => ({ id, agent: 'codex' })) }],
-    runs: ['first', 'second', 'third', 'fresh'].map(id => ({ id, panelId: id, projectId: 'project', state: 'running', rawTitle: `Session ${id} | project` })),
-    processing: { runs: { first: 'done', second: 'done', third: 'needs-input', fresh: 'ready' }, projects: { project: {
-      ready: { count: 1, members: [{ panelId: 'fresh', runId: 'fresh' }] },
-      'needs-input': { count: 1, members: [{ panelId: 'third', runId: 'third' }] },
-      done: { count: 2, members: [{ panelId: 'first', runId: 'first' }, { panelId: 'second', runId: 'second' }] },
-      error: { count: 0, members: [] },
-    } } },
+      panels: ([['first', 'done'], ['second', 'done'], ['third', 'needs-input'], ['fresh', 'ready']] as const).map(([id, status]) => panel(id, status)) }],
   };
   const listeners = new Set<(event: WorkbenchEvent) => void>();
   const located: (string | undefined)[][] = [];
@@ -42,20 +39,21 @@ function fixture(saveSettings?: DesktopAPI['saveSettings']) {
       void window.workbench.snapshot().then(setState);
       return window.workbench.subscribe(event => { if (event.kind === 'snapshot') setState(event.snapshot); });
     }, []);
+    const active = state?.projects.find(project => project.id === state.activeProjectId);
     return <Localization language={state?.settings.language ?? 'en'}><button>Outside</button>
       {saveSettings && state && <SettingsPage defaultShortcutConflict={false} initialCategory="agents" ref={settings} settings={state.settings} startupTheme="light" report={() => {}} back={() => {}} />}
-      <ProjectSummary snapshot={state} locatePanel={(...target) => {
+      <ProjectSummary projectId={active?.id} panels={active?.panels} locatePanel={(...target) => {
         if (saveSettings) void settings.current!.requestLeave().then(leave => { if (leave) located.push(target); });
         else located.push(target);
       }} /></Localization>;
   }
   render(<Summary />);
-  return { snapshot, located, user: userEvent.setup(),
+  return { snapshot, panels: () => snapshot.projects[0].panels, located, user: userEvent.setup(),
     update: async () => act(() => { for (const listener of listeners) listener({ kind: 'snapshot', snapshot: structuredClone(snapshot) }); }),
   };
 }
 
-test('summary uses projected counts in fixed order and always lists members before locating, even one result', async () => {
+test('summary counts the current project\'s panels by state in fixed order and always lists members before locating, even one result', async () => {
   const { user, located } = fixture();
   const bar = await screen.findByRole('region', { name: 'Current project summary' });
   await screen.findByRole('button', { name: '1 Needs input' });
@@ -103,18 +101,16 @@ test('keyboard users can choose members, switch lists and return to the triggeri
 });
 
 test('open lists follow live membership and titles, retain keyboard control after removal, and reset on project changes', async () => {
-  const { user, snapshot, update, located } = fixture();
+  const { user, snapshot, panels, update, located } = fixture();
   await user.click(await screen.findByRole('button', { name: '2 Done' }));
-  snapshot.runs[1].rawTitle = 'Renamed session | project';
-  snapshot.processing.runs.first = 'busy';
-  snapshot.processing.projects.project.done = { count: 1, members: [{ panelId: 'second', runId: 'second' }] };
+  panels()[1].run!.title = 'Renamed session';
+  panels()[0].status = 'busy';
   await update();
   assert.ok(screen.getByRole('button', { name: '1 Done' }));
   const list = screen.getByRole('dialog');
   assert.equal(within(list).queryByRole('button', { name: /Session first/ }), null);
   assert.ok(document.activeElement === within(list).getByRole('button', { name: /Renamed session/ }));
-  snapshot.processing.runs.second = 'ready';
-  snapshot.processing.projects.project.done = { count: 0, members: [] };
+  panels()[1].status = 'ready';
   await update();
   assert.equal(screen.getByRole<HTMLButtonElement>('button', { name: '0 Done' }).disabled, true);
   assert.ok(document.activeElement === screen.getByRole('button', { name: 'Close panel list' }));
@@ -141,10 +137,10 @@ test('clicking blank space in the bottom bar dismisses the list', async () => {
 });
 
 test('language changes update an open list without replacing it or translating real session titles', async () => {
-  const { user, snapshot, update, located } = fixture();
+  const { user, snapshot, panels, update, located } = fixture();
   await screen.findByRole('button', { name: '2 Done' });
-  snapshot.runs[0].rawTitle = undefined;
-  snapshot.runs[1].rawTitle = 'Untitled task | project';
+  delete panels()[0].run!.title;
+  panels()[1].run!.title = 'Untitled task';
   await update();
   await user.click(screen.getByRole('button', { name: '2 Done' }));
   const list = screen.getByRole('dialog', { name: 'Done' });
@@ -185,9 +181,6 @@ test('a pending settings save protects edits and leave requests and preserves th
   assert.deepEqual(located, []);
   assert.equal(patches.length, 1);
   snapshot.projects[0].panels = snapshot.projects[0].panels.filter(panel => panel.id !== 'first');
-  snapshot.runs = snapshot.runs.filter(run => run.id !== 'first');
-  delete snapshot.processing.runs.first;
-  snapshot.processing.projects.project.done = { count: 1, members: [{ panelId: 'second', runId: 'second' }] };
   await update();
   await act(async () => { pending.resolve({ ok: true, settings: { ...snapshot.settings, ...patches[0] } }); });
   // The locator receives the original identity and can reject it; the list must

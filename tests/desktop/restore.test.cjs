@@ -1,5 +1,6 @@
 const assert = require('node:assert/strict');
 const { mkdir, readFile, writeFile } = require('node:fs/promises');
+const { runsOf } = require('./support/panel-views.cjs');
 
 async function renderedLayout(evaluate, project) {
   return evaluate(`(() => {
@@ -35,11 +36,11 @@ module.exports = {
   async reopen({ evaluate, until, directory }) {
     const { snapshot: saved, geometry } = JSON.parse(await readFile(`${directory}/expected.json`, 'utf8'));
     const active = saved.projects.find(project => project.id === saved.activeProjectId);
-    await until(async () => (await evaluate('window.workbench.snapshot()')).runs.filter(run => run.state === 'running').length === active.panels.length);
+    await until(async () => runsOf(await evaluate('window.workbench.snapshot()')).filter(run => run.state === 'running').length === active.panels.length);
     const reopened = await evaluate('window.workbench.snapshot()');
     assert.equal(reopened.activeProjectId, saved.activeProjectId);
     assert.deepEqual(reopened.projects, saved.projects);
-    assert.ok(reopened.runs.every(run => run.projectId === active.id && !saved.runs.some(old => old.id === run.id)));
+    assert.ok(runsOf(reopened).every(run => run.projectId === active.id && !runsOf(saved).some(old => old.id === run.id)));
     await until(async () => JSON.stringify(await renderedLayout(evaluate, active)) === JSON.stringify(geometry));
     assert.equal(await evaluate('document.querySelector(".workspace-toolbar strong").textContent'), 'Saved project');
     console.log('Reopening restored project/panel configuration and visible layout with fresh runs, not resumed sessions.');

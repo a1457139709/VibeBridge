@@ -1,5 +1,6 @@
 const assert = require('node:assert/strict');
 const { mkdir, readFile, rename, rm } = require('node:fs/promises');
+const { runsOf } = require('./support/panel-views.cjs');
 
 module.exports = {
   async run(context) {
@@ -70,7 +71,7 @@ module.exports = {
       theme: 'dark', shortcuts: { ...before.settings.shortcuts, nextPanel: 'Command+K' } };
     assert.deepEqual(saved.settings, expected);
     assert.deepEqual(JSON.parse(await readFile(`${directory}/settings.json`, 'utf8')), expected);
-    assert.deepEqual(saved.runs.map(run => [run.id, run.pid]), before.runs.map(run => [run.id, run.pid]));
+    assert.deepEqual(runsOf(saved).map(run => [run.id, run.pid]), runsOf(before).map(run => [run.id, run.pid]));
 
     await click('Global settings'); await click('Agent'); await fill('command-codex', 'discard-this-draft');
     await f.choose('done', first); await until(leaveDialog); await click('Don’t save');

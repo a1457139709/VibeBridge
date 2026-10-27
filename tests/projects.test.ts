@@ -4,6 +4,7 @@ import { mkdir, mkdtemp, rm } from 'node:fs/promises';
 import { resolve } from 'node:path';
 import { Workbench } from '../app/main/workbench';
 import type { WorkbenchEvent } from '../app/shared/model';
+import { runsOf, storedProjects } from './support/panel-views';
 
 async function until(check: () => boolean) {
   const deadline = Date.now() + 5000;
@@ -29,7 +30,7 @@ test('projects share a terminal host while retaining independent runs, backgroun
     const create = (name: string, path: string) => workbench.createProject({ name, directory: path, total: 1, counts: { codex: 1, claude: 0, pi: 0 } });
     const { project: first } = await create('First', directory);
     const { project: second } = await create('Second', secondDirectory);
-    const runs = workbench.snapshot().runs;
+    const runs = runsOf(workbench.snapshot());
     const firstRun = runs.find(run => run.projectId === first.id)!;
     const secondRun = runs.find(run => run.projectId === second.id)!;
     assert.notEqual(firstRun.id, secondRun.id);
@@ -46,10 +47,10 @@ test('projects share a terminal host while retaining independent runs, backgroun
     await until(() => output(secondRun.id).includes('INPUT:second-only'));
     assert.ok(!output(firstRun.id).includes('second-only'));
     await Promise.all([workbench.activateProject(first.id), workbench.activateProject(second.id), workbench.activateProject(first.id)]);
-    assert.deepEqual(workbench.snapshot().runs, runs);
+    assert.deepEqual(runsOf(workbench.snapshot()), runs);
     await workbench.activateProject(second.id);
     await workbench.closePanel(first.id, first.panels[0].id);
-    assert.deepEqual(workbench.snapshot().projects.find(project => project.id === first.id)?.panels, []);
+    assert.deepEqual(storedProjects(workbench.snapshot()).find(project => project.id === first.id)?.panels, []);
     assert.throws(() => process.kill(firstRun.pid!, 0));
     await workbench.sendInput(secondRun.id, 'still-running');
     await until(() => output(secondRun.id).includes('INPUT:still-running'));
