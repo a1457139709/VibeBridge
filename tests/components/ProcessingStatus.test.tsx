@@ -15,7 +15,7 @@ afterEach(cleanup);
 test('navigation reads the shared projection, exposes all five states to keyboard users, and keeps background updates', async () => {
   const snapshot: Snapshot = {
     navigation: { visible: true, width: 212 }, activeProjectId: 'project', settings: defaultSettings(),
-    settingsMigrationConflict: false, startupTheme: 'light', resolvedTheme: 'light', errors: [],
+    defaultShortcutConflict: false, startupTheme: 'light', resolvedTheme: 'light', errors: [],
     projects: [{ id: 'project', name: 'Project', directory: '/project', layout: null,
       panels: ['ready', 'busy', 'needs-input', 'done', 'error', 'starting'].map(id => ({ id, agent: 'codex' })) }],
     runs: ['ready', 'busy', 'needs-input', 'done', 'error', 'starting'].map(id => ({ id, panelId: id, projectId: 'project', state: id === 'starting' ? 'starting' : 'running', rawTitle: `Session ${id} | project` })),

@@ -40,7 +40,7 @@ function AgentFields({ type, value, change, error, argsError }: { error?: string
 
 export interface SettingsPageActions { requestLeave(): Promise<boolean>; showCategory(category: SettingsCategory): void }
 
-function SettingsEditor({ settings, startupTheme, initialCategory = settingsCategories[0].id, back, ref, report }: { settings: Settings; startupTheme: Settings['theme']; initialCategory?: SettingsCategory; back(): void; ref: Ref<SettingsPageActions>; report: ReportNotice }) {
+function SettingsEditor({ settings, defaultShortcutConflict, startupTheme, initialCategory = settingsCategories[0].id, back, ref, report }: { settings: Settings; defaultShortcutConflict: boolean; startupTheme: Settings['theme']; initialCategory?: SettingsCategory; back(): void; ref: Ref<SettingsPageActions>; report: ReportNotice }) {
   const { t, text } = useLocalization();
   const [section, setSection] = useState<SettingsCategory>(initialCategory);
   const [draft, setDraft] = useState(settings);
@@ -75,7 +75,7 @@ function SettingsEditor({ settings, startupTheme, initialCategory = settingsCate
   const dirty = dirtySettingsCategories(draft, saved);
   useImperativeHandle(ref, () => ({ async requestLeave() {
     if (pending.current || leaveDecision.current) return false;
-    if (!dirty.length) return true;
+    if (!dirty.length && !defaultShortcutConflict) return true;
     setLeaveCategories(dirty);
     return new Promise<boolean>(resolve => { leaveDecision.current = resolve; leaveDialog.current?.showModal(); });
   }, showCategory(category) { if (!pending.current && !leaveDecision.current) { setSection(category); setSearch(''); } } }));
@@ -119,7 +119,8 @@ function SettingsEditor({ settings, startupTheme, initialCategory = settingsCate
   }
   async function saveAndLeave() {
     leaveDialog.current?.close();
-    decideLeave(await save(leaveCategories));
+    // The saved shortcuts hold the default shortcut conflict, so leaving always saves them.
+    decideLeave(await save(defaultShortcutConflict && !leaveCategories.includes('shortcuts') ? [...leaveCategories, 'shortcuts'] : leaveCategories));
   }
   const query = search.trim().toLowerCase();
   const actions = shortcutActions.filter(action => `${t(action === 'settings' ? 'openSettings' : action)} ${shortcuts[action]} ${displayShortcut(shortcuts[action])}`.toLowerCase().includes(query));
@@ -177,8 +178,10 @@ function SettingsEditor({ settings, startupTheme, initialCategory = settingsCate
       </div>
     </div>
     <dialog ref={leaveDialog} className="settings-leave" onCancel={event => { event.preventDefault(); decideLeave(false); }}>
-      <h2>{t('settingsLeave')}</h2><p>{t('settingsUnsaved', { categories: settingsCategories.filter(category => leaveCategories.includes(category.id)).map(category => t(category.id)) })}</p>
-      <div className="dialog-actions"><button onClick={() => decideLeave(false)}>{t('cancel')}</button><button onClick={() => decideLeave(true)}>{t('dontSave')}</button><button className="primary" onClick={() => void saveAndLeave()}>{t('saveAndReturn')}</button></div>
+      <h2>{t('settingsLeave')}</h2>
+      {defaultShortcutConflict && <p>{t('settingsLeaveConflict')}</p>}
+      {leaveCategories.length > 0 && <p>{t('settingsUnsaved', { categories: settingsCategories.filter(category => leaveCategories.includes(category.id)).map(category => t(category.id)) })}</p>}
+      <div className="dialog-actions"><button onClick={() => decideLeave(false)}>{t('cancel')}</button>{!defaultShortcutConflict && <button onClick={() => decideLeave(true)}>{t('dontSave')}</button>}<button className="primary" onClick={() => void saveAndLeave()}>{t('saveAndReturn')}</button></div>
     </dialog>
   </div>;
 }

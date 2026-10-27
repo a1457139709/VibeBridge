@@ -31,13 +31,6 @@ export function shortcutFormatError(binding: unknown): string | undefined {
     return message('shortcutInvalid');
 }
 
-export function validateShortcutFormats(shortcuts: Shortcuts): void {
-  for (const action of shortcutActions) {
-    const error = shortcutFormatError(shortcuts?.[action]);
-    if (error) throw new Error(message('shortcutField', { action: detail(shortcutNames[action]), reason: detail(error) }));
-  }
-}
-
 export interface ShortcutConflict { binding: string; actions: ShortcutAction[]; system?: string }
 export function shortcutConflictMessage(conflict: ShortcutConflict, excludedAction?: ShortcutAction): string {
   const actions = conflict.actions.filter(action => action !== excludedAction).map(action => detail(shortcutNames[action]));
@@ -53,12 +46,6 @@ export function shortcutConflicts(shortcuts: Shortcuts): ShortcutConflict[] {
   }
   return [...groups].filter(([binding, actions]) => actions.length > 1 || reserved[binding])
     .map(([binding, actions]) => ({ binding, actions, system: reserved[binding] }));
-}
-
-export function validateShortcuts(shortcuts: Shortcuts): void {
-  validateShortcutFormats(shortcuts);
-  const conflict = shortcutConflicts(shortcuts)[0];
-  if (conflict) throw new Error(shortcutConflictMessage(conflict));
 }
 
 export function shortcutFromEvent(event: Pick<KeyboardEvent, 'code' | 'metaKey' | 'ctrlKey' | 'altKey' | 'shiftKey' | 'isComposing'>): string | undefined {
