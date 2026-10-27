@@ -70,7 +70,7 @@ test('directory restart saves first, cleans descendants and preserves project la
     const result = await f.workbench.editProject(project.id, { name: 'New directory', directory: target }, true);
     assert.equal(result.error, undefined);
     assert.equal(result.launches.length, 2);
-    assert.ok(result.launches.every(launch => launch.ok));
+    assert.ok(result.launches.every(launch => launch.outcome === 'started'));
     assert.deepEqual(result.project, { ...project, name: 'New directory', directory: target, layout });
     assert.ok([...oldRuns.map(run => run.pid!), child].every(pid => !alive(pid)));
     assert.deepEqual(f.workbench.snapshot().runs.filter(run => run.projectId === second.id), before.filter(run => run.projectId === second.id));
@@ -162,7 +162,7 @@ test('restart reports each failed launch without falling back and a zero-panel p
     settings.agents.claude.command = '/vibebridge-test/missing-agent';
     await f.workbench.saveSettings(settings);
     const result = await f.workbench.editProject(project.id, { name: 'Mixed moved', directory: target }, true);
-    assert.deepEqual(result.launches.map(launch => launch.ok), [true, false]);
+    assert.deepEqual(result.launches.map(launch => launch.outcome), ['started', 'failed']);
     assert.deepEqual(result.launches.map(launch => launch.run.panelId), project.panels.map(panel => panel.id));
     assert.equal(f.workbench.snapshot().projects[0].directory, target);
     await until(() => f.output(result.launches[0].run.id).includes(`:${target}`));
@@ -260,8 +260,9 @@ test('a start response timeout returns an explicit per-panel uncertain result wh
       const result = await f.workbench.editProject(project.id, { name: 'Saved before start timeout', directory: target }, true);
       assert.equal(result.project.directory, target);
       assert.equal(result.launches.length, 1);
-      assert.equal(result.launches[0].ok, false);
-      assert.match(result.launches[0].ok ? '' : result.launches[0].error, /launchUnconfirmed.*terminalTimeout/);
+      const [launch] = result.launches;
+      assert.equal(launch.outcome, 'unconfirmed');
+      assert.match(launch.outcome === 'unconfirmed' ? launch.reason : '', /launchUnconfirmed.*terminalTimeout/);
       await assert.rejects(f.workbench.deleteProject(project.id), /projectDeleteFailed.*terminalTimeout/);
       assert.deepEqual(f.workbench.snapshot().projects[0].panels, project.panels);
     } finally { unsubscribe(); }

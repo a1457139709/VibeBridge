@@ -71,7 +71,7 @@ async function fixture(context: TestContext) {
 test('a confirmed launch is running and observed, and announces itself', async context => {
   const f = await fixture(context);
   const launch = await f.start();
-  assert.equal(launch.ok, true);
+  assert.equal(launch.outcome, 'started');
   assert.equal(f.run(launch.run.id)?.state, 'running');
   assert.equal(await f.report(launch.run.id), 204);
   assert.deepEqual(f.emitted.map(event => event.kind), ['started']);
@@ -82,7 +82,7 @@ test('a failed launch reports launch failure and releases its observation at onc
   const f = await fixture(context);
   f.terminal.answer = 'failed';
   const launch = await f.start();
-  assert.deepEqual(launch.ok ? '' : launch.error, message('launchFailed'));
+  assert.equal(launch.outcome, 'failed');
   assert.equal(f.run(launch.run.id)?.state, 'failed');
   assert.equal(await f.report(launch.run.id), 403);
 });
@@ -91,7 +91,8 @@ test('an unconfirmed launch stays starting and observed, then accepts the host\'
   const f = await fixture(context);
   f.terminal.answer = 'none';
   const launch = await f.start();
-  assert.match(launch.ok ? '' : launch.error, /launchUnconfirmed.*terminalTimeout/);
+  assert.equal(launch.outcome, 'unconfirmed');
+  assert.match(launch.outcome === 'unconfirmed' ? launch.reason : '', /launchUnconfirmed.*terminalTimeout/);
   assert.equal(f.run(launch.run.id)?.state, 'starting');
   assert.equal(await f.report(launch.run.id), 204, 'an unconfirmed launch may still be running');
   const { id, panelId, projectId } = launch.run;
@@ -174,7 +175,7 @@ test('a terminal host failure stops every run, releases observations and refuses
   assert.deepEqual(f.errors, ['host gone']);
   assert.deepEqual(await f.supervision.stopProject(f.project), ['host gone']);
   const late = await f.supervision.start(f.project, f.project.panels[0], { command: 'agent', args: [] });
-  assert.match(late.ok ? '' : late.error, /launchUnconfirmed/);
+  assert.equal(late.outcome, 'unconfirmed');
   assert.equal(f.run(late.run.id)?.state, 'stopped', 'nothing will ever report a launch the failed host never ran');
 });
 

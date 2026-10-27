@@ -30,7 +30,7 @@ test('saved preferences apply at their intended boundaries and manual edits appl
     assert.deepEqual(workbench.snapshot().runs, runs);
     assert.deepEqual(workbench.snapshot().projects[0].layout, layout);
     const added = await workbench.addPanel(project.id, 'codex');
-    assert.equal(added.launch.ok, false);
+    assert.equal(added.launch.outcome, 'failed');
     assert.deepEqual(workbench.snapshot().runs, runs);
     assert.deepEqual(workbench.snapshot().projects[0], { ...project, layout });
     const nextDirectory = resolve(directory, 'next');

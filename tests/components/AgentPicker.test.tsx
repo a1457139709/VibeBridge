@@ -12,7 +12,7 @@ import { provideWorkbench } from './support/workbench';
 afterEach(cleanup);
 
 const failed: PanelCreation = { panel: { id: 'panel', agent: 'pi' },
-  launch: { ok: false, run: { id: 'run', panelId: 'panel', projectId: 'project', state: 'failed' }, error: message('launchFailed') } };
+  launch: { outcome: 'failed', run: { id: 'run', panelId: 'panel', projectId: 'project', state: 'failed' }, agent: 'pi' } };
 
 function renderPicker(language: 'en' | 'zh-CN' = 'en') {
   const close = mock.fn(), added = mock.fn(), openAgentSettings = mock.fn();
@@ -45,4 +45,14 @@ test('an error that is not a launch failure offers no settings entry', async () 
   await user.click(screen.getByRole('button', { name: /pi$/ }));
   assert.equal(screen.getByRole('alert').textContent, 'Panel limit');
   assert.equal(screen.queryByRole('button', { name: 'Open Agent settings' }), null);
+});
+
+test('an unconfirmed launch reports its reason without suggesting the Agent settings are wrong', async () => {
+  provideWorkbench({ addPanel: async () => ({ panel: { id: 'panel', agent: 'pi' }, launch: { outcome: 'unconfirmed', agent: 'pi',
+    run: { id: 'run', panelId: 'panel', projectId: 'project', state: 'starting' }, reason: message('launchUnconfirmed', { reason: 'host timeout' }) } }) });
+  const { user, added } = renderPicker();
+  await user.click(screen.getByRole('button', { name: /pi$/ }));
+  assert.equal(screen.getByRole('alert').textContent, 'Launch could not be confirmed: host timeout');
+  assert.equal(screen.queryByRole('button', { name: 'Open Agent settings' }), null);
+  assert.equal(added.mock.callCount(), 0);
 });

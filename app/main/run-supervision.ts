@@ -83,7 +83,7 @@ export class RunSupervision {
     try {
       const launch = await this.processing.prepare(id, panel.agent, command, project.directory);
       const run = await this.terminal.start({ id, panelId: panel.id, projectId: project.id, directory: project.directory, ...launch });
-      return run.state === 'failed' ? { ok: false, run, error: message('launchFailed') } : { ok: true, run };
+      return { outcome: run.state === 'failed' ? 'failed' : 'started', run, agent: panel.agent };
     } catch (error) {
       // A missing response is not proof that the process never started. Preserve any
       // observed run and keep accepting its later events instead of retrying implicitly.
@@ -91,7 +91,7 @@ export class RunSupervision {
       const observed = this.list.find(run => run.id === id);
       const run = observed ?? { id, panelId: panel.id, projectId: project.id, state: this.terminalFailure ? 'stopped' as const : 'starting' as const };
       if (!observed) this.terminalEvent({ kind: 'started', run });
-      return { ok: false, run: structuredClone(run), error: message('launchUnconfirmed', { reason: detail((error as Error).message) }) };
+      return { outcome: 'unconfirmed', run: structuredClone(run), agent: panel.agent, reason: message('launchUnconfirmed', { reason: detail((error as Error).message) }) };
     }
   }
   /** Stops the project's runs; returns one reason per run that could not be stopped. */

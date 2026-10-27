@@ -4,7 +4,7 @@ import type { Language, ProjectEdit, ProjectEditResult } from '../shared/model';
 import { randomUUID } from 'node:crypto';
 import { realpath, stat } from 'node:fs/promises';
 import { basename } from 'node:path';
-import { defaultNavigation, navigationWidth, type NavigationPreferences, assignedAgents, arrange, insertIntoLayout, validateDraft, removeFromLayout, validateLayout, agentTypes, type AgentType, type DirectoryResult, launchFailed, type LaunchResult, type Layout, type Panel, type Project, type ProjectCreation, type ProjectDraft, type PanelCreation, type Settings, type Snapshot, type WorkbenchEvent } from '../shared/model';
+import { defaultNavigation, navigationWidth, type NavigationPreferences, assignedAgents, arrange, insertIntoLayout, validateDraft, removeFromLayout, validateLayout, agentTypes, type AgentType, type DirectoryResult, type LaunchResult, type Layout, type Panel, type Project, type ProjectCreation, type ProjectDraft, type PanelCreation, type Settings, type Snapshot, type WorkbenchEvent } from '../shared/model';
 import { ProjectStore } from './storage';
 import { SettingsFile, defaultSettings } from './settings';
 import type { SettingsSaveResult } from '../shared/settings';
@@ -91,7 +91,7 @@ export class Workbench {
     await this.store.active(project.id);
     this.changed();
     const launches = await this.startProject(project);
-    await this.withdrawPanels(project, launches.filter(launchFailed).map(launch => launch.run.panelId));
+    await this.withdrawPanels(project, launches.filter(launch => launch.outcome === 'failed').map(launch => launch.run.panelId));
     return { project: structuredClone(project), launches };
   }); }
   editProject(id: string, edit: ProjectEdit, restart: boolean): Promise<ProjectEditResult> { return this.operation(async () => {
@@ -161,7 +161,7 @@ export class Workbench {
     await this.store.save(next);
     Object.assign(project, next); this.changed();
     const launch = await this.startPanel(project, panel);
-    if (launchFailed(launch)) await this.withdrawPanels(project, [panel.id]);
+    if (launch.outcome === 'failed') await this.withdrawPanels(project, [panel.id]);
     return { panel: structuredClone(panel), launch };
   }); }
   // Undoes the addition of panels whose Agent never started. Restored layouts keep

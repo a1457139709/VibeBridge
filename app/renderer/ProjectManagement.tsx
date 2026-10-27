@@ -1,8 +1,9 @@
 import { useLocalization } from './Localization';
 import { message } from '../shared/messages';
 import { useEffect, useRef, useState, type ReactNode } from 'react';
-import { agentNames, type DirectoryResult, type Project, type ProjectEditResult, type Run } from '../shared/model';
+import { type DirectoryResult, type Project, type ProjectEditResult, type Run } from '../shared/model';
 import { projectNameError, projectNameHasControls } from '../shared/project-name';
+import { LaunchResults } from './LaunchResults';
 import './project-management.css';
 
 export function ProjectNavigationItem({ project, runs, openProject, children }: {
@@ -74,8 +75,8 @@ function ProjectEditor({ project, running, close, openProject }: { project: Proj
     {result ? <>
       <p>{t('projectSaved', { name: result.project.name })}</p><p className="project-path">{result.project.directory}</p>
       {result.error && <p className="error-text" role="alert">{text(result.error)}</p>}
-      {!!result.launches.length && <><p>{result.launches.every(launch => launch.ok) ? t('panelsRestarted') : t('panelsRestartUnconfirmed')}</p>
-        <ul className="project-launch-results">{result.launches.map(launch => <li key={launch.run.panelId} className={launch.ok ? '' : 'error-text'}>{t('panelLaunchResult', { number: result.project.panels.findIndex(panel => panel.id === launch.run.panelId) + 1, agent: agentNames[result.project.panels.find(panel => panel.id === launch.run.panelId)!.agent], result: launch.ok ? t('launchSuccess') : text(launch.error) })}</li>)}</ul></>}
+      {!!result.launches.length && <><p>{result.launches.every(launch => launch.outcome === 'started') ? t('panelsRestarted') : t('panelsRestartUnconfirmed')}</p>
+        <LaunchResults launches={result.launches} /></>}
       <div className="project-dialog-actions"><button className="primary" onClick={close}>{t('finish')}</button></div>
     </> : <form onSubmit={event => { event.preventDefault(); if (!changedDirectory) void save(false); }}>
       <label htmlFor="edit-project-name">{t('projectName')}</label><input id="edit-project-name" autoFocus autoComplete="off" value={name} disabled={busy} aria-invalid={!!nameError} aria-describedby="edit-project-name-status" onChange={event => { setNameInputError(''); setName(event.target.value); }} onPaste={event => {

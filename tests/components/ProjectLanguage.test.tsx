@@ -18,7 +18,7 @@ for (const language of ['en', 'zh-CN'] as const) {
     provideWorkbench({ inspectDirectory: async directory => ({ valid: true, directory }),
       editProject: async (id, edit, restart) => {
         calls.push([id, edit, restart]);
-        return { project: { ...project, ...edit }, launches: [{ ok: false, run: { id: 'run', projectId: id, panelId: 'panel', state: 'failed' }, error: message('launchFailed') }] };
+        return { project: { ...project, ...edit }, launches: [{ outcome: 'failed', run: { id: 'run', projectId: id, panelId: 'panel', state: 'failed' }, agent: 'pi' }] };
       },
       deleteProject: async id => { calls.push(id); throw new Error(message('projectDeleteFailed', { reasons: ['external-detail 原样'] })); },
     });
