@@ -11,4 +11,4 @@ export const statusOf = (snapshot: Snapshot, runId: string) => panelViews(snapsh
 export const showing = (snapshot: Snapshot, projectId: string, state: ProcessingState) => (snapshot.projects.find(project => project.id === projectId)?.panels ?? [])
   .flatMap(panel => panel.status === state ? [[panel.id, panel.run!.id]] : []);
 /** The snapshot's projects in their stored shape, without each panel's run and processing state. */
-export const storedProjects = (snapshot: Snapshot): Project[] => snapshot.projects.map(project => ({ ...project, panels: project.panels.map(({ id, agent }) => ({ id, agent })) }));
+export const storedProjects = (snapshot: Snapshot): Project[] => snapshot.projects.map(project => ({ ...project, panels: project.panels.map(({ run: _run, status: _status, ...panel }) => panel) }));

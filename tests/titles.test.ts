@@ -53,7 +53,7 @@ test('OSC 2 and OSC 0 publish each session title change once, with split ST term
     await f.workbench.createProject({ name: 'Title changes', directory: f.directory, total: 1, counts: { codex: 1, claude: 0, pi: 0 } });
     const run = runsOf(f.workbench.snapshot())[0];
     await until(() => f.output(run.id).includes('READY:'));
-    const chunks = ['\x1b]2;◐ First | directory\x1b', '\\', '\x1b]0; Second | directory \x07', '\x1b]2;\x1b', '\\', '\x1b]1;not-a-title\x1b', '\\', 'body mentions Claude Code and π - project', '\x1b]2;⠋ Final | directory\x1b', '\\'];
+    const chunks = ['\x1b]2;◐ First | directory\x1b', '\\', '\x1b]0; Second | directory \x07', '\x1b]2;\x1b', '\\', '\x1b]1;not-a-title\x1b', '\\', 'body mentions Claude Code and π - project', '\x1b]2;⠋ Final | directory\x1b', '\\', '\x1b]0;⠙ Final | directory\x07', '\x1b]2;⠹ Final | directory \x07'];
     const from = f.events.length;
     await f.emit(run.id, 'consecutive', chunks, 20);
     await until(() => f.output(run.id).includes('DONE:consecutive'));
