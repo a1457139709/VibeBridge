@@ -4,7 +4,6 @@ import { mkdir, mkdtemp, readFile, rm } from 'node:fs/promises';
 import { resolve } from 'node:path';
 import { Workbench } from '../app/main/workbench';
 import type { Snapshot, WorkbenchEvent } from '../app/shared/model';
-import { message } from '../app/shared/messages';
 import { layoutBoxes } from '../app/shared/layout';
 
 async function until(check: () => boolean) {
@@ -30,7 +29,7 @@ test('adding and closing a panel preserve unrelated regions, existing runs and t
       second: { axis: 'row' as const, ratio: 0.35, first: { panel: project.panels[2].id }, second: { panel: project.panels[0].id } } };
     await workbench.saveLayout(project.id, layout);
     const added = await workbench.addPanel(project.id, 'codex');
-    assert.equal(added.launch.ok, true);
+    assert.equal(added.launch.outcome, 'started');
     const after = workbench.snapshot();
     assert.deepEqual(after.runs.filter(run => run.id !== added.launch.run.id), originalRuns);
     const expanded = after.projects[0].layout;
@@ -85,7 +84,7 @@ test('normal and abnormal run exits remove panels', async () => {
     await workbench.sendInput(added.launch.run.id, 'exit');
     await until(() => workbench.snapshot().projects[0].panels.length === 0);
     const abnormal = await workbench.addPanel(project.id, 'claude');
-    assert.equal(abnormal.launch.ok, true);
+    assert.equal(abnormal.launch.outcome, 'started');
     await until(() => workbench.snapshot().projects[0].panels.length === 0);
     await assert.rejects(workbench.sendInput(abnormal.launch.run.id, 'old-input'), /runInvalid/);
   } finally { await workbench.quit(); await rm(directory, { recursive: true, force: true }); }
@@ -122,8 +121,7 @@ test('an added panel whose Agent cannot start is withdrawn, and adding succeeds 
     const snapshots: Snapshot[] = [];
     workbench.subscribe(event => { if (event.kind === 'snapshot') snapshots.push(event.snapshot); });
     const failed = await workbench.addPanel(before.projects[0].id, 'pi');
-    assert.equal(failed.launch.ok, false);
-    assert.equal(!failed.launch.ok && failed.launch.error, message('launchFailed'));
+    assert.equal(failed.launch.outcome, 'failed');
     const after = workbench.snapshot();
     assert.deepEqual(after.projects, before.projects);
     assert.deepEqual(after.runs, before.runs);
@@ -139,7 +137,7 @@ test('an added panel whose Agent cannot start is withdrawn, and adding succeeds 
     await workbench.activateProject(before.projects[0].id);
     await workbench.saveSettings({ agents: { ...settings.agents, pi: settings.agents.codex } });
     const fixed = await workbench.addPanel(before.projects[0].id, 'pi');
-    assert.equal(fixed.launch.ok, true);
+    assert.equal(fixed.launch.outcome, 'started');
     assert.equal(workbench.snapshot().projects[0].panels.length, 3);
   } finally { await workbench.quit(); await rm(directory, { recursive: true, force: true }); }
 });
@@ -153,8 +151,8 @@ test('project creation withdraws only the panels whose Agent cannot start, keepi
     settings.agents.pi = { command: '/no-such-agent', args: [] };
     await workbench.saveSettings(settings);
     const partial = await workbench.createProject({ name: 'Partial', directory, total: 3, counts: { codex: 2, claude: 0, pi: 1 } });
-    assert.deepEqual(partial.launches.map(launch => launch.ok), [true, true, false]);
-    const started = partial.launches.filter(launch => launch.ok).map(launch => launch.run.panelId);
+    assert.deepEqual(partial.launches.map(launch => launch.outcome), ['started', 'started', 'failed']);
+    const started = partial.launches.filter(launch => launch.outcome === 'started').map(launch => launch.run.panelId);
     assert.deepEqual(partial.project.panels.map(panel => panel.id), started);
     assert.deepEqual(partial.project.panels.map(panel => panel.agent), ['codex', 'codex']);
     assert.deepEqual([...layoutBoxes(partial.project.layout).panels.keys()].sort(), [...started].sort());
@@ -162,7 +160,7 @@ test('project creation withdraws only the panels whose Agent cannot start, keepi
     assert.ok(workbench.snapshot().runs.every(run => started.includes(run.panelId)));
     await mkdir(resolve(directory, 'none'));
     const none = await workbench.createProject({ name: 'None', directory: resolve(directory, 'none'), total: 2, counts: { codex: 0, claude: 0, pi: 2 } });
-    assert.deepEqual(none.launches.map(launch => launch.ok), [false, false]);
+    assert.deepEqual(none.launches.map(launch => launch.outcome), ['failed', 'failed']);
     assert.deepEqual(none.project.panels, []);
     assert.equal(none.project.layout, null);
     assert.equal(workbench.snapshot().activeProjectId, none.project.id);

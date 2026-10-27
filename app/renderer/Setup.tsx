@@ -2,7 +2,8 @@ import { useLocalization } from './Localization';
 import { message } from '../shared/messages';
 import { agentIcons } from './agent-icons';
 import { useEffect, useRef, useState, type Dispatch, type SetStateAction } from 'react';
-import { agentNames, agentTypes, arrange, assignedAgents, launchFailed, type AgentType, type DefaultLayout, type DirectoryResult, type LaunchResult, type ProjectDraft } from '../shared/model';
+import { agentNames, agentTypes, arrange, assignedAgents, type DefaultLayout, type DirectoryResult, type LaunchResult, type ProjectDraft } from '../shared/model';
+import { LaunchResults } from './LaunchResults';
 import { layoutBoxes } from '../shared/layout';
 import { projectNameError, projectNameFromDirectory, projectNameHasControls } from '../shared/project-name';
 
@@ -18,7 +19,7 @@ export function Setup({ draft, change, cancel, created, openProject, report, ope
   const [nameInputError, setNameInputError] = useState('');
   const [choosing, setChoosing] = useState(false);
   const [busy, setBusy] = useState(false);
-  const [launched, setLaunched] = useState<{ projectId: string; agents: AgentType[]; launches: LaunchResult[] }>();
+  const [launched, setLaunched] = useState<{ projectId: string; launches: LaunchResult[] }>();
   const pending = useRef(false);
   const directory = inspection?.path === draft.directory ? inspection.result : undefined;
   const checking = !!draft.directory && !directory;
@@ -58,20 +59,19 @@ export function Setup({ draft, change, cancel, created, openProject, report, ope
     if (!canCreate) { setNameTouched(true); setDirectoryTouched(true); return; }
     pending.current = true; setBusy(true);
     try {
-      // Panels launch in allocation order; failed ones are already withdrawn from the project.
-      const agents = assignedAgents(draft);
+      // Failed launches are already withdrawn from the project.
       const { project, launches } = await window.workbench.createProject(draft);
-      if (launches.every(launch => launch.ok)) created(project.id);
-      else setLaunched({ projectId: project.id, agents, launches });
+      if (launches.every(launch => launch.outcome === 'started')) created(project.id);
+      else setLaunched({ projectId: project.id, launches });
     }
     catch (error) { report((error as Error).message); }
     finally { pending.current = false; setBusy(false); }
   }
   if (launched) {
-    const failed = launched.launches.some(launchFailed);
+    const failed = launched.launches.some(launch => launch.outcome === 'failed');
     return <div className="setup-scroll"><section className="setup">
       <h1>{t('createProject')}</h1>{failed && <p role="status">{t('setupLaunchFailed')}</p>}
-      <ul className="project-launch-results">{launched.launches.map((launch, index) => <li key={launch.run.panelId} className={launch.ok ? '' : 'error-text'}>{t('panelLaunchResult', { number: index + 1, agent: agentNames[launched.agents[index]], result: launch.ok ? t('launchSuccess') : text(launch.error) })}</li>)}</ul>
+      <LaunchResults launches={launched.launches} />
       <div className="setup-actions">{failed && <button type="button" onClick={() => { created(launched.projectId); openAgentSettings(); }}>{t('openAgentSettings')}</button>}<button type="button" className="primary" autoFocus onClick={() => created(launched.projectId)}>{t('finish')}</button></div>
     </section></div>;
   }

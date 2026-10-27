@@ -1,6 +1,7 @@
 import { useLocalization } from './Localization';
 import { useEffect, useRef, useState } from 'react';
-import { agentNames, agentTypes, launchFailed } from '../shared/model';
+import { message } from '../shared/messages';
+import { agentNames, agentTypes } from '../shared/model';
 import { agentIcons } from './agent-icons';
 
 export function AgentPicker({ projectId, full, close, added, openAgentSettings }: {
@@ -23,7 +24,10 @@ export function AgentPicker({ projectId, full, close, added, openAgentSettings }
         setBusy(true); setFailure(undefined);
         try {
           const result = await window.workbench.addPanel(projectId, type);
-          if (result.launch.ok) added(); else setFailure({ error: result.launch.error, settings: launchFailed(result.launch) });
+          const { launch } = result;
+          if (launch.outcome === 'started') added();
+          else if (launch.outcome === 'failed') setFailure({ error: message('launchFailed'), settings: true });
+          else setFailure({ error: launch.reason, settings: false });
         } catch (error) { setFailure({ error: (error as Error).message, settings: false }); }
         finally { setBusy(false); }
       }}><span className="agent-mark">{agentIcons[type]}</span>{agentNames[type]}</button>)}

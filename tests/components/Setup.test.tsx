@@ -5,8 +5,7 @@ import { useState } from 'react';
 import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { userEvent } from '@testing-library/user-event';
 import { Setup } from '../../app/renderer/Setup';
-import { newDraft, type DirectoryResult, type LaunchResult, type ProjectCreation, type ProjectDraft } from '../../app/shared/model';
-import { message } from '../../app/shared/messages';
+import { newDraft, type AgentType, type DirectoryResult, type LaunchResult, type ProjectCreation, type ProjectDraft } from '../../app/shared/model';
 import { deferred, provideWorkbench } from './support/workbench';
 
 afterEach(cleanup);
@@ -142,15 +141,14 @@ test('choosing fills an empty name, while chooser and inspection failures preser
   assert.equal(screen.getByRole<HTMLButtonElement>('button', { name: 'Choose local directory' }).disabled, false);
 });
 
-function launch(panelId: string, ok: boolean): LaunchResult {
-  const run = { id: `run-${panelId}`, panelId, projectId: 'created', state: ok ? 'running' as const : 'failed' as const };
-  return ok ? { ok, run } : { ok, run, error: message('launchFailed') };
+function launch(panelId: string, agent: AgentType, outcome: 'started' | 'failed'): LaunchResult {
+  return { outcome, agent, run: { id: `run-${panelId}`, panelId, projectId: 'created', state: outcome === 'started' ? 'running' : 'failed' } };
 }
 
 test('creation shows each panel launch result when some Agents cannot start, and leads to Agent settings', async () => {
   const draft: ProjectDraft = { ...validDraft, total: 3, counts: { codex: 2, claude: 0, pi: 1 } };
   const result: ProjectCreation = { project: { id: 'created', name: 'Project', directory: draft.directory, panels: [{ id: 'a', agent: 'codex' }, { id: 'b', agent: 'codex' }], layout: null },
-    launches: [launch('a', true), launch('b', true), launch('c', false)] };
+    launches: [launch('a', 'codex', 'started'), launch('b', 'codex', 'started'), launch('c', 'pi', 'failed')] };
   provideWorkbench({ inspectDirectory: async () => ({ valid: true }), createProject: async () => result });
   const { user, created, openAgentSettings } = renderSetup(draft);
   const create = screen.getByRole<HTMLButtonElement>('button', { name: 'Create and start' });
@@ -168,7 +166,7 @@ test('creation shows each panel launch result when some Agents cannot start, and
 test('creation where no Agent starts reports every panel and opens the empty project when done', async () => {
   const draft: ProjectDraft = { ...validDraft, total: 2, counts: { codex: 0, claude: 1, pi: 1 } };
   const result: ProjectCreation = { project: { id: 'created', name: 'Project', directory: draft.directory, panels: [], layout: null },
-    launches: [launch('a', false), launch('b', false)] };
+    launches: [launch('a', 'claude', 'failed'), launch('b', 'pi', 'failed')] };
   provideWorkbench({ inspectDirectory: async () => ({ valid: true }), createProject: async () => result });
   const { user, created, openAgentSettings } = renderSetup(draft);
   const create = screen.getByRole<HTMLButtonElement>('button', { name: 'Create and start' });

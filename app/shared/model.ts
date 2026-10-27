@@ -18,9 +18,9 @@ export type Language = 'en' | 'zh-CN';
 export interface Settings { language: Language; theme: 'system' | 'dark' | 'light'; defaultLayout: DefaultLayout; agents: Record<AgentType, AgentCommand>; shortcuts: Shortcuts }
 export type CommandCheck = { available: true; path: string } | { available: false; message: string };
 export interface Run { id: string; projectId: string; panelId: string; state: 'running' | 'starting' | 'failed' | 'stopped'; pid?: number; rawTitle?: string }
-export type LaunchResult = { ok: true; run: Run } | { ok: false; run: Run; error: string };
-// An unconfirmed launch may still be running, so only a confirmed failure counts.
-export const launchFailed = (launch: LaunchResult) => !launch.ok && launch.error === message('launchFailed');
+// An unconfirmed launch may still be running; only a failed one is known not to have started.
+export type LaunchResult = { outcome: 'started'; run: Run; agent: AgentType } | { outcome: 'failed'; run: Run; agent: AgentType }
+  | { outcome: 'unconfirmed'; run: Run; agent: AgentType; reason: string };
 export interface ProjectCreation { project: Project; launches: LaunchResult[] }
 export interface ProjectEdit { name: string; directory: string }
 export interface ProjectEditResult { project: Project; launches: LaunchResult[]; error?: string }
