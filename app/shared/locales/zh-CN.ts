@@ -161,6 +161,8 @@ export const chinese: Record<keyof typeof english, string> = {
   "navigationInvalid": "导航偏好无效",
   "projectStorageFailed": "项目保存或读取失败：{reason}",
   "projectStorageClosed": "项目存储已关闭",
+  "projectDataInvalid": "{file} 中项目“{name}”（{id}）的 {field} 无效",
+  "navigationDataInvalid": "{file} 中的 {field} 无效",
   "storageOperationUnknown": "未知保存操作",
   "failureRecordFailed": "故障记录保存失败：{reason}",
   "terminalHostExited": "终端管理进程已结束（{reason}）",

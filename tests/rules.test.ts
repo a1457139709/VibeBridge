@@ -2,7 +2,7 @@ import { message } from '../app/shared/messages';
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { projectNameError, projectNameFromDirectory } from '../app/shared/project-name';
-import { arrange, assignedAgents, validateDraft, validateLayout, type ProjectDraft } from '../app/shared/model';
+import { arrange, assignedAgents, parseLayout, validateDraft, type ProjectDraft } from '../app/shared/model';
 import { layoutBoxes } from '../app/shared/layout';
 import { defaultShortcuts, shortcutConflicts, shortcutFromEvent, shortcutFormatError } from '../app/shared/shortcuts';
 
@@ -35,10 +35,15 @@ test('nested layout coordinates preserve spatial relationships and invalid saves
     ['c', { x: .25, y: .5, width: .75, height: .5 }],
   ]);
   const panels = ['a', 'b', 'c'].map(id => ({ id, agent: 'codex' as const }));
-  assert.doesNotThrow(() => validateLayout(layout, panels));
-  for (const ratio of [0, 1, -.1, NaN, Infinity]) assert.throws(() => validateLayout({ ...layout, ratio }, panels), /layoutInvalid/);
-  assert.throws(() => validateLayout({ ...layout, first: { panel: 'b' } }, panels), /layoutMismatch/);
-  assert.throws(() => validateLayout(null, panels), /layoutMismatch/);
+  assert.deepEqual(parseLayout(layout, panels), layout);
+  assert.equal(parseLayout(null, []), null);
+  for (const ratio of [0, 1, -.1, NaN, Infinity]) assert.throws(() => parseLayout({ ...layout, ratio }, panels), /layoutInvalid/);
+  for (const invalid of ['row', { ...layout, axis: 'diagonal' }, { ...layout, first: { panel: 'a', size: 1 } }, { ...layout, weight: 1 }, undefined])
+    assert.throws(() => parseLayout(invalid, panels), /layoutInvalid/);
+  const deep = Array.from({ length: 11 }, () => 0).reduce<object>(node => ({ axis: 'row', ratio: .5, first: node, second: { panel: 'x' } }), { panel: 'y' });
+  assert.throws(() => parseLayout(deep, panels), /layoutInvalid/);
+  assert.throws(() => parseLayout({ ...layout, first: { panel: 'b' } }, panels), /layoutMismatch/);
+  assert.throws(() => parseLayout(null, panels), /layoutMismatch/);
   assert.equal(arrange([]), null);
   assert.deepEqual(arrange(['a']), { panel: 'a' });
   assert.deepEqual(arrange(['a', 'b'], 'column'), { axis: 'column', ratio: .5, first: { panel: 'a' }, second: { panel: 'b' } });
