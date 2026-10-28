@@ -82,6 +82,7 @@ function WorkbenchView({ state, setState }: { state?: Snapshot; setState(snapsho
   const navigation = useProjectNavigation({ snapshot: state, page: settingsOpen ? 'settings' : setup ? 'setup' : 'workbench',
     view: location.view, openProject: activate, locatePanel, createProject: create, toggleSettings, report });
   const active = state?.projects.find(project => project.id === state.activeProjectId);
+  const conflictCategory = state?.settingsConflicts[0]?.category;
   useEffect(() => {
     const keydown = (event: KeyboardEvent) => {
       if (!state || !document.hasFocus() || (event.target as HTMLElement).closest('[data-shortcut-recorder]') || document.querySelector('dialog[open]')) return;
@@ -110,7 +111,7 @@ function WorkbenchView({ state, setState }: { state?: Snapshot; setState(snapsho
     </main></div>
     <ProjectSummary projectId={active?.id} panels={active?.panels} locatePanel={locatePanel} />
     <Notices notices={notices} dismiss={dismiss} />
-    {state?.settingsConflicts[0] && !settingsOpen && <SettingsConflictDialog category={state.settingsConflicts[0].category} openSettings={() => openSettings(state.settingsConflicts[0].category)} />}
+    {conflictCategory && !settingsOpen && <SettingsConflictDialog category={conflictCategory} openSettings={() => openSettings(conflictCategory)} />}
   </div>;
 }
 createRoot(document.getElementById('root')!).render(<App />);

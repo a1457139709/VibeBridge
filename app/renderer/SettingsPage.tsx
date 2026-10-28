@@ -74,7 +74,8 @@ function SettingsEditor({ settings, startupTheme, initialCategory = settingsCate
   const leaveDecision = useRef<(leave: boolean) => void>(undefined);
   const dirty = dirtySettingsCategories(draft, saved);
   // A settings conflict lives in the saved settings, so leaving requires saving its category.
-  const conflicting = settingsCategories.filter(category => settingsConflicts(saved).some(issue => issue.category === category.id)).map(category => category.id);
+  const savedConflicts = settingsConflicts(saved);
+  const conflicting = settingsCategories.filter(category => savedConflicts.some(issue => issue.category === category.id)).map(category => category.id);
   useImperativeHandle(ref, () => ({ async requestLeave() {
     if (pending.current || leaveDecision.current) return false;
     if (!dirty.length && !conflicting.length) return true;
