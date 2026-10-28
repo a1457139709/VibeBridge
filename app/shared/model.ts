@@ -1,3 +1,4 @@
+import { z } from 'zod';
 import { message } from './messages';
 import { layoutBoxes } from './layout';
 import type { Shortcuts } from './shortcuts';
@@ -7,6 +8,7 @@ import type { SettingsIssue } from './settings';
 
 export const agentTypes = ['codex', 'claude', 'pi'] as const;
 export type AgentType = typeof agentTypes[number];
+export const agentTypeSchema = z.enum(agentTypes);
 export const agentNames: Record<AgentType, string> = { codex: 'Codex', claude: 'Claude Code', pi: 'pi' };
 export interface ProjectDraft { name: string; directory: string; total: number; counts: Record<AgentType, number> }
 export const newDraft = (): ProjectDraft => ({ name: '', directory: '', total: 3, counts: { codex: 0, claude: 0, pi: 0 } });
@@ -28,6 +30,8 @@ export interface ProjectEditResult { project: Project; launches: LaunchResult[];
 export interface PanelCreation { panel: Panel; launch: LaunchResult }
 export interface NavigationPreferences { visible: boolean; width: number }
 export const defaultNavigation: NavigationPreferences = { visible: true, width: 212 };
+// Width bounds belong to the interaction that sets them (navigationWidth), not to the stored format.
+export const navigationSchema = z.strictObject({ visible: z.boolean(), width: z.number() });
 export const navigationWidth = (width: number) => Math.max(168, Math.min(420, width));
 /** A panel with its current run, whatever that run's state, and the processing state it displays. */
 export type PanelView = Panel & { run?: Run; status?: ProcessingState };
@@ -79,16 +83,19 @@ export function insertIntoLayout(layout: Layout | null, panelId: string): Layout
   return insert(layout);
 }
 
-export function validateLayout(layout: Layout | null, panels: Panel[]): void {
-  const ids: string[] = [];
-  const visit = (node: Layout, depth: number) => {
-    if (!node || depth > 10) throw new Error(message('layoutInvalid'));
-    if ('panel' in node) ids.push(node.panel);
-    else {
-      if (!['row', 'column'].includes(node.axis) || !Number.isFinite(node.ratio) || node.ratio <= 0 || node.ratio >= 1) throw new Error(message('layoutInvalid'));
-      visit(node.first, depth + 1); visit(node.second, depth + 1);
-    }
-  };
-  if (layout) visit(layout, 0);
+const layoutNodeSchema: z.ZodType<Layout> = z.lazy(() => z.union([
+  z.strictObject({ panel: z.string() }),
+  z.strictObject({ axis: z.enum(['row', 'column']), ratio: z.number().gt(0).lt(1), first: layoutNodeSchema, second: layoutNodeSchema }),
+]));
+const layoutDepth = (node: Layout): number => 'panel' in node ? 0 : 1 + Math.max(layoutDepth(node.first), layoutDepth(node.second));
+const layoutPanelIds = (node: Layout): string[] => 'panel' in node ? [node.panel] : [...layoutPanelIds(node.first), ...layoutPanelIds(node.second)];
+const layoutSchema = layoutNodeSchema.refine(layout => layoutDepth(layout) <= 10).nullable();
+
+/** A layout of the given panels: its structure is valid and it places each panel exactly once. */
+export function parseLayout(value: unknown, panels: Panel[]): Layout | null {
+  const parsed = layoutSchema.safeParse(value);
+  if (!parsed.success) throw new Error(message('layoutInvalid'));
+  const ids = parsed.data ? layoutPanelIds(parsed.data) : [];
   if (ids.length !== panels.length || new Set(ids).size !== ids.length || panels.some(p => !ids.includes(p.id))) throw new Error(message('layoutMismatch'));
+  return parsed.data;
 }

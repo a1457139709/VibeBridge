@@ -4,7 +4,7 @@ import type { Language, ProjectEdit, ProjectEditResult } from '../shared/model';
 import { randomUUID } from 'node:crypto';
 import { realpath, stat } from 'node:fs/promises';
 import { basename } from 'node:path';
-import { defaultNavigation, navigationWidth, type NavigationPreferences, assignedAgents, arrange, insertIntoLayout, validateDraft, removeFromLayout, validateLayout, agentTypes, type AgentType, type DirectoryResult, type LaunchResult, type Layout, type Panel, type Project, type ProjectCreation, type ProjectDraft, type PanelCreation, type Settings, type Snapshot, type WorkbenchEvent } from '../shared/model';
+import { defaultNavigation, navigationSchema, navigationWidth, type NavigationPreferences, assignedAgents, arrange, insertIntoLayout, validateDraft, removeFromLayout, parseLayout, agentTypes, type AgentType, type DirectoryResult, type LaunchResult, type Layout, type Panel, type Project, type ProjectCreation, type ProjectDraft, type PanelCreation, type Settings, type Snapshot, type WorkbenchEvent } from '../shared/model';
 import { ProjectStore } from './storage';
 import { SettingsFile, defaultSettings } from './settings';
 import { settingsConflicts, type SettingsSaveResult } from '../shared/settings';
@@ -187,13 +187,13 @@ export class Workbench {
   }); }
   saveLayout(projectId: string, layout: Layout | null) { return this.operation(async () => {
     const project = this.project(projectId);
-    validateLayout(layout, project.panels);
-    project.layout = structuredClone(layout); this.changed();
+    project.layout = parseLayout(layout, project.panels); this.changed();
     await this.store.save(project);
   }); }
   saveNavigation(preferences: NavigationPreferences) { return this.operation(async () => {
-    if (!preferences || typeof preferences.visible !== 'boolean' || !Number.isFinite(preferences.width)) throw new Error(message('navigationInvalid'));
-    const navigation = { visible: preferences.visible, width: navigationWidth(preferences.width) };
+    const parsed = navigationSchema.safeParse(preferences);
+    if (!parsed.success) throw new Error(message('navigationInvalid'));
+    const navigation = { ...parsed.data, width: navigationWidth(parsed.data.width) };
     await this.store.navigation(navigation);
     this.state.navigation = navigation; this.changed();
   }); }

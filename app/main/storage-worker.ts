@@ -1,29 +1,46 @@
 import { message } from '../shared/messages';
 import { parentPort, workerData } from 'node:worker_threads';
 import { DatabaseSync } from 'node:sqlite';
-import { defaultNavigation, type Project } from '../shared/model';
+import { agentTypeSchema, defaultNavigation, navigationSchema, parseLayout, type NavigationPreferences, type Panel, type Project } from '../shared/model';
 
-const db = new DatabaseSync(workerData.file);
+const file: string = workerData.file;
+const db = new DatabaseSync(file);
 db.exec(`PRAGMA journal_mode=WAL; PRAGMA foreign_keys=ON;
   CREATE TABLE IF NOT EXISTS projects (id TEXT PRIMARY KEY, name TEXT NOT NULL, directory TEXT NOT NULL UNIQUE, layout TEXT);
   CREATE TABLE IF NOT EXISTS panels (id TEXT PRIMARY KEY, project_id TEXT NOT NULL REFERENCES projects(id), agent TEXT NOT NULL, position INTEGER NOT NULL);
-  CREATE TABLE IF NOT EXISTS workspace (id INTEGER PRIMARY KEY CHECK(id=1), active_project TEXT);
+  CREATE TABLE IF NOT EXISTS workspace (id INTEGER PRIMARY KEY CHECK(id=1), active_project TEXT, navigation TEXT);
 `);
 
-const columns = db.prepare('PRAGMA table_info(workspace)').all();
-if (!columns.some(column => column.name === 'navigation')) db.exec('ALTER TABLE workspace ADD COLUMN navigation TEXT');
+// Stored content is read in its current format only: anything else fails the whole load and leaves the file untouched.
+// Columns other than layout and panels.agent are kept as the table constraints store them.
+function readProject(row: Record<string, unknown>): Project {
+  const { id, name, directory, layout: storedLayout } = row as { id: string; name: string; directory: string; layout: string };
+  const invalid = (field: string) => new Error(message('projectDataInvalid', { file, field, id, name }));
+  const panels = db.prepare('SELECT id, agent FROM panels WHERE project_id=? ORDER BY position').all(id).map((panel): Panel => {
+    const agent = agentTypeSchema.safeParse(panel.agent);
+    if (!agent.success) throw invalid('panels.agent');
+    return { id: panel.id as string, agent: agent.data };
+  });
+  let layout;
+  try { layout = parseLayout(JSON.parse(storedLayout), panels); } catch { throw invalid('layout'); }
+  return { id, name, directory, layout, panels };
+}
+
+function readNavigation(stored: unknown): NavigationPreferences {
+  if (stored === null || stored === undefined) return defaultNavigation;
+  try { return navigationSchema.parse(JSON.parse(stored as string)); }
+  catch { throw new Error(message('navigationDataInvalid', { file, field: 'navigation' })); }
+}
 
 parentPort!.on('message', ({ id, operation, value }) => {
   try {
     let result: unknown;
     if (operation === 'load') {
+      const workspace = db.prepare('SELECT navigation, active_project FROM workspace WHERE id=1').get();
       result = {
-        projects: db.prepare('SELECT * FROM projects ORDER BY rowid').all().map(row => ({
-          id: row.id, name: row.name, directory: row.directory, layout: JSON.parse(row.layout as string),
-          panels: db.prepare('SELECT id, agent FROM panels WHERE project_id=? ORDER BY position').all(row.id),
-        })),
-        navigation: JSON.parse(db.prepare('SELECT navigation FROM workspace WHERE id=1').get()?.navigation as string || 'null') ?? defaultNavigation,
-        activeProjectId: db.prepare('SELECT active_project FROM workspace WHERE id=1').get()?.active_project ?? null,
+        projects: db.prepare('SELECT * FROM projects ORDER BY rowid').all().map(readProject),
+        navigation: readNavigation(workspace?.navigation),
+        activeProjectId: workspace?.active_project ?? null,
       };
     } else if (operation === 'save') {
       const project = value as Project;
@@ -51,5 +68,5 @@ parentPort!.on('message', ({ id, operation, value }) => {
     } else if (operation === 'close') db.close();
     else throw new Error(message('storageOperationUnknown'));
     parentPort!.postMessage({ id, result });
-  } catch (error) { parentPort!.postMessage({ id, error: String(error) }); }
+  } catch (error) { parentPort!.postMessage({ id, error: error instanceof Error ? error.message : String(error) }); }
 });

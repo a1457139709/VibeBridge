@@ -196,6 +196,8 @@ export const english = {
   "navigationInvalid": "Invalid navigation preferences",
   "projectStorageFailed": "Could not save or read projects: {reason}",
   "projectStorageClosed": "Project storage is closed",
+  "projectDataInvalid": "{file} contains invalid {field} for project “{name}” ({id})",
+  "navigationDataInvalid": "{file} contains invalid {field}",
   "storageOperationUnknown": "Unknown storage operation",
   "failureRecordFailed": "Could not save the failure record: {reason}",
   "terminalHostExited": "Terminal manager exited ({reason})",
