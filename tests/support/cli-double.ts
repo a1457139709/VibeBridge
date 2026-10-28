@@ -2,6 +2,7 @@ import { mkdtemp, rm } from 'node:fs/promises';
 import { resolve } from 'node:path';
 import { Workbench } from '../../app/main/workbench';
 import type { AgentType, WorkbenchEvent } from '../../app/shared/model';
+import { statusOf } from './panel-views';
 
 export async function until(check: () => boolean) {
   const deadline = Date.now() + 8000;
@@ -31,7 +32,7 @@ export async function fixture(agent: AgentType, args: string[] = []) {
   catch (error) { await close(); throw error; }
   let sequence = 0;
   return { workbench, directory, events, output,
-    state: (runId: string) => workbench.snapshot().processing.runs[runId],
+    state: (runId: string) => statusOf(workbench.snapshot(), runId),
     async create(total = 1) {
       const created = await workbench.createProject({ name: `${agent} reporter`, directory, total,
         counts: { codex: 0, claude: 0, pi: 0, [agent]: total } });

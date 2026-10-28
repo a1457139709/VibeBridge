@@ -4,6 +4,7 @@ import { mkdir, writeFile } from 'node:fs/promises';
 import { resolve } from 'node:path';
 import { Workbench } from '../app/main/workbench';
 import { testDirectory } from './support/directory';
+import { runsOf, storedProjects } from './support/panel-views';
 
 test('saved preferences apply at their intended boundaries and manual edits apply on reopen', async context => {
   const directory = await testDirectory(context, 'settings-persistence');
@@ -16,7 +17,7 @@ test('saved preferences apply at their intended boundaries and manual edits appl
     settings.agents.claude = settings.agents.codex;
     await workbench.saveSettings(settings);
     const { project } = await workbench.createProject({ name: 'Settings', directory, total: 2, counts: { codex: 2, claude: 0, pi: 0 } });
-    const runs = workbench.snapshot().runs;
+    const runs = runsOf(workbench.snapshot());
     assert.equal(runs.length, 2);
     assert.ok(runs.every(run => run.state === 'running'));
     const layout = { axis: 'row' as const, ratio: 0.7, first: { panel: project.panels[1].id }, second: { panel: project.panels[0].id } };
@@ -27,12 +28,12 @@ test('saved preferences apply at their intended boundaries and manual edits appl
     ]);
     assert.equal(workbench.snapshot().resolvedTheme, 'dark');
     assert.equal(workbench.snapshot().startupTheme, 'system');
-    assert.deepEqual(workbench.snapshot().runs, runs);
+    assert.deepEqual(runsOf(workbench.snapshot()), runs);
     assert.deepEqual(workbench.snapshot().projects[0].layout, layout);
     const added = await workbench.addPanel(project.id, 'codex');
     assert.equal(added.launch.outcome, 'failed');
-    assert.deepEqual(workbench.snapshot().runs, runs);
-    assert.deepEqual(workbench.snapshot().projects[0], { ...project, layout });
+    assert.deepEqual(runsOf(workbench.snapshot()), runs);
+    assert.deepEqual(storedProjects(workbench.snapshot())[0], { ...project, layout });
     const nextDirectory = resolve(directory, 'next');
     await mkdir(nextDirectory);
     const next = await workbench.createProject({ name: 'New layout', directory: nextDirectory, total: 2, counts: { codex: 0, claude: 2, pi: 0 } });

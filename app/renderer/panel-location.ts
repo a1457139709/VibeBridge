@@ -1,6 +1,5 @@
 import { useLayoutEffect, useRef, useState, type RefObject } from 'react';
-import type { Project, Snapshot } from '../shared/model';
-import { sessionTitle } from '../shared/session-title';
+import type { PanelView, Project, Snapshot } from '../shared/model';
 import { localize } from '../shared/localization';
 import type { ReportNotice } from './Notices';
 import { focusTerminal, terminalHasFocus } from './terminals';
@@ -49,8 +48,9 @@ function createLocation(initial: Host, changed: () => void) {
   let focusBlocked = false;
   const project = (id?: string | null) => host.snapshot?.projects.find(item => item.id === id);
   const view = (item?: Project) => validView(item, item && views.get(item.id));
-  const focusKey = (projectId: string, panelId?: string) => JSON.stringify([projectId, panelId,
-    host.snapshot?.runs.find(run => run.panelId === panelId && run.state === 'running')?.id]);
+  const panel = (projectId: string, panelId?: string) => project(projectId)?.panels.find(item => item.id === panelId);
+  const runningId = (item?: PanelView) => item?.run?.state === 'running' ? item.run.id : undefined;
+  const focusKey = (projectId: string, panelId?: string) => JSON.stringify([projectId, panelId, runningId(panel(projectId, panelId))]);
   const notify = () => { if (!disposed) changed(); };
   function cancel() {
     current = undefined;
@@ -60,9 +60,8 @@ function createLocation(initial: Host, changed: () => void) {
     notify();
   }
   function targetExists(projectId: string, panelId?: string, runId?: string) {
-    const target = project(projectId);
-    return !!target && (!panelId || target.panels.some(panel => panel.id === panelId))
-      && (!runId || host.snapshot?.runs.some(run => run.id === runId && run.panelId === panelId && run.projectId === projectId && run.state === 'running'));
+    return !!project(projectId) && (!panelId || !!panel(projectId, panelId))
+      && (!runId || runningId(panel(projectId, panelId)) === runId);
   }
   function rejectTarget() {
     cancel(); focusBlocked = true; focusedKey = undefined;
@@ -83,13 +82,13 @@ function createLocation(initial: Host, changed: () => void) {
     if (!sameView(connection.view, view(project(connection.projectId)))) return;
     return connection;
   }
-  function focus(panelId?: string) {
-    const run = host.snapshot?.runs.find(item => item.panelId === panelId && item.state === 'running');
+  function focus(projectId: string, panelId?: string) {
+    const runId = runningId(panel(projectId, panelId));
     // focus() dispatches focus events synchronously. These are feedback, not a
     // user command replacing the operation that caused them.
     focusing = true;
     try {
-      if (run) return focusTerminal(run.id);
+      if (runId) return focusTerminal(runId);
       // The panel is displayed, but it has no input receiver. In particular a
       // keyboard command must not leave input going to the previous terminal.
       if (document.activeElement instanceof HTMLElement && connection?.canvas.contains(document.activeElement)) document.activeElement.blur();
@@ -113,11 +112,10 @@ function createLocation(initial: Host, changed: () => void) {
     if (current !== operation || !operation.focusSettled || !operation.animationDone
       || connected()?.projectId !== operation.projectId) return;
     if (operation.changingMaximized && !operation.animated) {
-      const target = project(operation.projectId)?.panels.find(panel => panel.id === operation.panelId);
+      const target = panel(operation.projectId, operation.panelId);
       if (target) {
         const { t } = localize(host.snapshot?.settings.language ?? 'en');
-        host.report(t('locatedPanel', { title: sessionTitle(target.agent,
-          host.snapshot?.runs.find(run => run.panelId === target.id)?.rawTitle, t('untitled')) }), 'success');
+        host.report(t('locatedPanel', { title: target.run?.title ?? t('untitled') }), 'success');
       }
     }
     current = undefined; notify();
@@ -134,7 +132,7 @@ function createLocation(initial: Host, changed: () => void) {
     if (!operation && focusedKey !== undefined && active !== document.body && active !== document.documentElement && !terminalHasFocus()) return;
     const key = focusKey(actual.projectId, actual.view.selected);
     if (focusedKey !== key || (operation && !operation.focusSettled)) {
-      if (focus(actual.view.selected)) { focusedKey = key; if (operation) operation.focusSettled = true; }
+      if (focus(actual.projectId, actual.view.selected)) { focusedKey = key; if (operation) operation.focusSettled = true; }
       else schedule();
     }
     if (!operation) return;
@@ -189,7 +187,7 @@ function createLocation(initial: Host, changed: () => void) {
     select(projectId, { selected: panelId, maximized: intent === 'maximize' ? previous.maximized === panelId ? undefined : panelId : previous.maximized });
     // Header/maximize actions historically accept input immediately when their
     // terminal is already visible. Only an unmounted/hidden target needs a frame.
-    if (intent !== 'select' && connection?.projectId === projectId && focus(panelId)) {
+    if (intent !== 'select' && connection?.projectId === projectId && focus(projectId, panelId)) {
       focusedKey = focusKey(projectId, panelId);
     }
     schedule();

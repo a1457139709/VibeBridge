@@ -1,6 +1,7 @@
 import { mkdir } from 'node:fs/promises';
 import { resolve } from 'node:path';
 import { Workbench } from '../../app/main/workbench';
+import { runsOf } from '../support/panel-views';
 
 void (async () => {
   const directory = process.argv[2];
@@ -14,7 +15,7 @@ void (async () => {
   const second = resolve(directory, 'second');
   await mkdir(second);
   await workbench.createProject({ name: 'Second', directory: second, total: 1, counts: { codex: 1, claude: 0, pi: 0 } });
-  const run = workbench.snapshot().runs[0];
+  const run = runsOf(workbench.snapshot())[0];
   await workbench.sendInput(run.id, 'host orphan');
   const deadline = Date.now() + 5000;
   while (!/ORPHAN:(\d+)/.test(output)) {

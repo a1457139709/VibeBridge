@@ -49,9 +49,9 @@ function WorkbenchView({ state, setState }: { state?: Snapshot; setState(snapsho
       configureTerminals(dark, report);
       setState(snapshot); setSetup(!snapshot.projects.length);
       snapshot.errors.forEach(message => report(message));
-      reconcileTerminals(snapshot.runs);
+      reconcileTerminals(snapshot.projects);
       unsubscribe = window.workbench.subscribe(event => {
-        if (event.kind === 'snapshot') { reconcileTerminals(event.snapshot.runs); setState(event.snapshot); }
+        if (event.kind === 'snapshot') { reconcileTerminals(event.snapshot.projects); setState(event.snapshot); }
         else if (event.kind === 'error') report(event.message);
         terminalEvent(event);
       });
@@ -104,11 +104,11 @@ function WorkbenchView({ state, setState }: { state?: Snapshot; setState(snapsho
     <header className="system-bar"><div className="system-brand">{navigation.toggle}<span className="wordmark">VibeBridge</span></div></header>
     <div className="app-body">{navigation.sidebar}<main>
       <div className={`workbench-page ${location.locating ? 'locating-panel' : ''}`} hidden={settingsOpen} inert={settingsOpen}>
-        {!state ? <div className="empty">{t('opening')}</div> : setup ? <Setup defaultLayout={state.settings.defaultLayout} draft={draft} change={setDraft} cancel={() => setSetup(false)} created={id => { setDraft(newDraft()); activate(id); }} openProject={activate} report={report} openAgentSettings={openAgentSettings} /> : active ? <Workspace ref={workspace} visible={!settingsOpen} key={active.id} project={active} runs={state.runs} processing={state.processing} report={report} openAgentSettings={openAgentSettings} location={location} /> : <div className="empty"><p>{t('welcome')}</p><button className="primary" onClick={create}>{t('createProject')}</button></div>}
+        {!state ? <div className="empty">{t('opening')}</div> : setup ? <Setup defaultLayout={state.settings.defaultLayout} draft={draft} change={setDraft} cancel={() => setSetup(false)} created={id => { setDraft(newDraft()); activate(id); }} openProject={activate} report={report} openAgentSettings={openAgentSettings} /> : active ? <Workspace ref={workspace} visible={!settingsOpen} key={active.id} project={active} report={report} openAgentSettings={openAgentSettings} location={location} /> : <div className="empty"><p>{t('welcome')}</p><button className="primary" onClick={create}>{t('createProject')}</button></div>}
       </div>
       {state && settingsOpen && <SettingsPage ref={settingsPage} settings={state.settings} defaultShortcutConflict={state.defaultShortcutConflict} startupTheme={state.startupTheme} initialCategory={initialSettingsCategory} report={report} back={() => void leaveSettings()} />}
     </main></div>
-    <ProjectSummary snapshot={state} locatePanel={locatePanel} />
+    <ProjectSummary projectId={active?.id} panels={active?.panels} locatePanel={locatePanel} />
     <Notices notices={notices} dismiss={dismiss} />
     {state?.defaultShortcutConflict && !settingsOpen && <DefaultShortcutConflictDialog openShortcuts={() => openSettings('shortcuts')} />}
   </div>;

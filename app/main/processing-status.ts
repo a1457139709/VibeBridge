@@ -1,7 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import { createServer, type Server } from 'node:http';
-import type { AgentCommand, AgentType, Project, Run } from '../shared/model';
-import { isSummaryState, summaryStates, type SummaryState, type SummaryGroup, type ProcessingProjection, type ProcessingState } from '../shared/processing-status';
+import type { AgentCommand, AgentType, Run } from '../shared/model';
+import type { ProcessingState } from '../shared/processing-status';
 import type { StatusAdapter, StatusInterpreter } from './agent-status/adapter';
 import { codex } from './agent-status/codex/status';
 import { claude } from './agent-status/claude/status';
@@ -17,7 +17,7 @@ interface Observation {
   cleanup?: () => Promise<void>;
 }
 
-/** Run-scoped ingestion and projection; see docs/processing-status.md for the report format.
+/** Run-scoped ingestion and display state; see docs/processing-status.md for the report format.
  * prepare precedes launch, lifecycle uses only terminal-host facts. Reports during startup
  * are retained but invisible until running. Stopping revokes credentials; no result persists.
  * A running instance without a reliable observation is Error, never inferred from PTY data.
@@ -61,23 +61,9 @@ export class ProcessingStatus {
     }
   }
 
-  project(projects: Project[], runs: Run[]): ProcessingProjection {
-    const projection: ProcessingProjection = { runs: {}, projects: {} };
-    for (const project of projects) {
-      const groups = projection.projects[project.id] = {} as Record<SummaryState, SummaryGroup>;
-      for (const state of summaryStates) groups[state] = { count: 0, members: [] };
-      for (const panel of project.panels) {
-        const run = runs.find(run => run.panelId === panel.id && run.projectId === project.id && run.state === 'running');
-        if (!run) continue;
-        const state = this.observations.get(run.id)?.state ?? 'error';
-        projection.runs[run.id] = state;
-        if (isSummaryState(state)) {
-          groups[state].members.push({ panelId: panel.id, runId: run.id });
-          groups[state].count++;
-        }
-      }
-    }
-    return projection;
+  /** The processing state the run displays: only a running instance has one. */
+  status(run: Run): ProcessingState | undefined {
+    return run.state === 'running' ? this.observations.get(run.id)?.state ?? 'error' : undefined;
   }
 
   private listen(): Promise<string> {

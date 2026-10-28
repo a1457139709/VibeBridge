@@ -1,11 +1,12 @@
 const assert = require('node:assert/strict');
+const { runsOf } = require('./support/panel-views.cjs');
 
 module.exports = {
   async run(context) {
     const { window, evaluate, until, click } = context;
     await evaluate('window.output = ""; window.workbench.subscribe(event => { if (event.kind === "output") window.output += event.data; }); void 0;');
     const before = await require('./support/project.cjs')(context);
-    const [run] = before.runs;
+    const [run] = runsOf(before);
     assert.equal(run.state, 'running'); assert.ok(run.pid);
     await until(() => evaluate('document.querySelector(".xterm-rows").textContent.includes("READY:")'));
     await evaluate('document.querySelector(".xterm-helper-textarea").focus()');
@@ -17,7 +18,7 @@ module.exports = {
     const child = Number(await evaluate('window.output.match(/CHILD:(\\d+)/)[1]'));
     process.kill(child, 0);
     await click('Close panel');
-    await until(async () => !(await evaluate('window.workbench.snapshot()')).runs.length);
+    await until(async () => !runsOf(await evaluate('window.workbench.snapshot()')).length);
     await until(() => evaluate('document.body.innerText.includes("This project has no Agent Panels yet")'));
     assert.throws(() => process.kill(run.pid, 0));
     assert.throws(() => process.kill(child, 0));

@@ -2,6 +2,7 @@ const assert = require('node:assert/strict');
 const { writeFile } = require('node:fs/promises');
 const { resolve } = require('node:path');
 const { app, BrowserWindow, dialog } = require('electron');
+const { runsOf } = require('./panel-views.cjs');
 
 async function until(check, timeout = 10000) {
   const deadline = Date.now() + timeout;
@@ -52,7 +53,7 @@ void (async () => {
   const click = label => evaluate(`(() => { const button = [...document.querySelectorAll('button')].find(b => b.getAttribute('aria-label') === ${JSON.stringify(label)} || b.textContent === ${JSON.stringify(label)}); if (!button) throw new Error('Missing button'); button.click(); })()`);
   const fill = (id, value) => evaluate(`(() => { const input = document.getElementById(${JSON.stringify(id)}); Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value').set.call(input, ${JSON.stringify(value)}); input.dispatchEvent(new Event('input', { bubbles: true })); })()`);
   const result = await (reopen ? suite.reopen : suite.run)({ app, window, evaluate, click, fill, until, directory });
-  const runs = (await evaluate('window.workbench.snapshot()')).runs;
+  const runs = runsOf(await evaluate('window.workbench.snapshot()'));
   app.once('will-quit', event => {
     event.preventDefault();
     void (async () => {

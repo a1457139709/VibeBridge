@@ -17,7 +17,7 @@ export class WorkbenchOpenError extends Error {
 }
 
 export class Workbench {
-  private state: Omit<Snapshot, 'processing' | 'runs'> = { navigation: { ...defaultNavigation }, projects: [], activeProjectId: null, settings: defaultSettings(), defaultShortcutConflict: false, startupTheme: 'system', resolvedTheme: 'light', errors: [] };
+  private state: Omit<Snapshot, 'projects'> & { projects: Project[] } = { navigation: { ...defaultNavigation }, projects: [], activeProjectId: null, settings: defaultSettings(), defaultShortcutConflict: false, startupTheme: 'system', resolvedTheme: 'light', errors: [] };
   private supervision: RunSupervision;
   private listeners = new Set<(event: WorkbenchEvent) => void>();
   private operations: Promise<unknown> = Promise.resolve();
@@ -54,7 +54,10 @@ export class Workbench {
       throw new WorkbenchOpenError(error, settings.language);
     }
   }
-  snapshot(): Snapshot { return structuredClone({ ...this.state, runs: this.supervision.runs(), processing: this.supervision.projection(this.state.projects) }); }
+  snapshot(): Snapshot {
+    const projects = this.state.projects.map(project => ({ ...project, panels: project.panels.map(panel => this.supervision.panelView(panel)) }));
+    return structuredClone({ ...this.state, projects });
+  }
   subscribe(listener: (event: WorkbenchEvent) => void) { this.listeners.add(listener); return () => { this.listeners.delete(listener); }; }
   private emit(event: WorkbenchEvent) { for (const listener of this.listeners) listener(event); }
   private changed() { this.emit({ kind: 'snapshot', snapshot: this.snapshot() }); }

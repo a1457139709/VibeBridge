@@ -6,6 +6,7 @@ import { resolve } from 'node:path';
 import { Workbench } from '../app/main/workbench';
 import { testDirectory } from './support/directory';
 import type { WorkbenchEvent } from '../app/shared/model';
+import { runsOf, storedProjects } from './support/panel-views';
 
 async function until(check: () => boolean) {
   const deadline = Date.now() + 5000;
@@ -29,8 +30,8 @@ test('project creation rejects incomplete allocation and invalid directories wit
     for (const name of ['Manual\u001bname', 'Manual\nname', 'Manual\u2028name']) {
       await assert.rejects(workbench.createProject({ ...draft, name, total: 1, counts: { codex: 1, claude: 0, pi: 0 } }), /nameControls/);
     }
-    assert.deepEqual(workbench.snapshot().projects, []);
-    assert.deepEqual(workbench.snapshot().runs, []);
+    assert.deepEqual(storedProjects(workbench.snapshot()), []);
+    assert.deepEqual(runsOf(workbench.snapshot()), []);
   } finally {
     await workbench.quit();
   }
@@ -47,7 +48,7 @@ test('confirmed projects start independent runs in the selected directory and re
     await workbench.saveSettings(settings);
     const { project } = await workbench.createProject({ name: 'Three agents', directory: dataDirectory, total: 3, counts: { codex: 1, claude: 1, pi: 1 } });
     assert.deepEqual(project.panels.map(p => p.agent), ['codex', 'claude', 'pi']);
-    const runs = workbench.snapshot().runs;
+    const runs = runsOf(workbench.snapshot());
     assert.equal(runs.length, 3);
     assert.equal(new Set(runs.map(r => r.id)).size, 3);
     const output = (runId: string) => events.filter(e => e.kind === 'output' && e.runId === runId).map(e => e.kind === 'output' ? e.data : '').join('');
@@ -79,7 +80,7 @@ test('quit cleans up runs and detached children while preserving the saved works
     const events: WorkbenchEvent[] = [];
     workbench.subscribe(event => events.push(event));
     const { project } = await workbench.createProject({ name: 'Persistent', directory: dataDirectory, total: 2, counts: { codex: 2, claude: 0, pi: 0 } });
-    const oldRuns = workbench.snapshot().runs;
+    const oldRuns = runsOf(workbench.snapshot());
     await until(() => events.some(e => e.kind === 'output' && e.data.includes('READY:')));
     await workbench.sendInput(oldRuns[0].id, 'child');
     let childPid = 0;
@@ -98,10 +99,10 @@ test('quit cleans up runs and detached children while preserving the saved works
     workbench = await Workbench.open(dataDirectory);
     assert.equal(workbench.snapshot().activeProjectId, project.id);
     assert.deepEqual(workbench.snapshot().projects[0].layout, layout);
-    assert.deepEqual(workbench.snapshot().projects[0].panels, project.panels);
+    assert.deepEqual(storedProjects(workbench.snapshot())[0].panels, project.panels);
     assert.deepEqual(workbench.snapshot().settings, settings);
     await workbench.activateProject(project.id);
-    assert.ok(workbench.snapshot().runs.every(r => !oldRuns.some(old => old.id === r.id)));
+    assert.ok(runsOf(workbench.snapshot()).every(r => !oldRuns.some(old => old.id === r.id)));
     await assert.rejects(workbench.sendInput(oldRuns[0].id, 'old-run'), /runInvalid/);
     await workbench.closePanel(project.id, project.panels[0].id);
     await workbench.quit();

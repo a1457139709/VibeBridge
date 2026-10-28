@@ -1,22 +1,23 @@
 import { useLocalization } from './Localization';
 import { useEffect, useId, useLayoutEffect, useRef, useState } from 'react';
-import { agentNames, type Snapshot } from '../shared/model';
-import { summaryStates, type SummaryState } from '../shared/processing-status';
-import { sessionTitle } from '../shared/session-title';
+import { agentNames, type PanelView } from '../shared/model';
+import type { ProcessingState } from '../shared/processing-status';
 import { agentIcons } from './agent-icons';
 import { ProcessingStatusIcon } from './ProcessingStatusIcon';
 import type { PanelLocation } from './panel-location';
 
+/** States the project summary groups, in display order; Busy is shown only on panels and navigation. */
+const summaryStates = ['ready', 'needs-input', 'done', 'error'] as const satisfies readonly ProcessingState[];
+type SummaryState = typeof summaryStates[number];
 
-export function ProjectSummary({ snapshot, locatePanel }: { snapshot?: Snapshot; locatePanel: PanelLocation['locatePanel'] }) {
+export function ProjectSummary({ projectId, panels, locatePanel }: { projectId?: string; panels?: PanelView[]; locatePanel: PanelLocation['locatePanel'] }) {
   const { t } = useLocalization();
-  const project = snapshot?.projects.find(item => item.id === snapshot.activeProjectId);
   return <footer className="project-summary" role="region" aria-label={t('projectSummary')}>
-    {project && snapshot && <SummaryEntries key={project.id} snapshot={snapshot} projectId={project.id} locatePanel={locatePanel} />}
+    {projectId && panels && <SummaryEntries key={projectId} panels={panels} projectId={projectId} locatePanel={locatePanel} />}
   </footer>;
 }
 
-function SummaryEntries({ snapshot, projectId, locatePanel }: { snapshot: Snapshot; projectId: string; locatePanel: PanelLocation['locatePanel'] }) {
+function SummaryEntries({ panels, projectId, locatePanel }: { panels: PanelView[]; projectId: string; locatePanel: PanelLocation['locatePanel'] }) {
   const { t, language } = useLocalization();
   const [open, setOpen] = useState<SummaryState>();
   const id = useId();
@@ -25,8 +26,8 @@ function SummaryEntries({ snapshot, projectId, locatePanel }: { snapshot: Snapsh
   const triggers = useRef(new Map<SummaryState, HTMLButtonElement>());
   const fromEnd = useRef(false);
   const focusedMember = useRef<string | undefined>(undefined);
-  const groups = snapshot.processing.projects[projectId];
-  const project = snapshot.projects.find(item => item.id === projectId)!;
+  // Counts and members come from the same panel views.
+  const members = (state: SummaryState) => panels.filter(panel => panel.status === state);
   function close(restoreFocus = false) {
     setOpen(undefined);
     if (restoreFocus && open) {
@@ -51,11 +52,11 @@ function SummaryEntries({ snapshot, projectId, locatePanel }: { snapshot: Snapsh
     fromEnd.current = false;
   }, [open]);
   useLayoutEffect(() => {
-    if (open && focusedMember.current && !groups[open].members.some(member => member.runId === focusedMember.current)
+    if (open && focusedMember.current && !members(open).some(panel => panel.run?.id === focusedMember.current)
       && document.activeElement === document.body) {
       (list.current?.querySelector<HTMLButtonElement>('li button') ?? list.current?.querySelector<HTMLButtonElement>('header button'))?.focus();
     }
-  }, [snapshot, open]);
+  }, [panels, open]);
   useEffect(() => {
     if (!open) return;
     const outside = (event: PointerEvent) => {
@@ -70,15 +71,16 @@ function SummaryEntries({ snapshot, projectId, locatePanel }: { snapshot: Snapsh
     return () => { document.removeEventListener('pointerdown', outside); document.removeEventListener('keydown', escape); };
   }, [open]);
   return <div ref={container} className="summary-entries" tabIndex={-1}>{summaryStates.map(state => {
-    const label = `${groups[state].count} ${t(state)}`;
+    const count = members(state).length;
+    const label = `${count} ${t(state)}`;
     return <button key={state} className="summary-entry" aria-label={label} title={label}
     ref={button => { if (button) triggers.current.set(state, button); else triggers.current.delete(state); }}
-    disabled={!groups[state].count} aria-expanded={open === state} aria-controls={open === state ? id : undefined} aria-haspopup="dialog"
+    disabled={!count} aria-expanded={open === state} aria-controls={open === state ? id : undefined} aria-haspopup="dialog"
     onKeyDown={event => {
       if (event.key === 'ArrowDown' || event.key === 'ArrowUp') { event.preventDefault(); fromEnd.current = event.key === 'ArrowUp'; setOpen(state); }
     }}
     onClick={() => setOpen(previous => previous === state ? undefined : state)}>
-    <ProcessingStatusIcon state={state} /><span>{groups[state].count}<span className="summary-name"> {t(state)}</span></span>
+    <ProcessingStatusIcon state={state} /><span>{count}<span className="summary-name"> {t(state)}</span></span>
   </button>;
   })}
     {open && <section ref={list} id={id} className="summary-list" role="dialog" aria-label={t(open)}
@@ -92,16 +94,14 @@ function SummaryEntries({ snapshot, projectId, locatePanel }: { snapshot: Snapsh
       event.preventDefault(); members[next].focus(); members[next].scrollIntoView({ block: 'nearest' });
     }}>
       <header><strong>{t(open)}</strong><button aria-label={t('closePanelList')} onClick={() => close(true)}>×</button></header>
-      <ul>{groups[open].members.map(member => {
-        const panel = project.panels.find(item => item.id === member.panelId)!;
-        const run = snapshot.runs.find(item => item.id === member.runId);
-        const title = sessionTitle(panel.agent, run?.rawTitle, t('untitled'));
-        return <li key={member.runId} data-run-id={member.runId}><button className={`summary-panel ${panel.agent}`} title={`${agentNames[panel.agent]} · ${title}`}
-          onClick={() => { setOpen(undefined); locatePanel(projectId, member.panelId, member.runId); }}>
+      <ul>{members(open).map(panel => {
+        const title = panel.run?.title ?? t('untitled');
+        return <li key={panel.run?.id} data-run-id={panel.run?.id}><button className={`summary-panel ${panel.agent}`} title={`${agentNames[panel.agent]} · ${title}`}
+          onClick={() => { setOpen(undefined); locatePanel(projectId, panel.id, panel.run?.id); }}>
           <span className="agent-mark" aria-hidden="true">{agentIcons[panel.agent]}</span><span className="session-title">{title}</span><small>{agentNames[panel.agent]}</small>
         </button></li>;
       })}</ul>
-      {!groups[open].count && <p className="muted">{t('noMatchingPanels')}</p>}
+      {!members(open).length && <p className="muted">{t('noMatchingPanels')}</p>}
     </section>}
   </div>;
 }

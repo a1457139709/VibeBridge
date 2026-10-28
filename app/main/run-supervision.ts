@@ -1,8 +1,8 @@
 import { randomUUID } from 'node:crypto';
 import { message, detail } from '../shared/messages';
-import type { AgentCommand, LaunchResult, Panel, Project, Run, TerminalEvent } from '../shared/model';
-import type { ProcessingProjection } from '../shared/processing-status';
+import type { AgentCommand, AgentType, LaunchResult, Panel, PanelView, Project, Run, TerminalEvent, WorkbenchEvent } from '../shared/model';
 import { ProcessingStatus } from './processing-status';
+import { sessionTitle } from './session-title';
 import { TerminalClient } from './terminal-client';
 
 export type Terminal = Pick<TerminalClient, 'start' | 'checkCommand' | 'input' | 'resize' | 'stop' | 'acknowledgeOutput' | 'shutdown'>;
@@ -11,10 +11,10 @@ export type TerminalFactory = (onEvent: (event: TerminalEvent) => void, onFailur
 const live = (run: Run) => run.state === 'running' || run.state === 'starting';
 
 export interface SupervisionCallbacks {
-  /** A run, its processing state or the run list changed. */
+  /** A run, its session title, its processing state or the run list changed. */
   changed(): void;
-  /** An accepted terminal event of a current run, for subscribers. */
-  emit(event: TerminalEvent): void;
+  /** An accepted terminal event of a current run that subscribers use. */
+  emit(event: WorkbenchEvent): void;
   report(message: string): void;
   /** The run ended without the workbench stopping it. This includes the Agent finishing
    * normally, e.g. `/exit` in the CLI, so it signals neither a fault nor a failed task.
@@ -34,7 +34,7 @@ export class RunSupervision {
   private list: Run[] = [];
   private processing: ProcessingStatus;
   private terminal: Terminal;
-  private expectedRuns = new Map<string, string>();
+  private expectedRuns = new Map<string, { runId: string; agent: AgentType }>();
   private controlledStops = new Set<string>();
   private terminalFailure?: string;
   constructor(directory: string, private callbacks: SupervisionCallbacks,
@@ -49,24 +49,34 @@ export class RunSupervision {
       callbacks.report(message);
     });
   }
-  runs() { return this.list; }
-  projection(projects: Project[]): ProcessingProjection { return this.processing.project(projects, this.list); }
+  /** The panel with its current run, of any state, and the processing state that run displays. */
+  panelView(panel: Panel): PanelView {
+    const run = this.list.find(run => run.panelId === panel.id);
+    if (!run) return { ...panel };
+    const status = this.processing.status(run);
+    return status ? { ...panel, run, status } : { ...panel, run };
+  }
   /** Whether this run is still the one its panel expects. */
-  expects(run: Run) { return this.expectedRuns.get(run.panelId) === run.id; }
+  expects(run: Run) { return this.expectedRuns.get(run.panelId)?.runId === run.id; }
   private terminalEvent(event: TerminalEvent) {
     if (event.kind === 'started') {
-      if (this.expectedRuns.get(event.run.panelId) !== event.run.id) return;
+      if (!this.expects(event.run)) return;
       this.processing.lifecycle(event.run);
       this.list = this.list.filter(run => run.panelId !== event.run.panelId).concat(event.run);
       this.callbacks.changed();
     } else {
       const run = this.list.find(run => run.id === event.runId);
       if (!run || run.state !== 'running' || !this.expects(run)) return;
-      if (event.kind === 'stopping') this.processing.stopping(run.id);
-      else if (event.kind === 'title') {
-        run.rawTitle = event.title;
+      if (event.kind === 'stopping') { this.processing.stopping(run.id); return; }
+      if (event.kind === 'title') {
+        // Agents animate a spinner in the terminal title while busy; only a new session title is a change.
+        const title = sessionTitle(this.expectedRuns.get(run.panelId)!.agent, event.title);
+        if (title === run.title) return;
+        if (title) run.title = title; else delete run.title;
         this.callbacks.changed();
-      } else if (event.kind === 'exit') {
+        return;
+      }
+      if (event.kind === 'exit') {
         this.processing.forget(run.id);
         const controlled = this.controlledStops.delete(run.id);
         if (controlled) run.state = 'stopped';
@@ -79,7 +89,7 @@ export class RunSupervision {
   }
   async start(project: Project, panel: Panel, command: AgentCommand): Promise<LaunchResult> {
     const id = randomUUID();
-    this.expectedRuns.set(panel.id, id);
+    this.expectedRuns.set(panel.id, { runId: id, agent: panel.agent });
     try {
       const launch = await this.processing.prepare(id, panel.agent, command, project.directory);
       const run = await this.terminal.start({ id, panelId: panel.id, projectId: project.id, directory: project.directory, ...launch });

@@ -22,7 +22,7 @@ for (const language of ['en', 'zh-CN'] as const) {
       },
       deleteProject: async id => { calls.push(id); throw new Error(message('projectDeleteFailed', { reasons: ['external-detail 原样'] })); },
     });
-    render(<Localization language={language}><ProjectNavigationItem project={project} runs={[]} openProject={() => {}}><span>{project.name}</span></ProjectNavigationItem></Localization>);
+    render(<Localization language={language}><ProjectNavigationItem project={project} openProject={() => {}}><span>{project.name}</span></ProjectNavigationItem></Localization>);
     const user = userEvent.setup();
     const en = language === 'en';
     await user.click(screen.getByRole('button', { name: `${en ? 'Project menu: ' : '项目菜单：'}${project.name}` }));
