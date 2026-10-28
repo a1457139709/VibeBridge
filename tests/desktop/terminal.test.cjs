@@ -12,6 +12,26 @@ module.exports = {
     await evaluate('document.querySelector(".xterm-helper-textarea").focus()');
     window.webContents.sendInputEvent({ type: 'char', keyCode: 'k' });
     await until(() => evaluate('document.querySelector(".xterm-rows").textContent.includes("INPUT:k")'));
+
+    // A screen that follows output keeps following after it shrinks while off screen. Off screen
+    // the renderer pauses; held idle callbacks keep its earlier size, as on a busy main thread.
+    const frames = 'new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(() => setTimeout(resolve))))';
+    for (let i = 0; i < 8; i++) await evaluate(`window.workbench.sendInput(${JSON.stringify(run.id)}, 'fill-${i}')`);
+    await until(() => evaluate('document.querySelector(".xterm-rows").textContent.includes("INPUT:fill-7")'));
+    await evaluate(`(() => {
+      const container = document.querySelector('.terminal-container'); const { width, height } = container.getBoundingClientRect();
+      Object.assign(container.style, { position: 'fixed', left: '0', top: '200vh', width: width + 'px', height: height + 'px' });
+      window.heldIdle = window.requestIdleCallback; window.requestIdleCallback = () => 0;
+    })()`);
+    await evaluate(frames);
+    await evaluate(`document.querySelector('.terminal-container').style.height = '90px'`);
+    await evaluate(frames);
+    await evaluate(`document.querySelector('.terminal-container').style.top = '0'; window.requestIdleCallback = window.heldIdle; void 0`);
+    await evaluate(frames);
+    await evaluate(`window.workbench.sendInput(${JSON.stringify(run.id)}, 'after-hidden-resize')`);
+    await until(() => evaluate('document.querySelector(".xterm-rows").textContent.includes("INPUT:after-hidden-resize")'));
+    await evaluate(`document.querySelector('.terminal-container').style.cssText = ''`);
+    await evaluate(frames);
     // Keep the descendant check bounded to the one retained cleanup flow.
     await evaluate(`window.workbench.sendInput(${JSON.stringify(run.id)}, 'child')`);
     await until(() => evaluate('/CHILD:\\d+/.test(window.output)'));
@@ -22,6 +42,6 @@ module.exports = {
     await until(() => evaluate('document.body.innerText.includes("This project has no Agent Panels yet")'));
     assert.throws(() => process.kill(run.pid, 0));
     assert.throws(() => process.kill(child, 0));
-    console.log('Native terminal input rendered its CLI echo; closing the panel removed the run and descendant.');
+    console.log('Native terminal input rendered its CLI echo; a screen resized off screen kept following output; closing the panel removed the run and descendant.');
   },
 };

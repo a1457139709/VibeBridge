@@ -3,7 +3,7 @@ import { FitAddon } from '@xterm/addon-fit';
 import type { Language, ProjectView, WorkbenchEvent } from '../shared/model';
 import { localize } from '../shared/localization';
 
-interface Screen { terminal: Terminal; fit: FitAddon; element: HTMLDivElement; observer: ResizeObserver; opened: boolean; consumed: number }
+interface Screen { terminal: Terminal; fit: FitAddon; element: HTMLDivElement; observers: (ResizeObserver | IntersectionObserver)[]; inView: boolean; opened: boolean; consumed: number }
 const screens = new Map<string, Screen>();
 let theme: ITheme;
 let report: (message: string) => void;
@@ -25,11 +25,13 @@ function ensure(runId: string): Screen {
   const fit = new FitAddon();
   terminal.loadAddon(fit);
   const element = document.createElement('div'); element.className = 'terminal-screen';
-  const observer = new ResizeObserver(() => {
-    if (!element.clientWidth || !element.clientHeight) return;
-    fit.fit();
-  });
-  const screen = { terminal, fit, element, observer, opened: false, consumed: 0 };
+  // xterm pauses rendering while its screen is out of view and applies a new size only when it
+  // renders again, yet sizes its scroll area at once. A scroll position clamped to that mismatch
+  // reads as the user scrolling up, and the screen stops following output, so fitting waits for view.
+  const fitInView = () => { if (screen.inView && element.clientWidth && element.clientHeight) fit.fit(); };
+  // xterm's own observer resumes rendering in the same notification; fit on the frame after it.
+  const view = new IntersectionObserver(entries => { screen.inView = entries[entries.length - 1].isIntersecting; if (screen.inView) requestAnimationFrame(fitInView); });
+  const screen: Screen = { terminal, fit, element, observers: [new ResizeObserver(fitInView), view], inView: false, opened: false, consumed: 0 };
   screens.set(runId, screen);
   // Input sent just before the run ended is rejected after its exit disposed this screen; only a live screen reports.
   terminal.onData(data => { void window.workbench.sendInput(runId, data).catch(error => { if (screens.get(runId) === screen) report(error.message); }); });
@@ -64,15 +66,15 @@ export function reconcileTerminals(projects: ProjectView[]) {
 function dispose(runId: string) {
   const screen = screens.get(runId);
   if (!screen) return;
-  screen.observer.disconnect(); screen.terminal.dispose(); screen.element.remove(); screens.delete(runId);
+  for (const observer of screen.observers) observer.disconnect();
+  screen.terminal.dispose(); screen.element.remove(); screens.delete(runId);
 }
 export function mountTerminal(runId: string, container: HTMLElement) {
   const screen = ensure(runId);
   container.appendChild(screen.element);
   if (!screen.opened) { screen.terminal.open(screen.element); screen.opened = true; }
-  screen.observer.observe(screen.element);
-  if (screen.element.clientWidth && screen.element.clientHeight) screen.fit.fit();
-  return () => { screen.observer.disconnect(); screen.element.remove(); };
+  for (const observer of screen.observers) observer.observe(screen.element);
+  return () => { for (const observer of screen.observers) observer.disconnect(); screen.element.remove(); };
 }
 export function focusTerminal(runId?: string) {
   const screen = runId ? screens.get(runId) : undefined;
