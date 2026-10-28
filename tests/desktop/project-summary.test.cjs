@@ -1,6 +1,6 @@
 const assert = require('node:assert/strict');
 const { mkdir, readFile, writeFile } = require('node:fs/promises');
-const { runsOf } = require('./support/panel-views.cjs');
+const { runsOf, storedProjects } = require('./support/panel-views.cjs');
 
 const visiblePanels = evaluate => evaluate('[...document.querySelectorAll(".canvas [data-panel-id]")].filter(panel => panel.checkVisibility({ visibilityProperty: true })).length');
 
@@ -146,7 +146,7 @@ module.exports = {
     const active = saved.projects.find(project => project.id === saved.activeProjectId);
     await until(async () => runsOf(await evaluate('window.workbench.snapshot()')).length === active.panels.length);
     const current = await evaluate('window.workbench.snapshot()');
-    assert.deepEqual(current.projects, saved.projects);
+    assert.deepEqual(storedProjects(current), storedProjects(saved));
     assert.ok(runsOf(current).every(run => !runsOf(saved).some(old => old.id === run.id)));
     await until(async () => await visiblePanels(evaluate) === active.panels.length);
     assert.equal(await evaluate(`document.querySelectorAll('.canvas button[aria-label="Restore panel"]').length`), 0);

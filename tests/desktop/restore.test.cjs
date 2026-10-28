@@ -1,6 +1,6 @@
 const assert = require('node:assert/strict');
 const { mkdir, readFile, writeFile } = require('node:fs/promises');
-const { runsOf } = require('./support/panel-views.cjs');
+const { runsOf, storedProjects } = require('./support/panel-views.cjs');
 
 async function renderedLayout(evaluate, project) {
   return evaluate(`(() => {
@@ -39,7 +39,7 @@ module.exports = {
     await until(async () => runsOf(await evaluate('window.workbench.snapshot()')).filter(run => run.state === 'running').length === active.panels.length);
     const reopened = await evaluate('window.workbench.snapshot()');
     assert.equal(reopened.activeProjectId, saved.activeProjectId);
-    assert.deepEqual(reopened.projects, saved.projects);
+    assert.deepEqual(storedProjects(reopened), storedProjects(saved));
     assert.ok(runsOf(reopened).every(run => run.projectId === active.id && !runsOf(saved).some(old => old.id === run.id)));
     await until(async () => JSON.stringify(await renderedLayout(evaluate, active)) === JSON.stringify(geometry));
     assert.equal(await evaluate('document.querySelector(".workspace-toolbar strong").textContent'), 'Saved project');
