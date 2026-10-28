@@ -22,7 +22,7 @@ const panel = (id: string, status: ProcessingState): PanelView =>
 function fixture(saveSettings?: DesktopAPI['saveSettings']) {
   const snapshot: Snapshot = {
     navigation: { visible: true, width: 212 }, activeProjectId: 'project', settings: defaultSettings(),
-    defaultShortcutConflict: false, startupTheme: 'light', resolvedTheme: 'light', errors: [],
+    settingsConflicts: [], startupTheme: 'light', resolvedTheme: 'light', errors: [],
     projects: [{ id: 'project', name: 'Project title stays out of the bar', directory: '/project', layout: null,
       panels: ([['first', 'done'], ['second', 'done'], ['third', 'needs-input'], ['fresh', 'ready']] as const).map(([id, status]) => panel(id, status)) }],
   };
@@ -41,7 +41,7 @@ function fixture(saveSettings?: DesktopAPI['saveSettings']) {
     }, []);
     const active = state?.projects.find(project => project.id === state.activeProjectId);
     return <Localization language={state?.settings.language ?? 'en'}><button>Outside</button>
-      {saveSettings && state && <SettingsPage defaultShortcutConflict={false} initialCategory="agents" ref={settings} settings={state.settings} startupTheme="light" report={() => {}} back={() => {}} />}
+      {saveSettings && state && <SettingsPage initialCategory="agents" ref={settings} settings={state.settings} startupTheme="light" report={() => {}} back={() => {}} />}
       <ProjectSummary projectId={active?.id} panels={active?.panels} locatePanel={(...target) => {
         if (saveSettings) void settings.current!.requestLeave().then(leave => { if (leave) located.push(target); });
         else located.push(target);

@@ -7,7 +7,7 @@ import { basename } from 'node:path';
 import { defaultNavigation, navigationWidth, type NavigationPreferences, assignedAgents, arrange, insertIntoLayout, validateDraft, removeFromLayout, validateLayout, agentTypes, type AgentType, type DirectoryResult, type LaunchResult, type Layout, type Panel, type Project, type ProjectCreation, type ProjectDraft, type PanelCreation, type Settings, type Snapshot, type WorkbenchEvent } from '../shared/model';
 import { ProjectStore } from './storage';
 import { SettingsFile, defaultSettings } from './settings';
-import type { SettingsSaveResult } from '../shared/settings';
+import { settingsConflicts, type SettingsSaveResult } from '../shared/settings';
 import { RunSupervision } from './run-supervision';
 
 export class WorkbenchOpenError extends Error {
@@ -17,7 +17,7 @@ export class WorkbenchOpenError extends Error {
 }
 
 export class Workbench {
-  private state: Omit<Snapshot, 'projects'> & { projects: Project[] } = { navigation: { ...defaultNavigation }, projects: [], activeProjectId: null, settings: defaultSettings(), defaultShortcutConflict: false, startupTheme: 'system', resolvedTheme: 'light', errors: [] };
+  private state: Omit<Snapshot, 'projects'> & { projects: Project[] } = { navigation: { ...defaultNavigation }, projects: [], activeProjectId: null, settings: defaultSettings(), settingsConflicts: [], startupTheme: 'system', resolvedTheme: 'light', errors: [] };
   private supervision: RunSupervision;
   private listeners = new Set<(event: WorkbenchEvent) => void>();
   private operations: Promise<unknown> = Promise.resolve();
@@ -44,8 +44,7 @@ export class Workbench {
       store = await ProjectStore.open(directory);
       const projects = await store.load();
       const workbench = new Workbench(directory, store, settingsFile);
-      Object.assign(workbench.state, projects, { settings, errors });
-      workbench.state.defaultShortcutConflict = settingsFile.hasDefaultShortcutConflict;
+      Object.assign(workbench.state, projects, { settings, settingsConflicts: settingsConflicts(settings), errors });
       workbench.state.startupTheme = settings.theme;
       workbench.state.resolvedTheme = workbench.state.startupTheme === 'system' ? (systemDark ? 'dark' : 'light') : workbench.state.startupTheme;
       return workbench;
@@ -206,7 +205,7 @@ export class Workbench {
     const update = structuredClone(patch);
     return this.operation(async () => {
       const result = await this.settingsFile.commit(this.state.settings, update);
-      if (result.ok) { this.state.settings = structuredClone(result.settings); this.state.defaultShortcutConflict = this.settingsFile.hasDefaultShortcutConflict; this.changed(); }
+      if (result.ok) { this.state.settings = structuredClone(result.settings); this.state.settingsConflicts = settingsConflicts(result.settings); this.changed(); }
       return result;
     }).catch(() => ({ ok: false, kind: 'unavailable', message: message('settingsUnavailable') }));
   }

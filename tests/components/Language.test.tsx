@@ -21,7 +21,7 @@ test('language is a category draft until save, and ordinary save preserves other
       const next = { ...settings, ...patch }; setSettings(next);
       return { ok: true, settings: next };
     } });
-    return <SettingsPage defaultShortcutConflict={false} settings={settings} startupTheme="system" ref={ref} back={() => {}} report={text => notices.push(text)} />;
+    return <SettingsPage settings={settings} startupTheme="system" ref={ref} back={() => {}} report={text => notices.push(text)} />;
   }
   render(<Harness />);
   const user = userEvent.setup();
@@ -46,7 +46,7 @@ test('discard, restore defaults and cancel leave preserve the effective language
   const patches: Partial<Settings>[] = [];
   const saved = { ...defaultSettings(), language: 'zh-CN' as const };
   provideWorkbench({ saveSettings: patch => { patches.push(patch); return pending.promise; } });
-  render(<SettingsPage defaultShortcutConflict={false} settings={saved} startupTheme="system" ref={ref} back={() => {}} report={() => {}} />);
+  render(<SettingsPage settings={saved} startupTheme="system" ref={ref} back={() => {}} report={() => {}} />);
   const user = userEvent.setup();
   const language = screen.getByRole<HTMLSelectElement>('combobox', { name: '界面语言' });
   assert.deepEqual([...language.options].map(option => option.textContent), ['English', '简体中文']);
@@ -90,7 +90,7 @@ test('validation keeps language drafts, translates command checks and conflicts,
         if (++attempts === 1) return { ok: false, kind: 'validation', issues: [{ category: 'agents', field: 'agents.codex.command', code: 'required', message: message('commandRequired') }] };
         effective = { ...saved, ...patch }; setSaved(effective); return { ok: true, settings: effective };
       } });
-    return <SettingsPage defaultShortcutConflict={false} settings={saved} startupTheme="system" ref={ref} back={() => {}} report={value => reports.push(value)} />;
+    return <SettingsPage settings={saved} startupTheme="system" ref={ref} back={() => {}} report={value => reports.push(value)} />;
   }
   render(<Harness />);
   const user = userEvent.setup();

@@ -24,7 +24,7 @@ test('switching language preserves project input and old notice identity and exp
       saveSettings: async patch => { const next = { ...settings, ...patch }; setSettings(next); return { ok: true, settings: next }; } });
     return <Localization language={settings.language}>
       <Setup draft={draft} change={setDraft} defaultLayout="auto" cancel={() => {}} created={() => {}} openProject={() => {}} report={report} openAgentSettings={() => {}} />
-      <SettingsPage defaultShortcutConflict={false} settings={settings} startupTheme="system" ref={null} back={() => {}} report={report} />
+      <SettingsPage settings={settings} startupTheme="system" ref={null} back={() => {}} report={report} />
       <Notices notices={notices} dismiss={dismiss} />
     </Localization>;
   }

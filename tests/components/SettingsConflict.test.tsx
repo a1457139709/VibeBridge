@@ -4,26 +4,27 @@ import test, { afterEach, mock } from 'node:test';
 import { act, cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { userEvent } from '@testing-library/user-event';
 import { Localization } from '../../app/renderer/Localization';
-import { DefaultShortcutConflictDialog } from '../../app/renderer/DefaultShortcutConflict';
+import { SettingsConflictDialog } from '../../app/renderer/SettingsConflict';
 import { provideWorkbench } from './support/workbench';
 
 afterEach(cleanup);
 
-test('the startup default shortcut conflict dialog cannot be dismissed and offers only shortcut settings or quitting', async () => {
+test('the startup settings conflict dialog cannot be dismissed and offers only the conflicting settings or quitting', async () => {
   const quit = mock.fn(async () => {});
   provideWorkbench({ quit });
-  const openShortcuts = mock.fn();
-  render(<Localization language="en"><DefaultShortcutConflictDialog openShortcuts={openShortcuts} /></Localization>);
+  const openSettings = mock.fn();
+  render(<Localization language="en"><SettingsConflictDialog category="shortcuts" openSettings={openSettings} /></Localization>);
   const user = userEvent.setup();
-  const dialog = screen.getByRole<HTMLDialogElement>('dialog', { name: 'Shortcut conflict' });
+  const dialog = screen.getByRole<HTMLDialogElement>('dialog', { name: 'Settings conflict' });
   assert.equal(dialog.open, true);
+  assert.match(dialog.textContent!, /Keyboard shortcuts settings/);
   assert.equal(fireEvent(dialog, new Event('cancel', { cancelable: true })), false);
   act(() => { dialog.close(); fireEvent(dialog, new Event('close')); });
   assert.equal(dialog.open, true);
-  assert.deepEqual(screen.getAllByRole('button').map(button => button.textContent), ['Quit app', 'Open shortcut settings']);
+  assert.deepEqual(screen.getAllByRole('button').map(button => button.textContent), ['Quit app', 'Fix in settings']);
   await user.click(screen.getByRole('button', { name: 'Quit app' }));
   assert.equal(quit.mock.callCount(), 1);
-  assert.equal(openShortcuts.mock.callCount(), 0);
-  await user.click(screen.getByRole('button', { name: 'Open shortcut settings' }));
-  assert.equal(openShortcuts.mock.callCount(), 1);
+  assert.equal(openSettings.mock.callCount(), 0);
+  await user.click(screen.getByRole('button', { name: 'Fix in settings' }));
+  assert.equal(openSettings.mock.callCount(), 1);
 });
