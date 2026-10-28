@@ -1,5 +1,6 @@
+import { z } from 'zod';
 import { message } from './messages';
-import { agentNames, agentTypes, type Settings } from './model';
+import { agentNames, agentTypes, type AgentType, type Settings } from './model';
 import { defaultShortcuts, shortcutActions, shortcutConflicts, shortcutConflictMessage, shortcutFormatError } from './shortcuts';
 
 export const defaultSettings = (): Settings => ({ language: 'en', theme: 'system', defaultLayout: 'auto', shortcuts: defaultShortcuts(), agents: {
@@ -8,39 +9,50 @@ export const defaultSettings = (): Settings => ({ language: 'en', theme: 'system
 
 interface FieldIssue { field: string; code: 'required' | 'invalid' | 'conflict'; message: string }
 
-// Navigation, draft selection and validation all follow this definition's order.
+const command = (type: AgentType) => z.string({ error: message('commandInvalid', { agent: agentNames[type] }) })
+  .refine(command => command.trim(), { error: message('commandRequired'), params: { code: 'required' } });
+const args = z.array(z.string({ error: message('argumentsInvalid') }), { error: message('argumentsInvalid') });
+const shortcut = z.string({ error: message('shortcutInvalid') }).refine(binding => !shortcutFormatError(binding), { error: message('shortcutInvalid') });
+
+// The single definition of valid settings. Reading falls back to each field's default, so its
+// result is always valid; saving reports each invalid field. Unknown keys pass through both.
+function settingsSchema(reading: boolean) {
+  const defaults = defaultSettings();
+  const field = <T extends z.ZodType>(schema: T, fallback: unknown) => reading ? schema.catch(fallback as z.output<T>) : schema;
+  const object = <T extends z.ZodRawShape>(shape: T, error: string) => z.looseObject(shape, { error });
+  return z.looseObject({
+    language: field(z.enum(['en', 'zh-CN'], { error: message('languageInvalid') }), defaults.language),
+    theme: field(z.enum(['system', 'dark', 'light'], { error: message('themeInvalid') }), defaults.theme),
+    defaultLayout: field(z.enum(['auto', 'row', 'column'], { error: message('layoutPreferenceInvalid') }), defaults.defaultLayout),
+    agents: field(object(Object.fromEntries(agentTypes.map(type => [type, field(object({
+      command: field(command(type), defaults.agents[type].command), args: field(args, []),
+    }, message('commandInvalid', { agent: agentNames[type] })), defaults.agents[type])])), message('settingsInvalid')), defaults.agents),
+    shortcuts: field(object(Object.fromEntries(shortcutActions.map(action => [action, field(shortcut, defaults.shortcuts[action])])),
+      message('shortcutInvalid')), defaults.shortcuts),
+  }, { error: message('settingsCorrupt') });
+}
+const readSchema = settingsSchema(true);
+const saveSchema = settingsSchema(false);
+
+/** Settings in the valid domain read from any JSON value; only a value that is not an object is rejected. */
+export function readSettings(value: unknown): Settings {
+  const result = readSchema.safeParse(value);
+  if (!result.success) throw new Error(result.error.issues[0].message);
+  // Object.fromEntries erases the Agent type and action keys the schema guarantees.
+  return result.data as unknown as Settings;
+}
+
+// Navigation, draft selection and validation all follow this definition's order. A category's
+// conflicts are relations between fields that are each valid.
 export const settingsCategories = [
-  { id: 'general', keys: ['language'], validate(settings: Settings): FieldIssue[] {
-    return ['en', 'zh-CN'].includes(settings.language) ? [] : [{ field: 'language', code: 'invalid', message: message('languageInvalid') }];
+  { id: 'general', keys: ['language'] },
+  { id: 'agents', keys: ['agents'] },
+  { id: 'appearance', keys: ['theme', 'defaultLayout'] },
+  { id: 'shortcuts', keys: ['shortcuts'], conflicts(settings: Settings): FieldIssue[] {
+    return shortcutConflicts(settings.shortcuts).flatMap(conflict => conflict.actions.map(action => ({
+      field: `shortcuts.${action}`, code: 'conflict' as const, message: shortcutConflictMessage(conflict, action) })));
   } },
-  { id: 'agents', keys: ['agents'], validate(settings: Settings): FieldIssue[] {
-    return agentTypes.flatMap(type => {
-      const value = settings.agents?.[type];
-      const issues: FieldIssue[] = [];
-      if (typeof value?.command !== 'string') issues.push({ field: `agents.${type}.command`, code: 'invalid', message: message('commandInvalid', { agent: agentNames[type] }) });
-      else if (!value.command.trim()) issues.push({ field: `agents.${type}.command`, code: 'required', message: message('commandRequired') });
-      if (!Array.isArray(value?.args) || value.args.some(arg => typeof arg !== 'string')) issues.push({ field: `agents.${type}.args`, code: 'invalid', message: message('argumentsInvalid') });
-      return issues;
-    });
-  } },
-  { id: 'appearance', keys: ['theme', 'defaultLayout'], validate(settings: Settings): FieldIssue[] {
-    const issues: FieldIssue[] = [];
-    if (!['system', 'dark', 'light'].includes(settings.theme)) issues.push({ field: 'theme', code: 'invalid', message: message('themeInvalid') });
-    if (!['auto', 'row', 'column'].includes(settings.defaultLayout)) issues.push({ field: 'defaultLayout', code: 'invalid', message: message('layoutPreferenceInvalid') });
-    return issues;
-  } },
-  { id: 'shortcuts', keys: ['shortcuts'], validate(settings: Settings): FieldIssue[] {
-    const issues: FieldIssue[] = shortcutActions.flatMap(action => {
-      const message = shortcutFormatError(settings.shortcuts?.[action]);
-      return message ? [{ field: `shortcuts.${action}`, code: 'invalid' as const, message }] : [];
-    });
-    for (const conflict of shortcutConflicts(settings.shortcuts)) {
-      for (const action of conflict.actions) issues.push({ field: `shortcuts.${action}`, code: 'conflict',
-        message: shortcutConflictMessage(conflict, action) });
-    }
-    return issues;
-  } },
-] as const satisfies readonly { id: string; keys: readonly (keyof Settings)[]; validate(settings: Settings): FieldIssue[] }[];
+] as const satisfies readonly { id: string; keys: readonly (keyof Settings)[]; conflicts?(settings: Settings): FieldIssue[] }[];
 
 export type SettingsCategory = typeof settingsCategories[number]['id'];
 export interface SettingsIssue extends FieldIssue { category: SettingsCategory }
@@ -48,8 +60,23 @@ export type SettingsSaveResult = { ok: true; settings: Settings }
   | { ok: false; kind: 'validation'; issues: SettingsIssue[] }
   | { ok: false; kind: 'storage' | 'unavailable'; message: string };
 
+const categoryOf = (key: PropertyKey) => settingsCategories.find(category => (category.keys as readonly PropertyKey[]).includes(key))!.id;
+
+export function settingsConflicts(settings: Settings): SettingsIssue[] {
+  return settingsCategories.flatMap(category => 'conflicts' in category
+    ? category.conflicts(settings).map(issue => ({ ...issue, category: category.id })) : []);
+}
+
+/** The first problem of each invalid field, then every settings conflict, in category order. */
 export function settingsIssues(settings: Settings): SettingsIssue[] {
-  return settingsCategories.flatMap(category => category.validate(settings).map(issue => ({ ...issue, category: category.id })));
+  const fields = new Map<string, SettingsIssue>();
+  for (const issue of saveSchema.safeParse(settings).error?.issues ?? []) {
+    const field = issue.path.filter(segment => typeof segment === 'string').join('.');
+    if (!fields.has(field)) fields.set(field, { field, category: categoryOf(issue.path[0]),
+      code: issue.code === 'custom' && issue.params?.code === 'required' ? 'required' : 'invalid', message: issue.message });
+  }
+  const order = (issue: SettingsIssue) => settingsCategories.findIndex(category => category.id === issue.category);
+  return [...fields.values(), ...settingsConflicts(settings)].sort((a, b) => order(a) - order(b));
 }
 
 export function settingsPatch(draft: Settings, categories: readonly SettingsCategory[]): Partial<Settings> {

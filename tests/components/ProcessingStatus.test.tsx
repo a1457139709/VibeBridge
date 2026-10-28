@@ -15,7 +15,7 @@ afterEach(cleanup);
 test('navigation reads each panel view\'s state, exposes all five states to keyboard users, and keeps background updates', async () => {
   const snapshot: Snapshot = {
     navigation: { visible: true, width: 212 }, activeProjectId: 'project', settings: defaultSettings(),
-    defaultShortcutConflict: false, startupTheme: 'light', resolvedTheme: 'light', errors: [],
+    settingsConflicts: [], startupTheme: 'light', resolvedTheme: 'light', errors: [],
     projects: [{ id: 'project', name: 'Project', directory: '/project', layout: null,
       panels: [...(['ready', 'busy', 'needs-input', 'done', 'error'] as const).map(id => ({ id, agent: 'codex' as const,
         run: { id, panelId: id, projectId: 'project', state: 'running' as const, title: `Session ${id}` }, status: id })),

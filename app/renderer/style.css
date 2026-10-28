@@ -166,10 +166,10 @@ textarea { resize: vertical; }
 @media (prefers-reduced-motion: reduce) { *, *::before, *::after { transition: none !important; animation: none !important; } }
 
 .command-input[aria-invalid="true"] { border-color: var(--error, #b33e2d); }
-.settings-leave, .default-shortcut-conflict { color: var(--text); background: var(--canvas); border: 1px solid var(--line); border-radius: 12px; max-width: 460px; padding: 24px; }
-.settings-leave::backdrop, .default-shortcut-conflict::backdrop { background: var(--modal-backdrop, #0004); }
-.settings-leave h2, .default-shortcut-conflict h2 { margin-top: 0; }
-.settings-leave .dialog-actions, .default-shortcut-conflict .dialog-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 24px; }
+.settings-leave, .settings-conflict { color: var(--text); background: var(--canvas); border: 1px solid var(--line); border-radius: 12px; max-width: 460px; padding: 24px; }
+.settings-leave::backdrop, .settings-conflict::backdrop { background: var(--modal-backdrop, #0004); }
+.settings-leave h2, .settings-conflict h2 { margin-top: 0; }
+.settings-leave .dialog-actions, .settings-conflict .dialog-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 24px; }
 
 .shortcut-conflict input { border: 2px solid var(--conflict-color); background: color-mix(in srgb, var(--conflict-color) 10%, var(--surface)); }
 .shortcut-conflict-message { color: var(--conflict-color); margin: 6px 0 0; }

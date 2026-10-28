@@ -3,6 +3,7 @@ import { layoutBoxes } from './layout';
 import type { Shortcuts } from './shortcuts';
 import { projectNameError } from './project-name';
 import type { ProcessingState } from './processing-status';
+import type { SettingsIssue } from './settings';
 
 export const agentTypes = ['codex', 'claude', 'pi'] as const;
 export type AgentType = typeof agentTypes[number];
@@ -32,7 +33,7 @@ export const navigationWidth = (width: number) => Math.max(168, Math.min(420, wi
 export type PanelView = Panel & { run?: Run; status?: ProcessingState };
 /** A project as the snapshot shows it; the stored Project keeps only panel configuration. */
 export type ProjectView = Omit<Project, 'panels'> & { panels: PanelView[] };
-export interface Snapshot { navigation: NavigationPreferences; projects: ProjectView[]; activeProjectId: string | null; settings: Settings; defaultShortcutConflict: boolean; startupTheme: Settings['theme']; resolvedTheme: 'dark' | 'light'; errors: string[] }
+export interface Snapshot { navigation: NavigationPreferences; projects: ProjectView[]; activeProjectId: string | null; settings: Settings; settingsConflicts: SettingsIssue[]; startupTheme: Settings['theme']; resolvedTheme: 'dark' | 'light'; errors: string[] }
 export type TerminalEvent = { kind: 'title'; runId: string; title: string } | { kind: 'output'; runId: string; data: string } | { kind: 'started'; run: Run } | { kind: 'stopping'; runId: string } | { kind: 'exit'; runId: string };
 export type WorkbenchEvent = Extract<TerminalEvent, { kind: 'started' | 'output' | 'exit' }> | { kind: 'snapshot'; snapshot: Snapshot } | { kind: 'error'; message: string };
 export interface DirectoryResult { valid: boolean; directory?: string; name?: string; existingProjectId?: string; existingProjectName?: string }

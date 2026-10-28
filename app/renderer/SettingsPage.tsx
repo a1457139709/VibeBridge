@@ -6,7 +6,7 @@ import { agentNames, agentTypes, type AgentCommand, type CommandCheck, type Sett
 import { defaultShortcuts, displayShortcut, shortcutActions, shortcutFromEvent, shortcutConflicts, type ShortcutAction } from '../shared/shortcuts';
 import type { ReportNotice } from './Notices';
 import { agentIcons } from './agent-icons';
-import { defaultSettings, dirtySettingsCategories, settingsCategories, settingsIssues, settingsPatch, type SettingsCategory, type SettingsIssue } from '../shared/settings';
+import { defaultSettings, dirtySettingsCategories, settingsCategories, settingsConflicts, settingsIssues, settingsPatch, type SettingsCategory, type SettingsIssue } from '../shared/settings';
 
 function AgentFields({ type, value, change, error, argsError }: { error?: string; argsError?: string; type: typeof agentTypes[number]; value: AgentCommand; change(value: AgentCommand): void }) {
   const { t, text } = useLocalization();
@@ -40,7 +40,7 @@ function AgentFields({ type, value, change, error, argsError }: { error?: string
 
 export interface SettingsPageActions { requestLeave(): Promise<boolean>; showCategory(category: SettingsCategory): void }
 
-function SettingsEditor({ settings, defaultShortcutConflict, startupTheme, initialCategory = settingsCategories[0].id, back, ref, report }: { settings: Settings; defaultShortcutConflict: boolean; startupTheme: Settings['theme']; initialCategory?: SettingsCategory; back(): void; ref: Ref<SettingsPageActions>; report: ReportNotice }) {
+function SettingsEditor({ settings, startupTheme, initialCategory = settingsCategories[0].id, back, ref, report }: { settings: Settings; startupTheme: Settings['theme']; initialCategory?: SettingsCategory; back(): void; ref: Ref<SettingsPageActions>; report: ReportNotice }) {
   const { t, text } = useLocalization();
   const [section, setSection] = useState<SettingsCategory>(initialCategory);
   const [draft, setDraft] = useState(settings);
@@ -73,9 +73,12 @@ function SettingsEditor({ settings, defaultShortcutConflict, startupTheme, initi
   const leaveDialog = useRef<HTMLDialogElement>(null);
   const leaveDecision = useRef<(leave: boolean) => void>(undefined);
   const dirty = dirtySettingsCategories(draft, saved);
+  // A settings conflict lives in the saved settings, so leaving requires saving its category.
+  const savedConflicts = settingsConflicts(saved);
+  const conflicting = settingsCategories.filter(category => savedConflicts.some(issue => issue.category === category.id)).map(category => category.id);
   useImperativeHandle(ref, () => ({ async requestLeave() {
     if (pending.current || leaveDecision.current) return false;
-    if (!dirty.length && !defaultShortcutConflict) return true;
+    if (!dirty.length && !conflicting.length) return true;
     setLeaveCategories(dirty);
     return new Promise<boolean>(resolve => { leaveDecision.current = resolve; leaveDialog.current?.showModal(); });
   }, showCategory(category) { if (!pending.current && !leaveDecision.current) { setSection(category); setSearch(''); } } }));
@@ -119,8 +122,7 @@ function SettingsEditor({ settings, defaultShortcutConflict, startupTheme, initi
   }
   async function saveAndLeave() {
     leaveDialog.current?.close();
-    // The saved shortcuts hold the default shortcut conflict, so leaving always saves them.
-    decideLeave(await save(defaultShortcutConflict && !leaveCategories.includes('shortcuts') ? [...leaveCategories, 'shortcuts'] : leaveCategories));
+    decideLeave(await save(settingsCategories.filter(category => leaveCategories.includes(category.id) || conflicting.includes(category.id)).map(category => category.id)));
   }
   const query = search.trim().toLowerCase();
   const actions = shortcutActions.filter(action => `${t(action === 'settings' ? 'openSettings' : action)} ${shortcuts[action]} ${displayShortcut(shortcuts[action])}`.toLowerCase().includes(query));
@@ -179,9 +181,9 @@ function SettingsEditor({ settings, defaultShortcutConflict, startupTheme, initi
     </div>
     <dialog ref={leaveDialog} className="settings-leave" onCancel={event => { event.preventDefault(); decideLeave(false); }}>
       <h2>{t('settingsLeave')}</h2>
-      {defaultShortcutConflict && <p>{t('settingsLeaveConflict')}</p>}
+      {conflicting.length > 0 && <p>{t('settingsLeaveConflict', { categories: conflicting.map(category => t(category)) })}</p>}
       {leaveCategories.length > 0 && <p>{t('settingsUnsaved', { categories: settingsCategories.filter(category => leaveCategories.includes(category.id)).map(category => t(category.id)) })}</p>}
-      <div className="dialog-actions"><button onClick={() => decideLeave(false)}>{t('cancel')}</button>{!defaultShortcutConflict && <button onClick={() => decideLeave(true)}>{t('dontSave')}</button>}<button className="primary" onClick={() => void saveAndLeave()}>{t('saveAndReturn')}</button></div>
+      <div className="dialog-actions"><button onClick={() => decideLeave(false)}>{t('cancel')}</button>{!conflicting.length && <button onClick={() => decideLeave(true)}>{t('dontSave')}</button>}<button className="primary" onClick={() => void saveAndLeave()}>{t('saveAndReturn')}</button></div>
     </dialog>
   </div>;
 }

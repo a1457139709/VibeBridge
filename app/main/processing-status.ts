@@ -1,4 +1,5 @@
 import { randomUUID } from 'node:crypto';
+import { z } from 'zod';
 import { createServer, type Server } from 'node:http';
 import type { AgentCommand, AgentType, Run } from '../shared/model';
 import type { ProcessingState } from '../shared/processing-status';
@@ -10,6 +11,14 @@ import { message, detail } from '../shared/messages';
 
 // CLI protocol differences stay behind this closed table.
 const adapters: Record<AgentType, StatusAdapter> = { codex, claude, pi };
+
+const report = z.looseObject({ payload: z.unknown() });
+const launchCredentials = z.looseObject({ runId: z.string(), token: z.string(), agent: z.string() });
+// Observation loss belongs to the Status Reporter transport; adapters see only CLI facts.
+const reportPayload = z.union([
+  z.looseObject({ observation: z.enum(['lost', 'unavailable']) }),
+  z.record(z.string(), z.unknown()).refine(payload => !('observation' in payload)),
+]);
 
 interface Observation {
   agent: AgentType; token: string; accepting: boolean; running: boolean;
@@ -98,15 +107,15 @@ export class ProcessingStatus {
   }
 
   private receive(value: unknown): number {
-    if (!value || typeof value !== 'object') return 400;
-    const event = value as Record<string, unknown>;
-    const observation = typeof event.runId === 'string' ? this.observations.get(event.runId) : undefined;
+    const event = report.safeParse(value);
+    if (!event.success) return 400;
+    const credentials = launchCredentials.safeParse(event.data);
+    const observation = credentials.success ? this.observations.get(credentials.data.runId) : undefined;
     // Authenticate this launch before interpreting even an unfamiliar event.
-    if (!observation?.accepting || event.token !== observation.token || event.agent !== observation.agent) return 403;
-    if (!event.payload || typeof event.payload !== 'object' || Array.isArray(event.payload)) return 400;
-    // Observation loss belongs to the Status Reporter transport; adapters see only CLI facts.
-    const payload = event.payload as Record<string, unknown>;
-    if ('observation' in payload && payload.observation !== 'lost' && payload.observation !== 'unavailable') return 400;
+    if (!credentials.success || !observation?.accepting || credentials.data.token !== observation.token || credentials.data.agent !== observation.agent) return 403;
+    const parsed = reportPayload.safeParse(event.data.payload);
+    if (!parsed.success) return 400;
+    const payload = parsed.data;
     const state = 'observation' in payload ? 'error' : observation.interpreter.accept(payload);
     if (state === 'discard') return 204;
     if (state === 'error') observation.interpreter.discardEvidence();
