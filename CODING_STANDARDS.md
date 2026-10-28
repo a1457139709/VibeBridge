@@ -12,20 +12,12 @@ The code describes the **current design**: the one set by the latest spec, issue
 
 ### Persisted data
 
-- `settings.json`, `projects.sqlite`, and every other stored format are read in their current format only.
-- Input in any other format is an error: report it clearly and leave the original file untouched. Write no migration code.
+- Stored formats (`settings.json`, `projects.sqlite`, …) are read in their current format only. Write no migration code and no compatibility for older formats.
+- How a file treats invalid content is decided per file, in its ADR or issue resolution. A file that cannot be read at all is reported clearly and left untouched.
 
-### Tests
+### When decisions conflict
 
-Tests describe current behaviour, and they also hold the product's robustness lessons. Before changing or removing a test, understand the failure it guards against, then classify it with one question: **could that failure still happen in the current design?**
-
-- **Yes — robustness test.** Rewrite it against the current design and keep the scenario. Its name states the failure it guards against (for example, overlapping compactions, retry backoff cancelled, terminal host failing during launch).
-- **No — old-design test.** Delete it. Typical cases: it asserts that an old event, field, format, or interface is still accepted.
-- **Unclear — keep and rewrite.** Deletion needs a named reason why the current design makes the failure impossible; keeping needs none.
-
-Rewrite fixtures to the current format.
-
-The PR description lists every deleted test with that one-line reason.
+Specs, issue resolutions, ADRs, and these standards record decisions made at the time, and any of them may be revised. The latest decision wins. When a change contradicts an earlier document, update or remove that document in the same change, and name the conflict in the PR instead of silently following either side.
 
 ### Comments and docs
 
