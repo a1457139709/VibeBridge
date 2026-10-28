@@ -40,8 +40,11 @@ test('nested layout coordinates preserve spatial relationships and invalid saves
   for (const ratio of [0, 1, -.1, NaN, Infinity]) assert.throws(() => parseLayout({ ...layout, ratio }, panels), /layoutInvalid/);
   for (const invalid of ['row', { ...layout, axis: 'diagonal' }, { ...layout, first: { panel: 'a', size: 1 } }, { ...layout, weight: 1 }, undefined])
     assert.throws(() => parseLayout(invalid, panels), /layoutInvalid/);
-  const deep = Array.from({ length: 11 }, () => 0).reduce<object>(node => ({ axis: 'row', ratio: .5, first: node, second: { panel: 'x' } }), { panel: 'y' });
-  assert.throws(() => parseLayout(deep, panels), /layoutInvalid/);
+  const nested = (depth: number) => Array.from({ length: depth }, (_, level) => `p${level}`)
+    .reduce<object>((node, id) => ({ axis: 'row', ratio: .5, first: node, second: { panel: id } }), { panel: 'innermost' });
+  const nestedPanels = (depth: number) => ['innermost', ...Array.from({ length: depth }, (_, level) => `p${level}`)].map(id => ({ id, agent: 'codex' as const }));
+  assert.doesNotThrow(() => parseLayout(nested(10), nestedPanels(10)));
+  assert.throws(() => parseLayout(nested(11), nestedPanels(11)), /layoutInvalid/);
   assert.throws(() => parseLayout({ ...layout, first: { panel: 'b' } }, panels), /layoutMismatch/);
   assert.throws(() => parseLayout(null, panels), /layoutMismatch/);
   assert.equal(arrange([]), null);

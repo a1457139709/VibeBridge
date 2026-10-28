@@ -12,16 +12,18 @@ db.exec(`PRAGMA journal_mode=WAL; PRAGMA foreign_keys=ON;
 `);
 
 // Stored content is read in its current format only: anything else fails the whole load and leaves the file untouched.
+// Columns other than layout and panels.agent are kept as the table constraints store them.
 function readProject(row: Record<string, unknown>): Project {
-  const invalid = (field: string) => new Error(message('projectDataInvalid', { file, field, id: String(row.id), name: String(row.name) }));
-  const panels = db.prepare('SELECT id, agent FROM panels WHERE project_id=? ORDER BY position').all(row.id as string).map(panel => {
+  const { id, name, directory, layout: storedLayout } = row as { id: string; name: string; directory: string; layout: string };
+  const invalid = (field: string) => new Error(message('projectDataInvalid', { file, field, id, name }));
+  const panels = db.prepare('SELECT id, agent FROM panels WHERE project_id=? ORDER BY position').all(id).map((panel): Panel => {
     const agent = agentTypeSchema.safeParse(panel.agent);
     if (!agent.success) throw invalid('panels.agent');
-    return { id: panel.id, agent: agent.data } as Panel;
+    return { id: panel.id as string, agent: agent.data };
   });
   let layout;
-  try { layout = parseLayout(JSON.parse(row.layout as string), panels); } catch { throw invalid('layout'); }
-  return { id: row.id as string, name: row.name as string, directory: row.directory as string, layout, panels };
+  try { layout = parseLayout(JSON.parse(storedLayout), panels); } catch { throw invalid('layout'); }
+  return { id, name, directory, layout, panels };
 }
 
 function readNavigation(stored: unknown): NavigationPreferences {
