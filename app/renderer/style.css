@@ -179,6 +179,8 @@ textarea { resize: vertical; }
 .agent-panel[data-compact-layout='strip'] .session-title { display: block; white-space: pre; max-height: 1.4em; }
 .agent-panel[data-tiny='true'] .panel-actions { position: absolute; right: 7px; visibility: hidden; pointer-events: none; }
 .agent-panel[data-tiny='true'] .panel-menu { display: none; }
+/* Preserve the original terminal and input while the title occupies the compact panel. */
+.agent-panel[data-tiny='true'] .terminal-container { position: absolute; inset: 0; padding: 0; opacity: 0; pointer-events: none; }
 
 .panel-header { touch-action: none; }
 .panel-drag-image, .panel-preview-image { position: fixed; pointer-events: none; overflow: hidden; }

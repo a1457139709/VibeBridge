@@ -3,8 +3,9 @@ const { runsOf } = require('./support/panel-views.cjs');
 
 // Full-width punctuation alone and in adjacent pairs, the shapes Chromium's punctuation trimming squeezes.
 const line = 'ab你好，世界。这是测试：（）［］｛｝「」『』【】《》〈〉〔〕、；．END';
-// Every non-ASCII character in the line occupies two cells.
-const cells = text => [...text].reduce((count, char) => count + (char.charCodeAt(0) < 0x80 ? 1 : 2), 0);
+// The line keeps to single-unit characters, ASCII in one cell and the rest in two, so a prefix's
+// length in cells follows from its characters.
+const cellsOf = prefix => prefix.split('').reduce((count, char) => count + (char.charCodeAt(0) < 0x80 ? 1 : 2), 0);
 
 module.exports = {
   async run(context) {
@@ -36,11 +37,11 @@ module.exports = {
       })()`);
       const origin = chars[0].left; const cell = chars[1].left - origin;
       // A squeezed mark shifts later text by about 0.8 cells; a quarter cell absorbs sub-pixel rounding.
-      const onGrid = (left, column, what) => assert.ok(Math.abs(left - (origin + column * cell)) < cell / 4,
-        `${what} is drawn at ${(left - origin) / cell} cells; its cell is ${column}`);
-      for (let i = 0; i < line.length; i++) onGrid(chars[i].left, cells(line.slice(0, i)), `"${chars[i].char}" at index ${i}`);
-      onGrid(cursor, cells(line), 'The cursor');
-      onGrid(composition, cells(line), 'The composition view');
+      const onGrid = (left, column, label) => assert.ok(Math.abs(left - (origin + column * cell)) < cell / 4,
+        `${label} is drawn at ${(left - origin) / cell} cells; its cell is ${column}`);
+      for (let i = 0; i < line.length; i++) onGrid(chars[i].left, cellsOf(line.slice(0, i)), `"${chars[i].char}" at index ${i}`);
+      onGrid(cursor, cellsOf(line), 'The cursor');
+      onGrid(composition, cellsOf(line), 'The composition view');
     } finally {
       await window.webContents.debugger.sendCommand('Input.imeSetComposition', { text: '', selectionStart: 0, selectionEnd: 0 }).catch(() => {});
       window.webContents.debugger.detach();

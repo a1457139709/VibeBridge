@@ -24,7 +24,7 @@ const cwd = process.argv.includes('--encode-cwd') ? Buffer.from(process.cwd()).t
 process.stdout.write(`READY:${process.pid}:${cwd}\r\n`);
 process.stdin.on('data', data => {
   const text = data.toString();
-  // Leaves the cursor right after the line, as a CLI's prompt does while the user types.
+  // Clears the screen and writes the line on its first row, leaving the cursor right after it, as a CLI's prompt does while the user types.
   if (text.startsWith('print:')) { process.stdout.write(`\x1b[2J\x1b[H${text.slice(6)}`); return; }
   if (text.startsWith('title:')) process.stdout.write(`\x1b]2;${text.slice(6)}\x07`);
   if (text.includes('resist')) {
