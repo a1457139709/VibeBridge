@@ -12,6 +12,9 @@ module.exports = {
     const [run] = runsOf(await require('./support/project.cjs')(context));
     await until(() => evaluate('document.querySelector(".xterm-rows").textContent.includes("READY:")'));
     await evaluate('document.querySelector(".xterm-helper-textarea").focus()');
+    // xterm draws its cursor once the user has typed.
+    window.webContents.sendInputEvent({ type: 'char', keyCode: 'k' });
+    await until(() => evaluate('document.querySelector(".xterm-rows").textContent.includes("INPUT:k")'));
     await evaluate(`window.workbench.sendInput(${JSON.stringify(run.id)}, ${JSON.stringify(`print:${line}`)})`);
     await until(() => evaluate(`document.querySelector(".xterm-rows > div").textContent.startsWith(${JSON.stringify(line)})`));
 
