@@ -25,6 +25,25 @@ module.exports = {
     };
     assert.equal(await bytesOf('Enter', ['shift']), '1b5b31333b32752e');
     assert.equal(await bytesOf('Enter', []), '0d2e');
+    // Command+C and Command+V stay with the Edit menu, so they copy a selection and paste once.
+    const { clipboard } = require('electron');
+    clipboard.writeText('pasted-text');
+    window.webContents.sendInputEvent({ type: 'keyDown', keyCode: 'v', modifiers: ['meta'] });
+    window.webContents.sendInputEvent({ type: 'keyUp', keyCode: 'v', modifiers: ['meta'] });
+    await until(() => evaluate('window.output.includes("INPUT:pasted-text")'));
+    const word = await evaluate(`(() => {
+      const row = [...document.querySelectorAll('.xterm-rows > div')].find(row => row.textContent.startsWith('INPUT:k'));
+      const { left, top, height } = row.getBoundingClientRect();
+      return { x: Math.round(left + 4), y: Math.round(top + height / 2) };
+    })()`);
+    for (const type of ['mouseDown', 'mouseUp']) window.webContents.sendInputEvent({ type, ...word, button: 'left', clickCount: 1 });
+    for (const type of ['mouseDown', 'mouseUp']) window.webContents.sendInputEvent({ type, ...word, button: 'left', clickCount: 2 });
+    clipboard.writeText('');
+    await evaluate('document.querySelector(".xterm-helper-textarea").focus()');
+    window.webContents.sendInputEvent({ type: 'keyDown', keyCode: 'c', modifiers: ['meta'] });
+    window.webContents.sendInputEvent({ type: 'keyUp', keyCode: 'c', modifiers: ['meta'] });
+    await until(() => clipboard.readText() === 'INPUT:k');
+    assert.equal((await evaluate('window.output')).split('INPUT:pasted-text').length, 2);
 
     // A screen that follows output keeps following after it shrinks while off screen. Off screen
     // the renderer pauses; held idle callbacks keep its earlier size, as on a busy main thread.
@@ -55,6 +74,6 @@ module.exports = {
     await until(() => evaluate('document.body.innerText.includes("This project has no Agent Panels yet")'));
     assert.throws(() => process.kill(run.pid, 0));
     assert.throws(() => process.kill(child, 0));
-    console.log('Native terminal input rendered its CLI echo; Shift+Enter sent CSI u while Enter sent a carriage return; a screen resized off screen kept following output; closing the panel removed the run and descendant.');
+    console.log('Native terminal input rendered its CLI echo; Shift+Enter sent CSI u while Enter sent a carriage return and Command+C and Command+V copied and pasted; a screen resized off screen kept following output; closing the panel removed the run and descendant.');
   },
 };
