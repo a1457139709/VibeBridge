@@ -16,6 +16,7 @@ import type { SettingsCategory } from '../shared/settings';
 import { configureTerminals, reconcileTerminals, terminalEvent, setTerminalLanguage } from './terminals';
 import '@xterm/xterm/css/xterm.css';
 import './style.css';
+import './terminal.css';
 import './processing-status.css';
 import './project-summary.css';
 

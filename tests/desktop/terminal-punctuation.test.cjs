@@ -35,7 +35,8 @@ module.exports = {
           composition: document.querySelector('.composition-view').getBoundingClientRect().left };
       })()`);
       const origin = chars[0].left; const cell = chars[1].left - origin;
-      const onGrid = (left, column, what) => assert.ok(Math.abs(left - (origin + column * cell)) < 1,
+      // A squeezed mark shifts later text by about 0.8 cells; a quarter cell absorbs sub-pixel rounding.
+      const onGrid = (left, column, what) => assert.ok(Math.abs(left - (origin + column * cell)) < cell / 4,
         `${what} is drawn at ${(left - origin) / cell} cells; its cell is ${column}`);
       for (let i = 0; i < line.length; i++) onGrid(chars[i].left, cells(line.slice(0, i)), `"${chars[i].char}" at index ${i}`);
       onGrid(cursor, cells(line), 'The cursor');
