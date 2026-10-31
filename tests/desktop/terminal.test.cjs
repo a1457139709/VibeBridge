@@ -20,7 +20,7 @@ module.exports = {
       window.webContents.sendInputEvent({ type: 'keyUp', keyCode, modifiers });
       // A trailing marker shows every byte of the key has arrived; PTY reads may merge them.
       window.webContents.sendInputEvent({ type: 'char', keyCode: '.' });
-      await until(() => evaluate('/BYTES:[0-9a-f]*2e\\r\\n/.test(window.output)'));
+      await until(() => evaluate('/BYTES:[0-9a-f]*2e[^0-9a-f]/.test(window.output)'));
       return evaluate('[...window.output.matchAll(/BYTES:([0-9a-f]+)/g)].map(match => match[1]).join("")');
     };
     assert.equal(await bytesOf('Enter', ['shift']), '1b5b31333b32752e');

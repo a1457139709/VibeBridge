@@ -37,6 +37,11 @@ function ensure(runId: string): Screen {
   terminal.onData(data => { void window.workbench.sendInput(runId, data).catch(error => { if (screens.get(runId) === screen) report(error.message); }); });
   terminal.onResize(({ cols, rows }) => { void window.workbench.resizeRun(runId, cols, rows).catch(error => report(error.message)); });
   terminal.attachCustomKeyEventHandler(event => {
+    // xterm sends Shift+Enter as Enter's carriage return; Agent CLIs read the CSI u form as a prompt newline.
+    if (event.key === 'Enter' && event.shiftKey && !event.altKey && !event.ctrlKey && !event.metaKey && !event.isComposing) {
+      if (event.type === 'keydown') terminal.input('\x1b[13;2u');
+      return false;
+    }
     if (event.metaKey && event.key.toLowerCase() === 'c' && terminal.hasSelection()) return false;
     if (event.metaKey && event.key.toLowerCase() === 'v') return false;
     return true;
