@@ -24,8 +24,8 @@ module.exports = {
       await until(() => evaluate('/BYTES:[0-9a-f]*2e[^0-9a-f]/.test(window.output)'));
       return evaluate('[...window.output.matchAll(/BYTES:([0-9a-f]+)/g)].map(match => match[1]).join("")');
     };
-    assert.equal(await bytesOf('Enter', ['shift']), '1b5b31333b32752e');
-    assert.equal(await bytesOf('Enter', []), '0d2e');
+    assert.equal(await bytesOf('Enter', ['shift']), Buffer.from('\x1b[13;2u.').toString('hex'));
+    assert.equal(await bytesOf('Enter', []), Buffer.from('\r.').toString('hex'));
     // Command+V reaches the terminal only through the Edit menu's paste, which synthetic key events
     // cannot trigger, so the paste is performed after the key; it must land before the marker.
     require('electron').clipboard.writeText('pasted');
@@ -78,6 +78,6 @@ module.exports = {
     await until(() => evaluate('document.body.innerText.includes("This project has no Agent Panels yet")'));
     assert.throws(() => process.kill(run.pid, 0));
     assert.throws(() => process.kill(child, 0));
-    console.log('Native terminal input rendered its CLI echo; Shift+Enter sent CSI u while Enter sent a carriage return Command+V pasted once and Command+C over a selection sent nothing; a screen resized off screen kept following output; closing the panel removed the run and descendant.');
+    console.log('Native terminal input rendered its CLI echo; Shift+Enter sent CSI u while Enter sent a carriage return; Command+V pasted once and Command+C over a selection sent nothing; a screen resized off screen kept following output; closing the panel removed the run and descendant.');
   },
 };
