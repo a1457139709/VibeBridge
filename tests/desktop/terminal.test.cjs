@@ -42,8 +42,11 @@ module.exports = {
       const { left, top, height } = row.getBoundingClientRect();
       return { x: Math.round(left + 4), y: Math.round(top + height / 2) };
     })()`);
-    for (const type of ['mouseDown', 'mouseUp']) window.webContents.sendInputEvent({ type, ...word, button: 'left', clickCount: 1 });
-    for (const type of ['mouseDown', 'mouseUp']) window.webContents.sendInputEvent({ type, ...word, button: 'left', clickCount: 2 });
+    for (const clickCount of [1, 2]) {
+      window.webContents.sendInputEvent({ type: 'mouseDown', ...word, button: 'left', modifiers: ['leftbuttondown'], clickCount });
+      window.webContents.sendInputEvent({ type: 'mouseUp', ...word, button: 'left', clickCount });
+    }
+    await until(() => evaluate('!!document.querySelector(".xterm-selection div")'));
     clipboard.writeText('');
     const copy = async () => { window.webContents.copy(); await until(() => clipboard.readText() === 'ACCENT'); };
     assert.equal(await bytesOf('c', ['meta'], copy), '2e');
