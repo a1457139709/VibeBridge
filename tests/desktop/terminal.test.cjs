@@ -13,6 +13,42 @@ module.exports = {
     window.webContents.sendInputEvent({ type: 'char', keyCode: 'k' });
     await until(() => evaluate('document.querySelector(".xterm-rows").textContent.includes("INPUT:k")'));
 
+    // Agent CLIs read CSI u Shift+Enter as a newline in their prompt; plain Enter still submits.
+    const bytesOf = async (keyCode, modifiers, after = async () => {}) => {
+      await evaluate('window.output = ""; void 0');
+      window.webContents.sendInputEvent({ type: 'keyDown', keyCode, modifiers });
+      window.webContents.sendInputEvent({ type: 'keyUp', keyCode, modifiers });
+      await after();
+      // A trailing marker shows every byte of the key has arrived; PTY reads may merge them.
+      window.webContents.sendInputEvent({ type: 'char', keyCode: '.' });
+      await until(() => evaluate('/BYTES:[0-9a-f]*2e[^0-9a-f]/.test(window.output)'));
+      return evaluate('[...window.output.matchAll(/BYTES:([0-9a-f]+)/g)].map(match => match[1]).join("")');
+    };
+    assert.equal(await bytesOf('Enter', ['shift']), Buffer.from('\x1b[13;2u.').toString('hex'));
+    assert.equal(await bytesOf('Enter', []), Buffer.from('\r.').toString('hex'));
+    // Command+V reaches the terminal only through the Edit menu's paste, which synthetic key events
+    // cannot trigger, so the paste is performed after the key; it must land before the marker.
+    require('electron').clipboard.writeText('pasted');
+    const paste = async () => { window.webContents.paste(); await until(() => evaluate('window.output.includes("INPUT:pasted")')); };
+    assert.equal(await bytesOf('v', ['meta'], paste), `${Buffer.from('pasted').toString('hex')}2e`);
+    // Command+C over a selection is left to the Edit menu and sends nothing to the Agent.
+    // Echoed CSI u restores the cursor and overwrites earlier rows, so select on a freshly cleared screen.
+    await evaluate(`window.workbench.sendInput(${JSON.stringify(run.id)}, 'palette')`);
+    const accentRow = '[...document.querySelectorAll(".xterm-rows > div")].find(row => row.textContent.startsWith("ACCENT"))';
+    await until(() => evaluate(`!!${accentRow}`));
+    const word = await evaluate(`(() => {
+      const row = ${accentRow};
+      const { left, top, height } = row.getBoundingClientRect();
+      return { x: Math.round(left + 4), y: Math.round(top + height / 2) };
+    })()`);
+    for (const clickCount of [1, 2]) {
+      window.webContents.sendInputEvent({ type: 'mouseDown', ...word, button: 'left', modifiers: ['leftbuttondown'], clickCount });
+      window.webContents.sendInputEvent({ type: 'mouseUp', ...word, button: 'left', clickCount });
+    }
+    await until(() => evaluate('!!document.querySelector(".xterm-selection div")'));
+    await evaluate('document.querySelector(".xterm-helper-textarea").focus()');
+    assert.equal(await bytesOf('c', ['meta']), '2e');
+
     // A screen that follows output keeps following after it shrinks while off screen. Off screen
     // the renderer pauses; held idle callbacks keep its earlier size, as on a busy main thread.
     const frames = 'new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(() => setTimeout(resolve))))';
@@ -42,6 +78,6 @@ module.exports = {
     await until(() => evaluate('document.body.innerText.includes("This project has no Agent Panels yet")'));
     assert.throws(() => process.kill(run.pid, 0));
     assert.throws(() => process.kill(child, 0));
-    console.log('Native terminal input rendered its CLI echo; a screen resized off screen kept following output; closing the panel removed the run and descendant.');
+    console.log('Native terminal input rendered its CLI echo; Shift+Enter sent CSI u while Enter sent a carriage return; Command+V pasted once and Command+C over a selection sent nothing; a screen resized off screen kept following output; closing the panel removed the run and descendant.');
   },
 };
