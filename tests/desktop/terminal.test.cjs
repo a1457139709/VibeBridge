@@ -31,8 +31,12 @@ module.exports = {
     const { clipboard } = require('electron');
     clipboard.writeText('pasted');
     assert.equal(await bytesOf('v', ['meta'], () => window.webContents.paste()), `${Buffer.from('pasted').toString('hex')}2e`);
+    // Echoed CSI u restores the cursor and overwrites earlier rows, so copy from a freshly cleared screen.
+    await evaluate(`window.workbench.sendInput(${JSON.stringify(run.id)}, 'palette')`);
+    const accentRow = '[...document.querySelectorAll(".xterm-rows > div")].find(row => row.textContent.startsWith("ACCENT"))';
+    await until(() => evaluate(`!!${accentRow}`));
     const word = await evaluate(`(() => {
-      const row = [...document.querySelectorAll('.xterm-rows > div')].find(row => row.textContent.startsWith('INPUT:k'));
+      const row = ${accentRow};
       const { left, top, height } = row.getBoundingClientRect();
       return { x: Math.round(left + 4), y: Math.round(top + height / 2) };
     })()`);
@@ -40,7 +44,7 @@ module.exports = {
     for (const type of ['mouseDown', 'mouseUp']) window.webContents.sendInputEvent({ type, ...word, button: 'left', clickCount: 2 });
     clipboard.writeText('');
     assert.equal(await bytesOf('c', ['meta'], () => window.webContents.copy()), '2e');
-    await until(() => clipboard.readText() === 'INPUT:k');
+    await until(() => clipboard.readText() === 'ACCENT');
 
     // A screen that follows output keeps following after it shrinks while off screen. Off screen
     // the renderer pauses; held idle callbacks keep its earlier size, as on a busy main thread.
