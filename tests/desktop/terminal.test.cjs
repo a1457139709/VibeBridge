@@ -47,6 +47,7 @@ module.exports = {
       window.webContents.sendInputEvent({ type: 'mouseUp', ...word, button: 'left', clickCount });
     }
     await until(() => evaluate('!!document.querySelector(".xterm-selection div")'));
+    await evaluate('document.querySelector(".xterm-helper-textarea").focus()');
     clipboard.writeText('');
     const copy = async () => { window.webContents.copy(); await until(() => clipboard.readText() === 'ACCENT'); };
     assert.equal(await bytesOf('c', ['meta'], copy), '2e');
