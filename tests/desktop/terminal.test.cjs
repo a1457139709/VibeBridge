@@ -13,6 +13,19 @@ module.exports = {
     window.webContents.sendInputEvent({ type: 'char', keyCode: 'k' });
     await until(() => evaluate('document.querySelector(".xterm-rows").textContent.includes("INPUT:k")'));
 
+    // Agent CLIs read CSI u Shift+Enter as a newline in their prompt; plain Enter still submits.
+    const bytesOf = async (keyCode, modifiers) => {
+      await evaluate('window.output = ""; void 0');
+      window.webContents.sendInputEvent({ type: 'keyDown', keyCode, modifiers });
+      window.webContents.sendInputEvent({ type: 'keyUp', keyCode, modifiers });
+      // A trailing marker shows every byte of the key has arrived; PTY reads may merge them.
+      window.webContents.sendInputEvent({ type: 'char', keyCode: '.' });
+      await until(() => evaluate('/BYTES:[0-9a-f]*2e\\r\\n/.test(window.output)'));
+      return evaluate('[...window.output.matchAll(/BYTES:([0-9a-f]+)/g)].map(match => match[1]).join("")');
+    };
+    assert.equal(await bytesOf('Enter', ['shift']), '1b5b31333b32752e');
+    assert.equal(await bytesOf('Enter', []), '0d2e');
+
     // A screen that follows output keeps following after it shrinks while off screen. Off screen
     // the renderer pauses; held idle callbacks keep its earlier size, as on a busy main thread.
     const frames = 'new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(() => setTimeout(resolve))))';
@@ -42,6 +55,6 @@ module.exports = {
     await until(() => evaluate('document.body.innerText.includes("This project has no Agent Panels yet")'));
     assert.throws(() => process.kill(run.pid, 0));
     assert.throws(() => process.kill(child, 0));
-    console.log('Native terminal input rendered its CLI echo; a screen resized off screen kept following output; closing the panel removed the run and descendant.');
+    console.log('Native terminal input rendered its CLI echo; Shift+Enter sent CSI u while Enter sent a carriage return; a screen resized off screen kept following output; closing the panel removed the run and descendant.');
   },
 };
