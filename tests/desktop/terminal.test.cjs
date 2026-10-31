@@ -14,10 +14,11 @@ module.exports = {
     await until(() => evaluate('document.querySelector(".xterm-rows").textContent.includes("INPUT:k")'));
 
     // Agent CLIs read CSI u Shift+Enter as a newline in their prompt; plain Enter still submits.
-    const bytesOf = async (keyCode, modifiers) => {
+    const bytesOf = async (keyCode, modifiers, after = () => {}) => {
       await evaluate('window.output = ""; void 0');
       window.webContents.sendInputEvent({ type: 'keyDown', keyCode, modifiers });
       window.webContents.sendInputEvent({ type: 'keyUp', keyCode, modifiers });
+      after();
       // A trailing marker shows every byte of the key has arrived; PTY reads may merge them.
       window.webContents.sendInputEvent({ type: 'char', keyCode: '.' });
       await until(() => evaluate('/BYTES:[0-9a-f]*2e[^0-9a-f]/.test(window.output)'));
@@ -25,12 +26,11 @@ module.exports = {
     };
     assert.equal(await bytesOf('Enter', ['shift']), '1b5b31333b32752e');
     assert.equal(await bytesOf('Enter', []), '0d2e');
-    // Command+C and Command+V stay with the Edit menu, so they copy a selection and paste once.
+    // Command+C and Command+V reach the terminal only through the Edit menu's copy and paste, which
+    // synthetic key events cannot trigger, so each menu action is performed after its key.
     const { clipboard } = require('electron');
-    clipboard.writeText('pasted-text');
-    window.webContents.sendInputEvent({ type: 'keyDown', keyCode: 'v', modifiers: ['meta'] });
-    window.webContents.sendInputEvent({ type: 'keyUp', keyCode: 'v', modifiers: ['meta'] });
-    await until(() => evaluate('window.output.includes("INPUT:pasted-text")'));
+    clipboard.writeText('pasted');
+    assert.equal(await bytesOf('v', ['meta'], () => window.webContents.paste()), `${Buffer.from('pasted').toString('hex')}2e`);
     const word = await evaluate(`(() => {
       const row = [...document.querySelectorAll('.xterm-rows > div')].find(row => row.textContent.startsWith('INPUT:k'));
       const { left, top, height } = row.getBoundingClientRect();
@@ -39,11 +39,8 @@ module.exports = {
     for (const type of ['mouseDown', 'mouseUp']) window.webContents.sendInputEvent({ type, ...word, button: 'left', clickCount: 1 });
     for (const type of ['mouseDown', 'mouseUp']) window.webContents.sendInputEvent({ type, ...word, button: 'left', clickCount: 2 });
     clipboard.writeText('');
-    await evaluate('document.querySelector(".xterm-helper-textarea").focus()');
-    window.webContents.sendInputEvent({ type: 'keyDown', keyCode: 'c', modifiers: ['meta'] });
-    window.webContents.sendInputEvent({ type: 'keyUp', keyCode: 'c', modifiers: ['meta'] });
+    assert.equal(await bytesOf('c', ['meta'], () => window.webContents.copy()), '2e');
     await until(() => clipboard.readText() === 'INPUT:k');
-    assert.equal((await evaluate('window.output')).split('INPUT:pasted-text').length, 2);
 
     // A screen that follows output keeps following after it shrinks while off screen. Off screen
     // the renderer pauses; held idle callbacks keep its earlier size, as on a busy main thread.
