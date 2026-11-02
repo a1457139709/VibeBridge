@@ -52,6 +52,8 @@ async function prepare({ command, directory, resourceDirectory }: Launch): Promi
 
 class ClaudeInterpreter implements StatusInterpreter {
   private session?: string;
+  /** prompt_id of the SessionStart that established the current session. */
+  private establishedBy?: unknown;
   private retired = new Set<string>();
   private prompt?: string;
   private oldPrompts = new Set<string>();
@@ -91,13 +93,18 @@ class ClaudeInterpreter implements StatusInterpreter {
         this.completedTools.clear();
         this.activeTools.clear();
       }
+      if (event.source !== 'compact') this.establishedBy = event.prompt_id;
       return event;
     }
     if (this.retired.has(session) || (this.session && this.session !== session)) return;
     this.session ??= session;
     if (name === 'SessionEnd') {
+      // Resuming the current session reports the old segment's SessionEnd and the new
+      // SessionStart under one prompt_id, in either order. The pair never retires it.
+      if (typeof event.prompt_id === 'string' && event.prompt_id === this.establishedBy) return event;
       this.retired.add(session);
       this.session = undefined;
+      this.establishedBy = undefined;
       return event;
     }
     const prompt = typeof event.prompt_id === 'string' ? event.prompt_id : undefined;
@@ -166,7 +173,9 @@ class ClaudeInterpreter implements StatusInterpreter {
       case 'PreToolUse': case 'PostToolUse': case 'PostToolUseFailure': case 'UserPromptSubmit':
       case 'PermissionRequest': case 'Elicitation': case 'ElicitationResult':
       case 'PreCompact': case 'PostCompact': return waiting ? 'needs-input' : 'busy';
-      case 'Stop': return 'done';
+      // A turn ends only when no Spawned Task it started is still running.
+      case 'Stop': return Array.isArray(event.background_tasks)
+        && event.background_tasks.some(task => task?.status === 'running') ? 'busy' : 'done';
       case 'StopFailure': return 'error';
       case 'SessionEnd': case 'SubagentStart': case 'SubagentStop': return 'keep';
       default: return 'error';

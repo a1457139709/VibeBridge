@@ -16,5 +16,11 @@ reportCommandHook('claude', raw => {
   if (typeof raw.tool_name === 'string' && raw.tool_input && typeof raw.tool_input === 'object') {
     payload.tool_input_hash = createHash('sha256').update(canonical([raw.tool_name, raw.tool_input])).digest('hex');
   }
+  // Whether a Spawned Task still runs needs only its kind and status; commands and
+  // descriptions stay in Claude.
+  if (Array.isArray(raw.background_tasks)) {
+    payload.background_tasks = raw.background_tasks.map(task => task && typeof task === 'object'
+      ? { type: task.type, status: task.status } : {});
+  }
   return payload;
 });

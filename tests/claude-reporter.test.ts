@@ -42,6 +42,25 @@ test('the Claude reporter matches a permission request to its tool by exact inpu
   } finally { await f.close(); }
 });
 
+test('the Claude reporter forwards only the kind and status of Spawned Tasks, so their commands stay in Claude', async () => {
+  const f = await fixture('claude');
+  try {
+    const { launches: [{ run }] } = await f.create();
+    // Larger than a report may be: forwarding it would lose the observation and show Error.
+    const command = `npm run dev # ${'x'.repeat(64 * 1024)}`;
+    await f.send(run.id, { hook_event_name: 'UserPromptSubmit' });
+    const payloadFile = join(f.directory, 'stop-with-spawned-tasks.json');
+    await writeFile(payloadFile, JSON.stringify({ hook_event_name: 'Stop', background_tasks: [
+      { id: 'shell-task', type: 'shell', status: 'running', description: 'dev server', command },
+      { id: 'agent-task', type: 'subagent', status: 'completed', description: 'explore', agent_type: 'Explore' }] }));
+    await f.send(run.id, undefined, { payloadFile });
+    assert.equal(f.state(run.id), 'busy');
+    await f.send(run.id, { hook_event_name: 'UserPromptSubmit' });
+    await f.send(run.id, { hook_event_name: 'Stop', background_tasks: [] });
+    assert.equal(f.state(run.id), 'done');
+  } finally { await f.close(); }
+});
+
 test('file-based Claude settings stay private and each run cleans only its own invocation resources', async () => {
   const f = await fixture('claude', ['--settings', './private-settings.json']);
   let launchSettings: string | undefined;

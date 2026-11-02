@@ -53,7 +53,6 @@ test('Codex permission waits survive unrelated tool activity and end on the matc
   check({ hook_event_name: 'UserPromptSubmit' }, 'busy');
   check({ hook_event_name: 'PermissionRequest', tool_use_id: 'approval', tool_name: 'Bash' }, 'needs-input');
   check({ hook_event_name: 'PostToolUse', tool_use_id: 'other', tool_name: 'Bash' }, 'needs-input');
-  check({ hook_event_name: 'PreToolUse', tool_use_id: 'question', tool_name: 'request_user_input_async' }, 'needs-input');
   check({ hook_event_name: 'PostToolUse', tool_use_id: 'approval', tool_name: 'Bash' }, 'busy');
   check({ hook_event_name: 'PreToolUse', tool_use_id: 'retry', tool_name: 'Bash' }, 'busy');
   check({ hook_event_name: 'Interrupt' }, 'ready');
@@ -71,7 +70,6 @@ test('Codex structured questions wait for the user until their own tool result',
   const check = started({ turn_id: 'turn' });
   const ask = (tool_use_id?: string) => ({ hook_event_name: 'PreToolUse', tool_name: 'request_user_input', tool_use_id });
   check({ hook_event_name: 'UserPromptSubmit' }, 'busy');
-  check({ hook_event_name: 'PreToolUse', tool_use_id: 'async', tool_name: 'request_user_input_async' }, 'busy');
   check(ask('question'), 'needs-input');
   check({ hook_event_name: 'PreToolUse', tool_use_id: 'read', tool_name: 'Bash' }, 'needs-input');
   check({ hook_event_name: 'PostToolUse', tool_use_id: 'read', tool_name: 'Bash' }, 'needs-input');
@@ -83,6 +81,43 @@ test('Codex structured questions wait for the user until their own tool result',
   check({ hook_event_name: 'PostToolUse', tool_use_id: 'both', tool_name: 'request_user_input' }, 'needs-input');
   check({ hook_event_name: 'PostToolUse', tool_use_id: 'approval', tool_name: 'Bash' }, 'busy');
   check({ ...ask('child'), agent_id: 'child' }, 'busy');
+});
+
+test('an unanswered Codex async question shows Needs input through later tools, compaction, new turn IDs and Stop', () => {
+  const check = started();
+  check({ hook_event_name: 'UserPromptSubmit', turn_id: 'asked' }, 'busy');
+  check({ hook_event_name: 'PreToolUse', turn_id: 'asked', tool_name: 'request_user_input_async', tool_use_id: 'async' }, 'needs-input');
+  check({ hook_event_name: 'PostToolUse', turn_id: 'asked', tool_name: 'request_user_input_async', tool_use_id: 'async' }, 'needs-input');
+  check({ hook_event_name: 'PreToolUse', turn_id: 'asked', tool_name: 'Bash', tool_use_id: 'build' }, 'needs-input');
+  check({ hook_event_name: 'PostToolUse', turn_id: 'asked', tool_name: 'Bash', tool_use_id: 'build' }, 'needs-input');
+  check({ hook_event_name: 'PreCompact', turn_id: 'asked' }, 'needs-input');
+  check({ hook_event_name: 'SessionStart', source: 'compact' }, 'needs-input');
+  check({ hook_event_name: 'PostCompact', turn_id: 'asked' }, 'needs-input');
+  check({ hook_event_name: 'Stop', turn_id: 'asked' }, 'needs-input');
+  check({ hook_event_name: 'PreToolUse', turn_id: 'continued', tool_name: 'Bash', tool_use_id: 'later' }, 'needs-input');
+  check({ hook_event_name: 'Stop', turn_id: 'continued' }, 'needs-input');
+  check({ hook_event_name: 'SubagentStop', agent_id: 'child', turn_id: 'continued' }, 'needs-input');
+  check({ hook_event_name: 'UserPromptSubmit', turn_id: 'answered' }, 'busy');
+  check({ hook_event_name: 'Stop', turn_id: 'answered' }, 'done');
+});
+
+test('any user input, an interruption, a new session or an Error clears an unanswered Codex async question', () => {
+  const check = started();
+  const ask = (turn_id: string) => check({ hook_event_name: 'PreToolUse', turn_id, tool_name: 'request_user_input_async', tool_use_id: `${turn_id}-async` }, 'needs-input');
+  check({ hook_event_name: 'UserPromptSubmit', turn_id: 'steered' }, 'busy');
+  ask('steered');
+  check({ hook_event_name: 'UserPromptSubmit', turn_id: 'steered' }, 'busy');
+  check({ hook_event_name: 'Stop', turn_id: 'steered' }, 'done');
+  check({ hook_event_name: 'UserPromptSubmit', turn_id: 'interrupted' }, 'busy');
+  ask('interrupted');
+  check({ hook_event_name: 'Interrupt', turn_id: 'interrupted' }, 'ready');
+  check({ hook_event_name: 'UserPromptSubmit', turn_id: 'cleared' }, 'busy');
+  ask('cleared');
+  check({ hook_event_name: 'SessionStart', source: 'clear', session_id: 'fresh' }, 'ready');
+  check({ hook_event_name: 'UserPromptSubmit', session_id: 'fresh', turn_id: 'failed' }, 'busy');
+  check({ hook_event_name: 'PreToolUse', session_id: 'fresh', turn_id: 'failed', tool_name: 'request_user_input_async', tool_use_id: 'lost' }, 'needs-input');
+  check({ hook_event_name: 'Unknown', session_id: 'fresh', turn_id: 'failed' }, 'error');
+  check({ hook_event_name: 'PreToolUse', session_id: 'fresh', turn_id: 'failed', tool_name: 'Bash', tool_use_id: 'after' }, 'busy');
 });
 
 test('Codex structured question waits end with the turn that asked them', () => {
