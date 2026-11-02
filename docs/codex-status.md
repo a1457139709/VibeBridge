@@ -19,13 +19,14 @@ Known retired sessions and turns, and repeated tool boundaries identified by ses
 | Native fact | Projection |
 | --- | --- |
 | SessionStart: startup, resume, clear, fork | Ready |
-| UserPromptSubmit; ordinary tools; compaction; compact SessionStart | Busy |
+| UserPromptSubmit | Busy; answers any pending question |
+| Ordinary tools; compaction; compact SessionStart | Busy unless a wait or an unanswered async question remains |
 | PermissionRequest | Needs input |
 | PreToolUse(request_user_input) | Needs input, pending by `tool_use_id` |
 | Matching PostToolUse after permission request or question | Busy; other pending tool waits remain Needs input |
-| PreToolUse(request_user_input_async) | Busy: ordinary tool activity |
-| Stop | Done |
-| Main Interrupt with a turn ID | Ready: the native hook runs after detaching the active turn |
+| PreToolUse(request_user_input_async) | Needs input until the user enters anything, the turn is interrupted, a new session starts or the run exits |
+| Stop | Done; Needs input while an async question is unanswered |
+| Main Interrupt with a turn ID | Ready: the native hook runs after detaching the active turn; clears waits and an unanswered async question |
 | SessionEnd; child events | Keep current state |
 | Unclassified main event; reported observation loss | Error |
 
@@ -35,15 +36,19 @@ Unrelated tool activity does not clear a known permission wait. A matching resul
 
 A main-run `PreToolUse(request_user_input)` is itself evidence of waiting for the user. The handler awaits the answer in every allowed mode until it is answered, cancelled or automatically resolved. Its Plan-only `is_blocking` flag controls only whether the TUI may resolve the question automatically, and only the root thread can ask.
 
-The question is a pending wait keyed by `tool_use_id`, or by tool name when that ID is missing. Its matching PostToolUse removes it; the run returns to Busy only when no other wait, such as a permission request, remains. Codex runs PostToolUse only for successful results: an answer or automatic resolution succeeds, while cancelling in the TUI (Esc or Ctrl-C) interrupts the turn, and that Interrupt clears the wait. A new turn, UserPromptSubmit, Stop and run exit also clear it. `request_user_input_async` returns immediately and remains ordinary tool activity. Child questions cannot change the main run.
+The question is a pending wait keyed by `tool_use_id`, or by tool name when that ID is missing. Its matching PostToolUse removes it; the run returns to Busy only when no other wait, such as a permission request, remains. Codex runs PostToolUse only for successful results: an answer or automatic resolution succeeds, while cancelling in the TUI (Esc or Ctrl-C) interrupts the turn, and that Interrupt clears the wait. A new turn, UserPromptSubmit, Stop and run exit also clear it. Child questions cannot change the main run.
+
+`request_user_input_async` shows its questions and returns `{"accepted":true}` at once, so its own PostToolUse does not mean the user answered. A main-run `PreToolUse(request_user_input_async)` sets an unanswered-question mark, kept apart from the waits above. While it is set, tools (including that question's own result), compaction, a compact SessionStart and Stop all project Needs input, and a new turn ID does not clear it. Any UserPromptSubmit clears it, including input that is unrelated to the question or steered into a running turn, because Workbench never reads the conversation; so do a main Interrupt with a turn ID, a non-compact SessionStart, observation loss and run exit.
 
 ## Known limits
 
-These describe Codex 0.163.0, the version the hook and question behavior was read from.
+These describe Codex 0.164.0, the version the hook and question behavior was read from.
 
 - In Default mode, if the user does nothing, Needs input lasts up to about two minutes before automatic resolution returns the run to Busy. This matches the actual wait.
 - Default-mode free-text questions have no confirmed waiting signal.
 - UserPromptSubmit can be observed before another hook rejects submission, PermissionRequest before another hook grants or denies permission, and Stop before a hook requests continuation; Stop has no success or failure field. These can misclassify state until a later reliable event.
 - Network or server failures without an applicable hook may leave Busy.
+- Input steered into a running turn triggers UserPromptSubmit, with the same turn ID, only when the turn drains pending input before its next step. An answer typed during a turn therefore leaves Needs input one step later.
+- Spawned Tasks are not observable, so Done can arrive while one still runs. Stop carries no background-task field. SubagentStart runs only when a spawned agent starts, but SubagentStop runs after each of its turns, so a child woken by later input has no start signal; internal sub-agents run no hooks; background commands run no hook.
 
-Requirements and evidence: [#91](https://github.com/a1457139709/VibeBridge/issues/91), [#85](https://github.com/a1457139709/VibeBridge/issues/85) and the [structured-question investigation](https://github.com/a1457139709/VibeBridge/issues/75#issuecomment-6308791014). Protocol references: [official hooks guide](https://learn.chatgpt.com/docs/hooks), [native hook dispatch](https://github.com/openai/codex/blob/rust-v0.163.0/codex-rs/core/src/hook_runtime.rs), [question handler](https://github.com/openai/codex/blob/rust-v0.163.0/codex-rs/core/src/tools/handlers/request_user_input.rs) and [async question handler](https://github.com/openai/codex/blob/rust-v0.163.0/codex-rs/core/src/tools/handlers/request_user_input_async.rs).
+Requirements and evidence: [#91](https://github.com/a1457139709/VibeBridge/issues/91), [#85](https://github.com/a1457139709/VibeBridge/issues/85), [#151](https://github.com/a1457139709/VibeBridge/issues/151) and the [structured-question investigation](https://github.com/a1457139709/VibeBridge/issues/75#issuecomment-6308791014). Protocol references: [official hooks guide](https://learn.chatgpt.com/docs/hooks), [native hook dispatch](https://github.com/openai/codex/blob/rust-v0.164.0/codex-rs/core/src/hook_runtime.rs), [pending input](https://github.com/openai/codex/blob/rust-v0.164.0/codex-rs/core/src/session/turn.rs), [question handler](https://github.com/openai/codex/blob/rust-v0.164.0/codex-rs/core/src/tools/handlers/request_user_input.rs) and [async question handler](https://github.com/openai/codex/blob/rust-v0.164.0/codex-rs/core/src/tools/handlers/request_user_input_async.rs).

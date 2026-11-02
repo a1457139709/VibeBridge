@@ -52,9 +52,10 @@ async function prepare({ command, directory, resourceDirectory }: Launch): Promi
 
 class ClaudeInterpreter implements StatusInterpreter {
   private session?: string;
+  private sessionStartPromptId?: string;
   private retired = new Set<string>();
-  private prompt?: string;
-  private oldPrompts = new Set<string>();
+  private promptId?: string;
+  private oldPromptIds = new Set<string>();
   private seen = new Set<string>();
   private completedTools = new Set<string>();
   private activeTools = new Map<string, unknown>();
@@ -85,32 +86,38 @@ class ClaudeInterpreter implements StatusInterpreter {
         if (this.session) this.retired.add(this.session);
         this.session = session;
         this.retired.delete(session);
-        this.prompt = undefined;
-        this.oldPrompts.clear();
+        this.promptId = undefined;
+        this.oldPromptIds.clear();
         this.seen.clear();
         this.completedTools.clear();
         this.activeTools.clear();
       }
+      if (event.source !== 'compact') this.sessionStartPromptId = typeof event.prompt_id === 'string' ? event.prompt_id : undefined;
       return event;
     }
     if (this.retired.has(session) || (this.session && this.session !== session)) return;
     this.session ??= session;
     if (name === 'SessionEnd') {
+      // Resuming reports the old segment's SessionEnd and the new SessionStart under one
+      // prompt_id. A SessionEnd processed after its paired start belongs to the segment
+      // before it and keeps the session.
+      if (this.sessionStartPromptId !== undefined && event.prompt_id === this.sessionStartPromptId) return event;
       this.retired.add(session);
       this.session = undefined;
+      this.sessionStartPromptId = undefined;
       return event;
     }
-    const prompt = typeof event.prompt_id === 'string' ? event.prompt_id : undefined;
-    if (prompt) {
-      if (this.oldPrompts.has(prompt)) return;
-      if (this.prompt && this.prompt !== prompt) {
+    const promptId = typeof event.prompt_id === 'string' ? event.prompt_id : undefined;
+    if (promptId) {
+      if (this.oldPromptIds.has(promptId)) return;
+      if (this.promptId && this.promptId !== promptId) {
         if (name !== 'UserPromptSubmit') return;
-        this.oldPrompts.add(this.prompt);
+        this.oldPromptIds.add(this.promptId);
       }
-      this.prompt = prompt;
+      this.promptId = promptId;
     }
-    if (name === 'UserPromptSubmit' && prompt) {
-      const key = JSON.stringify([session, name, prompt]);
+    if (name === 'UserPromptSubmit' && promptId) {
+      const key = JSON.stringify([session, name, promptId]);
       if (this.seen.has(key)) return;
       this.seen.add(key);
     }
@@ -166,7 +173,9 @@ class ClaudeInterpreter implements StatusInterpreter {
       case 'PreToolUse': case 'PostToolUse': case 'PostToolUseFailure': case 'UserPromptSubmit':
       case 'PermissionRequest': case 'Elicitation': case 'ElicitationResult':
       case 'PreCompact': case 'PostCompact': return waiting ? 'needs-input' : 'busy';
-      case 'Stop': return 'done';
+      // A turn ends only when no Spawned Task it started is still running.
+      case 'Stop': return Array.isArray(event.background_tasks)
+        && event.background_tasks.some(task => task?.status === 'running') ? 'busy' : 'done';
       case 'StopFailure': return 'error';
       case 'SessionEnd': case 'SubagentStart': case 'SubagentStop': return 'keep';
       default: return 'error';

@@ -114,6 +114,65 @@ test('Claude child activity and identifiable old session, prompt and tool events
   check({ hook_event_name: 'SessionStart', session_id: 'current', source: 'startup' }, 'ready');
 });
 
+test('a Claude main Stop with any running Spawned Task stays Busy; the turn ends only when none run', () => {
+  const check = started();
+  const stop = (background_tasks?: unknown) => ({ hook_event_name: 'Stop', background_tasks });
+  check({ hook_event_name: 'UserPromptSubmit' }, 'busy');
+  check(stop([{ type: 'subagent', status: 'running' }]), 'busy');
+  check(stop([{ type: 'shell', status: 'running' }]), 'busy');
+  check(stop([{ type: 'shell', status: 'completed' }, { type: 'subagent', status: 'running' }]), 'busy');
+  check(stop([]), 'done');
+  check({ hook_event_name: 'UserPromptSubmit' }, 'busy');
+  check(stop([{ type: 'shell', status: 'completed' }]), 'done');
+  check({ hook_event_name: 'UserPromptSubmit' }, 'busy');
+  check(stop(), 'done');
+});
+
+test('a Claude turn woken by its finished Spawned Task stays Busy, and blocking input still takes priority', () => {
+  const check = started();
+  const running = [{ type: 'subagent', status: 'running' }];
+  check({ hook_event_name: 'UserPromptSubmit', prompt_id: 'asked' }, 'busy');
+  check({ hook_event_name: 'PreToolUse', prompt_id: 'asked', tool_name: 'Agent', tool_use_id: 'spawn' }, 'busy');
+  check({ hook_event_name: 'PostToolUse', prompt_id: 'asked', tool_name: 'Agent', tool_use_id: 'spawn' }, 'busy');
+  check({ hook_event_name: 'Stop', prompt_id: 'asked', background_tasks: running }, 'busy');
+  check({ hook_event_name: 'PreToolUse', agent_id: 'child', tool_name: 'Read', tool_use_id: 'child-read' }, 'busy');
+  check({ hook_event_name: 'Stop', agent_id: 'child' }, 'busy');
+  check({ hook_event_name: 'SubagentStop', agent_id: 'child' }, 'busy');
+  check({ hook_event_name: 'PreToolUse', prompt_id: 'asked', tool_name: 'AskUserQuestion', tool_use_id: 'question' }, 'needs-input');
+  check({ hook_event_name: 'PostToolUse', prompt_id: 'asked', tool_name: 'AskUserQuestion', tool_use_id: 'question' }, 'busy');
+  check({ hook_event_name: 'PermissionRequest', prompt_id: 'asked', tool_use_id: 'approval' }, 'needs-input');
+  check({ hook_event_name: 'Stop', prompt_id: 'asked', background_tasks: running }, 'busy');
+  check({ hook_event_name: 'UserPromptSubmit', prompt_id: 'woken' }, 'busy');
+  check({ hook_event_name: 'Stop', prompt_id: 'woken', background_tasks: [] }, 'done');
+});
+
+test('resuming the current Claude session keeps tracking it when its own SessionEnd arrives after the new SessionStart', () => {
+  const check = started();
+  check({ hook_event_name: 'UserPromptSubmit', prompt_id: 'earlier' }, 'busy');
+  check({ hook_event_name: 'Stop', prompt_id: 'earlier' }, 'done');
+  check({ hook_event_name: 'SessionStart', source: 'resume', prompt_id: 'resume' }, 'ready');
+  check({ hook_event_name: 'SessionEnd', source: 'resume', prompt_id: 'resume' }, 'ready');
+  check({ hook_event_name: 'UserPromptSubmit', prompt_id: 'after' }, 'busy');
+  check({ hook_event_name: 'Stop', prompt_id: 'after' }, 'done');
+});
+
+test('switching Claude sessions with /clear, /resume or a fork shows Ready and drops the old session', () => {
+  const check = started();
+  check({ hook_event_name: 'UserPromptSubmit', prompt_id: 'work' }, 'busy');
+  check({ hook_event_name: 'Stop', prompt_id: 'work', background_tasks: [{ type: 'shell', status: 'running' }] }, 'busy');
+  check({ hook_event_name: 'SessionEnd', source: 'clear', prompt_id: 'clear' }, 'busy');
+  check({ hook_event_name: 'SessionStart', source: 'clear', session_id: 'cleared', prompt_id: 'clear' }, 'ready');
+  check({ hook_event_name: 'Stop', prompt_id: 'work' }, 'ready');
+  check({ hook_event_name: 'UserPromptSubmit', session_id: 'cleared', prompt_id: 'next' }, 'busy');
+  check({ hook_event_name: 'SessionEnd', session_id: 'cleared', source: 'resume', prompt_id: 'pick' }, 'busy');
+  check({ hook_event_name: 'SessionStart', source: 'resume', session_id: 'resumed', prompt_id: 'pick' }, 'ready');
+  check({ hook_event_name: 'Stop', session_id: 'cleared', prompt_id: 'next' }, 'ready');
+  check({ hook_event_name: 'SessionStart', source: 'fork', session_id: 'forked' }, 'ready');
+  check({ hook_event_name: 'UserPromptSubmit', session_id: 'resumed', prompt_id: 'late' }, 'ready');
+  check({ hook_event_name: 'UserPromptSubmit', session_id: 'forked', prompt_id: 'branch' }, 'busy');
+  check({ hook_event_name: 'Stop', session_id: 'forked', prompt_id: 'branch' }, 'done');
+});
+
 test('Claude launch preparation keeps invocation settings, existing hooks and files, including relative paths', async () => {
   const directory = await mkdtemp(resolve("work/claude-status-'$-"));
   try {
