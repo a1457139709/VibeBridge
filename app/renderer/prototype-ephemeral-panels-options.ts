@@ -15,6 +15,11 @@ export const columnModes = [
   { key: 'push', name: '挤压' },
   { key: 'overlay', name: '覆盖' },
 ] as const;
+export const chromes = [
+  { key: 'top', name: '工具栏：项目名 · 汇总居中 · ＋' },
+  { key: 'old', name: '旧版：底栏汇总' },
+] as const;
+export type Chrome = typeof chromes[number]['key'];
 export type ColumnMode = typeof columnModes[number]['key'];
 export type Dock = typeof docks[number]['key'];
 export type View = typeof views[number]['key'];

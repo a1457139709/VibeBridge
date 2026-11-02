@@ -1,5 +1,5 @@
 // PROTOTYPE — throwaway, part of prototype-ephemeral-panels.tsx. Never import or adapt into production (AGENTS.md「Prototype scope」).
-import React, { useEffect, useRef, type ReactNode } from 'react';
+import React, { useEffect, useRef, useState, type ReactNode } from 'react';
 import { ProcessingStatusIcon } from './ProcessingStatusIcon';
 import { agentIcons } from './agent-icons';
 import { statusName, type Pane } from './prototype-ephemeral-panels-data';
@@ -48,4 +48,30 @@ export function SummaryBar({ count }: { count(state: ProcessingState): number })
   return <footer className="project-summary"><div className="summary-entries">{(['ready', 'needs-input', 'done', 'error'] as const).map(s =>
       <button key={s} className="summary-entry" disabled={!count(s)}><ProcessingStatusIcon state={s} /><span>{count(s)}<span className="summary-name"> {statusName[s]}</span></span></button>)}
       <span className="proto-summary-note">底栏汇总位置由 #126 决定，这里只是占位</span></div></footer>;
+}
+
+// #126：汇总放在工作区工具栏右端，列表向下弹出；Esc 先关列表（捕获阶段拦截，临时放大的 Esc 收不到）。
+export function ToolbarSummary({ panes, ephemeralIds, onLocate }: { panes: Pane[]; ephemeralIds: Set<string>; onLocate(id: string): void }) {
+  const states = ['ready', 'needs-input', 'done', 'error'] as const;
+  const [open, setOpen] = useState<typeof states[number]>();
+  const root = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (!open) return;
+    const outside = (e: PointerEvent) => { if (!root.current?.contains(e.target as Node)) setOpen(undefined); };
+    const escape = (e: KeyboardEvent) => { if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); setOpen(undefined); } };
+    document.addEventListener('pointerdown', outside); document.addEventListener('keydown', escape, true);
+    return () => { document.removeEventListener('pointerdown', outside); document.removeEventListener('keydown', escape, true); };
+  }, [open]);
+  const members = (s: ProcessingState) => panes.filter(p => p.status === s);
+  return <div className="proto-tsummary" ref={root}>
+    {states.map(s => <button key={s} className="summary-entry" disabled={!members(s).length} aria-expanded={open === s} title={`${members(s).length} ${statusName[s]}`}
+      onClick={() => setOpen(o => o === s ? undefined : s)}><ProcessingStatusIcon state={s} /><span>{members(s).length}<span className="summary-name"> {statusName[s]}</span></span></button>)}
+    {open && <section className="summary-list proto-tsummary-list" role="dialog" aria-label={statusName[open]}>
+      <header><strong>{statusName[open]}</strong><button onClick={() => setOpen(undefined)}>×</button></header>
+      <ul>{members(open).map(p => <li key={p.id}><button className={`summary-panel ${p.agent}`} onClick={() => { setOpen(undefined); onLocate(p.id); }}>
+        <span className="agent-mark">{agentIcons[p.agent]}</span><span className="session-title">{p.title}</span><small>{ephemeralIds.has(p.id) ? '临时 · 临时放大' : '常驻'}</small>
+      </button></li>)}</ul>
+      {!members(open).length && <p className="muted">没有面板</p>}
+    </section>}
+  </div>;
 }

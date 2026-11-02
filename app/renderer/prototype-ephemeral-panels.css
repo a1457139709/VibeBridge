@@ -102,3 +102,27 @@
 .proto-edge-bottom { bottom: -4px; left: 28px; right: 28px; height: 28px; }
 .proto-edge::after { content: ''; position: absolute; inset: 6px; border-radius: 4px; background: #6aa0ff22; }
 .proto-drop-root { --brand: #6aa0ff; z-index: 7; }
+
+/* #126：项目名、目录、＋ 在系统栏；汇总在工作区工具栏右端 */
+.proto-bar { position: fixed; top: auto; bottom: 52px; }
+.proto-bar-mini { border: 0; padding: 4px 12px; font-weight: 700; font-size: 10px; cursor: pointer; }
+.proto-top .system-brand { width: 230px; box-sizing: border-box; flex-shrink: 0; }
+.proto-sys-project { flex: 1; min-width: 0; display: flex; align-items: baseline; gap: 12px; padding: 0 12px; }
+.proto-sys-project strong { font-size: 13px; white-space: nowrap; flex-shrink: 0; }
+.proto-sys-project .project-path { font-size: 11px; flex: 0 1 auto; }
+/* 窗口变窄：目录先缩成最后一段 */
+@media (max-width: 900px) { .proto-sys-project .path-parent { display: none; } }
+.system-bar .proto-sys-add { margin: 0 14px 0 auto; width: 28px; font-size: 20px; }
+.proto-toolbar-summary { display: grid; grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr); padding: 0 6px 0 12px; container: project-summary / inline-size; }
+/* 左侧项目名先截断、再让位；汇总居中、从不被挤压；＋ 固定在右 */
+.workspace-toolbar .proto-tb-name { justify-self: start; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.workspace-toolbar .proto-tb-add { justify-self: end; }
+.proto-tsummary-list { right: auto; left: 50%; transform: translateX(-50%); }
+.proto-tsummary { position: relative; display: flex; align-items: center; gap: 2px; }
+.proto-tsummary .summary-entry { min-height: 24px; font-size: 11px; background: transparent; }
+.proto-tsummary-list { position: absolute; top: calc(100% + 4px); bottom: auto; right: 0; z-index: 20; }
+@container project-summary (max-width: 440px) { .proto-tsummary .summary-name { display: none; } }
+.proto-settings { padding: 32px 40px; }
+.proto-tb-left { min-width: 0; display: flex; }
+.workspace-toolbar .proto-tb-back { min-width: 0; max-width: 100%; font-size: 11px; padding: 0 6px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; border-radius: 6px; }
+.workspace-toolbar .proto-tb-back:hover { background: var(--hover); }

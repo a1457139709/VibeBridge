@@ -13,8 +13,9 @@ import './project-summary.css';
 import './prototype-ephemeral-panels.css';
 import { Agent, Pane, statusName, agentName, chunk, log, questions, pane, initialPersistent, initialEphemeral, newTitles, initialTree } from './prototype-ephemeral-panels-data';
 import { Tree, Box, boxes, splitLargest, Side, ROOT, Path, splitList, setRatio, splitAt, removeFrom, sideOf } from './prototype-ephemeral-panels-layout';
-import { NavLink, PanelView, Rail, SummaryBar } from './prototype-ephemeral-panels-views';
-import { docks, views, columnModes, ColumnMode, Dock, View, param, typing } from './prototype-ephemeral-panels-options';
+import { NavLink, PanelView, Rail, SummaryBar, ToolbarSummary } from './prototype-ephemeral-panels-views';
+import { docks, views, columnModes, chromes, Chrome, ColumnMode, Dock, View, param, typing } from './prototype-ephemeral-panels-options';
+import { Switcher, cycle } from './prototype-ephemeral-panels-switcher';
 
 
 
@@ -24,6 +25,8 @@ function Prototype() {
   const [view, setView] = useState<View>(() => param('view', views.map(v => v.key), 'maximize'));
   const [columnMode, setColumnMode] = useState<ColumnMode>(() => param('column', columnModes.map(m => m.key), 'push'));
   const [theme, setTheme] = useState(() => param('theme', ['dark', 'light'], 'dark'));
+  const [chrome, setChrome] = useState<Chrome>(() => param('chrome', chromes.map(c => c.key), 'top'));
+  const [page, setPage] = useState<'workspace' | 'settings'>('workspace');
   const [persistent, setPersistent] = useState(initialPersistent);
   const [ephemeral, setEphemeral] = useState(initialEphemeral);
   const [tree, setTree] = useState<Tree | null>(initialTree);
@@ -39,10 +42,9 @@ function Prototype() {
   useEffect(() => { document.documentElement.dataset.theme = theme; }, [theme]);
   useEffect(() => {
     const url = new URL(location.href);
-    url.searchParams.set('dock', dock); url.searchParams.set('view', view); url.searchParams.set('theme', theme); url.searchParams.set('column', columnMode);
+    url.searchParams.set('dock', dock); url.searchParams.set('view', view); url.searchParams.set('theme', theme); url.searchParams.set('column', columnMode); url.searchParams.set('chrome', chrome);
     history.replaceState(null, '', url);
-  }, [dock, view, theme, columnMode]);
-  const cycle = <T extends string>(list: readonly { key: T }[], current: T, step: number) => list[(list.findIndex(i => i.key === current) + step + list.length) % list.length].key;
+  }, [dock, view, theme, columnMode, chrome]);
   useEffect(() => {
     const keydown = (event: KeyboardEvent) => {
       if (event.key === 'Escape' && open && !typing(event.target)) { setOpen(undefined); return; }
@@ -135,19 +137,14 @@ function Prototype() {
     window.addEventListener('pointermove', move); window.addEventListener('pointerup', up);
   };
 
-  return <Localization language="zh-CN"><div className="app proto">
+  const top = chrome === 'top';
+  const inWorkspace = page === 'workspace';
+  const locate = (id: string) => { setPage('workspace'); if (ephemeral.some(p => p.id === id)) setOpen(id); else { setOpen(undefined); setFocused(id); } };
+  return <Localization language="zh-CN"><div className={`app proto ${top ? 'proto-top' : ''}`}>
     <header className="system-bar"><div className="system-brand"><button aria-hidden>☷</button><span className="wordmark">VibeBridge</span></div>
-      <div className="proto-bar" role="toolbar" aria-label="原型切换">
-        <span className="proto-tag">PROTOTYPE</span>
-        <span className="proto-group"><button onClick={() => setDock(d => cycle(docks, d, -1))}>‹</button><span>平时放在 <b>{docks.find(d => d.key === dock)!.name}</b></span><button onClick={() => setDock(d => cycle(docks, d, 1))}>›</button></span>
-        <span className="proto-group"><button onClick={() => setView(v => cycle(views, v, -1))}>‹</button><span>打开时 <b>{views.find(v => v.key === view)!.name}</b></span><button onClick={() => setView(v => cycle(views, v, 1))}>›</button></span>
-        {view === 'column' && <span className="proto-group"><span>分栏</span>{columnModes.map(m => <button key={m.key} className={columnMode === m.key ? 'proto-on' : ''} onClick={() => setColumnMode(m.key)}>{m.name}</button>)}</span>}
-        <button onClick={addEphemeral} disabled={ephemeral.length >= 6}>＋临时</button>
-        <button onClick={() => setRunning(r => !r)}>{running ? '暂停模拟' : '继续模拟'}</button>
-        <button onClick={() => setTheme(t => t === 'dark' ? 'light' : 'dark')}>{theme === 'dark' ? '☾' : '☀'}</button>
-        <span className="proto-state">打开：{opened ? opened.title : '—'} · 焦点：{all.find(p => p.id === focused)?.title ?? '—'}</span>
-      </div>
     </header>
+      <Switcher {...{ chrome, setChrome, dock, setDock, view, setView, columnMode, setColumnMode, theme, setTheme, running, setRunning, addEphemeral, canAdd: ephemeral.length < 6,
+        state: `打开：${opened ? opened.title : '—'} · 焦点：${all.find(p => p.id === focused)?.title ?? '—'}` }} />
     <div className="app-body">
       <nav className="navigation" style={{ '--navigation-width': '230px' } as CSSProperties}>
         <div className="navigation-projects"><div className="nav-heading">项目</div>
@@ -165,15 +162,17 @@ function Prototype() {
           <section className="project-group"><div className="proto-project-row"><button className="project-disclosure">›</button><button className="project-link"><span className="project-initial">B</span><span className="project-name">blog</span><small>2</small></button></div></section>
           <button className="add-project"><span>＋</span>添加项目</button>
         </div>
-        <div className="nav-footer"><span>本地工作台</span><button className="settings-entry">⚙</button></div>
+        <div className="nav-footer"><span>本地工作台</span><button className={`settings-entry ${page === 'settings' ? 'selected' : ''}`} title="模拟进入／离开设置页" onClick={() => { setOpen(undefined); setPage(p => p === 'settings' ? 'workspace' : 'settings'); }}>⚙</button></div>
       </nav>
-      <main><div className="workbench-page"><div className="workspace">
+      <main>{!inWorkspace && <div className="proto-settings"><h2>设置</h2><p className="muted">（模拟设置页：{top ? '工作区工具栏（项目名、汇总、＋）随工作区隐藏，状态只看左侧项目导航' : '旧版：底栏汇总仍然显示'}。点左下角 ⚙ 返回工作区。）</p></div>}
+      <div className="workbench-page" hidden={!inWorkspace}><div className="workspace">
+        {top ? <header className="workspace-toolbar proto-toolbar-summary"><span className="proto-tb-left" /><ToolbarSummary panes={all} ephemeralIds={new Set(ephemeral.map(p => p.id))} onLocate={locate} /><button className="proto-tb-add" title="新增常驻面板">＋</button></header> :
         <header className="workspace-toolbar"><strong>VibeBridge</strong><span className="project-path"><span className="path-parent">/Users/red/Project</span><span className="path-leaf">/VibeBridge</span></span>
           {dock === 'toolbar' ? <span className="proto-chips">{ephemeral.map(p => <button key={p.id} className={`proto-chip ${p.agent} status-${p.status} ${open === p.id ? 'open' : ''}`} title={`${statusName[p.status]} · ${p.title}`} onClick={() => toggleOpen(p.id)}>
             <span className="agent-symbols"><ProcessingStatusIcon state={p.status} /><span className="agent-mark">{agentIcons[p.agent]}</span></span><span className="session-title">{p.title}</span></button>)}</span>
             : <span className="muted">{persistent.length} 个常驻{ephemeral.length ? ` · ${ephemeral.length} 个临时` : ''}</span>}
           <button title="新增常驻面板">＋</button>
-        </header>
+        </header>}
         <div className="proto-stage" ref={stage}>
           <div className="canvas proto-canvas" ref={canvas} onDragOver={e => { if (drag && !tree) e.preventDefault(); }} onDrop={() => { if (drag && !tree) { const p = ephemeral.find(x => x.id === drag.id); if (p) { setEphemeral(l => l.filter(x => x.id !== p.id)); setPersistent(l => [...l, p]); setTree({ panel: p.id }); } endDrag(); } }}>
             {!tree && <div className="proto-empty">{drag ? '松手放进布局' : '布局为空：从托盘拖一个面板上来'}</div>}
@@ -224,7 +223,7 @@ function Prototype() {
         </div>}
       </div></div></main>
     </div>
-    <SummaryBar count={count} />
+    {!top && <SummaryBar count={count} />}
   </div></Localization>;
 }
 
