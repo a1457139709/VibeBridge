@@ -20,7 +20,8 @@ reportCommandHook('claude', raw => {
   // descriptions stay in Claude.
   if (Array.isArray(raw.background_tasks)) {
     payload.background_tasks = raw.background_tasks.map(task => task && typeof task === 'object'
-      ? { type: task.type, status: task.status } : {});
+      ? { type: typeof task.type === 'string' ? task.type : undefined,
+        status: typeof task.status === 'string' ? task.status : undefined } : {});
   }
   return payload;
 });

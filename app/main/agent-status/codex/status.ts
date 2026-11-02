@@ -47,7 +47,7 @@ class CodexInterpreter implements StatusInterpreter {
   private seen = new Set<string>();
   private waits = new Set<string>();
   /** An async question the user has not answered: it outlives its tool result, the turn and turn changes. */
-  private asked = false;
+  private unansweredAsyncQuestion = false;
 
   accept(event: Payload): Outcome {
     if (event.agent_id || event.hook_event_name === 'SubagentStart' || event.hook_event_name === 'SubagentStop') return 'discard';
@@ -57,7 +57,7 @@ class CodexInterpreter implements StatusInterpreter {
     return known ? this.classify(known) : 'discard';
   }
 
-  discardEvidence() { this.waits.clear(); this.asked = false; }
+  discardEvidence() { this.waits.clear(); this.unansweredAsyncQuestion = false; }
 
   /** Interpret identity only after the outer run capability was authenticated.
    * Only identifiable retired sessions, turns and repeated source boundaries
@@ -123,9 +123,9 @@ class CodexInterpreter implements StatusInterpreter {
     // Any user input counts as the answer; the conversation is never read.
     const answered = name === 'UserPromptSubmit' || (name === 'SessionStart' && event.source !== 'compact') || interrupted;
     if (answered || name === 'Stop') this.waits.clear();
-    if (answered) this.asked = false;
-    if (name === 'PreToolUse' && event.tool_name === 'request_user_input_async') this.asked = true;
-    const waiting = this.waits.size > 0 || this.asked;
+    if (answered) this.unansweredAsyncQuestion = false;
+    if (name === 'PreToolUse' && event.tool_name === 'request_user_input_async') this.unansweredAsyncQuestion = true;
+    const waiting = this.waits.size > 0 || this.unansweredAsyncQuestion;
     if (waiting && (['PreToolUse', 'PostToolUse', 'PreCompact', 'PostCompact', 'Stop'].includes(String(name))
       || (name === 'SessionStart' && event.source === 'compact'))) return 'needs-input';
     switch (name) {

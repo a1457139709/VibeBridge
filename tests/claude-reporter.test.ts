@@ -46,13 +46,13 @@ test('the Claude reporter forwards only the kind and status of Spawned Tasks, so
   const f = await fixture('claude');
   try {
     const { launches: [{ run }] } = await f.create();
-    // Larger than a report may be: forwarding it would lose the observation and show Error.
-    const command = `npm run dev # ${'x'.repeat(64 * 1024)}`;
+    // Each is larger than a report may be: forwarding any would lose the observation and show Error.
+    const content = (field: string) => `${field} ${'x'.repeat(64 * 1024)}`;
     await f.send(run.id, { hook_event_name: 'UserPromptSubmit' });
     const payloadFile = join(f.directory, 'stop-with-spawned-tasks.json');
     await writeFile(payloadFile, JSON.stringify({ hook_event_name: 'Stop', background_tasks: [
-      { id: 'shell-task', type: 'shell', status: 'running', description: 'dev server', command },
-      { id: 'agent-task', type: 'subagent', status: 'completed', description: 'explore', agent_type: 'Explore' }] }));
+      { id: content('id'), type: 'shell', status: 'running', description: content('description'), command: content('command') },
+      { id: 'agent-task', type: 'subagent', status: 'completed', description: 'explore', agent_type: content('agent_type') }] }));
     await f.send(run.id, undefined, { payloadFile });
     assert.equal(f.state(run.id), 'busy');
     await f.send(run.id, { hook_event_name: 'UserPromptSubmit' });
