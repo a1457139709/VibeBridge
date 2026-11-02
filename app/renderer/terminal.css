@@ -1,0 +1,5 @@
+.terminal-container { --normal-terminal-padding: 13; flex: 1; min-height: 0; padding: 13px; overflow: hidden; }
+/* xterm sizes each glyph from a run of 32 copies; Chromium's punctuation trimming squeezes such a run
+   of full-width punctuation to half width, yet draws a lone mark at full width, pushing later text off its cell. */
+.terminal-screen { height: 100%; width: 100%; text-spacing-trim: space-all; }
+.terminal-message { display: grid; place-items: center; height: 100%; font-size: 12px; }
