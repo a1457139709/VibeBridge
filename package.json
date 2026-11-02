@@ -20,7 +20,8 @@
     "start": "node scripts/start.mjs",
     "dev": "npm run build && npm start",
     "package": "npm run prepare:runtime && npm run build && node scripts/package.mjs",
-    "rebuild:terminal": "electron-rebuild -f -w node-pty"
+    "rebuild:terminal": "electron-rebuild -f -w node-pty",
+    "prototype:ephemeral-panels": "vite --port 5199 --open /prototype-ephemeral-panels.html"
   },
   "dependencies": {
     "@xterm/addon-fit": "0.11.0",

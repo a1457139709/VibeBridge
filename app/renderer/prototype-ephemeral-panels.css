@@ -1,0 +1,104 @@
+/* PROTOTYPE — throwaway styles for prototype-ephemeral-panels.tsx only. */
+.proto .system-brand button { margin: 0; }
+.proto-bar { position: absolute; left: 50%; transform: translateX(-50%); display: flex; align-items: center; gap: 6px; padding: 3px 6px 3px 10px; border-radius: 999px; background: #ffd84d; color: #111; font-size: 12px; box-shadow: 0 2px 10px #0005; white-space: nowrap; -webkit-app-region: no-drag; z-index: 50; }
+.proto-bar button { margin: 0; width: auto; min-height: 24px; padding: 0 8px; font-size: 12px; border-radius: 999px; background: #0001; color: #111; }
+.proto-bar button:hover:not(:disabled) { background: #0002; }
+.proto-tag { font-weight: 700; letter-spacing: .5px; font-size: 10px; }
+.proto-group { display: inline-flex; align-items: center; gap: 2px; background: #fff7; border-radius: 999px; padding: 0 2px; }
+.proto-group > span { padding: 0 4px; }
+.proto-state { color: #0009; max-width: 280px; overflow: hidden; text-overflow: ellipsis; }
+.proto-project-row { display: flex; align-items: center; }
+
+/* fake terminal */
+.proto-term { flex: 1; min-height: 0; display: flex; flex-direction: column; }
+.proto-term pre { flex: 1; min-height: 0; margin: 0; padding: 10px 13px; overflow: auto; font: 12px/1.45 Menlo, monospace; white-space: pre-wrap; overflow-wrap: anywhere; }
+.proto-term form { display: flex; align-items: center; gap: 6px; flex-shrink: 0; padding: 6px 10px; border-top: 1px solid var(--line); font: 12px Menlo, monospace; }
+.proto-term input { height: 26px; border: 0; background: transparent; font: 12px Menlo, monospace; padding: 0; }
+.proto-term input:focus-visible { outline: none; }
+.proto-question { flex-shrink: 0; padding: 8px 13px; font: 12px Menlo, monospace; color: var(--status-needs-input); background: color-mix(in srgb, var(--status-needs-input) 10%, transparent); }
+.proto-badge { font-size: 10px; padding: 1px 6px; border-radius: 4px; border: 1px dashed var(--brand); color: var(--brand); flex-shrink: 0; }
+.proto-note { flex-shrink: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.agent-panel.proto-ephemeral { border-style: dashed; }
+.proto-pop { animation: proto-pop 160ms ease-out; }
+@keyframes proto-pop { from { opacity: 0; transform: scale(.985); } }
+
+/* stage: canvas + optional column + optional rail */
+.proto-stage { position: relative; flex: 1; min-height: 0; display: flex; }
+.proto-canvas { flex: 1; min-width: 0; }
+
+/* view: column */
+.proto-column { position: relative; flex: 0 0 46%; min-width: 0; padding: 8px 4px 8px 6px; animation: proto-slide 180ms ease-out; }
+.proto-column-inner { height: 100%; }
+.proto-column-resize { position: absolute; left: 0; top: 0; bottom: 0; width: 8px; cursor: col-resize; touch-action: none; z-index: 2; }
+.proto-column-resize:hover { background: color-mix(in srgb, var(--brand) 25%, transparent); }
+@keyframes proto-slide { from { opacity: 0; transform: translateX(24px); } }
+
+/* dock: tray */
+.proto-tray { flex: 0 0 40px; display: flex; align-items: center; gap: 6px; padding: 0 8px; overflow-x: auto; border-top: 1px solid var(--line); background: var(--navigation, var(--canvas)); }
+.proto-card { display: inline-flex; align-items: center; gap: 7px; flex: 0 1 220px; min-width: 120px; min-height: 28px; padding: 0 9px 0 7px; font-size: 12px; border-radius: 7px; border-left: 3px solid var(--brand); }
+.proto-card .agent-mark { font-size: 15px; width: 16px; }
+.proto-card .session-title { flex: 1; text-align: left; }
+.proto-card small { flex-shrink: 0; font-size: 11px; }
+.proto-card.open { background: color-mix(in srgb, var(--brand) 16%, var(--surface)); border-color: var(--brand); }
+.proto-card-add { flex: 0 0 auto; min-width: 0; border-left-width: 1px; color: var(--muted); }
+
+/* attention: needs input / done / error tint their entry */
+.status-needs-input:not(.open) { background: color-mix(in srgb, var(--status-needs-input) 13%, var(--surface)); }
+.status-done:not(.open) small, .status-done .proto-nav-status { color: var(--status-done); }
+.status-error:not(.open) small, .status-error .proto-nav-status { color: var(--status-error); }
+.status-needs-input small, .status-needs-input .proto-nav-status { color: var(--status-needs-input); }
+
+/* dock: rail */
+.proto-rail { flex: 0 0 46px; display: flex; flex-direction: column; align-items: stretch; gap: 4px; padding: 6px 5px; border-left: 1px solid var(--line); background: var(--navigation, var(--canvas)); overflow-y: auto; }
+.proto-rail.wide { flex-basis: 200px; }
+.proto-rail-toggle { border: 0; background: transparent; min-height: 22px; padding: 0; color: var(--muted); }
+.proto-rail-item { display: flex; align-items: center; gap: 8px; min-height: 40px; padding: 0 4px; border-radius: 8px; border: 1px solid transparent; background: transparent; text-align: left; }
+.proto-rail-item.open { background: color-mix(in srgb, var(--brand) 16%, var(--surface)); border-color: var(--brand); }
+.proto-rail-icon { position: relative; width: 26px; height: 26px; flex-shrink: 0; display: grid; place-items: center; }
+.proto-rail-icon .agent-mark { font-size: 18px; width: 20px; }
+.proto-rail-icon .processing-status { position: absolute; right: -3px; bottom: -3px; width: 13px; height: 13px; background: var(--navigation, var(--canvas)); border-radius: 50%; }
+.proto-rail-text { display: flex; flex-direction: column; min-width: 0; font-size: 12px; }
+.proto-rail-text small { font-size: 10px; }
+.proto-rail-add { justify-content: center; color: var(--muted); }
+
+/* dock: toolbar chips */
+.proto-chips { display: flex; gap: 4px; min-width: 0; flex: 0 1 auto; overflow: hidden; }
+.workspace-toolbar .proto-chip { display: inline-flex; align-items: center; gap: 5px; min-height: 24px; padding: 0 8px 0 5px; font-size: 11px; border-radius: 999px; border: 1px solid var(--line); background: var(--surface); flex: 0 1 170px; min-width: 52px; }
+.proto-chip .agent-mark { font-size: 13px; width: 14px; }
+.proto-chip .processing-status { width: 12px; height: 12px; flex-basis: 12px; }
+.workspace-toolbar .proto-chip.open { border-color: var(--brand); background: color-mix(in srgb, var(--brand) 16%, var(--surface)); }
+.workspace-toolbar .proto-chip.status-needs-input:not(.open) { background: color-mix(in srgb, var(--status-needs-input) 15%, var(--surface)); }
+
+/* dock: navigation sub-items */
+.proto-nav-sub { margin: 8px 0 2px 8px; font-size: 11px; color: var(--muted); }
+.proto-nav-ephemeral .session-title { flex: 1; }
+.proto-nav-status { flex-shrink: 0; font-size: 10px; }
+.proto-nav-add { color: var(--muted); }
+.proto-summary-note { margin-left: auto; font-size: 11px; color: var(--muted); }
+
+/* 覆盖：分栏盖在常驻布局上，常驻面板尺寸不变 */
+.proto-column-overlay { position: absolute; top: 0; right: 0; bottom: 0; z-index: 4; background: var(--canvas, var(--surface, #111)); box-shadow: -12px 0 28px -10px #0008; }
+.proto-group .proto-on { font-weight: 700; text-decoration: underline; }
+
+/* 拖拽：落点预览 */
+.proto-drop { position: absolute; z-index: 5; pointer-events: none; display: grid; place-items: center; font-size: 12px; color: var(--brand);
+  background: color-mix(in srgb, var(--brand) 18%, transparent); border: 2px dashed var(--brand); border-radius: 8px; }
+.proto-drop-left { left: 4px; top: 4px; bottom: 4px; width: calc(50% - 4px); }
+.proto-drop-right { right: 4px; top: 4px; bottom: 4px; width: calc(50% - 4px); }
+.proto-drop-top { left: 4px; right: 4px; top: 4px; height: calc(50% - 4px); }
+.proto-drop-bottom { left: 4px; right: 4px; bottom: 4px; height: calc(50% - 4px); }
+.proto-tray-drop { outline: 2px dashed #6aa0ff; outline-offset: -3px; background: #6aa0ff1f; }
+.proto-tray-hint { align-self: center; padding: 0 8px; font-size: 12px; color: #6aa0ff; white-space: nowrap; }
+.proto-card[draggable] { cursor: grab; }
+.proto-empty { position: absolute; inset: 0; display: grid; place-items: center; color: #888; font-size: 13px; }
+
+/* 分隔线：拖动调整面板大小 */
+.proto-divider:hover, .resizing .proto-divider { background: #6aa0ff55; }
+/* 布局区域四边的落点带：拖到这里占满整条边 */
+.proto-edge { position: absolute; z-index: 6; }
+.proto-edge-left { left: -4px; top: 0; bottom: 0; width: 28px; }
+.proto-edge-right { right: -4px; top: 0; bottom: 0; width: 28px; }
+.proto-edge-top { top: -4px; left: 28px; right: 28px; height: 28px; }
+.proto-edge-bottom { bottom: -4px; left: 28px; right: 28px; height: 28px; }
+.proto-edge::after { content: ''; position: absolute; inset: 6px; border-radius: 4px; background: #6aa0ff22; }
+.proto-drop-root { --brand: #6aa0ff; z-index: 7; }
