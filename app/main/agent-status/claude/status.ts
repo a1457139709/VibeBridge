@@ -52,11 +52,10 @@ async function prepare({ command, directory, resourceDirectory }: Launch): Promi
 
 class ClaudeInterpreter implements StatusInterpreter {
   private session?: string;
-  /** prompt_id of the SessionStart that established the current session. */
-  private establishingPrompt?: string;
+  private sessionStartPromptId?: string;
   private retired = new Set<string>();
-  private prompt?: string;
-  private oldPrompts = new Set<string>();
+  private promptId?: string;
+  private oldPromptIds = new Set<string>();
   private seen = new Set<string>();
   private completedTools = new Set<string>();
   private activeTools = new Map<string, unknown>();
@@ -87,13 +86,13 @@ class ClaudeInterpreter implements StatusInterpreter {
         if (this.session) this.retired.add(this.session);
         this.session = session;
         this.retired.delete(session);
-        this.prompt = undefined;
-        this.oldPrompts.clear();
+        this.promptId = undefined;
+        this.oldPromptIds.clear();
         this.seen.clear();
         this.completedTools.clear();
         this.activeTools.clear();
       }
-      if (event.source !== 'compact') this.establishingPrompt = typeof event.prompt_id === 'string' ? event.prompt_id : undefined;
+      if (event.source !== 'compact') this.sessionStartPromptId = typeof event.prompt_id === 'string' ? event.prompt_id : undefined;
       return event;
     }
     if (this.retired.has(session) || (this.session && this.session !== session)) return;
@@ -102,23 +101,23 @@ class ClaudeInterpreter implements StatusInterpreter {
       // Resuming reports the old segment's SessionEnd and the new SessionStart under one
       // prompt_id. A SessionEnd processed after its paired start belongs to the segment
       // before it and keeps the session.
-      if (this.establishingPrompt !== undefined && event.prompt_id === this.establishingPrompt) return event;
+      if (this.sessionStartPromptId !== undefined && event.prompt_id === this.sessionStartPromptId) return event;
       this.retired.add(session);
       this.session = undefined;
-      this.establishingPrompt = undefined;
+      this.sessionStartPromptId = undefined;
       return event;
     }
-    const prompt = typeof event.prompt_id === 'string' ? event.prompt_id : undefined;
-    if (prompt) {
-      if (this.oldPrompts.has(prompt)) return;
-      if (this.prompt && this.prompt !== prompt) {
+    const promptId = typeof event.prompt_id === 'string' ? event.prompt_id : undefined;
+    if (promptId) {
+      if (this.oldPromptIds.has(promptId)) return;
+      if (this.promptId && this.promptId !== promptId) {
         if (name !== 'UserPromptSubmit') return;
-        this.oldPrompts.add(this.prompt);
+        this.oldPromptIds.add(this.promptId);
       }
-      this.prompt = prompt;
+      this.promptId = promptId;
     }
-    if (name === 'UserPromptSubmit' && prompt) {
-      const key = JSON.stringify([session, name, prompt]);
+    if (name === 'UserPromptSubmit' && promptId) {
+      const key = JSON.stringify([session, name, promptId]);
       if (this.seen.has(key)) return;
       this.seen.add(key);
     }
