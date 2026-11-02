@@ -35,7 +35,9 @@ readline.createInterface({ input: process.stdin }).on('line', line => {
     if (message.context) console.log(`CONTEXT:${process.env.VIBEBRIDGE_STATUS_CONTEXT}`);
     if (message.settings) console.log(`SETTINGS:${JSON.stringify(settings)}`);
     if (message.arguments) console.log(`ARGUMENTS:${JSON.stringify(args)}`);
-    if (message.payload) await emit(message.payload, message.malformed);
+    // Facts too large for one terminal input line arrive as a file.
+    const payload = message.payloadFile ? JSON.parse(readFileSync(message.payloadFile, 'utf8')) : message.payload;
+    if (payload) await emit(payload, message.malformed);
     if (message.output) console.log(message.output);
     console.log(`ACK:${message.id}`);
   }).catch(error => { console.error(error); process.exitCode = 1; });

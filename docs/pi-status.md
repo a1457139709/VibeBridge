@@ -29,5 +29,6 @@ These describe pi's installed extension interface and its [official extension do
 - Successful manual compaction may notify extensions while `isIdle()` is still false and emit no extension event after clearing that flag; the run then stays Busy until fresh evidence arrives.
 - Compaction that fails before its before-callback, or is intercepted by an earlier user extension, may give incomplete observations.
 - Existing extensions can start additional work during settlement; the observer samples official idle and pending facts but cannot predict work started by a later handler.
+- pi has no built-in Spawned Tasks. Sub-agents or background work exist only through user extensions, such as the bundled subagent example, which runs separate pi processes without the reporter extension; work an extension leaves running after settlement is not observed, so Done can arrive before it ends.
 
-Requirements and evidence: [#93](https://github.com/a1457139709/VibeBridge/issues/93) and [#85](https://github.com/a1457139709/VibeBridge/issues/85).
+Requirements and evidence: [#93](https://github.com/a1457139709/VibeBridge/issues/93), [#85](https://github.com/a1457139709/VibeBridge/issues/85) and [#151](https://github.com/a1457139709/VibeBridge/issues/151).
