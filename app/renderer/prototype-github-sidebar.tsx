@@ -1,8 +1,8 @@
 // PROTOTYPE — throwaway, lives only on branch `prototype/github-sidebar`. Never import or adapt into production
-// (AGENTS.md「Prototype scope」). Question (#139): what the right sidebar looks like — issue list / search / labels / detail / PR state —
-// and how it sits next to project navigation, the layout area and the ephemeral panel tray.
-// Three variants switchable with ?variant= (list | tree | graph) and ← →; data is a real read-only `gh` snapshot of the repo.
-import React, { useEffect, useRef, useState, type CSSProperties, type PointerEvent as ReactPointerEvent } from 'react';
+// (AGENTS.md「Prototype scope」). Question (#139): what the right sidebar looks like and how it sits beside navigation, the
+// layout area and the ephemeral panel tray. v2 — replaces visiting GitHub: find an issue, read it, dispatch, come back later.
+// Data is a real read-only `gh` snapshot (npm run prototype:github-sidebar). v1 variants live in this branch's history.
+import React, { useEffect, useState, type CSSProperties, type PointerEvent as ReactPointerEvent } from 'react';
 import { createRoot } from 'react-dom/client';
 import { Localization } from './Localization';
 import { ProcessingStatusIcon } from './ProcessingStatusIcon';
@@ -12,33 +12,35 @@ import './processing-status.css';
 import './project-summary.css';
 import './prototype-ephemeral-panels.css';
 import './prototype-github-sidebar.css';
-import { initialEphemeral, initialPersistent, initialTree, statusName } from './prototype-ephemeral-panels-data';
+import { initialEphemeral, initialPersistent, initialTree, pane, statusName, type Pane as FakePane } from './prototype-ephemeral-panels-data';
 import { boxes } from './prototype-ephemeral-panels-layout';
 import { NavLink, PanelView, ToolbarSummary } from './prototype-ephemeral-panels-views';
-import { cycle, emptyFilter, fits, index, initialDispatches, param, places, typing, variants, type DispatchRecord, type Filter, type Fit, type Place, type Repo, type Selected, type Snapshot, type Variant } from './prototype-github-sidebar-model';
-import { Filters, IssueDetail, PullDetail, type Pane } from './prototype-github-sidebar-common';
-import { ListVariant } from './prototype-github-sidebar-list';
-import { TreeVariant } from './prototype-github-sidebar-tree';
-import { GraphOptionsBar, GraphView, defaultGraphOptions, type GraphOptions } from './prototype-github-sidebar-graph';
+import { emptyFilter, fits, index, initialDispatches, issueMatches, param, places, pullMatches, rows, sameSelection, typing,
+  type DispatchRecord, type Filter, type Fit, type Pane, type Place, type Repo, type RowStyle, type Selected, type Snapshot } from './prototype-github-sidebar-model';
+import { FilterBar } from './prototype-github-sidebar-common';
+import { IssueList, PullList } from './prototype-github-sidebar-lists';
+import { DetailPane } from './prototype-github-sidebar-detail';
 
 function Prototype() {
-  const [variant, setVariant] = useState<Variant>(() => param('variant', variants.map(v => v.key), 'list'));
+  const [rowStyle, setRowStyle] = useState<RowStyle>(() => param('row', rows.map(r => r.key), 'two'));
   const [place, setPlace] = useState<Place>(() => param('place', places.map(p => p.key), 'full'));
   const [fit, setFit] = useState<Fit>(() => param('fit', fits.map(f => f.key), 'auto'));
   const [theme, setTheme] = useState(() => param('theme', ['dark', 'light'], 'dark'));
   const [repo, setRepo] = useState<Repo>();
   const [error, setError] = useState<string>();
   const [open, setOpen] = useState(true);
-  const [width, setWidth] = useState(360);
+  const [width, setWidth] = useState(380);
+  const [detailWidth, setDetailWidth] = useState(640);
   const [winW, setWinW] = useState(window.innerWidth);
-  const [filter, setFilter] = useState<Filter>(emptyFilter);
-  const [selected, setSelected] = useState<Selected>();
+  const [tab, setTab] = useState<'issue' | 'pull'>('issue');
+  const [filters, setFilters] = useState<Record<'issue' | 'pull', Filter>>({ issue: emptyFilter, pull: emptyFilter });
+  const [history, setHistory] = useState<NonNullable<Selected>[]>([]);
   const [dispatches, setDispatches] = useState<DispatchRecord[]>(initialDispatches);
-  const [graphOptions, setGraphOptions] = useState<GraphOptions>(defaultGraphOptions);
-  const [graphBig, setGraphBig] = useState(false);
+  const [ephemeral, setEphemeral] = useState<FakePane[]>(initialEphemeral);
   const [maximized, setMaximized] = useState<string>();
+  const [flash, setFlash] = useState<string>();
   const [barHidden, setBarHidden] = useState(false);
-  const body = useRef<HTMLDivElement>(null);
+  const selected = history[history.length - 1];
 
   useEffect(() => {
     fetch('./prototype-github-sidebar.snapshot.json').then(r => r.ok ? r.json() : Promise.reject(new Error(`HTTP ${r.status}`)))
@@ -47,69 +49,86 @@ function Prototype() {
   useEffect(() => { document.documentElement.dataset.theme = theme; }, [theme]);
   useEffect(() => {
     const url = new URL(location.href);
-    url.searchParams.set('variant', variant); url.searchParams.set('place', place); url.searchParams.set('fit', fit); url.searchParams.set('theme', theme);
-    history.replaceState(null, '', url);
-  }, [variant, place, fit, theme]);
+    url.searchParams.set('row', rowStyle); url.searchParams.set('place', place); url.searchParams.set('fit', fit); url.searchParams.set('theme', theme);
+    window.history.replaceState(null, '', url);
+  }, [rowStyle, place, fit, theme]); // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => { const resize = () => setWinW(window.innerWidth); window.addEventListener('resize', resize); return () => window.removeEventListener('resize', resize); }, []);
   useEffect(() => {
     const keydown = (e: KeyboardEvent) => {
-      if (typing(e.target)) return;
-      if (e.key === 'Escape') { if (graphBig) setGraphBig(false); else if (maximized) setMaximized(undefined); return; }
-      if (e.key === 'ArrowLeft' || e.key === 'ArrowRight') { setGraphBig(false); setVariant(v => cycle(variants, v, e.key === 'ArrowLeft' ? -1 : 1)); }
+      if (e.key !== 'Escape' || typing(e.target)) return;
+      if (history.length) setHistory([]); else if (maximized) setMaximized(undefined);
     };
     window.addEventListener('keydown', keydown); return () => window.removeEventListener('keydown', keydown);
-  }, [graphBig, maximized]);
+  }, [history.length, maximized]);
 
   const overlay = fit === 'overlay' || (fit === 'auto' && winW < 1180);
   const startResize = (e: ReactPointerEvent<HTMLDivElement>) => {
-    const right = (e.currentTarget.parentElement!.parentElement as HTMLElement).getBoundingClientRect().right;
+    const right = e.currentTarget.parentElement!.getBoundingClientRect().right;
     e.currentTarget.setPointerCapture(e.pointerId); document.body.classList.add('resizing');
-    const move = (m: PointerEvent) => setWidth(Math.round(Math.min(Math.max(280, right - m.clientX), Math.max(320, winW * 0.6))));
+    const move = (m: PointerEvent) => setWidth(Math.round(Math.min(Math.max(300, right - m.clientX), 560)));
     const up = () => { document.body.classList.remove('resizing'); window.removeEventListener('pointermove', move); window.removeEventListener('pointerup', up); };
     window.addEventListener('pointermove', move); window.addEventListener('pointerup', up);
   };
 
-  const all = [...initialPersistent, ...initialEphemeral];
-  const panes: Pane[] = all.map(p => ({ id: p.id, title: p.title, agent: p.agent, ephemeral: initialEphemeral.includes(p) }));
-  const onDispatch = (r: DispatchRecord) => setDispatches(d => [...d, r]);
-  const layout = boxes(initialTree);
-  const openIssues = repo?.snapshot.issues.filter(i => i.state === 'open').length;
-  const shared = repo && { repo, filter, setFilter, selected, setSelected, panes, dispatches, onDispatch };
+  const all = [...initialPersistent, ...ephemeral];
+  const panes: Pane[] = all.map(p => ({ id: p.id, title: p.title, agent: p.agent, status: p.status, ephemeral: ephemeral.includes(p) }));
+  // Clicking a row opens it; clicking the open row closes the pane. Links inside the pane push onto a small back stack.
+  const select = (s: Selected) => setHistory(h => !s || sameSelection(h[h.length - 1], s) ? [] : [s]);
+  const openInside = (s: Selected) => { if (s) { setHistory(h => [...h, s]); setTab(s.kind); } };
+  const locate = (id: string) => {
+    setHistory([]);
+    if (ephemeral.some(p => p.id === id)) setMaximized(id);
+    else { setMaximized(undefined); setFlash(id); setTimeout(() => setFlash(f => f === id ? undefined : f), 1600); }
+  };
+  const dispatch = (issue: number, step: string, target: string | 'new') => {
+    let id = target;
+    if (target === 'new') {
+      id = `d${Date.now()}`;
+      const seed = issue % 50;
+      setEphemeral(list => [...list, pane(id, 'claude', '未命名任务', 'busy', seed, { lines: [`> ${step} #${issue}`, '', '⏺ 读取 issue…'] })]);
+      // The fake run asks a question after a while so the row's status visibly changes.
+      setTimeout(() => setEphemeral(list => list.map(p => p.id === id ? { ...p, title: `处理 #${issue}`, status: 'needs-input', question: '要按这个方案继续吗？' } : p)), 5000);
+    }
+    setDispatches(d => [...d, { issue, pane: id, step, at: new Date().toISOString() }]);
+  };
+
+  const filter = filters[tab];
+  const setFilter = (update: (f: Filter) => Filter) => setFilters(f => ({ ...f, [tab]: update(f[tab]) }));
+  const counts = repo && (tab === 'issue'
+    ? { open: repo.snapshot.issues.filter(i => issueMatches(i, { ...filter, state: 'open' })).length, closed: repo.snapshot.issues.filter(i => issueMatches(i, { ...filter, state: 'closed' })).length }
+    : { open: repo.snapshot.pulls.filter(p => pullMatches(p, { ...filter, state: 'open' })).length, closed: repo.snapshot.pulls.filter(p => pullMatches(p, { ...filter, state: 'closed' })).length });
+  const openCount = (kind: 'issue' | 'pull') => !repo ? '–' : kind === 'issue' ? repo.snapshot.issues.filter(i => i.state === 'open').length : repo.snapshot.pulls.filter(p => p.state === 'open' || p.state === 'draft').length;
 
   const sidebar = open && <aside className={`gh-sidebar ${overlay ? 'overlay' : ''}`} style={{ width }} aria-label="GitHub">
     <div className="gh-resize" onPointerDown={startResize} title="拖动调整宽度" />
-    <header className="gh-head"><span className="gh-repo">{repo?.snapshot.repo ?? '…'}</span>
-      <small className="muted" title="原型：重新运行 npm run prototype:github-sidebar 更新快照">{repo ? `快照 ${new Date(repo.snapshot.fetchedAt).toLocaleString('zh-CN', { hour12: false })}` : ''}</small>
-      <button title="收起侧边栏" onClick={() => setOpen(false)}>⇥</button></header>
+    {repo && selected && <DetailPane repo={repo} selected={selected} width={Math.min(detailWidth, winW - width - 40)} onWidth={setDetailWidth} canBack={history.length > 1}
+      onBack={() => setHistory(h => h.slice(0, -1))} onClose={() => setHistory([])} onOpen={openInside} panes={panes} dispatches={dispatches} onDispatch={dispatch} onLocate={locate} />}
+    <header className="gh-head"><span className="gh-repo">{repo?.snapshot.repo ?? '…'}</span><span className="gh-spacer" />
+      <button title="收起侧边栏" onClick={() => { setOpen(false); setHistory([]); }}>×</button></header>
+    <nav className="gh-tabs">{(['issue', 'pull'] as const).map(k => <button key={k} className={tab === k ? 'on' : ''} onClick={() => setTab(k)}>
+      {k === 'issue' ? 'Issues' : 'Pull requests'} <span>{openCount(k)}</span></button>)}</nav>
     {error && <p className="gh-empty">读不到快照（{error}）。先运行 <code>npm run prototype:github-sidebar</code>，它会用 gh 拉取数据。</p>}
     {!repo && !error && <p className="gh-empty">载入中…</p>}
-    {shared && variant === 'list' && <ListVariant {...shared} />}
-    {shared && variant === 'tree' && <TreeVariant {...shared} />}
-    {shared && variant === 'graph' && <>
-      <Filters repo={shared.repo} filter={filter} setFilter={setFilter} showState={false} showSort={false} />
-      <GraphOptionsBar options={graphOptions} setOptions={setGraphOptions} big={graphBig} onToggleBig={() => setGraphBig(b => !b)} />
-      {graphBig ? <p className="gh-graph-away muted">关系图正在布局区域中临时放大 · Esc 或「收回侧边栏」返回</p>
-        : <GraphView repo={shared.repo} filter={filter} options={graphOptions} selected={selected} setSelected={setSelected} />}
-      {selected && <div className={`gh-graph-detail ${graphBig ? 'tall' : ''}`}><button className="gh-back" onClick={() => setSelected(undefined)}>× 关闭详情</button>
-        {selected.kind === 'issue' && shared.repo.issues.get(selected.number) && <IssueDetail repo={shared.repo} issue={shared.repo.issues.get(selected.number)!} compact={!graphBig} onOpen={setSelected} panes={panes} dispatches={dispatches} onDispatch={onDispatch} />}
-        {selected.kind === 'pull' && shared.repo.pulls.get(selected.number) && <PullDetail repo={shared.repo} pull={shared.repo.pulls.get(selected.number)!} onOpen={setSelected} />}
-      </div>}
-    </>}
+    {repo && counts && <FilterBar repo={repo} filter={filter} setFilter={setFilter} counts={counts} labels={tab === 'issue'} />}
+    {repo && tab === 'issue' && <IssueList repo={repo} filter={filter} setFilter={setFilter} selected={selected} onSelect={select} rowStyle={rowStyle} panes={panes} dispatches={dispatches} onDispatch={dispatch} onLocate={locate} />}
+    {repo && tab === 'pull' && <PullList repo={repo} filter={filter} selected={selected} onSelect={select} rowStyle={rowStyle} />}
+    {repo && <footer className="gh-foot">快照 {new Date(repo.snapshot.fetchedAt).toLocaleString('zh-CN', { hour12: false })} · 按创建时间排序</footer>}
   </aside>;
 
+  const layout = boxes(initialTree);
   const maxPane = all.find(p => p.id === maximized);
+  const group = <K extends string>(label: string, items: readonly { key: K; name: string }[], value: K, set: (k: K) => void) =>
+    <span className="proto-group"><span>{label}</span>{items.map(i => <button key={i.key} className={value === i.key ? 'proto-on' : ''} onClick={() => set(i.key)}>{i.name}</button>)}</span>;
   return <Localization language="zh-CN"><div className="app proto proto-top">
     <header className="system-bar"><div className="system-brand"><button aria-hidden>☷</button><span className="wordmark">VibeBridge</span></div></header>
     {barHidden ? <button className="proto-bar proto-bar-mini" onClick={() => setBarHidden(false)}>PROTOTYPE ▴</button> : <div className="proto-bar" role="toolbar" aria-label="原型切换">
-      <span className="proto-tag">PROTOTYPE</span>
-      <span className="proto-group"><button onClick={() => { setGraphBig(false); setVariant(v => cycle(variants, v, -1)); }}>‹</button><span>侧边栏 <b>{variants.find(v => v.key === variant)!.name}</b></span><button onClick={() => { setGraphBig(false); setVariant(v => cycle(variants, v, 1)); }}>›</button></span>
-      <span className="proto-group"><span>高度</span>{places.map(p => <button key={p.key} className={place === p.key ? 'proto-on' : ''} onClick={() => setPlace(p.key)}>{p.name}</button>)}</span>
-      <span className="proto-group"><span>与布局</span>{fits.map(f => <button key={f.key} className={fit === f.key ? 'proto-on' : ''} onClick={() => setFit(f.key)}>{f.name}</button>)}</span>
+      <span className="proto-tag">PROTOTYPE v2</span>
+      {group('行', rows, rowStyle, setRowStyle)}{group('高度', places, place, setPlace)}{group('与布局', fits, fit, setFit)}
       <button onClick={() => setTheme(t => t === 'dark' ? 'light' : 'dark')}>{theme === 'dark' ? '☾' : '☀'}</button>
-      <span className="proto-state">{overlay ? '覆盖' : '挤压'} · 宽 {width}px · 窗口 {winW}px</span>
+      <span className="proto-state">{overlay ? '覆盖' : '挤压'} · 侧栏 {width}px · 窗口 {winW}px</span>
       <button title="隐藏原型切换条" onClick={() => setBarHidden(true)}>▾</button>
     </div>}
-    <div className={`app-body ${place === 'full' ? 'gh-host' : ''}`} ref={body}>
+    <div className={`app-body ${place === 'full' ? 'gh-host' : ''}`}>
       <nav className="navigation" style={{ '--navigation-width': '220px' } as CSSProperties}>
         <div className="navigation-projects"><div className="nav-heading">项目</div>
           <section className="project-group">
@@ -123,25 +142,21 @@ function Prototype() {
       </nav>
       <main><div className="workbench-page"><div className="workspace">
         <header className="workspace-toolbar proto-toolbar-summary"><span className="proto-tb-left" />
-          <ToolbarSummary panes={all} ephemeralIds={new Set(initialEphemeral.map(p => p.id))} onLocate={id => setMaximized(initialEphemeral.some(p => p.id === id) ? id : undefined)} />
+          <ToolbarSummary panes={all} ephemeralIds={new Set(ephemeral.map(p => p.id))} onLocate={locate} />
           <span className="gh-tb-right"><button className="proto-tb-add" title="新增临时面板">＋</button>
-            <button className={`gh-toggle ${open ? 'on' : ''}`} title={open ? '收起 GitHub 侧边栏' : '打开 GitHub 侧边栏'} onClick={() => setOpen(o => !o)}>◎ <span>{openIssues ?? '–'}</span></button></span>
+            <button className={`gh-toggle ${open ? 'on' : ''}`} title={open ? '收起 GitHub 侧边栏' : '打开 GitHub 侧边栏'} onClick={() => { setOpen(o => !o); setHistory([]); }}>Issues {openCount('issue')}</button></span>
         </header>
         <div className={`gh-stage ${place === 'below' ? 'gh-host' : ''}`}>
           <div className="canvas proto-canvas">
-            {graphBig && repo && variant === 'graph' ? <section className="panel-slot proto-pop gh-big" style={{ left: 0, top: 0, width: '100%', height: '100%' }}>
-              <div className="agent-panel focused"><header className="panel-header"><span className="agent-title"><span className="session-title">关系图 · {repo.snapshot.repo}</span><span className="proto-badge">临时放大</span></span>
-                <span className="panel-actions"><button title="收回侧边栏（Esc）" onClick={() => setGraphBig(false)}>⌄</button></span></header>
-                <GraphView repo={repo} filter={filter} options={graphOptions} selected={selected} setSelected={setSelected} big /></div></section>
-              : maxPane ? <section className={`panel-slot ${maxPane.agent} proto-pop`} style={{ left: 0, top: 0, width: '100%', height: '100%' }}>
-                <PanelView pane={maxPane} ephemeral={initialEphemeral.includes(maxPane)} focused onReply={() => {}} actions={<button onClick={() => setMaximized(undefined)}>⌄</button>} /></section>
-              : initialPersistent.map(p => { const b = layout.get(p.id)!; return <section key={p.id} className={`panel-slot ${p.agent}`} style={{ left: `${b.x * 100}%`, top: `${b.y * 100}%`, width: `${b.w * 100}%`, height: `${b.h * 100}%` }}>
-                <PanelView pane={p} focused={false} onReply={() => {}} actions={<button title="放大面板" onClick={() => setMaximized(p.id)}>⤢</button>} /></section>; })}
+            {maxPane ? <section className={`panel-slot ${maxPane.agent} proto-pop`} style={{ left: 0, top: 0, width: '100%', height: '100%' }}>
+              <PanelView pane={maxPane} ephemeral={ephemeral.includes(maxPane)} focused onReply={() => {}} actions={<button title="收起（Esc）" onClick={() => setMaximized(undefined)}>⌄</button>} /></section>
+              : initialPersistent.map(p => { const b = layout.get(p.id)!; return <section key={p.id} className={`panel-slot ${p.agent} ${flash === p.id ? 'gh-flash' : ''}`} style={{ left: `${b.x * 100}%`, top: `${b.y * 100}%`, width: `${b.w * 100}%`, height: `${b.h * 100}%` }}>
+                <PanelView pane={p} focused={flash === p.id} onReply={() => {}} actions={<button title="放大面板" onClick={() => setMaximized(p.id)}>⤢</button>} /></section>; })}
           </div>
           {place === 'below' && sidebar}
         </div>
         <div className="proto-tray" aria-label="临时面板托盘">
-          {initialEphemeral.map(p => <button key={p.id} className={`proto-card ${p.agent} status-${p.status} ${maximized === p.id ? 'open' : ''}`} onClick={() => setMaximized(m => m === p.id ? undefined : p.id)}>
+          {ephemeral.map(p => <button key={p.id} className={`proto-card ${p.agent} status-${p.status} ${maximized === p.id ? 'open' : ''}`} onClick={() => setMaximized(m => m === p.id ? undefined : p.id)}>
             <span className="agent-symbols"><ProcessingStatusIcon state={p.status} /><span className="agent-mark">{agentIcons[p.agent]}</span></span><span className="session-title">{p.title}</span><small>{statusName[p.status]}</small></button>)}
         </div>
       </div></div></main>

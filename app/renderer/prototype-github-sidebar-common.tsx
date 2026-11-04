@@ -1,28 +1,51 @@
 // PROTOTYPE — throwaway, part of prototype-github-sidebar.tsx. Never import or adapt into production (AGENTS.md「Prototype scope」).
-// Pieces every sidebar variant shows: filter bar, state glyphs, issue / PR detail and the stub dispatch menu.
-import React, { useEffect, useRef, useState, type ReactNode } from 'react';
-import { ago, childProgress, githubUrl, openBlockers, steps, type DispatchRecord, type Filter, type Issue, type Pull, type Repo, type Selected, type Sort, type StateFilter } from './prototype-github-sidebar-model';
+// Small shared pieces for v2: state colour, labels, progress, checks text, the split dispatch button and the dispatch status.
+import React, { useEffect, useRef, useState } from 'react';
+import { BlockedIcon, GitMergeIcon, GitPullRequestClosedIcon, GitPullRequestDraftIcon, GitPullRequestIcon, IssueClosedIcon, IssueOpenedIcon, SkipIcon } from '@primer/octicons-react';
+import { ProcessingStatusIcon } from './ProcessingStatusIcon';
+import { statusName } from './prototype-ephemeral-panels-data';
+import { defaultStep, steps, type DispatchRecord, type Filter, type Issue, type Pane, type Pull, type Repo, type StateFilter } from './prototype-github-sidebar-model';
 
-export function IssueGlyph({ issue }: { issue: Issue }) {
-  const tone = issue.state === 'open' ? 'open' : issue.reason === 'not_planned' ? 'skipped' : 'done';
-  return <span className={`gh-glyph gh-${tone}`} title={issue.state === 'open' ? '开放' : issue.reason === 'not_planned' ? '已关闭（不做）' : '已完成'}>{issue.state === 'open' ? '◉' : issue.reason === 'not_planned' ? '⊘' : '✓'}</span>;
+export const issueTone = (i: Issue) => i.state === 'open' ? 'open' : i.reason === 'not_planned' ? 'skipped' : 'done';
+export const pullTone = (p: Pull) => ({ open: 'open', draft: 'skipped', merged: 'done', closed: 'failed' } as const)[p.state];
+const issueStateName = (i: Issue) => i.state === 'open' ? '开放' : i.reason === 'not_planned' ? '不做' : '已完成';
+const pullStateName = { open: '开放', draft: '草稿', merged: '已合并', closed: '已关闭' };
+
+/** GitHub's own state octicons, coloured like GitHub. */
+export function IssueIcon({ issue, size = 16 }: { issue: Issue; size?: number }) {
+  const Icon = issue.state === 'open' ? IssueOpenedIcon : issue.reason === 'not_planned' ? SkipIcon : IssueClosedIcon;
+  return <span className={`gh-icon gh-${issueTone(issue)}`}><Icon size={size} /></span>;
 }
-export function PullGlyph({ pull }: { pull: Pull }) {
-  const tone = { open: 'open', draft: 'skipped', merged: 'done', closed: 'failed' }[pull.state];
-  return <span className={`gh-glyph gh-pr gh-${tone}`} title={{ open: '开放', draft: '草稿', merged: '已合并', closed: '已关闭' }[pull.state]}>⇄</span>;
+export function PullIcon({ pull, size = 16 }: { pull: Pull; size?: number }) {
+  const Icon = { open: GitPullRequestIcon, draft: GitPullRequestDraftIcon, merged: GitMergeIcon, closed: GitPullRequestClosedIcon }[pull.state];
+  return <span className={`gh-icon gh-${pullTone(pull)}`}><Icon size={size} /></span>;
 }
-export function Checks({ pull }: { pull: Pull }) {
-  if (pull.checks === 'none') return null;
-  const ok = pull.checks === 'success';
-  const bad = pull.checks === 'failure' || pull.checks === 'error';
-  return <span className={`gh-checks ${ok ? 'gh-open' : bad ? 'gh-failed' : 'gh-pending'}`} title={`检查：${pull.checks}`}>{ok ? '✓' : bad ? '✗' : '●'}</span>;
-}
-export function LabelChip({ repo, name, onClick, active }: { repo: Repo; name: string; onClick?(): void; active?: boolean }) {
-  const color = repo.labelColor.get(name) ?? '#888';
-  return <span className={`gh-label ${active ? 'active' : ''}`} style={{ '--label': color } as React.CSSProperties} onClick={onClick && (e => { e.stopPropagation(); onClick(); })}>{name}</span>;
+export const IssuePill = ({ issue }: { issue: Issue }) => <span className={`gh-pill gh-bg-${issueTone(issue)}`}><IssueIcon issue={issue} />{issueStateName(issue)}</span>;
+export const PullPill = ({ pull }: { pull: Pull }) => <span className={`gh-pill gh-bg-${pullTone(pull)}`}><PullIcon pull={pull} />{pullStateName[pull.state]}</span>;
+/** The one blocking mark used everywhere: 「被 #N、#M 阻塞」, hover shows the blockers' titles. */
+export const Blocked = ({ repo, by }: { repo: Repo; by: number[] }) => <span className="gh-blocked" title={by.map(b => `#${b} ${repo.issues.get(b)?.title ?? '不在快照里'}`).join('\n')}>
+  <BlockedIcon size={12} />被 {by.map(b => `#${b}`).join('、')} 阻塞</span>;
+
+export function Label({ repo, name, onClick }: { repo: Repo; name: string; onClick?(): void }) {
+  return <span className={`gh-label ${onClick ? 'clickable' : ''}`} style={{ '--label': repo.labelColor.get(name) ?? '#888' } as React.CSSProperties}
+    onClick={onClick && (e => { e.stopPropagation(); onClick(); })}>{name}</span>;
 }
 
-function usePopover() {
+export function Progress({ closed, total }: { closed: number; total: number }) {
+  if (!total) return null;
+  return <span className="gh-progress" title={`子 issue：${closed} / ${total} 已关闭`}><span className="gh-progress-bar"><span style={{ width: `${closed / total * 100}%` }} /></span>{closed}/{total}</span>;
+}
+
+export function checksText(state: string) {
+  if (state === 'success') return { tone: 'open', text: '检查通过' };
+  if (state === 'failure' || state === 'error' || state === 'timed_out' || state === 'cancelled' || state === 'action_required') return { tone: 'failed', text: '检查失败' };
+  if (state === 'none') return { tone: 'skipped', text: '没有检查' };
+  if (state === 'skipped' || state === 'neutral') return { tone: 'skipped', text: '已跳过' };
+  return { tone: 'pending', text: '检查中' };
+}
+export const reviewText = (review: string) => ({ approved: { tone: 'open', text: '已批准' }, changes_requested: { tone: 'failed', text: '需要修改' }, review_required: { tone: 'pending', text: '等待评审' } } as Record<string, { tone: string; text: string }>)[review];
+
+export function usePopover() {
   const [open, setOpen] = useState(false);
   const root = useRef<HTMLDivElement>(null);
   useEffect(() => {
@@ -35,98 +58,54 @@ function usePopover() {
   return { open, setOpen, root };
 }
 
-export function Filters({ repo, filter, setFilter, counts, showState = true, showSort = true, extra }: {
-  repo: Repo; filter: Filter; setFilter(update: (f: Filter) => Filter): void; counts?: { open: number; closed: number }; showState?: boolean; showSort?: boolean; extra?: ReactNode;
+/** Main half sends with the defaults (new ephemeral panel + default step); the caret picks a step and a target. */
+export function DispatchSplit({ issue, panes, onDispatch, weak = false, size = 'row' }: {
+  issue: Issue; panes: Pane[]; onDispatch(step: string, pane: string | 'new'): void; weak?: boolean; size?: 'row' | 'detail';
 }) {
-  const labels = usePopover();
-  const used = repo.snapshot.labels.map(l => ({ ...l, count: repo.snapshot.issues.filter(i => i.labels.includes(l.name)).length })).filter(l => l.count);
-  const toggle = (name: string) => setFilter(f => ({ ...f, labels: f.labels.includes(name) ? f.labels.filter(l => l !== name) : [...f.labels, name] }));
-  return <div className="gh-filters">
-    <div className="gh-search"><span>⌕</span><input value={filter.q} placeholder="搜索标题，或输入 #编号" onChange={e => setFilter(f => ({ ...f, q: e.target.value }))} />{filter.q && <button onClick={() => setFilter(f => ({ ...f, q: '' }))}>×</button>}</div>
-    <div className="gh-filter-row">
-      {showState && <span className="gh-seg">{(['open', 'closed', 'all'] as StateFilter[]).map(s => <button key={s} className={filter.state === s ? 'on' : ''} onClick={() => setFilter(f => ({ ...f, state: s }))}>
-        {{ open: '开放', closed: '已关闭', all: '全部' }[s]}{counts && s !== 'all' ? <small> {counts[s]}</small> : null}</button>)}</span>}
-      <div className="gh-pop-root" ref={labels.root}>
-        <button className={`gh-dropdown ${filter.labels.length ? 'on' : ''}`} onClick={() => labels.setOpen(o => !o)}>标签{filter.labels.length ? ` · ${filter.labels.length}` : ''} ▾</button>
-        {labels.open && <div className="gh-pop gh-label-pop">{used.map(l => <button key={l.name} className={filter.labels.includes(l.name) ? 'on' : ''} onClick={() => toggle(l.name)}>
-          <span className="gh-dot" style={{ background: `#${l.color}` }} /><span>{l.name}</span><small>{l.count}</small>{filter.labels.includes(l.name) && <b>✓</b>}</button>)}
-          {!!filter.labels.length && <button className="gh-pop-clear" onClick={() => setFilter(f => ({ ...f, labels: [] }))}>清除标签筛选</button>}</div>}
-      </div>
-      {showSort && <select value={filter.sort} onChange={e => setFilter(f => ({ ...f, sort: e.target.value as Sort }))} title="排序">
-        <option value="updated">最近更新</option><option value="created">最新创建</option><option value="created-asc">最早创建</option></select>}
-      {extra}
-    </div>
-    {!!filter.labels.length && <div className="gh-active-labels">{filter.labels.map(l => <LabelChip key={l} repo={repo} name={l} active onClick={() => toggle(l)} />)}<span className="muted">（同时满足）</span></div>}
-  </div>;
-}
-
-export interface Pane { id: string; title: string; agent: string; ephemeral: boolean }
-
-function DispatchButton({ issue, panes, onDispatch }: { issue: Issue; panes: Pane[]; onDispatch(r: DispatchRecord): void }) {
   const pop = usePopover();
-  const [step, setStep] = useState(steps[0]);
-  const send = (session: string, located: boolean) => { onDispatch({ issue: issue.number, session, step, at: new Date().toISOString(), located }); pop.setOpen(false); };
-  return <div className="gh-pop-root" ref={pop.root}>
-    <button className="gh-primary" onClick={() => pop.setOpen(o => !o)}>派发 ▾</button>
+  const [step, setStep] = useState(defaultStep);
+  const send = (pane: string | 'new') => { onDispatch(step, pane); pop.setOpen(false); };
+  return <div className={`gh-split ${weak ? 'weak' : ''} ${size}`} ref={pop.root} onClick={e => e.stopPropagation()}>
+    <button className="gh-split-main" title={`用默认指令 ${defaultStep} #${issue.number} 派发到新临时面板`} onClick={() => onDispatch(defaultStep, 'new')}>派发</button>
+    <button className="gh-split-more" title="选择指令和面板" aria-expanded={pop.open} onClick={() => pop.setOpen(o => !o)}>▾</button>
     {pop.open && <div className="gh-pop gh-dispatch-pop">
-      <label>指令<select value={step} onChange={e => setStep(e.target.value)}>{steps.map(s => <option key={s}>{s}</option>)}</select></label>
-      <code>{step === '自由指令' ? `处理 #${issue.number}：…` : `${step} #${issue.number}`}</code>
+      <div className="gh-pop-title">指令</div>
+      {steps.map(s => <button key={s} className={step === s ? 'on' : ''} onClick={() => setStep(s)}><code>{s} #{issue.number}</code>{s === defaultStep && <small>默认</small>}</button>)}
       <div className="gh-pop-title">交给</div>
-      <button className="on" onClick={() => send(`新会话 · #${issue.number}`, true)}>＋ 新临时面板 <small>默认</small></button>
-      {panes.map(p => <button key={p.id} className={p.agent} onClick={() => send(p.title, true)}><span className="gh-agent-dot" />{p.title}<small>{p.ephemeral ? '临时' : '常驻'}</small></button>)}
-      <p className="muted">原型：只追加一条派发记录，不会真的发送。</p>
+      <button onClick={() => send('new')}><span>新临时面板</span><small>默认</small></button>
+      {panes.map(p => <button key={p.id} className={p.agent} onClick={() => send(p.id)}><span className="gh-agent-dot" /><span className="gh-ellipsis">{p.title}</span><small>{p.ephemeral ? '临时' : '常驻'}</small></button>)}
     </div>}
   </div>;
 }
 
-export function PullRow({ repo, pull, onOpen }: { repo: Repo; pull: Pull; onOpen?(s: Selected): void }) {
-  return <button className="gh-rel-row" onClick={() => onOpen?.({ kind: 'pull', number: pull.number })}>
-    <PullGlyph pull={pull} /><span className="gh-num">#{pull.number}</span><span className="gh-ellipsis">{pull.title}</span><Checks pull={pull} />
-    {pull.review === 'approved' && <small className="gh-open">已批准</small>}{pull.review === 'changes_requested' && <small className="gh-failed">要求修改</small>}
-    <small className="muted">{repo.snapshot.repo ? `+${pull.additions} −${pull.deletions}` : ''}</small>
+/** Where the issue's latest dispatch is now: the pane's processing state, clickable to locate the pane. */
+export function DispatchStatus({ records, panes, onLocate }: { records: DispatchRecord[]; panes: Pane[]; onLocate(pane: string): void }) {
+  const last = records[records.length - 1];
+  const pane = panes.find(p => p.id === last.pane);
+  if (!pane) return <span className="gh-dstatus gone" title="派发去的会话已不在任何打开的面板上">已派发{records.length > 1 ? ` ×${records.length}` : ''}</span>;
+  return <button className={`gh-dstatus status-${pane.status}`} title={`${last.step} → ${pane.title}（点击定位面板）`} onClick={e => { e.stopPropagation(); onLocate(pane.id); }}>
+    <span className="gh-dstatus-state"><ProcessingStatusIcon state={pane.status} />{statusName[pane.status]}{records.length > 1 ? ` ×${records.length}` : ''}</span>
+    <span className="gh-dstatus-pane">{pane.title}</span>
   </button>;
 }
 
-function IssueRef({ repo, n, onOpen, note }: { repo: Repo; n: number; onOpen?(s: Selected): void; note?: string }) {
-  const i = repo.issues.get(n);
-  if (!i) return <div className="gh-rel-row muted">#{n}（不在快照里）</div>;
-  return <button className="gh-rel-row" onClick={() => onOpen?.({ kind: 'issue', number: n })}><IssueGlyph issue={i} /><span className="gh-num">#{n}</span><span className="gh-ellipsis">{i.title}</span>{note && <small className="muted">{note}</small>}</button>;
-}
-
-export function IssueDetail({ repo, issue, onOpen, panes, dispatches, onDispatch, children, compact = false }: {
-  repo: Repo; issue: Issue; onOpen?(s: Selected): void; panes: Pane[]; dispatches: DispatchRecord[]; onDispatch(r: DispatchRecord): void; children?: ReactNode; compact?: boolean;
-}) {
-  const kids = repo.children.get(issue.number) ?? [];
-  const blocks = repo.blocks.get(issue.number) ?? [];
-  const prs = (repo.prsOf.get(issue.number) ?? []).map(n => repo.pulls.get(n)!).filter(Boolean);
-  const progress = childProgress(repo, issue.number);
-  const blockers = openBlockers(repo, issue);
-  const records = dispatches.filter(d => d.issue === issue.number);
-  return <article className={`gh-detail ${compact ? 'compact' : ''}`}>
-    <header><IssueGlyph issue={issue} /><h3>{issue.title} <span className="gh-num">#{issue.number}</span></h3></header>
-    <div className="gh-meta">{issue.author} 创建于 {ago(issue.createdAt)} · 更新于 {ago(issue.updatedAt)} · 💬 {issue.comments}{issue.assignees.length ? ` · 认领：${issue.assignees.join('、')}` : ''}</div>
-    {!!issue.labels.length && <div className="gh-labels">{issue.labels.map(l => <LabelChip key={l} repo={repo} name={l} />)}</div>}
-    <div className="gh-actions"><DispatchButton issue={issue} panes={panes} onDispatch={onDispatch} /><a href={githubUrl(repo, 'issue', issue.number)} target="_blank" rel="noreferrer">在 GitHub 打开 ↗</a>
-      {!!blockers.length && <span className="gh-warn">🔒 被 {blockers.map(b => `#${b}`).join('、')} 卡住</span>}</div>
-    {!!records.length && <section><h4>派发记录</h4>{records.map((r, k) => <div key={k} className="gh-record"><span>{r.step}</span><span className="gh-ellipsis">→ {r.session}</span><small className="muted">{ago(r.at)}</small>
-      {r.located ? <button title="定位到正处在该会话上的面板">定位</button> : <small className="muted" title="没有打开的面板正处在该会话上">仅记录</small>}</div>)}</section>}
-    {children}
-    {issue.parent && <section><h4>父 issue</h4><IssueRef repo={repo} n={issue.parent} onOpen={onOpen} note={`${childProgress(repo, issue.parent).closed}/${childProgress(repo, issue.parent).total} 已关闭`} /></section>}
-    {!!kids.length && <section><h4>子 issue <small className="muted">{progress.closed}/{progress.total} 已关闭</small></h4><div className="gh-progress"><span style={{ width: `${progress.closed / progress.total * 100}%` }} /></div>
-      {kids.map(n => <IssueRef key={n} repo={repo} n={n} onOpen={onOpen} />)}</section>}
-    {!!issue.blockedBy.length && <section><h4>被这些卡住</h4>{issue.blockedBy.map(n => <IssueRef key={n} repo={repo} n={n} onOpen={onOpen} />)}</section>}
-    {!!blocks.length && <section><h4>卡住了这些</h4>{blocks.map(n => <IssueRef key={n} repo={repo} n={n} onOpen={onOpen} />)}</section>}
-    {!!prs.length && <section><h4>关联 PR</h4>{prs.map(p => <PullRow key={p.number} repo={repo} pull={p} onOpen={onOpen} />)}</section>}
-    {!compact && issue.body && <section><h4>正文（节选）</h4><pre className="gh-body">{issue.body}</pre></section>}
-  </article>;
-}
-
-export function PullDetail({ repo, pull, onOpen }: { repo: Repo; pull: Pull; onOpen?(s: Selected): void }) {
-  return <article className="gh-detail">
-    <header><PullGlyph pull={pull} /><h3>{pull.title} <span className="gh-num">#{pull.number}</span></h3></header>
-    <div className="gh-meta">{pull.author} · {pull.branch} · 更新于 {ago(pull.updatedAt)} · <span className="gh-open">+{pull.additions}</span> <span className="gh-failed">−{pull.deletions}</span></div>
-    <div className="gh-actions"><span>检查 <Checks pull={pull} /> {pull.checks}</span>{pull.review && <span>评审：{pull.review}</span>}<a href={githubUrl(repo, 'pull', pull.number)} target="_blank" rel="noreferrer">在 GitHub 打开 ↗</a></div>
-    {!!pull.closes.length && <section><h4>关闭的 issue</h4>{pull.closes.map(n => <IssueRef key={n} repo={repo} n={n} onOpen={onOpen} />)}</section>}
-    <p className="muted">PR 代码查看与 review 不在本图范围内。</p>
-  </article>;
+export function FilterBar({ repo, filter, setFilter, counts, labels = true }: { repo: Repo; filter: Filter; setFilter(update: (f: Filter) => Filter): void; counts: Record<StateFilter, number>; labels?: boolean }) {
+  const pop = usePopover();
+  const used = repo.snapshot.labels.map(l => ({ ...l, count: repo.snapshot.issues.filter(i => i.labels.includes(l.name)).length })).filter(l => l.count);
+  const toggle = (name: string) => setFilter(f => ({ ...f, labels: f.labels.includes(name) ? f.labels.filter(l => l !== name) : [...f.labels, name] }));
+  return <div className="gh-filters">
+    <input className="gh-search" value={filter.q} placeholder="搜索标题，或输入 #编号" onChange={e => setFilter(f => ({ ...f, q: e.target.value }))} />
+    <div className="gh-filter-row">
+      {(['open', 'closed'] as StateFilter[]).map(s => <button key={s} className={`gh-state-tab ${filter.state === s ? 'on' : ''}`} onClick={() => setFilter(f => ({ ...f, state: s }))}>
+        {s === 'open' ? '开放' : '已关闭'} <span>{counts[s]}</span></button>)}
+      <span className="gh-spacer" />
+      {labels && <div className="gh-pop-root" ref={pop.root}>
+        <button className={`gh-text-button ${filter.labels.length ? 'on' : ''}`} onClick={() => pop.setOpen(o => !o)}>标签{filter.labels.length ? ` ${filter.labels.length}` : ''} ▾</button>
+        {pop.open && <div className="gh-pop gh-label-pop">{used.map(l => <button key={l.name} className={filter.labels.includes(l.name) ? 'on' : ''} onClick={() => toggle(l.name)}>
+          <span className="gh-swatch" style={{ background: `#${l.color}` }} /><span className="gh-ellipsis">{l.name}</span><small>{l.count}</small><b>{filter.labels.includes(l.name) ? '✓' : ''}</b></button>)}
+          {!!filter.labels.length && <button className="gh-pop-clear" onClick={() => setFilter(f => ({ ...f, labels: [] }))}>清除</button>}</div>}
+      </div>}
+    </div>
+    {!!filter.labels.length && <div className="gh-active-labels">{filter.labels.map(l => <Label key={l} repo={repo} name={l} onClick={() => toggle(l)} />)}<span>点标签移除</span></div>}
+  </div>;
 }
