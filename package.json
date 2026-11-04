@@ -21,7 +21,8 @@
     "dev": "npm run build && npm start",
     "package": "npm run prepare:runtime && npm run build && node scripts/package.mjs",
     "rebuild:terminal": "electron-rebuild -f -w node-pty",
-    "prototype:ephemeral-panels": "vite --port 5199 --open /prototype-ephemeral-panels.html"
+    "prototype:ephemeral-panels": "vite --port 5199 --open /prototype-ephemeral-panels.html",
+    "prototype:github-sidebar": "node app/renderer/prototype-github-sidebar-fetch.mjs && vite --port 5198 --open /prototype-github-sidebar.html"
   },
   "dependencies": {
     "@xterm/addon-fit": "0.11.0",

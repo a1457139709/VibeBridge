@@ -6,3 +6,4 @@ dist.terminal.prototype/
 dist/
 outputs/
 work/
+app/renderer/prototype-github-sidebar.snapshot.json
