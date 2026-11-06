@@ -2,16 +2,16 @@
 // v2 lists. Issues: tree skeleton (children under their parent, closed children folded), each row = information + action.
 // Pull requests: flat, newest first, checks and review as coloured text.
 import React, { useMemo, useState } from 'react';
-import { childProgress, issueMatches, newestFirst, openBlockers, pullMatches, sameSelection, type DispatchRecord, type Filter, type Issue, type Pane, type Repo, type RowStyle, type Selected } from './prototype-github-sidebar-model';
+import { childProgress, issueMatches, newestFirst, openBlockers, pullMatches, sameSelection, type DispatchRecord, type Filter, type Issue, type Pane, type Repo, type Selected } from './prototype-github-sidebar-model';
 import { Blocked, checksText, DispatchSplit, DispatchStatus, IssueIcon, Label, Progress, PullIcon, reviewText } from './prototype-github-sidebar-common';
 import { ago } from './prototype-github-sidebar-model';
 
 interface IssueListProps {
-  repo: Repo; filter: Filter; setFilter(update: (f: Filter) => Filter): void; selected: Selected; onSelect(s: Selected): void; rowStyle: RowStyle;
+  repo: Repo; filter: Filter; setFilter(update: (f: Filter) => Filter): void; selected: Selected; onSelect(s: Selected): void;
   panes: Pane[]; dispatches: DispatchRecord[]; onDispatch(issue: number, step: string, pane: string | 'new'): void; onLocate(pane: string): void;
 }
 
-export function IssueList({ repo, filter, setFilter, selected, onSelect, rowStyle, panes, dispatches, onDispatch, onLocate }: IssueListProps) {
+export function IssueList({ repo, filter, setFilter, selected, onSelect, panes, dispatches, onDispatch, onLocate }: IssueListProps) {
   const [collapsed, setCollapsed] = useState<Set<number>>(new Set());
   const [shownClosed, setShownClosed] = useState<Set<number>>(new Set());
   // Visible when it matches or a descendant matches; non-matching ancestors stay as context.
@@ -39,7 +39,7 @@ export function IssueList({ repo, filter, setFilter, selected, onSelect, rowStyl
     const records = dispatches.filter(d => d.issue === i.number);
     const progress = childProgress(repo, i.number);
     return <React.Fragment key={i.number}>
-      <div className={`gh-row ${rowStyle} ${sameSelection(selected, { kind: 'issue', number: i.number }) ? 'selected' : ''} ${issueMatches(i, filter) ? '' : 'context'}`}
+      <div className={`gh-row ${sameSelection(selected, { kind: 'issue', number: i.number }) ? 'selected' : ''} ${issueMatches(i, filter) ? '' : 'context'}`}
         style={{ '--depth': depth } as React.CSSProperties} onClick={() => onSelect({ kind: 'issue', number: i.number })}>
         {kids.length ? <button className="gh-disclosure" title={open ? '折叠' : '展开'} onClick={e => { e.stopPropagation(); setCollapsed(c => flip(c, i.number)); }}>{open ? '▾' : '▸'}</button> : <span className="gh-disclosure" />}
         <IssueIcon issue={i} />
@@ -70,13 +70,13 @@ export function IssueList({ repo, filter, setFilter, selected, onSelect, rowStyl
   </div>;
 }
 
-export function PullList({ repo, filter, selected, onSelect, rowStyle }: { repo: Repo; filter: Filter; selected: Selected; onSelect(s: Selected): void; rowStyle: RowStyle }) {
+export function PullList({ repo, filter, selected, onSelect }: { repo: Repo; filter: Filter; selected: Selected; onSelect(s: Selected): void }) {
   const pulls = newestFirst(repo.snapshot.pulls.filter(p => pullMatches(p, filter)));
   return <div className="gh-scroll">
     {pulls.map(p => {
       const checks = checksText(p.checks);
       const review = reviewText(p.review);
-      return <div key={p.number} className={`gh-row ${rowStyle} ${sameSelection(selected, { kind: 'pull', number: p.number }) ? 'selected' : ''}`} style={{ '--depth': 0 } as React.CSSProperties}
+      return <div key={p.number} className={`gh-row ${sameSelection(selected, { kind: 'pull', number: p.number }) ? 'selected' : ''}`} style={{ '--depth': 0 } as React.CSSProperties}
         onClick={() => onSelect({ kind: 'pull', number: p.number })}>
         <span className="gh-disclosure" /><PullIcon pull={p} />
         <div className="gh-row-main">

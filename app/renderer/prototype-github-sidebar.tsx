@@ -4,6 +4,7 @@
 // Data is a real read-only `gh` snapshot (npm run prototype:github-sidebar). v1 variants live in this branch's history.
 import React, { useEffect, useState, type CSSProperties, type PointerEvent as ReactPointerEvent } from 'react';
 import { createRoot } from 'react-dom/client';
+import { SidebarCollapseIcon, SidebarExpandIcon } from '@primer/octicons-react';
 import { Localization } from './Localization';
 import { ProcessingStatusIcon } from './ProcessingStatusIcon';
 import { agentIcons } from './agent-icons';
@@ -15,20 +16,20 @@ import './prototype-github-sidebar.css';
 import { initialEphemeral, initialPersistent, initialTree, pane, statusName, type Pane as FakePane } from './prototype-ephemeral-panels-data';
 import { boxes } from './prototype-ephemeral-panels-layout';
 import { NavLink, PanelView, ToolbarSummary } from './prototype-ephemeral-panels-views';
-import { emptyFilter, fits, index, initialDispatches, issueMatches, param, places, pullMatches, rows, sameSelection, typing,
-  type DispatchRecord, type Filter, type Fit, type Pane, type Place, type Repo, type RowStyle, type Selected, type Snapshot } from './prototype-github-sidebar-model';
+import { emptyFilter, fits, index, initialDispatches, issueMatches, param, places, pullMatches, sameSelection, typing,
+  type DispatchRecord, type Filter, type Fit, type Pane, type Place, type Repo, type Selected, type Snapshot } from './prototype-github-sidebar-model';
 import { FilterBar } from './prototype-github-sidebar-common';
 import { IssueList, PullList } from './prototype-github-sidebar-lists';
 import { DetailPane } from './prototype-github-sidebar-detail';
 
 function Prototype() {
-  const [rowStyle, setRowStyle] = useState<RowStyle>(() => param('row', rows.map(r => r.key), 'two'));
   const [place, setPlace] = useState<Place>(() => param('place', places.map(p => p.key), 'full'));
-  const [fit, setFit] = useState<Fit>(() => param('fit', fits.map(f => f.key), 'auto'));
+  const [fit, setFit] = useState<Fit>(() => param('fit', fits.map(f => f.key), 'push'));
   const [theme, setTheme] = useState(() => param('theme', ['dark', 'light'], 'dark'));
   const [repo, setRepo] = useState<Repo>();
   const [error, setError] = useState<string>();
   const [open, setOpen] = useState(true);
+  const [navOpen, setNavOpen] = useState(true);
   const [width, setWidth] = useState(380);
   const [detailWidth, setDetailWidth] = useState(640);
   const [winW, setWinW] = useState(window.innerWidth);
@@ -49,9 +50,9 @@ function Prototype() {
   useEffect(() => { document.documentElement.dataset.theme = theme; }, [theme]);
   useEffect(() => {
     const url = new URL(location.href);
-    url.searchParams.set('row', rowStyle); url.searchParams.set('place', place); url.searchParams.set('fit', fit); url.searchParams.set('theme', theme);
+    url.searchParams.delete('row'); url.searchParams.set('place', place); url.searchParams.set('fit', fit); url.searchParams.set('theme', theme);
     window.history.replaceState(null, '', url);
-  }, [rowStyle, place, fit, theme]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [place, fit, theme]); // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => { const resize = () => setWinW(window.innerWidth); window.addEventListener('resize', resize); return () => window.removeEventListener('resize', resize); }, []);
   useEffect(() => {
     const keydown = (e: KeyboardEvent) => {
@@ -61,7 +62,7 @@ function Prototype() {
     window.addEventListener('keydown', keydown); return () => window.removeEventListener('keydown', keydown);
   }, [history.length, maximized]);
 
-  const overlay = fit === 'overlay' || (fit === 'auto' && winW < 1180);
+  const overlay = fit === 'overlay'; // mirrors the one setting: squeeze or cover, never switched by window width
   const startResize = (e: ReactPointerEvent<HTMLDivElement>) => {
     const right = e.currentTarget.parentElement!.getBoundingClientRect().right;
     e.currentTarget.setPointerCapture(e.pointerId); document.body.classList.add('resizing');
@@ -110,8 +111,8 @@ function Prototype() {
     {error && <p className="gh-empty">读不到快照（{error}）。先运行 <code>npm run prototype:github-sidebar</code>，它会用 gh 拉取数据。</p>}
     {!repo && !error && <p className="gh-empty">载入中…</p>}
     {repo && counts && <FilterBar repo={repo} filter={filter} setFilter={setFilter} counts={counts} labels={tab === 'issue'} />}
-    {repo && tab === 'issue' && <IssueList repo={repo} filter={filter} setFilter={setFilter} selected={selected} onSelect={select} rowStyle={rowStyle} panes={panes} dispatches={dispatches} onDispatch={dispatch} onLocate={locate} />}
-    {repo && tab === 'pull' && <PullList repo={repo} filter={filter} selected={selected} onSelect={select} rowStyle={rowStyle} />}
+    {repo && tab === 'issue' && <IssueList repo={repo} filter={filter} setFilter={setFilter} selected={selected} onSelect={select} panes={panes} dispatches={dispatches} onDispatch={dispatch} onLocate={locate} />}
+    {repo && tab === 'pull' && <PullList repo={repo} filter={filter} selected={selected} onSelect={select} />}
     {repo && <footer className="gh-foot">快照 {new Date(repo.snapshot.fetchedAt).toLocaleString('zh-CN', { hour12: false })} · 按创建时间排序</footer>}
   </aside>;
 
@@ -120,16 +121,20 @@ function Prototype() {
   const group = <K extends string>(label: string, items: readonly { key: K; name: string }[], value: K, set: (k: K) => void) =>
     <span className="proto-group"><span>{label}</span>{items.map(i => <button key={i.key} className={value === i.key ? 'proto-on' : ''} onClick={() => set(i.key)}>{i.name}</button>)}</span>;
   return <Localization language="zh-CN"><div className="app proto proto-top">
-    <header className="system-bar"><div className="system-brand"><button aria-hidden>☷</button><span className="wordmark">VibeBridge</span></div></header>
+    <header className="system-bar"><div className="system-brand">
+      <button className={`gh-sys-toggle ${navOpen ? 'on' : ''}`} title={navOpen ? '收起项目导航' : '展开项目导航'} aria-pressed={navOpen} onClick={() => setNavOpen(o => !o)}>
+        {navOpen ? <SidebarCollapseIcon size={16} /> : <SidebarExpandIcon size={16} />}</button><span className="wordmark">VibeBridge</span></div>
+      <button className={`gh-sys-toggle right ${open ? 'on' : ''}`} title={open ? '收起 GitHub 侧边栏' : '打开 GitHub 侧边栏'} aria-pressed={open} onClick={() => { setOpen(o => !o); setHistory([]); }}>
+        {open ? <SidebarCollapseIcon size={16} /> : <SidebarExpandIcon size={16} />}</button></header>
     {barHidden ? <button className="proto-bar proto-bar-mini" onClick={() => setBarHidden(false)}>PROTOTYPE ▴</button> : <div className="proto-bar" role="toolbar" aria-label="原型切换">
       <span className="proto-tag">PROTOTYPE v2</span>
-      {group('行', rows, rowStyle, setRowStyle)}{group('高度', places, place, setPlace)}{group('与布局', fits, fit, setFit)}
+      {group('高度', places, place, setPlace)}{group('与布局', fits, fit, setFit)}
       <button onClick={() => setTheme(t => t === 'dark' ? 'light' : 'dark')}>{theme === 'dark' ? '☾' : '☀'}</button>
       <span className="proto-state">{overlay ? '覆盖' : '挤压'} · 侧栏 {width}px · 窗口 {winW}px</span>
       <button title="隐藏原型切换条" onClick={() => setBarHidden(true)}>▾</button>
     </div>}
     <div className={`app-body ${place === 'full' ? 'gh-host' : ''}`}>
-      <nav className="navigation" style={{ '--navigation-width': '220px' } as CSSProperties}>
+      {navOpen && <nav className="navigation" style={{ '--navigation-width': '220px' } as CSSProperties}>
         <div className="navigation-projects"><div className="nav-heading">项目</div>
           <section className="project-group">
             <div className="proto-project-row"><button className="project-disclosure">⌄</button><button className="project-link selected"><span className="project-initial">V</span><span className="project-name">VibeBridge</span><small>{all.length}</small></button></div>
@@ -139,12 +144,11 @@ function Prototype() {
           <button className="add-project"><span>＋</span>添加项目</button>
         </div>
         <div className="nav-footer"><span>本地工作台</span><button className="settings-entry">⚙</button></div>
-      </nav>
+      </nav>}
       <main><div className="workbench-page"><div className="workspace">
         <header className="workspace-toolbar proto-toolbar-summary"><span className="proto-tb-left" />
           <ToolbarSummary panes={all} ephemeralIds={new Set(ephemeral.map(p => p.id))} onLocate={locate} />
-          <span className="gh-tb-right"><button className="proto-tb-add" title="新增临时面板">＋</button>
-            <button className={`gh-toggle ${open ? 'on' : ''}`} title={open ? '收起 GitHub 侧边栏' : '打开 GitHub 侧边栏'} onClick={() => { setOpen(o => !o); setHistory([]); }}>Issues {openCount('issue')}</button></span>
+          <span className="gh-tb-right"><button className="proto-tb-add" title="新增临时面板">＋</button></span>
         </header>
         <div className={`gh-stage ${place === 'below' ? 'gh-host' : ''}`}>
           <div className="canvas proto-canvas">

@@ -88,10 +88,9 @@ export const initialDispatches: DispatchRecord[] = [
 export type Selected = { kind: 'issue' | 'pull'; number: number } | undefined;
 export const sameSelection = (a: Selected, b: Selected) => !!a && !!b && a.kind === b.kind && a.number === b.number;
 
-export const rows = [{ key: 'two', name: '两行' }, { key: 'one', name: '单行' }] as const;
 export const places = [{ key: 'full', name: '贯通到底' }, { key: 'below', name: '工具栏下方' }] as const;
-export const fits = [{ key: 'auto', name: '自动（窄窗口覆盖）' }, { key: 'push', name: '总是挤压' }, { key: 'overlay', name: '总是覆盖' }] as const;
-export type RowStyle = typeof rows[number]['key'];
+// Mirrors the single setting. An old `fit=auto` in the URL is not a key any more, so param() falls back to the default.
+export const fits = [{ key: 'push', name: '挤压' }, { key: 'overlay', name: '覆盖' }] as const;
 export type Place = typeof places[number]['key'];
 export type Fit = typeof fits[number]['key'];
 
