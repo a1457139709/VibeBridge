@@ -20,6 +20,9 @@ export async function commandEnvironment(): Promise<Record<string, string>> {
   delete environment.ELECTRON_RUN_AS_NODE;
   delete environment.NODE_CHANNEL_FD;
   delete environment.NODE_CHANNEL_SERIALIZATION_MODE;
+  // A Workbench started inside another Workbench's terminal inherits that Workbench's
+  // variables, including its reporting credentials. Each launch adds only its own.
+  for (const name of Object.keys(environment)) if (name.startsWith('VIBEBRIDGE_')) delete environment[name];
   environment.TERM = 'xterm-256color';
   environment.COLORTERM = 'truecolor';
   return environment;

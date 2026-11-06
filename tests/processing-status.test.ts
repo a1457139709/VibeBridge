@@ -100,6 +100,23 @@ test('a launch configuration that cannot be safely extended starts the original 
   } finally { await f.close(); }
 });
 
+test('a Workbench started inside another Workbench terminal passes on none of its reporting credentials', async () => {
+  const inherited = process.env.VIBEBRIDGE_STATUS_CONTEXT;
+  process.env.VIBEBRIDGE_STATUS_CONTEXT = JSON.stringify({ url: 'http://127.0.0.1:9/outer', runId: 'outer', agent: 'codex', token: 'outer' });
+  const f = await fixture();
+  try {
+    const command = { command: process.env.VIBEBRIDGE_TEST_NODE!, args: [resolve('tests/fixtures/status-cli.cjs'), '-c', 'hooks=1'] };
+    await f.workbench.saveSettings({ agents: { ...f.workbench.snapshot().settings.agents, codex: command } });
+    const { launches: [{ run }] } = await f.create();
+    await f.send(run.id, { context: true, output: 'context shown' });
+    assert.ok(f.output(run.id).includes('CONTEXT:{}'));
+  } finally {
+    await f.close();
+    if (inherited === undefined) delete process.env.VIBEBRIDGE_STATUS_CONTEXT;
+    else process.env.VIBEBRIDGE_STATUS_CONTEXT = inherited;
+  }
+});
+
 test('observation loss leaves a usable terminal and recovery requires fresh reliable facts', async () => {
   const f = await fixture();
   try {

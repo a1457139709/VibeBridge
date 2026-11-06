@@ -12,7 +12,7 @@ Every accepted visible transition publishes through the existing Workbench snaps
 
 ## Reports
 
-Each Agent Type's Status Reporter runs inside the CLI process and sends reports to a listener on loopback in the main process. The launch environment carries `VIBEBRIDGE_STATUS_CONTEXT`, a JSON object with `url`, `runId`, `agent` and a random per-launch `token`. The token is a launch-local capability: it is never persisted or exposed through DesktopAPI.
+Each Agent Type's Status Reporter runs inside the CLI process and sends reports to a listener on loopback in the main process. The launch environment carries `VIBEBRIDGE_STATUS_CONTEXT`, a JSON object with `url`, `runId`, `agent` and a random per-launch `token`. The token is a launch-local capability: it is never persisted or exposed through DesktopAPI. Launch environments drop every inherited `VIBEBRIDGE_` variable, so a Workbench started inside another Workbench's terminal never hands that Workbench's context to its own runs; a launch that cannot be safely extended carries no context at all.
 
 A report is one POST of a JSON object of at most 64 KiB:
 
