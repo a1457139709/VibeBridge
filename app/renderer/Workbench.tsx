@@ -14,7 +14,7 @@ import type { SettingsCategory } from '../shared/settings';
 import { configureTerminals, reconcileTerminals, terminalEvent, setTerminalLanguage } from './terminals';
 
 /** The application shell: system bar, project navigation, and the current page. */
-export function Workbench() {
+export function App() {
   const [state, setState] = useState<Snapshot>();
   useEffect(() => {
     const language = state?.settings.language ?? 'en';

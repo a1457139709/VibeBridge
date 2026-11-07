@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import test, { afterEach, before } from 'node:test';
 import { cleanup, render, screen, within } from '@testing-library/react';
 import { userEvent } from '@testing-library/user-event';
-import { Workbench } from '../../app/renderer/Workbench';
+import { App } from '../../app/renderer/Workbench';
 import { defaultSettings } from '../../app/shared/settings';
 import type { PanelView, ProjectView, Snapshot } from '../../app/shared/model';
 import type { ProcessingState } from '../../app/shared/processing-status';
@@ -38,7 +38,7 @@ function renderWorkbench(change: (snapshot: Snapshot) => void = () => {}) {
   change(snapshot);
   provideWorkbench({ snapshot: async () => structuredClone(snapshot), subscribe: () => () => {}, ready: async () => {},
     activateProject: async () => {}, saveNavigation: async () => {}, saveLayout: async () => {} });
-  render(<Workbench />);
+  render(<App />);
   return userEvent.setup();
 }
 

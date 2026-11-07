@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import test, { afterEach, before } from 'node:test';
 import { act, cleanup, fireEvent, render, screen, within } from '@testing-library/react';
 import { userEvent } from '@testing-library/user-event';
-import { Workbench } from '../../app/renderer/Workbench';
+import { App } from '../../app/renderer/Workbench';
 import { defaultSettings } from '../../app/shared/settings';
 import type { Layout, Snapshot } from '../../app/shared/model';
 import { deferred, provideWorkbench } from './support/workbench';
@@ -36,7 +36,7 @@ function renderWorkbench() {
   provideWorkbench({ snapshot: async () => structuredClone(snapshot), subscribe: () => () => {}, ready: async () => {},
     activateProject: async () => {}, saveNavigation: async () => {}, saveLayout: async () => {},
     placeInLayout: (...request) => { requests.push(request); return placed.promise; } });
-  render(<Workbench />);
+  render(<App />);
   return { user: userEvent.setup(), placed, requests };
 }
 
