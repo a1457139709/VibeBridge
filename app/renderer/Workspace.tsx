@@ -10,6 +10,7 @@ import type { ShortcutAction } from '../shared/shortcuts';
 import { useWorkspacePanelLocation, type PanelLocation } from './panel-location';
 import { ProcessingStatusIcon } from './ProcessingStatusIcon';
 import { PanelTray } from './PanelTray';
+import { ProjectSummary } from './ProjectSummary';
 
 export interface WorkspaceActions { shortcut(action: ShortcutAction): boolean }
 
@@ -76,8 +77,11 @@ export function Workspace({ project, report, openAgentSettings, location, visibl
     }
     return false;
   } }));
-  const directoryEnd = project.directory.lastIndexOf('/');
-  return <div className="workspace"><header className="workspace-toolbar"><strong title={project.name}>{project.name}</strong><span className="project-path" title={project.directory}><span className="path-parent">{project.directory.slice(0, directoryEnd)}</span><span className="path-leaf">{project.directory.slice(directoryEnd)}</span></span><span className="muted">{t('panelCount', { count: project.panels.length })}</span><button aria-label={t('addPanel')} disabled={full} onClick={() => setAdding(true)}>＋</button></header>
+  return <div className="workspace"><header className="workspace-toolbar">
+    {visible && <ProjectSummary panels={[...project.panels, ...project.tray]}
+      locate={panel => location.locatePanel(project.id, panel.id, panel.run?.id)} />}
+    <button aria-label={t('addPanel')} disabled={full} onClick={() => setAdding(true)}>＋</button>
+  </header>
     <div className="canvas" ref={canvas}>
       {!project.panels.length && !openTrayPanel && <div className="empty"><p>{t('emptyProject')}</p><button disabled={full} onClick={() => setAdding(true)}>＋ {t('addPanel')}</button></div>}
       {project.panels.map(panel => {

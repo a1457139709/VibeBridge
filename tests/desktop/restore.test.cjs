@@ -43,7 +43,8 @@ module.exports = {
     assert.deepEqual(storedProjects(reopened), storedProjects(saved));
     assert.ok(runsOf(reopened).every(run => run.projectId === active.id && !runsOf(saved).some(old => old.id === run.id)));
     await until(async () => JSON.stringify(await renderedLayout(evaluate, active)) === JSON.stringify(geometry));
-    assert.equal(await evaluate('document.querySelector(".workspace-toolbar strong").textContent'), 'Saved project');
+    assert.equal(await evaluate('document.querySelector(".project-link[aria-current=page]").getAttribute("aria-label")'), 'Saved project');
+    assert.ok(await evaluate('!!document.querySelector(".workspace-toolbar .project-summary")'), 'the reopened workspace shows its project summary');
     assert.deepEqual(reopened.projects.map(item => item.tray), reopened.projects.map(() => []));
     assert.equal(await evaluate('document.querySelectorAll(".panel-tray .tray-card").length'), 0);
     console.log('Reopening restored project/panel configuration and visible layout with fresh runs, not resumed sessions, and an empty tray.');

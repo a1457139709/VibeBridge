@@ -84,10 +84,12 @@ module.exports = {
     for (const language of ['en', 'zh-CN']) {
       await evaluate(`window.workbench.saveSettings({ language: ${JSON.stringify(language)} })`);
       await until(() => evaluate(`document.documentElement.lang === ${JSON.stringify(language)}`));
+      // Names of a different length re-centre the open list under the summary.
       assert.ok(await evaluate(`(() => {
         const list = document.querySelector('.summary-list').getBoundingClientRect();
-        const trigger = document.querySelector('.summary-entry[aria-expanded=true]').getBoundingClientRect();
-        return Math.abs(list.left - trigger.left) < 1;
+        const summary = document.querySelector('.project-summary').getBoundingClientRect();
+        const centred = Math.max(8, Math.min(summary.left + (summary.width - list.width) / 2, innerWidth - list.width - 8));
+        return Math.abs(list.left - centred) < 1;
       })()`));
     }
     f.nativeKey('Escape');
