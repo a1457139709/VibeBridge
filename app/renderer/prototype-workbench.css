@@ -72,7 +72,8 @@
 .wb-issue-actions { display: flex; flex-direction: column; align-items: flex-end; gap: 6px; padding-top: 6px; }
 .gh-split.detail-inline { position: relative; }
 .gh-split.detail-inline button { height: 28px; font-size: 12px; }
-.wb-close-pop { top: auto; bottom: calc(100% + 4px); }
+.gh-split .wb-close-pop { top: auto; bottom: calc(100% + 4px); height: auto; } /* must beat `.gh-split .gh-pop { top }`, or top+bottom squeeze it */
+.gh-split .wb-close-pop button { height: 30px; padding: 0 12px; font-size: 12px; }
 .wb-action-error { font-size: 12px; color: var(--gh-failed); }
 .wb-actions-note { text-align: right; font-size: 11px; }
 
