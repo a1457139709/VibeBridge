@@ -9,6 +9,7 @@ import React, { useEffect, useRef, useState, type CSSProperties, type PointerEve
 import { createRoot } from 'react-dom/client';
 import { SidebarCollapseIcon, SidebarExpandIcon, SyncIcon } from '@primer/octicons-react';
 import { Localization } from './Localization';
+import { translatePage } from './prototype-workbench-i18n';
 import { ProcessingStatusIcon } from './ProcessingStatusIcon';
 import { agentIcons } from './agent-icons';
 import type { ProcessingState } from '../shared/processing-status';
@@ -316,9 +317,13 @@ function Prototype() {
     </div>
   </div></div>;
 
+  // #160: English preview via ?lang=en (switching reloads the page).
+  const lang = new URLSearchParams(location.search).get('lang') === 'en' ? 'en' : 'zh-CN';
+  useEffect(() => lang === 'en' ? translatePage() : undefined, [lang]);
+  const setLang = (l: string) => { const u = new URL(location.href); if (l === 'en') u.searchParams.set('lang', 'en'); else u.searchParams.delete('lang'); location.href = u.toString(); };
   const group = <K extends string>(label: string, items: readonly { key: K; name: string }[], value: K, set: (k: K) => void) =>
     <span className="proto-group"><span>{label}</span><select value={value} onChange={e => set(e.target.value as K)}>{items.map(i => <option key={i.key} value={i.key}>{i.name}</option>)}</select></span>;
-  return <Localization language="zh-CN"><div className="app proto proto-top">
+  return <Localization language={lang}><div className="app proto proto-top">
     <header className="system-bar"><div className="system-brand">
       <button className={`gh-sys-toggle ${navOpen ? 'on' : ''}`} title={navOpen ? '收起项目导航' : '展开项目导航'} aria-pressed={navOpen} onClick={() => setNavOpen(o => !o)}>
         {navOpen ? <SidebarCollapseIcon size={16} /> : <SidebarExpandIcon size={16} />}</button><span className="wordmark">VibeBridge</span></div>
@@ -326,6 +331,7 @@ function Prototype() {
         {sideOpen ? <SidebarCollapseIcon size={16} /> : <SidebarExpandIcon size={16} />}</button></header>
     {barHidden ? <button className="proto-bar proto-bar-mini" onClick={() => setBarHidden(false)}>PROTOTYPE ▴</button> : <div className="proto-bar" role="toolbar" aria-label="原型开关">
       <span className="proto-tag">PROTOTYPE · 合并版</span>
+      {group('语言', [{ key: 'zh-CN', name: '中文' }, { key: 'en', name: 'English' }] as const, lang, setLang)}
       {group('仓库', ghStates, gh, setGh)}
       {group('直接操作', [{ key: 'ok', name: '成功' }, { key: 'fail', name: '失败' }, { key: 'readonly', name: '无写权限' }] as const, writes, setWrites)}
       <button onClick={() => setRunning(r => !r)}>{running ? '暂停模拟' : '继续模拟'}</button>

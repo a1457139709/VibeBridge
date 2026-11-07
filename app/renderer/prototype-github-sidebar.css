@@ -67,7 +67,7 @@
 .gh-row-main { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 4px; }
 .gh-row-title { font-size: 13px; font-weight: 600; line-height: 1.35; }
 .gh-row-meta { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 8px; font-size: 11px; color: var(--muted); }
-.gh-blocked { display: inline-flex; align-items: center; gap: 3px; color: var(--gh-pending); font-weight: 600; font-size: 11px; white-space: nowrap; }
+.gh-blocked { display: inline-flex; align-items: center; gap: 3px; color: var(--gh-failed); font-weight: 600; font-size: 11px; white-space: nowrap; }
 .gh-blocked svg { fill: currentColor; }
 .gh-progress { display: inline-flex; align-items: center; gap: 4px; font-variant-numeric: tabular-nums; }
 .gh-progress-bar { width: 36px; height: 6px; border-radius: 3px; background: var(--line); overflow: hidden; display: inline-block; }
