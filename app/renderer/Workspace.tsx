@@ -88,7 +88,7 @@ export function Workspace({ project, report, openAgentSettings, location, visibl
           : { left: `${box.x * 100}%`, top: `${box.y * 100}%`, width: `${box.width * 100}%`, height: `${box.height * 100}%`, visibility: maximized ? 'hidden' : 'visible' };
         return <AgentPanel key={panel.id} panel={panel} position={position} focused={focused === panel.id}
           select={() => viewing.select(panel.id)} focusChanged={() => viewing.focusChanged(panel.id)} headerClick={() => viewing.focus(panel.id)}
-          headerPointerDown={event => interactions.current?.startSwap(event.nativeEvent, event.currentTarget, panel.id)}
+          headerPointerDown={event => interactions.current?.startDrag(event.nativeEvent, event.currentTarget, panel.id)}
           actions={<><PanelAction label={maximized === panel.id ? t('restorePanel') : t('enlargePanel')} run={() => viewing.toggleMaximize(panel.id)}>⤢</PanelAction>
             <PanelAction label={t('closePanel')} run={() => close(panel.id)}>×</PanelAction></>} />;
       })}
