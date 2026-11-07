@@ -1,16 +1,18 @@
-// PROTOTYPE — throwaway, part of prototype-github-sidebar.tsx. Never import or adapt into production (AGENTS.md「Prototype scope」).
+// PROTOTYPE — throwaway, part of prototype-workbench.tsx. Never import or adapt into production (AGENTS.md「Prototype scope」).
 // v2.1 detail: one column so the body keeps its width. It opens leftwards from the sidebar's edge, over the layout area
 // (terminals are not resized). Top: parent crumb, title, one row of state + labels + blocking + dispatch; then the relation graph,
 // body, sub-issues (number order, each with its blocking mark: the only place sub-issue order shows), timeline.
-import React, { useState, type PointerEvent as ReactPointerEvent } from 'react';
+import React, { useEffect, useRef, useState, type PointerEvent as ReactPointerEvent, type ReactNode } from 'react';
+import { agentIcons } from './agent-icons';
 import { ago, childProgress, githubUrl, openBlockers, type Comment, type DispatchRecord, type Issue, type Pane, type Pull, type Repo, type Selected } from './prototype-github-sidebar-model';
-import { Blocked, checksText, DispatchSplit, DispatchStatus, IssueIcon, IssuePill, Label, Progress, PullIcon, PullPill, reviewText } from './prototype-github-sidebar-common';
+import { Blocked, checksText, DispatchStatus, IssueIcon, IssuePill, Label, Progress, PullIcon, PullPill, reviewText } from './prototype-github-sidebar-common';
 import { Markdown } from './prototype-github-sidebar-markdown';
 import { RelationGraph } from './prototype-github-sidebar-relations';
 
 interface Props {
   repo: Repo; selected: NonNullable<Selected>; width: number; onWidth(w: number): void; canBack: boolean; onBack(): void; onClose(): void; onOpen(s: Selected): void;
-  panes: Pane[]; dispatches: DispatchRecord[]; onDispatch(issue: number, step: string, pane: string | 'new'): void; onLocate(pane: string): void;
+  panes: Pane[]; dispatches: DispatchRecord[]; onLocate(pane: string): void; dispatchButton(issue: Issue, weak: boolean): ReactNode;
+  /** Prototype switch for #156: what the next direct action does. */ writes: 'ok' | 'fail' | 'readonly';
 }
 
 export function DetailPane(props: Props) {
@@ -23,16 +25,23 @@ export function DetailPane(props: Props) {
     const up = () => { document.body.classList.remove('resizing'); window.removeEventListener('pointermove', move); window.removeEventListener('pointerup', up); };
     window.addEventListener('pointermove', move); window.addEventListener('pointerup', up);
   };
-  return <section className="gh-detail" style={{ width }} aria-label="详情">
+  const scroller = useRef<HTMLDivElement>(null);
+  useEffect(() => { scroller.current?.focus({ preventScroll: true }); scroller.current?.scrollTo({ top: 0 }); }, [selected.kind, selected.number]);
+  // #157: focus lands in the detail; ↑/↓ scroll the body (native on the focused scroller), Tab walks links and buttons, → or Esc go back to the row.
+  const keydown = (e: React.KeyboardEvent) => {
+    if (e.defaultPrevented || (e.target as HTMLElement).closest('input, textarea, .wb-menu')) return;
+    if (e.key === 'Escape' || (e.key === 'ArrowRight' && !e.metaKey && !e.altKey)) { e.preventDefault(); onClose(); }
+  };
+  return <section className="gh-detail" style={{ width }} aria-label="详情" onKeyDown={keydown}>
     <div className="gh-detail-resize" onPointerDown={resize} title="拖动调整宽度" />
     <header className="gh-detail-bar">
       <button disabled={!canBack} onClick={onBack} title="返回上一个">‹</button>
       <span className="gh-detail-crumb">{selected.kind === 'issue' ? 'Issue' : 'Pull request'} #{selected.number}</span>
       <span className="gh-spacer" />
       <a href={githubUrl(repo, selected.kind, selected.number)} target="_blank" rel="noreferrer">在 GitHub 打开 ↗</a>
-      <button onClick={onClose} title="关闭（Esc）">×</button>
+      <button onClick={onClose} title="收起（→ 或 Esc）">×</button>
     </header>
-    <div className="gh-detail-scroll">
+    <div className="gh-detail-scroll" ref={scroller} tabIndex={-1}>
       {!item ? <p className="gh-empty">#{selected.number} 不在快照里</p>
         : selected.kind === 'issue' ? <IssueDetail {...props} issue={item as Issue} /> : <PullDetail {...props} pull={item as Pull} />}
     </div>
@@ -46,7 +55,7 @@ function Timeline({ repo, comments, onOpen }: { repo: Repo; comments: Comment[];
   </article>)}</>;
 }
 
-function IssueDetail({ repo, issue: i, onOpen, panes, dispatches, onDispatch, onLocate }: Props & { issue: Issue }) {
+function IssueDetail({ repo, issue: i, onOpen, panes, dispatches, onLocate, dispatchButton, writes }: Props & { issue: Issue }) {
   const kids = (repo.children.get(i.number) ?? []).map(n => repo.issues.get(n)).filter((k): k is Issue => !!k);
   const parent = i.parent ? repo.issues.get(i.parent) : undefined;
   const blockers = openBlockers(repo, i);
@@ -60,9 +69,9 @@ function IssueDetail({ repo, issue: i, onOpen, panes, dispatches, onDispatch, on
       {i.labels.map(l => <Label key={l} repo={repo} name={l} />)}
       <span className="gh-spacer" />
       {!!blockers.length && <Blocked repo={repo} by={blockers} />}
-      {i.state === 'open' && <DispatchSplit issue={i} panes={panes} weak={!!blockers.length} onDispatch={(step, pane) => onDispatch(i.number, step, pane)} />}
+      {i.state === 'open' && dispatchButton(i, !!blockers.length)}
     </div>
-    {!!records.length && <div className="gh-doc-records">{records.map((r, k) => <span key={k} className="gh-record"><code>{r.step}</code><span>{ago(r.at)}</span><DispatchStatus records={[r]} panes={panes} onLocate={onLocate} /></span>)}</div>}
+    {!!records.length && <Records records={records} panes={panes} onLocate={onLocate} folded={i.state === 'closed'} />}
     <RelationGraph repo={repo} issue={i} onOpen={onOpen} />
     <ClosingPulls repo={repo} issue={i} onOpen={onOpen} />
     <div className="gh-doc-main">
@@ -73,7 +82,43 @@ function IssueDetail({ repo, issue: i, onOpen, panes, dispatches, onDispatch, on
           {dispatches.some(d => d.issue === k.number) && <DispatchStatus records={dispatches.filter(d => d.issue === k.number)} panes={panes} onLocate={onLocate} />}</div>; })}
       </section>}
       <Timeline repo={repo} comments={i.comments} onOpen={onOpen} />
+      <IssueActions issue={i} writes={writes} />
     </div>
+  </div>;
+}
+
+/** #142: newest first — time, Agent type, session title (jumps when a pane is on that session), the text sent (folded). Closed issue: folded as a whole. */
+function Records({ records, panes, onLocate, folded }: { records: DispatchRecord[]; panes: Pane[]; onLocate(pane: string): void; folded: boolean }) {
+  const [open, setOpen] = useState(!folded);
+  const [shown, setShown] = useState<Set<number>>(new Set());
+  return <section className="gh-box wb-records"><header><button className="gh-text-button" onClick={() => setOpen(o => !o)}>{open ? '▾' : '▸'} 派发记录 ({records.length})</button></header>
+    {open && [...records].reverse().map((r, k) => { const pane = panes.find(p => p.id === r.pane); return <div key={k} className="wb-record">
+      <span className="muted">{ago(r.at)}</span><span className="agent-mark">{agentIcons[r.agent]}</span>
+      {pane ? <button className="gh-ref inline" onClick={() => onLocate(pane.id)} title="定位到正处在这个会话上的面板"><span className="gh-ellipsis">{pane.title}</span></button> : <span className="muted gh-ellipsis" title="没有面板处在这个会话上">{r.title}</span>}
+      {pane && <DispatchStatus records={[r]} panes={panes} onLocate={onLocate} />}
+      <button className="gh-text-button" onClick={() => setShown(s => { const n = new Set(s); if (n.has(k)) n.delete(k); else n.add(k); return n; })}>{shown.has(k) ? '收起指令' : `${r.command} ▸`}</button>
+      {shown.has(k) && <code className="wb-record-text">{r.text}</code>}
+    </div>; })}
+  </section>;
+}
+
+/** #156: close (completed / not planned) or reopen, one click, at the bottom like GitHub. No write permission: no buttons. Failure: reason + retry under the button. */
+function IssueActions({ issue, writes }: { issue: Issue; writes: Props['writes'] }) {
+  const [state, setState] = useState<{ run?: string; error?: string; done?: string }>({});
+  const [menu, setMenu] = useState(false);
+  useEffect(() => setState({}), [issue.number]);
+  if (writes === 'readonly') return <p className="muted wb-actions-note">（原型：没有写权限时这里不显示任何按钮）</p>;
+  const run = (what: string) => { setMenu(false); setState({ run: what }); setTimeout(() => setState(writes === 'fail' ? { error: `${what}失败：HTTP 502（GitHub 暂时不可用）`, run: undefined } : { done: what }), 700); };
+  const closed = issue.state === 'closed';
+  return <div className="wb-issue-actions">
+    {state.done ? <span className="muted">已{state.done}（原型：不会真的改动 GitHub，真实实现会触发一次刷新）</span> : closed
+      ? <button className="gh-btn" disabled={!!state.run} onClick={() => run('重新打开')}>{state.run ? '处理中…' : '重新打开 issue'}</button>
+      : <span className="gh-split detail-inline">
+        <button className="gh-split-main" disabled={!!state.run} onClick={() => run('关闭为已完成')}>{state.run ? '处理中…' : '关闭 issue'}</button>
+        <button className="gh-split-more" disabled={!!state.run} onClick={() => setMenu(m => !m)}>▾</button>
+        {menu && <div className="gh-pop wb-close-pop"><button onClick={() => run('关闭为已完成')}>关闭为已完成</button><button onClick={() => run('关闭为不做')}>关闭为不做（not planned）</button></div>}
+      </span>}
+    {state.error && <div className="wb-action-error">{state.error} <button className="gh-text-button" onClick={() => run(state.error!.split('失败')[0])}>重试</button></div>}
   </div>;
 }
 

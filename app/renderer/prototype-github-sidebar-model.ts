@@ -1,4 +1,4 @@
-// PROTOTYPE — throwaway, lives only on branch `prototype/github-sidebar`. Never import or adapt into production
+// PROTOTYPE — throwaway, lives on branch `prototype/workbench`. Never import or adapt into production
 // (AGENTS.md「Prototype scope」). v2 (#139): snapshot shape, indexes, filtering and the fake dispatch state.
 import type { ProcessingState } from '../shared/processing-status';
 
@@ -113,22 +113,14 @@ export const githubUrl = (repo: Repo, kind: 'issue' | 'pull', n: number) => `htt
 // ---- fake workbench side -----------------------------------------------------------------------------------
 export interface Pane { id: string; title: string; agent: 'claude' | 'codex' | 'pi'; status: ProcessingState; ephemeral: boolean }
 /** A dispatch points at the session it went to; the prototype keeps the pane id to show where that session is now. */
-export interface DispatchRecord { issue: number; pane: string; step: string; at: string }
-export const steps = ['/grill-with-docs', '/to-spec', '/to-tickets', '/implement'];
-export const defaultStep = steps[0];
+export interface DispatchRecord { issue: number; pane: string; command: string; text: string; agent: 'claude' | 'codex' | 'pi'; title: string; at: string }
 export const initialDispatches: DispatchRecord[] = [
-  { issue: 139, pane: 'e1', step: '/wayfinder', at: new Date(Date.now() - 40 * 60e3).toISOString() },
-  { issue: 140, pane: 'e3', step: '/grill-with-docs', at: new Date(Date.now() - 26 * 3600e3).toISOString() },
+  { issue: 139, pane: 'e1', command: 'wayfinder', text: '/wayfinder https://github.com/a1457139709/VibeBridge/issues/139', agent: 'claude', title: '原型：临时面板呈现', at: new Date(Date.now() - 40 * 60e3).toISOString() },
+  { issue: 140, pane: 'gone', command: 'grill-with-docs', text: '/grill-with-docs https://github.com/a1457139709/VibeBridge/issues/140', agent: 'claude', title: 'grill：仓库绑定', at: new Date(Date.now() - 26 * 3600e3).toISOString() },
 ];
 
 export type Selected = { kind: 'issue' | 'pull'; number: number } | undefined;
 export const sameSelection = (a: Selected, b: Selected) => !!a && !!b && a.kind === b.kind && a.number === b.number;
-
-export const places = [{ key: 'full', name: '贯通到底' }, { key: 'below', name: '工具栏下方' }] as const;
-// Mirrors the single setting. An old `fit=auto` in the URL is not a key any more, so param() falls back to the default.
-export const fits = [{ key: 'push', name: '挤压' }, { key: 'overlay', name: '覆盖' }] as const;
-export type Place = typeof places[number]['key'];
-export type Fit = typeof fits[number]['key'];
 
 export const param = <T extends string>(name: string, keys: readonly T[], fallback: T): T => {
   const value = new URLSearchParams(location.search).get(name);

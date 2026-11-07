@@ -1,10 +1,10 @@
-// PROTOTYPE — throwaway, part of prototype-github-sidebar.tsx. Never import or adapt into production (AGENTS.md「Prototype scope」).
-// Small shared pieces for v2: state colour, labels, progress, checks text, the split dispatch button and the dispatch status.
+// PROTOTYPE — throwaway, part of prototype-workbench.tsx. Never import or adapt into production (AGENTS.md「Prototype scope」).
+// Small shared pieces for v2: state colour, labels, progress, checks text, and the dispatch status.
 import React, { useEffect, useRef, useState } from 'react';
 import { BlockedIcon, GitMergeIcon, GitPullRequestClosedIcon, GitPullRequestDraftIcon, GitPullRequestIcon, IssueClosedIcon, IssueOpenedIcon, SkipIcon } from '@primer/octicons-react';
 import { ProcessingStatusIcon } from './ProcessingStatusIcon';
 import { statusName } from './prototype-ephemeral-panels-data';
-import { defaultStep, steps, type DispatchRecord, type Filter, type Issue, type Pane, type Pull, type Repo, type StateFilter } from './prototype-github-sidebar-model';
+import { ago, type DispatchRecord, type Filter, type Issue, type Pane, type Pull, type Repo, type StateFilter } from './prototype-github-sidebar-model';
 
 export const issueTone = (i: Issue) => i.state === 'open' ? 'open' : i.reason === 'not_planned' ? 'skipped' : 'done';
 export const pullTone = (p: Pull) => ({ open: 'open', draft: 'skipped', merged: 'done', closed: 'failed' } as const)[p.state];
@@ -58,33 +58,14 @@ export function usePopover() {
   return { open, setOpen, root };
 }
 
-/** Main half sends with the defaults (new ephemeral panel + default step); the caret picks a step and a target. */
-export function DispatchSplit({ issue, panes, onDispatch, weak = false, size = 'row' }: {
-  issue: Issue; panes: Pane[]; onDispatch(step: string, pane: string | 'new'): void; weak?: boolean; size?: 'row' | 'detail';
-}) {
-  const pop = usePopover();
-  const [step, setStep] = useState(defaultStep);
-  const send = (pane: string | 'new') => { onDispatch(step, pane); pop.setOpen(false); };
-  return <div className={`gh-split ${weak ? 'weak' : ''} ${size}`} ref={pop.root} onClick={e => e.stopPropagation()}>
-    <button className="gh-split-main" title={`用默认指令 ${defaultStep} #${issue.number} 派发到新临时面板`} onClick={() => onDispatch(defaultStep, 'new')}>派发</button>
-    <button className="gh-split-more" title="选择指令和面板" aria-expanded={pop.open} onClick={() => pop.setOpen(o => !o)}>▾</button>
-    {pop.open && <div className="gh-pop gh-dispatch-pop">
-      <div className="gh-pop-title">指令</div>
-      {steps.map(s => <button key={s} className={step === s ? 'on' : ''} onClick={() => setStep(s)}><code>{s} #{issue.number}</code>{s === defaultStep && <small>默认</small>}</button>)}
-      <div className="gh-pop-title">交给</div>
-      <button onClick={() => send('new')}><span>新临时面板</span><small>默认</small></button>
-      {panes.map(p => <button key={p.id} className={p.agent} onClick={() => send(p.id)}><span className="gh-agent-dot" /><span className="gh-ellipsis">{p.title}</span><small>{p.ephemeral ? '临时' : '常驻'}</small></button>)}
-    </div>}
-  </div>;
-}
-
-/** Where the issue's latest dispatch is now: the pane's processing state, clickable to locate the pane. */
+/** Where the issue's latest dispatch is now (#142): the pane's processing state, clickable to locate it; grey 「已派发 · 时间」 when no pane is on that session. */
 export function DispatchStatus({ records, panes, onLocate }: { records: DispatchRecord[]; panes: Pane[]; onLocate(pane: string): void }) {
   const last = records[records.length - 1];
   const pane = panes.find(p => p.id === last.pane);
-  if (!pane) return <span className="gh-dstatus gone" title="派发去的会话已不在任何打开的面板上">已派发{records.length > 1 ? ` ×${records.length}` : ''}</span>;
-  return <button className={`gh-dstatus status-${pane.status}`} title={`${last.step} → ${pane.title}（点击定位面板）`} onClick={e => { e.stopPropagation(); onLocate(pane.id); }}>
-    <span className="gh-dstatus-state"><ProcessingStatusIcon state={pane.status} />{statusName[pane.status]}{records.length > 1 ? ` ×${records.length}` : ''}</span>
+  const times = records.length > 1 ? ` ×${records.length}` : '';
+  if (!pane) return <span className="gh-dstatus gone" title="派发去的会话已不在任何打开的面板上">已派发 · {ago(last.at)}{times}</span>;
+  return <button className={`gh-dstatus status-${pane.status}`} title={`${last.text} → ${pane.title}（点击定位面板，⌘L）`} onClick={e => { e.stopPropagation(); onLocate(pane.id); }}>
+    <span className="gh-dstatus-state"><ProcessingStatusIcon state={pane.status} />{statusName[pane.status]}{times}</span>
     <span className="gh-dstatus-pane">{pane.title}</span>
   </button>;
 }

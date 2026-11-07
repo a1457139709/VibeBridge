@@ -1,9 +1,9 @@
-// PROTOTYPE — throwaway, part of prototype-ephemeral-panels.tsx. Never import or adapt into production (AGENTS.md「Prototype scope」).
+// PROTOTYPE — throwaway, part of prototype-workbench.tsx. Never import or adapt into production (AGENTS.md「Prototype scope」).
 import type { ProcessingState } from '../shared/processing-status';
 import type { Tree } from './prototype-ephemeral-panels-layout';
 
 export type Agent = 'claude' | 'codex' | 'pi';
-export interface Pane { id: string; agent: Agent; title: string; status: ProcessingState; lines: string[]; question?: string; remaining: number; next: ProcessingState; tick: number }
+export interface Pane { id: string; agent: Agent; title: string; status: ProcessingState; lines: string[]; question?: string; remaining: number; next: ProcessingState; tick: number; draft?: string; draftKey?: number }
 export const statusName: Record<ProcessingState, string> = { ready: '就绪', busy: '处理中', 'needs-input': '等待输入', done: '本轮结束', error: '异常' };
 export const agentName: Record<Agent, string> = { claude: 'Claude Code', codex: 'Codex', pi: 'pi' };
 

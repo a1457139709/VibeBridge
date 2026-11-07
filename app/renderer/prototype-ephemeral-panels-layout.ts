@@ -1,4 +1,4 @@
-// PROTOTYPE — throwaway, part of prototype-ephemeral-panels.tsx. Never import or adapt into production (AGENTS.md「Prototype scope」).
+// PROTOTYPE — throwaway, part of prototype-workbench.tsx. Never import or adapt into production (AGENTS.md「Prototype scope」).
 import type React from 'react';
 
 export type Tree = { panel: string } | { axis: 'row' | 'column'; ratio: number; first: Tree; second: Tree };
@@ -11,15 +11,8 @@ export function boxes(node: Tree, box: Box = { x: 0, y: 0, w: 1, h: 1 }, out = n
   else { boxes(node.first, { ...box, h: box.h * r }, out); boxes(node.second, { ...box, y: box.y + box.h * r, h: box.h * (1 - r) }, out); }
   return out;
 }
-// Mirrors today's "split the largest region" rule only so pinning shows the pain point it would inherit.
-export function splitLargest(tree: Tree, id: string): Tree {
-  let target = '', area = 0, axis: 'row' | 'column' = 'row';
-  for (const [panel, b] of boxes(tree)) if (b.w * b.h > area) { target = panel; area = b.w * b.h; axis = b.w >= b.h ? 'row' : 'column'; }
-  const walk = (n: Tree): Tree => 'panel' in n ? n.panel === target ? { axis, ratio: 0.5, first: n, second: { panel: id } } : n : { ...n, first: walk(n.first), second: walk(n.second) };
-  return walk(tree);
-}
-
 export type Side = 'left' | 'right' | 'top' | 'bottom';
+export type Drop = Side | 'center';
 export const ROOT = '@layout'; // drop target meaning "the whole layout area's edge"
 export type Path = ('first' | 'second')[];
 export function splitList(node: Tree, box: Box = { x: 0, y: 0, w: 1, h: 1 }, path: Path = [], out: { path: Path; axis: 'row' | 'column'; box: Box; ratio: number }[] = []) {
@@ -54,8 +47,15 @@ export function removeFrom(tree: Tree | null, id: string): Tree | null {
   const first = removeFrom(tree.first, id), second = removeFrom(tree.second, id);
   return first && second ? { ...tree, first, second } : first ?? second;
 }
-export const sideOf = (event: React.DragEvent<HTMLElement>): Side => {
+/** #153: the middle third of both width and height swaps; anywhere else splits on the nearest side. */
+export const dropOf = (event: React.DragEvent<HTMLElement>): Drop => {
   const r = event.currentTarget.getBoundingClientRect();
   const dx = (event.clientX - r.left) / r.width - 0.5, dy = (event.clientY - r.top) / r.height - 0.5;
+  if (Math.abs(dx) < 1 / 6 && Math.abs(dy) < 1 / 6) return 'center';
   return Math.abs(dx) > Math.abs(dy) ? (dx < 0 ? 'left' : 'right') : (dy < 0 ? 'top' : 'bottom');
 };
+/** Swap two leaves; when `b` is not in the tree (a tray card), it simply takes `a`'s place. */
+export function swap(tree: Tree, a: string, b: string): Tree {
+  const walk = (n: Tree): Tree => 'panel' in n ? n.panel === a ? { panel: b } : n.panel === b ? { panel: a } : n : { ...n, first: walk(n.first), second: walk(n.second) };
+  return walk(tree);
+}
