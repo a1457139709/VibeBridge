@@ -40,7 +40,7 @@ export function IssueList({ repo, filter, setFilter, cursor, onCursor, onOpenDet
     const shown = kids.filter(k => visible.get(k.number));
     return { kids, shown: shownClosed.has(i.number) ? [...shown, ...folded.filter(f => !shown.includes(f))] : shown, folded };
   };
-  // #160: the tree stays, but children start collapsed behind a full-width strip under the parent that summarises them;
+  // #160: the tree stays, but children start collapsed behind a summary chip on the parent's own meta line;
   // expanded children keep their full rows and sit in a block with one line down its left edge.
   const row = (i: Issue, parent?: number): ReactNode => {
     const { shown, folded } = kidsOf(i);
@@ -60,6 +60,10 @@ export function IssueList({ repo, filter, setFilter, cursor, onCursor, onOpenDet
           <div className="gh-row-title">{i.title}</div>
           <div className="gh-row-meta">
             <span className="gh-row-num">#{i.number}</span><span>{ago(i.createdAt)}</span>
+            {hasKids && <button className={`wb-kids ${open ? 'open' : ''}`} tabIndex={-1} title={open ? '收起子 issue' : '展开子 issue'}
+              onClick={e => { e.stopPropagation(); setExpanded(x => flipSet(x, i.number)); }}>
+              <span className="wb-kids-caret">{open ? '▾' : '▸'}</span><span>子 issue</span><Progress {...childProgress(repo, i.number)} />
+              {!!openKids && <span>· {openKids} 未完成</span>}{!!dispatched && <span>· {dispatched} 已派发</span>}</button>}
             {!!blockers.length && <Blocked repo={repo} by={blockers} />}
             {i.labels.map(l => <Label key={l} repo={repo} name={l} onClick={() => addLabel(l)} />)}
           </div>
@@ -69,11 +73,6 @@ export function IssueList({ repo, filter, setFilter, cursor, onCursor, onOpenDet
           {dispatchButton(i, !!blockers.length)}
         </div>}
       </div>
-      {hasKids && <button className={`wb-kids ${open ? 'open' : ''}`} tabIndex={-1} onClick={() => setExpanded(e => flipSet(e, i.number))}>
-        <span className="wb-kids-caret">{open ? '▾' : '▸'}</span><span>子 issue</span>
-        <Progress {...childProgress(repo, i.number)} />
-        {!!openKids && <span>{openKids} 个未完成</span>}{!!dispatched && <span>· {dispatched} 个已派发</span>}
-      </button>}
       {hasKids && open && <div className="wb-kids-body">
         {shown.map(k => row(k, i.number))}
         {!!folded.length && <button className="gh-fold" tabIndex={-1} onClick={() => setShownClosed(s => flipSet(s, i.number))}>

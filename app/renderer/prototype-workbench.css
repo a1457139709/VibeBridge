@@ -121,9 +121,9 @@
 
 /* #160 parent/child: no indent gutter; children collapsed behind a full-width summary strip; an expanded block has one line down its left. */
 .wb-tree .gh-row { padding: 8px 10px; }
-.wb-kids { display: flex; align-items: center; gap: 8px; width: 100%; min-height: 0; height: 28px; padding: 0 10px 0 34px; border: 0; border-radius: 0; border-bottom: 1px solid var(--line); background: color-mix(in srgb, var(--muted) 6%, transparent); text-align: left; font-size: 11px; color: var(--muted); }
-.wb-kids:hover { background: var(--gh-row-hover); color: inherit; }
-.wb-kids.open { color: inherit; }
+.wb-kids { display: inline-flex; align-items: center; gap: 5px; min-height: 0; height: 22px; padding: 0 8px 0 6px; border: 1px solid var(--line); border-radius: 999px; background: color-mix(in srgb, var(--muted) 8%, transparent); font-size: 11px; color: var(--muted); }
+.wb-kids:hover { background: var(--gh-row-hover); color: inherit; border-color: color-mix(in srgb, var(--gh-link) 50%, var(--line)); }
+.wb-kids.open { color: inherit; border-color: color-mix(in srgb, var(--gh-link) 50%, var(--line)); }
 .wb-kids-caret { width: 12px; font-size: 12px; }
 .wb-kids-body { margin-left: 18px; border-left: 2px solid color-mix(in srgb, var(--gh-link) 35%, var(--line)); }
 .wb-tree .wb-kids-body .gh-fold { padding-left: 34px !important; }
