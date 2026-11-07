@@ -40,7 +40,8 @@ function Prototype() {
   const [running, setRunning] = useState(true);
   const [page, setPage] = useState<'workspace' | 'settings'>('workspace');
   const [navOpen, setNavOpen] = useState(true);
-  const [fit, setFit] = useState<Fit>('overlay'); // #155: default 覆盖
+  const [fit, setFit] = useState<Fit>('push'); // #160: sidebar defaults to 挤压
+  const [detailFit, setDetailFit] = useState<Fit>('overlay'); // #160: detail defaults to 覆盖
   const [workflow, setWorkflow] = useState<WorkflowSettings>(initialWorkflow);
   const [writes, setWrites] = useState<'ok' | 'fail' | 'readonly'>('ok');
   // ---- GitHub side ----
@@ -231,9 +232,11 @@ function Prototype() {
   const openCount = (k: 'issue' | 'pull') => !repo ? '–' : k === 'issue' ? repo.snapshot.issues.filter(i => i.state === 'open').length : repo.snapshot.pulls.filter(p => p.state === 'open' || p.state === 'draft').length;
   const showData = gh === 'bound' || gh === 'stale';
   const fullState = (body: React.ReactNode) => <div className="wb-gh-state">{body}</div>;
+  const detailW = Math.min(detailWidth, winW - sideWidth - 40);
+  const detailShown = !!(sideOpen && repo && showData && selected);
   const sidebar = sideOpen && <aside className={`gh-sidebar ${overlay ? 'overlay' : ''}`} style={{ width: sideWidth }} aria-label="GitHub">
     <div className="gh-resize" onPointerDown={startSideResize} title="拖动调整宽度（300–560px）" />
-    {repo && showData && selected && <DetailPane repo={repo} selected={selected} width={Math.min(detailWidth, winW - sideWidth - 40)} onWidth={setDetailWidth} canBack={history.length > 1}
+    {repo && showData && selected && <DetailPane repo={repo} selected={selected} width={detailW} onWidth={setDetailWidth} canBack={history.length > 1}
       onBack={() => setHistory(h => h.slice(0, -1))} onClose={closeDetail} onOpen={openInside} panes={sidePanes} dispatches={dispatches} onLocate={locate}
       dispatchButton={dispatchButton('detail')} writes={writes} />}
     <header className="gh-head"><span className="gh-repo">{gh === 'unbound' ? '未绑定仓库' : repoName}</span><span className="gh-spacer" />
@@ -327,10 +330,10 @@ function Prototype() {
       {group('直接操作', [{ key: 'ok', name: '成功' }, { key: 'fail', name: '失败' }, { key: 'readonly', name: '无写权限' }] as const, writes, setWrites)}
       <button onClick={() => setRunning(r => !r)}>{running ? '暂停模拟' : '继续模拟'}</button>
       <button onClick={() => setTheme(t => t === 'dark' ? 'light' : 'dark')}>{theme === 'dark' ? '☾' : '☀'}</button>
-      <span className="proto-state">{overlay ? '覆盖' : '挤压'} · 放大：{opened?.title ?? '—'} · 焦点面板：{all.find(p => p.id === focused)?.title ?? '—'}</span>
+      <span className="proto-state">侧边栏{overlay ? '覆盖' : '挤压'} · 详情{detailFit === 'overlay' ? '覆盖' : '挤压'} · 放大：{opened?.title ?? '—'} · 焦点面板：{all.find(p => p.id === focused)?.title ?? '—'}</span>
       <button title="隐藏原型开关条" onClick={() => setBarHidden(true)}>▾</button>
     </div>}
-    <div className={`app-body wb-body ${overlay && sideOpen ? 'wb-yield' : ''} ${page === 'workspace' ? 'wb-on-workspace' : ''}`} style={{ '--side-w': `${sideWidth}px` } as CSSProperties}>
+    <div className={`app-body wb-body ${overlay && sideOpen ? 'wb-yield' : ''} ${page === 'workspace' ? 'wb-on-workspace' : ''} ${detailShown && detailFit === 'push' ? 'wb-detail-push' : ''}`} style={{ '--side-w': `${sideWidth}px`, '--detail-w': `${detailW}px` } as CSSProperties}>
       {navOpen && <nav className="navigation" style={{ '--navigation-width': '230px' } as CSSProperties}>
         <div className="navigation-projects"><div className="nav-heading">项目</div>
           <section className="project-group">
@@ -348,7 +351,7 @@ function Prototype() {
         </div>
         <div className="nav-footer"><span>本地工作台</span><button className={`settings-entry ${page === 'settings' ? 'selected' : ''}`} title="设置" onClick={() => setPage(p => p === 'settings' ? 'workspace' : 'settings')}>⚙</button></div>
       </nav>}
-      <main>{page === 'settings' ? <SettingsPage fit={fit} setFit={setFit} workflow={workflow} setWorkflow={setWorkflow} /> : workspace}</main>
+      <main>{page === 'settings' ? <SettingsPage fit={fit} setFit={setFit} detailFit={detailFit} setDetailFit={setDetailFit} workflow={workflow} setWorkflow={setWorkflow} /> : workspace}</main>
       {sidebar}
     </div>
     {dialog && <EditProjectDialog repo={repo?.snapshot.repo ?? 'a1457139709/VibeBridge'} bound={gh === 'unbound' ? undefined : bound} gh={gh}

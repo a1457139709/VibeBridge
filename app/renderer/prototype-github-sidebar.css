@@ -61,7 +61,6 @@
 .gh-row:hover { background: var(--gh-row-hover); }
 .gh-row.selected { background: color-mix(in srgb, var(--gh-link) 10%, transparent); box-shadow: inset 2px 0 var(--gh-link); }
 .gh-row.context .gh-row-title { color: var(--muted); }
-.gh-row::before { content: ''; position: absolute; left: 0; top: 0; bottom: 0; width: calc(var(--depth) * 14px); background: repeating-linear-gradient(90deg, transparent 0 12px, var(--line) 12px 13px, transparent 13px 14px); pointer-events: none; }
 .gh-disclosure { width: 14px; height: 18px; flex-shrink: 0; border: 0 !important; background: none !important; padding: 0 !important; color: var(--muted); font-size: 10px; }
 .gh-icon { display: inline-flex; flex-shrink: 0; } .gh-icon svg { fill: currentColor; display: block; }
 .gh-row > .gh-icon { margin-top: 2px; }

@@ -6,6 +6,8 @@
 .gh-sidebar.overlay { top: 0; bottom: 0; }
 /* #160: the detail covers only the layout area — between the workspace toolbar (32px) and the tray (40px). */
 .wb-on-workspace .gh-detail { top: 32px; bottom: 40px; border-top: 1px solid var(--line); border-bottom: 1px solid var(--line); }
+/* #160 detail 挤压: the layout area also gives up the detail's width while it is open. */
+.wb-detail-push .gh-stage { margin-right: var(--detail-w); }
 .wb-refresh { display: grid; place-items: center; }
 .wb-refresh svg { fill: currentColor; }
 .wb-refresh.spin svg { animation: wb-spin .8s linear infinite; }

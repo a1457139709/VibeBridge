@@ -7,7 +7,7 @@ export type Fit = 'overlay' | 'push';
 const categories = ['通用', 'Agent', '工作流', '外观', '快捷键'] as const;
 type Category = typeof categories[number];
 
-export function SettingsPage({ fit, setFit, workflow, setWorkflow }: { fit: Fit; setFit(f: Fit): void; workflow: WorkflowSettings; setWorkflow(update: (w: WorkflowSettings) => WorkflowSettings): void }) {
+export function SettingsPage({ fit, setFit, detailFit, setDetailFit, workflow, setWorkflow }: { fit: Fit; setFit(f: Fit): void; detailFit: Fit; setDetailFit(f: Fit): void; workflow: WorkflowSettings; setWorkflow(update: (w: WorkflowSettings) => WorkflowSettings): void }) {
   const [category, setCategory] = useState<Category>('工作流');
   const [expanded, setExpanded] = useState(true);
   const setMode = (skill: string, mode: Mode) => setWorkflow(w => ({ ...w, modes: { ...w.modes, [skill]: mode } }));
@@ -33,10 +33,15 @@ export function SettingsPage({ fit, setFit, workflow, setWorkflow }: { fit: Fit;
       {category === '外观' && <>
         <p className="muted">（默认布局等现有设置略。）</p>
         <section className="wb-card"><div className="wb-setting-row column">
-          <b>GitHub 侧边栏与布局区域</b>
-          <label className="wb-radio"><input type="radio" checked={fit === 'overlay'} onChange={() => setFit('overlay')} /><span><b>覆盖</b>（默认）：侧边栏盖在布局区域右侧，面板尺寸不变；工作区工具栏和托盘让出位置。</span></label>
-          <label className="wb-radio"><input type="radio" checked={fit === 'push'} onChange={() => setFit('push')} /><span><b>挤压</b>：布局区域变窄，面板跟着重新排布。</span></label>
-          <span className="muted">不论选哪种，issue 详情都盖在布局区域上。</span>
+          <b>打开 GitHub 侧边栏时</b>
+          <label className="wb-radio"><input type="radio" checked={fit === 'push'} onChange={() => setFit('push')} /><span><b>挤压</b>（默认）：布局区域变窄，面板跟着重新排布。</span></label>
+          <label className="wb-radio"><input type="radio" checked={fit === 'overlay'} onChange={() => setFit('overlay')} /><span><b>覆盖</b>：侧边栏盖在布局区域右侧，面板尺寸不变；工作区工具栏和托盘让出位置。</span></label>
+        </div></section>
+        <section className="wb-card"><div className="wb-setting-row column">
+          <b>打开 issue / PR 详情时</b>
+          <label className="wb-radio"><input type="radio" checked={detailFit === 'overlay'} onChange={() => setDetailFit('overlay')} /><span><b>覆盖</b>（默认）：详情盖在布局区域上，面板尺寸不变。</span></label>
+          <label className="wb-radio"><input type="radio" checked={detailFit === 'push'} onChange={() => setDetailFit('push')} /><span><b>挤压</b>：布局区域再让出详情的宽度，面板跟着重新排布；关掉详情后恢复。</span></label>
+          <span className="muted">不论选哪种，详情都只占工作区工具栏和托盘之间。</span>
         </div></section>
       </>}
       {category === '快捷键' && <table className="wb-keys"><tbody>
