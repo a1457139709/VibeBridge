@@ -24,7 +24,7 @@ function fixture(saveSettings?: DesktopAPI['saveSettings']) {
     navigation: { visible: true, width: 212 }, activeProjectId: 'project', settings: defaultSettings(),
     settingsConflicts: [], startupTheme: 'light', resolvedTheme: 'light', errors: [],
     projects: [{ id: 'project', name: 'Project title stays out of the bar', directory: '/project', layout: null,
-      panels: ([['first', 'done'], ['second', 'done'], ['third', 'needs-input'], ['fresh', 'ready']] as const).map(([id, status]) => panel(id, status)) }],
+      panels: ([['first', 'done'], ['second', 'done'], ['third', 'needs-input'], ['fresh', 'ready']] as const).map(([id, status]) => panel(id, status)), tray: [] }],
   };
   const listeners = new Set<(event: WorkbenchEvent) => void>();
   const located: (string | undefined)[][] = [];

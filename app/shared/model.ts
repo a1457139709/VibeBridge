@@ -1,6 +1,5 @@
 import { z } from 'zod';
 import { message } from './messages';
-import { layoutBoxes } from './layout';
 import type { Shortcuts } from './shortcuts';
 import { projectNameError } from './project-name';
 import type { ProcessingState } from './processing-status';
@@ -35,8 +34,10 @@ export const navigationSchema = z.strictObject({ visible: z.boolean(), width: z.
 export const navigationWidth = (width: number) => Math.max(168, Math.min(420, width));
 /** A panel with its current run, whatever that run's state, and the processing state it displays. */
 export type PanelView = Panel & { run?: Run; status?: ProcessingState };
-/** A project as the snapshot shows it; the stored Project keeps only panel configuration. */
-export type ProjectView = Omit<Project, 'panels'> & { panels: PanelView[] };
+/** A project as the snapshot shows it. `panels` are its resident panels, placed by `layout`;
+ * `tray` holds its ephemeral panels in the order they joined. The stored Project keeps only
+ * the resident panels' configuration and layout; the tray lives in memory for one app run. */
+export type ProjectView = Omit<Project, 'panels'> & { panels: PanelView[]; tray: PanelView[] };
 export interface Snapshot { navigation: NavigationPreferences; projects: ProjectView[]; activeProjectId: string | null; settings: Settings; settingsConflicts: SettingsIssue[]; startupTheme: Settings['theme']; resolvedTheme: 'dark' | 'light'; errors: string[] }
 export type TerminalEvent = { kind: 'title'; runId: string; title: string } | { kind: 'output'; runId: string; data: string } | { kind: 'started'; run: Run } | { kind: 'stopping'; runId: string } | { kind: 'exit'; runId: string };
 export type WorkbenchEvent = Extract<TerminalEvent, { kind: 'started' | 'output' | 'exit' }> | { kind: 'snapshot'; snapshot: Snapshot } | { kind: 'error'; message: string };
@@ -68,19 +69,6 @@ export function removeFromLayout(layout: Layout | null, panelId: string): Layout
   if ('panel' in layout) return layout.panel === panelId ? null : layout;
   const first = removeFromLayout(layout.first, panelId), second = removeFromLayout(layout.second, panelId);
   return first && second ? { ...layout, first, second } : first ?? second;
-}
-
-export function insertIntoLayout(layout: Layout | null, panelId: string): Layout {
-  if (!layout) return { panel: panelId };
-  let target = { panel: '', area: 0, axis: 'row' as 'row' | 'column' };
-  // Split the largest relative region. Selection is independent of focus and terminal grid size.
-  for (const [panel, { width, height }] of layoutBoxes(layout).panels) {
-    if (width * height > target.area) target = { panel, area: width * height, axis: width >= height ? 'row' : 'column' };
-  }
-  const insert = (node: Layout): Layout => 'panel' in node
-    ? node.panel === target.panel ? { axis: target.axis, ratio: 0.5, first: node, second: { panel: panelId } } : node
-    : { ...node, first: insert(node.first), second: insert(node.second) };
-  return insert(layout);
 }
 
 const layoutNodeSchema: z.ZodType<Layout> = z.lazy(() => z.union([
