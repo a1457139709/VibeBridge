@@ -46,6 +46,8 @@ test('placing into the layout rejects a wrong target layout without changing any
       { axis: 'row', ratio: .5, first: { panel: left.id }, second: { panel: right.id } },
       { axis: 'row', ratio: .5, first: { panel: first.panel.id }, second: { panel: second.panel.id } },
       { panel: first.panel.id },
+      // Leaves out the right panel, but the placed panel takes the left panel's position.
+      { axis: 'row', ratio: .5, first: { panel: first.panel.id }, second: { panel: left.id } },
     ];
     for (const layout of wrong) await assert.rejects(f.workbench.placeInLayout(project.id, first.panel.id, layout), /layoutMismatch/);
     await assert.rejects(f.workbench.placeInLayout(project.id, left.id, { axis: 'row', ratio: .5, first: { panel: left.id }, second: { panel: right.id } }), /panelMissing/);

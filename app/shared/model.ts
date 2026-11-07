@@ -82,6 +82,16 @@ const layoutSchema = layoutNodeSchema.refine(layout => layoutDepth(layout) <= 10
 /** The panel IDs a layout places, in order. */
 export const layoutPanelIds = (layout: Layout | null): string[] => layout ? panelIds(layout) : [];
 
+/** The branch path from the root to a panel in a layout, or null when the layout does not place it. */
+export function panelPosition(layout: Layout | null, panelId: string): ('first' | 'second')[] | null {
+  if (!layout) return null;
+  if ('panel' in layout) return layout.panel === panelId ? [] : null;
+  const first = panelPosition(layout.first, panelId);
+  if (first) return ['first', ...first];
+  const second = panelPosition(layout.second, panelId);
+  return second && ['second', ...second];
+}
+
 /** A layout whose structure is valid, whichever panels it places. */
 export function layoutStructure(value: unknown): Layout | null {
   const parsed = layoutSchema.safeParse(value);

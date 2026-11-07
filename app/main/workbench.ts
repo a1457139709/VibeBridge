@@ -4,7 +4,7 @@ import type { Language, ProjectEdit, ProjectEditResult } from '../shared/model';
 import { randomUUID } from 'node:crypto';
 import { realpath, stat } from 'node:fs/promises';
 import { basename } from 'node:path';
-import { defaultNavigation, navigationSchema, navigationWidth, type NavigationPreferences, assignedAgents, arrange, validateDraft, removeFromLayout, parseLayout, layoutStructure, layoutPanelIds, agentTypes, type AgentType, type DirectoryResult, type LaunchResult, type Layout, type Panel, type Project, type ProjectCreation, type ProjectDraft, type PanelCreation, type Settings, type Snapshot, type WorkbenchEvent } from '../shared/model';
+import { defaultNavigation, navigationSchema, navigationWidth, type NavigationPreferences, assignedAgents, arrange, validateDraft, removeFromLayout, parseLayout, layoutStructure, layoutPanelIds, panelPosition, agentTypes, type AgentType, type DirectoryResult, type LaunchResult, type Layout, type Panel, type Project, type ProjectCreation, type ProjectDraft, type PanelCreation, type Settings, type Snapshot, type WorkbenchEvent } from '../shared/model';
 import { ProjectStore } from './storage';
 import { SettingsFile, defaultSettings } from './settings';
 import { settingsConflicts, type SettingsSaveResult } from '../shared/settings';
@@ -202,17 +202,19 @@ export class Workbench {
   /**
    * Makes a tray panel resident with the target layout the renderer computed for the drop.
    * The layout places the resident panels plus this one; a swap leaves out the one resident
-   * panel it replaces, which joins the end of the tray. Runs are untouched.
+   * panel whose position this one takes, and that panel joins the end of the tray. Runs are untouched.
    */
   placeInLayout(projectId: string, panelId: string, layout: Layout) { return this.operation(async () => {
     const project = this.project(projectId);
     const panel = this.tray(projectId).find(p => p.id === panelId);
     if (!panel) throw new Error(message('panelMissing'));
-    const placed = layoutPanelIds(layoutStructure(layout));
+    const structure = layoutStructure(layout);
+    const placed = layoutPanelIds(structure);
     const replaced = project.panels.filter(resident => !placed.includes(resident.id));
-    if (replaced.length > 1) throw new Error(message('layoutMismatch'));
+    // A swap is valid only when the placed panel takes the position of the one panel it replaces.
+    if (replaced.length > 1 || (replaced.length === 1 && String(panelPosition(structure, panelId)) !== String(panelPosition(project.layout, replaced[0].id)))) throw new Error(message('layoutMismatch'));
     const panels = [...project.panels.filter(resident => !replaced.includes(resident)), panel];
-    const next = { ...project, panels, layout: parseLayout(layout, panels) };
+    const next = { ...project, panels, layout: parseLayout(structure, panels) };
     await this.store.save(next);
     Object.assign(project, next);
     this.trays.set(projectId, [...this.tray(projectId).filter(p => p !== panel), ...replaced]);
