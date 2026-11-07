@@ -2,7 +2,7 @@ import { agentNames, type Panel, type Layout, type Language } from '../shared/mo
 import { dropIntoLayout, layoutBoxes, type Drop, type Side } from '../shared/layout';
 import { localize } from '../shared/localization';
 
-// The band along each edge of the layout area that fills that whole side (#155: a fixed value, not a setting).
+// The band along each edge of the layout area that fills that whole side: a fixed value, not a setting.
 const edgeBand = 24;
 const sideNames = { top: 'sideTop', bottom: 'sideBottom', left: 'sideLeft', right: 'sideRight' } as const;
 
@@ -45,6 +45,8 @@ export function dropAt(canvas: DOMRect, panels: { id: string; box: DOMRect }[], 
 
 /** What releasing a dragged panel does: the layout it produces, or (for a resident panel) moving it to the tray. */
 export type DragResult = { kind: 'layout'; layout: Layout } | { kind: 'tray' };
+// Where a dragged panel would land: in the layout, or (for a resident panel) on the tray.
+type Target = Drop | { kind: 'tray' };
 
 /**
  * Previews dragging a panel. A resident panel is dragged from its slot and can also be dropped on the tray.
@@ -75,21 +77,20 @@ export function createDragPreview({ event, canvas, source, element, panels, layo
   // While a tray panel is placed, the open tray panel steps aside so every resident panel is a visible target.
   const covering = resident ? [] : [...canvas.querySelectorAll<HTMLElement>('.panel-slot')].filter(slot => !panels.some(panel => panel.id === slot.dataset.panelId));
   const offset = { x: event.clientX - dragged.box.x, y: event.clientY - dragged.box.y };
-  let moving = false, drop: Drop | 'tray' | undefined, next: DragResult | undefined;
+  let moving = false, drop: Target | undefined, next: DragResult | undefined;
   let ghost: HTMLDivElement | undefined, preview: HTMLDivElement | undefined, hidden: HTMLElement | undefined;
-  const layer = (image: HTMLElement, box: DOMRect, label: string, className: string) => {
-    const wrapper = document.createElement('div');
-    wrapper.className = className;
-    wrapper.setAttribute('role', 'img'); wrapper.setAttribute('aria-label', label);
-    Object.assign(wrapper.style, { left: `${box.x}px`, top: `${box.y}px`, width: `${box.width}px`, height: `${box.height}px` });
-    wrapper.append(image); return wrapper;
-  };
-  const outline = (label: string, box: { x: number; y: number; width: number; height: number }) => {
-    const element = document.createElement('div'); element.className = `panel-drop-preview ${source.agent}`;
+  // A labelled picture over the given window area.
+  const figure = (className: string, label: string, box: { x: number; y: number; width: number; height: number }) => {
+    const element = document.createElement('div'); element.className = className;
     element.setAttribute('role', 'img'); element.setAttribute('aria-label', label);
     Object.assign(element.style, { left: `${box.x}px`, top: `${box.y}px`, width: `${box.width}px`, height: `${box.height}px` });
     return element;
   };
+  const layer = (image: HTMLElement, box: DOMRect, label: string, className: string) => {
+    const wrapper = figure(className, label, box);
+    wrapper.append(image); return wrapper;
+  };
+  const outline = (label: string, box: { x: number; y: number; width: number; height: number }) => figure(`panel-drop-preview ${source.agent}`, label, box);
   // The area the dragged panel takes in a layout, in window coordinates.
   const placed = (result: Layout) => {
     const box = layoutBoxes(result).panels.get(source.id)!;
@@ -111,13 +112,13 @@ export function createDragPreview({ event, canvas, source, element, panels, layo
       : drop.kind === 'fill' ? t('fillPreview', { agent, side: t(sideNames[drop.side]) })
         : t('splitPreview', { agent, side: t(sideNames[drop.side]), target: agentNames[images.find(image => image.panel.id === drop.panel)!.panel.agent] }),
     placed(result));
-  const show = (candidate?: Drop | 'tray') => {
+  const show = (candidate?: Target) => {
     if (JSON.stringify(candidate) === JSON.stringify(drop)) return;
     hidden?.classList.remove('panel-drag-hidden'); hidden = undefined;
     preview?.remove(); preview = undefined;
     drop = candidate; next = undefined;
     if (!drop) return;
-    if (drop === 'tray') {
+    if (drop.kind === 'tray') {
       next = { kind: 'tray' };
       preview = outline(t('trayPreview', { agent }), trayArea!);
     } else {
@@ -129,8 +130,8 @@ export function createDragPreview({ event, canvas, source, element, panels, layo
     }
     document.body.append(preview);
   };
-  const target = (x: number, y: number): Drop | 'tray' | undefined => {
-    if (trayArea && inside(trayArea, x, y)) return 'tray';
+  const target = (x: number, y: number): Target | undefined => {
+    if (trayArea && inside(trayArea, x, y)) return { kind: 'tray' };
     if (!original) return inside(area, x, y) ? { kind: 'fill', side: nearest(area, x, y) } : undefined;
     return dropAt(area, images.map(image => ({ id: image.panel.id, box: image.slot })), source.id, x, y);
   };

@@ -1,7 +1,7 @@
 import { useLocalization } from './Localization';
 import { agentIcons } from './agent-icons';
 import { useLayoutEffect, useImperativeHandle, useRef, useState, type CSSProperties, type ReactNode, type Ref, type PointerEvent } from 'react';
-import { type Layout, type PanelView, type ProjectView, type Run } from '../shared/model';
+import { panelLimitReached, projectPanels, type Layout, type PanelView, type ProjectView, type Run } from '../shared/model';
 import { layoutBoxes } from '../shared/layout';
 import { mountTerminal } from './terminals';
 import { AgentPicker } from './AgentPicker';
@@ -56,7 +56,7 @@ export function Workspace({ project, report, openAgentSettings, location, visibl
   const viewing = useWorkspacePanelLocation(location, project, canvas, [...positions.panels.keys()]);
   const { selected: focused, maximized } = viewing;
   const openTrayPanel = project.tray.find(panel => panel.id === maximized);
-  const full = project.panels.length + project.tray.length >= 10;
+  const full = panelLimitReached(project);
   const persist = (next: Layout) => { void window.workbench.saveLayout(project.id, next).catch(error => report(error.message)); };
   const placeInLayout = (panelId: string, next: Layout) => {
     // The layout area returns to the resident layout, where the placed panel lives; a rejected placement changes nothing.
@@ -78,6 +78,12 @@ export function Workspace({ project, report, openAgentSettings, location, visibl
   });
   useLayoutEffect(() => () => { interactions.current?.dispose(); interactions.current = null; }, []);
   const close = (panelId: string) => { void window.workbench.closePanel(project.id, panelId).catch(error => report(error.message)); };
+  // Resident and open tray panels differ only in where they sit and in their first action.
+  const agentPanel = (panel: PanelView, position: CSSProperties, isFocused: boolean, action: ReactNode) =>
+    <AgentPanel key={panel.id} panel={panel} position={position} focused={isFocused}
+      select={() => viewing.select(panel.id)} focusChanged={() => viewing.focusChanged(panel.id)} headerClick={() => viewing.focus(panel.id)}
+      headerPointerDown={event => interactions.current?.startDrag(event.nativeEvent, event.currentTarget, panel.id)}
+      actions={<>{action}<PanelAction label={t('closePanel')} run={() => close(panel.id)}>×</PanelAction></>} />;
   useImperativeHandle(ref, () => ({ shortcut(action) {
     if (adding) return false;
     if (action === 'addPanel' && !full) { setAdding(true); return true; }
@@ -96,7 +102,7 @@ export function Workspace({ project, report, openAgentSettings, location, visibl
     return false;
   } }));
   return <div className="workspace"><header className="workspace-toolbar">
-    {visible && <ProjectSummary panels={[...project.panels, ...project.tray]}
+    {visible && <ProjectSummary panels={projectPanels(project)}
       locate={panel => location.locatePanel(project.id, panel.id, panel.run?.id)} />}
     <button aria-label={t('addPanel')} disabled={full} onClick={() => setAdding(true)}>＋</button>
   </header>
@@ -108,17 +114,11 @@ export function Workspace({ project, report, openAgentSettings, location, visibl
         // Hidden panels stay mounted, so their terminals keep their screens.
         const position: CSSProperties = maximized === panel.id ? maximizedPosition
           : { left: `${box.x * 100}%`, top: `${box.y * 100}%`, width: `${box.width * 100}%`, height: `${box.height * 100}%`, visibility: maximized ? 'hidden' : 'visible' };
-        return <AgentPanel key={panel.id} panel={panel} position={position} focused={focused === panel.id}
-          select={() => viewing.select(panel.id)} focusChanged={() => viewing.focusChanged(panel.id)} headerClick={() => viewing.focus(panel.id)}
-          headerPointerDown={event => interactions.current?.startDrag(event.nativeEvent, event.currentTarget, panel.id)}
-          actions={<><PanelAction label={maximized === panel.id ? t('restorePanel') : t('enlargePanel')} run={() => viewing.toggleMaximize(panel.id)}>⤢</PanelAction>
-            <PanelAction label={t('closePanel')} run={() => close(panel.id)}>×</PanelAction></>} />;
+        return agentPanel(panel, position, focused === panel.id,
+          <PanelAction label={maximized === panel.id ? t('restorePanel') : t('enlargePanel')} run={() => viewing.toggleMaximize(panel.id)}>⤢</PanelAction>);
       })}
-      {openTrayPanel && <AgentPanel key={openTrayPanel.id} panel={openTrayPanel} position={maximizedPosition} focused
-        select={() => viewing.select(openTrayPanel.id)} focusChanged={() => viewing.focusChanged(openTrayPanel.id)} headerClick={() => viewing.focus(openTrayPanel.id)}
-        headerPointerDown={event => interactions.current?.startDrag(event.nativeEvent, event.currentTarget, openTrayPanel.id)}
-        actions={<><PanelAction label={t('collapsePanel')} run={viewing.collapse}>⌄</PanelAction>
-          <PanelAction label={t('closePanel')} run={() => close(openTrayPanel.id)}>×</PanelAction></>} />}
+      {openTrayPanel && agentPanel(openTrayPanel, maximizedPosition, true,
+        <PanelAction label={t('collapsePanel')} run={viewing.collapse}>⌄</PanelAction>)}
       {!maximized && positions.dividers.map(divider => {
         const { box, axis, ratio } = divider;
         const style: CSSProperties = axis === 'row'

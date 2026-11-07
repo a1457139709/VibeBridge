@@ -4,7 +4,7 @@ import type { Language, ProjectEdit, ProjectEditResult } from '../shared/model';
 import { randomUUID } from 'node:crypto';
 import { realpath, stat } from 'node:fs/promises';
 import { basename } from 'node:path';
-import { defaultNavigation, navigationSchema, navigationWidth, type NavigationPreferences, assignedAgents, arrange, validateDraft, removeFromLayout, parseLayout, layoutStructure, layoutPanelIds, panelPosition, agentTypes, type AgentType, type DirectoryResult, type LaunchResult, type Layout, type Panel, type Project, type ProjectCreation, type ProjectDraft, type PanelCreation, type Settings, type Snapshot, type WorkbenchEvent } from '../shared/model';
+import { defaultNavigation, navigationSchema, navigationWidth, type NavigationPreferences, assignedAgents, arrange, validateDraft, removeFromLayout, parseLayout, layoutStructure, layoutPanelIds, panelPosition, projectPanels, panelLimitReached, agentTypes, type AgentType, type DirectoryResult, type LaunchResult, type Layout, type Panel, type Project, type ProjectCreation, type ProjectDraft, type PanelCreation, type Settings, type Snapshot, type WorkbenchEvent } from '../shared/model';
 import { ProjectStore } from './storage';
 import { SettingsFile, defaultSettings } from './settings';
 import { settingsConflicts, type SettingsSaveResult } from '../shared/settings';
@@ -76,6 +76,7 @@ export class Workbench {
     return project;
   }
   private tray(projectId: string) { return this.trays.get(projectId) ?? []; }
+  private panels(project: Project) { return projectPanels({ panels: project.panels, tray: this.tray(project.id) }); }
   async inspectDirectory(path: string): Promise<DirectoryResult> {
     try {
       const directory = await realpath(path);
@@ -123,8 +124,8 @@ export class Workbench {
   }); }
   deleteProject(id: string) { return this.operation(async () => {
     const project = this.project(id);
-    const tray = this.tray(id);
-    const failures = await this.supervision.stopPanels([...project.panels, ...tray]);
+    const panels = this.panels(project);
+    const failures = await this.supervision.stopPanels(panels);
     if (failures.length) throw new Error(message('projectDeleteFailed', { reasons: failures.map(detail) }));
     const index = this.state.projects.indexOf(project);
     const nextActive = this.state.activeProjectId === id
@@ -133,7 +134,7 @@ export class Workbench {
     // Records and the active-project pointer are removed in the same transaction.
     await this.store.delete(id, nextActive);
     this.state.projects = this.state.projects.filter(item => item.id !== id);
-    this.supervision.release([...project.panels, ...tray].map(panel => panel.id));
+    this.supervision.release(panels.map(panel => panel.id));
     this.trays.delete(id);
     this.visited.delete(id);
     const activateNext = this.state.activeProjectId === id;
@@ -165,7 +166,7 @@ export class Workbench {
     const project = this.project(projectId);
     if (!agentTypes.includes(agent)) throw new Error(message('agentInvalid'));
     const tray = this.tray(projectId);
-    if (project.panels.length + tray.length >= 10) throw new Error(message('panelLimit'));
+    if (panelLimitReached({ panels: project.panels, tray })) throw new Error(message('panelLimit'));
     const panel = { id: randomUUID(), agent };
     this.trays.set(projectId, [...tray, panel]); this.changed();
     const launch = await this.startPanel(project, panel);
@@ -195,7 +196,7 @@ export class Workbench {
     this.changed();
   }
   closePanel(projectId: string, panelId: string) { return this.operation(async () => {
-    if (![...this.project(projectId).panels, ...this.tray(projectId)].some(p => p.id === panelId)) throw new Error(message('panelMissing'));
+    if (!this.panels(this.project(projectId)).some(p => p.id === panelId)) throw new Error(message('panelMissing'));
     await this.supervision.stopPanel(panelId);
     await this.removePanel(projectId, panelId);
   }); }
@@ -214,23 +215,24 @@ export class Workbench {
     // A swap is valid only when the placed panel takes the position of the one panel it replaces.
     if (replaced.length > 1 || (replaced.length === 1 && String(panelPosition(structure, panelId)) !== String(panelPosition(project.layout, replaced[0].id)))) throw new Error(message('layoutMismatch'));
     const panels = [...project.panels.filter(resident => !replaced.includes(resident)), panel];
-    const next = { ...project, panels, layout: parseLayout(structure, panels) };
-    await this.store.save(next);
-    Object.assign(project, next);
-    this.trays.set(projectId, [...this.tray(projectId).filter(p => p !== panel), ...replaced]);
-    this.changed();
+    await this.changeResidency(project, { ...project, panels, layout: parseLayout(structure, panels) },
+      [...this.tray(projectId).filter(p => p !== panel), ...replaced]);
   }); }
   /** Makes a resident panel ephemeral: it joins the end of the tray and the other resident panels fill its space as when it closes. Its run is untouched. */
   moveToTray(projectId: string, panelId: string) { return this.operation(async () => {
     const project = this.project(projectId);
     const panel = project.panels.find(p => p.id === panelId);
     if (!panel) throw new Error(message('panelMissing'));
-    const next = { ...project, panels: project.panels.filter(p => p !== panel), layout: removeFromLayout(project.layout, panelId) };
+    await this.changeResidency(project, { ...project, panels: project.panels.filter(p => p !== panel), layout: removeFromLayout(project.layout, panelId) },
+      [...this.tray(projectId), panel]);
+  }); }
+  /** Saves which panels are resident, then publishes the project with its new tray. */
+  private async changeResidency(project: Project, next: Project, tray: Panel[]) {
     await this.store.save(next);
     Object.assign(project, next);
-    this.trays.set(projectId, [...this.tray(projectId), panel]);
+    this.trays.set(project.id, tray);
     this.changed();
-  }); }
+  }
   saveLayout(projectId: string, layout: Layout | null) { return this.operation(async () => {
     const project = this.project(projectId);
     project.layout = parseLayout(layout, project.panels); this.changed();

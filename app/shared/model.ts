@@ -82,6 +82,12 @@ const layoutSchema = layoutNodeSchema.refine(layout => layoutDepth(layout) <= 10
 /** The panel IDs a layout places, in order. */
 export const layoutPanelIds = (layout: Layout | null): string[] => layout ? panelIds(layout) : [];
 
+/** A project holds at most this many panels, resident and tray together. */
+export const panelLimit = 10;
+/** Every panel of a project: its resident panels, then its tray panels in tray order. */
+export const projectPanels = <P extends Panel>({ panels, tray }: { panels: P[]; tray: P[] }) => [...panels, ...tray];
+export const panelLimitReached = (project: { panels: Panel[]; tray: Panel[] }) => projectPanels(project).length >= panelLimit;
+
 /** The branch path from the root to a panel in a layout, or null when the layout does not place it. */
 export function panelPosition(layout: Layout | null, panelId: string): ('first' | 'second')[] | null {
   if (!layout) return null;
