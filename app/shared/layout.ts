@@ -19,9 +19,11 @@ export type Side = 'top' | 'bottom' | 'left' | 'right';
 /** Where a dragged panel lands: beside or in place of a resident panel, or along a whole side of the layout area. */
 export type Drop = { kind: 'split'; panel: string; side: Side } | { kind: 'swap'; panel: string } | { kind: 'fill'; side: Side };
 
-// The share of the layout area a panel takes when it fills a whole side (#155: a fixed value, not a setting).
+// The share of the layout area a panel takes when it fills a whole side: a fixed value, not a setting.
 const fillRatio = .5;
-const along =(side: Side, dropped: Layout, other: Layout, ratio: number): Layout => {
+// The share of a resident panel a dropped panel takes when it splits that panel.
+const splitRatio = .5;
+const along = (side: Side, dropped: Layout, other: Layout, ratio: number): Layout => {
   const axis = side === 'left' || side === 'right' ? 'row' : 'column';
   return side === 'left' || side === 'top' ? { axis, ratio, first: dropped, second: other } : { axis, ratio: 1 - ratio, first: other, second: dropped };
 };
@@ -39,7 +41,7 @@ export function dropIntoLayout(layout: Layout | null, panel: string, drop: Drop)
   if (!rest) return { panel };
   if (drop.kind === 'fill') return along(drop.side, { panel }, rest, fillRatio);
   const split = (node: Layout): Layout => 'panel' in node
-    ? drop.kind === 'split' && node.panel === drop.panel ? along(drop.side, { panel }, node, .5) : node
+    ? drop.kind === 'split' && node.panel === drop.panel ? along(drop.side, { panel }, node, splitRatio) : node
     : { ...node, first: split(node.first), second: split(node.second) };
   return split(rest);
 }
