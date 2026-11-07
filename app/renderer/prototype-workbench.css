@@ -113,3 +113,22 @@
 .wb-gh-error { display: flex; flex-direction: column; align-items: flex-start; gap: 8px; padding: 10px; border-radius: 6px; background: color-mix(in srgb, var(--gh-failed) 10%, transparent); font-size: 12px; }
 .wb-confirm { display: flex; align-items: center; gap: 8px; padding: 10px; border-radius: 6px; background: color-mix(in srgb, var(--gh-pending) 12%, transparent); font-size: 12px; }
 .proto-group select { font-size: 12px; height: 22px; padding: 0 4px; border-radius: 999px; border: 0; background: #fff9; color: #111; width: auto; }
+
+/* #160 detail: the dispatch button is a small button at the right of the state/labels row, not a full-width bar. */
+.gh-doc-head .gh-split.detail { width: auto; }
+.gh-doc-head .gh-split.detail .gh-split-main { flex: none; height: 22px; font-size: 11px; }
+.gh-doc-head .gh-split.detail .gh-split-more { height: 22px; }
+
+/* #160 parent/child in the issue tree — three variants, switched on the proto bar. --x is the parent's disclosure centre. */
+.gh-row[style*="--depth: 0"]::before, .gh-row[style*="--depth: 0"]::after { display: none; }
+.wb-tree-lines .gh-row { --x: calc(13px + (var(--depth) - 1) * 14px); }
+.wb-tree-lines .gh-row::before { content: ''; position: absolute; left: var(--x); top: 0; bottom: 0; border-left: 1px solid var(--line); pointer-events: none; }
+.wb-tree-lines .gh-row[data-last]::before { bottom: auto; height: 17px; }
+.wb-tree-lines .gh-row::after { content: ''; position: absolute; left: var(--x); top: 17px; width: 8px; border-top: 1px solid var(--line); pointer-events: none; }
+.wb-tree-band .gh-row::before { content: ''; position: absolute; left: calc(8px + (var(--depth) - 1) * 14px); top: 4px; bottom: 4px; width: 2px; border-radius: 1px; background: color-mix(in srgb, var(--gh-link) 45%, transparent); pointer-events: none; }
+.wb-tree-band .gh-row:not([style*="--depth: 0"]) { background: color-mix(in srgb, var(--muted) 5%, transparent); }
+.wb-tree-band .gh-row:not([style*="--depth: 0"]):hover { background: var(--gh-row-hover); }
+.wb-rail { display: none; }
+.wb-tree-lines .wb-rail { display: block; position: absolute; left: calc(13px + (var(--l) - 1) * 14px); top: 0; bottom: 0; border-left: 1px solid var(--line); pointer-events: none; }
+.wb-tree-lines .gh-fold { position: relative; }
+.wb-tree-lines .gh-fold::before { content: ''; position: absolute; left: calc(13px + (var(--depth) - 1) * 14px); top: 0; height: 50%; width: 8px; border-left: 1px solid var(--line); border-bottom: 1px solid var(--line); pointer-events: none; }

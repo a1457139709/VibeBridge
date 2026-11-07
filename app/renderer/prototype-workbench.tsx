@@ -41,6 +41,7 @@ function Prototype() {
   const [page, setPage] = useState<'workspace' | 'settings'>('workspace');
   const [navOpen, setNavOpen] = useState(true);
   const [fit, setFit] = useState<Fit>('push'); // #160: sidebar defaults to 挤压
+  const [treeStyle, setTreeStyle] = useState<'indent' | 'lines' | 'band'>('lines'); // #160: how child issues show their parent
   const [detailFit, setDetailFit] = useState<Fit>('overlay'); // #160: detail defaults to 覆盖
   const [workflow, setWorkflow] = useState<WorkflowSettings>(initialWorkflow);
   const [writes, setWrites] = useState<'ok' | 'fail' | 'readonly'>('ok');
@@ -234,7 +235,7 @@ function Prototype() {
   const fullState = (body: React.ReactNode) => <div className="wb-gh-state">{body}</div>;
   const detailW = Math.min(detailWidth, winW - sideWidth - 40);
   const detailShown = !!(sideOpen && repo && showData && selected);
-  const sidebar = sideOpen && <aside className={`gh-sidebar ${overlay ? 'overlay' : ''}`} style={{ width: sideWidth }} aria-label="GitHub">
+  const sidebar = sideOpen && <aside className={`gh-sidebar ${overlay ? 'overlay' : ''} wb-tree-${treeStyle}`} style={{ width: sideWidth }} aria-label="GitHub">
     <div className="gh-resize" onPointerDown={startSideResize} title="拖动调整宽度（300–560px）" />
     {repo && showData && selected && <DetailPane repo={repo} selected={selected} width={detailW} onWidth={setDetailWidth} canBack={history.length > 1}
       onBack={() => setHistory(h => h.slice(0, -1))} onClose={closeDetail} onOpen={openInside} panes={sidePanes} dispatches={dispatches} onLocate={locate}
@@ -326,6 +327,7 @@ function Prototype() {
         {sideOpen ? <SidebarCollapseIcon size={16} /> : <SidebarExpandIcon size={16} />}</button></header>
     {barHidden ? <button className="proto-bar proto-bar-mini" onClick={() => setBarHidden(false)}>PROTOTYPE ▴</button> : <div className="proto-bar" role="toolbar" aria-label="原型开关">
       <span className="proto-tag">PROTOTYPE · 合并版</span>
+      {group('父子', [{ key: 'indent', name: '仅缩进' }, { key: 'lines', name: '连接线' }, { key: 'band', name: '色条' }] as const, treeStyle, setTreeStyle)}
       {group('仓库', ghStates, gh, setGh)}
       {group('直接操作', [{ key: 'ok', name: '成功' }, { key: 'fail', name: '失败' }, { key: 'readonly', name: '无写权限' }] as const, writes, setWrites)}
       <button onClick={() => setRunning(r => !r)}>{running ? '暂停模拟' : '继续模拟'}</button>

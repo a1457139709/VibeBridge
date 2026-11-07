@@ -40,15 +40,16 @@ export function IssueList({ repo, filter, setFilter, cursor, onCursor, onOpenDet
     const shown = kids.filter(k => visible.get(k.number));
     return { kids, shown: shownClosed.has(i.number) ? [...shown, ...folded.filter(f => !shown.includes(f))] : shown, folded };
   };
-  const row = (i: Issue, depth: number, parent?: number): ReactNode => {
+  const row = (i: Issue, depth: number, parent?: number, last = false, rails: number[] = []): ReactNode => {
     const { kids, shown, folded } = kidsOf(i);
     const open = !collapsed.has(i.number);
     order.push({ n: i.number, parent, kids: shown.map(k => k.number) });
     const blockers = openBlockers(repo, i);
     const records = dispatches.filter(d => d.issue === i.number);
     return <React.Fragment key={i.number}>
-      <div data-row={i.number} className={`gh-row ${cursor === i.number ? 'selected' : ''} ${issueMatches(i, filter) ? '' : 'context'}`}
+      <div data-row={i.number} data-last={last || undefined} className={`gh-row ${cursor === i.number ? 'selected' : ''} ${issueMatches(i, filter) ? '' : 'context'}`}
         style={{ '--depth': depth } as React.CSSProperties} onClick={() => { onCursor(i.number); onOpenDetail(i.number); }}>
+        {rails.map(l => <span key={l} className="wb-rail" style={{ '--l': l } as React.CSSProperties} />)}
         {kids.length ? <button className="gh-disclosure" tabIndex={-1} title={open ? '折叠' : '展开'} onClick={e => { e.stopPropagation(); setCollapsed(c => flipSet(c, i.number)); }}>{open ? '▾' : '▸'}</button> : <span className="gh-disclosure" />}
         <IssueIcon issue={i} />
         <div className="gh-row-main">
@@ -65,7 +66,7 @@ export function IssueList({ repo, filter, setFilter, cursor, onCursor, onOpenDet
           {dispatchButton(i, !!blockers.length)}
         </div>}
       </div>
-      {open && shown.map(k => row(k, depth + 1, i.number))}
+      {open && shown.map((k, n) => row(k, depth + 1, i.number, n === shown.length - 1 && !folded.length, depth > 0 && !last ? [...rails, depth] : rails))}
       {open && !!folded.length && <button className="gh-fold" tabIndex={-1} style={{ '--depth': depth + 1 } as React.CSSProperties} onClick={() => setShownClosed(s => flipSet(s, i.number))}>
         {shownClosed.has(i.number) ? '收起已关闭' : `已关闭 ${folded.length} 个`}</button>}
     </React.Fragment>;
