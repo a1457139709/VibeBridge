@@ -3,7 +3,8 @@
 // drag-to-rearrange, the toolbar summary, the GitHub sidebar with detail, dispatch and dispatch records, repo binding,
 // the two new settings and the new shortcuts. Run: `npm run prototype:workbench` (pulls a read-only `gh` snapshot first).
 // Merge decisions made in #160: in 覆盖 mode the toolbar and tray yield to the sidebar and only the layout area is covered;
-// 提交 to a new panel only puts a card in the tray; Esc always belongs to the terminal (temporary maximize closes by button only).
+// 提交 to a new panel only puts a card in the tray; Esc always belongs to the terminal (temporary maximize closes by button only);
+// the issue detail covers only the layout area, between the workspace toolbar and the tray.
 import React, { useEffect, useRef, useState, type CSSProperties, type PointerEvent as ReactPointerEvent } from 'react';
 import { createRoot } from 'react-dom/client';
 import { SidebarCollapseIcon, SidebarExpandIcon, SyncIcon } from '@primer/octicons-react';
@@ -329,7 +330,7 @@ function Prototype() {
       <span className="proto-state">{overlay ? '覆盖' : '挤压'} · 放大：{opened?.title ?? '—'} · 焦点面板：{all.find(p => p.id === focused)?.title ?? '—'}</span>
       <button title="隐藏原型开关条" onClick={() => setBarHidden(true)}>▾</button>
     </div>}
-    <div className={`app-body wb-body ${overlay && sideOpen ? 'wb-yield' : ''}`} style={{ '--side-w': `${sideWidth}px` } as CSSProperties}>
+    <div className={`app-body wb-body ${overlay && sideOpen ? 'wb-yield' : ''} ${page === 'workspace' ? 'wb-on-workspace' : ''}`} style={{ '--side-w': `${sideWidth}px` } as CSSProperties}>
       {navOpen && <nav className="navigation" style={{ '--navigation-width': '230px' } as CSSProperties}>
         <div className="navigation-projects"><div className="nav-heading">项目</div>
           <section className="project-group">
