@@ -13,6 +13,7 @@ import './processing-status.css';
 import './project-summary.css';
 import './prototype-ephemeral-panels.css';
 import './prototype-github-sidebar.css';
+import './prototype-github-sidebar-pull.css';
 import { initialEphemeral, initialPersistent, initialTree, pane, statusName, type Pane as FakePane } from './prototype-ephemeral-panels-data';
 import { boxes } from './prototype-ephemeral-panels-layout';
 import { NavLink, PanelView, ToolbarSummary } from './prototype-ephemeral-panels-views';
@@ -110,9 +111,9 @@ function Prototype() {
       {k === 'issue' ? 'Issues' : 'Pull requests'} <span>{openCount(k)}</span></button>)}</nav>
     {error && <p className="gh-empty">读不到快照（{error}）。先运行 <code>npm run prototype:github-sidebar</code>，它会用 gh 拉取数据。</p>}
     {!repo && !error && <p className="gh-empty">载入中…</p>}
-    {repo && counts && <FilterBar repo={repo} filter={filter} setFilter={setFilter} counts={counts} labels={tab === 'issue'} />}
+    {repo && counts && <FilterBar repo={repo} filter={filter} setFilter={setFilter} counts={counts} />}
     {repo && tab === 'issue' && <IssueList repo={repo} filter={filter} setFilter={setFilter} selected={selected} onSelect={select} panes={panes} dispatches={dispatches} onDispatch={dispatch} onLocate={locate} />}
-    {repo && tab === 'pull' && <PullList repo={repo} filter={filter} selected={selected} onSelect={select} />}
+    {repo && tab === 'pull' && <PullList repo={repo} filter={filter} setFilter={setFilter} selected={selected} onSelect={select} />}
     {repo && <footer className="gh-foot">快照 {new Date(repo.snapshot.fetchedAt).toLocaleString('zh-CN', { hour12: false })} · 按创建时间排序</footer>}
   </aside>;
 

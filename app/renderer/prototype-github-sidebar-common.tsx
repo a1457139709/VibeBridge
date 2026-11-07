@@ -37,13 +37,13 @@ export function Progress({ closed, total }: { closed: number; total: number }) {
 }
 
 export function checksText(state: string) {
-  if (state === 'success') return { tone: 'open', text: '检查通过' };
-  if (state === 'failure' || state === 'error' || state === 'timed_out' || state === 'cancelled' || state === 'action_required') return { tone: 'failed', text: '检查失败' };
-  if (state === 'none') return { tone: 'skipped', text: '没有检查' };
-  if (state === 'skipped' || state === 'neutral') return { tone: 'skipped', text: '已跳过' };
-  return { tone: 'pending', text: '检查中' };
+  if (state === 'success') return { tone: 'open', text: '检查通过', mark: '✓', kind: 'passed' };
+  if (state === 'failure' || state === 'error' || state === 'timed_out' || state === 'cancelled' || state === 'action_required') return { tone: 'failed', text: '检查失败', mark: '✗', kind: 'failed' };
+  if (state === 'none') return { tone: 'skipped', text: '没有检查', mark: '–', kind: 'passed' };
+  if (state === 'skipped' || state === 'neutral') return { tone: 'skipped', text: '已跳过', mark: '–', kind: 'passed' };
+  return { tone: 'pending', text: '检查中', mark: '●', kind: 'pending' };
 }
-export const reviewText = (review: string) => ({ approved: { tone: 'open', text: '已批准' }, changes_requested: { tone: 'failed', text: '需要修改' }, review_required: { tone: 'pending', text: '等待评审' } } as Record<string, { tone: string; text: string }>)[review];
+export const reviewText = (review: string) => ({ approved: { tone: 'open', text: '已批准' }, changes_requested: { tone: 'failed', text: '需要修改' }, review_required: { tone: 'pending', text: '待 review' }, commented: { tone: 'skipped', text: '已评论' }, pending: { tone: 'pending', text: '待 review' } } as Record<string, { tone: string; text: string }>)[review];
 
 export function usePopover() {
   const [open, setOpen] = useState(false);
@@ -91,7 +91,7 @@ export function DispatchStatus({ records, panes, onLocate }: { records: Dispatch
 
 export function FilterBar({ repo, filter, setFilter, counts, labels = true }: { repo: Repo; filter: Filter; setFilter(update: (f: Filter) => Filter): void; counts: Record<StateFilter, number>; labels?: boolean }) {
   const pop = usePopover();
-  const used = repo.snapshot.labels.map(l => ({ ...l, count: repo.snapshot.issues.filter(i => i.labels.includes(l.name)).length })).filter(l => l.count);
+  const used = repo.snapshot.labels.map(l => ({ ...l, count: repo.snapshot.issues.filter(i => i.labels.includes(l.name)).length + repo.snapshot.pulls.filter(p => p.labels?.includes(l.name)).length })).filter(l => l.count);
   const toggle = (name: string) => setFilter(f => ({ ...f, labels: f.labels.includes(name) ? f.labels.filter(l => l !== name) : [...f.labels, name] }));
   return <div className="gh-filters">
     <input className="gh-search" value={filter.q} placeholder="搜索标题，或输入 #编号" onChange={e => setFilter(f => ({ ...f, q: e.target.value }))} />

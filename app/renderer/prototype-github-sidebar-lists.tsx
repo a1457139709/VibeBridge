@@ -70,23 +70,25 @@ export function IssueList({ repo, filter, setFilter, selected, onSelect, panes, 
   </div>;
 }
 
-export function PullList({ repo, filter, selected, onSelect }: { repo: Repo; filter: Filter; selected: Selected; onSelect(s: Selected): void }) {
+// v3 (#159): two lines like issues. Line 1 state icon + title; line 2 number, created, author, checks, labels. Review lives only in the merge box.
+// No action area: PRs are not dispatched. Conflicts, branches and linked issues live in the detail.
+export function PullList({ repo, filter, setFilter, selected, onSelect }: { repo: Repo; filter: Filter; setFilter(update: (f: Filter) => Filter): void; selected: Selected; onSelect(s: Selected): void }) {
   const pulls = newestFirst(repo.snapshot.pulls.filter(p => pullMatches(p, filter)));
+  const addLabel = (l: string) => setFilter(f => f.labels.includes(l) ? f : { ...f, labels: [...f.labels, l] });
   return <div className="gh-scroll">
     {pulls.map(p => {
+      const open = p.state === 'open' || p.state === 'draft';
       const checks = checksText(p.checks);
-      const review = reviewText(p.review);
       return <div key={p.number} className={`gh-row ${sameSelection(selected, { kind: 'pull', number: p.number }) ? 'selected' : ''}`} style={{ '--depth': 0 } as React.CSSProperties}
         onClick={() => onSelect({ kind: 'pull', number: p.number })}>
         <span className="gh-disclosure" /><PullIcon pull={p} />
         <div className="gh-row-main">
           <div className="gh-row-title">{p.title}</div>
-          <div className="gh-row-meta"><span className="gh-row-num">#{p.number}</span><span>{ago(p.createdAt)}</span><span className="gh-branch">{p.branch}</span>
-            {p.state === 'draft' && <span>草稿</span>}{p.state === 'merged' && <span className="gh-done">已合并</span>}</div>
-        </div>
-        <div className="gh-row-action gh-pr-status">
-          <span className={`gh-${checks.tone}`}>{checks.text}</span>
-          {review && <span className={`gh-${review.tone}`}>{review.text}</span>}
+          <div className="gh-row-meta">
+            <span className="gh-row-num">#{p.number}</span><span>{ago(p.createdAt)}</span><span className="gh-author">{p.author}</span>
+            {open && p.checks !== 'none' && <span className={`gh-pr-chip gh-${checks.tone}`}>{checks.mark} {checks.text}</span>}
+            {(p.labels ?? []).map(l => <Label key={l} repo={repo} name={l} onClick={() => addLabel(l)} />)}
+          </div>
         </div>
       </div>;
     })}

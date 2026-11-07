@@ -2,7 +2,7 @@
 // v2.1 detail: one column so the body keeps its width. It opens leftwards from the sidebar's edge, over the layout area
 // (terminals are not resized). Top: parent crumb, title, one row of state + labels + blocking + dispatch; then the relation graph,
 // body, sub-issues (number order, each with its blocking mark: the only place sub-issue order shows), timeline.
-import React, { type PointerEvent as ReactPointerEvent } from 'react';
+import React, { useState, type PointerEvent as ReactPointerEvent } from 'react';
 import { ago, childProgress, githubUrl, openBlockers, type Comment, type DispatchRecord, type Issue, type Pane, type Pull, type Repo, type Selected } from './prototype-github-sidebar-model';
 import { Blocked, checksText, DispatchSplit, DispatchStatus, IssueIcon, IssuePill, Label, Progress, PullIcon, PullPill, reviewText } from './prototype-github-sidebar-common';
 import { Markdown } from './prototype-github-sidebar-markdown';
@@ -64,6 +64,7 @@ function IssueDetail({ repo, issue: i, onOpen, panes, dispatches, onDispatch, on
     </div>
     {!!records.length && <div className="gh-doc-records">{records.map((r, k) => <span key={k} className="gh-record"><code>{r.step}</code><span>{ago(r.at)}</span><DispatchStatus records={[r]} panes={panes} onLocate={onLocate} /></span>)}</div>}
     <RelationGraph repo={repo} issue={i} onOpen={onOpen} />
+    <ClosingPulls repo={repo} issue={i} onOpen={onOpen} />
     <div className="gh-doc-main">
       <article className="gh-card"><header><b>{i.author}</b> <span>{ago(i.createdAt)}</span></header><Markdown repo={repo} source={i.body} onOpen={onOpen} /></article>
       {!!kids.length && <section className="gh-box"><header>子 issue <Progress {...progress} /></header>
@@ -76,28 +77,106 @@ function IssueDetail({ repo, issue: i, onOpen, panes, dispatches, onDispatch, on
   </div>;
 }
 
+// v3.1 (#159): GitHub's order in one column. Head: state, head → base, the issues GitHub will close on merge (closingIssuesReferences,
+// never parsed by us). Then body, timeline of comments and review summaries (inline code comments only counted), merge box last:
+// review, checks, conflicts, then merge / close. No approve button, no reviewer list, no diff or size.
 function PullDetail({ repo, pull: p, onOpen }: Props & { pull: Pull }) {
-  const review = reviewText(p.review);
-  const checks = checksText(p.checks);
+  const timeline = [
+    ...p.comments.map(c => ({ ...c, state: undefined as string | undefined })),
+    ...p.reviews.filter(r => r.body).map(r => ({ author: r.author, body: r.body, at: r.at, state: r.state })),
+  ].sort((a, b) => a.at.localeCompare(b.at));
   return <div className="gh-doc">
     <h2>{p.title} <span className="gh-row-num">#{p.number}</span></h2>
-    <div className="gh-doc-meta"><PullPill pull={p} /><span><b>{p.author}</b> 想把 <code className="gh-branch">{p.branch}</code> 合并进来 · {ago(p.createdAt)}</span></div>
+    <div className="gh-doc-meta"><PullPill pull={p} /><span><b>{p.author}</b> 想把 <code className="gh-branch">{p.branch}</code> 合并进 <code className="gh-branch">{p.base ?? 'main'}</code> · {ago(p.createdAt)}</span></div>
     <div className="gh-doc-actions">
-      <span><span className="gh-open">+{p.additions}</span> <span className="gh-failed">−{p.deletions}</span> · {p.changedFiles} 个文件</span>
-      <a href={`${githubUrl(repo, 'pull', p.number)}/files`} target="_blank" rel="noreferrer">查看改动 ↗</a>
-      <span className={`gh-${checks.tone}`}>{checks.text}</span>{review && <span className={`gh-${review.tone}`}>{review.text}</span>}
+      <a href={`${githubUrl(repo, 'pull', p.number)}/files`} target="_blank" rel="noreferrer">在 GitHub 查看改动 ↗</a>
+      {(p.labels ?? []).map(l => <Label key={l} repo={repo} name={l} />)}
     </div>
-    {!!p.closes.length && <div className="gh-closes">关闭 {p.closes.map(n => { const i = repo.issues.get(n); return i
+    {!!p.closes.length && <div className="gh-closes">合并后关闭 {p.closes.map(n => { const i = repo.issues.get(n); return i
       ? <button key={n} className="gh-ref inline" onClick={() => onOpen({ kind: 'issue', number: n })} title={i.title}><IssueIcon issue={i} size={12} /><span className="gh-ellipsis">{i.title}</span><span className="gh-row-num">#{n}</span></button>
       : <span key={n}>#{n}</span>; })}</div>}
     <div className="gh-doc-main">
       <article className="gh-card"><header><b>{p.author}</b> <span>{ago(p.createdAt)}</span></header><Markdown repo={repo} source={p.body} onOpen={onOpen} /></article>
-      <section className="gh-box"><header><PullIcon pull={p} size={14} />检查 <span className={`gh-${checks.tone}`}>{checks.text}</span></header>
-        {p.checkRuns.map(c => { const t = checksText(c.state); return <div key={c.name} className="gh-check-row"><span className="gh-ellipsis">{c.name}</span><span className={`gh-${t.tone}`}>{t.text}</span></div>; })}
-        {!p.checkRuns.length && <p className="muted">没有检查</p>}</section>
-      {p.reviews.filter(r => r.body || r.state !== 'commented').map((r, k) => <article key={k} className="gh-card"><header><b>{r.author}</b> <span>{reviewText(r.state)?.text ?? r.state} · {ago(r.at)}</span></header>
-        {r.body && <Markdown repo={repo} source={r.body} onOpen={onOpen} />}</article>)}
-      <Timeline repo={repo} comments={p.comments} onOpen={onOpen} />
+      {timeline.map((c, k) => { const r = c.state && reviewText(c.state); return <article key={k} className="gh-card">
+        <header><b>{c.author}</b> {r && <span className={`gh-pr-chip gh-${r.tone}`}>{r.text}</span>} <span>{ago(c.at)}</span></header>
+        <Markdown repo={repo} source={c.body} onOpen={onOpen} /></article>; })}
+      {!!p.codeComments && <div className="gh-code-comments">💬 {p.codeComments} 条代码评论 <a href={`${githubUrl(repo, 'pull', p.number)}/files`} target="_blank" rel="noreferrer">在 GitHub 查看 ↗</a></div>}
+      <MergeBox repo={repo} pull={p} />
     </div>
   </div>;
+}
+
+type Step = 'idle' | 'confirm' | 'running' | 'done';
+/** Q4 + Q12: GitHub's merge box, review and checks in the same block. Each requirement on its own row; buttons grey out with the reason written next to them. */
+function MergeBox({ repo, pull: p }: { repo: Repo; pull: Pull }) {
+  const [showPassed, setShowPassed] = useState(false);
+  const [merge, setMerge] = useState<Step>('idle');
+  const [method, setMethod] = useState(p.mergeMethods?.[0] ?? 'merge');
+  const [methodsOpen, setMethodsOpen] = useState(false);
+  const run = (set: (s: Step) => void) => { set('running'); setTimeout(() => set('done'), 700); };
+  if (p.state === 'merged' || p.state === 'closed') return <section className="gh-merge"><div className="gh-merge-row"><PullIcon pull={p} />
+    {p.state === 'merged' ? '已合并' : '已关闭，没有合并'}<span className="gh-spacer" />{p.state === 'closed' && <button className="gh-btn">重新打开</button>}</div></section>;
+
+  const runs = p.checkRuns.map(c => ({ ...c, t: checksText(c.state) }));
+  const failed = runs.filter(c => c.t.kind === 'failed'), pending = runs.filter(c => c.t.kind === 'pending'), passed = runs.filter(c => c.t.kind === 'passed');
+  const requiredBad = [...failed, ...pending].filter(c => c.required);
+  const reviewOk = p.review === 'approved' || !p.requiredApprovals;
+  const blocks = [
+    p.state === 'draft' && '这是草稿',
+    p.mergeable === 'conflicting' && '有冲突',
+    requiredBad.length && `必需的检查${failed.some(c => c.required) ? '没通过' : '还在运行'}`,
+    !reviewOk && (p.review === 'changes_requested' ? '有人要求修改' : `还缺 ${p.requiredApprovals} 个批准`),
+  ].filter(Boolean) as string[];
+  const methodName: Record<string, string> = { merge: '创建合并提交', squash: '压缩合并', rebase: '变基合并' };
+  const reviewRow = p.review === 'approved' ? { tone: 'open', mark: '✓', text: '已批准' }
+    : p.review === 'changes_requested' ? { tone: 'failed', mark: '✗', text: '有人要求修改，需要重新 review' }
+      : { tone: p.requiredApprovals ? 'pending' : 'skipped', mark: '●', text: p.requiredApprovals ? `需要至少 ${p.requiredApprovals} 个批准` : '不要求 review' };
+  const checkRow = !runs.length ? { tone: 'skipped', mark: '–', text: '没有检查' }
+    : { tone: failed.length ? 'failed' : pending.length ? 'pending' : 'open', mark: failed.length ? '✗' : pending.length ? '●' : '✓',
+      text: [failed.length && `${failed.length} 项失败`, pending.length && `${pending.length} 项进行中`, passed.length && `${passed.length} 项通过`].filter(Boolean).join('，') };
+  const check = (c: typeof runs[number]) => <div key={c.name} className="gh-merge-check">
+    <span className={`gh-${c.t.tone}`}>{c.t.mark}</span><span className="gh-ellipsis">{c.name}</span>{c.required && <span className="gh-required">必需</span>}
+    <span className="gh-spacer" /><span className={`gh-${c.t.tone}`}>{c.t.text}</span><a href={c.url} target="_blank" rel="noreferrer">日志 ↗</a></div>;
+
+  return <section className="gh-merge">
+    <div className="gh-merge-row"><span className={`gh-${reviewRow.tone}`}>{reviewRow.mark}</span><b>Review</b><span>{reviewRow.text}</span></div>
+    <div className="gh-merge-row column">
+      <div className="gh-merge-row-head"><span className={`gh-${checkRow.tone}`}>{checkRow.mark}</span><b>检查</b><span>{checkRow.text}</span></div>
+      {[...failed, ...pending].map(check)}
+      {!!passed.length && <button className="gh-text-button gh-merge-fold" onClick={() => setShowPassed(v => !v)}>{showPassed ? '收起通过的检查' : `${passed.length} 项通过 ▸`}</button>}
+      {showPassed && passed.map(check)}
+    </div>
+    <div className="gh-merge-row">{p.mergeable === 'conflicting'
+      ? <><span className="gh-failed">✗</span><b>冲突</b><span>和 <code className="gh-branch">{p.base}</code> 有冲突，需要先解决</span></>
+      : <><span className="gh-open">✓</span><b>冲突</b><span>没有冲突</span></>}</div>
+    {p.state === 'draft' && <div className="gh-merge-row"><span className="gh-skipped">●</span><b>草稿</b><span>标记为可以 review 之后才能合并（在 GitHub 上操作）</span></div>}
+
+    <div className="gh-merge-actions">
+      {p.mergeQueue
+        ? <span className="gh-merge-why"><button className="gh-btn" disabled>合并</button>仓库要求通过 merge queue 合并，<a href={githubUrl(repo, 'pull', p.number)} target="_blank" rel="noreferrer">在 GitHub 打开 ↗</a></span>
+        : <span className="gh-merge-why">
+          <span className={`gh-split detail ${blocks.length ? 'weak' : ''}`}>
+            <button className="gh-split-main" disabled={!!blocks.length || merge === 'running'} onClick={() => merge === 'confirm' ? run(setMerge) : setMerge('confirm')}>
+              {merge === 'confirm' ? `确认${methodName[method]}` : merge === 'running' ? '合并中…' : methodName[method]}</button>
+            <button className="gh-split-more" disabled={!!blocks.length} onClick={() => setMethodsOpen(o => !o)}>▾</button>
+            {methodsOpen && <div className="gh-pop">{p.mergeMethods?.map(m => <button key={m} className={m === method ? 'on' : ''} onClick={() => { setMethod(m); setMethodsOpen(false); setMerge('idle'); }}>{methodName[m]}</button>)}</div>}
+          </span>
+          {!!blocks.length && <span className="muted">不能合并：{blocks.join('、')}</span>}
+          {merge === 'done' && <span className="muted">（原型：不会真的合并，真实实现会触发一次刷新）</span>}
+        </span>}
+      <span className="gh-spacer" />
+      <button className="gh-btn">关闭 PR</button>
+    </div>
+  </section>;
+}
+
+/** v3.1 (#159): PRs GitHub will close this issue with, kept out of the issue-only graph and drawn as PRs. */
+function ClosingPulls({ repo, issue, onOpen }: { repo: Repo; issue: Issue; onOpen(s: Selected): void }) {
+  const pulls = (repo.prsOf.get(issue.number) ?? []).map(n => repo.pulls.get(n)).filter((p): p is Pull => !!p);
+  if (!pulls.length) return null;
+  return <section className="gh-closing-pulls"><header>合并后关闭本 issue 的 PR</header>
+    {pulls.map(p => { const c = checksText(p.checks); return <button key={p.number} className="gh-closing-pull" onClick={() => onOpen({ kind: 'pull', number: p.number })} title={p.title}>
+      <PullIcon pull={p} size={14} /><span className="gh-row-num">#{p.number}</span><span className="gh-ellipsis">{p.title}</span>
+      {(p.state === 'open' || p.state === 'draft') && p.checks !== 'none' && <span className={`gh-pr-chip gh-${c.tone}`}>{c.mark} {c.text}</span>}</button>; })}
+  </section>;
 }

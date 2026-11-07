@@ -14,7 +14,7 @@ function build(repo: Repo, issue: Issue): { nodes: GNode[]; edges: GEdge[]; cols
   const isOpen = (n: number) => repo.issues.get(n)?.state === 'open';
   const left = issue.blockedBy.filter(isOpen);
   const blocks = issue.state === 'open' ? (repo.blocks.get(issue.number) ?? []).filter(isOpen) : [];
-  const right = [...blocks.map(n => ({ kind: 'issue' as const, n })), ...(repo.prsOf.get(issue.number) ?? []).map(n => ({ kind: 'pull' as const, n }))];
+  const right = blocks.map(n => ({ kind: 'issue' as const, n })); // v3 (#159): PRs are not in the graph; see the closing-PR strip
   if (!left.length && !right.length) return undefined;
   const nodes: GNode[] = [
     ...left.map((n, row) => ({ kind: 'issue' as const, n, col: 0, row })),
@@ -23,9 +23,9 @@ function build(repo: Repo, issue: Issue): { nodes: GNode[]; edges: GEdge[]; cols
   ];
   const edges: GEdge[] = [
     ...left.map(n => ({ from: key('issue', n), to: key('issue', issue.number), kind: 'blocks' as const })),
-    ...right.map(r => ({ from: key('issue', issue.number), to: key(r.kind, r.n), kind: r.kind === 'pull' ? 'pr' as const : 'blocks' as const })),
+    ...right.map(r => ({ from: key('issue', issue.number), to: key(r.kind, r.n), kind: 'blocks' as const })),
   ];
-  return { nodes, edges, cols: 3, heads: ['被阻塞于', '本 issue', '阻塞了 · 关联 PR'] };
+  return { nodes, edges, cols: 3, heads: ['被阻塞于', '本 issue', '阻塞了'] };
 }
 
 export function RelationGraph({ repo, issue, onOpen }: { repo: Repo; issue: Issue; onOpen(s: Selected): void }) {

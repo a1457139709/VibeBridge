@@ -5,11 +5,15 @@ import type { ProcessingState } from '../shared/processing-status';
 export interface Comment { author?: string; body: string; at: string }
 export interface Issue { number: number; title: string; state: 'open' | 'closed'; reason: string; createdAt: string; updatedAt: string; author?: string; assignees: string[]; labels: string[]; parent: number | null; blockedBy: number[]; prs: number[]; body: string; comments: Comment[] }
 export interface Review { author?: string; state: string; body: string; at: string }
+export interface CheckRun { name: string; state: string; required?: boolean; url?: string }
 export interface Pull {
   number: number; title: string; state: 'open' | 'closed' | 'merged' | 'draft'; createdAt: string; updatedAt: string; author?: string; branch: string; additions: number; deletions: number;
-  review: string; checks: string; closes: number[]; body: string; changedFiles: number; comments: Comment[]; reviews: Review[]; checkRuns: { name: string; state: string }[];
+  review: string; checks: string; closes: number[]; body: string; changedFiles: number; comments: Comment[]; reviews: Review[]; checkRuns: CheckRun[];
+  // v3 (#159): base branch, labels, who was asked to review, mergeability and what the repo allows.
+  base?: string; labels?: string[]; requested?: string[]; mergeable?: 'mergeable' | 'conflicting' | 'unknown'; requiredApprovals?: number;
+  mergeQueue?: boolean; mergeMethods?: string[]; codeComments?: number; demo?: boolean;
 }
-export interface Snapshot { repo: string; fetchedAt: string; labels: { name: string; color: string }[]; issues: Issue[]; pulls: Pull[] }
+export interface Snapshot { repo: string; fetchedAt: string; viewer?: string; labels: { name: string; color: string }[]; issues: Issue[]; pulls: Pull[] }
 
 export interface Repo {
   snapshot: Snapshot;
@@ -27,7 +31,39 @@ const push = (map: Map<number, number[]>, key: number, value: number) => {
   map.set(key, list);
 };
 
-export function index(snapshot: Snapshot): Repo {
+// v3 (#159): the real repo has almost no checks or reviews, so a few labelled sample PRs cover every merge-box state.
+const hoursAgo = (h: number) => new Date(Date.now() - h * 3600e3).toISOString();
+function samples(viewer: string, issues: Issue[]): Pull[] {
+  const near = issues.filter(i => i.state === 'open').slice(0, 3).map(i => i.number);
+  const base = { base: 'main', comments: [] as Comment[], updatedAt: hoursAgo(1), mergeMethods: ['squash', 'merge', 'rebase'], demo: true, requiredApprovals: 1 };
+  const ci = (states: [string, string, boolean?][]): CheckRun[] => states.map(([name, state, required]) => ({ name, state, required, url: 'https://github.com' }));
+  return [
+    { ...base, number: 9005, title: '【示例】检查失败、有冲突、被要求修改', state: 'open', createdAt: hoursAgo(2), author: 'codex-agent', branch: 'feat/dispatch-menu', additions: 412, deletions: 38, changedFiles: 9,
+      review: 'changes_requested', checks: 'failure', closes: near.slice(0, 1), labels: ['enhancement'], requested: ['alice'], mergeable: 'conflicting', codeComments: 7,
+      checkRuns: ci([['typecheck', 'success', true], ['unit tests', 'failure', true], ['e2e (macOS)', 'in_progress'], ['lint', 'success', true], ['build', 'success']]),
+      reviews: [{ author: 'bob', state: 'changes_requested', body: '派发菜单的 Space 执行和 ⌥ 反转还没处理，见代码评论。', at: hoursAgo(1.5) }, { author: 'carol', state: 'commented', body: '', at: hoursAgo(1.2) }],
+      body: '实现派发级联菜单。\n\nCloses #' + (near[0] ?? 1) },
+    { ...base, number: 9004, title: '【示例】检查通过、已批准，可以合并', state: 'open', createdAt: hoursAgo(5), author: 'claude-agent', branch: 'fix/tray-maximize', additions: 64, deletions: 12, changedFiles: 3,
+      review: 'approved', checks: 'success', closes: near.slice(1, 2), labels: ['bug'], requested: [], mergeable: 'mergeable', codeComments: 0,
+      checkRuns: ci([['typecheck', 'success', true], ['unit tests', 'success', true], ['lint', 'success', true], ['build', 'success']]),
+      reviews: [{ author: 'alice', state: 'approved', body: 'LGTM', at: hoursAgo(3) }], body: '修复临时放大后托盘按钮错位。' },
+    { ...base, number: 9003, title: '【示例】草稿，检查进行中，等待 review', state: 'draft', createdAt: hoursAgo(9), author: 'pi-agent', branch: 'spike/sidebar-refresh', additions: 120, deletions: 4, changedFiles: 5,
+      review: 'review_required', checks: 'pending', closes: [], labels: [], requested: ['alice', 'frontend-team'], mergeable: 'mergeable', codeComments: 0,
+      checkRuns: ci([['typecheck', 'success', true], ['unit tests', 'queued', true], ['lint', 'in_progress', true]]), reviews: [], body: '先看看刷新的事件来源。' },
+    { ...base, number: 9002, title: '【示例】我自己的 PR，还缺一个批准', state: 'open', createdAt: hoursAgo(20), author: viewer, branch: 'docs/glossary', additions: 30, deletions: 2, changedFiles: 1,
+      review: 'review_required', checks: 'success', closes: [], labels: ['documentation'], requested: ['bob'], mergeable: 'mergeable', codeComments: 2,
+      checkRuns: ci([['typecheck', 'success', true], ['unit tests', 'success', true]]),
+      reviews: [{ author: 'carol', state: 'commented', body: '术语「派发记录」的 Avoid 再想想。', at: hoursAgo(10) }], body: '补充词汇表。' },
+    { ...base, number: 9001, title: '【示例】仓库要求走 merge queue', state: 'open', createdAt: hoursAgo(30), author: 'codex-agent', branch: 'chore/deps', additions: 210, deletions: 190, changedFiles: 2,
+      review: 'approved', checks: 'success', closes: [], labels: ['dependencies'], requested: [], mergeable: 'mergeable', mergeQueue: true, codeComments: 0,
+      checkRuns: ci([['typecheck', 'success', true], ['unit tests', 'success', true]]),
+      reviews: [{ author: 'alice', state: 'approved', body: '', at: hoursAgo(26) }], body: '升级依赖。' },
+  ];
+}
+
+export function index(raw: Snapshot): Repo {
+  const viewer = raw.viewer ?? 'me';
+  const snapshot: Snapshot = { ...raw, viewer, pulls: [...samples(viewer, raw.issues), ...raw.pulls] };
   const repo: Repo = {
     snapshot, issues: new Map(snapshot.issues.map(i => [i.number, i])), pulls: new Map(snapshot.pulls.map(p => [p.number, p])),
     children: new Map(), blocks: new Map(), prsOf: new Map(), labelColor: new Map(snapshot.labels.map(l => [l.name, `#${l.color}`])),
@@ -54,7 +90,7 @@ const textMatch = (q: string, number: number, title: string) => {
 };
 export const pullIsOpen = (p: Pull) => p.state === 'open' || p.state === 'draft';
 export const issueMatches = (i: Issue, f: Filter) => textMatch(f.q, i.number, i.title) && f.labels.every(l => i.labels.includes(l)) && i.state === f.state;
-export const pullMatches = (p: Pull, f: Filter) => textMatch(f.q, p.number, p.title) && (f.state === 'open') === pullIsOpen(p);
+export const pullMatches = (p: Pull, f: Filter) => textMatch(f.q, p.number, p.title) && f.labels.every(l => (p.labels ?? []).includes(l)) && (f.state === 'open') === pullIsOpen(p);
 /** Newest created first — the only order the sidebar offers. */
 export const newestFirst = <T extends { createdAt: string }>(list: T[]) => [...list].sort((a, b) => b.createdAt.localeCompare(a.createdAt));
 

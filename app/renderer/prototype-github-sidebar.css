@@ -199,3 +199,4 @@
 .system-bar .gh-sys-toggle:hover { background: var(--hover); color: var(--text, inherit); }
 .system-bar .gh-sys-toggle.on { background: var(--hover); color: var(--accent); }
 .system-bar .gh-sys-toggle.right { margin: 0 12px 0 auto; transform: scaleX(-1); }
+

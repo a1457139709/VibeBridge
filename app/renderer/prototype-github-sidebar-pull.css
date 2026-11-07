@@ -1,0 +1,25 @@
+/* PROTOTYPE — throwaway, part of prototype-github-sidebar.tsx. Never import or adapt into production. */
+/* v3 (#159): PR rows, reviewers line and the merge box. */
+.gh-author { color: var(--muted); }
+.gh-pr-chip { font-weight: 600; font-size: 11px; white-space: nowrap; }
+.gh-reviewers { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 14px; margin: -4px 0 14px; font-size: 12px; }
+.gh-reviewers-head { display: inline-flex; gap: 6px; align-items: center; color: var(--muted); font-weight: 600; }
+.gh-reviewer { display: inline-flex; gap: 5px; }
+.gh-code-comments { font-size: 12px; color: var(--muted); padding: 4px 2px; }
+.gh-code-comments a, .gh-merge a { color: var(--gh-link); }
+.gh-merge { border: 1px solid var(--line); border-radius: 6px; overflow: visible; font-size: 12px; }
+.gh-merge-row { display: flex; align-items: center; gap: 8px; padding: 9px 12px; border-bottom: 1px solid var(--line); }
+.gh-merge-row.column { flex-direction: column; align-items: stretch; gap: 4px; }
+.gh-merge-row-head { display: flex; gap: 8px; align-items: center; }
+.gh-merge-check { display: flex; gap: 8px; align-items: center; padding: 2px 0 2px 20px; }
+.gh-merge-fold { align-self: flex-start; margin-left: 20px; }
+.gh-required { font-size: 10px; padding: 0 5px; border: 1px solid var(--line); border-radius: 8px; color: var(--muted); }
+.gh-merge-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 14px; padding: 10px 12px; }
+.gh-merge-why { display: inline-flex; align-items: center; gap: 8px; position: relative; }
+.gh-merge-why .gh-pop { top: 100%; left: 0; }
+.gh-btn { padding: 4px 10px; border: 1px solid var(--line); border-radius: 6px; background: var(--surface); color: inherit; font: inherit; cursor: pointer; }
+.gh-btn:disabled, .gh-split button:disabled { opacity: .45; cursor: not-allowed; }
+.gh-closing-pulls { margin: 0 0 14px; border: 1px solid color-mix(in srgb, var(--gh-done) 40%, var(--line)); border-left: 3px solid var(--gh-done); border-radius: 6px; background: color-mix(in srgb, var(--gh-done) 6%, transparent); font-size: 12px; }
+.gh-closing-pulls > header { padding: 6px 10px 2px; color: var(--muted); font-weight: 600; }
+.gh-closing-pull { display: flex; align-items: center; gap: 6px; width: 100%; padding: 5px 10px; border: 0; background: none; color: inherit; font: inherit; text-align: left; cursor: pointer; }
+.gh-closing-pull:hover { background: var(--gh-row-hover); }
