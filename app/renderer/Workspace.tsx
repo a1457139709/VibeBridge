@@ -64,7 +64,7 @@ export function Workspace({ project, report, openAgentSettings, location, visibl
           : { left: `${box.x * 100}%`, top: `${box.y * 100}%`, width: `${box.width * 100}%`, height: `${box.height * 100}%`, visibility: maximized ? 'hidden' : 'visible' };
         return <section key={panel.id} data-panel-id={panel.id} className={`panel-slot ${panel.agent}`} style={position}><div className={`agent-panel ${focused === panel.id ? 'focused' : ''}`}
           onMouseDown={event => { if (!(event.target as HTMLElement).closest('.panel-header')) viewing.select(panel.id); }} onFocusCapture={() => viewing.focusChanged(panel.id)}>
-          <header className="panel-header" onPointerDown={event => interactions.current?.startSwap(event.nativeEvent, event.currentTarget, panel.id)} onClick={() => viewing.focus(panel.id)}>
+          <header className="panel-header" onPointerDown={event => interactions.current?.startDrag(event.nativeEvent, event.currentTarget, panel.id)} onClick={() => viewing.focus(panel.id)}>
             <span className="agent-title" title={title}><span className="agent-symbols"><ProcessingStatusIcon state={panel.status} focusable /><span className="agent-mark" aria-hidden="true">{agentIcons[panel.agent]}</span></span><span className="session-title">{title}</span></span><span className="panel-actions">
               <button aria-label={maximized === panel.id ? t('restorePanel') : t('enlargePanel')} draggable={false} onMouseDown={event => event.stopPropagation()} onClick={event => { event.stopPropagation(); viewing.toggleMaximize(panel.id); }}>⤢</button>
               <button aria-label={t('closePanel')} draggable={false} onMouseDown={event => event.stopPropagation()} onClick={event => { event.stopPropagation(); close(panel.id); }}>×</button>

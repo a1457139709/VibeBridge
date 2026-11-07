@@ -2,6 +2,8 @@ import type { english } from './en';
 
 export const chinese: Record<keyof typeof english, string> = {
   swapPreview: '交换预览：{first} 与 {second}', draggingPanel: '拖动中的 {agent} 面板',
+  splitPreview: '落点预览：{agent} 放到 {target} 的{side}', fillPreview: '落点预览：{agent} 占满布局区域的{side}',
+  sideTop: '上方', sideBottom: '下方', sideLeft: '左侧', sideRight: '右侧',
   statusCleanupFailed: '状态接入资源清理失败：{reasons}',
   general: '通用', agents: 'Agent', appearance: '外观', shortcuts: '快捷键',
   language: '界面语言', languageHelp: '保存后应用于整个工作台，CLI 语言和用户内容保持原样。', languageInvalid: '界面语言无效',

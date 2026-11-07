@@ -1,6 +1,12 @@
 export const english = {
   'swapPreview': 'Swap preview: {first} and {second}',
   'draggingPanel': 'Dragging {agent} panel',
+  'splitPreview': 'Drop preview: {agent} on the {side} of {target}',
+  'fillPreview': 'Drop preview: {agent} along the {side} of the layout area',
+  'sideTop': 'top',
+  'sideBottom': 'bottom',
+  'sideLeft': 'left',
+  'sideRight': 'right',
   'statusCleanupFailed': 'Could not clean up status integration resources: {reasons}',
   'general': 'General',
   'agents': 'Agent',

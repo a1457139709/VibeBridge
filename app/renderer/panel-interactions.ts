@@ -1,7 +1,7 @@
 import type { Language, Layout, Panel } from '../shared/model';
 import type { Divider } from '../shared/layout';
 import { capturePointer } from './pointer-capture';
-import { createSwapPreview } from './panel-swap';
+import { createDragPreview } from './panel-drag';
 import { measurePanel } from './panel-measurement';
 import { createResizePreview } from './panel-resize';
 
@@ -24,11 +24,11 @@ export function createPanelInteractions(canvas: HTMLElement, context: PanelInter
   let displayed = context.layout;
   let layoutKey = JSON.stringify(context.layout);
   let disposed = false, suppressClick = false;
-  let active: { kind: 'swap' | 'resize'; cancel(): void; bounds: DOMRect } | undefined;
+  let active: { kind: 'drag' | 'resize'; cancel(): void; bounds: DOMRect } | undefined;
   let frame: number | undefined;
   const observed = new Map<string, { panel: HTMLElement; container: HTMLElement; runId?: string }>();
   const measure = () => {
-    if (disposed || !current.visible || active?.kind === 'swap') return;
+    if (disposed || !current.visible || active?.kind === 'drag') return;
     for (const binding of observed.values()) if (binding.container.isConnected) measurePanel(binding.container, binding.runId);
   };
   const present = (layout: Layout | null) => { displayed = layout; current.presentLayout(layout); };
@@ -82,7 +82,7 @@ export function createPanelInteractions(canvas: HTMLElement, context: PanelInter
   // In particular a second pointer must not take over the first pointer's capture.
   const available = (event: PointerEvent) => !disposed && !active && current.visible && !current.maximizedPanelId
     && displayed && event.button === 0 && canvas.isConnected && canvas.getClientRects().length;
-  const track = (kind: 'swap' | 'resize', event: PointerEvent, handle: HTMLElement, preview: {
+  const track = (kind: 'drag' | 'resize', event: PointerEvent, handle: HTMLElement, preview: {
     move(event: PointerEvent): void;
     result(event: PointerEvent): Layout | undefined;
     dispose(): void;
@@ -117,14 +117,14 @@ export function createPanelInteractions(canvas: HTMLElement, context: PanelInter
       if (changedLayout) present(next.layout);
       syncPanels(); measure();
     },
-    startSwap(event: PointerEvent, handle: HTMLElement, panelId: string) {
+    startDrag(event: PointerEvent, handle: HTMLElement, panelId: string) {
       if (!available(event) || !current.panels.some(panel => panel.id === panelId)
         || (event.target as HTMLElement).closest('button, [role="menu"]')) return;
       event.preventDefault(); suppressClick = false;
-      const preview = createSwapPreview({ event, canvas, source: panelId, panels: current.panels, layout: displayed!,
+      const preview = createDragPreview({ event, canvas, source: panelId, panels: current.panels, layout: displayed!,
         language: current.language,
         consumed: () => { suppressClick = true; } });
-      track('swap', event, handle, preview);
+      track('drag', event, handle, preview);
     },
     startResize(event: PointerEvent, handle: HTMLElement, divider: Divider) {
       if (!available(event)) return;
