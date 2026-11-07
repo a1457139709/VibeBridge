@@ -31,8 +31,13 @@
 /* drop preview: center swap */
 .proto-drop-center { left: 25%; top: 25%; width: 50%; height: 50%; }
 
-/* row action: status + dispatch button side by side */
-.gh-row-action { gap: 6px; align-items: center; min-width: 0; }
+/* #160 row action: two lines on the right — the dispatch button, and under it the dispatch status (state icon + short session title). */
+.gh-row-action { flex-direction: column; align-items: flex-end; gap: 4px; min-width: 0; }
+.gh-row-action .gh-dstatus { flex-direction: row; align-items: center; gap: 4px; max-width: 96px; }
+.gh-dstatus .processing-status { width: 12px; height: 12px; flex: 0 0 12px; }
+.gh-row-action .gh-dstatus-pane { max-width: 80px; }
+.gh-dstatus-times { color: var(--muted); font-size: 10px; flex-shrink: 0; }
+.gh-row-action .gh-dstatus.gone { font-size: 10px; white-space: nowrap; }
 .wb-dispatch .gh-split-main { white-space: nowrap; }
 
 /* cascading dispatch menu */
@@ -127,3 +132,4 @@
 .wb-kids-caret { width: 12px; font-size: 12px; }
 .wb-kids-body { margin-left: 18px; border-left: 2px solid color-mix(in srgb, var(--gh-link) 35%, var(--line)); }
 .wb-tree .wb-kids-body .gh-fold { padding-left: 34px !important; }
+.wb-record .gh-dstatus-pane { display: none; } /* the record already names the session */

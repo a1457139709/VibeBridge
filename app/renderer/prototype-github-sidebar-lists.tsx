@@ -65,8 +65,8 @@ export function IssueList({ repo, filter, setFilter, cursor, onCursor, onOpenDet
           </div>
         </div>
         {i.state === 'open' && <div className="gh-row-action">
-          {!!records.length && <DispatchStatus records={records} panes={panes} onLocate={onLocate} />}
           {dispatchButton(i, !!blockers.length)}
+          {!!records.length && <DispatchStatus records={records} panes={panes} onLocate={onLocate} />}
         </div>}
       </div>
       {hasKids && open && <div className="wb-kids-body">

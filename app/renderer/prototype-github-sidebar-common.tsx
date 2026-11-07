@@ -64,9 +64,9 @@ export function DispatchStatus({ records, panes, onLocate }: { records: Dispatch
   const pane = panes.find(p => p.id === last.pane);
   const times = records.length > 1 ? ` ×${records.length}` : '';
   if (!pane) return <span className="gh-dstatus gone" title="派发去的会话已不在任何打开的面板上">已派发 · {ago(last.at)}{times}</span>;
-  return <button className={`gh-dstatus status-${pane.status}`} title={`${last.text} → ${pane.title}（点击定位面板，⌘L）`} onClick={e => { e.stopPropagation(); onLocate(pane.id); }}>
-    <span className="gh-dstatus-state"><ProcessingStatusIcon state={pane.status} />{statusName[pane.status]}{times}</span>
-    <span className="gh-dstatus-pane">{pane.title}</span>
+  // #160: one line — the state as an icon only, then the session title cut short; the full text lives in the tooltip.
+  return <button className={`gh-dstatus status-${pane.status}`} title={`${statusName[pane.status]} · ${last.text} → ${pane.title}（点击定位面板，⌘L）`} aria-label={`${statusName[pane.status]} · ${pane.title}`} onClick={e => { e.stopPropagation(); onLocate(pane.id); }}>
+    <ProcessingStatusIcon state={pane.status} /><span className="gh-dstatus-pane">{pane.title}</span>{times && <span className="gh-dstatus-times">{times}</span>}
   </button>;
 }
 
