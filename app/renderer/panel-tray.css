@@ -1,0 +1,16 @@
+/* The tray never scrolls or overflows: cards shrink together down to a fixed minimum that
+   still shows the Agent colour edge and the processing state icon. */
+.panel-tray { --tray-card-minimum: 34px; height: 34px; flex-shrink: 0; display: flex; align-items: center; gap: 6px; padding: 0 8px 6px; overflow: hidden; }
+.tray-card { flex: 0 1 200px; min-width: var(--tray-card-minimum); height: 28px; display: flex; align-items: center; gap: 6px; padding: 0 8px 0 9px; border: 1px solid var(--line); border-radius: 7px;
+  background: var(--surface); box-shadow: inset 3px 0 var(--brand); font-size: 11px; text-align: left; overflow: hidden; }
+.tray-card:hover { background: color-mix(in srgb, var(--brand) 6%, var(--surface)); }
+.tray-card[aria-pressed='true'] { border-color: var(--brand); background: color-mix(in srgb, var(--brand) 14%, var(--surface)); box-shadow: inset 3px 0 var(--brand), 0 0 0 1px var(--brand); }
+.tray-card:focus-visible { outline: 2px solid var(--brand); outline-offset: 1px; }
+.tray-card-symbols { display: inline-flex; align-items: center; gap: 5px; flex-shrink: 0; }
+.tray-card .agent-mark { width: 14px; font-size: 13px; line-height: 1; }
+.tray-card .agent-mark svg { width: 13px; height: 13px; display: block; }
+.tray-card .session-title { min-width: 0; flex: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+/* Attention states stay highlighted however narrow the card becomes. */
+.tray-card:has(.processing-needs-input) { background: color-mix(in srgb, var(--status-needs-input) 14%, var(--surface)); }
+.tray-card:has(.processing-done) { background: color-mix(in srgb, var(--status-done) 12%, var(--surface)); }
+.tray-card:has(.processing-error) { background: color-mix(in srgb, var(--status-error) 12%, var(--surface)); }

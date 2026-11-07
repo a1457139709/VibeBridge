@@ -126,6 +126,8 @@ export const english = {
   "restorePanel": "Restore panel",
   "enlargePanel": "Maximize panel",
   "untitled": "Untitled task",
+  "panelTray": "Ephemeral panel tray",
+  "collapsePanel": "Collapse panel",
   "locatedPanel": "Switched to: {title}",
   "ready": "Ready",
   "busy": "Busy",

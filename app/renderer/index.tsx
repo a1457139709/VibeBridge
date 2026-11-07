@@ -1,5 +1,5 @@
 import { Localization, useLocalization } from './Localization';
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { createRoot } from 'react-dom/client';
 import type {} from '../shared/api';
 import { newDraft, type Snapshot } from '../shared/model';
@@ -19,6 +19,7 @@ import './style.css';
 import './terminal.css';
 import './processing-status.css';
 import './project-summary.css';
+import './panel-tray.css';
 
 function App() {
   const [state, setState] = useState<Snapshot>();
@@ -83,6 +84,7 @@ function WorkbenchView({ state, setState }: { state?: Snapshot; setState(snapsho
   const navigation = useProjectNavigation({ snapshot: state, page: settingsOpen ? 'settings' : setup ? 'setup' : 'workbench',
     view: location.view, openProject: activate, locatePanel, createProject: create, toggleSettings, report });
   const active = state?.projects.find(project => project.id === state.activeProjectId);
+  const activePanels = useMemo(() => active && [...active.panels, ...active.tray], [active]);
   const conflictCategory = state?.settingsConflicts[0]?.category;
   useEffect(() => {
     const keydown = (event: KeyboardEvent) => {
@@ -110,7 +112,7 @@ function WorkbenchView({ state, setState }: { state?: Snapshot; setState(snapsho
       </div>
       {state && settingsOpen && <SettingsPage ref={settingsPage} settings={state.settings} startupTheme={state.startupTheme} initialCategory={initialSettingsCategory} report={report} back={() => void leaveSettings()} />}
     </main></div>
-    <ProjectSummary projectId={active?.id} panels={active?.panels} locatePanel={locatePanel} />
+    <ProjectSummary projectId={active?.id} panels={activePanels} locatePanel={locatePanel} />
     <Notices notices={notices} dismiss={dismiss} />
     {conflictCategory && !settingsOpen && <SettingsConflictDialog category={conflictCategory} openSettings={() => openSettings(conflictCategory)} />}
   </div>;

@@ -8,9 +8,8 @@ module.exports = {
     const command = { command: process.env.VIBEBRIDGE_TEST_NODE, args: [resolve('tests/fixtures/codex-cli.cjs')] };
     const settings = await evaluate('window.workbench.snapshot().then(snapshot => snapshot.settings)');
     await evaluate(`window.workbench.saveSettings(${JSON.stringify({ agents: { ...settings.agents, codex: command } })})`);
-    const created = await require('./support/project.cjs')(context, 'Codex hook panels');
+    const created = await require('./support/project.cjs')(context, 'Codex hook panels', { Codex: 2 });
     const project = created.activeProjectId;
-    await evaluate(`window.workbench.addPanel(${JSON.stringify(project)}, 'codex')`);
     const runs = runsOf(await evaluate('window.workbench.snapshot()'));
     assert.equal(runs.length, 2);
     const label = (run, selector) => `document.querySelector('[${selector}="${run.panelId}"] .processing-status')?.getAttribute('aria-label')`;

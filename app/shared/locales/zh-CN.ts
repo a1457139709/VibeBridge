@@ -91,6 +91,8 @@ export const chinese: Record<keyof typeof english, string> = {
   "restorePanel": "还原面板",
   "enlargePanel": "放大面板",
   "untitled": "未命名任务",
+  "panelTray": "临时面板托盘",
+  "collapsePanel": "收起面板",
   "locatedPanel": "已切换至：{title}",
   "ready": "就绪",
   "busy": "处理中",

@@ -64,7 +64,7 @@ export function terminalEvent(event: WorkbenchEvent) {
   if (event.kind === 'exit') dispose(event.runId);
 }
 export function reconcileTerminals(projects: ProjectView[]) {
-  const running = new Set(projects.flatMap(project => project.panels.flatMap(({ run }) => run?.state === 'running' ? [run.id] : [])));
+  const running = new Set(projects.flatMap(project => [...project.panels, ...project.tray].flatMap(({ run }) => run?.state === 'running' ? [run.id] : [])));
   for (const id of running) ensure(id);
   for (const id of screens.keys()) if (!running.has(id)) dispose(id);
 }

@@ -1,7 +1,7 @@
 import { useLocalization } from './Localization';
 import { agentIcons } from './agent-icons';
-import { useLayoutEffect, useImperativeHandle, useRef, useState, type CSSProperties, type Ref } from 'react';
-import { type Layout, type ProjectView, type Run } from '../shared/model';
+import { useLayoutEffect, useImperativeHandle, useRef, useState, type CSSProperties, type ReactNode, type Ref, type PointerEvent } from 'react';
+import { type Layout, type PanelView, type ProjectView, type Run } from '../shared/model';
 import { layoutBoxes } from '../shared/layout';
 import { mountTerminal } from './terminals';
 import { AgentPicker } from './AgentPicker';
@@ -9,6 +9,7 @@ import { createPanelInteractions, type PanelInteractionContext } from './panel-i
 import type { ShortcutAction } from '../shared/shortcuts';
 import { useWorkspacePanelLocation, type PanelLocation } from './panel-location';
 import { ProcessingStatusIcon } from './ProcessingStatusIcon';
+import { PanelTray } from './PanelTray';
 
 export interface WorkspaceActions { shortcut(action: ShortcutAction): boolean }
 
@@ -21,6 +22,28 @@ function TerminalView({ run }: { run?: Run }) {
   return <div className="terminal-container" ref={container}>{run?.state === 'starting' ? <div className="terminal-message">{t('launchPending')}</div> : run?.state === 'failed' ? <div className="terminal-message">{t('launchFailed')}</div> : run?.state === 'stopped' ? <div className="terminal-message">{t('runStopped')}</div> : !run ? <div className="terminal-message muted">{t('starting')}</div> : null}</div>;
 }
 
+const maximizedPosition: CSSProperties = { left: 0, top: 0, width: '100%', height: '100%', zIndex: 2 };
+
+/** One Agent panel: header with title, processing state, Agent type and actions, over its terminal. */
+function AgentPanel({ panel, position, focused, actions, select, focusChanged, headerPointerDown, headerClick }: {
+  panel: PanelView; position: CSSProperties; focused: boolean; actions: ReactNode;
+  select(): void; focusChanged(): void; headerPointerDown?(event: PointerEvent<HTMLElement>): void; headerClick(): void;
+}) {
+  const { t } = useLocalization();
+  const title = panel.run?.title ?? t('untitled');
+  return <section data-panel-id={panel.id} className={`panel-slot ${panel.agent}`} style={position}><div className={`agent-panel ${focused ? 'focused' : ''}`}
+    onMouseDown={event => { if (!(event.target as HTMLElement).closest('.panel-header')) select(); }} onFocusCapture={focusChanged}>
+    <header className="panel-header" onPointerDown={headerPointerDown} onClick={headerClick}>
+      <span className="agent-title" title={title}><span className="agent-symbols"><ProcessingStatusIcon state={panel.status} focusable /><span className="agent-mark" aria-hidden="true">{agentIcons[panel.agent]}</span></span><span className="session-title">{title}</span></span>
+      <span className="panel-actions">{actions}</span>
+    </header><TerminalView run={panel.run} />
+  </div></section>;
+}
+
+function PanelAction({ label, run, children }: { label: string; run(): void; children: ReactNode }) {
+  return <button aria-label={label} draggable={false} onMouseDown={event => event.stopPropagation()} onClick={event => { event.stopPropagation(); run(); }}>{children}</button>;
+}
+
 export function Workspace({ project, report, openAgentSettings, location, visible, ref }: { project: ProjectView; report(message: string): void; openAgentSettings(): void; location: PanelLocation; visible: boolean; ref: Ref<WorkspaceActions> }) {
   const { t, language } = useLocalization();
   const [layout, setLayout] = useState(project.layout);
@@ -30,6 +53,8 @@ export function Workspace({ project, report, openAgentSettings, location, visibl
   const positions = layoutBoxes(layout);
   const viewing = useWorkspacePanelLocation(location, project, canvas, [...positions.panels.keys()]);
   const { selected: focused, maximized } = viewing;
+  const openTrayPanel = project.tray.find(panel => panel.id === maximized);
+  const full = project.panels.length + project.tray.length >= 10;
   const persist = (next: Layout) => { void window.workbench.saveLayout(project.id, next).catch(error => report(error.message)); };
   useLayoutEffect(() => {
     const context: PanelInteractionContext = { projectId: project.id, layout: project.layout, language,
@@ -42,9 +67,9 @@ export function Workspace({ project, report, openAgentSettings, location, visibl
   const close = (panelId: string) => { void window.workbench.closePanel(project.id, panelId).catch(error => report(error.message)); };
   useImperativeHandle(ref, () => ({ shortcut(action) {
     if (adding) return false;
-    if (action === 'addPanel' && project.panels.length < 10) { setAdding(true); return true; }
+    if (action === 'addPanel' && !full) { setAdding(true); return true; }
+    if (action === 'closePanel' && (maximized ?? focused)) { close((maximized ?? focused)!); return true; }
     if (!focused) return false;
-    if (action === 'closePanel') { close(maximized ?? focused); return true; }
     if (action === 'maximizePanel') { viewing.toggleMaximize(focused); return true; }
     if (action === 'nextPanel' || action === 'previousPanel') {
       viewing.move(action === 'nextPanel' ? 1 : -1); return true;
@@ -52,26 +77,25 @@ export function Workspace({ project, report, openAgentSettings, location, visibl
     return false;
   } }));
   const directoryEnd = project.directory.lastIndexOf('/');
-  return <div className="workspace"><header className="workspace-toolbar"><strong title={project.name}>{project.name}</strong><span className="project-path" title={project.directory}><span className="path-parent">{project.directory.slice(0, directoryEnd)}</span><span className="path-leaf">{project.directory.slice(directoryEnd)}</span></span><span className="muted">{t('panelCount', { count: project.panels.length })}</span><button aria-label={t('addPanel')} disabled={project.panels.length >= 10} onClick={() => setAdding(true)}>＋</button></header>
+  return <div className="workspace"><header className="workspace-toolbar"><strong title={project.name}>{project.name}</strong><span className="project-path" title={project.directory}><span className="path-parent">{project.directory.slice(0, directoryEnd)}</span><span className="path-leaf">{project.directory.slice(directoryEnd)}</span></span><span className="muted">{t('panelCount', { count: project.panels.length })}</span><button aria-label={t('addPanel')} disabled={full} onClick={() => setAdding(true)}>＋</button></header>
     <div className="canvas" ref={canvas}>
-      {!project.panels.length && <div className="empty"><p>{t('emptyProject')}</p><button onClick={() => setAdding(true)}>＋ {t('addPanel')}</button></div>}
+      {!project.panels.length && !openTrayPanel && <div className="empty"><p>{t('emptyProject')}</p><button disabled={full} onClick={() => setAdding(true)}>＋ {t('addPanel')}</button></div>}
       {project.panels.map(panel => {
         const box = positions.panels.get(panel.id);
         if (!box) return null;
-        const { run } = panel;
-        const title = run?.title ?? t('untitled');
-        const position: CSSProperties = maximized === panel.id ? { left: 0, top: 0, width: '100%', height: '100%', zIndex: 2 }
+        // Hidden panels stay mounted, so their terminals keep their screens.
+        const position: CSSProperties = maximized === panel.id ? maximizedPosition
           : { left: `${box.x * 100}%`, top: `${box.y * 100}%`, width: `${box.width * 100}%`, height: `${box.height * 100}%`, visibility: maximized ? 'hidden' : 'visible' };
-        return <section key={panel.id} data-panel-id={panel.id} className={`panel-slot ${panel.agent}`} style={position}><div className={`agent-panel ${focused === panel.id ? 'focused' : ''}`}
-          onMouseDown={event => { if (!(event.target as HTMLElement).closest('.panel-header')) viewing.select(panel.id); }} onFocusCapture={() => viewing.focusChanged(panel.id)}>
-          <header className="panel-header" onPointerDown={event => interactions.current?.startSwap(event.nativeEvent, event.currentTarget, panel.id)} onClick={() => viewing.focus(panel.id)}>
-            <span className="agent-title" title={title}><span className="agent-symbols"><ProcessingStatusIcon state={panel.status} focusable /><span className="agent-mark" aria-hidden="true">{agentIcons[panel.agent]}</span></span><span className="session-title">{title}</span></span><span className="panel-actions">
-              <button aria-label={maximized === panel.id ? t('restorePanel') : t('enlargePanel')} draggable={false} onMouseDown={event => event.stopPropagation()} onClick={event => { event.stopPropagation(); viewing.toggleMaximize(panel.id); }}>⤢</button>
-              <button aria-label={t('closePanel')} draggable={false} onMouseDown={event => event.stopPropagation()} onClick={event => { event.stopPropagation(); close(panel.id); }}>×</button>
-            </span>
-          </header><TerminalView run={run} />
-        </div></section>;
+        return <AgentPanel key={panel.id} panel={panel} position={position} focused={focused === panel.id}
+          select={() => viewing.select(panel.id)} focusChanged={() => viewing.focusChanged(panel.id)} headerClick={() => viewing.focus(panel.id)}
+          headerPointerDown={event => interactions.current?.startSwap(event.nativeEvent, event.currentTarget, panel.id)}
+          actions={<><PanelAction label={maximized === panel.id ? t('restorePanel') : t('enlargePanel')} run={() => viewing.toggleMaximize(panel.id)}>⤢</PanelAction>
+            <PanelAction label={t('closePanel')} run={() => close(panel.id)}>×</PanelAction></>} />;
       })}
+      {openTrayPanel && <AgentPanel key={openTrayPanel.id} panel={openTrayPanel} position={maximizedPosition} focused
+        select={() => viewing.select(openTrayPanel.id)} focusChanged={() => viewing.focusChanged(openTrayPanel.id)} headerClick={() => viewing.focus(openTrayPanel.id)}
+        actions={<><PanelAction label={t('collapsePanel')} run={viewing.collapse}>⌄</PanelAction>
+          <PanelAction label={t('closePanel')} run={() => close(openTrayPanel.id)}>×</PanelAction></>} />}
       {!maximized && positions.dividers.map(divider => {
         const { box, axis, ratio } = divider;
         const style: CSSProperties = axis === 'row'
@@ -80,7 +104,8 @@ export function Workspace({ project, report, openAgentSettings, location, visibl
         return <div key={divider.path.join('.')} role="separator" aria-orientation={axis === 'row' ? 'vertical' : 'horizontal'} className="divider" style={style} onPointerDown={event => interactions.current?.startResize(event.nativeEvent, event.currentTarget, divider)} />;
       })}
     </div>
-    {adding && <AgentPicker projectId={project.id} full={project.panels.length >= 10} close={() => setAdding(false)}
-      added={() => { setAdding(false); viewing.panelAdded(); }} openAgentSettings={openAgentSettings} />}
+    <PanelTray panels={project.tray} openPanelId={openTrayPanel?.id} open={viewing.openTrayPanel} collapse={viewing.collapse} />
+    {adding && <AgentPicker projectId={project.id} full={full} close={() => setAdding(false)}
+      added={panelId => { setAdding(false); viewing.panelAdded(panelId); }} openAgentSettings={openAgentSettings} />}
   </div>;
 }
