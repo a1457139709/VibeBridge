@@ -296,6 +296,8 @@ export function useWorkspacePanelLocation(location: PanelLocation, project: Proj
     /** Opens a tray panel as the ephemeral maximize; an open tray panel returns to the tray. */
     openTrayPanel: (panelId: string) => { if (view.maximized !== panelId) connection.toggleMaximize(project.id, panelId); },
     collapse: () => connection.collapse(project.id),
+    /** Reopens a tray panel collapsed for a request that failed, unless a panel has since taken the layout area. */
+    reopen: (panelId: string) => { if (!location.view(project.id).maximized) connection.toggleMaximize(project.id, panelId); },
     panelAdded: (panelId: string) => connection.panelAdded(project.id, panelId),
     move(offset: -1 | 1) {
       if (!view.selected || !order.length) return;

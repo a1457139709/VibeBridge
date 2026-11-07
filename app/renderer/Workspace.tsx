@@ -59,9 +59,13 @@ export function Workspace({ project, report, openAgentSettings, location, visibl
   const full = project.panels.length + project.tray.length >= 10;
   const persist = (next: Layout) => { void window.workbench.saveLayout(project.id, next).catch(error => report(error.message)); };
   const placeInLayout = (panelId: string, next: Layout) => {
-    // The layout area returns to the resident layout, where the placed panel now lives.
+    // The layout area returns to the resident layout, where the placed panel lives; a rejected placement changes nothing.
+    const open = openTrayPanel?.id;
     viewing.collapse();
-    void window.workbench.placeInLayout(project.id, panelId, next).catch(error => report(error.message));
+    void window.workbench.placeInLayout(project.id, panelId, next).catch(error => {
+      if (open) viewing.reopen(open);
+      report(error.message);
+    });
   };
   const moveToTray = (panelId: string) => { void window.workbench.moveToTray(project.id, panelId).catch(error => report(error.message)); };
   useLayoutEffect(() => {
