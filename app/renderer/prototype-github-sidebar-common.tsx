@@ -22,9 +22,9 @@ export function PullIcon({ pull, size = 16 }: { pull: Pull; size?: number }) {
 }
 export const IssuePill = ({ issue }: { issue: Issue }) => <span className={`gh-pill gh-bg-${issueTone(issue)}`}><IssueIcon issue={issue} />{issueStateName(issue)}</span>;
 export const PullPill = ({ pull }: { pull: Pull }) => <span className={`gh-pill gh-bg-${pullTone(pull)}`}><PullIcon pull={pull} />{pullStateName[pull.state]}</span>;
-/** The one blocking mark used everywhere: 「被 #N、#M 阻塞」, hover shows the blockers' titles. */
+/** The one blocking mark used everywhere: blocked icon + 「#N, #M」 like GitHub (#160); hover shows the blockers' titles. */
 export const Blocked = ({ repo, by }: { repo: Repo; by: number[] }) => <span className="gh-blocked" title={by.map(b => `#${b} ${repo.issues.get(b)?.title ?? '不在快照里'}`).join('\n')}>
-  <BlockedIcon size={12} />被 {by.map(b => `#${b}`).join('、')} 阻塞</span>;
+  <BlockedIcon size={12} />{by.map(b => `#${b}`).join(', ')}</span>;
 
 export function Label({ repo, name, onClick }: { repo: Repo; name: string; onClick?(): void }) {
   return <span className={`gh-label ${onClick ? 'clickable' : ''}`} style={{ '--label': repo.labelColor.get(name) ?? '#888' } as React.CSSProperties}

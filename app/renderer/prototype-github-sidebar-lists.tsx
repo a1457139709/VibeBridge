@@ -59,7 +59,7 @@ export function IssueList({ repo, filter, setFilter, cursor, onCursor, onOpenDet
             <span className="gh-row-num">#{i.number}</span><span>{ago(i.createdAt)}</span>
             {hasKids && <button className={`wb-kids ${open ? 'open' : ''}`} tabIndex={-1} title={open ? '收起子 issue' : '展开子 issue'}
               onClick={e => { e.stopPropagation(); setExpanded(x => flipSet(x, i.number)); }}>
-              <span className="wb-kids-caret">{open ? '▾' : '▸'}</span><span>子 issue</span><Progress {...childProgress(repo, i.number)} /></button>}
+              <span className="wb-kids-caret">{open ? '▾' : '▸'}</span><Progress {...childProgress(repo, i.number)} /></button>}
             {!!blockers.length && <Blocked repo={repo} by={blockers} />}
             {i.labels.map(l => <Label key={l} repo={repo} name={l} onClick={() => addLabel(l)} />)}
           </div>
