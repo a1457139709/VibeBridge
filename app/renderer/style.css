@@ -191,6 +191,8 @@ textarea { resize: vertical; }
 .panel-drop-preview { position: fixed; z-index: 30; pointer-events: none; box-sizing: border-box; border: 2px dashed var(--brand); border-radius: 8px; background: color-mix(in srgb, var(--brand) 18%, transparent); }
 .panel-swap-preview .agent-panel,.panel-drag-image .agent-panel { transition: none; }
 .dragging, .dragging .panel-header { cursor: grabbing; }
+/* Placing a tray panel shows the resident layout even while a tray panel is open over it. */
+.canvas.placing > .panel-slot { visibility: visible !important; }
 
 .project-group { flex-shrink: 0; min-width: 0; }
 .project-disclosure { flex: 0 0 22px; width: 22px; min-height: 32px; border: 0; padding: 0; background: transparent; color: var(--muted); }

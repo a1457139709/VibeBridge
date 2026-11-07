@@ -1,20 +1,12 @@
 const assert = require('node:assert/strict');
 const { mkdir, readFile, writeFile } = require('node:fs/promises');
 const { runsOf } = require('./support/panel-views.cjs');
-
-// Panel slot geometry relative to the layout area, rounded to 1/100.
-const geometry = (evaluate, ids) => evaluate(`(() => {
-  const canvas = document.querySelector('.canvas').getBoundingClientRect();
-  return Object.fromEntries(${JSON.stringify(ids)}.map(id => {
-    const box = document.querySelector('[data-panel-id="' + id + '"]').getBoundingClientRect();
-    return [id, [(box.x - canvas.x) / canvas.width, (box.y - canvas.y) / canvas.height, box.width / canvas.width, box.height / canvas.height]
-      .map(value => Math.round(value * 100) / 100)];
-  }));
-})()`);
+const dragging = require('./support/dragging.cjs');
 
 module.exports = {
   async run(context) {
     const { window, evaluate, until, click, directory } = context;
+    const { rect, geometry, press: pressOn, hover, release, previewBox } = dragging(context);
     await require('./support/project.cjs')(context, 'First project');
     const projectDirectory = `${directory}/drops`; await mkdir(projectDirectory);
     await evaluate(`window.workbench.createProject(${JSON.stringify({ name: 'Drop project', directory: projectDirectory, total: 3, counts: { codex: 1, claude: 1, pi: 1 } })})`);
@@ -27,29 +19,11 @@ module.exports = {
     await evaluate(`window.workbench.saveLayout(${JSON.stringify(created.id)}, ${JSON.stringify({ axis: 'row', ratio: .5, first: { panel: a },
       second: { axis: 'column', ratio: .5, first: { panel: b }, second: { panel: c } } })})`);
     const settle = async expected => {
-      await until(async () => JSON.stringify(await geometry(evaluate, [a, b, c])) === JSON.stringify(expected));
+      await until(async () => JSON.stringify(await geometry([a, b, c])) === JSON.stringify(expected));
       assert.deepEqual(runsOf({ projects: [await project()] }).map(run => run.id).sort(), runs);
     };
     await settle({ [a]: [0, 0, .5, 1], [b]: [.5, 0, .5, .5], [c]: [.5, .5, .5, .5] });
-
-    const rect = selector => evaluate(`(() => { const r = document.querySelector(${JSON.stringify(selector)}).getBoundingClientRect(); return { left: r.left, top: r.top, right: r.right, bottom: r.bottom, width: r.width, height: r.height }; })()`);
-    // Electron's button identifies the changed button; modifiers carry the held button across movement.
-    const press = async id => {
-      const header = await rect(`[data-panel-id="${id}"] .panel-header`);
-      const start = { x: Math.round(header.left + header.width / 2), y: Math.round(header.top + header.height / 2) };
-      window.webContents.sendInputEvent({ type: 'mouseDown', ...start, button: 'left', modifiers: ['leftbuttondown'], clickCount: 1 });
-      window.webContents.sendInputEvent({ type: 'mouseMove', x: start.x + 10, y: start.y + 10, button: 'left', modifiers: ['leftbuttondown'] });
-      await until(() => evaluate('document.querySelector(".canvas").classList.contains("dragging")'));
-    };
-    const hover = async (point, preview) => {
-      window.webContents.sendInputEvent({ type: 'mouseMove', ...point, button: 'left', modifiers: ['leftbuttondown'] });
-      await until(() => evaluate(`document.querySelector('[role="img"][aria-label=${JSON.stringify(preview)}]') !== null`));
-    };
-    const release = point => window.webContents.sendInputEvent({ type: 'mouseUp', ...point, button: 'left', clickCount: 1 });
-    const previewBox = async () => {
-      const canvas = await rect('.canvas'), box = await rect('.panel-drop-preview');
-      return [box.left - canvas.left, box.top - canvas.top, box.width, box.height].map((value, index) => Math.round(value / (index % 2 ? canvas.height : canvas.width) * 100) / 100);
-    };
+    const press = id => pressOn(`[data-panel-id="${id}"] .panel-header`);
 
     // Edge: the dragged panel fills the bottom of the layout area, so two panels stack top and bottom.
     let canvas = await rect('.canvas');
@@ -96,11 +70,13 @@ module.exports = {
     await writeFile(`${directory}/expected.json`, JSON.stringify({ ids: [a, b, c], layout: saved, geometry: final }));
     console.log('Edge, perimeter and middle drops rearranged resident panels with their runs intact; Esc and an invalid release changed nothing.');
   },
-  async reopen({ evaluate, until, directory }) {
+  async reopen(context) {
+    const { evaluate, until, directory } = context;
+    const { geometry } = dragging(context);
     const { ids, layout, geometry: expected } = JSON.parse(await readFile(`${directory}/expected.json`, 'utf8'));
     const project = (await evaluate('window.workbench.snapshot()')).projects.find(project => project.name === 'Drop project');
     assert.deepEqual(project.layout, layout);
-    await until(async () => JSON.stringify(await geometry(evaluate, ids)) === JSON.stringify(expected));
+    await until(async () => JSON.stringify(await geometry(ids)) === JSON.stringify(expected));
     console.log('Reopening restored the rearranged layout.');
   },
 };

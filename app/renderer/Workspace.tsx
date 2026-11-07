@@ -49,6 +49,7 @@ export function Workspace({ project, report, openAgentSettings, location, visibl
   const [layout, setLayout] = useState(project.layout);
   const [adding, setAdding] = useState(false);
   const canvas = useRef<HTMLDivElement>(null);
+  const tray = useRef<HTMLElement>(null);
   const interactions = useRef<ReturnType<typeof createPanelInteractions> | null>(null);
   const positions = layoutBoxes(layout);
   const viewing = useWorkspacePanelLocation(location, project, canvas, [...positions.panels.keys()]);
@@ -56,10 +57,17 @@ export function Workspace({ project, report, openAgentSettings, location, visibl
   const openTrayPanel = project.tray.find(panel => panel.id === maximized);
   const full = project.panels.length + project.tray.length >= 10;
   const persist = (next: Layout) => { void window.workbench.saveLayout(project.id, next).catch(error => report(error.message)); };
+  const placeInLayout = (panelId: string, next: Layout) => {
+    // The layout area returns to the resident layout, where the placed panel now lives.
+    viewing.collapse();
+    void window.workbench.placeInLayout(project.id, panelId, next).catch(error => report(error.message));
+  };
+  const moveToTray = (panelId: string) => { void window.workbench.moveToTray(project.id, panelId).catch(error => report(error.message)); };
   useLayoutEffect(() => {
     const context: PanelInteractionContext = { projectId: project.id, layout: project.layout, language,
       panels: project.panels.map(({ id, agent, run }) => ({ id, agent, runId: run?.id })),
-      visible, maximizedPanelId: maximized, presentLayout: setLayout, commitLayout: persist };
+      tray: project.tray.map(({ id, agent }) => ({ id, agent })), trayElement: tray.current,
+      visible, maximizedPanelId: maximized, presentLayout: setLayout, commitLayout: persist, placeInLayout, moveToTray };
     if (interactions.current) interactions.current.update(context);
     else interactions.current = createPanelInteractions(canvas.current!, context);
   });
@@ -94,6 +102,7 @@ export function Workspace({ project, report, openAgentSettings, location, visibl
       })}
       {openTrayPanel && <AgentPanel key={openTrayPanel.id} panel={openTrayPanel} position={maximizedPosition} focused
         select={() => viewing.select(openTrayPanel.id)} focusChanged={() => viewing.focusChanged(openTrayPanel.id)} headerClick={() => viewing.focus(openTrayPanel.id)}
+        headerPointerDown={event => interactions.current?.startDrag(event.nativeEvent, event.currentTarget, openTrayPanel.id)}
         actions={<><PanelAction label={t('collapsePanel')} run={viewing.collapse}>⌄</PanelAction>
           <PanelAction label={t('closePanel')} run={() => close(openTrayPanel.id)}>×</PanelAction></>} />}
       {!maximized && positions.dividers.map(divider => {
@@ -104,7 +113,8 @@ export function Workspace({ project, report, openAgentSettings, location, visibl
         return <div key={divider.path.join('.')} role="separator" aria-orientation={axis === 'row' ? 'vertical' : 'horizontal'} className="divider" style={style} onPointerDown={event => interactions.current?.startResize(event.nativeEvent, event.currentTarget, divider)} />;
       })}
     </div>
-    <PanelTray panels={project.tray} openPanelId={openTrayPanel?.id} open={viewing.openTrayPanel} collapse={viewing.collapse} />
+    <PanelTray ref={tray} panels={project.tray} openPanelId={openTrayPanel?.id} open={viewing.openTrayPanel} collapse={viewing.collapse}
+      cardPointerDown={(event, panelId) => interactions.current?.startDrag(event.nativeEvent, event.currentTarget, panelId)} />
     {adding && <AgentPicker projectId={project.id} full={full} close={() => setAdding(false)}
       added={panelId => { setAdding(false); viewing.panelAdded(panelId); }} openAgentSettings={openAgentSettings} />}
   </div>;

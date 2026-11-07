@@ -3,6 +3,8 @@ export const english = {
   'draggingPanel': 'Dragging {agent} panel',
   'splitPreview': 'Drop preview: {agent} on the {side} of {target}',
   'fillPreview': 'Drop preview: {agent} along the {side} of the layout area',
+  'wholePreview': 'Drop preview: {agent} fills the layout area',
+  'trayPreview': 'Drop preview: {agent} moves to the tray',
   'sideTop': 'top',
   'sideBottom': 'bottom',
   'sideLeft': 'left',
