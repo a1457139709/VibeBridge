@@ -77,10 +77,16 @@ export function Workspace({ project, report, openAgentSettings, location, visibl
     if (adding) return false;
     if (action === 'addPanel' && !full) { setAdding(true); return true; }
     if (action === 'closePanel' && (maximized ?? focused)) { close((maximized ?? focused)!); return true; }
-    if (!focused) return false;
-    if (action === 'maximizePanel') { viewing.toggleMaximize(focused); return true; }
+    // Panel keys follow the resident layout: an open tray panel returns to the tray first.
+    if (action === 'maximizePanel') {
+      if (openTrayPanel) viewing.collapse();
+      else if (focused) viewing.toggleMaximize(focused);
+      return !!(openTrayPanel || focused);
+    }
     if (action === 'nextPanel' || action === 'previousPanel') {
-      viewing.move(action === 'nextPanel' ? 1 : -1); return true;
+      if (openTrayPanel) viewing.collapse();
+      if (focused) viewing.move(action === 'nextPanel' ? 1 : -1);
+      return !!(openTrayPanel || focused);
     }
     return false;
   } }));

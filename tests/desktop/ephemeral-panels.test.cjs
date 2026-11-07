@@ -90,6 +90,39 @@ module.exports = {
     await until(async () => await visibleResidents() === 2);
     assert.equal(await evaluate('document.querySelectorAll(".panel-tray .tray-card").length'), 0);
     assert.deepEqual((await snapshot()).projects[0].layout, layout);
-    console.log('New panels joined the tray and opened with terminal focus, one at a time; the add shortcut matched the toolbar; Escape reached the terminal without collapsing; collapse and card clicks kept the layout and runs; closing and exiting left the tray.');
+    // Panel shortcuts follow the resident layout: with a tray panel open they collapse it first.
+    const residentIds = project.panels.map(panel => panel.id);
+    const shortcut = (code, key, shiftKey = false) => evaluate(`document.activeElement.dispatchEvent(new KeyboardEvent("keydown", { key: ${JSON.stringify(key)}, code: ${JSON.stringify(code)}, metaKey: true, shiftKey: ${shiftKey}, bubbles: true }))`);
+    const third = await addThroughPicker(() => click('Add Agent'), 'codex');
+    await until(async () => await focusedPanel() === third.id);
+    await shortcut('Enter', 'Enter');
+    await until(async () => JSON.stringify(await pressed()) === JSON.stringify([[third.id, 'false']]));
+    await until(async () => await visibleResidents() === 2);
+    await until(async () => residentIds.includes(await focusedPanel()));
+    const selectedResident = await focusedPanel();
+    const otherResident = residentIds.find(id => id !== selectedResident);
+    await shortcut('Enter', 'Enter');
+    await until(async () => await visibleResidents() === 1);
+    assert.equal(await focusedPanel(), selectedResident, 'the maximize shortcut still maximizes the selected resident panel');
+    await shortcut('Enter', 'Enter');
+    await until(async () => await visibleResidents() === 2);
+
+    await evaluate(`document.querySelector('[data-tray-panel-id="${third.id}"]').click()`);
+    await until(async () => await focusedPanel() === third.id);
+    await shortcut('BracketRight', ']');
+    await until(async () => await focusedPanel() === otherResident);
+    await until(async () => await visibleResidents() === 2);
+    assert.deepEqual(await pressed(), [[third.id, 'false']]);
+    await shortcut('BracketLeft', '[');
+    await until(async () => await focusedPanel() === selectedResident);
+    assert.equal(await visibleResidents(), 2, 'moving between resident panels does not maximize them');
+
+    await evaluate(`document.querySelector('[data-tray-panel-id="${third.id}"]').click()`);
+    await until(async () => await focusedPanel() === third.id);
+    await shortcut('KeyW', 'W', true);
+    await until(async () => (await tray()).length === 0);
+    await until(async () => await visibleResidents() === 2);
+    assert.equal((await snapshot()).projects[0].panels.length, 2);
+    console.log('New panels joined the tray and opened with terminal focus, one at a time; the add shortcut matched the toolbar; Escape reached the terminal without collapsing; collapse and card clicks kept the layout and runs; closing and exiting left the tray; panel shortcuts collapsed an open tray panel and moved only between resident panels.');
   },
 };

@@ -1,0 +1,13 @@
+.project-group { flex-shrink: 0; min-width: 0; }
+.project-disclosure { flex: 0 0 22px; width: 22px; min-height: 32px; border: 0; padding: 0; background: transparent; color: var(--muted); }
+.project-panels { margin: 2px 0 6px 26px; display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.panel-link { display: flex; align-items: center; gap: 8px; min-width: 0; width: 100%; text-align: left; padding: 4px 8px; border: 0; background: transparent; font-size: 12px; }
+.panel-link .agent-mark { flex: 0 0 16px; width: 16px; }
+.panel-link.selected { background: color-mix(in srgb, var(--brand) 12%, var(--surface)); color: inherit; box-shadow: inset 2px 0 var(--brand); }
+.panel-link:focus-visible { outline-color: var(--brand); }
+.ephemeral-group { margin: -4px 0 6px 26px; min-width: 0; }
+.ephemeral-group .project-panels { margin: 2px 0 0 12px; }
+.ephemeral-toggle { display: flex; align-items: center; gap: 6px; width: 100%; min-width: 0; padding: 3px 8px; border: 0; background: transparent; color: var(--muted); font-size: 11px; text-align: left; }
+.ephemeral-disclosure { flex: 0 0 10px; }
+.ephemeral-heading { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ephemeral-attention { display: flex; gap: 4px; flex-shrink: 0; }
