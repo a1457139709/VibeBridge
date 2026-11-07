@@ -76,14 +76,23 @@ const layoutNodeSchema: z.ZodType<Layout> = z.lazy(() => z.union([
   z.strictObject({ axis: z.enum(['row', 'column']), ratio: z.number().gt(0).lt(1), first: layoutNodeSchema, second: layoutNodeSchema }),
 ]));
 const layoutDepth = (node: Layout): number => 'panel' in node ? 0 : 1 + Math.max(layoutDepth(node.first), layoutDepth(node.second));
-const layoutPanelIds = (node: Layout): string[] => 'panel' in node ? [node.panel] : [...layoutPanelIds(node.first), ...layoutPanelIds(node.second)];
+const panelIds = (node: Layout): string[] => 'panel' in node ? [node.panel] : [...panelIds(node.first), ...panelIds(node.second)];
 const layoutSchema = layoutNodeSchema.refine(layout => layoutDepth(layout) <= 10).nullable();
+
+/** The panel IDs a layout places, in order. */
+export const layoutPanelIds = (layout: Layout | null): string[] => layout ? panelIds(layout) : [];
+
+/** A layout whose structure is valid, whichever panels it places. */
+export function layoutStructure(value: unknown): Layout | null {
+  const parsed = layoutSchema.safeParse(value);
+  if (!parsed.success) throw new Error(message('layoutInvalid'));
+  return parsed.data;
+}
 
 /** A layout of the given panels: its structure is valid and it places each panel exactly once. */
 export function parseLayout(value: unknown, panels: Panel[]): Layout | null {
-  const parsed = layoutSchema.safeParse(value);
-  if (!parsed.success) throw new Error(message('layoutInvalid'));
-  const ids = parsed.data ? layoutPanelIds(parsed.data) : [];
+  const layout = layoutStructure(value);
+  const ids = layoutPanelIds(layout);
   if (ids.length !== panels.length || new Set(ids).size !== ids.length || panels.some(p => !ids.includes(p.id))) throw new Error(message('layoutMismatch'));
-  return parsed.data;
+  return layout;
 }
