@@ -76,6 +76,18 @@ test('choosing a resident panel in the summary leaves the tray closed', async ()
   assert.ok(!screen.queryByRole('button', { name: 'Collapse panel' }));
 });
 
+test('choosing a resident panel in the summary while a tray panel is open collapses back to the layout', async () => {
+  const user = renderWorkbench();
+  const tray = await screen.findByRole('region', { name: 'Ephemeral panel tray' });
+  await user.click(within(tray).getByRole('button', { name: /Session first-ephemeral/ }));
+  assert.ok(screen.getByRole('button', { name: 'Collapse panel' }));
+  await user.click(screen.getByRole('button', { name: '2 Done' }));
+  await user.click(within(screen.getByRole('dialog', { name: 'Done' })).getByRole('button', { name: /Session resident/ }));
+  assert.deepEqual(within(tray).getAllByRole('button').map(card => card.getAttribute('aria-pressed')), ['false', 'false']);
+  assert.ok(!screen.queryByRole('button', { name: 'Collapse panel' }));
+  assert.ok(screen.getByRole('button', { name: 'Maximize panel' }), 'the resident panel is not maximized in place of the tray panel');
+});
+
 test('the summary is not shown on the settings page, the project creation guide or the welcome page', async () => {
   const user = renderWorkbench();
   await screen.findByRole('region', { name: 'Current project summary' });

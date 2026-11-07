@@ -160,7 +160,8 @@ function createLocation(initial: Host, changed: () => void) {
     if (disposed) return;
     const target = project(projectId);
     if (!target || !targetExists(projectId, panelId, runId)) { rejectTarget(); return; }
-    const sourceView = view(project(host.snapshot?.activeProjectId));
+    const sourceProject = project(host.snapshot?.activeProjectId);
+    const sourceView = view(sourceProject);
     const changingMaximized = !!panelId && !!sourceView.maximized
       && (host.snapshot?.activeProjectId !== projectId || sourceView.maximized !== panelId);
     cancel();
@@ -174,7 +175,8 @@ function createLocation(initial: Host, changed: () => void) {
       if (operation.animated) operation.animated = source ? await animate(source.canvas, false) : false;
       if (current !== operation) return;
       if (panelId && inTray(target, panelId)) select(projectId, { ...view(target), maximized: panelId });
-      else if (panelId) select(projectId, { selected: panelId, maximized: sourceView.maximized ? panelId : undefined });
+      // A maximized resident panel hands its maximize to the located one; an open tray panel collapses.
+      else if (panelId) select(projectId, { selected: panelId, maximized: resident(sourceProject, sourceView.maximized) ? panelId : undefined });
       suspended = false;
       host.showWorkbench();
       operation.stage = 'activating';
