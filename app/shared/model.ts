@@ -1,6 +1,5 @@
 import { z } from 'zod';
 import { message } from './messages';
-import { layoutBoxes } from './layout';
 import type { Shortcuts } from './shortcuts';
 import { projectNameError } from './project-name';
 import type { ProcessingState } from './processing-status';
@@ -35,8 +34,10 @@ export const navigationSchema = z.strictObject({ visible: z.boolean(), width: z.
 export const navigationWidth = (width: number) => Math.max(168, Math.min(420, width));
 /** A panel with its current run, whatever that run's state, and the processing state it displays. */
 export type PanelView = Panel & { run?: Run; status?: ProcessingState };
-/** A project as the snapshot shows it; the stored Project keeps only panel configuration. */
-export type ProjectView = Omit<Project, 'panels'> & { panels: PanelView[] };
+/** A project as the snapshot shows it. `panels` are its resident panels, placed by `layout`;
+ * `tray` holds its ephemeral panels in the order they joined. The stored Project keeps only
+ * the resident panels' configuration and layout; the tray lives in memory for one app run. */
+export type ProjectView = Omit<Project, 'panels'> & { panels: PanelView[]; tray: PanelView[] };
 export interface Snapshot { navigation: NavigationPreferences; projects: ProjectView[]; activeProjectId: string | null; settings: Settings; settingsConflicts: SettingsIssue[]; startupTheme: Settings['theme']; resolvedTheme: 'dark' | 'light'; errors: string[] }
 export type TerminalEvent = { kind: 'title'; runId: string; title: string } | { kind: 'output'; runId: string; data: string } | { kind: 'started'; run: Run } | { kind: 'stopping'; runId: string } | { kind: 'exit'; runId: string };
 export type WorkbenchEvent = Extract<TerminalEvent, { kind: 'started' | 'output' | 'exit' }> | { kind: 'snapshot'; snapshot: Snapshot } | { kind: 'error'; message: string };
@@ -70,32 +71,44 @@ export function removeFromLayout(layout: Layout | null, panelId: string): Layout
   return first && second ? { ...layout, first, second } : first ?? second;
 }
 
-export function insertIntoLayout(layout: Layout | null, panelId: string): Layout {
-  if (!layout) return { panel: panelId };
-  let target = { panel: '', area: 0, axis: 'row' as 'row' | 'column' };
-  // Split the largest relative region. Selection is independent of focus and terminal grid size.
-  for (const [panel, { width, height }] of layoutBoxes(layout).panels) {
-    if (width * height > target.area) target = { panel, area: width * height, axis: width >= height ? 'row' : 'column' };
-  }
-  const insert = (node: Layout): Layout => 'panel' in node
-    ? node.panel === target.panel ? { axis: target.axis, ratio: 0.5, first: node, second: { panel: panelId } } : node
-    : { ...node, first: insert(node.first), second: insert(node.second) };
-  return insert(layout);
-}
-
 const layoutNodeSchema: z.ZodType<Layout> = z.lazy(() => z.union([
   z.strictObject({ panel: z.string() }),
   z.strictObject({ axis: z.enum(['row', 'column']), ratio: z.number().gt(0).lt(1), first: layoutNodeSchema, second: layoutNodeSchema }),
 ]));
 const layoutDepth = (node: Layout): number => 'panel' in node ? 0 : 1 + Math.max(layoutDepth(node.first), layoutDepth(node.second));
-const layoutPanelIds = (node: Layout): string[] => 'panel' in node ? [node.panel] : [...layoutPanelIds(node.first), ...layoutPanelIds(node.second)];
+const panelIds = (node: Layout): string[] => 'panel' in node ? [node.panel] : [...panelIds(node.first), ...panelIds(node.second)];
 const layoutSchema = layoutNodeSchema.refine(layout => layoutDepth(layout) <= 10).nullable();
+
+/** The panel IDs a layout places, in order. */
+export const layoutPanelIds = (layout: Layout | null): string[] => layout ? panelIds(layout) : [];
+
+/** A project holds at most this many panels, resident and tray together. */
+export const panelLimit = 10;
+/** Every panel of a project: its resident panels, then its tray panels in tray order. */
+export const projectPanels = <P extends Panel>({ panels, tray }: { panels: P[]; tray: P[] }) => [...panels, ...tray];
+export const panelLimitReached = (project: { panels: Panel[]; tray: Panel[] }) => projectPanels(project).length >= panelLimit;
+
+/** The branch path from the root to a panel in a layout, or null when the layout does not place it. */
+export function panelPosition(layout: Layout | null, panelId: string): ('first' | 'second')[] | null {
+  if (!layout) return null;
+  if ('panel' in layout) return layout.panel === panelId ? [] : null;
+  const first = panelPosition(layout.first, panelId);
+  if (first) return ['first', ...first];
+  const second = panelPosition(layout.second, panelId);
+  return second && ['second', ...second];
+}
+
+/** A layout whose structure is valid, whichever panels it places. */
+export function layoutStructure(value: unknown): Layout | null {
+  const parsed = layoutSchema.safeParse(value);
+  if (!parsed.success) throw new Error(message('layoutInvalid'));
+  return parsed.data;
+}
 
 /** A layout of the given panels: its structure is valid and it places each panel exactly once. */
 export function parseLayout(value: unknown, panels: Panel[]): Layout | null {
-  const parsed = layoutSchema.safeParse(value);
-  if (!parsed.success) throw new Error(message('layoutInvalid'));
-  const ids = parsed.data ? layoutPanelIds(parsed.data) : [];
+  const layout = layoutStructure(value);
+  const ids = layoutPanelIds(layout);
   if (ids.length !== panels.length || new Set(ids).size !== ids.length || panels.some(p => !ids.includes(p.id))) throw new Error(message('layoutMismatch'));
-  return parsed.data;
+  return layout;
 }

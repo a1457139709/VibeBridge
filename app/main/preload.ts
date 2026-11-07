@@ -12,6 +12,8 @@ const api: DesktopAPI = {
   activateProject: id => ipcRenderer.invoke('workbench:activate', id),
   addPanel: (project, agent) => ipcRenderer.invoke('workbench:add', project, agent),
   closePanel: (project, panel) => ipcRenderer.invoke('workbench:close', project, panel),
+  placeInLayout: (project, panel, layout) => ipcRenderer.invoke('workbench:place', project, panel, layout),
+  moveToTray: (project, panel) => ipcRenderer.invoke('workbench:tray', project, panel),
   saveLayout: (project, layout) => ipcRenderer.invoke('workbench:layout', project, layout),
   saveNavigation: preferences => ipcRenderer.invoke('workbench:navigation', preferences),
   saveSettings: settings => ipcRenderer.invoke('workbench:settings', settings).catch(() => ({ ok: false, kind: 'unavailable', message: message('settingsUnavailable') })),

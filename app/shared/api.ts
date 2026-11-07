@@ -11,6 +11,10 @@ export interface DesktopAPI {
   activateProject(id: string): Promise<void>;
   addPanel(projectId: string, agent: AgentType): Promise<PanelCreation>;
   closePanel(projectId: string, panelId: string): Promise<void>;
+  /** Makes a tray panel resident with the target layout; a swap sends the replaced resident panel to the tray. */
+  placeInLayout(projectId: string, panelId: string, layout: Layout): Promise<void>;
+  /** Makes a resident panel ephemeral; the other resident panels fill its space. */
+  moveToTray(projectId: string, panelId: string): Promise<void>;
   saveLayout(projectId: string, layout: Layout | null): Promise<void>;
   saveNavigation(preferences: NavigationPreferences): Promise<void>;
   saveSettings(settings: Partial<Settings>): Promise<SettingsSaveResult>;

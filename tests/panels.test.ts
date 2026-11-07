@@ -15,7 +15,7 @@ async function until(check: () => boolean) {
   }
 }
 
-test('adding and closing a panel preserve unrelated regions, existing runs and the saved arrangement', async () => {
+test('an added panel enters the tray, leaving the saved layout and existing runs untouched, and closing it removes it', async () => {
   const directory = await mkdtemp(resolve('work/panels-'));
   let workbench = await Workbench.open(directory);
   const events: WorkbenchEvent[] = [];
@@ -32,17 +32,16 @@ test('adding and closing a panel preserve unrelated regions, existing runs and t
     const added = await workbench.addPanel(project.id, 'codex');
     assert.equal(added.launch.outcome, 'started');
     const after = workbench.snapshot();
+    assert.deepEqual(after.projects[0].layout, layout);
+    assert.deepEqual(after.projects[0].panels.map(panel => panel.id), project.panels.map(panel => panel.id));
+    assert.deepEqual(after.projects[0].tray.map(panel => [panel.id, panel.agent, panel.run?.id]), [[added.panel.id, 'codex', added.launch.run.id]]);
     assert.deepEqual(runsOf(after).filter(run => run.id !== added.launch.run.id), originalRuns);
-    const expanded = after.projects[0].layout;
-    assert.ok(expanded && !('panel' in expanded));
-    assert.equal(expanded.axis, layout.axis);
-    assert.equal(expanded.ratio, layout.ratio);
-    assert.deepEqual(expanded.second, layout.second);
+    const second = await workbench.addPanel(project.id, 'codex');
+    assert.deepEqual(workbench.snapshot().projects[0].tray.map(panel => panel.id), [added.panel.id, second.panel.id], 'the tray keeps the order panels were added in');
     const output = (id: string) => events.filter(e => e.kind === 'output' && e.runId === id).map(e => e.kind === 'output' ? e.data : '').join('');
-    await until(() => runsOf(after).every(run => output(run.id).includes('READY:')));
-    await workbench.sendInput(originalRuns[1].id, 'after-layout');
-    await until(() => output(originalRuns[1].id).includes('INPUT:after-layout'));
-    assert.ok(runsOf(after).filter(run => run.id !== originalRuns[1].id).every(run => !output(run.id).includes('after-layout')));
+    await until(() => runsOf(workbench.snapshot()).every(run => output(run.id).includes('READY:')));
+    await workbench.sendInput(originalRuns[1].id, 'after-add');
+    await until(() => output(originalRuns[1].id).includes('INPUT:after-add'));
     await workbench.sendInput(added.launch.run.id, 'child');
     await until(() => /CHILD:(\d+)/.test(output(added.launch.run.id)));
     const childPid = Number(output(added.launch.run.id).match(/CHILD:(\d+)/)![1]);
@@ -50,15 +49,17 @@ test('adding and closing a panel preserve unrelated regions, existing runs and t
     assert.throws(() => process.kill(childPid, 0));
     assert.throws(() => process.kill(added.launch.run.pid!, 0));
     await assert.rejects(workbench.sendInput(added.launch.run.id, 'stale'), /runInvalid/);
+    assert.deepEqual(workbench.snapshot().projects[0].tray.map(panel => panel.id), [second.panel.id]);
     assert.deepEqual(workbench.snapshot().projects[0].layout, layout);
-    assert.deepEqual(runsOf(workbench.snapshot()), originalRuns);
+    assert.deepEqual(runsOf(workbench.snapshot()).filter(run => run.id !== second.launch.run.id), originalRuns);
     await workbench.quit();
     workbench = await Workbench.open(directory);
-    assert.deepEqual(storedProjects(workbench.snapshot())[0], { ...project, layout });
+    assert.deepEqual(storedProjects(workbench.snapshot())[0], { ...project, layout }, 'only resident panels return; the store holds no tray panels');
+    assert.deepEqual(workbench.snapshot().projects[0].tray, []);
   } finally { await workbench.quit(); await rm(directory, { recursive: true, force: true }); }
 });
 
-test('normal and abnormal run exits remove panels', async () => {
+test('normal and abnormal run exits of tray panels remove them from the tray', async () => {
   const directory = await mkdtemp(resolve('work/panels-'));
   let workbench = await Workbench.open(directory);
   try {
@@ -80,13 +81,14 @@ test('normal and abnormal run exits remove panels', async () => {
     workbench.subscribe(event => events.push(event));
     const added = await workbench.addPanel(project.id, 'codex');
     assert.notEqual(added.launch.run.id, old.id);
+    assert.deepEqual(workbench.snapshot().projects[0].tray.map(panel => panel.id), [added.panel.id]);
     await until(() => events.some(e => e.kind === 'output' && e.runId === added.launch.run.id && e.data.includes('READY:')));
     await assert.rejects(workbench.sendInput(old.id, 'old-input'), /runInvalid/);
     await workbench.sendInput(added.launch.run.id, 'exit');
-    await until(() => workbench.snapshot().projects[0].panels.length === 0);
+    await until(() => workbench.snapshot().projects[0].tray.length === 0);
     const abnormal = await workbench.addPanel(project.id, 'claude');
     assert.equal(abnormal.launch.outcome, 'started');
-    await until(() => workbench.snapshot().projects[0].panels.length === 0);
+    await until(() => workbench.snapshot().projects[0].tray.length === 0);
     await assert.rejects(workbench.sendInput(abnormal.launch.run.id, 'old-input'), /runInvalid/);
   } finally { await workbench.quit(); await rm(directory, { recursive: true, force: true }); }
 });
@@ -136,7 +138,7 @@ test('an added panel whose Agent cannot start is withdrawn, and adding succeeds 
     await workbench.saveSettings({ agents: { ...settings.agents, pi: settings.agents.codex } });
     const fixed = await workbench.addPanel(before.projects[0].id, 'pi');
     assert.equal(fixed.launch.outcome, 'started');
-    assert.equal(workbench.snapshot().projects[0].panels.length, 3);
+    assert.deepEqual(workbench.snapshot().projects[0].tray.map(panel => panel.id), [fixed.panel.id]);
   } finally { await workbench.quit(); await rm(directory, { recursive: true, force: true }); }
 });
 

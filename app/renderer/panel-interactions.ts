@@ -1,7 +1,7 @@
 import type { Language, Layout, Panel } from '../shared/model';
 import type { Divider } from '../shared/layout';
 import { capturePointer } from './pointer-capture';
-import { createSwapPreview } from './panel-swap';
+import { createDragPreview } from './panel-drag';
 import { measurePanel } from './panel-measurement';
 import { createResizePreview } from './panel-resize';
 
@@ -10,11 +10,18 @@ export interface PanelInteractionContext {
   projectId: string;
   // The latest saved layout, never the temporary layout emitted by presentLayout.
   layout: Layout | null;
+  // Resident panels.
   panels: (Panel & { runId?: string })[];
+  // Tray panels in tray order, and the tray element a resident panel can be dropped on.
+  tray: Panel[];
+  trayElement: HTMLElement | null;
   visible: boolean;
   maximizedPanelId?: string;
   presentLayout(layout: Layout | null): void;
   commitLayout(layout: Layout): void;
+  // Valid drops that change which panels are resident.
+  placeInLayout(panelId: string, layout: Layout): void;
+  moveToTray(panelId: string): void;
 }
 
 // Update after each DOM commit (including title/run changes). The module owns
@@ -24,11 +31,11 @@ export function createPanelInteractions(canvas: HTMLElement, context: PanelInter
   let displayed = context.layout;
   let layoutKey = JSON.stringify(context.layout);
   let disposed = false, suppressClick = false;
-  let active: { kind: 'swap' | 'resize'; cancel(): void; bounds: DOMRect } | undefined;
+  let active: { kind: 'drag' | 'resize'; cancel(): void; bounds: DOMRect } | undefined;
   let frame: number | undefined;
   const observed = new Map<string, { panel: HTMLElement; container: HTMLElement; runId?: string }>();
   const measure = () => {
-    if (disposed || !current.visible || active?.kind === 'swap') return;
+    if (disposed || !current.visible || active?.kind === 'drag') return;
     for (const binding of observed.values()) if (binding.container.isConnected) measurePanel(binding.container, binding.runId);
   };
   const present = (layout: Layout | null) => { displayed = layout; current.presentLayout(layout); };
@@ -69,7 +76,7 @@ export function createPanelInteractions(canvas: HTMLElement, context: PanelInter
   const hidden = () => { if (document.hidden) cancel(); };
   const click = (event: MouseEvent) => {
     const target = event.target as HTMLElement;
-    if (suppressClick && target.closest('.panel-header') && !target.closest('button, [role="menu"]')) {
+    if (suppressClick && (target.closest('.tray-card') || target.closest('.panel-header') && !target.closest('button, [role="menu"]'))) {
       suppressClick = false; event.preventDefault(); event.stopPropagation();
     }
   };
@@ -77,25 +84,28 @@ export function createPanelInteractions(canvas: HTMLElement, context: PanelInter
   window.addEventListener('resize', cancel);
   window.addEventListener('keydown', keydown, true);
   document.addEventListener('visibilitychange', hidden);
-  canvas.addEventListener('click', click, true);
+  // A drag from a tray card ends with a click on the card, outside the canvas.
+  document.addEventListener('click', click, true);
   // Ignore overlapping starts until the active pointer finishes or is cancelled.
   // In particular a second pointer must not take over the first pointer's capture.
-  const available = (event: PointerEvent) => !disposed && !active && current.visible && !current.maximizedPanelId
-    && displayed && event.button === 0 && canvas.isConnected && canvas.getClientRects().length;
-  const track = (kind: 'swap' | 'resize', event: PointerEvent, handle: HTMLElement, preview: {
+  const pointerAvailable = (event: PointerEvent) => !disposed && !active && current.visible
+    && event.button === 0 && canvas.isConnected && canvas.getClientRects().length;
+  // Rearranging resident panels needs them on screen: nothing may be maximized.
+  const available = (event: PointerEvent) => pointerAvailable(event) && !current.maximizedPanelId && displayed;
+  const track = <T>(kind: 'drag' | 'resize', event: PointerEvent, handle: HTMLElement, preview: {
     move(event: PointerEvent): void;
-    result(event: PointerEvent): Layout | undefined;
+    result(event: PointerEvent): T | undefined;
     dispose(): void;
-  }) => {
+  }, commit: (result: T) => void) => {
     const bounds = canvas.getBoundingClientRect();
     const stop = capturePointer(handle, event.pointerId, {
       move(pointer) { if (geometryChanged()) cancel(); else preview.move(pointer); },
-      finish(commit, release) {
-        const next = commit && release && !geometryChanged() ? preview.result(release) : undefined;
+      finish(released, release) {
+        const next = released && release && !geometryChanged() ? preview.result(release) : undefined;
         active = undefined;
         if (frame !== undefined) cancelAnimationFrame(frame);
         frame = undefined; preview.dispose(); canvas.classList.remove('resizing');
-        if (next) { present(next); current.commitLayout(next); }
+        if (next) commit(next);
         else if (kind === 'resize') present(current.layout);
         schedule();
       },
@@ -110,6 +120,7 @@ export function createPanelInteractions(canvas: HTMLElement, context: PanelInter
       const nextKey = JSON.stringify(next.layout);
       const invalidated = current.projectId !== next.projectId || layoutKey !== nextKey
         || JSON.stringify(current.panels.map(panel => [panel.id, panel.agent])) !== JSON.stringify(next.panels.map(panel => [panel.id, panel.agent]))
+        || JSON.stringify(current.tray.map(panel => panel.id)) !== JSON.stringify(next.tray.map(panel => panel.id))
         || !next.visible || current.maximizedPanelId !== next.maximizedPanelId;
       const changedLayout = current.projectId !== next.projectId || layoutKey !== nextKey;
       current = next; layoutKey = nextKey;
@@ -117,20 +128,34 @@ export function createPanelInteractions(canvas: HTMLElement, context: PanelInter
       if (changedLayout) present(next.layout);
       syncPanels(); measure();
     },
-    startSwap(event: PointerEvent, handle: HTMLElement, panelId: string) {
-      if (!available(event) || !current.panels.some(panel => panel.id === panelId)
-        || (event.target as HTMLElement).closest('button, [role="menu"]')) return;
+    /**
+     * Drags a resident panel by its header to another place in the layout or onto the tray, or a tray panel
+     * by its card or open panel header into the layout. `handle` is the element the pointer went down on.
+     */
+    startDrag(event: PointerEvent, handle: HTMLElement, panelId: string) {
+      const control = (event.target as HTMLElement).closest('button, [role="menu"]');
+      if (control && control !== handle) return;
+      const resident = current.panels.find(panel => panel.id === panelId);
+      const ephemeral = current.tray.find(panel => panel.id === panelId);
+      // A tray panel can be placed while it (or another tray panel) is open, but not over a maximized resident panel.
+      if (resident ? !available(event) : !ephemeral || !pointerAvailable(event)
+        || current.panels.some(panel => panel.id === current.maximizedPanelId)) return;
       event.preventDefault(); suppressClick = false;
-      const preview = createSwapPreview({ event, canvas, source: panelId, panels: current.panels, layout: displayed!,
+      const preview = createDragPreview({ event, canvas, source: (resident ?? ephemeral)!, panels: current.panels, layout: displayed,
+        element: resident ? undefined : handle.closest<HTMLElement>('.agent-panel') ?? handle, tray: current.trayElement,
         language: current.language,
         consumed: () => { suppressClick = true; } });
-      track('swap', event, handle, preview);
+      track('drag', event, handle, preview, result => {
+        if (result.kind === 'tray') current.moveToTray(panelId);
+        else if (resident) { present(result.layout); current.commitLayout(result.layout); }
+        else current.placeInLayout(panelId, result.layout);
+      });
     },
     startResize(event: PointerEvent, handle: HTMLElement, divider: Divider) {
       if (!available(event)) return;
       event.preventDefault();
       const preview = createResizePreview(canvas, displayed!, divider, event, present);
-      if (preview) track('resize', event, handle, preview);
+      if (preview) track('resize', event, handle, preview, next => { present(next); current.commitLayout(next); });
     },
     cancel,
     dispose() {
@@ -142,7 +167,7 @@ export function createPanelInteractions(canvas: HTMLElement, context: PanelInter
       window.removeEventListener('resize', cancel);
       window.removeEventListener('keydown', keydown, true);
       document.removeEventListener('visibilitychange', hidden);
-      canvas.removeEventListener('click', click, true);
+      document.removeEventListener('click', click, true);
     },
   };
   syncPanels(); measure();

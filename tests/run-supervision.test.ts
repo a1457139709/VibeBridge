@@ -133,11 +133,11 @@ test('a run exiting on its own leaves the run list and is reported as exited, no
   assert.equal(await f.report(run.id), 403);
 });
 
-test('stopping a project marks its runs stopped even though each exit arrives before the stop response', async context => {
+test('stopping panels marks their runs stopped even though each exit arrives before the stop response', async context => {
   const f = await fixture(context);
   const { run: first } = await f.start(f.project.panels[0]);
   const { run: second } = await f.start(f.project.panels[1]);
-  assert.deepEqual(await f.supervision.stopProject(f.project), []);
+  assert.deepEqual(await f.supervision.stopPanels(f.project.panels), []);
   assert.deepEqual([f.run(first.id)?.state, f.run(second.id)?.state], ['stopped', 'stopped']);
   assert.deepEqual(f.exited, [], 'a stop the workbench requested is not a run exit');
   assert.deepEqual([await f.report(first.id), await f.report(second.id)], [403, 403]);
@@ -191,7 +191,7 @@ test('a terminal host failure stops every run, releases observations and refuses
   assert.deepEqual(f.runs().map(item => item.state), ['stopped', 'stopped']);
   assert.deepEqual([await f.report(run.id), await f.report(pending.id)], [403, 403]);
   assert.deepEqual(f.errors, ['host gone']);
-  assert.deepEqual(await f.supervision.stopProject(f.project), ['host gone']);
+  assert.deepEqual(await f.supervision.stopPanels(f.project.panels), ['host gone']);
   const late = await f.supervision.start(f.project, f.project.panels[0], { command: 'agent', args: [] });
   assert.equal(late.outcome, 'unconfirmed');
   assert.equal(f.run(late.run.id)?.state, 'stopped', 'nothing will ever report a launch the failed host never ran');

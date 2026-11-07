@@ -16,9 +16,10 @@ async function renderedLayout(evaluate, project) {
 module.exports = {
   async run(context) {
     const { evaluate, until, click, directory } = context;
-    const created = await require('./support/project.cjs')(context, 'Saved project');
+    const created = await require('./support/project.cjs')(context, 'Saved project', { Codex: 1, pi: 1 });
     const project = created.projects[0];
-    await evaluate(`window.workbench.addPanel(${JSON.stringify(project.id)}, 'pi')`);
+    const tray = await evaluate(`window.workbench.addPanel(${JSON.stringify(project.id)}, 'claude')`);
+    await until(() => evaluate(`!!document.querySelector('.panel-tray [data-tray-panel-id="${tray.panel.id}"]')`));
     const configured = (await evaluate('window.workbench.snapshot()')).projects[0];
     const [a, b] = configured.panels.map(panel => panel.id);
     const layout = { axis: 'row', ratio: .35, first: { panel: b }, second: { panel: a } };
@@ -31,7 +32,7 @@ module.exports = {
     await until(async () => JSON.stringify(await renderedLayout(evaluate, configured)) === JSON.stringify(expected));
     const snapshot = await evaluate('window.workbench.snapshot()');
     await writeFile(`${directory}/expected.json`, JSON.stringify({ snapshot, geometry: expected }));
-    console.log('Saved two projects, distinct Agent panel configurations and a non-default layout.');
+    console.log('Saved two projects, distinct Agent panel configurations, a non-default layout and a tray panel.');
   },
   async reopen({ evaluate, until, directory }) {
     const { snapshot: saved, geometry } = JSON.parse(await readFile(`${directory}/expected.json`, 'utf8'));
@@ -42,7 +43,10 @@ module.exports = {
     assert.deepEqual(storedProjects(reopened), storedProjects(saved));
     assert.ok(runsOf(reopened).every(run => run.projectId === active.id && !runsOf(saved).some(old => old.id === run.id)));
     await until(async () => JSON.stringify(await renderedLayout(evaluate, active)) === JSON.stringify(geometry));
-    assert.equal(await evaluate('document.querySelector(".workspace-toolbar strong").textContent'), 'Saved project');
-    console.log('Reopening restored project/panel configuration and visible layout with fresh runs, not resumed sessions.');
+    assert.equal(await evaluate('document.querySelector(".project-link[aria-current=page]").getAttribute("aria-label")'), 'Saved project');
+    assert.ok(await evaluate('!!document.querySelector(".workspace-toolbar .project-summary")'), 'the reopened workspace shows its project summary');
+    assert.deepEqual(reopened.projects.map(item => item.tray), reopened.projects.map(() => []));
+    assert.equal(await evaluate('document.querySelectorAll(".panel-tray .tray-card").length'), 0);
+    console.log('Reopening restored project/panel configuration and visible layout with fresh runs, not resumed sessions, and an empty tray.');
   },
 };

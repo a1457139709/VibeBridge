@@ -1,32 +1,13 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { mkdir, mkdtemp, readFile, rm, symlink, writeFile } from 'node:fs/promises';
-import { resolve, join } from 'node:path';
+import { mkdir, readFile, rm, symlink, writeFile } from 'node:fs/promises';
+import { join } from 'node:path';
 import { Workbench } from '../app/main/workbench';
-import type { Project, WorkbenchEvent } from '../app/shared/model';
+import type { Project } from '../app/shared/model';
 import { runsOf, storedProjects } from './support/panel-views';
+import { alive, interactiveWorkbench, until } from './support/interactive-workbench';
 
-async function until(check: () => boolean, timeout = 7000) {
-  const deadline = Date.now() + timeout;
-  while (!check()) {
-    if (Date.now() > deadline) throw new Error('Timed out waiting for project management');
-    await new Promise(resolve => setTimeout(resolve, 20));
-  }
-}
-const alive = (pid: number) => { try { process.kill(pid, 0); return true; } catch { return false; } };
-async function fixture() {
-  const directory = await mkdtemp(resolve('work/project-management-'));
-  const workbench = await Workbench.open(directory);
-  const events: WorkbenchEvent[] = [];
-  workbench.subscribe(event => events.push(event));
-  const settings = workbench.snapshot().settings;
-  for (const agent of ['codex', 'claude', 'pi'] as const) settings.agents[agent] = { command: process.env.VIBEBRIDGE_TEST_NODE!, args: [resolve('tests/fixtures/interactive.cjs')] };
-  await workbench.saveSettings(settings);
-  return { directory, workbench, events,
-    output: (id: string) => events.filter(e => e.kind === 'output' && e.runId === id).map(e => e.kind === 'output' ? e.data : '').join(''),
-    create: (name: string, path = directory, total = 1) => workbench.createProject({ name, directory: path, total, counts: { codex: total, claude: 0, pi: 0 } }),
-    close: async () => { await workbench.quit(); await rm(directory, { recursive: true, force: true }); } };
-}
+const fixture = () => interactiveWorkbench('project-management');
 
 test('editing a name or the same real directory preserves panels, layout and the live run', async () => {
   const f = await fixture();
@@ -102,7 +83,7 @@ test('changing directory without restart keeps original cwd and identity and use
     await until(() => f.output(old.id).includes(`CWD:${f.directory}`));
     const added = await f.workbench.addPanel(project.id, 'codex');
     await until(() => f.output(added.launch.run.id).includes(`:${target}`));
-    assert.equal(f.workbench.snapshot().projects.find(item => item.id === project.id)!.panels.length, 2);
+    assert.deepEqual(f.workbench.snapshot().projects.find(item => item.id === project.id)!.tray.map(panel => panel.id), [added.panel.id]);
     await f.workbench.quit();
     const reopened = await Workbench.open(f.directory);
     const outputs: string[] = [];
@@ -115,7 +96,7 @@ test('changing directory without restart keeps original cwd and identity and use
       assert.deepEqual(saved.project.panels, before.panels);
       await reopened.activateProject(project.id);
       await until(() => outputs.join('').includes(`:${f.directory}`));
-      assert.equal(runsOf(reopened.snapshot()).length, 2);
+      assert.equal(runsOf(reopened.snapshot()).length, 1, 'only the resident panel returns after reopening');
     } finally { await reopened.quit(); }
   } finally { await f.close(); }
 });
