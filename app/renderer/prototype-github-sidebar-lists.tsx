@@ -12,6 +12,15 @@ interface IssueListProps {
   panes: Pane[]; dispatches: DispatchRecord[]; onLocate(pane: string): void; dispatchButton(issue: Issue, weak: boolean): ReactNode; listRef: React.RefObject<HTMLDivElement | null>;
 }
 
+// #160: a curved connector with an open arrowhead (UML style) from the parent's trunk into the child's first mark (▾, or the state icon for a leaf).
+const R = 6, Y = 17;
+function Elbow({ to }: { to: number }) {
+  return <svg className="wb-elbow" width={to + 1} height={Y + 5} aria-hidden>
+    <path d={`M0.5 0 V${Y - R} Q0.5 ${Y + 0.5} ${R + 0.5} ${Y + 0.5} H${to - 1}`} />
+    <path d={`M${to - 5} ${Y - 3.5} L${to - 1} ${Y + 0.5} L${to - 5} ${Y + 4.5}`} />
+  </svg>;
+}
+
 const flipSet = (set: Set<number>, n: number) => { const next = new Set(set); if (next.has(n)) next.delete(n); else next.add(n); return next; };
 
 export function IssueList({ repo, filter, setFilter, cursor, onCursor, onOpenDetail, panes, dispatches, onLocate, dispatchButton, listRef }: IssueListProps) {
@@ -47,9 +56,10 @@ export function IssueList({ repo, filter, setFilter, cursor, onCursor, onOpenDet
     const blockers = openBlockers(repo, i);
     const records = dispatches.filter(d => d.issue === i.number);
     return <React.Fragment key={i.number}>
-      <div data-row={i.number} data-last={last || undefined} className={`gh-row ${cursor === i.number ? 'selected' : ''} ${issueMatches(i, filter) ? '' : 'context'}`}
+      <div data-row={i.number} data-last={last || undefined} data-kids={(open && (shown.length > 0 || folded.length > 0)) || undefined} className={`gh-row ${cursor === i.number ? 'selected' : ''} ${issueMatches(i, filter) ? '' : 'context'}`}
         style={{ '--depth': depth } as React.CSSProperties} onClick={() => { onCursor(i.number); onOpenDetail(i.number); }}>
         {rails.map(l => <span key={l} className="wb-rail" style={{ '--l': l } as React.CSSProperties} />)}
+        {depth > 0 && <Elbow to={kids.length ? 12 : 31} />}
         {kids.length ? <button className="gh-disclosure" tabIndex={-1} title={open ? '折叠' : '展开'} onClick={e => { e.stopPropagation(); setCollapsed(c => flipSet(c, i.number)); }}>{open ? '▾' : '▸'}</button> : <span className="gh-disclosure" />}
         <IssueIcon issue={i} />
         <div className="gh-row-main">

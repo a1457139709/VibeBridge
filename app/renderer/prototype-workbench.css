@@ -119,16 +119,14 @@
 .gh-doc-head .gh-split.detail .gh-split-main { flex: none; height: 22px; font-size: 11px; }
 .gh-doc-head .gh-split.detail .gh-split-more { height: 22px; }
 
-/* #160 parent/child in the issue tree — three variants, switched on the proto bar. --x is the parent's disclosure centre. */
-.gh-row[style*="--depth: 0"]::before, .gh-row[style*="--depth: 0"]::after { display: none; }
-.wb-tree-lines .gh-row { --x: calc(13px + (var(--depth) - 1) * 14px); }
-.wb-tree-lines .gh-row::before { content: ''; position: absolute; left: var(--x); top: 0; bottom: 0; border-left: 1px solid var(--line); pointer-events: none; }
-.wb-tree-lines .gh-row[data-last]::before { bottom: auto; height: 17px; }
-.wb-tree-lines .gh-row::after { content: ''; position: absolute; left: var(--x); top: 17px; width: 8px; border-top: 1px solid var(--line); pointer-events: none; }
-.wb-tree-band .gh-row::before { content: ''; position: absolute; left: calc(8px + (var(--depth) - 1) * 14px); top: 4px; bottom: 4px; width: 2px; border-radius: 1px; background: color-mix(in srgb, var(--gh-link) 45%, transparent); pointer-events: none; }
-.wb-tree-band .gh-row:not([style*="--depth: 0"]) { background: color-mix(in srgb, var(--muted) 5%, transparent); }
-.wb-tree-band .gh-row:not([style*="--depth: 0"]):hover { background: var(--gh-row-hover); }
-.wb-rail { display: none; }
-.wb-tree-lines .wb-rail { display: block; position: absolute; left: calc(13px + (var(--l) - 1) * 14px); top: 0; bottom: 0; border-left: 1px solid var(--line); pointer-events: none; }
-.wb-tree-lines .gh-fold { position: relative; }
-.wb-tree-lines .gh-fold::before { content: ''; position: absolute; left: calc(13px + (var(--depth) - 1) * 14px); top: 0; height: 50%; width: 8px; border-left: 1px solid var(--line); border-bottom: 1px solid var(--line); pointer-events: none; }
+/* #160 parent/child in the issue tree: 20px steps; a trunk under the parent's ▾ and a curved arrow into each child. */
+.wb-tree .gh-row { padding-left: calc(6px + var(--depth) * 20px); }
+.wb-tree .gh-fold { position: relative; padding-left: calc(30px + var(--depth) * 20px) !important; }
+.wb-tree .gh-row::after { content: ''; position: absolute; left: calc(13px + (var(--depth) - 1) * 20px); top: 0; bottom: 0; border-left: 1px solid var(--wb-tree-line); pointer-events: none; }
+.wb-tree .gh-row[data-last]::after, .wb-tree .gh-row[style*="--depth: 0"]::after { display: none; }
+.wb-tree { --wb-tree-line: color-mix(in srgb, var(--muted) 55%, transparent); }
+.wb-elbow { position: absolute; left: calc(13px + (var(--depth) - 1) * 20px); top: 0; overflow: visible; pointer-events: none; }
+.wb-elbow path { fill: none; stroke: var(--wb-tree-line); stroke-width: 1; stroke-linecap: round; stroke-linejoin: round; }
+.wb-tree .gh-row[data-kids]::before { content: ''; position: absolute; left: calc(13px + var(--depth) * 20px); top: 27px; bottom: 0; border-left: 1px solid var(--wb-tree-line); pointer-events: none; }
+.wb-rail { position: absolute; left: calc(13px + (var(--l) - 1) * 20px); top: 0; bottom: 0; border-left: 1px solid var(--wb-tree-line); pointer-events: none; }
+.wb-tree .gh-fold::before { content: ''; position: absolute; left: calc(13px + (var(--depth) - 1) * 20px); top: 0; height: 50%; width: 10px; border-left: 1px solid var(--wb-tree-line); border-bottom: 1px solid var(--wb-tree-line); border-bottom-left-radius: 6px; pointer-events: none; }
