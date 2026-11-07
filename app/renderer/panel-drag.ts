@@ -43,8 +43,20 @@ export function dropAt(canvas: DOMRect, panels: { id: string; box: DOMRect }[], 
   return middle(x - box.left, box.width) && middle(y - box.top, box.height) ? { kind: 'swap', panel: target.id } : { kind: 'split', panel: target.id, side: nearest(box, x, y) };
 }
 
-export function createDragPreview({ event, canvas, source, panels, layout, consumed, language = 'en' }: {
-  event: PointerEvent; canvas: HTMLElement; source: string; panels: Panel[]; layout: Layout;
+/** What releasing a dragged panel does: the layout it produces, or (for a resident panel) moving it to the tray. */
+export type DragResult = { kind: 'layout'; layout: Layout } | { kind: 'tray' };
+
+/**
+ * Previews dragging a panel. A resident panel is dragged from its slot and can also be dropped on the tray.
+ * A tray panel is dragged from `element` (its card or its open panel) and placed into the layout; with no
+ * resident panels, dropping it anywhere in the layout area makes it the whole layout.
+ */
+export function createDragPreview({ event, canvas, source, element, panels, layout, tray, consumed, language = 'en' }: {
+  event: PointerEvent; canvas: HTMLElement; source: Panel; panels: Panel[]; layout: Layout | null;
+  /** The dragged tray panel's visible element; omitted for a resident panel. */
+  element?: HTMLElement;
+  /** The tray, a drop target for a resident panel. */
+  tray?: HTMLElement | null;
   language?: Language;
   consumed(): void;
 }) {
@@ -56,9 +68,14 @@ export function createDragPreview({ event, canvas, source, panels, layout, consu
     const element = slot.querySelector<HTMLElement>('.agent-panel')!;
     return { panel, element, slot: slot.getBoundingClientRect(), box: element.getBoundingClientRect(), image: snapshot(element) };
   });
-  const dragged = images.find(image => image.panel.id === source)!;
+  const resident = images.find(image => image.panel.id === source.id);
+  const dragged = resident ?? { panel: source, element: element!, box: element!.getBoundingClientRect(), image: snapshot(element!) };
+  const agent = agentNames[source.agent];
+  const trayArea = resident && tray ? tray.getBoundingClientRect() : undefined;
+  // While a tray panel is placed, the open tray panel steps aside so every resident panel is a visible target.
+  const covering = resident ? [] : [...canvas.querySelectorAll<HTMLElement>('.panel-slot')].filter(slot => !panels.some(panel => panel.id === slot.dataset.panelId));
   const offset = { x: event.clientX - dragged.box.x, y: event.clientY - dragged.box.y };
-  let moving = false, drop: Drop | undefined, next: Layout | undefined;
+  let moving = false, drop: Drop | 'tray' | undefined, next: DragResult | undefined;
   let ghost: HTMLDivElement | undefined, preview: HTMLDivElement | undefined, hidden: HTMLElement | undefined;
   const layer = (image: HTMLElement, box: DOMRect, label: string, className: string) => {
     const wrapper = document.createElement('div');
@@ -67,60 +84,79 @@ export function createDragPreview({ event, canvas, source, panels, layout, consu
     Object.assign(wrapper.style, { left: `${box.x}px`, top: `${box.y}px`, width: `${box.width}px`, height: `${box.height}px` });
     wrapper.append(image); return wrapper;
   };
-  const swapPreview = (target: string) => {
+  const outline = (label: string, box: { x: number; y: number; width: number; height: number }) => {
+    const element = document.createElement('div'); element.className = `panel-drop-preview ${source.agent}`;
+    element.setAttribute('role', 'img'); element.setAttribute('aria-label', label);
+    Object.assign(element.style, { left: `${box.x}px`, top: `${box.y}px`, width: `${box.width}px`, height: `${box.height}px` });
+    return element;
+  };
+  // The area the dragged panel takes in a layout, in window coordinates.
+  const placed = (result: Layout) => {
+    const box = layoutBoxes(result).panels.get(source.id)!;
+    return { x: area.x + box.x * area.width, y: area.y + box.y * area.height, width: box.width * area.width, height: box.height * area.height };
+  };
+  const swapPreview = (target: string, result: Layout) => {
     const other = images.find(image => image.panel.id === target)!;
     const element = document.createElement('div'); element.className = 'panel-swap-preview';
-    element.setAttribute('role', 'img'); element.setAttribute('aria-label', t('swapPreview', { first: agentNames[dragged.panel.agent], second: agentNames[other.panel.agent] }));
+    element.setAttribute('role', 'img'); element.setAttribute('aria-label', t('swapPreview', { first: agent, second: agentNames[other.panel.agent] }));
     hidden = other.element; hidden.classList.add('panel-drag-hidden');
-    element.append(layer(snapshot(other.image), dragged.box, agentNames[other.panel.agent], `panel-preview-image ${other.panel.agent}`));
+    // A resident target moves into the dragged panel's slot; a target replaced by a tray panel leaves for the tray.
+    element.append(resident ? layer(snapshot(other.image), dragged.box, agentNames[other.panel.agent], `panel-preview-image ${other.panel.agent}`)
+      : outline(agent, placed(result)));
     return element;
   };
   // A drop preview outlines the area the dragged panel takes in the resulting layout.
-  const dropPreview = (drop: Exclude<Drop, { kind: 'swap' }>, result: Layout) => {
-    const box = layoutBoxes(result).panels.get(source)!;
-    const element = document.createElement('div'); element.className = `panel-drop-preview ${dragged.panel.agent}`;
-    const agent = agentNames[dragged.panel.agent], side = t(sideNames[drop.side]);
-    element.setAttribute('role', 'img');
-    element.setAttribute('aria-label', drop.kind === 'fill' ? t('fillPreview', { agent, side })
-      : t('splitPreview', { agent, side, target: agentNames[images.find(image => image.panel.id === drop.panel)!.panel.agent] }));
-    Object.assign(element.style, { left: `${area.x + box.x * area.width}px`, top: `${area.y + box.y * area.height}px`,
-      width: `${box.width * area.width}px`, height: `${box.height * area.height}px` });
-    return element;
-  };
-  const show = (candidate?: Drop) => {
+  const dropPreview = (drop: Exclude<Drop, { kind: 'swap' }>, result: Layout) => outline(
+    !original ? t('wholePreview', { agent })
+      : drop.kind === 'fill' ? t('fillPreview', { agent, side: t(sideNames[drop.side]) })
+        : t('splitPreview', { agent, side: t(sideNames[drop.side]), target: agentNames[images.find(image => image.panel.id === drop.panel)!.panel.agent] }),
+    placed(result));
+  const show = (candidate?: Drop | 'tray') => {
     if (JSON.stringify(candidate) === JSON.stringify(drop)) return;
     hidden?.classList.remove('panel-drag-hidden'); hidden = undefined;
     preview?.remove(); preview = undefined;
     drop = candidate; next = undefined;
     if (!drop) return;
-    const result = dropIntoLayout(original, source, drop);
-    // A drop that leaves the layout as it is (such as a lone panel filling a side) is not a valid drop.
-    if (JSON.stringify(result) === JSON.stringify(original)) return;
-    next = result;
-    preview = drop.kind === 'swap' ? swapPreview(drop.panel) : dropPreview(drop, result);
+    if (drop === 'tray') {
+      next = { kind: 'tray' };
+      preview = outline(t('trayPreview', { agent }), trayArea!);
+    } else {
+      const result = dropIntoLayout(original, source.id, drop);
+      // A drop that leaves the layout as it is (such as a lone panel filling a side) is not a valid drop.
+      if (JSON.stringify(result) === JSON.stringify(original)) return;
+      next = { kind: 'layout', layout: result };
+      preview = drop.kind === 'swap' ? swapPreview(drop.panel, result) : dropPreview(drop, result);
+    }
     document.body.append(preview);
+  };
+  const target = (x: number, y: number): Drop | 'tray' | undefined => {
+    if (trayArea && inside(trayArea, x, y)) return 'tray';
+    if (!original) return inside(area, x, y) ? { kind: 'fill', side: nearest(area, x, y) } : undefined;
+    return dropAt(area, images.map(image => ({ id: image.panel.id, box: image.slot })), source.id, x, y);
   };
   const move = (pointer: PointerEvent) => {
     if (!moving && Math.hypot(pointer.clientX - event.clientX, pointer.clientY - event.clientY) < 5) return;
     if (!moving) {
       moving = true; consumed(); canvas.classList.add('dragging');
+      if (!resident) canvas.classList.add('placing');
+      for (const slot of covering) slot.classList.add('panel-drag-hidden');
       dragged.element.classList.add('panel-drag-hidden');
-      ghost = layer(snapshot(dragged.image), dragged.box, t('draggingPanel', { agent: agentNames[dragged.panel.agent] }), `panel-drag-image ${dragged.panel.agent}`);
+      ghost = layer(snapshot(dragged.image), dragged.box, t('draggingPanel', { agent }), `panel-drag-image ${source.agent}`);
       document.body.append(ghost);
     }
     ghost!.style.left = `${pointer.clientX - offset.x}px`; ghost!.style.top = `${pointer.clientY - offset.y}px`;
-    show(dropAt(area, images.map(image => ({ id: image.panel.id, box: image.slot })), source, pointer.clientX, pointer.clientY));
+    show(target(pointer.clientX, pointer.clientY));
   };
   return {
     move,
-    result(release: PointerEvent): Layout | undefined {
+    result(release: PointerEvent): DragResult | undefined {
       // Pointerup may be delivered without a final pointermove.
       move(release);
       return moving ? next : undefined;
     },
     dispose() {
-      ghost?.remove(); preview?.remove(); canvas.classList.remove('dragging');
-      for (const image of images) image.element.classList.remove('panel-drag-hidden');
+      ghost?.remove(); preview?.remove(); canvas.classList.remove('dragging', 'placing');
+      for (const element of [dragged.element, ...covering, ...images.map(image => image.element)]) element.classList.remove('panel-drag-hidden');
     },
   };
 }
