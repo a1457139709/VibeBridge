@@ -49,9 +49,6 @@ export function IssueList({ repo, filter, setFilter, cursor, onCursor, onOpenDet
     order.push({ n: i.number, parent, kids: hasKids ? shown.map(k => k.number) : [] });
     const blockers = openBlockers(repo, i);
     const records = dispatches.filter(d => d.issue === i.number);
-    const all = [...shown, ...folded.filter(f => !shown.includes(f))];
-    const openKids = all.filter(k => k.state === 'open').length;
-    const dispatched = all.filter(k => dispatches.some(d => d.issue === k.number)).length;
     return <React.Fragment key={i.number}>
       <div data-row={i.number} className={`gh-row ${cursor === i.number ? 'selected' : ''} ${issueMatches(i, filter) ? '' : 'context'}`}
         onClick={() => { onCursor(i.number); onOpenDetail(i.number); }}>
@@ -62,8 +59,7 @@ export function IssueList({ repo, filter, setFilter, cursor, onCursor, onOpenDet
             <span className="gh-row-num">#{i.number}</span><span>{ago(i.createdAt)}</span>
             {hasKids && <button className={`wb-kids ${open ? 'open' : ''}`} tabIndex={-1} title={open ? '收起子 issue' : '展开子 issue'}
               onClick={e => { e.stopPropagation(); setExpanded(x => flipSet(x, i.number)); }}>
-              <span className="wb-kids-caret">{open ? '▾' : '▸'}</span><span>子 issue</span><Progress {...childProgress(repo, i.number)} />
-              {!!openKids && <span>· {openKids} 未完成</span>}{!!dispatched && <span>· {dispatched} 已派发</span>}</button>}
+              <span className="wb-kids-caret">{open ? '▾' : '▸'}</span><span>子 issue</span><Progress {...childProgress(repo, i.number)} /></button>}
             {!!blockers.length && <Blocked repo={repo} by={blockers} />}
             {i.labels.map(l => <Label key={l} repo={repo} name={l} onClick={() => addLabel(l)} />)}
           </div>
