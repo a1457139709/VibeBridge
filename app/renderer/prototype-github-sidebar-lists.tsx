@@ -12,19 +12,10 @@ interface IssueListProps {
   panes: Pane[]; dispatches: DispatchRecord[]; onLocate(pane: string): void; dispatchButton(issue: Issue, weak: boolean): ReactNode; listRef: React.RefObject<HTMLDivElement | null>;
 }
 
-// #160: a curved connector with an open arrowhead (UML style) from the parent's trunk into the child's first mark (▾, or the state icon for a leaf).
-const R = 6, Y = 17;
-function Elbow({ to }: { to: number }) {
-  return <svg className="wb-elbow" width={to + 1} height={Y + 5} aria-hidden>
-    <path d={`M0.5 0 V${Y - R} Q0.5 ${Y + 0.5} ${R + 0.5} ${Y + 0.5} H${to - 1}`} />
-    <path d={`M${to - 5} ${Y - 3.5} L${to - 1} ${Y + 0.5} L${to - 5} ${Y + 4.5}`} />
-  </svg>;
-}
-
 const flipSet = (set: Set<number>, n: number) => { const next = new Set(set); if (next.has(n)) next.delete(n); else next.add(n); return next; };
 
 export function IssueList({ repo, filter, setFilter, cursor, onCursor, onOpenDetail, panes, dispatches, onLocate, dispatchButton, listRef }: IssueListProps) {
-  const [collapsed, setCollapsed] = useState<Set<number>>(new Set());
+  const [expanded, setExpanded] = useState<Set<number>>(new Set()); // #160: parents start collapsed
   const [shownClosed, setShownClosed] = useState<Set<number>>(new Set());
   // Visible when it matches or a descendant matches; non-matching ancestors stay as context.
   const visible = useMemo(() => {
@@ -49,25 +40,27 @@ export function IssueList({ repo, filter, setFilter, cursor, onCursor, onOpenDet
     const shown = kids.filter(k => visible.get(k.number));
     return { kids, shown: shownClosed.has(i.number) ? [...shown, ...folded.filter(f => !shown.includes(f))] : shown, folded };
   };
-  const row = (i: Issue, depth: number, parent?: number, last = false, rails: number[] = []): ReactNode => {
-    const { kids, shown, folded } = kidsOf(i);
-    const open = !collapsed.has(i.number);
-    order.push({ n: i.number, parent, kids: shown.map(k => k.number) });
+  // #160: the tree stays, but children start collapsed behind a full-width strip under the parent that summarises them;
+  // expanded children keep their full rows and sit in a block with one line down its left edge.
+  const row = (i: Issue, parent?: number): ReactNode => {
+    const { shown, folded } = kidsOf(i);
+    const hasKids = shown.length > 0 || folded.length > 0;
+    const open = expanded.has(i.number);
+    order.push({ n: i.number, parent, kids: hasKids ? shown.map(k => k.number) : [] });
     const blockers = openBlockers(repo, i);
     const records = dispatches.filter(d => d.issue === i.number);
+    const all = [...shown, ...folded.filter(f => !shown.includes(f))];
+    const openKids = all.filter(k => k.state === 'open').length;
+    const dispatched = all.filter(k => dispatches.some(d => d.issue === k.number)).length;
     return <React.Fragment key={i.number}>
-      <div data-row={i.number} data-last={last || undefined} data-kids={(open && (shown.length > 0 || folded.length > 0)) || undefined} className={`gh-row ${cursor === i.number ? 'selected' : ''} ${issueMatches(i, filter) ? '' : 'context'}`}
-        style={{ '--depth': depth } as React.CSSProperties} onClick={() => { onCursor(i.number); onOpenDetail(i.number); }}>
-        {rails.map(l => <span key={l} className="wb-rail" style={{ '--l': l } as React.CSSProperties} />)}
-        {depth > 0 && <Elbow to={kids.length ? 12 : 31} />}
-        {kids.length ? <button className="gh-disclosure" tabIndex={-1} title={open ? '折叠' : '展开'} onClick={e => { e.stopPropagation(); setCollapsed(c => flipSet(c, i.number)); }}>{open ? '▾' : '▸'}</button> : <span className="gh-disclosure" />}
+      <div data-row={i.number} className={`gh-row ${cursor === i.number ? 'selected' : ''} ${issueMatches(i, filter) ? '' : 'context'}`}
+        onClick={() => { onCursor(i.number); onOpenDetail(i.number); }}>
         <IssueIcon issue={i} />
         <div className="gh-row-main">
           <div className="gh-row-title">{i.title}</div>
           <div className="gh-row-meta">
             <span className="gh-row-num">#{i.number}</span><span>{ago(i.createdAt)}</span>
             {!!blockers.length && <Blocked repo={repo} by={blockers} />}
-            <Progress {...childProgress(repo, i.number)} />
             {i.labels.map(l => <Label key={l} repo={repo} name={l} onClick={() => addLabel(l)} />)}
           </div>
         </div>
@@ -76,12 +69,19 @@ export function IssueList({ repo, filter, setFilter, cursor, onCursor, onOpenDet
           {dispatchButton(i, !!blockers.length)}
         </div>}
       </div>
-      {open && shown.map((k, n) => row(k, depth + 1, i.number, n === shown.length - 1 && !folded.length, depth > 0 && !last ? [...rails, depth] : rails))}
-      {open && !!folded.length && <button className="gh-fold" tabIndex={-1} style={{ '--depth': depth + 1 } as React.CSSProperties} onClick={() => setShownClosed(s => flipSet(s, i.number))}>
-        {shownClosed.has(i.number) ? '收起已关闭' : `已关闭 ${folded.length} 个`}</button>}
+      {hasKids && <button className={`wb-kids ${open ? 'open' : ''}`} tabIndex={-1} onClick={() => setExpanded(e => flipSet(e, i.number))}>
+        <span className="wb-kids-caret">{open ? '▾' : '▸'}</span><span>子 issue</span>
+        <Progress {...childProgress(repo, i.number)} />
+        {!!openKids && <span>{openKids} 个未完成</span>}{!!dispatched && <span>· {dispatched} 个已派发</span>}
+      </button>}
+      {hasKids && open && <div className="wb-kids-body">
+        {shown.map(k => row(k, i.number))}
+        {!!folded.length && <button className="gh-fold" tabIndex={-1} onClick={() => setShownClosed(s => flipSet(s, i.number))}>
+          {shownClosed.has(i.number) ? '收起已关闭' : `已关闭 ${folded.length} 个`}</button>}
+      </div>}
     </React.Fragment>;
   };
-  const rows = roots.map(i => row(i, 0));
+  const rows = roots.map(i => row(i));
 
   useEffect(() => { listRef.current?.querySelector(`[data-row="${cursor}"]`)?.scrollIntoView({ block: 'nearest' }); }, [cursor, listRef]);
   const keydown = (e: React.KeyboardEvent) => {
@@ -91,8 +91,8 @@ export function IssueList({ repo, filter, setFilter, cursor, onCursor, onOpenDet
     const go = (n?: number) => { if (n !== undefined) onCursor(n); };
     if (e.key === 'ArrowDown') { e.preventDefault(); go(order[Math.min(order.length - 1, at + 1)]?.n); }
     else if (e.key === 'ArrowUp') { e.preventDefault(); go(order[Math.max(0, at - 1)]?.n); }
-    else if (e.key === 'ArrowLeft' && here) { e.preventDefault(); if (here.kids.length) { if (collapsed.has(here.n)) setCollapsed(c => flipSet(c, here.n)); else go(here.kids[0]); } }
-    else if (e.key === 'ArrowRight' && here) { e.preventDefault(); if (here.kids.length && !collapsed.has(here.n)) setCollapsed(c => flipSet(c, here.n)); else go(here.parent); }
+    else if (e.key === 'ArrowLeft' && here) { e.preventDefault(); if (here.kids.length) { if (!expanded.has(here.n)) setExpanded(c => flipSet(c, here.n)); else go(here.kids[0]); } }
+    else if (e.key === 'ArrowRight' && here) { e.preventDefault(); if (here.kids.length && expanded.has(here.n)) setExpanded(c => flipSet(c, here.n)); else go(here.parent); }
     else if ((e.key === ' ' || e.key === 'Enter') && here) { e.preventDefault(); onOpenDetail(here.n); }
   };
 

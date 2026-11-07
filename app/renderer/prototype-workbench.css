@@ -119,14 +119,11 @@
 .gh-doc-head .gh-split.detail .gh-split-main { flex: none; height: 22px; font-size: 11px; }
 .gh-doc-head .gh-split.detail .gh-split-more { height: 22px; }
 
-/* #160 parent/child in the issue tree: 20px steps; a trunk under the parent's ▾ and a curved arrow into each child. */
-.wb-tree .gh-row { padding-left: calc(6px + var(--depth) * 20px); }
-.wb-tree .gh-fold { position: relative; padding-left: calc(30px + var(--depth) * 20px) !important; }
-.wb-tree .gh-row::after { content: ''; position: absolute; left: calc(13px + (var(--depth) - 1) * 20px); top: 0; bottom: 0; border-left: 1px solid var(--wb-tree-line); pointer-events: none; }
-.wb-tree .gh-row[data-last]::after, .wb-tree .gh-row[style*="--depth: 0"]::after { display: none; }
-.wb-tree { --wb-tree-line: color-mix(in srgb, var(--muted) 55%, transparent); }
-.wb-elbow { position: absolute; left: calc(13px + (var(--depth) - 1) * 20px); top: 0; overflow: visible; pointer-events: none; }
-.wb-elbow path { fill: none; stroke: var(--wb-tree-line); stroke-width: 1; stroke-linecap: round; stroke-linejoin: round; }
-.wb-tree .gh-row[data-kids]::before { content: ''; position: absolute; left: calc(13px + var(--depth) * 20px); top: 27px; bottom: 0; border-left: 1px solid var(--wb-tree-line); pointer-events: none; }
-.wb-rail { position: absolute; left: calc(13px + (var(--l) - 1) * 20px); top: 0; bottom: 0; border-left: 1px solid var(--wb-tree-line); pointer-events: none; }
-.wb-tree .gh-fold::before { content: ''; position: absolute; left: calc(13px + (var(--depth) - 1) * 20px); top: 0; height: 50%; width: 10px; border-left: 1px solid var(--wb-tree-line); border-bottom: 1px solid var(--wb-tree-line); border-bottom-left-radius: 6px; pointer-events: none; }
+/* #160 parent/child: no indent gutter; children collapsed behind a full-width summary strip; an expanded block has one line down its left. */
+.wb-tree .gh-row { padding: 8px 10px; }
+.wb-kids { display: flex; align-items: center; gap: 8px; width: 100%; min-height: 0; height: 28px; padding: 0 10px 0 34px; border: 0; border-radius: 0; border-bottom: 1px solid var(--line); background: color-mix(in srgb, var(--muted) 6%, transparent); text-align: left; font-size: 11px; color: var(--muted); }
+.wb-kids:hover { background: var(--gh-row-hover); color: inherit; }
+.wb-kids.open { color: inherit; }
+.wb-kids-caret { width: 12px; font-size: 12px; }
+.wb-kids-body { margin-left: 18px; border-left: 2px solid color-mix(in srgb, var(--gh-link) 35%, var(--line)); }
+.wb-tree .wb-kids-body .gh-fold { padding-left: 34px !important; }
