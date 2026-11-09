@@ -22,7 +22,7 @@ module.exports = {
 
     // Native title tooltips never show in the window; the drawn hint does, with the element's full description.
     await hover('.project-link');
-    await until(async () => (await hint()) === 'Hover hints · 1 panels');
+    await until(async () => (await hint()) === 'Hover hints · 2 panels');
     await hover(`${card} .session-title`);
     await until(async () => (await hint())?.startsWith('pi · '));
     // A card sits at the window bottom, so its hint opens upward and stays inside the window.

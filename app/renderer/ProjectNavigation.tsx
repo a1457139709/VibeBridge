@@ -1,7 +1,7 @@
 import { useLocalization } from './Localization';
 import { useEffect, useLayoutEffect, useRef, useState, type CSSProperties, type PointerEvent } from 'react';
 import type { DesktopAPI } from '../shared/api';
-import { defaultNavigation, navigationWidth, type NavigationPreferences, type PanelView, type ProjectView, type Snapshot } from '../shared/model';
+import { defaultNavigation, navigationWidth, projectPanels, type NavigationPreferences, type PanelView, type ProjectView, type Snapshot } from '../shared/model';
 import type { ProcessingState } from '../shared/processing-status';
 import { agentIcons } from './agent-icons';
 import type { PanelLocation } from './panel-location';
@@ -130,10 +130,11 @@ export function useProjectNavigation(host: Host, api: Pick<DesktopAPI, 'saveNavi
           // The panel the user is on: the maximized one (resident or an open tray panel), else the selected one.
           const { selected, maximized } = host.view(project.id);
           const shown = active ? maximized ?? selected : undefined;
+          const count = projectPanels(project).length;
           return <section key={project.id} className="project-group" data-project-id={project.id}>
             <ProjectNavigationItem project={project} openProject={host.openProject}>
               <button className="project-disclosure" aria-label={t(expanded ? 'collapseProject' : 'expandProject', { name: project.name })} aria-expanded={expanded} onClick={() => setExpandedProjects(previous => ({ ...previous, [project.id]: !expanded }))}>{expanded ? '⌄' : '›'}</button>
-              <button data-hint={`${project.name} · ${t('panelCount', { count: project.panels.length })}`} aria-label={project.name} aria-current={active ? 'page' : undefined} className={`project-link ${active ? 'selected' : ''}`} onClick={() => host.openProject(project.id)}><span className="project-initial" aria-hidden="true">{projectInitial(project.name)}</span><span className="project-name">{project.name}</span><small>{project.panels.length}</small></button>
+              <button data-hint={`${project.name} · ${t('panelCount', { count })}`} aria-label={project.name} aria-current={active ? 'page' : undefined} className={`project-link ${active ? 'selected' : ''}`} onClick={() => host.openProject(project.id)}><span className="project-initial" aria-hidden="true">{projectInitial(project.name)}</span><span className="project-name">{project.name}</span><small>{count}</small></button>
             </ProjectNavigationItem>
             {expanded && !!project.panels.length && <div className="project-panels" aria-label={t('projectPanels', { name: project.name })}>{project.panels.map(panel =>
               <PanelLink key={panel.id} panel={panel} current={shown === panel.id} locate={() => host.locatePanel(project.id, panel.id)} />)}</div>}

@@ -99,3 +99,10 @@ test('expanding or collapsing the ephemeral group stays in the interface and is 
   renderNavigation('en');
   assert.equal(group(/^Ephemeral · 3/).getAttribute('aria-expanded'), 'false');
 });
+
+test('a project\'s panel count covers its resident and ephemeral panels', () => {
+  renderNavigation('en');
+  const counts = screen.getAllByRole('button', { name: /^(Current|Other|Quiet)$/ })
+    .map(link => [link.getAttribute('data-hint'), link.querySelector('small')?.textContent]);
+  assert.deepEqual(counts, [['Current · 4 panels', '4'], ['Other · 3 panels', '3'], ['Quiet · 1 panels', '1']]);
+});
