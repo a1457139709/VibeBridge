@@ -20,7 +20,7 @@ export function ProcessingStatusIcon({ state, focusable = false }: { state?: Pro
   const { t } = useLocalization();
   if (!state) return null;
   const label = t(state);
-  return <span className={`processing-status processing-${state}`} role="img" aria-label={label} title={label}
+  return <span className={`processing-status processing-${state}`} role="img" aria-label={label} data-hint={label}
     onAnimationStart={alignRotation}
     tabIndex={focusable ? 0 : undefined} onPointerDown={event => { if (focusable) event.stopPropagation(); }}
     onClick={event => { if (focusable) event.stopPropagation(); }}>

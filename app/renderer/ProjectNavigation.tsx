@@ -133,7 +133,7 @@ export function useProjectNavigation(host: Host, api: Pick<DesktopAPI, 'saveNavi
           return <section key={project.id} className="project-group" data-project-id={project.id}>
             <ProjectNavigationItem project={project} openProject={host.openProject}>
               <button className="project-disclosure" aria-label={t(expanded ? 'collapseProject' : 'expandProject', { name: project.name })} aria-expanded={expanded} onClick={() => setExpandedProjects(previous => ({ ...previous, [project.id]: !expanded }))}>{expanded ? '⌄' : '›'}</button>
-              <button title={`${project.name} · ${t('panelCount', { count: project.panels.length })}`} aria-label={project.name} aria-current={active ? 'page' : undefined} className={`project-link ${active ? 'selected' : ''}`} onClick={() => host.openProject(project.id)}><span className="project-initial" aria-hidden="true">{projectInitial(project.name)}</span><span className="project-name">{project.name}</span><small>{project.panels.length}</small></button>
+              <button data-hint={`${project.name} · ${t('panelCount', { count: project.panels.length })}`} aria-label={project.name} aria-current={active ? 'page' : undefined} className={`project-link ${active ? 'selected' : ''}`} onClick={() => host.openProject(project.id)}><span className="project-initial" aria-hidden="true">{projectInitial(project.name)}</span><span className="project-name">{project.name}</span><small>{project.panels.length}</small></button>
             </ProjectNavigationItem>
             {expanded && !!project.panels.length && <div className="project-panels" aria-label={t('projectPanels', { name: project.name })}>{project.panels.map(panel =>
               <PanelLink key={panel.id} panel={panel} current={shown === panel.id} locate={() => host.locatePanel(project.id, panel.id)} />)}</div>}
@@ -155,7 +155,7 @@ function PanelLink({ panel, current, locate }: { panel: PanelView; current: bool
   const title = panel.run?.title ?? t('untitled');
   const { status } = panel;
   const label = status ? `${t(status)} · ${title}` : title;
-  return <button data-locate-panel-id={panel.id} title={label} aria-label={label} aria-current={current ? 'true' : undefined} className={`panel-link ${panel.agent} ${current ? 'selected' : ''}`} onClick={locate}><span className="agent-symbols"><ProcessingStatusIcon state={status} /><span className="agent-mark" aria-hidden="true">{agentIcons[panel.agent]}</span></span><span className="session-title">{title}</span></button>;
+  return <button data-locate-panel-id={panel.id} data-hint={label} aria-label={label} aria-current={current ? 'true' : undefined} className={`panel-link ${panel.agent} ${current ? 'selected' : ''}`} onClick={locate}><span className="agent-symbols"><ProcessingStatusIcon state={status} /><span className="agent-mark" aria-hidden="true">{agentIcons[panel.agent]}</span></span><span className="session-title">{title}</span></button>;
 }
 
 const attentionStates: ProcessingState[] = ['needs-input', 'done', 'error'];
@@ -170,7 +170,7 @@ function EphemeralGroup({ project, shownPanelId, expanded, toggle, locate }: {
   const heading = t('ephemeralGroup', { count: project.tray.length });
   const label = !expanded && attention.length ? t('ephemeralGroupAttention', { group: heading, states: attention.map(state => t(state)) }) : heading;
   return <div className="ephemeral-group">
-    <button className="ephemeral-toggle" aria-expanded={expanded} aria-label={label} title={label} onClick={toggle}>
+    <button className="ephemeral-toggle" aria-expanded={expanded} aria-label={label} data-hint={label} onClick={toggle}>
       <span className="ephemeral-disclosure" aria-hidden="true">{expanded ? '⌄' : '›'}</span><span className="ephemeral-heading">{heading}</span>
       {!expanded && <span className="ephemeral-attention">{attention.map(state => <ProcessingStatusIcon key={state} state={state} />)}</span>}
     </button>

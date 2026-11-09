@@ -73,7 +73,7 @@ export function ProjectSummary({ panels, locate }: { panels: PanelView[]; locate
   return <div ref={container} className="project-summary" role="region" aria-label={t('projectSummary')} tabIndex={-1}>{summaryStates.map(state => {
     const count = members(state).length;
     const label = `${count} ${t(state)}`;
-    return <button key={state} className="summary-entry" aria-label={label} title={label}
+    return <button key={state} className="summary-entry" aria-label={label} data-hint={label}
     ref={button => { if (button) triggers.current.set(state, button); else triggers.current.delete(state); }}
     disabled={!count} aria-expanded={open === state} aria-controls={open === state ? id : undefined} aria-haspopup="dialog"
     onKeyDown={event => {
@@ -96,7 +96,7 @@ export function ProjectSummary({ panels, locate }: { panels: PanelView[]; locate
       <header><strong>{t(open)}</strong><button aria-label={t('closePanelList')} onClick={() => close(true)}>×</button></header>
       <ul>{members(open).map(panel => {
         const title = panel.run?.title ?? t('untitled');
-        return <li key={panel.run?.id} data-run-id={panel.run?.id}><button className={`summary-panel ${panel.agent}`} title={`${agentNames[panel.agent]} · ${title}`}
+        return <li key={panel.run?.id} data-run-id={panel.run?.id}><button className={`summary-panel ${panel.agent}`} data-hint={`${agentNames[panel.agent]} · ${title}`}
           onClick={() => { setOpen(undefined); locate(panel); }}>
           <span className="agent-mark" aria-hidden="true">{agentIcons[panel.agent]}</span><span className="session-title">{title}</span><small>{agentNames[panel.agent]}</small>
         </button></li>;

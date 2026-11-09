@@ -45,7 +45,7 @@ test('navigation reads each panel view\'s state, exposes all five states to keyb
   for (const label of ['Ready', 'Busy', 'Needs input', 'Done', 'Error']) {
     const icon = await screen.findByRole('img', { name: label });
     const entry = icon.closest('button')!;
-    assert.ok(entry.getAttribute('title')?.includes(label));
+    assert.ok(entry.getAttribute('data-hint')?.includes(label));
     for (let step = 0; document.activeElement !== entry && step < 20; step++) await user.tab();
     assert.equal(document.activeElement, entry);
   }
@@ -61,7 +61,7 @@ test('navigation reads each panel view\'s state, exposes all five states to keyb
   assert.deepEqual(screen.getAllByRole('img'), icons);
   for (const label of ['就绪', '处理中', '等待输入', '本轮结束', '异常']) {
     const icon = screen.getByRole('img', { name: label });
-    assert.ok(icon.closest('button')!.getAttribute('title')?.includes(label));
+    assert.ok(icon.closest('button')!.getAttribute('data-hint')?.includes(label));
   }
   await act(async () => { for (const listener of listeners) listener({ kind: 'snapshot', snapshot }); });
   await user.click(screen.getByRole('button', { name: 'Collapse project navigation' }));

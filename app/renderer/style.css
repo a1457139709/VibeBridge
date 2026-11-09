@@ -4,7 +4,7 @@
   --canvas: #141414; --surface: #1e1e1e; --line: #343434;
   --muted: #a1a1a1; --hover: #2b2b2b; --accent: #e5e5e5; --focus: #a3a3a3;
   --chrome: #202020; --navigation: #181818; --panel-heading: #232323;
-  --toolbar-border: 1px solid var(--line); --panel-heading-border: 1px solid #303030;
+  --panel-heading-border: 1px solid #303030;
   --selection: #292929; --selection-text: #eee; --selection-marker: inset 2px 0 var(--focus);
   --primary-background: #e5e5e5; --primary-foreground: #202020; --primary-hover: #fff;
   --error: #f19989; --modal-backdrop: #0009;
@@ -85,9 +85,9 @@ hr { border: 0; border-top: 1px solid var(--line); margin: 22px 0; }
 .setup-actions { display: flex; justify-content: flex-end; gap: 10px; margin-top: 22px; }
 .setup-actions button { height: 36px; min-width: 78px; }
 .error-text { color: var(--error, #c76551); }
-.workspace { height: 100%; display: flex; flex-direction: column; }
+.workspace { position: relative; height: 100%; display: flex; flex-direction: column; }
 /* Three columns: an empty left, the project summary centred, and ＋ on the right. Equal side columns keep the summary centred. */
-.workspace-toolbar { container: workspace-toolbar / inline-size; position: relative; z-index: 6; height: 32px; display: grid; grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr); align-items: center; padding: 0 12px; font-size: 11px; flex-shrink: 0; background: var(--navigation, var(--canvas)); border-bottom: var(--toolbar-border, 0); }
+.workspace-toolbar { container: workspace-toolbar / inline-size; position: relative; z-index: 6; height: 32px; display: grid; grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr); align-items: center; padding: 0 12px; font-size: 11px; flex-shrink: 0; background: var(--navigation, var(--canvas)); border-bottom: 1px solid var(--line); }
 .workspace-toolbar > button { grid-column: 3; justify-self: end; border: 0; background: none; min-height: 26px; font-size: 19px; padding: 0 6px; }
 .canvas { flex: 1; position: relative; min-height: 0; margin: 4px; }
 .panel-slot { position: absolute; padding: 4px; min-width: 0; min-height: 0; transition: left 200ms, top 200ms, width 200ms, height 200ms; }
@@ -185,6 +185,8 @@ textarea { resize: vertical; }
 .panel-drag-hidden { opacity: 0; }
 .panel-swap-preview { position: fixed; inset: 0; z-index: 30; pointer-events: none; }
 .panel-drop-preview { position: fixed; z-index: 30; pointer-events: none; box-sizing: border-box; border: 2px dashed var(--brand); border-radius: 8px; background: color-mix(in srgb, var(--brand) 18%, transparent); }
+/* Hover hints follow the pointer's element, never take the pointer, and sit above every drag figure. */
+.hover-hint { position: fixed; z-index: 40; max-width: min(360px, calc(100vw - 16px)); padding: 4px 8px; border: 1px solid var(--line); border-radius: 6px; background: var(--surface); color: inherit; box-shadow: 0 4px 14px #0002; font-size: 11px; line-height: 1.4; overflow-wrap: anywhere; pointer-events: none; }
 .panel-swap-preview .agent-panel,.panel-drag-image .agent-panel { transition: none; }
 .dragging, .dragging .panel-header { cursor: grabbing; }
 /* Placing a tray panel shows the resident layout even while a tray panel is open over it. */

@@ -136,6 +136,7 @@ export const english = {
   "untitled": "Untitled task",
   "panelTray": "Ephemeral panel tray",
   "collapsePanel": "Collapse panel",
+  "moveToTray": "Move to tray",
   "locatedPanel": "Switched to: {title}",
   "ready": "Ready",
   "busy": "Busy",

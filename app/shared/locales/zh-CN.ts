@@ -96,6 +96,7 @@ export const chinese: Record<keyof typeof english, string> = {
   "untitled": "未命名任务",
   "panelTray": "临时面板托盘",
   "collapsePanel": "收起面板",
+  "moveToTray": "移入托盘",
   "locatedPanel": "已切换至：{title}",
   "ready": "就绪",
   "busy": "处理中",
