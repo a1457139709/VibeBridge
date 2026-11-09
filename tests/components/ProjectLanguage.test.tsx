@@ -6,14 +6,14 @@ import { userEvent } from '@testing-library/user-event';
 import { ProjectNavigationItem } from '../../app/renderer/ProjectManagement';
 import { Localization } from '../../app/renderer/Localization';
 import { message } from '../../app/shared/messages';
-import type { Project } from '../../app/shared/model';
+import type { ProjectView } from '../../app/shared/model';
 import { provideWorkbench } from './support/workbench';
 
 afterEach(cleanup);
 
 for (const language of ['en', 'zh-CN'] as const) {
   test(`project editing and deletion explain results in ${language} and preserve user content`, async () => {
-    const project: Project = { id: 'project', name: 'Untitled task 原样', directory: '/原样/old', panels: [{ id: 'panel', agent: 'pi' }], layout: { panel: 'panel' } };
+    const project: ProjectView = { id: 'project', name: 'Untitled task 原样', directory: '/原样/old', panels: [{ id: 'panel', agent: 'pi' }], tray: [], layout: { panel: 'panel' } };
     const calls: unknown[] = [];
     provideWorkbench({ inspectDirectory: async directory => ({ valid: true, directory }),
       editProject: async (id, edit, restart) => {

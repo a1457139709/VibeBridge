@@ -11,6 +11,9 @@ module.exports = {
     const settingsVisible = () => evaluate('!!document.querySelector(".settings-page")');
     const command = before.settings.agents.codex.command;
     const leaveDialog = () => evaluate('!!document.querySelector(".settings-leave[open]")');
+    // The project summary lives in the workspace, so the settings page locates panels from project navigation.
+    const locate = run => evaluate(`document.querySelector('[data-locate-panel-id="${run.panelId}"]').click()`);
+    const navigationStatus = run => evaluate(`document.querySelector('[data-locate-panel-id="${run.panelId}"] .processing-status')?.getAttribute('aria-label')`);
     const assertDrafts = async expectedCommand => {
       await click('Agent'); assert.equal(await evaluate('document.getElementById("command-codex").value'), expectedCommand);
       await click('Appearance'); assert.ok(await evaluate('document.querySelector("input[value=dark]").checked'));
@@ -22,21 +25,19 @@ module.exports = {
     await click('Keyboard shortcuts');
     await evaluate('document.getElementById("shortcut-nextPanel").dispatchEvent(new KeyboardEvent("keydown", { key: "k", code: "KeyK", metaKey: true, bubbles: true }))');
 
-    await f.open('done');
-    assert.equal(await leaveDialog(), false);
+    assert.equal(await evaluate('!!document.querySelector(".project-summary")'), false, 'the settings page shows no project summary');
     await f.send(third, { payload: { hook_event_name: 'Stop' } });
-    await until(() => evaluate('document.querySelectorAll(".summary-list li").length === 3'));
-    assert.ok(await evaluate('[...document.querySelectorAll(".summary-entry")].some(button => button.textContent === "3 Done")'));
+    await until(async () => await navigationStatus(third) === 'Done');
+    assert.equal(await evaluate('!!document.querySelector(".project-summary")'), false);
     assert.equal(await leaveDialog(), false);
-    await click('Close panel list');
     await assertDrafts(`${command}-draft`);
     assert.deepEqual((await f.snapshot()).settings, before.settings);
 
-    await f.choose('done', first);
+    await locate(first);
     await until(leaveDialog); await click('Cancel');
     assert.ok(await settingsVisible()); await assertDrafts(`${command}-draft`);
     await click('Agent'); await fill('command-codex', '');
-    await f.choose('done', first); await until(leaveDialog); await click('Save and return');
+    await locate(first); await until(leaveDialog); await click('Save and return');
     await until(() => evaluate('document.getElementById("command-codex")?.getAttribute("aria-invalid") === "true"'));
     assert.ok(await settingsVisible()); await assertDrafts('');
     assert.deepEqual((await f.snapshot()).settings, before.settings);
@@ -52,7 +53,7 @@ module.exports = {
     await rename(`${directory}/settings.json`, `${directory}/settings.backup`);
     await mkdir(`${directory}/settings.json`);
     try {
-      await f.choose('done', first); await until(leaveDialog); await click('Save and return');
+      await locate(first); await until(leaveDialog); await click('Save and return');
       await until(() => evaluate('document.querySelector(".settings-page [role=alert]")?.textContent.includes("Could not save settings")'));
       assert.ok(await settingsVisible());
       assert.deepEqual((await f.snapshot()).settings, before.settings);
@@ -63,7 +64,7 @@ module.exports = {
       await rm(`${directory}/settings.json`, { recursive: true });
       await rename(`${directory}/settings.backup`, `${directory}/settings.json`);
     }
-    await f.choose('done', second); await until(leaveDialog); await click('Save and return');
+    await locate(second); await until(leaveDialog); await click('Save and return');
     await until(async () => !(await settingsVisible()));
     await f.receiveInput(second, 'saved-settings-selection');
     const saved = await f.snapshot();
@@ -74,7 +75,7 @@ module.exports = {
     assert.deepEqual(runsOf(saved).map(run => [run.id, run.pid]), runsOf(before).map(run => [run.id, run.pid]));
 
     await click('Global settings'); await click('Agent'); await fill('command-codex', 'discard-this-draft');
-    await f.choose('done', first); await until(leaveDialog); await click('Don’t save');
+    await locate(first); await until(leaveDialog); await click('Don’t save');
     await f.receiveInput(first, 'discarded-settings-selection');
     assert.deepEqual((await f.snapshot()).settings, expected);
     await click('Global settings'); await click('Agent'); assert.equal(await evaluate('document.getElementById("command-codex").value'), command);
@@ -82,7 +83,7 @@ module.exports = {
     // The selected panel can disappear while the confirmation is open. A
     // successful settings decision must never retarget input to a survivor.
     await fill('command-codex', 'another-discarded-draft');
-    await f.choose('done', third); await until(leaveDialog);
+    await locate(third); await until(leaveDialog);
     await evaluate(`window.workbench.closePanel(${JSON.stringify(f.projectId)}, ${JSON.stringify(third.panelId)})`);
     await click('Don’t save');
     await until(async () => !(await settingsVisible()));
@@ -111,6 +112,6 @@ module.exports = {
     assert.ok(await evaluate('!!document.activeElement.closest(".summary-list")'), 'a background exit cannot steal keyboard focus from an open list');
     await click('Close panel list');
     await f.choose('done', second); await f.receiveInput(second, 'after-live-list-update');
-    console.log('Live settings summary, cancel, validation, real failed write/retry, whole-draft save, discard and disappearing targets passed.');
+    console.log('Settings without a summary, leave-to-locate cancel, validation, real failed write/retry, whole-draft save, discard and disappearing targets passed.');
   },
 };

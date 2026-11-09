@@ -9,9 +9,8 @@ module.exports = async context => {
   await evaluate(`window.summaryOutput = {}; window.workbench.subscribe(event => {
     if (event.kind === 'output') window.summaryOutput[event.runId] = (window.summaryOutput[event.runId] || '') + event.data;
   }); void 0;`);
-  const created = await require('./project.cjs')(context, 'Summary project');
+  const created = await require('./project.cjs')(context, 'Summary project', { Codex: 3 });
   const projectId = created.activeProjectId;
-  for (let i = 0; i < 2; i++) await evaluate(`window.workbench.addPanel(${JSON.stringify(projectId)}, 'codex')`);
   const snapshot = () => evaluate('window.workbench.snapshot()');
   const runs = runsOf(await snapshot());
   let sequence = 0;

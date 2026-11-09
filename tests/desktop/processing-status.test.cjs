@@ -7,9 +7,8 @@ module.exports = {
     const { window, evaluate, until, click } = context;
     const command = { command: process.env.VIBEBRIDGE_TEST_NODE, args: [resolve('tests/fixtures/status-cli.cjs')] };
     await evaluate(`window.workbench.saveSettings(${JSON.stringify({ agents: { codex: command, claude: command, pi: command } })})`);
-    const created = await require('./support/project.cjs')(context, 'Status panels');
+    const created = await require('./support/project.cjs')(context, 'Status panels', { Codex: 5 });
     const projectId = created.activeProjectId;
-    for (let index = 0; index < 4; index++) await evaluate(`window.workbench.addPanel(${JSON.stringify(projectId)}, 'codex')`);
     const runs = runsOf(await evaluate('window.workbench.snapshot()'));
     const cases = [
       ['ready', 'Ready', { hook_event_name: 'SessionStart', source: 'startup' }],

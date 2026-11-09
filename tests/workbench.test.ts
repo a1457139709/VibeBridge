@@ -113,30 +113,33 @@ test('quit cleans up runs and detached children while preserving the saved works
   }
 });
 
-test('shared panel operations enforce the limit and report launch failure without substituting another Agent', async context => {
+test('the panel limit counts resident and tray panels together, and a failed launch is reported without substituting another Agent', async context => {
   const dataDirectory = await testDirectory(context, 'workbench-panel-limit');
   const workbench = await Workbench.open(dataDirectory);
   try {
     const settings = workbench.snapshot().settings;
     settings.agents.pi = { command: process.env.VIBEBRIDGE_TEST_NODE!, args: [resolve('tests/fixtures/interactive.cjs')] };
     await workbench.saveSettings(settings);
-    const { project, launches } = await workbench.createProject({ name: 'Limit', directory: dataDirectory, total: 10, counts: { codex: 0, claude: 0, pi: 10 } });
-    assert.equal(launches.length, 10);
+    const { project, launches } = await workbench.createProject({ name: 'Limit', directory: dataDirectory, total: 8, counts: { codex: 0, claude: 0, pi: 8 } });
     assert.ok(launches.every(launch => launch.outcome === 'started'));
+    const trayPanels = [await workbench.addPanel(project.id, 'pi'), await workbench.addPanel(project.id, 'pi')];
+    assert.ok(trayPanels.every(added => added.launch.outcome === 'started'));
     await assert.rejects(workbench.addPanel(project.id, 'codex'), /panelLimit/);
-    await workbench.closePanel(project.id, project.panels[0].id);
+    await workbench.closePanel(project.id, trayPanels[0].panel.id);
     const additions = await Promise.allSettled([workbench.addPanel(project.id, 'pi'), workbench.addPanel(project.id, 'pi')]);
     assert.equal(additions.filter(result => result.status === 'fulfilled').length, 1);
     const rejected = additions.find(result => result.status === 'rejected');
     assert.ok(rejected?.status === 'rejected');
     assert.match(rejected.reason.message, /panelLimit/);
-    assert.equal(workbench.snapshot().projects[0].panels.length, 10);
+    const counts = () => { const view = workbench.snapshot().projects[0]; return [view.panels.length, view.tray.length]; };
+    assert.deepEqual(counts(), [8, 2]);
     await workbench.saveSettings({ agents: { ...settings.agents, codex: { command: '/no-such-agent', args: [] } } });
     await workbench.closePanel(project.id, project.panels[1].id);
     const failed = await workbench.addPanel(project.id, 'codex');
     assert.equal(failed.launch.outcome, 'failed');
     assert.equal(failed.panel.agent, 'codex');
-    assert.deepEqual(workbench.snapshot().projects[0].panels.map(panel => panel.agent), Array(9).fill('pi'));
+    assert.deepEqual(counts(), [7, 2]);
+    assert.ok(workbench.snapshot().projects[0].tray.every(panel => panel.agent === 'pi'));
   } finally { await workbench.quit(); }
 });
 

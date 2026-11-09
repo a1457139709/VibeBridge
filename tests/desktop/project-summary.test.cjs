@@ -7,7 +7,8 @@ const visiblePanels = evaluate => evaluate('[...document.querySelectorAll(".canv
 module.exports = {
   async run(context) {
     const { evaluate, until, click, window, directory } = context;
-    assert.equal(await evaluate('document.querySelector(".project-summary").textContent'), '');
+    const summaryShown = () => evaluate('!!document.querySelector(".project-summary")');
+    assert.equal(await summaryShown(), false, 'the project creation guide shows no summary');
     const f = await require('./support/summary.cjs')(context);
     const [first, second, third] = f.runs;
     const initial = await f.snapshot();
@@ -21,12 +22,13 @@ module.exports = {
     await evaluate(`document.querySelector('[data-panel-id="${first.panelId}"] button[aria-label="Maximize panel"]').click()`);
     await f.choose('done', second); await f.receiveInput(second, 'maximized-selection');
     assert.equal(await visiblePanels(evaluate), 1);
-    await click('Global settings'); await click('Agent');
-    await f.choose('done', first); await f.receiveInput(first, 'settings-maximized-selection');
-    assert.equal(await visiblePanels(evaluate), 1);
+    // The summary belongs to the workspace and leaves with it.
+    await click('Global settings');
+    assert.equal(await summaryShown(), false, 'the settings page shows no summary');
+    await click('‹ Back');
+    await until(summaryShown);
     await click('Restore panel');
-    await click('Global settings'); await click('Agent');
-    await f.choose('done', second); await f.receiveInput(second, 'settings-split-selection');
+    await f.choose('done', first); await f.receiveInput(first, 'restored-split-selection');
     assert.equal(await visiblePanels(evaluate), 3);
 
     // A newer list selection supersedes a target that is visible but cannot yet
@@ -82,21 +84,23 @@ module.exports = {
           for (const collapsed of [false, true]) {
             if (collapsed) await click(language === 'en' ? 'Collapse project navigation' : '折叠项目导航');
             await f.open('done');
+            // The list drops from the middle of the toolbar, centred under the summary unless the window edge clamps it.
             const geometry = await evaluate(`(() => {
-              const bar = document.querySelector('.project-summary').getBoundingClientRect();
+              const bar = document.querySelector('.workspace-toolbar').getBoundingClientRect();
+              const summary = document.querySelector('.project-summary').getBoundingClientRect();
               const list = document.querySelector('.summary-list').getBoundingClientRect();
-              const trigger = document.querySelector('.summary-entry[aria-expanded=true]').getBoundingClientRect();
               const scroll = document.querySelector('.summary-list ul');
-              return { barHeight: bar.height, bottom: bar.bottom, windowHeight: innerHeight,
-                contained: list.left >= 0 && list.top >= 0 && list.right <= innerWidth && list.bottom < bar.top,
-                adjacent: Math.abs(list.left - trigger.left) < 1 && bar.top - list.bottom < 6,
+              const centred = Math.max(8, Math.min(summary.left + (summary.width - list.width) / 2, innerWidth - list.width - 8));
+              return {
+                contained: list.left >= 0 && list.right <= innerWidth && list.bottom <= innerHeight,
+                below: list.top >= bar.bottom && list.top - bar.bottom < 6,
+                centred: Math.abs(list.left - centred) < 1,
                 scrolling: scroll.scrollHeight > scroll.clientHeight,
                 entriesVisible: [...document.querySelectorAll('.summary-entry')].every(entry => {
-                  const box = entry.getBoundingClientRect(); return box.left >= 0 && box.right <= innerWidth && box.top >= bar.top && box.bottom <= bar.bottom;
+                  const box = entry.getBoundingClientRect(); return box.left >= bar.left && box.right <= bar.right && box.top >= bar.top && box.bottom <= bar.bottom;
                 }) };
             })()`);
-            assert.equal(geometry.barHeight, 36); assert.equal(geometry.bottom, geometry.windowHeight);
-            assert.ok(geometry.contained); assert.ok(geometry.adjacent); assert.ok(geometry.scrolling); assert.ok(geometry.entriesVisible);
+            assert.ok(geometry.contained); assert.ok(geometry.below); assert.ok(geometry.centred); assert.ok(geometry.scrolling); assert.ok(geometry.entriesVisible);
             f.nativeKey('Escape');
             await until(() => evaluate('!document.querySelector(".summary-list")'));
             assert.equal(await evaluate('document.activeElement.getAttribute("aria-label")'), language === 'en' ? '10 Done' : '10 本轮结束');
@@ -105,28 +109,36 @@ module.exports = {
         }
       }
     }
-    // A bar too narrow for four names collapses every entry to icon and count
-    // together; names remain in each entry's accessible name and tooltip.
+    // The summary stays centred in the toolbar between an empty left and ＋ on the right. A toolbar too narrow
+    // for four names collapses every entry to icon and count together; names remain in each entry's
+    // accessible name and tooltip.
     for (const language of ['en', 'zh-CN']) {
       await evaluate(`window.workbench.saveSettings({ language: ${JSON.stringify(language)} })`);
       await until(() => evaluate(`document.documentElement.lang === ${JSON.stringify(language)}`));
-      for (const [width, collapsed] of [[1280, false], [360, true]]) {
+      for (const [width, collapsed] of [[1280, false], [480, true]]) {
         window.setContentSize(width, 480);
         await until(() => evaluate(`document.documentElement.clientWidth === ${width}`));
         for (const navigation of ['Collapse project navigation', 'Expand project navigation']) {
           await evaluate('new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))');
-          const entries = await evaluate(`(() => {
-            const bar = document.querySelector('.project-summary').getBoundingClientRect();
-            return [...document.querySelectorAll('.summary-entry')].map(entry => {
-              const box = entry.getBoundingClientRect();
-              return { named: entry.querySelector('.summary-name').checkVisibility(), label: entry.getAttribute('aria-label'), title: entry.title,
-                inside: box.left >= bar.left && box.right <= bar.right && box.top >= bar.top && box.bottom <= bar.bottom, barHeight: bar.height };
-            });
+          const toolbar = await evaluate(`(() => {
+            const bar = document.querySelector('.workspace-toolbar').getBoundingClientRect();
+            const summary = document.querySelector('.project-summary').getBoundingClientRect();
+            const add = document.querySelector('.workspace-toolbar > button').getBoundingClientRect();
+            return { centred: Math.abs(summary.left + summary.width / 2 - (bar.left + bar.width / 2)) < 1,
+              addAtRight: add.left >= summary.right && add.right <= bar.right,
+              text: [...document.querySelector('.workspace-toolbar').childNodes].filter(node => !node.matches?.('.project-summary')).map(node => node.textContent).join(''),
+              entries: [...document.querySelectorAll('.summary-entry')].map(entry => {
+                const box = entry.getBoundingClientRect();
+                return { named: entry.querySelector('.summary-name').checkVisibility(), label: entry.getAttribute('aria-label'), title: entry.title,
+                  inside: box.left >= summary.left && box.right <= summary.right && box.top >= bar.top && box.bottom <= bar.bottom };
+              }) };
           })()`);
-          assert.equal(entries.length, 4);
-          for (const entry of entries) {
+          assert.ok(toolbar.centred, `summary centred at ${width}px`); assert.ok(toolbar.addAtRight);
+          assert.equal(toolbar.text, '＋', 'no project name, directory or panel count');
+          assert.equal(toolbar.entries.length, 4);
+          for (const entry of toolbar.entries) {
             assert.equal(entry.named, !collapsed, `${entry.label} at ${width}px`);
-            assert.ok(entry.inside); assert.equal(entry.barHeight, 36); assert.equal(entry.title, entry.label);
+            assert.ok(entry.inside); assert.equal(entry.title, entry.label);
           }
           await click(language === 'en' ? navigation : navigation.startsWith('Collapse') ? '折叠项目导航' : '展开项目导航');
         }
