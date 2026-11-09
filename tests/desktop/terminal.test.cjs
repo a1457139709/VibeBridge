@@ -62,8 +62,10 @@ module.exports = {
     await evaluate(frames);
     await evaluate(`document.querySelector('.terminal-container').style.height = '90px'`);
     await evaluate(frames);
-    await evaluate(`document.querySelector('.terminal-container').style.top = '0'; window.requestIdleCallback = window.heldIdle; void 0`);
-    await evaluate(frames);
+    await evaluate(`window.output = ''; document.querySelector('.terminal-container').style.top = '0'; window.requestIdleCallback = window.heldIdle; void 0`);
+    // Back in view the screen fits its new size; the run reports it before later input, so the
+    // short screen's rows end with that input rather than with a size report arriving after it.
+    await until(() => evaluate('/SIZE:\\d+x\\d+\\r\\n/.test(window.output)'));
     await evaluate(`window.workbench.sendInput(${JSON.stringify(run.id)}, 'after-hidden-resize')`);
     await until(() => evaluate('document.querySelector(".xterm-rows").textContent.includes("INPUT:after-hidden-resize")'));
     await evaluate(`document.querySelector('.terminal-container').style.cssText = ''`);
