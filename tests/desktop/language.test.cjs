@@ -18,7 +18,7 @@ module.exports = {
     // Keep an unfinished input line in a real PTY while settings take focus.
     const pending = JSON.stringify({ id: 'input-across-language', output: 'INPUT-PRESERVED\n' });
     for (const character of pending) window.webContents.sendInputEvent({ type: 'char', keyCode: character });
-    await until(() => evaluate(`document.querySelector('[data-panel-id="${first.panelId}"] .xterm-rows').textContent.includes('input-across-language')`));
+    await until(() => evaluate(`document.querySelector('[data-panel-id="${first.panelId}"] .xterm-rows').textContent.includes('input-across-language')`), 'pending input line drawn in the first panel');
     await click('Global settings'); await click('Agent');
     await fill('command-codex', `${before.settings.agents.codex.command}-draft`);
     await click('General');
@@ -33,7 +33,7 @@ module.exports = {
     assert.equal((await f.snapshot()).settings.language, 'en');
     assert.ok(await evaluate('document.body.textContent.includes("Interface language")'));
     await click('Save');
-    await until(() => evaluate('document.documentElement.lang === "zh-CN"'));
+    await until(() => evaluate('document.documentElement.lang === "zh-CN"'), 'interface switched to zh-CN');
     assert.ok(await evaluate('document.querySelector(".notices").textContent.includes("配置已保存")'));
     assert.deepEqual(Menu.getApplicationMenu().items.map(item => item.label), ['VibeBridge', '编辑', '窗口']);
     await click('Agent');
@@ -50,31 +50,31 @@ module.exports = {
       await evaluate('window.workbench.chooseDirectory()');
       assert.equal(directoryOptions.title, '选择本地目录');
       assert.equal(directoryOptions.buttonLabel, '选择目录');
-      window.close(); await until(() => !!quitOptions);
+      window.close(); await until(() => !!quitOptions, 'quit confirmation requested in zh-CN');
       assert.equal(quitOptions.message, '退出 VibeBridge？');
       assert.deepEqual(quitOptions.buttons, ['取消', '退出']);
       await selectLanguage('en'); await click('保存');
-      await until(() => evaluate('document.documentElement.lang === "en"'));
+      await until(() => evaluate('document.documentElement.lang === "en"'), 'interface switched back to en');
       assert.deepEqual(Menu.getApplicationMenu().items.map(item => item.label), ['VibeBridge', 'Edit', 'Window']);
       await evaluate('window.workbench.chooseDirectory()');
       assert.equal(directoryOptions.title, 'Choose local directory');
-      quitOptions = undefined; window.close(); await until(() => !!quitOptions);
+      quitOptions = undefined; window.close(); await until(() => !!quitOptions, 'quit confirmation requested in en');
       assert.equal(quitOptions.message, 'Quit VibeBridge?');
       assert.deepEqual(quitOptions.buttons, ['Cancel', 'Quit']);
     } finally { dialog.showOpenDialog = openDialog; dialog.showMessageBox = messageDialog; }
 
     for (const [language, save] of [['zh-CN', 'Save'], ['en', '保存'], ['zh-CN', 'Save']]) {
       await selectLanguage(language); await click(save);
-      await until(async () => (await f.snapshot()).settings.language === language);
+      await until(async () => (await f.snapshot()).settings.language === language, `saved language is ${language}`);
       assert.deepEqual(runsOf(await f.snapshot()).map(run => [run.id, run.pid]), runsOf(before).map(run => [run.id, run.pid]));
       assert.deepEqual(panelViews(await f.snapshot()).map(panel => panel.status), panelViews(before).map(panel => panel.status));
       assert.ok(await evaluate('window.languageScreens.every(screen => screen.isConnected && [...document.querySelectorAll(".terminal-screen")].includes(screen))'));
     }
     await click('‹ 返回');
-    await until(() => evaluate('!document.querySelector(".settings-page")'));
-    await f.choose('done', first); await until(() => f.focused(first));
+    await until(() => evaluate('!document.querySelector(".settings-page")'), 'settings page closed');
+    await f.choose('done', first); await until(() => f.focused(first), 'first panel terminal focused after choosing it');
     f.nativeKey('Enter');
-    await until(() => evaluate(`window.summaryOutput[${JSON.stringify(first.id)}].includes(${JSON.stringify('ACK:input-across-language\r\n')})`));
+    await until(() => evaluate(`window.summaryOutput[${JSON.stringify(first.id)}].includes(${JSON.stringify('ACK:input-across-language\r\n')})`), 'first run acknowledged the input kept across language saves');
     assert.ok(await evaluate(`document.querySelector('[data-panel-id="${first.panelId}"] .xterm-rows').textContent.includes('RECEIVED:before-language-change')`));
     assert.equal(await evaluate(`document.querySelector('[data-panel-id="${first.panelId}"] .xterm-helper-textarea').getAttribute('aria-label')`), '终端输入');
     assert.deepEqual((await f.snapshot()).projects, before.projects);
@@ -83,21 +83,23 @@ module.exports = {
     assert.equal(await evaluate(`document.querySelector('.summary-list [data-run-id="${second.id}"] .session-title').textContent`), 'Untitled task');
     for (const language of ['en', 'zh-CN']) {
       await evaluate(`window.workbench.saveSettings({ language: ${JSON.stringify(language)} })`);
-      await until(() => evaluate(`document.documentElement.lang === ${JSON.stringify(language)}`));
+      await until(() => evaluate(`document.documentElement.lang === ${JSON.stringify(language)}`), `interface switched to ${language}`);
+      // Names of a different length re-centre the open list under the summary.
       assert.ok(await evaluate(`(() => {
         const list = document.querySelector('.summary-list').getBoundingClientRect();
-        const trigger = document.querySelector('.summary-entry[aria-expanded=true]').getBoundingClientRect();
-        return Math.abs(list.left - trigger.left) < 1;
+        const summary = document.querySelector('.project-summary').getBoundingClientRect();
+        const centred = Math.max(8, Math.min(summary.left + (summary.width - list.width) / 2, innerWidth - list.width - 8));
+        return Math.abs(list.left - centred) < 1;
       })()`));
     }
     f.nativeKey('Escape');
-    await until(() => evaluate('!document.querySelector(".summary-list")'));
+    await until(() => evaluate('!document.querySelector(".summary-list")'), 'summary list closed by Escape');
     assert.equal(await evaluate('document.activeElement.getAttribute("aria-label")'), '2 本轮结束');
     assert.equal(JSON.parse(await readFile(`${directory}/settings.json`, 'utf8')).language, 'zh-CN');
     console.log('Language saves preserve live terminal input, records, run identities and drafts; native dialogs and menus agree.');
   },
   async reopen({ evaluate, until }) {
-    await until(() => evaluate('document.documentElement.lang === "zh-CN" && !!document.querySelector(".workspace")'));
+    await until(() => evaluate('document.documentElement.lang === "zh-CN" && !!document.querySelector(".workspace")'), 'reopened workspace drawn in zh-CN');
     assert.equal((await evaluate('window.workbench.snapshot()')).settings.language, 'zh-CN');
     assert.deepEqual(Menu.getApplicationMenu().items.map(item => item.label), ['VibeBridge', '编辑', '窗口']);
     assert.ok(await evaluate('!!document.querySelector("button[aria-label=全局设置]")'));

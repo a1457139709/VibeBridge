@@ -1,6 +1,6 @@
 import { Terminal, type ITheme } from '@xterm/xterm';
 import { FitAddon } from '@xterm/addon-fit';
-import type { Language, ProjectView, WorkbenchEvent } from '../shared/model';
+import { projectPanels, type Language, type ProjectView, type WorkbenchEvent } from '../shared/model';
 import { localize } from '../shared/localization';
 
 interface Screen { terminal: Terminal; fit: FitAddon; element: HTMLDivElement; observers: (ResizeObserver | IntersectionObserver)[]; inView: boolean; opened: boolean; consumed: number }
@@ -64,7 +64,7 @@ export function terminalEvent(event: WorkbenchEvent) {
   if (event.kind === 'exit') dispose(event.runId);
 }
 export function reconcileTerminals(projects: ProjectView[]) {
-  const running = new Set(projects.flatMap(project => project.panels.flatMap(({ run }) => run?.state === 'running' ? [run.id] : [])));
+  const running = new Set(projects.flatMap(project => projectPanels(project).flatMap(({ run }) => run?.state === 'running' ? [run.id] : [])));
   for (const id of running) ensure(id);
   for (const id of screens.keys()) if (!running.has(id)) dispose(id);
 }

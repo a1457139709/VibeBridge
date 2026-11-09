@@ -5,7 +5,7 @@ import { agentNames, agentTypes } from '../shared/model';
 import { agentIcons } from './agent-icons';
 
 export function AgentPicker({ projectId, full, close, added, openAgentSettings }: {
-  projectId: string; full: boolean; close(): void; added(): void; openAgentSettings(): void;
+  projectId: string; full: boolean; close(): void; added(panelId: string): void; openAgentSettings(): void;
 }) {
   const { t, text } = useLocalization();
   const dialog = useRef<HTMLDialogElement>(null);
@@ -25,7 +25,7 @@ export function AgentPicker({ projectId, full, close, added, openAgentSettings }
         try {
           const result = await window.workbench.addPanel(projectId, type);
           const { launch } = result;
-          if (launch.outcome === 'started') added();
+          if (launch.outcome === 'started') added(result.panel.id);
           else if (launch.outcome === 'failed') setFailure({ error: message('launchFailed'), settings: true });
           else setFailure({ error: launch.reason, settings: false });
         } catch (error) { setFailure({ error: (error as Error).message, settings: false }); }

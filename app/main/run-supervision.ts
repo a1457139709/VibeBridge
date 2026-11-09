@@ -104,15 +104,17 @@ export class RunSupervision {
       return { outcome: 'unconfirmed', run: structuredClone(run), agent: panel.agent, reason: message('launchUnconfirmed', { reason: detail((error as Error).message) }) };
     }
   }
-  /** Stops the project's runs; returns one reason per run that could not be stopped. */
-  async stopProject(project: Project): Promise<string[]> {
-    if (this.terminalFailure && this.list.some(run => run.projectId === project.id)) return [this.terminalFailure];
+  /** Stops the runs of these panels; returns one reason per run that could not be stopped,
+   * numbering panels by their position in the given list. */
+  async stopPanels(panels: Panel[]): Promise<string[]> {
+    const ids = panels.map(panel => panel.id);
+    if (this.terminalFailure && this.list.some(run => ids.includes(run.panelId))) return [this.terminalFailure];
     const failures: string[] = [];
-    for (const run of this.list.filter(run => run.projectId === project.id && live(run))) {
+    for (const run of this.list.filter(run => ids.includes(run.panelId) && live(run))) {
       // Mark before requesting cleanup: its exit event can arrive before the response.
       this.controlledStops.add(run.id);
       try { await this.terminal.stop(run.id); }
-      catch (error) { failures.push(message('panelFailure', { number: project.panels.findIndex(panel => panel.id === run.panelId) + 1, reason: detail((error as Error).message) })); }
+      catch (error) { failures.push(message('panelFailure', { number: ids.indexOf(run.panelId) + 1, reason: detail((error as Error).message) })); }
     }
     return failures;
   }

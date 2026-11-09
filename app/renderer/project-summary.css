@@ -1,8 +1,7 @@
-.project-summary { container: project-summary / inline-size; position: relative; z-index: 6; flex: 0 0 36px; min-height: 36px; border-top: 1px solid var(--line); background: var(--navigation, var(--canvas)); }
-.summary-entries { display: flex; align-items: center; gap: 4px; height: 100%; padding: 0 8px; }
-.summary-entry { display: inline-flex; align-items: center; gap: 6px; border: 1px solid transparent; background: transparent; min-height: 28px; padding: 0 8px; font-size: 12px; white-space: nowrap; font-variant-numeric: tabular-nums; }
+.project-summary { grid-column: 2; position: relative; display: flex; align-items: center; gap: 4px; height: 100%; }
+.summary-entry { display: inline-flex; align-items: center; gap: 6px; border: 1px solid transparent; background: transparent; min-height: 26px; padding: 0 8px; font-size: 12px; white-space: nowrap; font-variant-numeric: tabular-nums; }
 .summary-entry[aria-expanded='true'] { background: var(--selection, var(--hover)); border-color: var(--line); }
-.summary-list { position: absolute; bottom: calc(100% + 4px); width: min(400px, calc(100vw - 16px)); max-height: min(360px, calc(100dvh - 92px)); display: flex; flex-direction: column; border: 1px solid var(--line); border-radius: 8px; background: var(--surface); box-shadow: 0 8px 28px #0003; overflow: hidden; }
+.summary-list { position: absolute; top: calc(100% + 4px); width: min(400px, calc(100vw - 16px)); max-height: min(360px, calc(100dvh - 92px)); display: flex; flex-direction: column; border: 1px solid var(--line); border-radius: 8px; background: var(--surface); box-shadow: 0 8px 28px #0003; overflow: hidden; }
 .summary-list header { display: flex; align-items: center; justify-content: space-between; flex-shrink: 0; padding: 6px 8px 6px 12px; border-bottom: 1px solid var(--line); }
 .summary-list header button { width: 28px; min-height: 28px; padding: 0; border: 0; background: transparent; font-size: 18px; }
 .summary-list ul { margin: 0; padding: 4px; list-style: none; overflow-y: auto; min-height: 0; overscroll-behavior: contain; }
@@ -12,9 +11,10 @@
 .summary-panel .session-title { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .summary-panel small { font-size: 11px; flex-shrink: 0; }
 .summary-panel:focus-visible { outline-offset: -2px; }
-/* Four entries stop fitting with names near this width in either language; all collapse together. */
-@container project-summary (max-width: 440px) {
-  .summary-entries { gap: 0; padding: 0 4px; }
+/* The named summary plus room for ＋ on both sides stops fitting near this width in either language;
+   all names collapse together, leaving icons and counts. */
+@container workspace-toolbar (max-width: 560px) {
+  .project-summary { gap: 0; }
   .summary-entry { gap: 4px; padding: 0 6px; }
   .summary-name { display: none; }
 }

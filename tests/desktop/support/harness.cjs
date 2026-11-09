@@ -3,14 +3,7 @@ const { writeFile } = require('node:fs/promises');
 const { resolve } = require('node:path');
 const { app, BrowserWindow, dialog } = require('electron');
 const { runsOf } = require('./panel-views.cjs');
-
-async function until(check, timeout = 10000) {
-  const deadline = Date.now() + timeout;
-  while (!(await check())) {
-    if (Date.now() > deadline) throw new Error('Timed out waiting for desktop');
-    await new Promise(resolve => setTimeout(resolve, 30));
-  }
-}
+const until = require('./until.cjs');
 
 let window;
 async function fail(error) {
@@ -39,7 +32,7 @@ void (async () => {
   };
   require(process.env.VIBEBRIDGE_TEST_ENTRY);
   await app.whenReady();
-  await until(() => BrowserWindow.getAllWindows().length);
+  await until(() => BrowserWindow.getAllWindows().length, 'workbench window opened');
   window = BrowserWindow.getAllWindows()[0];
   window.webContents.setBackgroundThrottling(false);
   window.webContents.on('console-message', details => console.log(`[renderer:${details.level}] ${details.message}`));
@@ -49,7 +42,7 @@ void (async () => {
     try { return await window.webContents.executeJavaScript(code, true); }
     catch (error) { throw new Error(`Desktop script failed: ${code}`, { cause: error }); }
   };
-  await until(() => evaluate('!!window.workbench && !!document.querySelector("h1, .workspace")'));
+  await until(() => evaluate('!!window.workbench && !!document.querySelector("h1, .workspace")'), 'renderer exposes window.workbench and draws a page');
   const click = label => evaluate(`(() => { const button = [...document.querySelectorAll('button')].find(b => b.getAttribute('aria-label') === ${JSON.stringify(label)} || b.textContent === ${JSON.stringify(label)}); if (!button) throw new Error('Missing button'); button.click(); })()`);
   const fill = (id, value) => evaluate(`(() => { const input = document.getElementById(${JSON.stringify(id)}); Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value').set.call(input, ${JSON.stringify(value)}); input.dispatchEvent(new Event('input', { bubbles: true })); })()`);
   const result = await (reopen ? suite.reopen : suite.run)({ app, window, evaluate, click, fill, until, directory });

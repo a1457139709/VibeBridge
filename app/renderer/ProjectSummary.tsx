@@ -4,20 +4,16 @@ import { agentNames, type PanelView } from '../shared/model';
 import type { ProcessingState } from '../shared/processing-status';
 import { agentIcons } from './agent-icons';
 import { ProcessingStatusIcon } from './ProcessingStatusIcon';
-import type { PanelLocation } from './panel-location';
 
 /** States the project summary groups, in display order; Busy is shown only on panels and navigation. */
 const summaryStates = ['ready', 'needs-input', 'done', 'error'] as const satisfies readonly ProcessingState[];
 type SummaryState = typeof summaryStates[number];
 
-export function ProjectSummary({ projectId, panels, locatePanel }: { projectId?: string; panels?: PanelView[]; locatePanel: PanelLocation['locatePanel'] }) {
-  const { t } = useLocalization();
-  return <footer className="project-summary" role="region" aria-label={t('projectSummary')}>
-    {projectId && panels && <SummaryEntries key={projectId} panels={panels} projectId={projectId} locatePanel={locatePanel} />}
-  </footer>;
-}
-
-function SummaryEntries({ panels, projectId, locatePanel }: { panels: PanelView[]; projectId: string; locatePanel: PanelLocation['locatePanel'] }) {
+/**
+ * The current project's panels, resident and tray, counted by processing state; each count opens a list of
+ * its members. Choosing a member hands it to `locate`. The summary lives in the workspace toolbar only.
+ */
+export function ProjectSummary({ panels, locate }: { panels: PanelView[]; locate(panel: PanelView): void }) {
   const { t, language } = useLocalization();
   const [open, setOpen] = useState<SummaryState>();
   const id = useId();
@@ -37,9 +33,13 @@ function SummaryEntries({ panels, projectId, locatePanel }: { panels: PanelView[
   }
   useLayoutEffect(() => {
     if (!open) return;
+    // The list drops from the middle of the toolbar and stays inside the window.
     const position = () => {
-      const trigger = triggers.current.get(open), popup = list.current;
-      if (trigger && popup) popup.style.left = `${Math.max(8, Math.min(trigger.getBoundingClientRect().left, window.innerWidth - popup.offsetWidth - 8))}px`;
+      const summary = container.current, popup = list.current;
+      if (!summary || !popup) return;
+      const box = summary.getBoundingClientRect();
+      const left = Math.max(8, Math.min(box.left + (box.width - popup.offsetWidth) / 2, window.innerWidth - popup.offsetWidth - 8));
+      popup.style.left = `${left - box.left}px`;
     };
     position();
     window.addEventListener('resize', position);
@@ -70,7 +70,7 @@ function SummaryEntries({ panels, projectId, locatePanel }: { panels: PanelView[
     document.addEventListener('keydown', escape);
     return () => { document.removeEventListener('pointerdown', outside); document.removeEventListener('keydown', escape); };
   }, [open]);
-  return <div ref={container} className="summary-entries" tabIndex={-1}>{summaryStates.map(state => {
+  return <div ref={container} className="project-summary" role="region" aria-label={t('projectSummary')} tabIndex={-1}>{summaryStates.map(state => {
     const count = members(state).length;
     const label = `${count} ${t(state)}`;
     return <button key={state} className="summary-entry" aria-label={label} title={label}
@@ -97,7 +97,7 @@ function SummaryEntries({ panels, projectId, locatePanel }: { panels: PanelView[
       <ul>{members(open).map(panel => {
         const title = panel.run?.title ?? t('untitled');
         return <li key={panel.run?.id} data-run-id={panel.run?.id}><button className={`summary-panel ${panel.agent}`} title={`${agentNames[panel.agent]} · ${title}`}
-          onClick={() => { setOpen(undefined); locatePanel(projectId, panel.id, panel.run?.id); }}>
+          onClick={() => { setOpen(undefined); locate(panel); }}>
           <span className="agent-mark" aria-hidden="true">{agentIcons[panel.agent]}</span><span className="session-title">{title}</span><small>{agentNames[panel.agent]}</small>
         </button></li>;
       })}</ul>
