@@ -9,12 +9,12 @@ module.exports = {
     const created = await require('./support/project.cjs')(context, 'Empty tray', { Codex: 2 });
     const [a, b] = created.projects[0].panels.map(panel => panel.id);
     const project = async () => (await evaluate('window.workbench.snapshot()')).projects[0];
-    await until(async () => panelViews({ projects: [await project()] }).every(panel => panel.run?.state === 'running'));
+    await until(async () => panelViews({ projects: [await project()] }).every(panel => panel.run?.state === 'running'), 'every Empty tray run running');
     const runs = Object.fromEntries(panelViews({ projects: [await project()] }).map(panel => [panel.id, panel.run.id]));
     const tray = async () => (await project()).tray.map(panel => panel.id);
     const settle = async (expectedTray, layout) => {
-      await until(async () => JSON.stringify(await tray()) === JSON.stringify(expectedTray));
-      await until(async () => JSON.stringify(await geometry(Object.keys(layout))) === JSON.stringify(layout));
+      await until(async () => JSON.stringify(await tray()) === JSON.stringify(expectedTray), `tray holds ${JSON.stringify(expectedTray)}`);
+      await until(async () => JSON.stringify(await geometry(Object.keys(layout))) === JSON.stringify(layout), `panel geometry settles at ${JSON.stringify(layout)}`);
       assert.deepEqual(Object.fromEntries(panelViews({ projects: [await project()] }).map(panel => [panel.id, panel.run.id])), runs);
     };
     const border = (selector, side) => evaluate(`(() => { const style = getComputedStyle(document.querySelector(${JSON.stringify(selector)}));
@@ -42,10 +42,10 @@ module.exports = {
 
     // Cancelling the drag hides the empty tray again and changes nothing.
     context.window.webContents.sendInputEvent({ type: 'keyDown', keyCode: 'Escape' });
-    await until(() => evaluate('!document.querySelector(".canvas").classList.contains("dragging")'));
+    await until(() => evaluate('!document.querySelector(".canvas").classList.contains("dragging")'), 'Esc ended the drag');
     context.window.webContents.sendInputEvent({ type: 'keyUp', keyCode: 'Escape' });
     release(point);
-    await until(async () => !(await trayShown()));
+    await until(async () => !(await trayShown()), 'empty tray hidden after the cancelled drag');
     await evaluate('new Promise(resolve => setTimeout(resolve, 300))');
     await settle([], { [a]: [0, 0, .5, 1], [b]: [.5, 0, .5, 1] });
 
@@ -59,7 +59,7 @@ module.exports = {
 
     // The move-to-tray action does the same as dropping the header on the tray, and leaves the panel collapsed.
     await evaluate(`document.querySelector('[data-panel-id="${b}"] .panel-actions button[aria-label="Move to tray"]').click()`);
-    await until(async () => JSON.stringify(await tray()) === JSON.stringify([a, b]));
+    await until(async () => JSON.stringify(await tray()) === JSON.stringify([a, b]), 'move-to-tray action put both panels in the tray');
     assert.equal((await project()).layout, null);
     assert.deepEqual(Object.fromEntries(panelViews({ projects: [await project()] }).map(panel => [panel.id, panel.run.id])), runs);
     assert.equal(await evaluate('document.querySelector(".tray-card[aria-pressed=true]")'), null, 'the moved panel is not open');
