@@ -4,11 +4,14 @@ module.exports = ({ window, evaluate, until }) => {
   const center = box => ({ x: Math.round(box.left + box.width / 2), y: Math.round(box.top + box.height / 2) });
   return {
     rect, center,
-    // Panel slot geometry relative to the layout area, rounded to 1/100.
+    // Panel slot geometry relative to the layout area, rounded to 1/100. The renderer draws a snapshot after the
+    // main process reports it, so a panel can be missing from the layout area for a moment: that gives null.
     geometry: ids => evaluate(`(() => {
       const canvas = document.querySelector('.canvas').getBoundingClientRect();
-      return Object.fromEntries(${JSON.stringify(ids)}.map(id => {
-        const box = document.querySelector('.canvas > [data-panel-id="' + id + '"]').getBoundingClientRect();
+      const slots = ${JSON.stringify(ids)}.map(id => [id, document.querySelector('.canvas > [data-panel-id="' + id + '"]')]);
+      if (slots.some(([, slot]) => !slot)) return null;
+      return Object.fromEntries(slots.map(([id, slot]) => {
+        const box = slot.getBoundingClientRect();
         return [id, [(box.x - canvas.x) / canvas.width, (box.y - canvas.y) / canvas.height, box.width / canvas.width, box.height / canvas.height]
           .map(value => Math.round(value * 100) / 100)];
       }));
