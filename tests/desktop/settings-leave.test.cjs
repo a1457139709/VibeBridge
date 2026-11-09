@@ -27,18 +27,18 @@ module.exports = {
 
     assert.equal(await evaluate('!!document.querySelector(".project-summary")'), false, 'the settings page shows no project summary');
     await f.send(third, { payload: { hook_event_name: 'Stop' } });
-    await until(async () => await navigationStatus(third) === 'Done');
+    await until(async () => await navigationStatus(third) === 'Done', 'navigation shows Done for the third panel');
     assert.equal(await evaluate('!!document.querySelector(".project-summary")'), false);
     assert.equal(await leaveDialog(), false);
     await assertDrafts(`${command}-draft`);
     assert.deepEqual((await f.snapshot()).settings, before.settings);
 
     await locate(first);
-    await until(leaveDialog); await click('Cancel');
+    await until(leaveDialog, 'leave-settings dialog opened'); await click('Cancel');
     assert.ok(await settingsVisible()); await assertDrafts(`${command}-draft`);
     await click('Agent'); await fill('command-codex', '');
-    await locate(first); await until(leaveDialog); await click('Save and return');
-    await until(() => evaluate('document.getElementById("command-codex")?.getAttribute("aria-invalid") === "true"'));
+    await locate(first); await until(leaveDialog, 'leave-settings dialog opened'); await click('Save and return');
+    await until(() => evaluate('document.getElementById("command-codex")?.getAttribute("aria-invalid") === "true"'), 'empty Codex command marked invalid');
     assert.ok(await settingsVisible()); await assertDrafts('');
     assert.deepEqual((await f.snapshot()).settings, before.settings);
 
@@ -53,8 +53,8 @@ module.exports = {
     await rename(`${directory}/settings.json`, `${directory}/settings.backup`);
     await mkdir(`${directory}/settings.json`);
     try {
-      await locate(first); await until(leaveDialog); await click('Save and return');
-      await until(() => evaluate('document.querySelector(".settings-page [role=alert]")?.textContent.includes("Could not save settings")'));
+      await locate(first); await until(leaveDialog, 'leave-settings dialog opened'); await click('Save and return');
+      await until(() => evaluate('document.querySelector(".settings-page [role=alert]")?.textContent.includes("Could not save settings")'), 'settings page shows the save failure');
       assert.ok(await settingsVisible());
       assert.deepEqual((await f.snapshot()).settings, before.settings);
       await assertDrafts(command);
@@ -64,8 +64,8 @@ module.exports = {
       await rm(`${directory}/settings.json`, { recursive: true });
       await rename(`${directory}/settings.backup`, `${directory}/settings.json`);
     }
-    await locate(second); await until(leaveDialog); await click('Save and return');
-    await until(async () => !(await settingsVisible()));
+    await locate(second); await until(leaveDialog, 'leave-settings dialog opened'); await click('Save and return');
+    await until(async () => !(await settingsVisible()), 'settings page closed after saving');
     await f.receiveInput(second, 'saved-settings-selection');
     const saved = await f.snapshot();
     const expected = { ...before.settings, agents: { ...before.settings.agents, codex: { command, args: [...before.settings.agents.codex.args, '--saved-draft'] } },
@@ -75,7 +75,7 @@ module.exports = {
     assert.deepEqual(runsOf(saved).map(run => [run.id, run.pid]), runsOf(before).map(run => [run.id, run.pid]));
 
     await click('Global settings'); await click('Agent'); await fill('command-codex', 'discard-this-draft');
-    await locate(first); await until(leaveDialog); await click('Don’t save');
+    await locate(first); await until(leaveDialog, 'leave-settings dialog opened'); await click('Don’t save');
     await f.receiveInput(first, 'discarded-settings-selection');
     assert.deepEqual((await f.snapshot()).settings, expected);
     await click('Global settings'); await click('Agent'); assert.equal(await evaluate('document.getElementById("command-codex").value'), command);
@@ -83,10 +83,10 @@ module.exports = {
     // The selected panel can disappear while the confirmation is open. A
     // successful settings decision must never retarget input to a survivor.
     await fill('command-codex', 'another-discarded-draft');
-    await locate(third); await until(leaveDialog);
+    await locate(third); await until(leaveDialog, 'leave-settings dialog opened');
     await evaluate(`window.workbench.closePanel(${JSON.stringify(f.projectId)}, ${JSON.stringify(third.panelId)})`);
     await click('Don’t save');
-    await until(async () => !(await settingsVisible()));
+    await until(async () => !(await settingsVisible()), 'settings page closed after discarding');
     await evaluate('new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))');
     assert.equal(await evaluate('document.activeElement?.classList.contains("xterm-helper-textarea")'), false);
     assert.equal(await evaluate('document.querySelector(".workbench-page").classList.contains("locating-panel")'), false);
@@ -96,9 +96,9 @@ module.exports = {
     // focusing the fallback panel chosen only for display.
     await evaluate(`document.querySelector('[data-panel-id="${first.panelId}"] .terminal-container').style.display = 'none'`);
     await f.choose('done', first);
-    await until(() => evaluate('document.querySelector(".workbench-page").classList.contains("locating-panel")'));
+    await until(() => evaluate('document.querySelector(".workbench-page").classList.contains("locating-panel")'), 'locating waits for the hidden first terminal');
     await evaluate(`window.workbench.closePanel(${JSON.stringify(f.projectId)}, ${JSON.stringify(first.panelId)})`);
-    await until(() => evaluate('!document.querySelector(".workbench-page").classList.contains("locating-panel")'));
+    await until(() => evaluate('!document.querySelector(".workbench-page").classList.contains("locating-panel")'), 'locating ended when the target panel closed');
     await evaluate('new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))');
     assert.equal(await evaluate('document.activeElement?.classList.contains("xterm-helper-textarea")'), false);
     await f.choose('done', second); await f.receiveInput(second, 'explicit-selection-after-cancel');
@@ -107,7 +107,7 @@ module.exports = {
     await f.choose('done', added.launch.run); await f.receiveInput(added.launch.run, 'before-live-exit');
     await f.open('done');
     await evaluate(`window.workbench.closePanel(${JSON.stringify(f.projectId)}, ${JSON.stringify(added.panel.id)})`);
-    await until(() => evaluate('document.querySelectorAll(".summary-list li").length === 1'));
+    await until(() => evaluate('document.querySelectorAll(".summary-list li").length === 1'), 'summary list dropped the closed panel');
     await evaluate('new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))');
     assert.ok(await evaluate('!!document.activeElement.closest(".summary-list")'), 'a background exit cannot steal keyboard focus from an open list');
     await click('Close panel list');

@@ -26,7 +26,7 @@ module.exports = {
     await click('Global settings');
     assert.equal(await summaryShown(), false, 'the settings page shows no summary');
     await click('‹ Back');
-    await until(summaryShown);
+    await until(summaryShown, 'project summary shown after leaving settings');
     await click('Restore panel');
     await f.choose('done', first); await f.receiveInput(first, 'restored-split-selection');
     assert.equal(await visiblePanels(evaluate), 3);
@@ -35,7 +35,7 @@ module.exports = {
     // receive terminal input. Hiding only the terminal models delayed layout.
     await evaluate(`document.querySelector('[data-panel-id="${first.panelId}"] .terminal-container').style.display = 'none'`);
     await f.choose('done', first);
-    await until(() => evaluate('document.querySelector(".workbench-page").classList.contains("locating-panel")'));
+    await until(() => evaluate('document.querySelector(".workbench-page").classList.contains("locating-panel")'), 'locating waits for the hidden first terminal');
     await f.choose('done', second); await f.receiveInput(second, 'newer-selection');
     await evaluate(`document.querySelector('[data-panel-id="${first.panelId}"] .terminal-container').style.display = ''`);
     await evaluate('new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))');
@@ -57,11 +57,11 @@ module.exports = {
     await evaluate(`window.workbench.createProject(${JSON.stringify({ name: 'Other summary project', directory: otherDirectory, total: 1, counts: { codex: 1, claude: 0, pi: 0 } })})`);
     await click('Other summary project');
     await f.send(third, { payload: { hook_event_name: 'Stop' } });
-    await until(() => evaluate(`document.querySelector('[data-locate-panel-id="${third.panelId}"] .processing-status')?.getAttribute('aria-label') === 'Done'`));
+    await until(() => evaluate(`document.querySelector('[data-locate-panel-id="${third.panelId}"] .processing-status')?.getAttribute('aria-label') === 'Done'`), 'navigation shows Done for the background project panel');
     assert.equal(await evaluate('document.querySelectorAll(".project-summary").length'), 1);
     assert.ok(await evaluate('[...document.querySelectorAll(".summary-entry")].some(button => button.textContent === "0 Done")'));
     await click(project.name);
-    await until(() => evaluate('[...document.querySelectorAll(".summary-entry")].some(button => button.textContent === "3 Done")'));
+    await until(() => evaluate('[...document.querySelectorAll(".summary-entry")].some(button => button.textContent === "3 Done")'), 'summary shows "3 Done" after returning');
 
     // Ten long titles make a scrollable list; many projects cannot add bar rows.
     for (let i = 0; i < 7; i++) {
@@ -75,12 +75,12 @@ module.exports = {
     await click(project.name);
     for (const language of ['en', 'zh-CN']) {
       await evaluate(`window.workbench.saveSettings({ language: ${JSON.stringify(language)} })`);
-      await until(() => evaluate(`document.documentElement.lang === ${JSON.stringify(language)}`));
+      await until(() => evaluate(`document.documentElement.lang === ${JSON.stringify(language)}`), `interface switched to ${language}`);
       for (const theme of ['light', 'dark']) {
         await evaluate(`document.documentElement.dataset.theme = ${JSON.stringify(theme)}`);
         for (const size of [[1280, 860], [640, 480]]) {
           window.setContentSize(...size);
-          await until(() => evaluate(`document.documentElement.clientWidth === ${size[0]}`));
+          await until(() => evaluate(`document.documentElement.clientWidth === ${size[0]}`), `window content is ${size[0]}px wide`);
           for (const collapsed of [false, true]) {
             if (collapsed) await click(language === 'en' ? 'Collapse project navigation' : '折叠项目导航');
             await f.open('done');
@@ -102,7 +102,7 @@ module.exports = {
             })()`);
             assert.ok(geometry.contained); assert.ok(geometry.below); assert.ok(geometry.centred); assert.ok(geometry.scrolling); assert.ok(geometry.entriesVisible);
             f.nativeKey('Escape');
-            await until(() => evaluate('!document.querySelector(".summary-list")'));
+            await until(() => evaluate('!document.querySelector(".summary-list")'), 'summary list closed by Escape');
             assert.equal(await evaluate('document.activeElement.getAttribute("aria-label")'), language === 'en' ? '10 Done' : '10 本轮结束');
             if (collapsed) await click(language === 'en' ? 'Expand project navigation' : '展开项目导航');
           }
@@ -114,10 +114,10 @@ module.exports = {
     // accessible name and tooltip.
     for (const language of ['en', 'zh-CN']) {
       await evaluate(`window.workbench.saveSettings({ language: ${JSON.stringify(language)} })`);
-      await until(() => evaluate(`document.documentElement.lang === ${JSON.stringify(language)}`));
+      await until(() => evaluate(`document.documentElement.lang === ${JSON.stringify(language)}`), `interface switched to ${language}`);
       for (const [width, collapsed] of [[1280, false], [480, true]]) {
         window.setContentSize(width, 480);
-        await until(() => evaluate(`document.documentElement.clientWidth === ${width}`));
+        await until(() => evaluate(`document.documentElement.clientWidth === ${width}`), `window content is ${width}px wide`);
         for (const navigation of ['Collapse project navigation', 'Expand project navigation']) {
           await evaluate('new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))');
           const toolbar = await evaluate(`(() => {
@@ -146,7 +146,7 @@ module.exports = {
     }
     window.setContentSize(1280, 860);
     await evaluate('window.workbench.saveSettings({ language: "en" })');
-    await until(() => evaluate('document.documentElement.lang === "en"'));
+    await until(() => evaluate('document.documentElement.lang === "en"'), 'interface switched to en');
     // Persisted configuration is tested in a second Electron process; temporary
     // maximize must not overwrite the layout, and old runs must not be resumed.
     await evaluate(`document.querySelector('[data-panel-id="${second.panelId}"] button[aria-label="Maximize panel"]').click()`);
@@ -156,11 +156,11 @@ module.exports = {
   async reopen({ evaluate, until, directory }) {
     const saved = JSON.parse(await readFile(`${directory}/summary-expected.json`, 'utf8'));
     const active = saved.projects.find(project => project.id === saved.activeProjectId);
-    await until(async () => runsOf(await evaluate('window.workbench.snapshot()')).length === active.panels.length);
+    await until(async () => runsOf(await evaluate('window.workbench.snapshot()')).length === active.panels.length, 'reopened project has a run for every panel');
     const current = await evaluate('window.workbench.snapshot()');
     assert.deepEqual(storedProjects(current), storedProjects(saved));
     assert.ok(runsOf(current).every(run => !runsOf(saved).some(old => old.id === run.id)));
-    await until(async () => await visiblePanels(evaluate) === active.panels.length);
+    await until(async () => await visiblePanels(evaluate) === active.panels.length, 'reopened layout shows every panel');
     assert.equal(await evaluate(`document.querySelectorAll('.canvas button[aria-label="Restore panel"]').length`), 0);
     console.log('Reopening retained the saved layout, with fresh runs and no persisted temporary maximize.');
   },

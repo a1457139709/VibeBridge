@@ -8,21 +8,22 @@ const line = 'ab你好，世界。这是测试：（）［］｛｝「」『』�
 const cellsOf = prefix => prefix.split('').reduce((count, char) => count + (char.charCodeAt(0) < 0x80 ? 1 : 2), 0);
 
 module.exports = {
-  async run(context) {
+  async run(suite) {
+    const context = await require('./support/terminal-waits.cjs')(suite);
     const { window, evaluate, until } = context;
     const [run] = runsOf(await require('./support/project.cjs')(context));
-    await until(() => evaluate('document.querySelector(".xterm-rows").textContent.includes("READY:")'));
+    await until(() => evaluate('document.querySelector(".xterm-rows").textContent.includes("READY:")'), 'terminal shows READY:');
     await evaluate('document.querySelector(".xterm-helper-textarea").focus()');
     // xterm draws its cursor once the user has typed.
     window.webContents.sendInputEvent({ type: 'char', keyCode: 'k' });
-    await until(() => evaluate('document.querySelector(".xterm-rows").textContent.includes("INPUT:k")'));
+    await until(() => evaluate('document.querySelector(".xterm-rows").textContent.includes("INPUT:k")'), 'terminal echoes typed k');
     await evaluate(`window.workbench.sendInput(${JSON.stringify(run.id)}, ${JSON.stringify(`print:${line}`)})`);
-    await until(() => evaluate(`document.querySelector(".xterm-rows > div").textContent.startsWith(${JSON.stringify(line)})`));
+    await until(() => evaluate(`document.querySelector(".xterm-rows > div").textContent.startsWith(${JSON.stringify(line)})`), 'full-width punctuation line drawn on the first row');
 
     window.webContents.debugger.attach();
     try {
       await window.webContents.debugger.sendCommand('Input.imeSetComposition', { text: 'ni', selectionStart: 2, selectionEnd: 2 });
-      await until(() => evaluate('(view => view?.classList.contains("active") && !!view.style.left)(document.querySelector(".composition-view"))'));
+      await until(() => evaluate('(view => view?.classList.contains("active") && !!view.style.left)(document.querySelector(".composition-view"))'), 'IME composition view active and positioned');
       await evaluate('new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))');
       const { chars, cursor, composition } = await evaluate(`(() => {
         const row = document.querySelector('.xterm-rows > div');

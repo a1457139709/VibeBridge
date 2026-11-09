@@ -22,11 +22,11 @@ module.exports = ({ window, evaluate, until }) => {
       const start = center(await rect(selector));
       window.webContents.sendInputEvent({ type: 'mouseDown', ...start, button: 'left', modifiers: ['leftbuttondown'], clickCount: 1 });
       window.webContents.sendInputEvent({ type: 'mouseMove', x: start.x + 10, y: start.y + 10, button: 'left', modifiers: ['leftbuttondown'] });
-      await until(() => evaluate('document.querySelector(".canvas").classList.contains("dragging")'));
+      await until(() => evaluate('document.querySelector(".canvas").classList.contains("dragging")'), 'layout area enters dragging after the press');
     },
     async hover(point, preview) {
       window.webContents.sendInputEvent({ type: 'mouseMove', ...point, button: 'left', modifiers: ['leftbuttondown'] });
-      await until(() => evaluate(`document.querySelector('[role="img"][aria-label=${JSON.stringify(preview)}]') !== null`));
+      await until(() => evaluate(`document.querySelector('[role="img"][aria-label=${JSON.stringify(preview)}]') !== null`), `drop preview "${preview}" drawn`);
     },
     release: point => window.webContents.sendInputEvent({ type: 'mouseUp', ...point, button: 'left', clickCount: 1 }),
     // The drop preview outline relative to the layout area, rounded to 1/100.
