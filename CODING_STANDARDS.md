@@ -26,3 +26,12 @@ Code comments, README, and `docs/` state what the current design is and why. Phr
 ### Scope
 
 These rules apply to every change. Old design found outside the change under review becomes its own issue rather than growing the current change.
+
+## Tests
+
+### Waits
+
+A test waits on the **settled state** of the behaviour under test: the observable values it ends in, checked so that a state reached before the wait began still passes.
+
+- Write the settled state into the condition and compare it with the latest value, e.g. wait until the latest `SIZE:` report matches the terminal's current rows, rather than clearing the output and waiting for a fresh `SIZE:` line.
+- Review each wait by asking whether it still passes when the event behind its state fired before the wait began, or never fires.
