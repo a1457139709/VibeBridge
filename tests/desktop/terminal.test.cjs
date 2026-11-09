@@ -3,9 +3,8 @@ const { runsOf } = require('./support/panel-views.cjs');
 
 module.exports = {
   async run(suite) {
-    const context = require('./support/terminal-waits.cjs')(suite);
+    const context = await require('./support/terminal-waits.cjs')(suite);
     const { window, evaluate, until, click } = context;
-    await evaluate('window.output = ""; window.workbench.subscribe(event => { if (event.kind === "output") window.output += event.data; }); void 0;');
     const before = await require('./support/project.cjs')(context);
     const [run] = runsOf(before);
     assert.equal(run.state, 'running'); assert.ok(run.pid);

@@ -9,9 +9,8 @@ const cellsOf = prefix => prefix.split('').reduce((count, char) => count + (char
 
 module.exports = {
   async run(suite) {
-    const context = require('./support/terminal-waits.cjs')(suite);
+    const context = await require('./support/terminal-waits.cjs')(suite);
     const { window, evaluate, until } = context;
-    await evaluate('window.output = ""; window.workbench.subscribe(event => { if (event.kind === "output") window.output += event.data; }); void 0;');
     const [run] = runsOf(await require('./support/project.cjs')(context));
     await until(() => evaluate('document.querySelector(".xterm-rows").textContent.includes("READY:")'), 'terminal shows READY:');
     await evaluate('document.querySelector(".xterm-helper-textarea").focus()');

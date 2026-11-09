@@ -29,3 +29,8 @@ test('a timed-out desktop wait appends what its context callback describes', asy
   await assert.rejects(until(() => false, 'echo of k', { timeout: 0, context: () => { throw new Error('renderer gone'); } }),
     { message: 'Timed out waiting for: echo of k (last: false)\ncontext unavailable: renderer gone' });
 });
+
+test('a context callback that never answers still lets the timed-out wait report its label', async () => {
+  await assert.rejects(until(() => false, 'echo of k', { timeout: 0, context: () => new Promise(() => {}) }),
+    { message: 'Timed out waiting for: echo of k (last: false)\ncontext unavailable: no answer within 2000 ms' });
+});
