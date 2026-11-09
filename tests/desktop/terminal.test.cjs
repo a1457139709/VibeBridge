@@ -70,7 +70,7 @@ module.exports = {
     await until(async () => (await rows()) < rowsInView, 'terminal fitted its shorter size back in view');
     await until(async () => {
       await evaluate(`window.output = ''; window.workbench.sendInput(${JSON.stringify(run.id)}, 'size')`);
-      await until(() => evaluate('/SIZE:\\d+x\\d+\\r\\n/.test(window.output)'), 'run answered the size query');
+      await until(() => evaluate('/SIZE:\\d+x\\d+\\r/.test(window.output)'), 'run answered the size query');
       return Number(await evaluate('window.output.match(/SIZE:\\d+x(\\d+)/)[1]')) === await rows();
     }, 'run reports the rows the terminal shows');
     await evaluate(`window.workbench.sendInput(${JSON.stringify(run.id)}, 'after-hidden-resize')`);
