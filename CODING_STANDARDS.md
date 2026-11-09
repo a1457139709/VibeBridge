@@ -33,5 +33,8 @@ These rules apply to every change. Old design found outside the change under rev
 
 A test waits on the **settled state** of the behaviour under test: the observable values it ends in, checked so that a state reached before the wait began still passes.
 
-- Write the settled state into the condition and compare it with the latest value, e.g. wait until the latest `SIZE:` report matches the terminal's current rows, rather than clearing the output and waiting for a fresh `SIZE:` line.
+- Query the state the wait needs, e.g. send `size` to the CLI fixture and compare its reply with the terminal's current rows, rather than clearing the output and waiting for a fresh `SIZE:` line.
+- Every assertion follows an `until` on its settled state. An assertion that something does not happen lives in a unit test, where the test controls input and time; tests hold no fixed waits of N milliseconds or N frames.
 - Review each wait by asking whether it still passes when the event behind its state fired before the wait began, or never fires.
+
+The layering and reasoning behind these rules are in `docs/adr/0005-tests-guarantee-behaviour-deterministically.md`.
