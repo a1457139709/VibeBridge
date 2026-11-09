@@ -12,14 +12,14 @@ module.exports = {
     await evaluate(`window.workbench.createProject(${JSON.stringify({ name: 'Drop project', directory: projectDirectory, total: 3, counts: { codex: 1, claude: 1, pi: 1 } })})`);
     await click('Drop project');
     const project = () => evaluate('window.workbench.snapshot()').then(snapshot => snapshot.projects.find(project => project.name === 'Drop project'));
-    await until(async () => (await project()).panels.every(panel => panel.run?.state === 'running'));
+    await until(async () => (await project()).panels.every(panel => panel.run?.state === 'running'), 'every Drop project run running');
     const created = await project();
     const [a, b, c] = created.panels.map(panel => panel.id);
     const runs = runsOf({ projects: [created] }).map(run => run.id).sort();
     await evaluate(`window.workbench.saveLayout(${JSON.stringify(created.id)}, ${JSON.stringify({ axis: 'row', ratio: .5, first: { panel: a },
       second: { axis: 'column', ratio: .5, first: { panel: b }, second: { panel: c } } })})`);
     const settle = async expected => {
-      await until(async () => JSON.stringify(await geometry([a, b, c])) === JSON.stringify(expected));
+      await until(async () => JSON.stringify(await geometry([a, b, c])) === JSON.stringify(expected), `panel geometry settles at ${JSON.stringify(expected)}`);
       assert.deepEqual(runsOf({ projects: [await project()] }).map(run => run.id).sort(), runs);
     };
     await settle({ [a]: [0, 0, .5, 1], [b]: [.5, 0, .5, .5], [c]: [.5, .5, .5, .5] });
@@ -55,7 +55,7 @@ module.exports = {
     point = { x: Math.round(target.left + target.width / 2), y: Math.round(target.top + target.height / 2) };
     await press(a); await hover(point, 'Swap preview: Codex and pi');
     window.webContents.sendInputEvent({ type: 'keyDown', keyCode: 'Escape' });
-    await until(() => evaluate('!document.querySelector(".canvas").classList.contains("dragging") && !document.querySelector(".panel-swap-preview")'));
+    await until(() => evaluate('!document.querySelector(".canvas").classList.contains("dragging") && !document.querySelector(".panel-swap-preview")'), 'Esc ended the drag and removed the swap preview');
     window.webContents.sendInputEvent({ type: 'keyUp', keyCode: 'Escape' });
     release(point);
     target = await rect(`[data-panel-id="${a}"]`);
@@ -63,7 +63,7 @@ module.exports = {
     await press(a);
     window.webContents.sendInputEvent({ type: 'mouseMove', ...point, button: 'left', modifiers: ['leftbuttondown'] });
     release(point);
-    await until(() => evaluate('!document.querySelector(".canvas").classList.contains("dragging")'));
+    await until(() => evaluate('!document.querySelector(".canvas").classList.contains("dragging")'), 'release over the dragged panel ended the drag');
     await evaluate('new Promise(resolve => setTimeout(resolve, 300))');
     assert.deepEqual((await project()).layout, saved);
     await settle(final);
@@ -76,7 +76,7 @@ module.exports = {
     const { ids, layout, geometry: expected } = JSON.parse(await readFile(`${directory}/expected.json`, 'utf8'));
     const project = (await evaluate('window.workbench.snapshot()')).projects.find(project => project.name === 'Drop project');
     assert.deepEqual(project.layout, layout);
-    await until(async () => JSON.stringify(await geometry(ids)) === JSON.stringify(expected));
+    await until(async () => JSON.stringify(await geometry(ids)) === JSON.stringify(expected), `reopened layout draws ${JSON.stringify(expected)}`);
     console.log('Reopening restored the rearranged layout.');
   },
 };

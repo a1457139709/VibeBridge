@@ -20,7 +20,7 @@ module.exports = {
     for (const [index, [state, label, payload]] of cases.entries()) {
       const message = { id: state, payload, output: `\x1b]2;${label} with a long session title for compact panels | project\x07` };
       await evaluate(`window.workbench.sendInput(${JSON.stringify(runs[index].id)}, ${JSON.stringify(JSON.stringify(message) + '\n')})`);
-      await until(() => evaluate(`document.querySelector('[data-panel-id="${runs[index].panelId}"] .processing-status')?.getAttribute('aria-label') === ${JSON.stringify(label)}`));
+      await until(() => evaluate(`document.querySelector('[data-panel-id="${runs[index].panelId}"] .processing-status')?.getAttribute('aria-label') === ${JSON.stringify(label)}`), `panel ${runs[index].panelId} shows ${label}`);
       assert.equal(await evaluate(`document.querySelector('[data-locate-panel-id="${runs[index].panelId}"] .processing-status').getAttribute('aria-label')`), label);
     }
     // Real keyboard focus must expose the same label, without clearing Done.
@@ -62,7 +62,7 @@ module.exports = {
     const busyPeriod = 1500; // processing-spin duration in processing-status.css
     for (const language of ['en', 'zh-CN']) {
       await evaluate(`window.workbench.saveSettings({ language: ${JSON.stringify(language)} })`);
-      await until(() => evaluate(`document.documentElement.lang === ${JSON.stringify(language)}`));
+      await until(() => evaluate(`document.documentElement.lang === ${JSON.stringify(language)}`), `interface switched to ${language}`);
       const labels = language === 'en' ? ['Ready', 'Busy', 'Needs input', 'Done', 'Error'] : ['就绪', '处理中', '等待输入', '本轮结束', '异常'];
       for (const [index, label] of labels.entries()) {
         assert.equal(await evaluate(`document.querySelector('[data-panel-id="${runs[index].panelId}"] .processing-status').getAttribute('aria-label')`), label);
@@ -72,7 +72,7 @@ module.exports = {
         await evaluate(`document.documentElement.dataset.theme = ${JSON.stringify(theme)}`);
         for (const size of [[1280, 860], [640, 480]]) {
           window.setContentSize(...size);
-          await until(() => evaluate(`document.documentElement.clientWidth === ${size[0]}`));
+          await until(() => evaluate(`document.documentElement.clientWidth === ${size[0]}`), `window content is ${size[0]}px wide`);
           await evaluate('new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))');
           await checkGeometry();
         }
@@ -80,7 +80,7 @@ module.exports = {
       // Drag actual split handles to a compact row, then the enforced width/height
       // minima. The status/type pair stays horizontal in all three presentations.
       window.setContentSize(1280, 860);
-      await until(() => evaluate('document.documentElement.clientWidth === 1280'));
+      await until(() => evaluate('document.documentElement.clientWidth === 1280'), 'window content is 1280px wide');
       for (const [axis, size, presentation] of [['row', 180, 'row'], ['row', 1, 'stacked'], ['column', 1, 'strip']]) {
         const remaining = runs.slice(1).map(run => run.panelId);
         const rest = ids => ids.length === 1 ? { panel: ids[0] }
@@ -96,7 +96,7 @@ module.exports = {
         window.webContents.sendInputEvent({ type: 'mouseDown', x: handle.x, y: handle.y, button: 'left', modifiers: ['leftbuttondown'], clickCount: 1 });
         // Native input dispatch is asynchronous. Observe capture and preview before
         // releasing, then require a persisted resize before starting another drag.
-        await until(() => evaluate('document.querySelector(".canvas").classList.contains("resizing")'));
+        await until(() => evaluate('document.querySelector(".canvas").classList.contains("resizing")'), 'layout area captured the divider for resizing');
         const destination = { x: axis === 'row' ? Math.round(handle.left + size) : handle.x,
           y: axis === 'column' ? Math.round(handle.top + size) : handle.y };
         window.webContents.sendInputEvent({ type: 'mouseMove', ...destination, button: 'left', modifiers: ['leftbuttondown'] });
@@ -104,17 +104,17 @@ module.exports = {
           const panel = document.querySelector('[data-panel-id="${runs[0].panelId}"]').getBoundingClientRect();
           const canvas = document.querySelector('.canvas').getBoundingClientRect();
           return ${axis === 'row' ? 'panel.width < canvas.width * .49' : 'panel.height < canvas.height * .49'};
-        })()`));
+        })()`), `${axis} resize shrinks the first panel`);
         window.webContents.sendInputEvent({ type: 'mouseUp', ...destination, button: 'left', clickCount: 1 });
-        await until(() => evaluate('!document.querySelector(".canvas").classList.contains("resizing")'));
-        await until(async () => (await evaluate('window.workbench.snapshot()')).projects.find(project => project.id === projectId).layout.ratio < .49);
-        await until(() => evaluate(`document.querySelector('[data-panel-id="${runs[0].panelId}"] .agent-panel').dataset.compactLayout === '${presentation}'`));
+        await until(() => evaluate('!document.querySelector(".canvas").classList.contains("resizing")'), 'resize released');
+        await until(async () => (await evaluate('window.workbench.snapshot()')).projects.find(project => project.id === projectId).layout.ratio < .49, 'resized ratio saved');
+        await until(() => evaluate(`document.querySelector('[data-panel-id="${runs[0].panelId}"] .agent-panel').dataset.compactLayout === '${presentation}'`), `first panel uses the ${presentation} compact presentation`);
         await checkGeometry();
       }
       await click(language === 'en' ? 'Collapse project navigation' : '折叠项目导航'); await checkGeometry(); await click(language === 'en' ? 'Expand project navigation' : '展开项目导航');
     }
     await evaluate('window.workbench.saveSettings({ language: "en" })');
-    await until(() => evaluate('document.documentElement.lang === "en"'));
+    await until(() => evaluate('document.documentElement.lang === "en"'), 'interface switched to en');
     await motion('reduce');
     reducedMotion = true;
     await checkGeometry();
@@ -122,12 +122,12 @@ module.exports = {
     reducedMotion = false;
     await evaluate(`document.querySelector('[data-panel-id="${runs[3].panelId}"] button[aria-label="Maximize panel"]').click()`);
     await checkGeometry();
-    await until(() => evaluate(`document.activeElement.closest('[data-panel-id]')?.dataset.panelId === '${runs[3].panelId}' && document.activeElement.classList.contains('xterm-helper-textarea')`));
+    await until(() => evaluate(`document.activeElement.closest('[data-panel-id]')?.dataset.panelId === '${runs[3].panelId}' && document.activeElement.classList.contains('xterm-helper-textarea')`), 'maximized Done panel terminal focused');
     const input = JSON.stringify({ id: 'native-input', payload: { hook_event_name: 'UserPromptSubmit' } });
     for (const character of input) window.webContents.sendInputEvent({ type: 'char', keyCode: character });
     window.webContents.sendInputEvent({ type: 'keyDown', keyCode: 'Enter' });
     window.webContents.sendInputEvent({ type: 'keyUp', keyCode: 'Enter' });
-    await until(async () => statusOf(await evaluate('window.workbench.snapshot()'), runs[3].id) === 'busy');
+    await until(async () => statusOf(await evaluate('window.workbench.snapshot()'), runs[3].id) === 'busy', 'typed prompt made the Done run Busy');
     assert.equal(statusOf(await evaluate('window.workbench.snapshot()'), runs[4].id), 'error');
     console.log('Five status shapes agree between panels and navigation, Busy alone turns in one phase or rests under reduced motion; theme, narrow-window and native-input checks passed.');
   },
