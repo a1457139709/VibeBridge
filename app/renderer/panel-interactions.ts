@@ -31,7 +31,8 @@ export function createPanelInteractions(canvas: HTMLElement, context: PanelInter
   let displayed = context.layout;
   let layoutKey = JSON.stringify(context.layout);
   let disposed = false, suppressClick = false;
-  let active: { kind: 'drag' | 'resize'; cancel(): void; bounds: DOMRect } | undefined;
+  // `base` is the displayed layout the gesture was computed from; a saved layout equal to it leaves the gesture valid.
+  let active: { kind: 'drag' | 'resize'; cancel(): void; bounds: DOMRect; base: string } | undefined;
   let frame: number | undefined;
   const observed = new Map<string, { panel: HTMLElement; container: HTMLElement; runId?: string }>();
   const measure = () => {
@@ -110,7 +111,7 @@ export function createPanelInteractions(canvas: HTMLElement, context: PanelInter
         schedule();
       },
     });
-    active = { kind, cancel: stop, bounds };
+    active = { kind, cancel: stop, bounds, base: JSON.stringify(displayed) };
     if (kind === 'resize') canvas.classList.add('resizing');
     schedule();
   };
@@ -118,11 +119,14 @@ export function createPanelInteractions(canvas: HTMLElement, context: PanelInter
     update(next: PanelInteractionContext) {
       if (disposed) return;
       const nextKey = JSON.stringify(next.layout);
-      const invalidated = current.projectId !== next.projectId || layoutKey !== nextKey
+      const sameProject = current.projectId === next.projectId;
+      // A drop is shown before its save returns. When the saved layout becomes the one the active gesture
+      // was computed from, the gesture and the displayed layout are still current.
+      const changedLayout = (!sameProject || layoutKey !== nextKey) && !(sameProject && active?.base === nextKey);
+      const invalidated = changedLayout
         || JSON.stringify(current.panels.map(panel => [panel.id, panel.agent])) !== JSON.stringify(next.panels.map(panel => [panel.id, panel.agent]))
         || JSON.stringify(current.tray.map(panel => panel.id)) !== JSON.stringify(next.tray.map(panel => panel.id))
         || !next.visible || current.maximizedPanelId !== next.maximizedPanelId;
-      const changedLayout = current.projectId !== next.projectId || layoutKey !== nextKey;
       current = next; layoutKey = nextKey;
       if (invalidated) cancel();
       if (changedLayout) present(next.layout);
