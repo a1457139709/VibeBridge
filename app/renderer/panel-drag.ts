@@ -75,7 +75,7 @@ export function createDragPreview({ event, canvas, source, element, panels, layo
   const agent = agentNames[source.agent];
   const trayArea = resident && tray ? tray.getBoundingClientRect() : undefined;
   // An empty tray lies over the bottom of the layout area (panel-tray.css); the layout's drops, edge band included, sit above it.
-  const dropArea = trayArea && trayArea.top < area.bottom ? new DOMRect(area.x, area.y, area.width, trayArea.top - area.y) : area;
+  const dropArea = trayArea?.height && trayArea.top > area.top && trayArea.top < area.bottom ? new DOMRect(area.x, area.y, area.width, trayArea.top - area.y) : area;
   // While a tray panel is placed, the open tray panel steps aside so every resident panel is a visible target.
   const covering = resident ? [] : [...canvas.querySelectorAll<HTMLElement>('.panel-slot')].filter(slot => !panels.some(panel => panel.id === slot.dataset.panelId));
   const offset = { x: event.clientX - dragged.box.x, y: event.clientY - dragged.box.y };
