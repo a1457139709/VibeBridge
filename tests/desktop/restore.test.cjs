@@ -19,7 +19,7 @@ module.exports = {
     const created = await require('./support/project.cjs')(context, 'Saved project', { Codex: 1, pi: 1 });
     const project = created.projects[0];
     const tray = await evaluate(`window.workbench.addPanel(${JSON.stringify(project.id)}, 'claude')`);
-    await until(() => evaluate(`!!document.querySelector('.panel-tray [data-tray-panel-id="${tray.panel.id}"]')`));
+    await until(() => evaluate(`!!document.querySelector('.panel-tray [data-tray-panel-id="${tray.panel.id}"]')`), `tray card for panel ${tray.panel.id} drawn`);
     const configured = (await evaluate('window.workbench.snapshot()')).projects[0];
     const [a, b] = configured.panels.map(panel => panel.id);
     const layout = { axis: 'row', ratio: .35, first: { panel: b }, second: { panel: a } };
@@ -27,9 +27,9 @@ module.exports = {
     const otherDirectory = `${directory}/other`; await mkdir(otherDirectory);
     await evaluate(`window.workbench.createProject(${JSON.stringify({ name: 'Other project', directory: otherDirectory, total: 1, counts: { codex: 0, claude: 1, pi: 0 } })})`);
     await click('Saved project');
-    await until(() => evaluate(`document.querySelectorAll('.canvas [data-panel-id]').length === 2`));
+    await until(() => evaluate(`document.querySelectorAll('.canvas [data-panel-id]').length === 2`), 'Saved project draws its two resident panels');
     const expected = [[a, .35, 0, .65, 1], [b, 0, 0, .35, 1]];
-    await until(async () => JSON.stringify(await renderedLayout(evaluate, configured)) === JSON.stringify(expected));
+    await until(async () => JSON.stringify(await renderedLayout(evaluate, configured)) === JSON.stringify(expected), 'Saved project draws its non-default layout');
     const snapshot = await evaluate('window.workbench.snapshot()');
     await writeFile(`${directory}/expected.json`, JSON.stringify({ snapshot, geometry: expected }));
     console.log('Saved two projects, distinct Agent panel configurations, a non-default layout and a tray panel.');
@@ -37,12 +37,12 @@ module.exports = {
   async reopen({ evaluate, until, directory }) {
     const { snapshot: saved, geometry } = JSON.parse(await readFile(`${directory}/expected.json`, 'utf8'));
     const active = saved.projects.find(project => project.id === saved.activeProjectId);
-    await until(async () => runsOf(await evaluate('window.workbench.snapshot()')).filter(run => run.state === 'running').length === active.panels.length);
+    await until(async () => runsOf(await evaluate('window.workbench.snapshot()')).filter(run => run.state === 'running').length === active.panels.length, 'reopened active project has a running run for every panel');
     const reopened = await evaluate('window.workbench.snapshot()');
     assert.equal(reopened.activeProjectId, saved.activeProjectId);
     assert.deepEqual(storedProjects(reopened), storedProjects(saved));
     assert.ok(runsOf(reopened).every(run => run.projectId === active.id && !runsOf(saved).some(old => old.id === run.id)));
-    await until(async () => JSON.stringify(await renderedLayout(evaluate, active)) === JSON.stringify(geometry));
+    await until(async () => JSON.stringify(await renderedLayout(evaluate, active)) === JSON.stringify(geometry), 'reopened project draws the saved layout');
     assert.equal(await evaluate('document.querySelector(".project-link[aria-current=page]").getAttribute("aria-label")'), 'Saved project');
     assert.ok(await evaluate('!!document.querySelector(".workspace-toolbar .project-summary")'), 'the reopened workspace shows its project summary');
     assert.deepEqual(reopened.projects.map(item => item.tray), reopened.projects.map(() => []));

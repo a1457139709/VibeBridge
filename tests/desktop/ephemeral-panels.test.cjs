@@ -23,51 +23,51 @@ module.exports = {
     const addThroughPicker = async (open, agent) => {
       const before = (await tray()).length;
       await open();
-      await until(() => evaluate('!!document.querySelector("dialog.agent-picker[open]")'));
+      await until(() => evaluate('!!document.querySelector("dialog.agent-picker[open]")'), 'agent picker opened');
       await evaluate(`document.querySelector('dialog.agent-picker .agent-option.${agent}').click()`);
-      await until(async () => (await tray()).length === before + 1 && !(await evaluate('!!document.querySelector("dialog.agent-picker[open]")')));
+      await until(async () => (await tray()).length === before + 1 && !(await evaluate('!!document.querySelector("dialog.agent-picker[open]")')), `${agent} panel joined the tray and the agent picker closed`);
       return (await tray()).at(-1);
     };
     const typeInto = async (panel, text) => {
-      await until(async () => await focusedPanel() === panel.id);
+      await until(async () => await focusedPanel() === panel.id, `terminal of panel ${panel.id} focused`);
       for (const character of text) window.webContents.sendInputEvent({ type: 'char', keyCode: character });
-      await until(() => evaluate(`(window.output[${JSON.stringify(panel.run.id)}] || '').includes(${JSON.stringify(`INPUT:${text.at(-1)}`)})`));
+      await until(() => evaluate(`(window.output[${JSON.stringify(panel.run.id)}] || '').includes(${JSON.stringify(`INPUT:${text.at(-1)}`)})`), `run ${panel.run.id} echoed INPUT:${text.at(-1)}`);
     };
 
     // A new panel joins the tray and opens at once over the hidden, still mounted resident panels.
     const first = await addThroughPicker(() => click('Add Agent'), 'codex');
     assert.deepEqual((await snapshot()).projects[0].layout, layout);
     assert.deepEqual((await snapshot()).projects[0].panels.map(panel => panel.id), project.panels.map(panel => panel.id));
-    await until(async () => JSON.stringify(await pressed()) === JSON.stringify([[first.id, 'true']]));
-    await until(async () => await focusedPanel() === first.id);
+    await until(async () => JSON.stringify(await pressed()) === JSON.stringify([[first.id, 'true']]), 'first tray card pressed alone');
+    await until(async () => await focusedPanel() === first.id, 'first tray panel focused');
     assert.equal(await visibleResidents(), 0);
     assert.equal(await evaluate('document.querySelectorAll(".canvas .xterm-rows").length'), 3, 'hidden resident terminals stay mounted');
     await typeInto(first, 'a');
 
     // The add shortcut behaves as the toolbar button: the new panel opens and the open one returns to the tray.
     const second = await addThroughPicker(() => evaluate('document.activeElement.dispatchEvent(new KeyboardEvent("keydown", { key: "n", code: "KeyN", metaKey: true, bubbles: true }))'), 'pi');
-    await until(async () => JSON.stringify(await pressed()) === JSON.stringify([[first.id, 'false'], [second.id, 'true']]));
-    await until(async () => await focusedPanel() === second.id);
+    await until(async () => JSON.stringify(await pressed()) === JSON.stringify([[first.id, 'false'], [second.id, 'true']]), 'second tray card pressed, first released');
+    await until(async () => await focusedPanel() === second.id, 'second tray panel focused');
     await typeInto(second, 'b');
     assert.ok(!(await evaluate(`(window.output[${JSON.stringify(first.run.id)}] || '').includes('INPUT:b')`)));
 
     // Escape goes to the terminal and does not collapse the open panel.
     await evaluate(`window.output[${JSON.stringify(second.run.id)}] = ''; void 0`);
     nativeKey('Escape');
-    await until(() => evaluate(`(window.output[${JSON.stringify(second.run.id)}] || '').includes('BYTES:1b')`));
+    await until(() => evaluate(`(window.output[${JSON.stringify(second.run.id)}] || '').includes('BYTES:1b')`), 'Escape bytes reached the second tray panel');
     await evaluate(frames);
     assert.deepEqual(await pressed(), [[first.id, 'false'], [second.id, 'true']]);
 
     // Collapse restores the unchanged layout and runs; clicking cards switches and collapses.
     await click('Collapse panel');
-    await until(async () => JSON.stringify(await pressed()) === JSON.stringify([[first.id, 'false'], [second.id, 'false']]));
-    await until(async () => await visibleResidents() === 2);
+    await until(async () => JSON.stringify(await pressed()) === JSON.stringify([[first.id, 'false'], [second.id, 'false']]), 'both tray cards released after collapse');
+    await until(async () => await visibleResidents() === 2, 'both resident panels visible after collapse');
     assert.equal(await evaluate('document.querySelectorAll(".canvas [data-panel-id]").length'), 2);
     await evaluate(`document.querySelector('[data-tray-panel-id="${first.id}"]').click()`);
-    await until(async () => await focusedPanel() === first.id);
+    await until(async () => await focusedPanel() === first.id, 'first tray panel focused after its card click');
     await typeInto(first, 'c');
     await evaluate(`document.querySelector('[data-tray-panel-id="${first.id}"]').click()`);
-    await until(async () => await visibleResidents() === 2);
+    await until(async () => await visibleResidents() === 2, 'both resident panels visible after clicking the open card');
     assert.deepEqual(await pressed(), [[first.id, 'false'], [second.id, 'false']]);
     const unchanged = await snapshot();
     assert.deepEqual(unchanged.projects[0].layout, layout);
@@ -75,53 +75,53 @@ module.exports = {
 
     // Closing the open tray panel ends its run and returns to the resident layout.
     await evaluate(`document.querySelector('[data-tray-panel-id="${second.id}"]').click()`);
-    await until(async () => await focusedPanel() === second.id);
+    await until(async () => await focusedPanel() === second.id, 'second tray panel focused after its card click');
     // Hidden resident panels keep their own close buttons; use the open panel's.
     await evaluate(`document.querySelector('[data-panel-id="${second.id}"] button[aria-label="Close panel"]').click()`);
-    await until(async () => (await tray()).length === 1);
-    await until(async () => await visibleResidents() === 2);
+    await until(async () => (await tray()).length === 1, 'closed tray panel left the tray');
+    await until(async () => await visibleResidents() === 2, 'both resident panels visible after closing the open tray panel');
     assert.throws(() => process.kill(second.run.pid, 0));
 
     // A tray panel whose Agent exits on its own leaves the tray; an open one returns to the layout.
     await evaluate(`document.querySelector('[data-tray-panel-id="${first.id}"]').click()`);
-    await until(async () => await focusedPanel() === first.id);
+    await until(async () => await focusedPanel() === first.id, 'first tray panel focused before its Agent exits');
     await evaluate(`window.workbench.sendInput(${JSON.stringify(first.run.id)}, 'exit')`);
-    await until(async () => (await tray()).length === 0);
-    await until(async () => await visibleResidents() === 2);
+    await until(async () => (await tray()).length === 0, 'exited tray panel left the tray');
+    await until(async () => await visibleResidents() === 2, 'both resident panels visible after the open tray panel exited');
     assert.equal(await evaluate('document.querySelectorAll(".panel-tray .tray-card").length'), 0);
     assert.deepEqual((await snapshot()).projects[0].layout, layout);
     // Panel shortcuts follow the resident layout: with a tray panel open they collapse it first.
     const residentIds = project.panels.map(panel => panel.id);
     const shortcut = (code, key, shiftKey = false) => evaluate(`document.activeElement.dispatchEvent(new KeyboardEvent("keydown", { key: ${JSON.stringify(key)}, code: ${JSON.stringify(code)}, metaKey: true, shiftKey: ${shiftKey}, bubbles: true }))`);
     const third = await addThroughPicker(() => click('Add Agent'), 'codex');
-    await until(async () => await focusedPanel() === third.id);
+    await until(async () => await focusedPanel() === third.id, 'third tray panel focused');
     await shortcut('Enter', 'Enter');
-    await until(async () => JSON.stringify(await pressed()) === JSON.stringify([[third.id, 'false']]));
-    await until(async () => await visibleResidents() === 2);
-    await until(async () => residentIds.includes(await focusedPanel()));
+    await until(async () => JSON.stringify(await pressed()) === JSON.stringify([[third.id, 'false']]), 'maximize shortcut released the open tray card');
+    await until(async () => await visibleResidents() === 2, 'both resident panels visible after the maximize shortcut collapse');
+    await until(async () => residentIds.includes(await focusedPanel()), 'a resident panel focused after the maximize shortcut collapse');
     const selectedResident = await focusedPanel();
     const otherResident = residentIds.find(id => id !== selectedResident);
     await shortcut('Enter', 'Enter');
-    await until(async () => await visibleResidents() === 1);
+    await until(async () => await visibleResidents() === 1, 'maximize shortcut maximized the selected resident panel');
     assert.equal(await focusedPanel(), selectedResident, 'the maximize shortcut still maximizes the selected resident panel');
     await shortcut('Enter', 'Enter');
-    await until(async () => await visibleResidents() === 2);
+    await until(async () => await visibleResidents() === 2, 'maximize shortcut restored both resident panels');
 
     await evaluate(`document.querySelector('[data-tray-panel-id="${third.id}"]').click()`);
-    await until(async () => await focusedPanel() === third.id);
+    await until(async () => await focusedPanel() === third.id, 'third tray panel focused before the next-panel shortcut');
     await shortcut('BracketRight', ']');
-    await until(async () => await focusedPanel() === otherResident);
-    await until(async () => await visibleResidents() === 2);
+    await until(async () => await focusedPanel() === otherResident, 'next-panel shortcut focused the other resident panel');
+    await until(async () => await visibleResidents() === 2, 'both resident panels visible after the next-panel shortcut');
     assert.deepEqual(await pressed(), [[third.id, 'false']]);
     await shortcut('BracketLeft', '[');
-    await until(async () => await focusedPanel() === selectedResident);
+    await until(async () => await focusedPanel() === selectedResident, 'previous-panel shortcut focused the selected resident panel');
     assert.equal(await visibleResidents(), 2, 'moving between resident panels does not maximize them');
 
     await evaluate(`document.querySelector('[data-tray-panel-id="${third.id}"]').click()`);
-    await until(async () => await focusedPanel() === third.id);
+    await until(async () => await focusedPanel() === third.id, 'third tray panel focused before the close shortcut');
     await shortcut('KeyW', 'W', true);
-    await until(async () => (await tray()).length === 0);
-    await until(async () => await visibleResidents() === 2);
+    await until(async () => (await tray()).length === 0, 'close shortcut removed the third tray panel');
+    await until(async () => await visibleResidents() === 2, 'both resident panels visible after the close shortcut');
     assert.equal((await snapshot()).projects[0].panels.length, 2);
     console.log('New panels joined the tray and opened with terminal focus, one at a time; the add shortcut matched the toolbar; Escape reached the terminal without collapsing; collapse and card clicks kept the layout and runs; closing and exiting left the tray; panel shortcuts collapsed an open tray panel and moved only between resident panels.');
   },

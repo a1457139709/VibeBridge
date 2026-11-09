@@ -2,16 +2,16 @@ const assert = require('node:assert/strict');
 const { runsOf } = require('./support/panel-views.cjs');
 
 module.exports = {
-  async run(context) {
+  async run(suite) {
+    const context = await require('./support/terminal-waits.cjs')(suite);
     const { window, evaluate, until, click } = context;
-    await evaluate('window.output = ""; window.workbench.subscribe(event => { if (event.kind === "output") window.output += event.data; }); void 0;');
     const before = await require('./support/project.cjs')(context);
     const [run] = runsOf(before);
     assert.equal(run.state, 'running'); assert.ok(run.pid);
-    await until(() => evaluate('document.querySelector(".xterm-rows").textContent.includes("READY:")'));
+    await until(() => evaluate('document.querySelector(".xterm-rows").textContent.includes("READY:")'), 'terminal shows READY:');
     await evaluate('document.querySelector(".xterm-helper-textarea").focus()');
     window.webContents.sendInputEvent({ type: 'char', keyCode: 'k' });
-    await until(() => evaluate('document.querySelector(".xterm-rows").textContent.includes("INPUT:k")'));
+    await until(() => evaluate('document.querySelector(".xterm-rows").textContent.includes("INPUT:k")'), 'terminal echoes typed k');
 
     // Agent CLIs read CSI u Shift+Enter as a newline in their prompt; plain Enter still submits.
     const bytesOf = async (keyCode, modifiers, after = async () => {}) => {
@@ -21,7 +21,7 @@ module.exports = {
       await after();
       // A trailing marker shows every byte of the key has arrived; PTY reads may merge them.
       window.webContents.sendInputEvent({ type: 'char', keyCode: '.' });
-      await until(() => evaluate('/BYTES:[0-9a-f]*2e[^0-9a-f]/.test(window.output)'));
+      await until(() => evaluate('/BYTES:[0-9a-f]*2e[^0-9a-f]/.test(window.output)'), 'key bytes and the trailing . marker reported');
       return evaluate('[...window.output.matchAll(/BYTES:([0-9a-f]+)/g)].map(match => match[1]).join("")');
     };
     assert.equal(await bytesOf('Enter', ['shift']), Buffer.from('\x1b[13;2u.').toString('hex'));
@@ -29,13 +29,13 @@ module.exports = {
     // Command+V reaches the terminal only through the Edit menu's paste, which synthetic key events
     // cannot trigger, so the paste is performed after the key; it must land before the marker.
     require('electron').clipboard.writeText('pasted');
-    const paste = async () => { window.webContents.paste(); await until(() => evaluate('window.output.includes("INPUT:pasted")')); };
+    const paste = async () => { window.webContents.paste(); await until(() => evaluate('window.output.includes("INPUT:pasted")'), 'pasted text echoed'); };
     assert.equal(await bytesOf('v', ['meta'], paste), `${Buffer.from('pasted').toString('hex')}2e`);
     // Command+C over a selection is left to the Edit menu and sends nothing to the Agent.
     // Echoed CSI u restores the cursor and overwrites earlier rows, so select on a freshly cleared screen.
     await evaluate(`window.workbench.sendInput(${JSON.stringify(run.id)}, 'palette')`);
     const accentRow = '[...document.querySelectorAll(".xterm-rows > div")].find(row => row.textContent.startsWith("ACCENT"))';
-    await until(() => evaluate(`!!${accentRow}`));
+    await until(() => evaluate(`!!${accentRow}`), 'palette ACCENT row drawn');
     const word = await evaluate(`(() => {
       const row = ${accentRow};
       const { left, top, height } = row.getBoundingClientRect();
@@ -45,7 +45,7 @@ module.exports = {
       window.webContents.sendInputEvent({ type: 'mouseDown', ...word, button: 'left', modifiers: ['leftbuttondown'], clickCount });
       window.webContents.sendInputEvent({ type: 'mouseUp', ...word, button: 'left', clickCount });
     }
-    await until(() => evaluate('!!document.querySelector(".xterm-selection div")'));
+    await until(() => evaluate('!!document.querySelector(".xterm-selection div")'), 'double-click selection drawn');
     await evaluate('document.querySelector(".xterm-helper-textarea").focus()');
     assert.equal(await bytesOf('c', ['meta']), '2e');
 
@@ -53,7 +53,7 @@ module.exports = {
     // the renderer pauses; held idle callbacks keep its earlier size, as on a busy main thread.
     const frames = 'new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(() => setTimeout(resolve))))';
     for (let i = 0; i < 8; i++) await evaluate(`window.workbench.sendInput(${JSON.stringify(run.id)}, 'fill-${i}')`);
-    await until(() => evaluate('document.querySelector(".xterm-rows").textContent.includes("INPUT:fill-7")'));
+    await until(() => evaluate('document.querySelector(".xterm-rows").textContent.includes("INPUT:fill-7")'), 'terminal shows INPUT:fill-7');
     await evaluate(`(() => {
       const container = document.querySelector('.terminal-container'); const { width, height } = container.getBoundingClientRect();
       Object.assign(container.style, { position: 'fixed', left: '0', top: '200vh', width: width + 'px', height: height + 'px' });
@@ -65,17 +65,17 @@ module.exports = {
     await evaluate(`document.querySelector('.terminal-container').style.top = '0'; window.requestIdleCallback = window.heldIdle; void 0`);
     await evaluate(frames);
     await evaluate(`window.workbench.sendInput(${JSON.stringify(run.id)}, 'after-hidden-resize')`);
-    await until(() => evaluate('document.querySelector(".xterm-rows").textContent.includes("INPUT:after-hidden-resize")'));
+    await until(() => evaluate('document.querySelector(".xterm-rows").textContent.includes("INPUT:after-hidden-resize")'), 'terminal resized off screen still follows output (INPUT:after-hidden-resize drawn)');
     await evaluate(`document.querySelector('.terminal-container').style.cssText = ''`);
     await evaluate(frames);
     // Keep the descendant check bounded to the one retained cleanup flow.
     await evaluate(`window.workbench.sendInput(${JSON.stringify(run.id)}, 'child')`);
-    await until(() => evaluate('/CHILD:\\d+/.test(window.output)'));
+    await until(() => evaluate('/CHILD:\\d+/.test(window.output)'), 'descendant process reported its CHILD pid');
     const child = Number(await evaluate('window.output.match(/CHILD:(\\d+)/)[1]'));
     process.kill(child, 0);
     await click('Close panel');
-    await until(async () => !runsOf(await evaluate('window.workbench.snapshot()')).length);
-    await until(() => evaluate('document.body.innerText.includes("This project has no Agent Panels yet")'));
+    await until(async () => !runsOf(await evaluate('window.workbench.snapshot()')).length, 'closed panel run left the snapshot');
+    await until(() => evaluate('document.body.innerText.includes("This project has no Agent Panels yet")'), 'empty project message shown after closing the panel');
     assert.throws(() => process.kill(run.pid, 0));
     assert.throws(() => process.kill(child, 0));
     console.log('Native terminal input rendered its CLI echo; Shift+Enter sent CSI u while Enter sent a carriage return; Command+V pasted once and Command+C over a selection sent nothing; a screen resized off screen kept following output; closing the panel removed the run and descendant.');

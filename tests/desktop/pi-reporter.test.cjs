@@ -13,7 +13,7 @@ module.exports = {
     const runs = created.launches.map(launch => launch.run);
     const label = (run, selector) => `document.querySelector('[${selector}="${run.panelId}"] .processing-status')?.getAttribute('aria-label')`;
     async function check(run, expected) {
-      await until(() => evaluate(`${label(run, 'data-panel-id')} === ${JSON.stringify(expected)}`));
+      await until(() => evaluate(`${label(run, 'data-panel-id')} === ${JSON.stringify(expected)}`), `processing status of panel ${run.panelId} reads ${expected}`);
       assert.equal(await evaluate(label(run, 'data-locate-panel-id')), expected);
     }
     async function emit(run, payload, options = {}) {

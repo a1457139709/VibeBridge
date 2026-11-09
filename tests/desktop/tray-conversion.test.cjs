@@ -13,13 +13,13 @@ module.exports = {
     const project = async () => (await evaluate('window.workbench.snapshot()')).projects[0];
     const add = agent => evaluate(`window.workbench.addPanel(${JSON.stringify(projectId)}, '${agent}')`).then(result => result.panel.id);
     const t1 = await add('pi'), t2 = await add('claude');
-    await until(async () => panelViews({ projects: [await project()] }).every(panel => panel.run?.state === 'running'));
+    await until(async () => panelViews({ projects: [await project()] }).every(panel => panel.run?.state === 'running'), 'every resident and tray run running');
     const runs = Object.fromEntries(panelViews({ projects: [await project()] }).map(panel => [panel.id, panel.run.id]));
     const tray = async () => (await project()).tray.map(panel => panel.id);
     // Converting changes where panels are, never their runs.
     const settle = async (expected, expectedTray) => {
-      await until(async () => JSON.stringify(await tray()) === JSON.stringify(expectedTray));
-      await until(async () => JSON.stringify(await geometry(Object.keys(expected))) === JSON.stringify(expected));
+      await until(async () => JSON.stringify(await tray()) === JSON.stringify(expectedTray), `tray holds ${JSON.stringify(expectedTray)}`);
+      await until(async () => JSON.stringify(await geometry(Object.keys(expected))) === JSON.stringify(expected), `panel geometry settles at ${JSON.stringify(expected)}`);
       assert.deepEqual(Object.fromEntries(panelViews({ projects: [await project()] }).map(panel => [panel.id, panel.run.id])), runs);
     };
     const card = id => `[data-tray-panel-id="${id}"]`;
@@ -61,23 +61,23 @@ module.exports = {
     point = center(await rect(`[data-panel-id="${a}"]`));
     await press(card(t1)); await hover(point, 'Swap preview: pi and Codex');
     window.webContents.sendInputEvent({ type: 'keyDown', keyCode: 'Escape' });
-    await until(() => evaluate('!document.querySelector(".canvas").classList.contains("dragging") && !document.querySelector(".panel-swap-preview")'));
+    await until(() => evaluate('!document.querySelector(".canvas").classList.contains("dragging") && !document.querySelector(".panel-swap-preview")'), 'Esc ended the drag and removed the swap preview');
     window.webContents.sendInputEvent({ type: 'keyUp', keyCode: 'Escape' });
     release(point);
     point = center(await rect('.workspace-toolbar'));
     await press(card(t1));
     window.webContents.sendInputEvent({ type: 'mouseMove', ...point, button: 'left', modifiers: ['leftbuttondown'] });
     release(point);
-    await until(() => evaluate('!document.querySelector(".canvas").classList.contains("dragging")'));
+    await until(() => evaluate('!document.querySelector(".canvas").classList.contains("dragging")'), 'release outside the layout area and the tray ended the drag');
     await evaluate('new Promise(resolve => setTimeout(resolve, 300))');
     assert.deepEqual((await project()).layout, saved);
     await settle(layout, [t1]);
 
     // Empty layout: the open tray panel's header dropped anywhere in the layout area makes it the whole layout.
     for (const id of [t2, b, a]) await evaluate(`window.workbench.moveToTray(${JSON.stringify(projectId)}, ${JSON.stringify(id)})`);
-    await until(async () => (await project()).layout === null);
+    await until(async () => (await project()).layout === null, 'layout empty after moving every resident panel to the tray');
     await evaluate(`document.querySelector('${card(t1)}').click()`);
-    await until(() => evaluate(`document.querySelector('${card(t1)}').getAttribute('aria-pressed') === 'true'`));
+    await until(() => evaluate(`document.querySelector('${card(t1)}').getAttribute('aria-pressed') === 'true'`), 'tray card of the open panel pressed');
     point = center(await rect('.canvas'));
     await press(`.canvas > [data-panel-id="${t1}"] .panel-header`); await hover(point, 'Drop preview: pi fills the layout area');
     assert.deepEqual(await previewBox(), [0, 0, 1, 1]);
