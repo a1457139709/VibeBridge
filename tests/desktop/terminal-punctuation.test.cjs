@@ -24,25 +24,30 @@ module.exports = {
     try {
       await window.webContents.debugger.sendCommand('Input.imeSetComposition', { text: 'ni', selectionStart: 2, selectionEnd: 2 });
       await until(() => evaluate('(view => view?.classList.contains("active") && !!view.style.left)(document.querySelector(".composition-view"))'), 'IME composition view active and positioned');
-      await evaluate('new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))');
-      const { chars, cursor, composition } = await evaluate(`(() => {
-        const row = document.querySelector('.xterm-rows > div');
-        const walker = document.createTreeWalker(row, NodeFilter.SHOW_TEXT);
-        const range = document.createRange(); const chars = [];
-        for (let node; (node = walker.nextNode());) for (let i = 0; i < node.length; i++) {
-          range.setStart(node, i); range.setEnd(node, i + 1);
-          chars.push({ char: node.data[i], left: range.getBoundingClientRect().left });
-        }
-        return { chars, cursor: row.querySelector('.xterm-cursor').getBoundingClientRect().left,
-          composition: document.querySelector('.composition-view').getBoundingClientRect().left };
-      })()`);
-      const origin = chars[0].left; const cell = chars[1].left - origin;
-      // A squeezed mark shifts later text by about 0.8 cells; a quarter cell absorbs sub-pixel rounding.
-      const onGrid = (left, column, label) => assert.ok(Math.abs(left - (origin + column * cell)) < cell / 4,
-        `${label} is drawn at ${(left - origin) / cell} cells; its cell is ${column}`);
-      for (let i = 0; i < line.length; i++) onGrid(chars[i].left, cellsOf(line.slice(0, i)), `"${chars[i].char}" at index ${i}`);
-      onGrid(cursor, cellsOf(line), 'The cursor');
-      onGrid(composition, cellsOf(line), 'The composition view');
+      // Each drawn position, or a description of where it is off its cell.
+      const offGrid = async () => {
+        const { chars, cursor, composition } = await evaluate(`(() => {
+          const row = document.querySelector('.xterm-rows > div');
+          const walker = document.createTreeWalker(row, NodeFilter.SHOW_TEXT);
+          const range = document.createRange(); const chars = [];
+          for (let node; (node = walker.nextNode());) for (let i = 0; i < node.length; i++) {
+            range.setStart(node, i); range.setEnd(node, i + 1);
+            chars.push({ char: node.data[i], left: range.getBoundingClientRect().left });
+          }
+          return { chars, cursor: row.querySelector('.xterm-cursor')?.getBoundingClientRect().left,
+            composition: document.querySelector('.composition-view').getBoundingClientRect().left };
+        })()`);
+        if (chars.length < line.length) return [`the first row draws ${chars.length} of ${line.length} characters`];
+        const origin = chars[0].left; const cell = chars[1].left - origin;
+        // A squeezed mark shifts later text by about 0.8 cells; a quarter cell absorbs sub-pixel rounding.
+        const check = (left, column, label) => left !== undefined && Math.abs(left - (origin + column * cell)) < cell / 4 ? []
+          : [`${label} is drawn at ${left === undefined ? 'no position' : (left - origin) / cell} cells; its cell is ${column}`];
+        return [...chars.slice(0, line.length).flatMap((char, i) => check(char.left, cellsOf(line.slice(0, i)), `"${char.char}" at index ${i}`)),
+          ...check(cursor, cellsOf(line), 'The cursor'), ...check(composition, cellsOf(line), 'The composition view')];
+      };
+      let problems;
+      await suite.until(async () => (problems = await offGrid()).length === 0, 'text, cursor and composition view drawn on their terminal cells',
+        { context: () => problems.join('\n') });
     } finally {
       await window.webContents.debugger.sendCommand('Input.imeSetComposition', { text: '', selectionStart: 0, selectionEnd: 0 }).catch(() => {});
       window.webContents.debugger.detach();

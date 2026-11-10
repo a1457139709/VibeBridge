@@ -37,25 +37,30 @@ const panel = (id: string, agent: PanelView['agent']): PanelView =>
   ({ id, agent, run: { id: `run-${id}`, panelId: id, projectId: 'project', state: 'running', title: `Session ${id}` }, status: 'ready' });
 const sideBySide = (left: string, right: string): Layout => ({ axis: 'row', ratio: .5, first: { panel: left }, second: { panel: right } });
 
-// Codex on the left and Claude Code on the right. A save never returns on its own: the test emits the saved snapshot.
+// Codex on the left and Claude Code on the right, with pi in the tray. A save never returns on its own: the test
+// emits the saved snapshot.
 async function renderWorkbench() {
   const snapshot: Snapshot = {
     navigation: { visible: true, width: 212 }, activeProjectId: 'project', settings: defaultSettings(),
     settingsConflicts: [], startupTheme: 'light', resolvedTheme: 'light', errors: [],
     projects: [{ id: 'project', name: 'Drops', directory: '/work/drops', layout: sideBySide('codex', 'claude'),
-      panels: [panel('codex', 'codex'), panel('claude', 'claude')], tray: [] }],
+      panels: [panel('codex', 'codex'), panel('claude', 'claude')], tray: [panel('pi', 'pi')] }],
   };
   const saves: Layout[] = [];
+  // Placing a tray panel or moving a resident panel to the tray are the other changes a release can request.
+  const otherChanges: string[] = [];
   let listener: (event: WorkbenchEvent) => void = () => {};
   provideWorkbench({ snapshot: async () => structuredClone(snapshot), ready: async () => {},
     subscribe: next => { listener = next; return () => {}; },
     activateProject: async () => {}, saveNavigation: async () => {},
-    saveLayout: async (_project, layout) => { saves.push(layout!); } });
+    saveLayout: async (_project, layout) => { saves.push(layout!); },
+    placeInLayout: async (_project, panelId) => { otherChanges.push(`place ${panelId}`); },
+    moveToTray: async (_project, panelId) => { otherChanges.push(`move ${panelId}`); } });
   render(<App />);
   await screen.findAllByText('Session codex');
   const canvas = document.querySelector<HTMLElement>('.canvas')!;
   return {
-    canvas, saves,
+    canvas, saves, otherChanges,
     // The main process saves a layout and reports the project as it now is.
     saved: (change: (project: Snapshot['projects'][number]) => void) => act(() => {
       change(snapshot.projects[0]);
@@ -64,14 +69,16 @@ async function renderWorkbench() {
   };
 }
 
-// Presses a panel header and moves onto the middle of the given window point.
+// Presses a resident panel's header, or a tray card, and moves to the given window point. A tray card reports no
+// area here, so it is pressed at a point below the 800×600 layout area, where the tray lies.
 function press(panelId: string, to: { x: number; y: number }) {
-  const header = document.querySelector<HTMLElement>(`[data-panel-id="${panelId}"] .panel-header`)!;
-  const box = header.getBoundingClientRect();
-  const start = { clientX: box.left + box.width / 2, clientY: box.top + box.height / 2 };
-  fireEvent.pointerDown(header, { pointerId: 1, button: 0, ...start });
-  fireEvent.pointerMove(header, { pointerId: 1, clientX: to.x, clientY: to.y });
-  return { release: () => fireEvent.pointerUp(header, { pointerId: 1, clientX: to.x, clientY: to.y }) };
+  const handle = document.querySelector<HTMLElement>(`.canvas > [data-panel-id="${panelId}"] .panel-header`)
+    ?? document.querySelector<HTMLElement>(`[data-tray-panel-id="${panelId}"]`)!;
+  const box = handle.getBoundingClientRect();
+  const start = box.width ? { clientX: box.left + box.width / 2, clientY: box.top + box.height / 2 } : { clientX: 400, clientY: 650 };
+  fireEvent.pointerDown(handle, { pointerId: 1, button: 0, ...start });
+  fireEvent.pointerMove(handle, { pointerId: 1, clientX: to.x, clientY: to.y });
+  return { release: () => fireEvent.pointerUp(handle, { pointerId: 1, clientX: to.x, clientY: to.y }) };
 }
 const left = { x: 200, y: 300 }, right = { x: 600, y: 300 };
 const swapPreview = (label: string) => document.querySelector(`[role="img"][aria-label="${label}"]`);
@@ -113,4 +120,38 @@ test('a drag is cancelled when the saved layout becomes a different one', async 
   assert.deepEqual(saves, []);
   const codex = document.querySelector<HTMLElement>('[data-panel-id="codex"]')!;
   assert.deepEqual([codex.style.top, codex.style.height], ['0%', '50%']);
+});
+
+test('releasing a resident panel over its own slot changes nothing', async () => {
+  const { canvas, saves, otherChanges } = await renderWorkbench();
+  const drag = press('codex', { x: left.x + 20, y: left.y + 20 });
+  assert.ok(canvas.classList.contains('dragging'));
+  drag.release();
+  assert.ok(!canvas.classList.contains('dragging'));
+  assert.deepEqual(saves, []);
+  assert.deepEqual(otherChanges, []);
+});
+
+test('releasing a tray card outside the layout area and the tray changes nothing', async () => {
+  const { canvas, saves, otherChanges } = await renderWorkbench();
+  const drag = press('pi', { x: 900, y: 300 });
+  assert.ok(canvas.classList.contains('dragging'));
+  drag.release();
+  assert.ok(!canvas.classList.contains('dragging'));
+  assert.deepEqual(saves, []);
+  assert.deepEqual(otherChanges, []);
+});
+
+test('Esc cancels a drag over a valid drop, and the later release changes nothing', async () => {
+  const { canvas, saves, otherChanges } = await renderWorkbench();
+  for (const [panelId, label] of [['codex', 'Swap preview: Codex and Claude Code'], ['pi', 'Swap preview: pi and Claude Code']]) {
+    const drag = press(panelId, right);
+    assert.ok(swapPreview(label), label);
+    fireEvent.keyDown(window, { key: 'Escape' });
+    assert.ok(!canvas.classList.contains('dragging'));
+    assert.equal(swapPreview(label), null);
+    drag.release();
+  }
+  assert.deepEqual(saves, []);
+  assert.deepEqual(otherChanges, []);
 });

@@ -1,10 +1,13 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { mkdir, mkdtemp, rm } from 'node:fs/promises';
+import { request } from 'node:http';
 import { join, resolve } from 'node:path';
+import { ProcessingStatus } from '../app/main/processing-status';
 import { Workbench } from '../app/main/workbench';
 import type { AgentType, Run, WorkbenchEvent } from '../app/shared/model';
 import type { ProcessingState } from '../app/shared/processing-status';
+import { testDirectory } from './support/directory';
 import { panelViews, runsOf, showing, statusOf, storedProjects } from './support/panel-views';
 
 async function until(check: () => boolean) {
@@ -137,9 +140,38 @@ test('observation loss leaves a usable terminal and recovery requires fresh reli
     await f.send(run.id, { payload: { observation: 'unavailable' } });
     assert.equal(state(), 'error');
     await f.send(run.id, { output: 'Ready Busy Done' });
-    await new Promise(resolve => setTimeout(resolve, 100));
-    assert.equal(state(), 'error', 'silence, liveness and output do not restore a previous status');
+    assert.equal(state(), 'error', 'output does not restore a previous status');
   } finally { await f.close(); }
+});
+
+test('after observation becomes unavailable, silence and liveness keep the run in Error', async t => {
+  const directory = await testDirectory(t, 'processing-status');
+  // The test owns time: any timer ProcessingStatus started would fire on tick.
+  t.mock.timers.enable({ apis: ['setTimeout', 'setInterval'] });
+  let changes = 0;
+  const processing = new ProcessingStatus(() => { changes++; }, directory);
+  try {
+    const { integration } = await processing.prepare('silent', 'pi', { command: 'pi', args: [] }, directory);
+    const context = JSON.parse(integration.VIBEBRIDGE_STATUS_CONTEXT!);
+    const report = (payload: object) => new Promise<number | undefined>((resolve, reject) => {
+      const body = JSON.stringify({ runId: context.runId, agent: context.agent, token: context.token, payload });
+      request(context.url, { method: 'POST', headers: { 'content-type': 'application/json' } }, response => {
+        response.resume(); resolve(response.statusCode);
+      }).once('error', reject).end(body);
+    });
+    const run: Run = { id: 'silent', projectId: 'project', panelId: 'panel', state: 'running' };
+    processing.lifecycle(run);
+    assert.equal(await report({ type: 'agent_start', isIdle: false, hasPendingMessages: false }), 204);
+    assert.equal(processing.status(run), 'busy');
+    assert.equal(await report({ observation: 'unavailable' }), 204);
+    assert.equal(processing.status(run), 'error');
+    const published = changes;
+    t.mock.timers.tick(24 * 60 * 60 * 1000);
+    assert.equal(processing.status(run), 'error', 'silence does not restore Busy');
+    processing.lifecycle(run);
+    assert.equal(processing.status(run), 'error', 'a running lifecycle fact does not restore Busy');
+    assert.equal(changes, published, 'nothing is published without a report');
+  } finally { await processing.close(); }
 });
 
 test('background panels retain independent memberships, exits remove them, and quitting preserves only configuration', async () => {

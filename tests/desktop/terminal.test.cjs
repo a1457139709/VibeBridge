@@ -51,19 +51,24 @@ module.exports = {
 
     // A screen that follows output keeps following after it shrinks while off screen. Off screen
     // the renderer pauses; held idle callbacks keep its earlier size, as on a busy main thread.
-    const frames = 'new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(() => setTimeout(resolve))))';
     for (let i = 0; i < 8; i++) await evaluate(`window.workbench.sendInput(${JSON.stringify(run.id)}, 'fill-${i}')`);
     await until(() => evaluate('document.querySelector(".xterm-rows").textContent.includes("INPUT:fill-7")'), 'terminal shows INPUT:fill-7');
     const rows = () => evaluate('document.querySelector(".xterm-rows").children.length');
     const rowsInView = await rows();
+    // The test observes the screen as the Workbench does. Observers are notified in the order they were
+    // created, so once these report, the Workbench's own observers have seen the same change.
     await evaluate(`(() => {
       const container = document.querySelector('.terminal-container'); const { width, height } = container.getBoundingClientRect();
+      const screen = container.querySelector('.terminal-screen');
+      window.observedScreen = { inView: true, height: screen.getBoundingClientRect().height, start: screen.getBoundingClientRect().height };
+      new IntersectionObserver(entries => { window.observedScreen.inView = entries[entries.length - 1].isIntersecting; }).observe(screen);
+      new ResizeObserver(entries => { window.observedScreen.height = entries[entries.length - 1].contentRect.height; }).observe(screen);
       Object.assign(container.style, { position: 'fixed', left: '0', top: '200vh', width: width + 'px', height: height + 'px' });
       window.heldIdle = window.requestIdleCallback; window.requestIdleCallback = () => 0;
     })()`);
-    await evaluate(frames);
+    await until(() => evaluate('window.observedScreen.inView === false'), 'terminal screen observed off screen');
     await evaluate(`document.querySelector('.terminal-container').style.height = '90px'`);
-    await evaluate(frames);
+    await until(() => evaluate('window.observedScreen.height < window.observedScreen.start'), 'terminal screen observed at its shorter size while off screen');
     await evaluate(`document.querySelector('.terminal-container').style.top = '0'; window.requestIdleCallback = window.heldIdle; void 0`);
     // Back in view the screen fits its shorter size. The run is asked for its size until it
     // answers with the rows the screen shows, so later input lands after the resize is settled.
@@ -76,7 +81,6 @@ module.exports = {
     await evaluate(`window.workbench.sendInput(${JSON.stringify(run.id)}, 'after-hidden-resize')`);
     await until(() => evaluate('document.querySelector(".xterm-rows").textContent.includes("INPUT:after-hidden-resize")'), 'terminal resized off screen still follows output (INPUT:after-hidden-resize drawn)');
     await evaluate(`document.querySelector('.terminal-container').style.cssText = ''`);
-    await evaluate(frames);
     // Keep the descendant check bounded to the one retained cleanup flow.
     await evaluate(`window.workbench.sendInput(${JSON.stringify(run.id)}, 'child')`);
     await until(() => evaluate('/CHILD:\\d+/.test(window.output)'), 'descendant process reported its CHILD pid');

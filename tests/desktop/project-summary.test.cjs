@@ -38,15 +38,17 @@ module.exports = {
     await until(() => evaluate('document.querySelector(".workbench-page").classList.contains("locating-panel")'), 'locating waits for the hidden first terminal');
     await f.choose('done', second); await f.receiveInput(second, 'newer-selection');
     await evaluate(`document.querySelector('[data-panel-id="${first.panelId}"] .terminal-container').style.display = ''`);
-    await evaluate('new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))');
-    assert.ok(await f.focused(second));
-    const recordVisible = () => evaluate(`document.querySelector('[data-panel-id="${second.panelId}"] .xterm-rows').textContent.includes('RECEIVED:split-selection')`);
-    for (let step = 0; step < 20 && !(await recordVisible()); step++) {
+    await until(async () => await f.focused(second) && !(await evaluate('document.querySelector(".workbench-page").classList.contains("locating-panel")')),
+      'second terminal keeps focus and no location waits once the first terminal is shown again');
+    // Earlier output remains accessible through terminal scrollback: each Shift+PageUp shows earlier rows
+    // until the record is in view. At the top of the scrollback the rows stop changing and the wait fails.
+    const rowsText = () => evaluate(`document.querySelector('[data-panel-id="${second.panelId}"] .xterm-rows').textContent`);
+    while (!(await rowsText()).includes('RECEIVED:split-selection')) {
+      const shown = await rowsText();
       window.webContents.sendInputEvent({ type: 'keyDown', keyCode: 'PageUp', modifiers: ['shift'] });
       window.webContents.sendInputEvent({ type: 'keyUp', keyCode: 'PageUp', modifiers: ['shift'] });
-      await evaluate('new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))');
+      await until(async () => await rowsText() !== shown, 'RECEIVED:split-selection in scrollback: Shift+PageUp shows earlier rows until it is in view');
     }
-    assert.ok(await recordVisible(), 'earlier output remains accessible through terminal scrollback');
     const unchanged = await f.snapshot();
     assert.deepEqual(runsOf(unchanged).map(run => [run.id, run.pid]), runsOf(initial).map(run => [run.id, run.pid]));
     assert.deepEqual(unchanged.projects[0].layout, layout);
@@ -119,8 +121,7 @@ module.exports = {
         window.setContentSize(width, 480);
         await until(() => evaluate(`document.documentElement.clientWidth === ${width}`), `window content is ${width}px wide`);
         for (const navigation of ['Collapse project navigation', 'Expand project navigation']) {
-          await evaluate('new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))');
-          const toolbar = await evaluate(`(() => {
+          const measure = () => evaluate(`(() => {
             const bar = document.querySelector('.workspace-toolbar').getBoundingClientRect();
             const summary = document.querySelector('.project-summary').getBoundingClientRect();
             const add = document.querySelector('.workspace-toolbar > button').getBoundingClientRect();
@@ -133,14 +134,19 @@ module.exports = {
                   inside: box.left >= summary.left && box.right <= summary.right && box.top >= bar.top && box.bottom <= bar.bottom };
               }) };
           })()`);
-          assert.ok(toolbar.centred, `summary centred at ${width}px`); assert.ok(toolbar.addAtRight);
+          // The toolbar settles once the navigation change is laid out: the summary centred, entries named as the width allows.
+          let toolbar;
+          await until(async () => { toolbar = await measure(); return toolbar.centred && toolbar.entries.every(entry => entry.named === !collapsed); },
+            `toolbar laid out at ${width}px with entries ${collapsed ? 'collapsed' : 'named'}`, { context: () => `toolbar: ${JSON.stringify(toolbar)}` });
+          assert.ok(toolbar.addAtRight);
           assert.equal(toolbar.text, '＋', 'no project name, directory or panel count');
           assert.equal(toolbar.entries.length, 4);
-          for (const entry of toolbar.entries) {
-            assert.equal(entry.named, !collapsed, `${entry.label} at ${width}px`);
-            assert.ok(entry.inside); assert.equal(entry.hint, entry.label);
-          }
+          for (const entry of toolbar.entries) { assert.ok(entry.inside, `${entry.label} at ${width}px`); assert.equal(entry.hint, entry.label); }
+          // The next measurement must be of the toolbar beside the toggled navigation.
+          const toolbarLeft = () => evaluate('document.querySelector(".workspace-toolbar").getBoundingClientRect().left');
+          const left = await toolbarLeft();
           await click(language === 'en' ? navigation : navigation.startsWith('Collapse') ? '折叠项目导航' : '展开项目导航');
+          await until(async () => await toolbarLeft() !== left, `toolbar moved with the ${navigation.startsWith('Collapse') ? 'collapsed' : 'expanded'} navigation`);
         }
       }
     }

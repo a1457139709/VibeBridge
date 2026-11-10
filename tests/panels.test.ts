@@ -253,8 +253,8 @@ test('input while a naturally exited run is still being cleaned up is dropped wi
     await workbench.sendInput(run.id, 'linger');
     await until(() => /LINGER:(\d+)/.test(output));
     lingerPid = Number(output.match(/LINGER:(\d+)/)![1]);
-    // Let the host sample the child so cleanup has to wait for it to ignore SIGTERM.
-    await new Promise(resolve => setTimeout(resolve, 700));
+    // The child inherits the run's owner marker, so cleanup finds it after the Agent exits and waits
+    // while it ignores SIGTERM.
     await workbench.sendInput(run.id, 'exit');
     await until(() => { try { process.kill(run.pid!, 0); return false; } catch { return true; } });
     // The panel still shows the run while its leftover child is cleaned up.
