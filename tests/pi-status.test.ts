@@ -198,3 +198,19 @@ test('pi late manual completion preserves the outcome of a turn started by an ea
   check({ type: 'agent_settled' }, 'done');
   check({ type: 'session_compact', reason: 'manual', willRetry: false }, 'done', { idle: true });
 });
+
+test('the current pi session is the one its reporter last forwarded, across /new, /resume and errors', () => {
+  const run = pi.observe();
+  const fact = (type: string, sessionId?: string) => run.accept({ type, isIdle: true, hasPendingMessages: false, ...(sessionId ? { sessionId } : {}) });
+  assert.equal(run.currentSession(), undefined);
+  fact('session_start', 'first');
+  fact('agent_start', 'first');
+  assert.equal(run.currentSession(), 'first');
+  fact('session_start', 'new');
+  assert.equal(run.currentSession(), 'new');
+  run.discardEvidence();
+  fact('unclassified');
+  assert.equal(run.currentSession(), 'new', 'a fact without a session ID keeps the session');
+  fact('session_start', 'first');
+  assert.equal(run.currentSession(), 'first');
+});

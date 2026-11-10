@@ -71,6 +71,8 @@ class ClaudeInterpreter implements StatusInterpreter {
     return known ? this.classify(known) : 'discard';
   }
 
+  currentSession() { return this.session; }
+
   discardEvidence() { this.clearWaits(); this.activeTools.clear(); }
 
   private clearWaits() { this.questions.clear(); this.permissions.clear(); this.elicitations.clear(); }

@@ -8,7 +8,7 @@ The extension reads the launch capability from `VIBEBRIDGE_STATUS_CONTEXT`. It s
 
 Each callback captures its facts before any asynchronous delivery, and one queue delivers every report of the pi instance in order, including non-awaited UI notifications. `/reload` keeps that queue in the same process. Transport failures never throw into pi or return extension decisions; the next delivery reports observation loss before fresh evidence. A permanently unreachable listener cannot be told about the reporter's own failure.
 
-Reports contain event names, assistant role and stopReason, idle and pending flags, and compaction outcome flags. Prompt text, UI titles, tool arguments and results, model messages and credentials stay in pi.
+Reports contain event names, the current session ID from `ctx.sessionManager.getSessionId()`, assistant role and stopReason, idle and pending flags, and compaction outcome flags. Session replacement (`/new`, `/resume`, fork) reloads the extension and its `session_start` carries the new session ID; the interpreter reports the last session ID it received as the run's current session. Prompt text, UI titles, tool arguments and results, model messages and credentials stay in pi.
 
 ## Interpretation
 

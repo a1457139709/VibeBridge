@@ -1,7 +1,7 @@
 import { report, reportingContext } from '../reporter';
 
 type Payload = Record<string, unknown>;
-interface Context { isIdle(): boolean; hasPendingMessages(): boolean }
+interface Context { isIdle(): boolean; hasPendingMessages(): boolean; sessionManager: { getSessionId(): string } }
 interface ExtensionAPI { on(name: string, handler: (event: Payload, context: Context) => Promise<void>): void }
 interface Delivery { pending: Promise<void>; lost: boolean }
 const key = Symbol.for('vibebridge.pi.status.delivery');
@@ -26,7 +26,8 @@ export default function install(pi: ExtensionAPI) {
   for (const name of events) pi.on(name, (event, ctx) => {
     let payload: Payload;
     try {
-      payload = { type: event.type, isIdle: ctx.isIdle(), hasPendingMessages: ctx.hasPendingMessages() };
+      payload = { type: event.type, isIdle: ctx.isIdle(), hasPendingMessages: ctx.hasPendingMessages(),
+        sessionId: ctx.sessionManager.getSessionId() };
       if (name === 'message_end') {
         const message = event.message as Payload | undefined;
         payload.message = { role: message?.role, stopReason: message?.stopReason };
