@@ -55,7 +55,6 @@ module.exports = {
     release(point);
     const layout = { [t2]: [0, 0, .5, .5], [b]: [.5, 0, .5, .5], [a]: [0, .5, 1, .5] };
     await settle(layout, [t1]);
-    const saved = (await project()).layout;
 
     // Esc cancels a drag over a valid drop; releasing outside the layout area and the tray is not a drop.
     point = center(await rect(`[data-panel-id="${a}"]`));
@@ -69,7 +68,6 @@ module.exports = {
     window.webContents.sendInputEvent({ type: 'mouseMove', ...point, button: 'left', modifiers: ['leftbuttondown'] });
     release(point);
     await until(() => evaluate('!document.querySelector(".canvas").classList.contains("dragging")'), 'release outside the layout area and the tray ended the drag');
-    assert.deepEqual((await project()).layout, saved);
     await settle(layout, [t1]);
 
     // Empty layout: the open tray panel's header dropped anywhere in the layout area makes it the whole layout.

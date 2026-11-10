@@ -23,27 +23,27 @@ async function fixture(context: TestContext) {
 
 test('test wait checks reject waiting a fixed time or a fixed number of frames, in code and in evaluated scripts', async context => {
   const f = await fixture(context);
-  await f.write('tests/drops.test.ts', [
+  await f.write('tests/fixed-waits.test.ts', [
     `await ${promise('resolve => setTimeout(resolve, 300)')};`,
     `await evaluate('${promise('resolve => requestAnimationFrame(() => requestAnimationFrame(resolve))')}');`,
     `await ${promise('done => { setTimeout(done, 50); }')};`,
     `const frames = \`${promise('resolve => requestAnimationFrame(() => setTimeout(resolve))')}\`;`,
   ].join('\n'));
-  await f.write('tests/desktop/support/settle.cjs', `module.exports = evaluate => evaluate('${promise('r => requestAnimationFrame(r)')}');`);
+  await f.write('tests/desktop/support/frame-wait.cjs', `module.exports = evaluate => evaluate('${promise('r => requestAnimationFrame(r)')}');`);
   const result = f.run();
   assert.equal(result.status, 1, result.stderr);
-  for (const line of [1, 2, 3, 4]) assert.ok(result.stderr.includes(`tests/drops.test.ts:${line}:`), result.stderr);
-  assert.ok(result.stderr.includes('tests/desktop/support/settle.cjs:1:'), result.stderr);
+  for (const line of [1, 2, 3, 4]) assert.ok(result.stderr.includes(`tests/fixed-waits.test.ts:${line}:`), result.stderr);
+  assert.ok(result.stderr.includes('tests/desktop/support/frame-wait.cjs:1:'), result.stderr);
 });
 
 test('test wait checks allow polling inside until, frame stubs, timeouts that reject, and fixture behaviour', async context => {
   const f = await fixture(context);
-  await f.write('tests/desktop/support/until.cjs', [
+  await f.write('tests/desktop/support/polling-until.cjs', [
     'module.exports = async function until(check) {',
     `  while (!(await check())) await ${promise('resolve => setTimeout(resolve, 30)')};`,
     '};',
   ].join('\n'));
-  await f.write('tests/panels.test.ts', [
+  await f.write('tests/allowed-timers.test.ts', [
     'async function until(check: () => boolean) {',
     `  while (!check()) await ${promise('resolve => setTimeout(resolve, 20)')};`,
     '}',
@@ -51,8 +51,8 @@ test('test wait checks allow polling inside until, frame stubs, timeouts that re
     `const limit = ${promise("(_resolve, reject) => { setTimeout(() => reject(new Error('no answer')), 2000); }")};`,
     `const settled = () => ${promise('resolve => setImmediate(resolve)')};`,
   ].join('\n'));
-  await f.write('tests/components/TrayPlacement.test.tsx', 'Object.assign(window, { requestAnimationFrame: () => 0, cancelAnimationFrame: () => {} });');
-  await f.write('tests/fixtures/title-cli.cjs', `await ${promise('resolve => setTimeout(resolve, command.delay)')};`);
+  await f.write('tests/components/frame-stub.test.tsx', 'Object.assign(window, { requestAnimationFrame: () => 0, cancelAnimationFrame: () => {} });');
+  await f.write('tests/fixtures/delayed-cli.cjs', `await ${promise('resolve => setTimeout(resolve, command.delay)')};`);
   const result = f.run();
   assert.equal(result.status, 0, result.stderr);
   assert.equal(result.stderr, '');

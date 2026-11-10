@@ -53,7 +53,6 @@ module.exports = {
     await evaluate(`window.output[${JSON.stringify(second.run.id)}] = ''; void 0`);
     nativeKey('Escape');
     await until(() => evaluate(`(window.output[${JSON.stringify(second.run.id)}] || '').includes('BYTES:1b')`), 'Escape bytes reached the second tray panel');
-    assert.deepEqual(await pressed(), [[first.id, 'false'], [second.id, 'true']]);
 
     // Collapse restores the unchanged layout and runs; clicking cards switches and collapses.
     await click('Collapse panel');

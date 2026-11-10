@@ -7,6 +7,7 @@ import { ProcessingStatus } from '../app/main/processing-status';
 import { Workbench } from '../app/main/workbench';
 import type { AgentType, Run, WorkbenchEvent } from '../app/shared/model';
 import type { ProcessingState } from '../app/shared/processing-status';
+import { testDirectory } from './support/directory';
 import { panelViews, runsOf, showing, statusOf, storedProjects } from './support/panel-views';
 
 async function until(check: () => boolean) {
@@ -144,9 +145,9 @@ test('observation loss leaves a usable terminal and recovery requires fresh reli
 });
 
 test('after observation becomes unavailable, silence and liveness keep the run in Error', async t => {
+  const directory = await testDirectory(t, 'processing-status');
   // The test owns time: any timer ProcessingStatus started would fire on tick.
   t.mock.timers.enable({ apis: ['setTimeout', 'setInterval'] });
-  const directory = await mkdtemp(resolve('work/processing-status-'));
   let changes = 0;
   const processing = new ProcessingStatus(() => { changes++; }, directory);
   try {
@@ -170,10 +171,7 @@ test('after observation becomes unavailable, silence and liveness keep the run i
     processing.lifecycle(run);
     assert.equal(processing.status(run), 'error', 'a running lifecycle fact does not restore Busy');
     assert.equal(changes, published, 'nothing is published without a report');
-  } finally {
-    await processing.close();
-    await rm(directory, { recursive: true, force: true });
-  }
+  } finally { await processing.close(); }
 });
 
 test('background panels retain independent memberships, exits remove them, and quitting preserves only configuration', async () => {

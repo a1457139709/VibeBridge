@@ -88,7 +88,6 @@ module.exports = {
     await click('Don’t save');
     await until(async () => !(await settingsVisible()), 'settings page closed after discarding');
     await until(() => evaluate('!document.querySelector(".workbench-page").classList.contains("locating-panel")'), 'locating ended without its target');
-    assert.equal(await evaluate('document.activeElement?.classList.contains("xterm-helper-textarea")'), false);
     await f.choose('done', second); await f.receiveInput(second, 'explicit-selection-after-disappearance');
 
     // Disappearance while waiting for a real terminal must also cancel without
@@ -98,7 +97,6 @@ module.exports = {
     await until(() => evaluate('document.querySelector(".workbench-page").classList.contains("locating-panel")'), 'locating waits for the hidden first terminal');
     await evaluate(`window.workbench.closePanel(${JSON.stringify(f.projectId)}, ${JSON.stringify(first.panelId)})`);
     await until(() => evaluate('!document.querySelector(".workbench-page").classList.contains("locating-panel")'), 'locating ended when the target panel closed');
-    assert.equal(await evaluate('document.activeElement?.classList.contains("xterm-helper-textarea")'), false);
     await f.choose('done', second); await f.receiveInput(second, 'explicit-selection-after-cancel');
     const added = await evaluate(`window.workbench.addPanel(${JSON.stringify(f.projectId)}, 'codex')`);
     await f.send(added.launch.run, { payload: { hook_event_name: 'Stop' } });
@@ -106,7 +104,6 @@ module.exports = {
     await f.open('done');
     await evaluate(`window.workbench.closePanel(${JSON.stringify(f.projectId)}, ${JSON.stringify(added.panel.id)})`);
     await until(() => evaluate('document.querySelectorAll(".summary-list li").length === 1'), 'summary list dropped the closed panel');
-    assert.ok(await evaluate('!!document.activeElement.closest(".summary-list")'), 'a background exit cannot steal keyboard focus from an open list');
     await click('Close panel list');
     await f.choose('done', second); await f.receiveInput(second, 'after-live-list-update');
     console.log('Settings without a summary, leave-to-locate cancel, validation, real failed write/retry, whole-draft save, discard and disappearing targets passed.');

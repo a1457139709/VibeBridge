@@ -69,7 +69,8 @@ async function renderWorkbench() {
   };
 }
 
-// Presses a resident panel's header, or a tray card below the layout area, and moves to the given window point.
+// Presses a resident panel's header, or a tray card, and moves to the given window point. A tray card reports no
+// area here, so it is pressed at a point below the 800×600 layout area, where the tray lies.
 function press(panelId: string, to: { x: number; y: number }) {
   const handle = document.querySelector<HTMLElement>(`.canvas > [data-panel-id="${panelId}"] .panel-header`)
     ?? document.querySelector<HTMLElement>(`[data-tray-panel-id="${panelId}"]`)!;

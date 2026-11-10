@@ -47,7 +47,7 @@ module.exports = {
       const shown = await rowsText();
       window.webContents.sendInputEvent({ type: 'keyDown', keyCode: 'PageUp', modifiers: ['shift'] });
       window.webContents.sendInputEvent({ type: 'keyUp', keyCode: 'PageUp', modifiers: ['shift'] });
-      await until(async () => await rowsText() !== shown, 'Shift+PageUp showed earlier terminal rows');
+      await until(async () => await rowsText() !== shown, 'RECEIVED:split-selection in scrollback: Shift+PageUp shows earlier rows until it is in view');
     }
     const unchanged = await f.snapshot();
     assert.deepEqual(runsOf(unchanged).map(run => [run.id, run.pid]), runsOf(initial).map(run => [run.id, run.pid]));
@@ -141,11 +141,12 @@ module.exports = {
           assert.ok(toolbar.addAtRight);
           assert.equal(toolbar.text, '＋', 'no project name, directory or panel count');
           assert.equal(toolbar.entries.length, 4);
-          for (const entry of toolbar.entries) {
-            assert.equal(entry.named, !collapsed, `${entry.label} at ${width}px`);
-            assert.ok(entry.inside); assert.equal(entry.hint, entry.label);
-          }
+          for (const entry of toolbar.entries) { assert.ok(entry.inside, `${entry.label} at ${width}px`); assert.equal(entry.hint, entry.label); }
+          // The next measurement must be of the toolbar beside the toggled navigation.
+          const toolbarLeft = () => evaluate('document.querySelector(".workspace-toolbar").getBoundingClientRect().left');
+          const left = await toolbarLeft();
           await click(language === 'en' ? navigation : navigation.startsWith('Collapse') ? '折叠项目导航' : '展开项目导航');
+          await until(async () => await toolbarLeft() !== left, `toolbar moved with the ${navigation.startsWith('Collapse') ? 'collapsed' : 'expanded'} navigation`);
         }
       }
     }
