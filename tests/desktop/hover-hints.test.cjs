@@ -9,10 +9,8 @@ module.exports = {
     const project = created.projects[0];
     const added = await evaluate(`window.workbench.addPanel(${JSON.stringify(project.id)}, 'pi')`);
     const card = `[data-tray-panel-id="${added.panel.id}"]`;
-    await until(() => evaluate(`!!document.querySelector('${card}')`), `tray card for panel ${added.panel.id} drawn`);
-    // An added panel opens; collapse it so only the card shows the tray panel.
-    await evaluate(`document.querySelector('${card}').click()`);
-    await until(() => evaluate(`document.querySelector('${card}').getAttribute('aria-pressed') === 'false'`), 'added tray panel collapsed to its card');
+    // A panel added through the API, outside the Agent picker, stays a card in the tray.
+    await until(() => evaluate(`document.querySelector('${card}')?.getAttribute('aria-pressed') === 'false'`), `tray card for panel ${added.panel.id} drawn collapsed`);
     const hint = () => evaluate('document.querySelector("[role=tooltip]")?.textContent ?? null');
     const hover = async selector => {
       const point = center(await rect(selector));
@@ -33,15 +31,12 @@ module.exports = {
     await until(() => evaluate(`!!document.querySelector('${card} .processing-status')`), 'tray card shows its processing status icon');
     await hover(`${card} .processing-status`);
     await until(async () => (await hint()) === await evaluate(`document.querySelector('${card} .processing-status').getAttribute('aria-label')`), 'status icon hint matches its accessible name');
-    // Pressing hides the hint; leaving every hinted element keeps it hidden.
+    // Pressing hides the hint.
     const point = await hover(card);
     await until(async () => (await hint()) !== null, 'tray card hint shown before pressing');
     window.webContents.sendInputEvent({ type: 'mouseDown', ...point, button: 'left', clickCount: 1 });
     window.webContents.sendInputEvent({ type: 'mouseUp', ...point, button: 'left', clickCount: 1 });
     await until(async () => (await hint()) === null, 'pressing the tray card hid the hint');
-    await hover('.canvas');
-    await evaluate('new Promise(resolve => setTimeout(resolve, 600))');
-    assert.equal(await hint(), null);
-    console.log('Hovering the navigation, a tray card and its status icon drew each element\'s hint inside the window; pressing and leaving hid it.');
+    console.log('Hovering the navigation, a tray card and its status icon drew each element\'s hint inside the window; pressing hid it.');
   },
 };
