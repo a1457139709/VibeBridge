@@ -4,6 +4,7 @@ import type { Shortcuts } from './shortcuts';
 import { projectNameError } from './project-name';
 import type { ProcessingState } from './processing-status';
 import type { SettingsIssue } from './settings';
+import type { RepositoryReference } from './code-hosting';
 
 export const agentTypes = ['codex', 'claude', 'pi'] as const;
 export type AgentType = typeof agentTypes[number];
@@ -13,7 +14,8 @@ export interface ProjectDraft { name: string; directory: string; total: number; 
 export const newDraft = (): ProjectDraft => ({ name: '', directory: '', total: 3, counts: { codex: 0, claude: 0, pi: 0 } });
 export interface Panel { id: string; agent: AgentType }
 export type Layout = { panel: string } | { axis: 'row' | 'column'; ratio: number; first: Layout; second: Layout };
-export interface Project { id: string; name: string; directory: string; panels: Panel[]; layout: Layout | null }
+/** `repository` is the project's Repository Binding; an unbound project has none. */
+export interface Project { id: string; name: string; directory: string; panels: Panel[]; layout: Layout | null; repository?: RepositoryReference }
 export interface AgentCommand { command: string; args: string[] }
 export type DefaultLayout = 'auto' | 'row' | 'column';
 export type Language = 'en' | 'zh-CN';

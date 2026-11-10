@@ -9,6 +9,11 @@ import { ProjectStore } from './storage';
 import { SettingsFile, defaultSettings } from './settings';
 import { settingsConflicts, type SettingsSaveResult } from '../shared/settings';
 import { RunSupervision } from './run-supervision';
+import { commandEnvironment } from '../terminal/environment';
+import { repositoryReferenceSchema, type RepositoryChoices, type RepositoryReference } from '../shared/code-hosting';
+import { PlatformError, type CommandEnvironment } from './code-hosting/platform';
+import { defaultPlatform, platforms } from './code-hosting/platforms';
+import { originUrl } from './code-hosting/origin';
 
 export class WorkbenchOpenError extends Error {
   constructor(error: unknown, readonly language: Language) {
@@ -25,6 +30,8 @@ export class Workbench {
   // Each project's tray: its ephemeral panels in the order they joined. Never stored.
   private trays = new Map<string, Panel[]>();
   private quitting = false;
+  // Platform CLIs and git run in the login-shell environment Agent Runs get, read once per Workbench.
+  private environment?: Promise<CommandEnvironment>;
   private quitPromise?: Promise<void>;
   private constructor(directory: string, private store: ProjectStore, private settingsFile: SettingsFile) {
     this.supervision = new RunSupervision(directory, { changed: () => this.changed(), emit: event => this.emit(event), report: message => this.report(message),
@@ -245,6 +252,47 @@ export class Workbench {
     await this.store.navigation(navigation);
     this.state.navigation = navigation; this.changed();
   }); }
+  private commandEnvironment() { return this.environment ??= commandEnvironment().catch(error => { this.environment = undefined; throw error; }); }
+  /** The repositories the platform CLI's signed-in account may bind to the project, with the one its directory's `origin` points to. */
+  async repositoryChoices(projectId: string): Promise<RepositoryChoices> {
+    const project = this.project(projectId);
+    const platform = platforms[project.repository?.platform ?? defaultPlatform];
+    const environment = await this.commandEnvironment();
+    try {
+      const [{ account, paths }, origin] = await Promise.all([platform.bindable(environment), originUrl(project.directory, environment)]);
+      const originPath = origin && platform.remotePath(origin)?.toLowerCase();
+      const suggested = paths.find(path => path.toLowerCase() === originPath);
+      const reference = (path: string): RepositoryReference => ({ platform: platform.description.id, path });
+      return { ok: true, platform: platform.description, account, repositories: paths.map(reference), suggested: suggested ? reference(suggested) : null };
+    } catch (error) {
+      if (error instanceof PlatformError) return { ok: false, failure: error.failure };
+      throw error;
+    }
+  }
+  /** Binds one of the project's repository choices, or with null removes its binding. A project has at most one binding. */
+  async bindRepository(projectId: string, repository: RepositoryReference | null): Promise<void> {
+    this.project(projectId);
+    if (repository) {
+      const parsed = repositoryReferenceSchema.safeParse(repository);
+      if (!parsed.success) throw new Error(message('repositoryNotListed'));
+      repository = parsed.data;
+      const platform = platforms[repository.platform];
+      let paths: string[];
+      try { ({ paths } = await platform.bindable(await this.commandEnvironment())); }
+      catch (error) {
+        if (error instanceof PlatformError) throw new Error(message('repositoryListFailed', { platform: platform.description.name, reason: detail(error.failure.output || error.failure.kind) }));
+        throw error;
+      }
+      if (!paths.includes(repository.path)) throw new Error(message('repositoryNotListed'));
+    }
+    const binding = repository;
+    return this.operation(async () => {
+      const project = this.project(projectId);
+      await this.store.bind(projectId, binding);
+      if (binding) project.repository = binding; else delete project.repository;
+      this.changed();
+    });
+  }
   sendInput(runId: string, data: string) { return this.supervision.input(runId, data); }
   resizeRun(runId: string, cols: number, rows: number) { return this.supervision.resize(runId, cols, rows); }
   acknowledgeOutput(runId: string, characters: number) { this.supervision.acknowledgeOutput(runId, characters); }

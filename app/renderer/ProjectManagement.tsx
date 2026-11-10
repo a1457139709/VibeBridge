@@ -4,6 +4,8 @@ import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { type DirectoryResult, type Project, type ProjectEditResult, type ProjectView } from '../shared/model';
 import { projectNameError, projectNameHasControls } from '../shared/project-name';
 import { LaunchResults } from './LaunchResults';
+import { RepositoryPicker } from './RepositoryPicker';
+import { sameRepository, type RepositoryReference } from '../shared/code-hosting';
 import './project-management.css';
 
 export function ProjectNavigationItem({ project, openProject, children }: {
@@ -43,6 +45,10 @@ function ProjectEditor({ project, running, close, openProject }: { project: Proj
   const [nameInputError, setNameInputError] = useState('');
   const [busy, setBusy] = useState(false), [choosing, setChoosing] = useState(false), [error, setError] = useState('');
   const [result, setResult] = useState<ProjectEditResult>();
+  const [repository, setRepository] = useState<RepositoryReference | null>(project.repository ?? null);
+  // Changing or removing an existing binding is confirmed before anything is saved.
+  const [confirming, setConfirming] = useState<{ restart: boolean }>();
+  const bindingChanged = !sameRepository(repository, original.repository);
   const directory = inspection.path === path ? inspection.result : undefined;
   const checking = !!path && !directory;
   const duplicate = directory?.existingProjectId && directory.existingProjectId !== project.id;
@@ -61,10 +67,15 @@ function ProjectEditor({ project, running, close, openProject }: { project: Proj
     }, 180);
     return () => { live = false; clearTimeout(timer); };
   }, [path]);
-  async function save(restart: boolean) {
+  function save(restart: boolean) {
     if (!canSave) return;
-    setBusy(true); setError('');
+    if (bindingChanged && original.repository) setConfirming({ restart });
+    else void commit(restart);
+  }
+  async function commit(restart: boolean) {
+    setConfirming(undefined); setBusy(true); setError('');
     try {
+      if (bindingChanged) await window.workbench.bindRepository(project.id, repository);
       const outcome = await window.workbench.editProject(project.id, { name, directory: path }, restart);
       if (outcome.error || outcome.launches.length) setResult(outcome); else close();
     } catch (error) { setError((error as Error).message); }
@@ -78,7 +89,7 @@ function ProjectEditor({ project, running, close, openProject }: { project: Proj
       {!!result.launches.length && <><p>{result.launches.every(launch => launch.outcome === 'started') ? t('panelsRestarted') : t('panelsRestartUnconfirmed')}</p>
         <LaunchResults launches={result.launches} /></>}
       <div className="project-dialog-actions"><button className="primary" onClick={close}>{t('finish')}</button></div>
-    </> : <form onSubmit={event => { event.preventDefault(); if (!changedDirectory) void save(false); }}>
+    </> : <form onSubmit={event => { event.preventDefault(); if (!changedDirectory && !confirming) save(false); }}>
       <label htmlFor="edit-project-name">{t('projectName')}</label><input id="edit-project-name" autoFocus autoComplete="off" value={name} disabled={busy} aria-invalid={!!nameError} aria-describedby="edit-project-name-status" onChange={event => { setNameInputError(''); setName(event.target.value); }} onPaste={event => {
         if (projectNameHasControls(event.clipboardData.getData('text'))) { event.preventDefault(); setNameInputError(message('nameControls')); }
         else setNameInputError('');
@@ -86,13 +97,19 @@ function ProjectEditor({ project, running, close, openProject }: { project: Proj
       {nameError && <div id="edit-project-name-status" className="field-status error-text">{nameError}</div>}
       <label htmlFor="edit-project-directory">{t('localDirectory')}</label><div className="directory-input"><input id="edit-project-directory" autoComplete="off" value={path} disabled={busy} aria-invalid={!!directoryError} aria-describedby="edit-project-directory-status" onChange={event => setPath(event.target.value)} /><button type="button" disabled={busy || choosing} aria-label={t('chooseNewDirectory')} onClick={async () => { setChoosing(true); try { const selected = await window.workbench.chooseDirectory(); if (selected !== null) setPath(selected); } catch (error) { setError((error as Error).message); } finally { setChoosing(false); } }}>{t('browse')}</button></div>
       {(checking || directoryError) && <div id="edit-project-directory-status" className="field-status" aria-live="polite">{checking ? t('checkingDirectory') : <span className="error-text">{directoryError}</span>}{duplicate && <button type="button" className="open-existing-project" onClick={() => openProject(directory!.existingProjectId!)}>{t('openExisting')}</button>}</div>}
+      <RepositoryPicker projectId={project.id} bound={original.repository} value={repository} onChange={setRepository} disabled={busy || !!confirming} />
       {changedDirectory && <section className="directory-change" aria-label={t('directoryChange')}><dl><dt>{t('oldDirectory')}</dt><dd>{original.directory}</dd><dt>{t('newDirectory')}</dt><dd>{directory!.directory}</dd></dl><p>{t('currentRuns', { count: running })}</p>
         <p><strong>{t('changeAndRestart')}: </strong>{t('restartImpact')}</p>
         <p><strong>{t('changeWithoutRestart')}: </strong>{t('noRestartImpact')}</p>
         <p>{t('directoryHistory')}</p>
       </section>}
       {error && <p className="error-text" role="alert">{text(error)}</p>}
-      <div className="project-dialog-actions"><button type="button" disabled={busy} onClick={close}>{changedDirectory ? t('cancelChange') : t('cancel')}</button>{changedDirectory ? <><button type="button" disabled={!canSave} onClick={() => void save(false)}>{t('changeWithoutRestart')}</button><button className="primary" type="button" disabled={!canSave} onClick={() => void save(true)}>{busy ? t('processing') : t('changeAndRestart')}</button></> : <button type="submit" className="primary" disabled={!canSave}>{busy ? t('saving') : t('saveChanges')}</button>}</div>
+      {confirming ? <section className="binding-confirmation" role="alertdialog" aria-label={repository ? t('changeBindingQuestion') : t('removeBindingQuestion')}>
+        <h3>{repository ? t('changeBindingQuestion') : t('removeBindingQuestion')}</h3>
+        <p>{repository ? t('bindingChange', { from: original.repository!.path, to: repository.path }) : t('removeBindingImpact', { path: original.repository!.path })}</p>
+        <div className="project-dialog-actions"><button type="button" autoFocus onClick={() => setConfirming(undefined)}>{t('cancel')}</button>
+          <button type="button" className={repository ? 'primary' : 'danger'} onClick={() => void commit(confirming.restart)}>{repository ? t('changeBinding') : t('removeBinding')}</button></div>
+      </section> : <div className="project-dialog-actions"><button type="button" disabled={busy} onClick={close}>{changedDirectory ? t('cancelChange') : t('cancel')}</button>{changedDirectory ? <><button type="button" disabled={!canSave} onClick={() => save(false)}>{t('changeWithoutRestart')}</button><button className="primary" type="button" disabled={!canSave} onClick={() => save(true)}>{busy ? t('processing') : t('changeAndRestart')}</button></> : <button type="submit" className="primary" disabled={!canSave}>{busy ? t('saving') : t('saveChanges')}</button>}</div>}
     </form>}
   </dialog>;
 }
