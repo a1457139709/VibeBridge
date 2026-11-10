@@ -17,3 +17,15 @@
 .project-path { overflow-wrap: anywhere; }
 .project-launch-results { padding-left: 20px; line-height: 1.8; }
 .danger { color: var(--error, #b33e2d); }
+.repository-field { margin-top: 12px; }
+.repository-field input { width: 100%; }
+.repository-options { list-style: none; margin: 6px 0 0; padding: 4px; max-height: 168px; overflow: auto; border: 1px solid var(--line); border-radius: 8px; background: var(--canvas); }
+.repository-options li { padding: 5px 8px; border-radius: 6px; font-family: Menlo, monospace; font-size: 11px; cursor: default; overflow-wrap: anywhere; }
+.repository-options li:hover { background: var(--surface); }
+.repository-options li[aria-selected="true"] { background: var(--surface); font-weight: 600; box-shadow: inset 3px 0 0 currentColor; }
+.repository-failure { display: flex; align-items: flex-start; gap: 8px; }
+.repository-failure .error-text { flex: 1; }
+.repository-selection { display: flex; align-items: center; justify-content: space-between; gap: 8px; min-height: 30px; margin-top: 6px; font-size: 12px; overflow-wrap: anywhere; }
+.binding-confirmation { margin-top: 18px; padding: 12px 14px; border: 1px solid var(--line); border-radius: 8px; background: var(--canvas); }
+.binding-confirmation h3 { margin: 0; font-size: 14px; }
+.binding-confirmation .project-dialog-actions { margin-top: 12px; }

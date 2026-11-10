@@ -1,11 +1,16 @@
 import type { NavigationPreferences, AgentType, CommandCheck, DirectoryResult, Layout, ProjectCreation, PanelCreation, ProjectDraft, ProjectEdit, ProjectEditResult, Settings, Snapshot, WorkbenchEvent } from './model';
 import type { SettingsSaveResult } from './settings';
+import type { RepositoryChoices, RepositoryReference } from './code-hosting';
 
 export interface DesktopAPI {
   snapshot(): Promise<Snapshot>;
   createProject(draft: ProjectDraft): Promise<ProjectCreation>;
   editProject(id: string, edit: ProjectEdit, restart: boolean): Promise<ProjectEditResult>;
   deleteProject(id: string): Promise<void>;
+  /** The repositories the project may bind, with the one its directory's `origin` points to, or why the platform cannot list them. */
+  repositoryChoices(projectId: string): Promise<RepositoryChoices>;
+  /** Binds one of the project's repository choices; null removes the binding. */
+  bindRepository(projectId: string, repository: RepositoryReference | null): Promise<void>;
   inspectDirectory(directory: string): Promise<DirectoryResult>;
   chooseDirectory(): Promise<string | null>;
   activateProject(id: string): Promise<void>;

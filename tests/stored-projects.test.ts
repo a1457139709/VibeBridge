@@ -62,6 +62,12 @@ test('a stored panel with an unknown Agent type keeps the workbench closed and t
   await assertRejected(directory, file, /projectDataInvalid/, ['panels.agent', project.id, project.name]);
 });
 
+test('a stored repository binding on an unknown platform keeps the workbench closed and the database unchanged', async context => {
+  const { directory, file } = await storedWorkbench(context, 'stored-unknown-platform', database =>
+    database.prepare('INSERT INTO repository_bindings VALUES (?,?,?)').run(project.id, 'gitlab', 'acme/group/app'));
+  await assertRejected(directory, file, /projectDataInvalid/, ['repository_bindings.platform', project.id, project.name]);
+});
+
 for (const [behavior, stored] of [
   ['is not JSON', '{"axis":'],
   ['has an invalid structure', JSON.stringify({ ...layout, ratio: 1 })],
