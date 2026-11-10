@@ -1,8 +1,6 @@
 const assert = require('node:assert/strict');
 const { runsOf } = require('./support/panel-views.cjs');
 
-const frames = 'new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))';
-
 module.exports = {
   async run(context) {
     const { window, evaluate, until, click } = context;
@@ -55,7 +53,6 @@ module.exports = {
     await evaluate(`window.output[${JSON.stringify(second.run.id)}] = ''; void 0`);
     nativeKey('Escape');
     await until(() => evaluate(`(window.output[${JSON.stringify(second.run.id)}] || '').includes('BYTES:1b')`), 'Escape bytes reached the second tray panel');
-    await evaluate(frames);
     assert.deepEqual(await pressed(), [[first.id, 'false'], [second.id, 'true']]);
 
     // Collapse restores the unchanged layout and runs; clicking cards switches and collapses.

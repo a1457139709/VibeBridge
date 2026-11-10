@@ -28,7 +28,9 @@ module.exports = {
     assert.equal(await evaluate('document.activeElement.getAttribute("aria-label")'), 'Done');
     assert.equal(statusOf(await evaluate('window.workbench.snapshot()'), runs[3].id), 'done');
 
-    const checkGeometry = async () => {
+    // What keeps the status icons from their settled presentation, or nothing once they have it.
+    const geometryProblems = async () => {
+      const problems = [];
       const result = await evaluate(`(() => {
         const panels = [...document.querySelectorAll('.canvas .agent-panel')].filter(panel => panel.checkVisibility());
         return panels.map(panel => {
@@ -40,18 +42,26 @@ module.exports = {
             static: style.animationName === 'none', busy: icon.classList.contains('processing-busy'), label: icon.getAttribute('aria-label') };
         });
       })()`);
-      assert.ok(result.length);
+      if (!result.length) problems.push('no visible panel');
       for (const icon of result) {
-        assert.ok(icon.leftOfType); assert.ok(icon.visible); assert.ok(icon.label);
-        assert.equal(icon.static, !icon.busy || reducedMotion, `${icon.label} moves only while Busy and motion is allowed`);
+        if (!icon.leftOfType) problems.push(`${icon.label} icon is not left of the Agent type`);
+        if (!icon.visible) problems.push(`${icon.label} icon is not fully visible in its panel`);
+        if (!icon.label) problems.push('an icon has no label');
+        if (icon.static !== (!icon.busy || reducedMotion)) problems.push(`${icon.label} moves only while Busy and motion is allowed`);
       }
       // Every rendered Busy icon, in panels and navigation, turns in one shared phase.
       const phases = await evaluate(`[...document.querySelectorAll('.processing-busy svg')].flatMap(icon => icon.getAnimations())
         .map(animation => animation.currentTime % ${busyPeriod})`);
       if (!reducedMotion) {
-        assert.ok(phases.length >= 1);
-        for (const phase of phases) assert.ok(Math.min(Math.abs(phase - phases[0]), busyPeriod - Math.abs(phase - phases[0])) < 50, `Busy phases ${phases}`);
-      } else assert.deepEqual(phases, []);
+        if (!phases.length) problems.push('no Busy animation');
+        if (phases.some(phase => Math.min(Math.abs(phase - phases[0]), busyPeriod - Math.abs(phase - phases[0])) >= 50)) problems.push(`Busy phases ${phases}`);
+      } else if (phases.length) problems.push(`Busy animations under reduced motion: ${phases}`);
+      return problems;
+    };
+    const checkGeometry = async () => {
+      let problems;
+      await until(async () => (problems = await geometryProblems()).length === 0, 'status icons settled beside the Agent type, Busy alone turning',
+        { context: () => problems.join('\n') });
     };
     // The host's own motion setting must not decide the result; emulate each preference explicitly.
     console.log(`Host prefers reduced motion: ${await evaluate("matchMedia('(prefers-reduced-motion: reduce)').matches")}`);
@@ -73,7 +83,6 @@ module.exports = {
         for (const size of [[1280, 860], [640, 480]]) {
           window.setContentSize(...size);
           await until(() => evaluate(`document.documentElement.clientWidth === ${size[0]}`), `window content is ${size[0]}px wide`);
-          await evaluate('new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))');
           await checkGeometry();
         }
       }
@@ -87,7 +96,11 @@ module.exports = {
           : { axis, ratio: 1 / ids.length, first: { panel: ids[0] }, second: rest(ids.slice(1)) };
         const layout = { axis, ratio: .5, first: { panel: runs[0].panelId }, second: rest(remaining) };
         await evaluate(`window.workbench.saveLayout(${JSON.stringify(projectId)}, ${JSON.stringify(layout)})`);
-        await evaluate('new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))');
+        // The first panel takes the saved half along the axis, the other panels share the rest.
+        await until(() => evaluate(`(slot => slot.style.${axis === 'row' ? 'width' : 'height'} === '50%'
+          && slot.style.${axis === 'row' ? 'height' : 'width'} === '100%')(document.querySelector('[data-panel-id="${runs[0].panelId}"]'))
+          && (dividers => dividers.length === ${runs.length - 1} && dividers.every(divider => divider.getAttribute('aria-orientation') === '${axis === 'row' ? 'vertical' : 'horizontal'}'))([...document.querySelectorAll('.divider')])`),
+          `saved ${axis} layout drawn`);
         const handle = await evaluate(`(() => { const rect = document.querySelector('.divider').getBoundingClientRect();
           const canvas = document.querySelector('.canvas').getBoundingClientRect();
           return { x: Math.round(rect.x + rect.width / 2), y: Math.round(rect.y + rect.height / 2), left: canvas.left, top: canvas.top }; })()`);

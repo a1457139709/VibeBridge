@@ -67,6 +67,16 @@ test('choosing a tray panel in the summary opens it ephemerally', async () => {
   assert.equal(card.getAttribute('aria-pressed'), 'true', 'Escape closes only the summary list');
 });
 
+test('Escape in an open tray panel\'s terminal goes to the terminal and leaves the panel open', async () => {
+  const user = renderWorkbench();
+  const tray = await screen.findByRole('region', { name: 'Ephemeral panel tray' });
+  await user.click(within(tray).getByRole('button', { name: /Session first-ephemeral/ }));
+  document.querySelector<HTMLElement>('.canvas > [data-panel-id="first-ephemeral"] .xterm-helper-textarea')!.focus();
+  await user.keyboard('{Escape}');
+  assert.deepEqual(within(tray).getAllByRole('button').map(card => card.getAttribute('aria-pressed')), ['true', 'false']);
+  assert.ok(screen.getByRole('button', { name: 'Collapse panel' }));
+});
+
 test('choosing a resident panel in the summary leaves the tray closed', async () => {
   const user = renderWorkbench();
   await user.click(await screen.findByRole('button', { name: '2 Done' }));

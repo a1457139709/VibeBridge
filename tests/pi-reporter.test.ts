@@ -3,8 +3,8 @@ import assert from 'node:assert/strict';
 import { readFile, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { randomUUID } from 'node:crypto';
-import { createServer } from 'node:http';
-import type { AddressInfo } from 'node:net';
+import http from 'node:http';
+import { syncBuiltinESMExports } from 'node:module';
 import { pathToFileURL } from 'node:url';
 import { fixture, until } from './support/cli-double';
 import { showing, statusOf } from './support/panel-views';
@@ -70,23 +70,31 @@ test('pi preserves explicit extensions and arguments', async () => {
 });
 
 test('pi /reload keeps delivering through the launch\'s one queue, so a reloaded reporter waits for earlier reports', async () => {
-  const received: string[] = [];
-  let release!: () => void;
-  const held = new Promise<void>(resolve => { release = resolve; });
-  const server = createServer((request, response) => {
-    let body = '';
-    request.on('data', chunk => { body += chunk; });
-    request.on('end', async () => {
-      const { type } = JSON.parse(body).payload;
-      received.push(type);
-      if (received.length === 1) await held;
-      response.writeHead(204).end();
-    });
-  });
-  await new Promise<void>(resolve => server.listen(0, '127.0.0.1', resolve));
+  // The test is the transport: a report is delivered only when the test answers its request.
+  const requests: { type: string; deliver(): void }[] = [];
+  const original = http.request;
+  http.request = ((_url: string, _options: object, respond: (response: object) => void) => {
+    const listeners = new Map<string, () => void>();
+    const outgoing = {
+      once(name: string, listener: () => void) { listeners.set(name, listener); return outgoing; },
+      destroy() {},
+      end(body: string) {
+        requests.push({ type: JSON.parse(body).payload.type, deliver() {
+          const ended = new Map<string, () => void>();
+          respond({ statusCode: 204, resume() {}, once(name: string, listener: () => void) { ended.set(name, listener); } });
+          ended.get('end')!();
+          listeners.get('close')!();
+        } });
+      },
+    };
+    return outgoing;
+  }) as unknown as typeof http.request;
+  syncBuiltinESMExports();
+  const sent = () => requests.map(request => request.type);
+  // No report waits on I/O, so once queued callbacks have run, every report that can be sent has been.
+  const settled = () => new Promise(resolve => setImmediate(resolve));
   const previous = process.env.VIBEBRIDGE_STATUS_CONTEXT;
-  const { port } = server.address() as AddressInfo;
-  process.env.VIBEBRIDGE_STATUS_CONTEXT = JSON.stringify({ url: `http://127.0.0.1:${port}/events`, runId: 'reload', agent: 'pi', token: randomUUID() });
+  process.env.VIBEBRIDGE_STATUS_CONTEXT = JSON.stringify({ url: 'http://127.0.0.1:9/events', runId: 'reload', agent: 'pi', token: randomUUID() });
   // pi /reload loads a fresh copy of the extension module within the same process. The CLI double's
   // import cache would reuse one module, so this test loads each copy itself.
   const load = async (instance: string) => {
@@ -97,17 +105,20 @@ test('pi /reload keeps delivering through the launch\'s one queue, so a reloaded
   };
   try {
     const before = (await load('before'))('agent_start');
-    await until(() => received.length === 1);
+    await settled();
+    assert.deepEqual(sent(), ['agent_start']);
     const after = (await load('after'))('tool_execution_start');
-    await new Promise(resolve => setTimeout(resolve, 200));
-    assert.deepEqual(received, ['agent_start'], 'the reloaded reporter does not overtake an undelivered report');
-    release();
-    await Promise.all([before, after]);
-    assert.deepEqual(received, ['agent_start', 'tool_execution_start']);
+    await settled();
+    assert.deepEqual(sent(), ['agent_start'], 'the reloaded reporter does not overtake an undelivered report');
+    requests[0].deliver();
+    await before;
+    await settled();
+    assert.deepEqual(sent(), ['agent_start', 'tool_execution_start']);
+    requests[1].deliver();
+    await after;
   } finally {
-    release();
+    http.request = original;
+    syncBuiltinESMExports();
     if (previous === undefined) delete process.env.VIBEBRIDGE_STATUS_CONTEXT; else process.env.VIBEBRIDGE_STATUS_CONTEXT = previous;
-    server.closeAllConnections();
-    await new Promise(resolve => server.close(resolve));
   }
 });

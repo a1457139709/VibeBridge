@@ -46,7 +46,6 @@ module.exports = {
     context.window.webContents.sendInputEvent({ type: 'keyUp', keyCode: 'Escape' });
     release(point);
     await until(async () => !(await trayShown()), 'empty tray hidden after the cancelled drag');
-    await evaluate('new Promise(resolve => setTimeout(resolve, 300))');
     await settle([], { [a]: [0, 0, .5, 1], [b]: [.5, 0, .5, 1] });
 
     // Dropping the header on the empty tray makes the panel ephemeral; the tray then stays below the layout area.

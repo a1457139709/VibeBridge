@@ -69,7 +69,6 @@ module.exports = {
     window.webContents.sendInputEvent({ type: 'mouseMove', ...point, button: 'left', modifiers: ['leftbuttondown'] });
     release(point);
     await until(() => evaluate('!document.querySelector(".canvas").classList.contains("dragging")'), 'release outside the layout area and the tray ended the drag');
-    await evaluate('new Promise(resolve => setTimeout(resolve, 300))');
     assert.deepEqual((await project()).layout, saved);
     await settle(layout, [t1]);
 
