@@ -4,12 +4,18 @@ import { Workbench } from '../../app/main/workbench';
 import type { AgentType, WorkbenchEvent } from '../../app/shared/model';
 import { statusOf } from './panel-views';
 
-export async function until(check: () => boolean) {
+/** Waits for the CLI double; a timeout carries the run's output so CI logs show where it stopped. */
+export async function until(check: () => boolean, output?: () => string) {
   const deadline = Date.now() + 8000;
   while (!check()) {
-    if (Date.now() > deadline) throw new Error('Timed out waiting for the CLI double');
+    if (Date.now() > deadline) throw new Error(`Timed out waiting for the CLI double${output ? `; output: ${JSON.stringify(output())}` : ''}`);
     await new Promise(resolve => setTimeout(resolve, 20));
   }
+}
+
+/** The CLI double reports hooks that failed or outlived their timeout before it continues. */
+function assertHooksCompleted(reply: string) {
+  if (/HOOK-(FAILED|TIMEOUT):/.test(reply)) throw new Error(`A hook did not complete; output: ${JSON.stringify(reply)}`);
 }
 
 /** A Workbench whose Agent runs tests/fixtures/<agent>-cli.cjs: a CLI double that loads
@@ -36,14 +42,19 @@ export async function fixture(agent: AgentType, args: string[] = []) {
     async create(total = 1) {
       const created = await workbench.createProject({ name: `${agent} reporter`, directory, total,
         counts: { codex: 0, claude: 0, pi: 0, [agent]: total } });
-      for (const { run } of created.launches) await until(() => output(run.id).includes('CLI-DOUBLE-READY'));
+      for (const { run } of created.launches) {
+        await until(() => output(run.id).includes('CLI-DOUBLE-READY'), () => output(run.id));
+        assertHooksCompleted(output(run.id));
+      }
       return created;
     },
     /** Ask the CLI double to emit one native fact; options are its other per-message controls. */
     async send(runId: string, payload?: object, options: object = {}) {
       const id = ++sequence;
+      const start = output(runId).length;
       await workbench.sendInput(runId, JSON.stringify({ id, payload, ...options }) + '\n');
-      await until(() => output(runId).includes(`ACK:${id}\r\n`));
+      await until(() => output(runId).includes(`ACK:${id}\r\n`), () => output(runId).slice(start));
+      assertHooksCompleted(output(runId).slice(start));
     },
     async context(runId: string) {
       await this.send(runId, undefined, { context: true });
