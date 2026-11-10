@@ -1,11 +1,11 @@
 import { useLocalization } from './Localization';
-import { useEffect, useLayoutEffect, useRef, useState, type CSSProperties, type PointerEvent } from 'react';
+import { useEffect, useState, type CSSProperties } from 'react';
 import type { DesktopAPI } from '../shared/api';
-import { defaultNavigation, navigationWidth, projectPanels, type NavigationPreferences, type PanelView, type ProjectView, type Snapshot } from '../shared/model';
+import { defaultNavigation, navigationWidth, projectPanels, type PanelView, type ProjectView, type Snapshot } from '../shared/model';
 import type { ProcessingState } from '../shared/processing-status';
 import { agentIcons } from './agent-icons';
 import type { PanelLocation } from './panel-location';
-import { capturePointer } from './pointer-capture';
+import { useSavedPreferences } from './saved-preferences';
 import { ProjectNavigationItem } from './ProjectManagement';
 import { ProcessingStatusIcon } from './ProcessingStatusIcon';
 
@@ -29,12 +29,6 @@ interface Host {
 export function useProjectNavigation(host: Host, api: Pick<DesktopAPI, 'saveNavigation' | 'subscribe'> = window.workbench) {
   const { t } = useLocalization();
   const { snapshot, page } = host;
-  const [preferences, setPreferences] = useState(defaultNavigation);
-  const confirmed = useRef(defaultNavigation);
-  const knownSaved = useRef(defaultNavigation);
-  const initialized = useRef(false);
-  const pending = useRef<object | undefined>(undefined);
-  const cancelResize = useRef<(() => void) | undefined>(undefined);
   const [expandedProjects, setExpandedProjects] = useState<Record<string, boolean>>({});
   // Ephemeral groups start collapsed and their expansion lives only in this interface.
   const [expandedTrays, setExpandedTrays] = useState<Record<string, boolean>>({});
@@ -42,82 +36,8 @@ export function useProjectNavigation(host: Host, api: Pick<DesktopAPI, 'saveNavi
     const id = snapshot?.activeProjectId;
     if (id) setExpandedProjects(previous => previous[id] === undefined ? { ...previous, [id]: true } : previous);
   }, [snapshot?.activeProjectId]);
-  useLayoutEffect(() => {
-    if (snapshot && !initialized.current) {
-      initialized.current = true;
-      confirmed.current = knownSaved.current = snapshot.navigation;
-      setPreferences(snapshot.navigation);
-    }
-  }, [snapshot]);
-  useLayoutEffect(() => {
-    // Observe navigation at delivery time, independently of React's batching of
-    // App snapshots. Old writes remain known for failure recovery, but cannot
-    // become the base of another operation or replace its preview while pending.
-    const unsubscribe = api.subscribe(event => {
-      if (event.kind !== 'snapshot') return;
-      initialized.current = true;
-      knownSaved.current = event.snapshot.navigation;
-      if (!pending.current) {
-        confirmed.current = knownSaved.current;
-        setPreferences(confirmed.current);
-      }
-    });
-    return () => { unsubscribe(); pending.current = undefined; cancelResize.current?.(); };
-  }, [api]);
-
-  function replaceOperation() {
-    const operation = {};
-    pending.current = operation;
-    cancelResize.current?.();
-    return operation;
-  }
-  function save(operation: object, next: NavigationPreferences) {
-    void api.saveNavigation(next).then(() => {
-      if (pending.current !== operation) return;
-      pending.current = undefined;
-      confirmed.current = knownSaved.current = next;
-      setPreferences(next);
-    }).catch(error => {
-      if (pending.current !== operation) return;
-      pending.current = undefined;
-      confirmed.current = knownSaved.current;
-      setPreferences(confirmed.current);
-      host.report(error.message);
-    });
-  }
-  function toggle() {
-    if (!snapshot) return;
-    const next = { ...confirmed.current, visible: !preferences.visible };
-    const operation = replaceOperation();
-    setPreferences(next);
-    save(operation, next);
-  }
-  function resize(event: PointerEvent<HTMLDivElement>) {
-    if (!snapshot || event.button !== 0) return;
-    event.preventDefault();
-    const operation = replaceOperation();
-    const base = confirmed.current;
-    const element = event.currentTarget, start = event.clientX;
-    const width = element.parentElement!.getBoundingClientRect().width;
-    let next = navigationWidth(width);
-    const move = (pointer: globalThis.PointerEvent) => {
-      next = navigationWidth(width + pointer.clientX - start);
-      setPreferences({ ...base, width: next });
-    };
-    const finish = (commit: boolean) => {
-      window.removeEventListener('blur', cancel); cancelResize.current = undefined;
-      if (pending.current !== operation) return;
-      if (commit) save(operation, { ...base, width: next });
-      else {
-        pending.current = undefined;
-        confirmed.current = knownSaved.current;
-        setPreferences(confirmed.current);
-      }
-    };
-    const cancel = capturePointer(element, event.pointerId, { move, finish });
-    cancelResize.current = cancel;
-    window.addEventListener('blur', cancel);
-  }
+  const { preferences, toggle, resize } = useSavedPreferences({ snapshot, read: snapshot => snapshot.navigation, fallback: defaultNavigation,
+    save: preferences => api.saveNavigation(preferences), clamp: navigationWidth, edge: 'right', report: host.report }, api);
 
   const collapsed = !preferences.visible;
   return {

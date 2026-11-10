@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { useLocalization } from './Localization';
 import { sameRepository, type PlatformFailure, type RepositoryChoices, type RepositoryReference } from '../shared/code-hosting';
 
@@ -10,9 +10,11 @@ type Loaded = RepositoryChoices | { ok: false; error: string } | undefined;
  * Only listed repositories can be chosen: the text box only searches. An unbound project starts
  * on the repository its directory's `origin` points to; the choice is bound when the project is saved.
  */
-export function RepositoryPicker({ projectId, bound, value, onChange, disabled }: {
+export function RepositoryPicker({ projectId, bound, value, onChange, disabled, holdFocus = false }: {
   projectId: string; bound: RepositoryReference | undefined; value: RepositoryReference | null;
   onChange(repository: RepositoryReference | null): void; disabled: boolean;
+  /** Opened to bind a repository: the field keeps focus while its list loads, unless the user moves it. */
+  holdFocus?: boolean;
 }) {
   const { t, text } = useLocalization();
   const [loaded, setLoaded] = useState<Loaded>();
@@ -29,16 +31,22 @@ export function RepositoryPicker({ projectId, bound, value, onChange, disabled }
     }, (error: Error) => { if (live) setLoaded({ ok: false, error: error.message }); });
     return () => { live = false; };
   }, [projectId, attempt]);
+  const field = useRef<HTMLDivElement>(null);
+  useLayoutEffect(() => {
+    const active = document.activeElement;
+    const free = !active || active === document.body || active.tagName === 'DIALOG' || field.current?.contains(active);
+    if (holdFocus && loaded && free) field.current?.querySelector<HTMLElement>('[data-repository-focus]')?.focus();
+  }, [loaded]);
   const options = loaded?.ok ? loaded.repositories.filter(repository => repository.path.toLowerCase().includes(query.trim().toLowerCase())) : [];
-  return <div className="repository-field">
+  return <div className="repository-field" ref={field}>
     <label htmlFor="edit-project-repository">{t('repository')}</label>
-    {!loaded ? <div className="field-status" role="status" aria-label={t('repository')}>{t('loadingRepositories')}</div>
+    {!loaded ? <div className="field-status" role="status" aria-label={t('repository')} tabIndex={-1} data-repository-focus>{t('loadingRepositories')}</div>
       : !loaded.ok ? <div className="field-status repository-failure" role="status" aria-label={t('repository')}>
         <span className="error-text">{'failure' in loaded ? <FailureText failure={loaded.failure} /> : text(loaded.error)}</span>
-        <button type="button" onClick={() => setAttempt(count => count + 1)}>{t('retry')}</button>
+        <button type="button" data-repository-focus onClick={() => setAttempt(count => count + 1)}>{t('retry')}</button>
       </div>
       : <>
-        <input id="edit-project-repository" role="combobox" aria-expanded="true" aria-controls="edit-project-repositories" autoComplete="off"
+        <input id="edit-project-repository" data-repository-focus role="combobox" aria-expanded="true" aria-controls="edit-project-repositories" autoComplete="off"
           placeholder={t('searchRepositories')} value={query} disabled={disabled} onChange={event => setQuery(event.target.value)}
           onKeyDown={event => {
             // Enter never submits the dialog from here; it picks the only remaining match.

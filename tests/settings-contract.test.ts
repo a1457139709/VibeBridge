@@ -13,7 +13,7 @@ const storedSettings = async (directory: string) => JSON.parse(await readFile(`$
 test('missing and invalid settings values fall back to their defaults field by field', async context => {
   const directory = await testDirectory(context, 'settings-contract-fallback');
   await writeFile(`${directory}/settings.json`, JSON.stringify({
-    language: 'fr', theme: 'dark', defaultLayout: 42,
+    language: 'fr', theme: 'dark', defaultLayout: 42, sidebarCoexistence: 'beside',
     agents: {
       codex: { command: '  ', args: ['--yes'] },
       claude: { command: ' custom-claude ', args: ['--a', 7] },
@@ -27,14 +27,35 @@ test('missing and invalid settings values fall back to their defaults field by f
     assert.deepEqual(errors, []);
     assert.deepEqual(settingsConflicts, []);
     assert.deepEqual(settings, {
-      language: 'en', theme: 'dark', defaultLayout: 'auto',
+      language: 'en', theme: 'dark', defaultLayout: 'auto', sidebarCoexistence: 'squeeze',
       agents: { codex: { command: 'codex', args: ['--yes'] }, claude: { command: ' custom-claude ', args: [] }, pi: { command: 'pi', args: [] } },
       workflows: { matt: { enabled: true, instructions: mattDeliveries('submit') } },
       shortcuts: {
         previousProject: 'Command+Shift+[', nextProject: 'Command+Shift+]', previousPanel: 'Command+[', nextPanel: 'Command+K',
         maximizePanel: 'Command+Enter', addPanel: 'Command+N', closePanel: 'Command+Shift+W', settings: 'Command+,',
+        toggleIssueSidebar: 'Command+Alt+B',
       },
     });
+  } finally { await workbench.quit(); }
+});
+
+test('the issue sidebar can be set to overlay the layout area and its shortcut joins the conflict check', async context => {
+  const directory = await testDirectory(context, 'settings-contract-issue-sidebar');
+  await writeFile(`${directory}/settings.json`, JSON.stringify({ sidebarCoexistence: 'overlay', shortcuts: { toggleIssueSidebar: 'Command+N' } }));
+  const workbench = await Workbench.open(directory);
+  try {
+    const { settings, settingsConflicts } = workbench.snapshot();
+    assert.equal(settings.sidebarCoexistence, 'overlay');
+    assert.deepEqual(settingsConflicts.map(issue => issue.field), ['shortcuts.addPanel', 'shortcuts.toggleIssueSidebar']);
+    const result = await workbench.saveSettings({ sidebarCoexistence: 'squeeze', shortcuts: { ...settings.shortcuts, toggleIssueSidebar: 'Command+Alt+B' } });
+    assert.equal(result.ok, true);
+    const stored = await storedSettings(directory);
+    assert.equal(stored.sidebarCoexistence, 'squeeze');
+    assert.equal(stored.shortcuts.toggleIssueSidebar, 'Command+Alt+B');
+    assert.deepEqual(workbench.snapshot().settingsConflicts, []);
+    const invalid = await workbench.saveSettings({ sidebarCoexistence: 'beside' as never });
+    assert.equal(invalid.ok, false);
+    assert.deepEqual(!invalid.ok && invalid.kind === 'validation' && invalid.issues.map(issue => [issue.field, issue.category]), [['sidebarCoexistence', 'appearance']]);
   } finally { await workbench.quit(); }
 });
 

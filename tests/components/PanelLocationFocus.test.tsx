@@ -50,7 +50,7 @@ const panel = (id: string): PanelView =>
 
 async function renderWorkbench() {
   const snapshot: Snapshot = {
-    navigation: { visible: true, width: 212 }, activeProjectId: 'project', settings: defaultSettings(),
+    navigation: { visible: true, width: 212 }, issueSidebar: { visible: false, width: 380 }, activeProjectId: 'project', settings: defaultSettings(),
     settingsConflicts: [], startupTheme: 'light', resolvedTheme: 'light', errors: [],
     projects: [{ id: 'project', name: 'Locating', directory: '/work/locating',
       layout: { axis: 'row', ratio: .5, first: { panel: 'first' }, second: { panel: 'second' } },

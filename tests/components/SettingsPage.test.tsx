@@ -29,10 +29,11 @@ test('category drafts survive switching, and ordinary save submits only the curr
   await click(user, 'Appearance');
   await user.click(screen.getByRole('radio', { name: 'Dark' }));
   await user.selectOptions(screen.getByRole('combobox', { name: 'Default layout' }), 'column');
+  await user.click(screen.getByRole('radio', { name: 'Cover the layout area' }));
   await click(user, 'Agent');
   assert.equal(command().value, '/draft-codex');
   await click(user, 'Appearance'); await click(user, 'Save');
-  assert.deepEqual(saveSettings.mock.calls.map(call => call.arguments), [[{ theme: 'dark', defaultLayout: 'column' }]]);
+  assert.deepEqual(saveSettings.mock.calls.map(call => call.arguments), [[{ theme: 'dark', defaultLayout: 'column', sidebarCoexistence: 'overlay' }]]);
   await click(user, 'Agent');
   assert.equal(command().value, '/draft-codex');
   await click(user, 'Discard changes');
@@ -59,7 +60,7 @@ test('save and leave submits all changed categories together and allows leaving 
   assert.match(screen.getByRole('dialog').textContent!, /Agent, Appearance, Keyboard shortcuts/);
   await click(user, 'Save and return');
   const patch = { agents: { ...saved.agents, codex: { command: '/new-codex', args: [] } }, theme: 'dark' as const,
-    defaultLayout: 'auto' as const, shortcuts: { ...saved.shortcuts, nextPanel: 'Command+K' } };
+    defaultLayout: 'auto' as const, sidebarCoexistence: 'squeeze' as const, shortcuts: { ...saved.shortcuts, nextPanel: 'Command+K' } };
   assert.deepEqual(saveSettings.mock.calls.map(call => call.arguments), [[patch]]);
   assert.equal(await ref.current!.requestLeave(), false);
   assert.equal(screen.getByRole<HTMLButtonElement>('button', { name: '‹ Back' }).disabled, true);

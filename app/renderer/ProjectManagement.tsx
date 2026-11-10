@@ -8,6 +8,9 @@ import { RepositoryPicker } from './RepositoryPicker';
 import { sameRepository, type RepositoryReference } from '../shared/code-hosting';
 import './project-management.css';
 
+/** The panels whose runs a directory change would restart. */
+export const runningPanels = (project: ProjectView) => project.panels.filter(panel => panel.run?.state === 'running').length;
+
 export function ProjectNavigationItem({ project, openProject, children }: {
   project: ProjectView; openProject(id: string): void; children: ReactNode;
 }) {
@@ -31,12 +34,15 @@ export function ProjectNavigationItem({ project, openProject, children }: {
       <button role="menuitem" onClick={() => { setMenu(undefined); setAction('edit'); }}>{t('editProject')}</button>
       <button role="menuitem" onClick={() => { setMenu(undefined); setAction('delete'); }}>{t('deleteProject')}</button>
     </div>}
-    {action === 'edit' && <ProjectEditor project={project} running={project.panels.filter(panel => panel.run?.state === 'running').length} close={() => setAction(undefined)} openProject={id => { setAction(undefined); openProject(id); }} />}
+    {action === 'edit' && <ProjectEditor project={project} running={runningPanels(project)} close={() => setAction(undefined)} openProject={id => { setAction(undefined); openProject(id); }} />}
     {action === 'delete' && <DeleteProject project={project} close={() => setAction(undefined)} />}
   </div>;
 }
 
-function ProjectEditor({ project, running, close, openProject }: { project: Project; running: number; close(): void; openProject(id: string): void }) {
+/** Edits a project's name, directory and Repository Binding. `focus` names the field that holds focus when it opens. */
+export function ProjectEditor({ project, running, close, openProject, focus = 'name' }: {
+  project: Project; running: number; close(): void; openProject(id: string): void; focus?: 'name' | 'repository';
+}) {
   const { t, text } = useLocalization();
   const dialog = useRef<HTMLDialogElement>(null);
   const [original] = useState(project);
@@ -57,7 +63,11 @@ function ProjectEditor({ project, running, close, openProject }: { project: Proj
     : duplicate ? t('duplicateEdit', { name: directory.existingProjectName! }) : '';
   const changedDirectory = !!directory?.valid && !duplicate && directory.directory !== original.directory;
   const canSave = !busy && !choosing && !checking && !nameError && !directoryError;
-  useEffect(() => { const element = dialog.current!; element.showModal(); return () => element.close(); }, []);
+  useEffect(() => {
+    const element = dialog.current!; element.showModal();
+    if (focus === 'repository') element.querySelector<HTMLElement>('[data-repository-focus]')?.focus();
+    return () => element.close();
+  }, []);
   useEffect(() => {
     let live = true;
     if (!path) return;
@@ -90,14 +100,14 @@ function ProjectEditor({ project, running, close, openProject }: { project: Proj
         <LaunchResults launches={result.launches} /></>}
       <div className="project-dialog-actions"><button className="primary" onClick={close}>{t('finish')}</button></div>
     </> : <form onSubmit={event => { event.preventDefault(); if (!changedDirectory && !confirming) save(false); }}>
-      <label htmlFor="edit-project-name">{t('projectName')}</label><input id="edit-project-name" autoFocus autoComplete="off" value={name} disabled={busy} aria-invalid={!!nameError} aria-describedby="edit-project-name-status" onChange={event => { setNameInputError(''); setName(event.target.value); }} onPaste={event => {
+      <label htmlFor="edit-project-name">{t('projectName')}</label><input id="edit-project-name" autoFocus={focus === 'name'} autoComplete="off" value={name} disabled={busy} aria-invalid={!!nameError} aria-describedby="edit-project-name-status" onChange={event => { setNameInputError(''); setName(event.target.value); }} onPaste={event => {
         if (projectNameHasControls(event.clipboardData.getData('text'))) { event.preventDefault(); setNameInputError(message('nameControls')); }
         else setNameInputError('');
       }} />
       {nameError && <div id="edit-project-name-status" className="field-status error-text">{nameError}</div>}
       <label htmlFor="edit-project-directory">{t('localDirectory')}</label><div className="directory-input"><input id="edit-project-directory" autoComplete="off" value={path} disabled={busy} aria-invalid={!!directoryError} aria-describedby="edit-project-directory-status" onChange={event => setPath(event.target.value)} /><button type="button" disabled={busy || choosing} aria-label={t('chooseNewDirectory')} onClick={async () => { setChoosing(true); try { const selected = await window.workbench.chooseDirectory(); if (selected !== null) setPath(selected); } catch (error) { setError((error as Error).message); } finally { setChoosing(false); } }}>{t('browse')}</button></div>
       {(checking || directoryError) && <div id="edit-project-directory-status" className="field-status" aria-live="polite">{checking ? t('checkingDirectory') : <span className="error-text">{directoryError}</span>}{duplicate && <button type="button" className="open-existing-project" onClick={() => openProject(directory!.existingProjectId!)}>{t('openExisting')}</button>}</div>}
-      <RepositoryPicker projectId={project.id} bound={original.repository} value={repository} onChange={setRepository} disabled={busy || !!confirming} />
+      <RepositoryPicker projectId={project.id} bound={original.repository} value={repository} onChange={setRepository} disabled={busy || !!confirming} holdFocus={focus === 'repository'} />
       {changedDirectory && <section className="directory-change" aria-label={t('directoryChange')}><dl><dt>{t('oldDirectory')}</dt><dd>{original.directory}</dd><dt>{t('newDirectory')}</dt><dd>{directory!.directory}</dd></dl><p>{t('currentRuns', { count: running })}</p>
         <p><strong>{t('changeAndRestart')}: </strong>{t('restartImpact')}</p>
         <p><strong>{t('changeWithoutRestart')}: </strong>{t('noRestartImpact')}</p>

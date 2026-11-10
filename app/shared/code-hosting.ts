@@ -26,6 +26,12 @@ export interface PlatformDescription {
   capabilities: PlatformCapability[];
 }
 
+/** Each platform's description, shared by its adapter and the UI that names it. */
+export const platformDescriptions: Record<PlatformId, PlatformDescription> = {
+  github: { id: 'github', name: 'GitHub', installUrl: 'https://cli.github.com', signInCommand: 'gh auth login',
+    capabilities: ['subIssues', 'nativeBlocking', 'mergeMethods', 'mergeQueue', 'requiredChecks'] },
+};
+
 /** Why a platform call failed: its CLI is not installed, not signed in, cannot reach the
  * repository (missing and forbidden look the same), or anything else, which may pass. */
 export type PlatformFailureKind = 'notInstalled' | 'signedOut' | 'unreachable' | 'transient';

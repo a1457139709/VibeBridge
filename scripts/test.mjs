@@ -16,8 +16,11 @@ try {
   const binary = resolve('node_modules/electron/dist', (await readFile('node_modules/electron/path.txt', 'utf8')).trim());
   await build({ entryPoints: { 'pi-reporter': 'app/main/agent-status/pi/reporter.ts' }, outdir: directory, bundle: true,
     platform: 'node', format: 'esm', outExtension: { '.js': '.mjs' } });
+  // Tests make their own git repositories. Inside a git hook, GIT_DIR and its siblings would point every
+  // git command, the tests' and the Workbench's, at the repository being committed instead.
+  const environment = Object.fromEntries(Object.entries(process.env).filter(([name]) => !name.startsWith('GIT_')));
   const result = spawnSync(binary, ['--test', ...entries.map(f => resolve(directory, basename(f).replace('.ts', '.cjs')))],
-    { stdio: 'inherit', env: { ...process.env, ELECTRON_RUN_AS_NODE: '1', VIBEBRIDGE_TEST_NODE: process.execPath } });
+    { stdio: 'inherit', env: { ...environment, ELECTRON_RUN_AS_NODE: '1', VIBEBRIDGE_TEST_NODE: process.execPath } });
   if (result.error) throw result.error;
   process.exitCode = result.status ?? 1;
 } finally { await rm(directory, { recursive: true, force: true }); }

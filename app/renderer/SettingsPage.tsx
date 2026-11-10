@@ -73,7 +73,7 @@ function SettingsEditor({ settings, startupTheme, initialCategory = settingsCate
   const [draft, setDraft] = useState(settings);
   const [saved, setSaved] = useState(settings);
   useEffect(() => setSaved(settings), [settings]);
-  const { agents, workflows, theme, defaultLayout, shortcuts } = draft;
+  const { agents, workflows, theme, defaultLayout, sidebarCoexistence, shortcuts } = draft;
   const [submittedIssues, setSubmittedIssues] = useState<SettingsIssue[]>([]);
   const issues = [...submittedIssues, ...settingsIssues(draft)];
   const fieldError = (field: string) => text(issues.find(issue => issue.field === field)?.message ?? '');
@@ -182,6 +182,9 @@ function SettingsEditor({ settings, startupTheme, initialCategory = settingsCate
             <hr /><label htmlFor="default-layout">{t('defaultLayout')}</label><select id="default-layout" data-settings-field="defaultLayout" aria-invalid={!!fieldError('defaultLayout') || undefined} aria-describedby={fieldError('defaultLayout') ? 'layout-error' : undefined} value={defaultLayout} onChange={event => changeDraft({ defaultLayout: event.target.value as Settings['defaultLayout'] })}><option value="auto">{t('layoutAuto')}</option><option value="row">{t('layoutRow')}</option><option value="column">{t('layoutColumn')}</option></select>
             {fieldError('defaultLayout') && <p id="layout-error" className="error-text" role="alert">{fieldError('defaultLayout')}</p>}
             <p className="muted">{t('layoutHelp')}</p>
+            <hr /><h2>{t('sidebarCoexistence')}</h2><p className="muted">{t('sidebarCoexistenceHelp')}</p>
+            <div className="theme-options" role="radiogroup" aria-label={t('sidebarCoexistence')} data-settings-field="sidebarCoexistence" tabIndex={-1} aria-invalid={!!fieldError('sidebarCoexistence') || undefined} aria-describedby={fieldError('sidebarCoexistence') ? 'sidebar-coexistence-error' : undefined}>{(['squeeze', 'overlay'] as const).map(option => <label key={option}><input type="radio" name="sidebarCoexistence" value={option} checked={sidebarCoexistence === option} onChange={() => changeDraft({ sidebarCoexistence: option })} />{t(option === 'squeeze' ? 'sidebarSqueeze' : 'sidebarOverlay')}</label>)}</div>
+            {fieldError('sidebarCoexistence') && <p id="sidebar-coexistence-error" className="error-text" role="alert">{fieldError('sidebarCoexistence')}</p>}
           </form>}
           {section === 'shortcuts' && <>
             <p className="muted">{t('shortcutHelp')}</p>

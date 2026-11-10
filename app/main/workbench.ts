@@ -4,16 +4,15 @@ import type { Language, ProjectEdit, ProjectEditResult } from '../shared/model';
 import { randomUUID } from 'node:crypto';
 import { realpath, stat } from 'node:fs/promises';
 import { basename } from 'node:path';
-import { defaultNavigation, navigationSchema, navigationWidth, type NavigationPreferences, assignedAgents, arrange, validateDraft, removeFromLayout, parseLayout, layoutStructure, layoutPanelIds, panelPosition, projectPanels, panelLimitReached, agentTypes, type AgentType, type DirectoryResult, type LaunchResult, type Layout, type Panel, type Project, type ProjectCreation, type ProjectDraft, type PanelCreation, type Settings, type Snapshot, type WorkbenchEvent } from '../shared/model';
+import { defaultIssueSidebar, defaultNavigation, issueSidebarSchema, issueSidebarWidth, navigationSchema, navigationWidth, type IssueSidebarPreferences, type NavigationPreferences, assignedAgents, arrange, validateDraft, removeFromLayout, parseLayout, layoutStructure, layoutPanelIds, panelPosition, projectPanels, panelLimitReached, agentTypes, type AgentType, type DirectoryResult, type LaunchResult, type Layout, type Panel, type Project, type ProjectCreation, type ProjectDraft, type PanelCreation, type Settings, type Snapshot, type WorkbenchEvent } from '../shared/model';
 import { ProjectStore } from './storage';
 import { SettingsFile, defaultSettings } from './settings';
 import { settingsConflicts, type SettingsSaveResult } from '../shared/settings';
 import { RunSupervision } from './run-supervision';
 import { commandEnvironment } from '../terminal/environment';
-import { repositoryReferenceSchema, type RepositoryChoices, type RepositoryReference } from '../shared/code-hosting';
-import { PlatformError, type CommandEnvironment } from './code-hosting/platform';
-import { defaultPlatform, platforms } from './code-hosting/platforms';
-import { originUrl } from './code-hosting/origin';
+import type { RepositoryChoices, RepositoryReference } from '../shared/code-hosting';
+import type { CommandEnvironment } from './code-hosting/platform';
+import { bindableRepository, repositoryChoices } from './code-hosting/binding';
 
 export class WorkbenchOpenError extends Error {
   constructor(error: unknown, readonly language: Language) {
@@ -22,7 +21,7 @@ export class WorkbenchOpenError extends Error {
 }
 
 export class Workbench {
-  private state: Omit<Snapshot, 'projects'> & { projects: Project[] } = { navigation: { ...defaultNavigation }, projects: [], activeProjectId: null, settings: defaultSettings(), settingsConflicts: [], startupTheme: 'system', resolvedTheme: 'light', errors: [] };
+  private state: Omit<Snapshot, 'projects'> & { projects: Project[] } = { navigation: { ...defaultNavigation }, issueSidebar: { ...defaultIssueSidebar }, projects: [], activeProjectId: null, settings: defaultSettings(), settingsConflicts: [], startupTheme: 'system', resolvedTheme: 'light', errors: [] };
   private supervision: RunSupervision;
   private listeners = new Set<(event: WorkbenchEvent) => void>();
   private operations: Promise<unknown> = Promise.resolve();
@@ -252,39 +251,23 @@ export class Workbench {
     await this.store.navigation(navigation);
     this.state.navigation = navigation; this.changed();
   }); }
+  saveIssueSidebar(preferences: IssueSidebarPreferences) { return this.operation(async () => {
+    const parsed = issueSidebarSchema.safeParse(preferences);
+    if (!parsed.success) throw new Error(message('issueSidebarInvalid'));
+    const issueSidebar = { ...parsed.data, width: issueSidebarWidth(parsed.data.width) };
+    await this.store.issueSidebar(issueSidebar);
+    this.state.issueSidebar = issueSidebar; this.changed();
+  }); }
   private commandEnvironment() { return this.environment ??= commandEnvironment().catch(error => { this.environment = undefined; throw error; }); }
   /** The repositories the platform CLI's signed-in account may bind to the project, with the one its directory's `origin` points to. */
   async repositoryChoices(projectId: string): Promise<RepositoryChoices> {
     const project = this.project(projectId);
-    const platform = platforms[project.repository?.platform ?? defaultPlatform];
-    const environment = await this.commandEnvironment();
-    try {
-      const [{ account, paths }, origin] = await Promise.all([platform.bindable(environment), originUrl(project.directory, environment)]);
-      const originPath = origin && platform.remotePath(origin)?.toLowerCase();
-      const suggested = paths.find(path => path.toLowerCase() === originPath);
-      const reference = (path: string): RepositoryReference => ({ platform: platform.description.id, path });
-      return { ok: true, platform: platform.description, account, repositories: paths.map(reference), suggested: suggested ? reference(suggested) : null };
-    } catch (error) {
-      if (error instanceof PlatformError) return { ok: false, failure: error.failure };
-      throw error;
-    }
+    return repositoryChoices(project, await this.commandEnvironment());
   }
   /** Binds one of the project's repository choices, or with null removes its binding. A project has at most one binding. */
   async bindRepository(projectId: string, repository: RepositoryReference | null): Promise<void> {
     this.project(projectId);
-    if (repository) {
-      const parsed = repositoryReferenceSchema.safeParse(repository);
-      if (!parsed.success) throw new Error(message('repositoryNotListed'));
-      repository = parsed.data;
-      const platform = platforms[repository.platform];
-      let paths: string[];
-      try { ({ paths } = await platform.bindable(await this.commandEnvironment())); }
-      catch (error) {
-        if (error instanceof PlatformError) throw new Error(message('repositoryListFailed', { platform: platform.description.name, reason: detail(error.failure.output || error.failure.kind) }));
-        throw error;
-      }
-      if (!paths.includes(repository.path)) throw new Error(message('repositoryNotListed'));
-    }
+    if (repository) repository = await bindableRepository(repository, () => this.commandEnvironment());
     const binding = repository;
     return this.operation(async () => {
       const project = this.project(projectId);

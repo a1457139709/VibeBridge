@@ -32,7 +32,7 @@ function renderWorkbench(resident = false) {
   const moved: [string, string][] = [];
   const listeners = new Set<(event: WorkbenchEvent) => void>();
   const snapshot: Snapshot = {
-    navigation: { visible: true, width: 212 }, activeProjectId: 'project', settings: defaultSettings(),
+    navigation: { visible: true, width: 212 }, issueSidebar: { visible: false, width: 380 }, activeProjectId: 'project', settings: defaultSettings(),
     settingsConflicts: [], startupTheme: 'light', resolvedTheme: 'light', errors: [],
     projects: [{ id: 'project', name: 'Placement', directory: '/work/placement',
       layout: resident ? { panel: 'resident' } : null,
