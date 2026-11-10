@@ -53,7 +53,7 @@ test('summary counts the current project\'s panels by state in fixed order and a
   await screen.findByRole('button', { name: '1 Needs input' });
   assert.deepEqual(within(bar).getAllByRole('button').map(button => button.textContent), ['1 Ready', '1 Needs input', '2 Done', '0 Error']);
   assert.equal(bar.textContent?.includes('Project title'), false);
-  for (const entry of within(bar).getAllByRole('button')) assert.equal(entry.title, entry.getAttribute('aria-label'), 'names survive a collapse to icon and count');
+  for (const entry of within(bar).getAllByRole('button')) assert.equal(entry.dataset.hint, entry.getAttribute('aria-label'), 'names survive a collapse to icon and count');
   assert.equal(within(bar).getByRole<HTMLButtonElement>('button', { name: '0 Error' }).disabled, true);
   await user.click(within(bar).getByRole('button', { name: '1 Needs input' }));
   const list = screen.getByRole('dialog', { name: 'Needs input' });

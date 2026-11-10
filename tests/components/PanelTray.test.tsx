@@ -27,7 +27,7 @@ test('tray cards show each panel\'s Agent type, session title or placeholder and
   renderTray('en');
   const tray = screen.getByRole('region', { name: 'Ephemeral panel tray' });
   const cards = within(tray).getAllByRole('button');
-  assert.deepEqual(cards.map(card => card.title), ['Claude Code · Review the parser', 'pi · Untitled task']);
+  assert.deepEqual(cards.map(card => card.dataset.hint), ['Claude Code · Review the parser', 'pi · Untitled task']);
   assert.ok(cards[0].classList.contains('claude')); assert.ok(cards[1].classList.contains('pi'));
   assert.deepEqual(cards.map(card => within(card).getByRole('img').getAttribute('aria-label')), ['Needs input', 'Busy']);
   assert.deepEqual(cards.map(card => card.querySelector('.session-title')?.textContent), ['Review the parser', 'Untitled task']);
@@ -38,7 +38,7 @@ test('clicking a collapsed card opens it, and clicking the open card collapses i
   const { calls, rerender, user } = renderTray('zh-CN');
   const tray = screen.getByRole('region', { name: '临时面板托盘' });
   const [titled, untitled] = within(tray).getAllByRole('button');
-  assert.equal(untitled.title, 'pi · 未命名任务');
+  assert.equal(untitled.dataset.hint, 'pi · 未命名任务');
   assert.deepEqual([titled, untitled].map(card => card.getAttribute('aria-pressed')), ['false', 'false']);
   await user.click(untitled);
   assert.deepEqual(calls, ['open:untitled']);

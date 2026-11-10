@@ -1,6 +1,10 @@
 /* The tray never scrolls or overflows: cards shrink together down to a fixed minimum that
    still shows the Agent colour edge and the processing state icon. */
-.panel-tray { --tray-card-minimum: 34px; height: 34px; flex-shrink: 0; display: flex; align-items: center; gap: 6px; padding: 0 8px 6px; overflow: hidden; }
+.panel-tray { --tray-card-minimum: 34px; height: 41px; flex-shrink: 0; display: flex; align-items: center; gap: 6px; padding: 0 8px; overflow: hidden; border-top: 1px solid var(--line); }
+/* An empty tray lies over the bottom of the layout area, so showing it during a drag never resizes the panels.
+   The drag's layout drops sit above it (panel-drag.ts). */
+.panel-tray.empty { position: absolute; left: 0; right: 0; bottom: 0; z-index: 3; visibility: hidden; background: var(--canvas); }
+.canvas.dragging:not(.placing) ~ .panel-tray.empty { visibility: visible; }
 .tray-card { flex: 0 1 200px; min-width: var(--tray-card-minimum); height: 28px; display: flex; align-items: center; gap: 6px; padding: 0 8px 0 9px; border: 1px solid var(--line); border-radius: 7px;
   background: var(--surface); box-shadow: inset 3px 0 var(--brand); font-size: 11px; text-align: left; overflow: hidden; }
 .tray-card:hover { background: color-mix(in srgb, var(--brand) 6%, var(--surface)); }

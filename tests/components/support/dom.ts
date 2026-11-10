@@ -2,7 +2,7 @@ import { JSDOM } from 'jsdom';
 import escape from 'css.escape';
 
 const { window } = new JSDOM('<!doctype html><html><body></body></html>', { url: 'http://localhost/' });
-for (const key of ['window', 'document', 'navigator', 'HTMLElement', 'HTMLInputElement', 'HTMLDialogElement', 'Node', 'MutationObserver', 'Event', 'MouseEvent', 'KeyboardEvent']) {
+for (const key of ['window', 'document', 'navigator', 'HTMLElement', 'HTMLInputElement', 'HTMLDialogElement', 'Node', 'MutationObserver', 'DOMRect', 'Event', 'MouseEvent', 'KeyboardEvent']) {
   Object.defineProperty(globalThis, key, { configurable: true, value: key === 'window' ? window : window[key as keyof typeof window] });
 }
 Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true, CSS: { escape } });

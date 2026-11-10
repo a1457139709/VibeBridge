@@ -161,7 +161,7 @@ function SettingsEditor({ settings, startupTheme, initialCategory = settingsCate
               const conflict = conflicts[groupIndex];
               const issue = fieldError(`shortcuts.${action}`);
               return <div className={`shortcut-row ${conflict ? 'shortcut-conflict' : ''}`} style={conflict ? { '--conflict-color': conflictColors[groupIndex] } as CSSProperties : undefined} key={action}><div><label htmlFor={`shortcut-${action}`}>{t(action === 'settings' ? 'openSettings' : action)}</label><small>{t('shortcutDefault', { binding: displayShortcut(defaults[action]) })}</small>{issue && <p id={`conflict-${action}`} className="shortcut-conflict-message error-text">{issue}</p>}</div>
-              <input id={`shortcut-${action}`} data-settings-field={`shortcuts.${action}`} data-shortcut-recorder aria-invalid={!!issue || undefined} aria-describedby={issue ? `conflict-${action}` : undefined} title={shortcuts[action]} readOnly value={recording === action ? t('shortcutRecording') : displayShortcut(shortcuts[action])}
+              <input id={`shortcut-${action}`} data-settings-field={`shortcuts.${action}`} data-shortcut-recorder aria-invalid={!!issue || undefined} aria-describedby={issue ? `conflict-${action}` : undefined} data-hint={shortcuts[action]} readOnly value={recording === action ? t('shortcutRecording') : displayShortcut(shortcuts[action])}
                 onFocus={() => setRecording(action)} onBlur={() => setRecording(undefined)} onKeyDown={event => {
                   if (event.key === 'Tab' && !event.metaKey && !event.ctrlKey && !event.altKey) return;
                   event.preventDefault(); event.stopPropagation();

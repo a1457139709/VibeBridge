@@ -1,3 +1,4 @@
+import { HoverHints } from './HoverHints';
 import { Localization, useLocalization } from './Localization';
 import { useEffect, useRef, useState } from 'react';
 import type {} from '../shared/api';
@@ -105,6 +106,7 @@ function WorkbenchView({ state, setState }: { state?: Snapshot; setState(snapsho
       {state && settingsOpen && <SettingsPage ref={settingsPage} settings={state.settings} startupTheme={state.startupTheme} initialCategory={initialSettingsCategory} report={report} back={() => void leaveSettings()} />}
     </main></div>
     <Notices notices={notices} dismiss={dismiss} />
+    <HoverHints />
     {conflictCategory && !settingsOpen && <SettingsConflictDialog category={conflictCategory} openSettings={() => openSettings(conflictCategory)} />}
   </div>;
 }

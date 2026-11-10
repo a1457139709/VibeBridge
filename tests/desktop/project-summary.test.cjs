@@ -129,7 +129,7 @@ module.exports = {
               text: [...document.querySelector('.workspace-toolbar').childNodes].filter(node => !node.matches?.('.project-summary')).map(node => node.textContent).join(''),
               entries: [...document.querySelectorAll('.summary-entry')].map(entry => {
                 const box = entry.getBoundingClientRect();
-                return { named: entry.querySelector('.summary-name').checkVisibility(), label: entry.getAttribute('aria-label'), title: entry.title,
+                return { named: entry.querySelector('.summary-name').checkVisibility(), label: entry.getAttribute('aria-label'), hint: entry.dataset.hint,
                   inside: box.left >= summary.left && box.right <= summary.right && box.top >= bar.top && box.bottom <= bar.bottom };
               }) };
           })()`);
@@ -138,7 +138,7 @@ module.exports = {
           assert.equal(toolbar.entries.length, 4);
           for (const entry of toolbar.entries) {
             assert.equal(entry.named, !collapsed, `${entry.label} at ${width}px`);
-            assert.ok(entry.inside); assert.equal(entry.title, entry.label);
+            assert.ok(entry.inside); assert.equal(entry.hint, entry.label);
           }
           await click(language === 'en' ? navigation : navigation.startsWith('Collapse') ? '折叠项目导航' : '展开项目导航');
         }

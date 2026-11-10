@@ -17,7 +17,7 @@ module.exports = {
     const assertDrafts = async expectedCommand => {
       await click('Agent'); assert.equal(await evaluate('document.getElementById("command-codex").value'), expectedCommand);
       await click('Appearance'); assert.ok(await evaluate('document.querySelector("input[value=dark]").checked'));
-      await click('Keyboard shortcuts'); assert.equal(await evaluate('document.getElementById("shortcut-nextPanel").getAttribute("title")'), 'Command+K');
+      await click('Keyboard shortcuts'); assert.equal(await evaluate('document.getElementById("shortcut-nextPanel").getAttribute("data-hint")'), 'Command+K');
     };
     await click('Global settings'); await click('Agent');
     await fill('command-codex', `${command}-draft`);

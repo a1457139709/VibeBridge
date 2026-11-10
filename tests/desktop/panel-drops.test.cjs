@@ -26,9 +26,12 @@ module.exports = {
     const press = id => pressOn(`[data-panel-id="${id}"] .panel-header`);
 
     // Edge: the dragged panel fills the bottom of the layout area, so two panels stack top and bottom.
-    let canvas = await rect('.canvas');
-    let point = { x: Math.round(canvas.left + canvas.width / 4), y: Math.round(canvas.bottom - 8) };
-    await press(a); await hover(point, 'Drop preview: Codex along the bottom of the layout area');
+    // While a resident panel is dragged, the empty tray's drop target covers the bottom of the layout
+    // area, so the layout's bottom edge sits just above the tray.
+    await press(a);
+    const canvas = await rect('.canvas'), tray = await rect('.panel-tray');
+    let point = { x: Math.round(canvas.left + canvas.width / 4), y: Math.round(tray.top - 8) };
+    await hover(point, 'Drop preview: Codex along the bottom of the layout area');
     assert.deepEqual(await previewBox(), [0, .5, 1, .5]);
     release(point);
     await settle({ [a]: [0, .5, 1, .5], [b]: [0, 0, 1, .25], [c]: [0, .25, 1, .25] });

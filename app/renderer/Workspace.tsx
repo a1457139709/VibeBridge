@@ -35,7 +35,7 @@ function AgentPanel({ panel, position, focused, actions, select, focusChanged, h
   return <section data-panel-id={panel.id} className={`panel-slot ${panel.agent}`} style={position}><div className={`agent-panel ${focused ? 'focused' : ''}`}
     onMouseDown={event => { if (!(event.target as HTMLElement).closest('.panel-header')) select(); }} onFocusCapture={focusChanged}>
     <header className="panel-header" onPointerDown={headerPointerDown} onClick={headerClick}>
-      <span className="agent-title" title={title}><span className="agent-symbols"><ProcessingStatusIcon state={panel.status} focusable /><span className="agent-mark" aria-hidden="true">{agentIcons[panel.agent]}</span></span><span className="session-title">{title}</span></span>
+      <span className="agent-title" data-hint={title}><span className="agent-symbols"><ProcessingStatusIcon state={panel.status} focusable /><span className="agent-mark" aria-hidden="true">{agentIcons[panel.agent]}</span></span><span className="session-title">{title}</span></span>
       <span className="panel-actions">{actions}</span>
     </header><TerminalView run={panel.run} />
   </div></section>;
@@ -67,7 +67,11 @@ export function Workspace({ project, report, openAgentSettings, location, visibl
       report(error.message);
     });
   };
-  const moveToTray = (panelId: string) => { void window.workbench.moveToTray(project.id, panelId).catch(error => report(error.message)); };
+  const moveToTray = (panelId: string) => {
+    // A panel moved to the tray waits there collapsed, so a maximized resident panel is restored first.
+    if (maximized === panelId) viewing.toggleMaximize(panelId);
+    void window.workbench.moveToTray(project.id, panelId).catch(error => report(error.message));
+  };
   useLayoutEffect(() => {
     const context: PanelInteractionContext = { projectId: project.id, layout: project.layout, language,
       panels: project.panels.map(({ id, agent, run }) => ({ id, agent, runId: run?.id })),
@@ -114,8 +118,10 @@ export function Workspace({ project, report, openAgentSettings, location, visibl
         // Hidden panels stay mounted, so their terminals keep their screens.
         const position: CSSProperties = maximized === panel.id ? maximizedPosition
           : { left: `${box.x * 100}%`, top: `${box.y * 100}%`, width: `${box.width * 100}%`, height: `${box.height * 100}%`, visibility: maximized ? 'hidden' : 'visible' };
-        return agentPanel(panel, position, focused === panel.id,
-          <PanelAction label={maximized === panel.id ? t('restorePanel') : t('enlargePanel')} run={() => viewing.toggleMaximize(panel.id)}>⤢</PanelAction>);
+        return agentPanel(panel, position, focused === panel.id, <>
+          <PanelAction label={t('moveToTray')} run={() => moveToTray(panel.id)}>⇣</PanelAction>
+          <PanelAction label={maximized === panel.id ? t('restorePanel') : t('enlargePanel')} run={() => viewing.toggleMaximize(panel.id)}>⤢</PanelAction>
+        </>);
       })}
       {openTrayPanel && agentPanel(openTrayPanel, maximizedPosition, true,
         <PanelAction label={t('collapsePanel')} run={viewing.collapse}>⌄</PanelAction>)}
