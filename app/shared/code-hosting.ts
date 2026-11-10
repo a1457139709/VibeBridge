@@ -42,3 +42,32 @@ export interface PlatformFailure { kind: PlatformFailureKind; platform: Platform
  * directory's `origin` points to; it is not bound until the user saves it. */
 export type RepositoryChoices = { ok: true; platform: PlatformDescription; account: string; repositories: RepositoryReference[]; suggested: RepositoryReference | null }
   | { ok: false; failure: PlatformFailure };
+
+/** What an issue list shows: a server-side search over titles or the issue number, open or
+ * closed, and labels the issues must all carry. A fresh list is open with no search or labels. */
+export interface IssueFilter { search: string; state: 'open' | 'closed'; labels: string[] }
+export const defaultIssueFilter: IssueFilter = { search: '', state: 'open', labels: [] };
+export const issueFilterSchema = z.strictObject({ search: z.string(), state: z.enum(['open', 'closed']), labels: z.array(z.string()) });
+/** How many items one list page holds. */
+export const listPageSize = 25;
+
+/** `color` is the platform's hex colour without `#`. */
+export interface IssueLabel { name: string; color: string }
+/** Why a closed issue was closed. */
+export type IssueClosure = 'completed' | 'notPlanned' | 'duplicate';
+export interface IssueSummary {
+  number: number;
+  title: string;
+  state: 'open' | 'closed';
+  /** Null while open, or when the platform does not say. */
+  closedAs: IssueClosure | null;
+  /** ISO 8601. */
+  createdAt: string;
+  labels: IssueLabel[];
+  url: string;
+}
+/** One page of a list, newest first. `next` is the platform's opaque cursor for the following
+ * page, null on the last. `labels` are the repository's labels, offered as filters. */
+export interface IssuePage { issues: IssueSummary[]; next: string | null; labels: IssueLabel[] }
+/** A list page, or why it could not be read. An unreachable repository names the signed-in account when the platform tells it. */
+export type IssuePageResult = { ok: true; page: IssuePage } | { ok: false; failure: PlatformFailure; account?: string };

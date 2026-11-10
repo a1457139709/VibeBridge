@@ -4,6 +4,7 @@ import { platformDescriptions } from '../shared/code-hosting';
 import { defaultIssueSidebar, issueSidebarWidth, type ProjectView, type Snapshot } from '../shared/model';
 import { useLocalization } from './Localization';
 import { useSavedPreferences } from './saved-preferences';
+import { IssueLists } from './IssueLists';
 import './issue-sidebar.css';
 
 interface Host {
@@ -43,6 +44,8 @@ export function useIssueSidebar(host: Host, api: Pick<DesktopAPI, 'saveIssueSide
       <div className="issue-sidebar-resize" role="separator" aria-label={t('resizeIssueSidebar')} aria-orientation="vertical" onPointerDown={resize} />
       <header className="issue-sidebar-heading"><span className="issue-sidebar-title">{title}</span>
         {repository && <span className="issue-sidebar-repository">{repository.path}</span>}</header>
+      {project && repository && <IssueLists key={`${project.id}:${repository.platform}:${repository.path}`} projectId={project.id} repository={repository}
+        changeBinding={() => host.bindRepository(project)} />}
       {project && !repository && <div className="issue-sidebar-state">
         <p>{t('issueSidebarUnbound')}</p>
         <button className="primary" onClick={() => host.bindRepository(project)}>{t('bindRepository')}</button>

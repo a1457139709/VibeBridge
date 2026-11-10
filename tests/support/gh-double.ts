@@ -2,10 +2,23 @@ import { chmod, mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { join, resolve } from 'node:path';
 import type { TestContext } from 'node:test';
 
+/** An issue of every repository the double lists, as GitHub's API names its fields. */
+export interface GhIssue {
+  number: number;
+  title: string;
+  state: 'OPEN' | 'CLOSED';
+  stateReason: 'COMPLETED' | 'NOT_PLANNED' | 'DUPLICATE' | null;
+  createdAt: string;
+  labels: string[];
+}
+
 export interface GhState {
   login?: string;
+  /** Repositories the account may bind; any other repository is not found. */
   repositories?: string[];
   pageSize?: number;
+  issues?: GhIssue[];
+  labels?: { name: string; color: string }[];
   failure?: { exit: number; stdout?: string; stderr?: string };
 }
 

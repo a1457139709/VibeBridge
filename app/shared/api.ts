@@ -1,6 +1,6 @@
 import type { IssueSidebarPreferences, NavigationPreferences, AgentType, CommandCheck, DirectoryResult, Layout, ProjectCreation, PanelCreation, ProjectDraft, ProjectEdit, ProjectEditResult, Settings, Snapshot, WorkbenchEvent } from './model';
 import type { SettingsSaveResult } from './settings';
-import type { RepositoryChoices, RepositoryReference } from './code-hosting';
+import type { IssueFilter, IssuePageResult, RepositoryChoices, RepositoryReference } from './code-hosting';
 
 export interface DesktopAPI {
   snapshot(): Promise<Snapshot>;
@@ -11,6 +11,8 @@ export interface DesktopAPI {
   repositoryChoices(projectId: string): Promise<RepositoryChoices>;
   /** Binds one of the project's repository choices; null removes the binding. */
   bindRepository(projectId: string, repository: RepositoryReference | null): Promise<void>;
+  /** One page of the issues of the project's bound repository, or why the platform could not read it; a null cursor reads the first page. */
+  issuePage(projectId: string, filter: IssueFilter, cursor: string | null): Promise<IssuePageResult>;
   inspectDirectory(directory: string): Promise<DirectoryResult>;
   chooseDirectory(): Promise<string | null>;
   activateProject(id: string): Promise<void>;
