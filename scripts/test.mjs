@@ -5,9 +5,9 @@ import { basename, resolve } from 'node:path';
 
 const files = process.argv.slice(2);
 const entries = files.length ? files : (await readdir('tests')).filter(f => f.endsWith('.test.ts')).map(f => `tests/${f}`);
-if (!entries.length) throw new Error('No module tests found.');
-await mkdir('work/module-tests', { recursive: true });
-const directory = await mkdtemp(resolve('work/module-tests/run-'));
+if (!entries.length) throw new Error('No unit tests found.');
+await mkdir('work/unit-tests', { recursive: true });
+const directory = await mkdtemp(resolve('work/unit-tests/run-'));
 try {
   await build({ entryPoints: entries, outdir: directory, bundle: true, platform: 'node',
     format: 'cjs', outExtension: { '.js': '.cjs' }, external: ['node-pty', 'electron'] });

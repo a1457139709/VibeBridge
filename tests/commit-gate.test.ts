@@ -35,7 +35,7 @@ if (process.env.FAIL_CHECK === '${stage}') { console.error('FAILED:${stage}'); p
     await writeFile(`${directory}/scripts/check-source-paths.mjs`, check('source-paths'));
     await writeFile(`${directory}/scripts/check-test-waits.mjs`, check('test-waits'));
     await writeFile(`${directory}/scripts/typecheck.mjs`, check('typecheck'));
-    await writeFile(`${directory}/scripts/test.mjs`, check('modules'));
+    await writeFile(`${directory}/scripts/test.mjs`, check('unit'));
     await writeFile(`${directory}/scripts/test-components.mjs`, check('components'));
     await writeFile(`${directory}/node_modules/.bin/tsc`, '#!/bin/sh\nexec node scripts/typecheck.mjs\n');
     await chmod(`${directory}/node_modules/.bin/tsc`, 0o755);
@@ -56,7 +56,7 @@ if (process.env.FAIL_CHECK === '${stage}') { console.error('FAILED:${stage}'); p
     await writeFile(`${directory}/sample.txt`, 'staged'); git('add', 'sample.txt');
     await writeFile(`${directory}/sample.txt`, 'working tree');
     const staged = git('diff', '--cached'), unstaged = git('diff');
-    const stages = ['source-paths', 'test-waits', 'typecheck', 'modules', 'components'];
+    const stages = ['source-paths', 'test-waits', 'typecheck', 'unit', 'components'];
     for (const [index, stage] of stages.entries()) {
       await writeFile(`${directory}/checks.jsonl`, '');
       const result = run('git', ['commit', '-m', `Fails ${stage}`], { FAIL_CHECK: stage });
