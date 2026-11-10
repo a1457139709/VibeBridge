@@ -1,11 +1,12 @@
 import { z } from 'zod';
 import { message } from './messages';
 import { agentNames, agentTypes, type AgentType, type Settings } from './model';
+import { defaultWorkflowSettings, deliveries, workflowCatalog } from './workflows';
 import { defaultShortcuts, shortcutActions, shortcutConflicts, shortcutConflictMessage, shortcutFormatError } from './shortcuts';
 
 export const defaultSettings = (): Settings => ({ language: 'en', theme: 'system', defaultLayout: 'auto', shortcuts: defaultShortcuts(), agents: {
   codex: { command: 'codex', args: [] }, claude: { command: 'claude', args: [] }, pi: { command: 'pi', args: [] },
-} });
+}, workflows: defaultWorkflowSettings() });
 
 interface FieldIssue { field: string; code: 'required' | 'invalid' | 'conflict'; message: string }
 
@@ -27,6 +28,13 @@ function settingsSchema(reading: boolean) {
     agents: field(object(Object.fromEntries(agentTypes.map(type => [type, field(object({
       command: field(command(type), defaults.agents[type].command), args: field(args, []),
     }, message('commandInvalid', { agent: agentNames[type] })), defaults.agents[type])])), message('settingsInvalid')), defaults.agents),
+    workflows: field(object(Object.fromEntries(workflowCatalog.map(workflow => [workflow.id, field(object({
+      enabled: field(z.boolean({ error: message('workflowSettingInvalid') }), defaults.workflows[workflow.id].enabled),
+      instructions: field(object(Object.fromEntries(workflow.instructions.map(instruction => [instruction.id, field(object({
+        delivery: field(z.enum(deliveries, { error: message('workflowSettingInvalid') }), 'submit'),
+      }, message('workflowSettingInvalid')), defaults.workflows[workflow.id].instructions[instruction.id])])), message('workflowSettingInvalid')),
+      defaults.workflows[workflow.id].instructions),
+    }, message('workflowSettingInvalid')), defaults.workflows[workflow.id])])), message('workflowSettingInvalid')), defaults.workflows),
     shortcuts: field(object(Object.fromEntries(shortcutActions.map(action => [action, field(shortcut, defaults.shortcuts[action])])),
       message('shortcutInvalid')), defaults.shortcuts),
   }, { error: message('settingsCorrupt') });
@@ -47,6 +55,7 @@ export function readSettings(value: unknown): Settings {
 export const settingsCategories = [
   { id: 'general', keys: ['language'] },
   { id: 'agents', keys: ['agents'] },
+  { id: 'workflows', keys: ['workflows'] },
   { id: 'appearance', keys: ['theme', 'defaultLayout'] },
   { id: 'shortcuts', keys: ['shortcuts'], conflicts(settings: Settings): FieldIssue[] {
     return shortcutConflicts(settings.shortcuts).flatMap(conflict => conflict.actions.map(action => ({
