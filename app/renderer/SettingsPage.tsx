@@ -6,6 +6,8 @@ import { agentNames, agentTypes, type AgentCommand, type CommandCheck, type Sett
 import { defaultShortcuts, displayShortcut, shortcutActions, shortcutFromEvent, shortcutConflicts, type ShortcutAction } from '../shared/shortcuts';
 import type { ReportNotice } from './Notices';
 import { agentIcons } from './agent-icons';
+import './workflow-settings.css';
+import { deliveries, workflowCatalog, type Workflow, type WorkflowSetting } from '../shared/workflows';
 import { defaultSettings, dirtySettingsCategories, settingsCategories, settingsConflicts, settingsIssues, settingsPatch, type SettingsCategory, type SettingsIssue } from '../shared/settings';
 
 function AgentFields({ type, value, change, error, argsError }: { error?: string; argsError?: string; type: typeof agentTypes[number]; value: AgentCommand; change(value: AgentCommand): void }) {
@@ -38,6 +40,31 @@ function AgentFields({ type, value, change, error, argsError }: { error?: string
   </section>;
 }
 
+function WorkflowFields({ workflow, value, change }: { workflow: Workflow; value: WorkflowSetting; change(value: WorkflowSetting): void }) {
+  const { t } = useLocalization();
+  const [expanded, setExpanded] = useState(false);
+  const instructionsLabel = t('workflowInstructions', { workflow: workflow.name });
+  const listId = `workflow-instructions-${workflow.id}`;
+  return <section className="workflow-settings">
+    <div className="settings-row-heading">
+      <label className="workflow-switch"><input type="checkbox" role="switch" data-settings-field={`workflows.${workflow.id}.enabled`} checked={value.enabled} onChange={event => change({ ...value, enabled: event.target.checked })} />{workflow.name}</label>
+      <button type="button" className="text-button" aria-label={instructionsLabel} aria-expanded={expanded} aria-controls={expanded ? listId : undefined} onClick={() => setExpanded(open => !open)}>{expanded ? '▾' : '▸'}</button>
+    </div>
+    {expanded && <ul id={listId} className="workflow-instructions" aria-label={instructionsLabel}>{workflow.instructions.map(instruction => {
+      const name = `${instruction.skill} ${instruction.template}`;
+      const delivery = value.instructions[instruction.id].delivery;
+      return <li key={instruction.id} className={instruction.separatorBefore ? 'separated' : undefined}>
+        <code>{name}</code>
+        <div className="delivery-options" role="radiogroup" aria-label={name} tabIndex={-1} data-settings-field={`workflows.${workflow.id}.instructions.${instruction.id}.delivery`}>{deliveries.map(option => <label key={option}>
+          <input type="radio" name={`delivery-${workflow.id}-${instruction.id}`} value={option} checked={delivery === option}
+            onChange={() => change({ ...value, instructions: { ...value.instructions, [instruction.id]: { ...value.instructions[instruction.id], delivery: option } } })} />
+          {t(option === 'submit' ? 'deliverySubmit' : 'deliveryFill')}
+        </label>)}</div>
+      </li>;
+    })}</ul>}
+  </section>;
+}
+
 export interface SettingsPageActions { requestLeave(): Promise<boolean>; showCategory(category: SettingsCategory): void }
 
 function SettingsEditor({ settings, startupTheme, initialCategory = settingsCategories[0].id, back, ref, report }: { settings: Settings; startupTheme: Settings['theme']; initialCategory?: SettingsCategory; back(): void; ref: Ref<SettingsPageActions>; report: ReportNotice }) {
@@ -46,7 +73,7 @@ function SettingsEditor({ settings, startupTheme, initialCategory = settingsCate
   const [draft, setDraft] = useState(settings);
   const [saved, setSaved] = useState(settings);
   useEffect(() => setSaved(settings), [settings]);
-  const { agents, theme, defaultLayout, shortcuts } = draft;
+  const { agents, workflows, theme, defaultLayout, shortcuts } = draft;
   const [submittedIssues, setSubmittedIssues] = useState<SettingsIssue[]>([]);
   const issues = [...submittedIssues, ...settingsIssues(draft)];
   const fieldError = (field: string) => text(issues.find(issue => issue.field === field)?.message ?? '');
@@ -143,6 +170,10 @@ function SettingsEditor({ settings, startupTheme, initialCategory = settingsCate
             <p className="muted">{t('agentSettingsHelp')}</p>
             {agentTypes.map(type => <AgentFields key={`${type}-${agentRevision}`} type={type} value={agents[type]} error={fieldError(`agents.${type}.command`)} argsError={fieldError(`agents.${type}.args`)} change={value => changeDraft({ agents: { ...agents, [type]: value } })} />)}
           </form>}
+          {section === 'workflows' && <>
+            <p className="muted">{t('workflowsHelp')}</p>
+            {workflowCatalog.map(workflow => <WorkflowFields key={`${workflow.id}-${agentRevision}`} workflow={workflow} value={workflows[workflow.id]} change={value => changeDraft({ workflows: { ...workflows, [workflow.id]: value } })} />)}
+          </>}
           {section === 'appearance' && <form onSubmit={event => { event.preventDefault(); void save([section]); }}>
             <h2>{t('theme')}</h2><p className="muted">{t('themeHelp')}</p>
             <div className="theme-options" role="radiogroup" aria-label={t('theme')} data-settings-field="theme" tabIndex={-1} aria-invalid={!!fieldError('theme') || undefined} aria-describedby={fieldError('theme') ? 'theme-error' : undefined}>{(['system', 'dark', 'light'] as const).map(option => <label key={option}><input type="radio" name="theme" value={option} checked={theme === option} onChange={() => changeDraft({ theme: option })} />{t(({ system: 'themeSystem', dark: 'themeDark', light: 'themeLight' } as const)[option])}</label>)}</div>

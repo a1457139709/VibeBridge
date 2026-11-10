@@ -101,7 +101,7 @@ test('pi /reload keeps delivering through the launch\'s one queue, so a reloaded
     const handlers = new Map<string, (event: object, context: object) => Promise<void>>();
     const module = await import(`${pathToFileURL(join(__dirname, 'pi-reporter.mjs')).href}?${instance}`);
     module.default({ on: (name: string, handler: (event: object, context: object) => Promise<void>) => handlers.set(name, handler) });
-    return (type: string) => handlers.get(type)!({ type }, { isIdle: () => false, hasPendingMessages: () => false });
+    return (type: string) => handlers.get(type)!({ type }, { isIdle: () => false, hasPendingMessages: () => false, sessionManager: { getSessionId: () => 'reload' } });
   };
   try {
     const before = (await load('before'))('agent_start');
@@ -120,5 +120,35 @@ test('pi /reload keeps delivering through the launch\'s one queue, so a reloaded
     http.request = original;
     syncBuiltinESMExports();
     if (previous === undefined) delete process.env.VIBEBRIDGE_STATUS_CONTEXT; else process.env.VIBEBRIDGE_STATUS_CONTEXT = previous;
+  }
+});
+
+test('the pi reporter forwards the session ID its extension context reports, and follows a session switch', async () => {
+  const bodies: { payload: { type?: string; sessionId?: string } }[] = [];
+  const server = http.createServer((request, response) => {
+    let body = '';
+    request.on('data', chunk => { body += chunk; });
+    request.on('end', () => { bodies.push(JSON.parse(body)); response.writeHead(204).end(); });
+  });
+  await new Promise<void>(resolve => server.listen(0, '127.0.0.1', resolve));
+  const address = server.address() as { port: number };
+  const previous = process.env.VIBEBRIDGE_STATUS_CONTEXT;
+  process.env.VIBEBRIDGE_STATUS_CONTEXT = JSON.stringify({ url: `http://127.0.0.1:${address.port}/events`, runId: 'session', agent: 'pi', token: randomUUID() });
+  try {
+    const handlers = new Map<string, (event: object, context: object) => Promise<void>>();
+    const module = await import(`${pathToFileURL(join(__dirname, 'pi-reporter.mjs')).href}?session`);
+    module.default({ on: (name: string, handler: (event: object, context: object) => Promise<void>) => handlers.set(name, handler) });
+    let session = 'first';
+    const emit = (type: string) => handlers.get(type)!({ type },
+      { isIdle: () => true, hasPendingMessages: () => false, sessionManager: { getSessionId: () => session } });
+    await emit('session_start');
+    await emit('agent_start');
+    session = 'second';
+    await emit('session_start');
+    assert.deepEqual(bodies.map(body => [body.payload.type, body.payload.sessionId]),
+      [['session_start', 'first'], ['agent_start', 'first'], ['session_start', 'second']]);
+  } finally {
+    if (previous === undefined) delete process.env.VIBEBRIDGE_STATUS_CONTEXT; else process.env.VIBEBRIDGE_STATUS_CONTEXT = previous;
+    await new Promise(resolve => server.close(resolve));
   }
 });

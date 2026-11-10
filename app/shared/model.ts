@@ -5,6 +5,7 @@ import { projectNameError } from './project-name';
 import type { ProcessingState } from './processing-status';
 import type { SettingsIssue } from './settings';
 import type { RepositoryReference } from './code-hosting';
+import type { WorkflowSettings } from './workflows';
 
 export const agentTypes = ['codex', 'claude', 'pi'] as const;
 export type AgentType = typeof agentTypes[number];
@@ -19,7 +20,7 @@ export interface Project { id: string; name: string; directory: string; panels: 
 export interface AgentCommand { command: string; args: string[] }
 export type DefaultLayout = 'auto' | 'row' | 'column';
 export type Language = 'en' | 'zh-CN';
-export interface Settings { language: Language; theme: 'system' | 'dark' | 'light'; defaultLayout: DefaultLayout; agents: Record<AgentType, AgentCommand>; shortcuts: Shortcuts }
+export interface Settings { language: Language; theme: 'system' | 'dark' | 'light'; defaultLayout: DefaultLayout; agents: Record<AgentType, AgentCommand>; workflows: WorkflowSettings; shortcuts: Shortcuts }
 export type CommandCheck = { available: true; path: string } | { available: false; message: string };
 export interface Run { id: string; projectId: string; panelId: string; state: 'running' | 'starting' | 'failed' | 'stopped'; pid?: number; title?: string }
 // An unconfirmed launch may still be running; only a failed one is known not to have started.

@@ -4,7 +4,10 @@ import assert from 'node:assert/strict';
 import { readFile, writeFile } from 'node:fs/promises';
 import { Workbench } from '../app/main/workbench';
 import { testDirectory } from './support/directory';
+import { defaultSettings, settingsCategories, settingsIssues } from '../app/shared/settings';
 
+const mattDeliveries = (delivery: 'submit' | 'fill') => Object.fromEntries(['grill-with-docs', 'to-spec', 'to-tickets', 'implement', 'implement-spec', 'wayfinder',
+  'triage', 'diagnosing-bugs', 'tdd', 'prototype', 'research', 'grill-me'].map(id => [id, { delivery }]));
 const storedSettings = async (directory: string) => JSON.parse(await readFile(`${directory}/settings.json`, 'utf8'));
 
 test('missing and invalid settings values fall back to their defaults field by field', async context => {
@@ -26,6 +29,7 @@ test('missing and invalid settings values fall back to their defaults field by f
     assert.deepEqual(settings, {
       language: 'en', theme: 'dark', defaultLayout: 'auto',
       agents: { codex: { command: 'codex', args: ['--yes'] }, claude: { command: ' custom-claude ', args: [] }, pi: { command: 'pi', args: [] } },
+      workflows: { matt: { enabled: true, instructions: mattDeliveries('submit') } },
       shortcuts: {
         previousProject: 'Command+Shift+[', nextProject: 'Command+Shift+]', previousPanel: 'Command+[', nextPanel: 'Command+K',
         maximizePanel: 'Command+Enter', addPanel: 'Command+N', closePanel: 'Command+Shift+W', settings: 'Command+,',
@@ -86,4 +90,72 @@ test('a settings file that is not a JSON object fails to read and is never overw
       assert.equal(await readFile(`${directory}/settings.json`, 'utf8'), contents);
     } finally { await workbench.quit().catch(() => {}); }
   }
+});
+
+test("workflows default to Matt's workflow switched on with every instruction submitted", async context => {
+  const directory = await testDirectory(context, 'settings-contract-workflow-defaults');
+  const workbench = await Workbench.open(directory);
+  try {
+    assert.deepEqual(workbench.snapshot().settings.workflows, { matt: { enabled: true, instructions: mattDeliveries('submit') } });
+  } finally { await workbench.quit(); }
+});
+
+test('missing and invalid workflow values fall back to their defaults field by field', async context => {
+  const cases: [string, unknown, unknown][] = [
+    ['settings-contract-workflow-fields', { matt: { enabled: 'no', instructions: { 'to-spec': { delivery: 'fill' }, tdd: { delivery: 'paste' }, research: 'fill' } } },
+      { matt: { enabled: true, instructions: { ...mattDeliveries('submit'), 'to-spec': { delivery: 'fill' } } } }],
+    ['settings-contract-workflow-off', { matt: { enabled: false } }, { matt: { enabled: false, instructions: mattDeliveries('submit') } }],
+    ['settings-contract-workflow-instructions', { matt: { enabled: false, instructions: ['fill'] } }, { matt: { enabled: false, instructions: mattDeliveries('submit') } }],
+    ['settings-contract-workflow-entry', { matt: 'on' }, { matt: { enabled: true, instructions: mattDeliveries('submit') } }],
+    ['settings-contract-workflows', ['matt'], { matt: { enabled: true, instructions: mattDeliveries('submit') } }],
+  ];
+  for (const [name, workflows, expected] of cases) {
+    const directory = await testDirectory(context, name);
+    await writeFile(`${directory}/settings.json`, JSON.stringify({ theme: 'dark', workflows }));
+    const workbench = await Workbench.open(directory);
+    try {
+      const { settings, errors } = workbench.snapshot();
+      assert.deepEqual(errors, []);
+      assert.equal(settings.theme, 'dark');
+      assert.deepEqual(settings.workflows, expected);
+    } finally { await workbench.quit(); }
+  }
+});
+
+test('unknown workflows and instructions stay in settings.json across saves', async context => {
+  const directory = await testDirectory(context, 'settings-contract-workflow-unknown');
+  await writeFile(`${directory}/settings.json`, JSON.stringify({ workflows: {
+    pstack: { enabled: true, instructions: { 'poteto-mode': { delivery: 'fill' } } },
+    matt: { enabled: true, color: 'blue', instructions: { retro: { delivery: 'fill' }, tdd: { delivery: 'submit', note: 'x' } } },
+  } }));
+  const workbench = await Workbench.open(directory);
+  try {
+    const { workflows } = workbench.snapshot().settings;
+    assert.ok((await workbench.saveSettings({ workflows: { ...workflows, matt: { ...workflows.matt, enabled: false } } })).ok);
+    await workbench.quit();
+    const stored = (await storedSettings(directory)).workflows;
+    assert.deepEqual(stored.pstack, { enabled: true, instructions: { 'poteto-mode': { delivery: 'fill' } } });
+    assert.equal(stored.matt.enabled, false);
+    assert.equal(stored.matt.color, 'blue');
+    assert.deepEqual(stored.matt.instructions.retro, { delivery: 'fill' });
+    assert.deepEqual(stored.matt.instructions.tdd, { delivery: 'submit', note: 'x' });
+    assert.deepEqual(stored.matt.instructions['to-spec'], { delivery: 'submit' });
+  } finally { await workbench.quit(); }
+});
+
+test('settings categories run General, Agent, Workflows, Appearance, Keyboard shortcuts, and workflows never conflict', () => {
+  assert.deepEqual(settingsCategories.map(category => category.id), ['general', 'agents', 'workflows', 'appearance', 'shortcuts']);
+  assert.deepEqual(settingsIssues({ ...defaultSettings(), workflows: { matt: { enabled: false, instructions: mattDeliveries('fill') } } }), []);
+});
+
+test('saving reports an invalid workflow value in the workflows category', async context => {
+  const directory = await testDirectory(context, 'settings-contract-workflow-save');
+  const workbench = await Workbench.open(directory);
+  try {
+    const { workflows } = workbench.snapshot().settings;
+    const instructions = { ...workflows.matt.instructions, tdd: { delivery: 'paste' as 'fill' } };
+    const result = await workbench.saveSettings({ workflows: { ...workflows, matt: { ...workflows.matt, instructions } } });
+    if (result.ok || result.kind !== 'validation') assert.fail('Expected a field problem');
+    assert.deepEqual(result.issues.map(issue => [issue.category, issue.field, issue.code]), [['workflows', 'workflows.matt.instructions.tdd.delivery', 'invalid']]);
+  } finally { await workbench.quit(); }
 });

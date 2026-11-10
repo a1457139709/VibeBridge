@@ -9,7 +9,9 @@ const handlers = new Map();
 let idle = true;
 let pendingMessages = false;
 let messages = [];
-const context = { isIdle: () => idle, hasPendingMessages: () => pendingMessages };
+let sessionId = 'startup';
+const context = { isIdle: () => idle, hasPendingMessages: () => pendingMessages,
+  sessionManager: { getSessionId: () => sessionId } };
 const api = { on(name, handler) { const list = handlers.get(name) ?? []; list.push(handler); handlers.set(name, list); } };
 async function emit(event) {
   if (event.type === 'agent_start') { idle = false; messages = []; }
@@ -38,6 +40,7 @@ readline.createInterface({ input: process.stdin }).on('line', line => {
     const message = JSON.parse(line);
     if (message.idle !== undefined) idle = message.idle;
     pendingMessages = message.pendingMessages ?? false;
+    if (message.sessionId) sessionId = message.sessionId;
     if (message.context) console.log(`CONTEXT:${process.env.VIBEBRIDGE_STATUS_CONTEXT}`);
     if (message.arguments) console.log(`ARGUMENTS:${JSON.stringify(args)}`);
     if (message.payload) await emit(message.payload);

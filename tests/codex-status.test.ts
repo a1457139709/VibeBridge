@@ -156,3 +156,18 @@ test('fresh Codex facts recover after a missed prompt, and same-turn hook contin
   check({ hook_event_name: 'PreToolUse', turn_id: 'next', tool_name: 'Bash', tool_use_id: 'fresh' }, 'busy');
   check({ hook_event_name: 'Stop', turn_id: 'first' }, 'busy');
 });
+
+test('the current Codex session follows /clear and /resume and ignores facts of other sessions and children', () => {
+  const run = codex.observe();
+  const hook = (hook_event_name: string, session_id: string, fields: Payload = {}) => run.accept({ hook_event_name, session_id, ...fields });
+  hook('SessionStart', 'first', { source: 'startup' });
+  assert.equal(run.currentSession(), 'first');
+  hook('SessionStart', 'cleared', { source: 'clear' });
+  assert.equal(run.currentSession(), 'cleared');
+  hook('Stop', 'first', { turn_id: 'old' });
+  hook('Stop', 'another', { turn_id: 'other' });
+  hook('PreToolUse', 'child', { agent_id: 'child', turn_id: 'child' });
+  assert.equal(run.currentSession(), 'cleared');
+  hook('SessionStart', 'first', { source: 'resume' });
+  assert.equal(run.currentSession(), 'first');
+});

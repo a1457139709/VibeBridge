@@ -7,6 +7,8 @@ export const chinese: Record<keyof typeof english, string> = {
   sideTop: '上方', sideBottom: '下方', sideLeft: '左侧', sideRight: '右侧',
   statusCleanupFailed: '状态接入资源清理失败：{reasons}',
   general: '通用', agents: 'Agent', appearance: '外观', shortcuts: '快捷键',
+  workflows: '工作流', workflowsHelp: '已开启工作流的指令会出现在派发菜单中。「提交」直接送出指令，「只填入」把指令填进输入框，由你补充后再发送。',
+  workflowInstructions: '{workflow} 的指令', deliverySubmit: '提交', deliveryFill: '只填入', workflowSettingInvalid: '工作流设置无效',
   language: '界面语言', languageHelp: '保存后应用于整个工作台，CLI 语言和用户内容保持原样。', languageInvalid: '界面语言无效',
   settings: '全局设置', settingsCategories: '设置分类', categorySettings: '{category} 设置', back: '‹ 返回',
   save: '保存', saving: '正在保存…', restoreDefaults: '恢复默认设置', discardChanges: '放弃更改',
