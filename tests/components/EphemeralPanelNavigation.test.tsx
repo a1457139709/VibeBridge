@@ -16,7 +16,7 @@ const panel = (projectId: string, id: string, status?: ProcessingState): PanelVi
   ({ id, agent: 'codex', run: { id: `run-${id}`, panelId: id, projectId, state: 'running', title: `Session ${id}` }, status });
 
 const snapshot = (): Snapshot => ({
-  navigation: { visible: true, width: 212 }, activeProjectId: 'current', settings: defaultSettings(),
+  navigation: { visible: true, width: 212 }, issueSidebar: { visible: false, width: 380 }, activeProjectId: 'current', settings: defaultSettings(),
   settingsConflicts: [], startupTheme: 'light', resolvedTheme: 'light', errors: [],
   projects: [
     { id: 'current', name: 'Current', directory: '/current', layout: null, panels: [panel('current', 'resident', 'ready')],

@@ -91,3 +91,15 @@ for (const [behavior, stored] of [
     await assertRejected(directory, file, /navigationDataInvalid/, ['navigation']);
   });
 }
+
+for (const [behavior, stored] of [
+  ['is not JSON', '{"visible":'],
+  ['misses a field', JSON.stringify({ visible: true })],
+  ['has keys outside the issue sidebar format', JSON.stringify({ visible: true, width: 400, pinned: false })],
+]) {
+  test(`a stored issue sidebar state that ${behavior} keeps the workbench closed and the database unchanged`, async context => {
+    const { directory, file } = await storedWorkbench(context, 'stored-invalid-issue-sidebar', database =>
+      database.prepare('INSERT INTO issue_sidebar (id, state) VALUES (1,?)').run(stored));
+    await assertRejected(directory, file, /issueSidebarDataInvalid/, ['issue_sidebar']);
+  });
+}

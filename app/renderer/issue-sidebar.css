@@ -1,0 +1,15 @@
+.system-bar .issue-sidebar-toggle { margin-right: 12px; display: grid; place-items: center; color: var(--muted); }
+.system-bar .issue-sidebar-toggle[aria-expanded='true'] { color: inherit; }
+.app-body { position: relative; }
+/* Squeezing: the sidebar is the last column of the app body, so the layout area narrows. */
+.issue-sidebar { position: relative; flex-shrink: 0; width: min(var(--issue-sidebar-width), max(0px, calc(100vw - 160px))); display: flex; flex-direction: column;
+  border-left: 1px solid var(--line); background: var(--navigation, var(--canvas)); outline: none; z-index: 7; }
+/* Overlaying: the sidebar lies over the right of the layout area; the toolbar and tray yield its width. */
+.issue-sidebar-overlay .issue-sidebar { position: absolute; top: 0; right: 0; bottom: 0; box-shadow: -6px 0 18px #0001; }
+.issue-sidebar-overlay .workspace-toolbar, .issue-sidebar-overlay .panel-tray:not(.empty) { margin-right: var(--issue-sidebar-yield); }
+.issue-sidebar-overlay .panel-tray.empty { right: var(--issue-sidebar-yield); }
+.issue-sidebar-resize { position: absolute; top: 0; bottom: 0; left: 0; width: 6px; cursor: col-resize; touch-action: none; z-index: 1; }
+.issue-sidebar-heading { height: 32px; flex-shrink: 0; display: flex; align-items: center; gap: 8px; padding: 0 12px; border-bottom: 1px solid var(--line); font-size: 12px; }
+.issue-sidebar-title { font-weight: 600; }
+.issue-sidebar-repository { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--muted); font-family: Menlo, monospace; font-size: 11px; }
+.issue-sidebar-state { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; padding: 24px; text-align: center; color: var(--muted); line-height: 1.6; }

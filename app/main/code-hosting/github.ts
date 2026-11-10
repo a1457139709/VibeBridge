@@ -1,12 +1,9 @@
 import { execFile } from 'node:child_process';
 import { executable } from '../../terminal/environment';
-import type { PlatformDescription, PlatformFailureKind } from '../../shared/code-hosting';
+import { platformDescriptions, type PlatformFailureKind } from '../../shared/code-hosting';
 import { PlatformError, type CodeHostingPlatform, type CommandEnvironment } from './platform';
 
-const description: PlatformDescription = {
-  id: 'github', name: 'GitHub', installUrl: 'https://cli.github.com', signInCommand: 'gh auth login',
-  capabilities: ['subIssues', 'nativeBlocking', 'mergeMethods', 'mergeQueue', 'requiredChecks'],
-};
+const description = platformDescriptions.github;
 
 // `gh` exits with 4 when it has no usable sign-in; the API answers 401 for a revoked token.
 // A missing repository and a forbidden one both read as NOT_FOUND or 404.

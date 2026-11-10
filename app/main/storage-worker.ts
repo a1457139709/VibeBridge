@@ -2,7 +2,7 @@ import { message } from '../shared/messages';
 import { parentPort, workerData } from 'node:worker_threads';
 import { DatabaseSync } from 'node:sqlite';
 import { platformIdSchema } from '../shared/code-hosting';
-import { agentTypeSchema, defaultNavigation, navigationSchema, parseLayout, type NavigationPreferences, type Panel, type Project } from '../shared/model';
+import { agentTypeSchema, defaultIssueSidebar, defaultNavigation, issueSidebarSchema, navigationSchema, parseLayout, type IssueSidebarPreferences, type NavigationPreferences, type Panel, type Project } from '../shared/model';
 
 const file: string = workerData.file;
 const db = new DatabaseSync(file);
@@ -10,6 +10,7 @@ db.exec(`PRAGMA journal_mode=WAL; PRAGMA foreign_keys=ON;
   CREATE TABLE IF NOT EXISTS projects (id TEXT PRIMARY KEY, name TEXT NOT NULL, directory TEXT NOT NULL UNIQUE, layout TEXT);
   CREATE TABLE IF NOT EXISTS panels (id TEXT PRIMARY KEY, project_id TEXT NOT NULL REFERENCES projects(id), agent TEXT NOT NULL, position INTEGER NOT NULL);
   CREATE TABLE IF NOT EXISTS workspace (id INTEGER PRIMARY KEY CHECK(id=1), active_project TEXT, navigation TEXT);
+  CREATE TABLE IF NOT EXISTS issue_sidebar (id INTEGER PRIMARY KEY CHECK(id=1), state TEXT NOT NULL);
   CREATE TABLE IF NOT EXISTS repository_bindings (project_id TEXT PRIMARY KEY REFERENCES projects(id), platform TEXT NOT NULL, path TEXT NOT NULL);
 `);
 
@@ -38,6 +39,13 @@ function readNavigation(stored: unknown): NavigationPreferences {
   catch { throw new Error(message('navigationDataInvalid', { file, field: 'navigation' })); }
 }
 
+function readIssueSidebar(): IssueSidebarPreferences {
+  const stored = db.prepare('SELECT state FROM issue_sidebar WHERE id=1').get();
+  if (!stored) return defaultIssueSidebar;
+  try { return issueSidebarSchema.parse(JSON.parse(stored.state as string)); }
+  catch { throw new Error(message('issueSidebarDataInvalid', { file, field: 'issue_sidebar' })); }
+}
+
 parentPort!.on('message', ({ id, operation, value }) => {
   try {
     let result: unknown;
@@ -46,6 +54,7 @@ parentPort!.on('message', ({ id, operation, value }) => {
       result = {
         projects: db.prepare('SELECT * FROM projects ORDER BY rowid').all().map(readProject),
         navigation: readNavigation(workspace?.navigation),
+        issueSidebar: readIssueSidebar(),
         activeProjectId: workspace?.active_project ?? null,
       };
     } else if (operation === 'save') {
@@ -76,6 +85,8 @@ parentPort!.on('message', ({ id, operation, value }) => {
       db.prepare('INSERT INTO workspace (id, active_project) VALUES (1,?) ON CONFLICT(id) DO UPDATE SET active_project=excluded.active_project').run(value);
     } else if (operation === 'navigation') {
       db.prepare('INSERT INTO workspace (id, navigation) VALUES (1,?) ON CONFLICT(id) DO UPDATE SET navigation=excluded.navigation').run(JSON.stringify(value));
+    } else if (operation === 'issueSidebar') {
+      db.prepare('INSERT INTO issue_sidebar VALUES (1,?) ON CONFLICT(id) DO UPDATE SET state=excluded.state').run(JSON.stringify(value));
     } else if (operation === 'close') db.close();
     else throw new Error(message('storageOperationUnknown'));
     parentPort!.postMessage({ id, result });
