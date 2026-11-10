@@ -6,7 +6,7 @@ import { userEvent } from '@testing-library/user-event';
 import { App } from '../../app/renderer/Workbench';
 import { defaultSettings } from '../../app/shared/settings';
 import type { IssueSidebarPreferences, ProjectView, Snapshot, WorkbenchEvent } from '../../app/shared/model';
-import type { RepositoryChoices } from '../../app/shared/code-hosting';
+import type { IssuePageResult, RepositoryChoices } from '../../app/shared/code-hosting';
 import { deferred, provideWorkbench } from './support/workbench';
 
 afterEach(cleanup);
@@ -41,7 +41,8 @@ function renderWorkbench({ issueSidebar = { visible: false, width: 380 }, active
       for (const listener of listeners) listener({ kind: 'snapshot', snapshot: structuredClone(snapshot) });
     }, saveNavigation: async () => {}, saveLayout: async () => {},
     saveIssueSidebar: async preferences => { saved.push(preferences); },
-    inspectDirectory: async directory => ({ valid: true, directory }), repositoryChoices: choices });
+    inspectDirectory: async directory => ({ valid: true, directory }), repositoryChoices: choices,
+    issuePage: () => new Promise<IssuePageResult>(() => {}) });
   render(<App />);
   return { user: userEvent.setup(), saved };
 }

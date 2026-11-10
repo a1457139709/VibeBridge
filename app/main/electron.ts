@@ -1,4 +1,4 @@
-import { app, BrowserWindow, dialog, ipcMain, Menu, nativeTheme } from 'electron';
+import { app, BrowserWindow, dialog, ipcMain, Menu, nativeTheme, shell } from 'electron';
 import { join } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { Workbench, WorkbenchOpenError } from './workbench';
@@ -50,7 +50,11 @@ void app.whenReady().then(async () => {
     backgroundColor: nativeTheme.shouldUseDarkColors ? '#141414' : '#f5f5f5',
     webPreferences: { preload: join(__dirname, 'preload.cjs'), contextIsolation: true, nodeIntegration: false, sandbox: true } });
   window.on('close', event => { if (!exiting) { event.preventDefault(); void requestQuit(); } });
-  window.webContents.setWindowOpenHandler(() => ({ action: 'deny' }));
+  // Links that open a new window, such as a platform CLI's install page, go to the system browser.
+  window.webContents.setWindowOpenHandler(({ url }) => {
+    if (URL.parse(url)?.protocol === 'https:') void shell.openExternal(url);
+    return { action: 'deny' };
+  });
   window.webContents.on('will-navigate', event => event.preventDefault());
   updateNativeLanguage(language);
   workbench = Workbench.open(app.getPath('userData'), nativeTheme.shouldUseDarkColors);
@@ -83,6 +87,7 @@ void app.whenReady().then(async () => {
   handle('delete-project', (service, id) => service.deleteProject(id));
   handle('repository-choices', (service, id) => service.repositoryChoices(id));
   handle('bind-repository', (service, id, repository) => service.bindRepository(id, repository));
+  handle('issue-page', (service, id, filter, cursor) => service.issuePage(id, filter, cursor));
   handle('directory', (service, directory) => service.inspectDirectory(directory));
   handle('activate', (service, id) => service.activateProject(id));
   handle('add', (service, project, agent) => service.addPanel(project, agent));

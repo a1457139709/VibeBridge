@@ -13,3 +13,49 @@
 .issue-sidebar-title { font-weight: 600; }
 .issue-sidebar-repository { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--muted); font-family: Menlo, monospace; font-size: 11px; }
 .issue-sidebar-state { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; padding: 24px; text-align: center; color: var(--muted); line-height: 1.6; }
+/* Lists: tabs and refresh, filters, rows. Colours follow GitHub's issue states. */
+:root { --issue-open: #1a7f37; --issue-done: #8250df; --issue-skipped: #59636e; }
+:root[data-theme='dark'] { --issue-open: #3fb950; --issue-done: #ab7df8; --issue-skipped: #9198a1; }
+.issue-tab { flex: 1; min-height: 0; display: flex; flex-direction: column; }
+.issue-toolbar { display: flex; align-items: center; gap: 6px; padding: 6px 8px 0 12px; border-bottom: 1px solid var(--line); }
+.issue-tabs { flex: 1; display: flex; gap: 2px; }
+.issue-tabs [role='tab'] { min-height: 30px; border: 0; border-bottom: 2px solid transparent; border-radius: 0; background: transparent; color: var(--muted); padding: 0 8px; font-size: 12px; }
+.issue-tabs [role='tab'][aria-selected='true'] { color: inherit; border-bottom-color: var(--accent); font-weight: 600; }
+.issue-refresh { min-height: 26px; width: 28px; padding: 0; display: grid; place-items: center; border: 0; background: transparent; color: var(--muted); margin-bottom: 4px; }
+.issue-refresh:disabled { cursor: default; opacity: .6; }
+.issue-refresh[aria-busy='true'] svg { animation: issue-refresh-spin 900ms linear infinite; }
+@keyframes issue-refresh-spin { to { transform: rotate(360deg); } }
+.issue-stale { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 6px 12px; border-bottom: 1px solid var(--line); background: var(--hover); color: var(--muted); font-size: 12px; }
+.issue-stale button, .issue-filter-row button { min-height: 24px; padding: 0 8px; font-size: 11px; }
+.issue-filters { padding: 8px 12px; display: flex; flex-direction: column; gap: 6px; border-bottom: 1px solid var(--line); }
+.issue-filters input { height: 28px; font-size: 12px; }
+.issue-filter-row { display: flex; flex-wrap: wrap; align-items: center; gap: 4px; }
+.issue-state-filter[aria-pressed='true'] { background: var(--hover); color: inherit; font-weight: 600; }
+.issue-state-filter[aria-pressed='false'] { color: var(--muted); }
+.issue-label-menu { position: relative; }
+.issue-label-menu [role='menu'] { position: absolute; z-index: 10; top: calc(100% + 4px); left: 0; min-width: 180px; max-height: 260px; overflow: auto; padding: 4px; border: 1px solid var(--line); border-radius: 8px; background: var(--surface); box-shadow: 0 5px 22px #0002; }
+.issue-label-menu [role='menu'] p { margin: 6px 8px; color: var(--muted); font-size: 12px; }
+.issue-label-menu [role='menuitemcheckbox'] { width: 100%; display: flex; align-items: center; gap: 6px; border: 0; background: transparent; text-align: left; }
+.issue-label-menu [role='menuitemcheckbox']:hover { background: var(--hover); }
+.issue-label-menu [role='menuitemcheckbox'][aria-checked='true'] { font-weight: 600; }
+.issue-label-swatch { width: 10px; height: 10px; flex-shrink: 0; border-radius: 50%; }
+.issue-label-chosen { border-radius: 999px; }
+.issue-list { flex: 1; min-height: 0; overflow: auto; }
+.issue-list ul { list-style: none; margin: 0; padding: 0; }
+.issue-row { display: flex; align-items: flex-start; gap: 8px; padding: 8px 12px; border-bottom: 1px solid var(--line); }
+.issue-row:hover { background: var(--hover); }
+.issue-state { flex-shrink: 0; margin-top: 1px; }
+.issue-state-open { color: var(--issue-open); }
+.issue-state-completed { color: var(--issue-done); }
+.issue-state-skipped { color: var(--issue-skipped); }
+.issue-row-main { flex: 1; min-width: 0; }
+.issue-row-title { font-weight: 500; line-height: 1.4; overflow-wrap: anywhere; }
+.issue-row-meta { margin-top: 3px; display: flex; flex-wrap: wrap; align-items: center; gap: 4px 8px; color: var(--muted); font-size: 11px; }
+.issue-row-number { font-family: Menlo, monospace; }
+.issue-label { --label-color: #888; min-height: 18px; padding: 0 7px; border-radius: 999px; font-size: 11px; line-height: 16px;
+  border: 1px solid color-mix(in srgb, var(--label-color) 55%, transparent); background: color-mix(in srgb, var(--label-color) 18%, transparent); color: inherit; }
+.issue-row-actions { flex-shrink: 0; }
+.issue-list-empty { margin: 24px 12px; text-align: center; color: var(--muted); }
+.issue-list-more { display: block; margin: 10px auto; min-height: 28px; font-size: 12px; }
+.issue-state-actions { display: flex; flex-wrap: wrap; justify-content: center; gap: 6px; margin-top: 6px; }
+.issue-sidebar-state code { font-family: Menlo, monospace; font-size: 12px; }
