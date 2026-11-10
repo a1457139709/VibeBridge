@@ -23,6 +23,10 @@ const reportPayload = z.union([
 interface Observation {
   agent: AgentType; token: string; accepting: boolean; running: boolean;
   state?: ProcessingState; interpreter: StatusInterpreter;
+  /** The current session ID the interpreter reports. */
+  session?: string;
+  /** Waits for the first session the run reports; dropped with the observation. */
+  awaitingSession?: (session: string) => void;
   cleanup?: () => Promise<void>;
 }
 
@@ -30,6 +34,7 @@ interface Observation {
  * prepare precedes launch, lifecycle uses only terminal-host facts. Reports during startup
  * are retained but invisible until running. Stopping revokes credentials; no result persists.
  * A running instance without a reliable observation is Error, never inferred from PTY data.
+ * Each observation also holds the run's current session ID, reported by its interpreter.
  * The callback publishes a complete Workbench snapshot after an accepted visible change.
  */
 export class ProcessingStatus {
@@ -68,6 +73,18 @@ export class ProcessingStatus {
       // Retain failures for close() to report, without interrupting host events.
       void task.then(() => this.cleanups.delete(task), () => {});
     }
+  }
+
+  /** The run's current session ID while it is observed. */
+  session(runId: string): string | undefined { return this.observations.get(runId)?.session; }
+
+  /** Hands the first session ID the run reports to `receive`, or its current one if it has
+   * reported one already. Dropped if the run's observation is released before that. */
+  awaitSession(runId: string, receive: (session: string) => void) {
+    const observation = this.observations.get(runId);
+    if (!observation) return;
+    if (observation.session) receive(observation.session);
+    else observation.awaitingSession = receive;
   }
 
   /** The processing state the run displays: only a running instance has one. */
@@ -117,13 +134,24 @@ export class ProcessingStatus {
     if (!parsed.success) return 400;
     const payload = parsed.data;
     const state = 'observation' in payload ? 'error' : observation.interpreter.accept(payload);
-    if (state === 'discard') return 204;
+    let changed = this.follow(observation);
     if (state === 'error') observation.interpreter.discardEvidence();
-    if (state !== 'keep' && observation.state !== state) {
+    if (state !== 'keep' && state !== 'discard' && observation.state !== state) {
       observation.state = state;
-      if (observation.running) this.changed();
+      changed = true;
     }
+    if (changed && observation.running) this.changed();
     return 204;
+  }
+
+  /** Records the interpreter's current session; whether it changed. */
+  private follow(observation: Observation) {
+    const session = observation.interpreter.currentSession();
+    if (session === observation.session) return false;
+    observation.session = session;
+    const receive = observation.awaitingSession;
+    if (session && receive) { delete observation.awaitingSession; receive(session); }
+    return true;
   }
 
   async close() {

@@ -133,6 +133,14 @@ export class RunSupervision {
     for (const run of this.list) if (panelIds.includes(run.panelId)) this.processing.forget(run.id);
     this.list = this.list.filter(r => !panelIds.includes(r.panelId));
   }
+  /** The panel whose run is currently on this session, if any. */
+  locate(session: string): { projectId: string; panelId: string } | undefined {
+    const run = this.list.find(run => this.processing.session(run.id) === session);
+    return run && { projectId: run.projectId, panelId: run.panelId };
+  }
+  /** Holds a pending dispatch on the run: `write` receives the first session the run reports.
+   * It is dropped, unpersisted, if the run ends before reporting one. */
+  holdDispatch(runId: string, write: (session: string) => void) { this.processing.awaitSession(runId, write); }
   input(runId: string, data: string) { return this.terminal.input(runId, data); }
   resize(runId: string, cols: number, rows: number) { return this.terminal.resize(runId, cols, rows); }
   acknowledgeOutput(runId: string, characters: number) { this.terminal.acknowledgeOutput(runId, characters); }

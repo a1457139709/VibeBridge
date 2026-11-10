@@ -57,6 +57,8 @@ class CodexInterpreter implements StatusInterpreter {
     return known ? this.classify(known) : 'discard';
   }
 
+  currentSession() { return this.session; }
+
   discardEvidence() { this.waits.clear(); this.unansweredAsyncQuestion = false; }
 
   /** Interpret identity only after the outer run capability was authenticated.

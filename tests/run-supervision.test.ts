@@ -61,13 +61,83 @@ async function fixture(context: TestContext) {
     runs: () => project.panels.flatMap(panel => supervision.panelView(panel).run ?? []),
     run: (id: string) => project.panels.map(panel => supervision.panelView(panel).run).find(run => run?.id === id),
     // Reports as the Agent's own status integration would: 204 while observed, 403 once released.
-    async report(runId: string) {
+    async report(runId: string, payload: object = {}) {
       const context = credentials.get(runId)!;
-      const response = await fetch(context.url, { method: 'POST', body: JSON.stringify({ ...context, payload: {} }) });
+      const response = await fetch(context.url, { method: 'POST', body: JSON.stringify({ ...context, payload }) });
       await response.text();
       return response.status;
+    },
+    /** Reports that the run's Codex CLI started or switched to this session. */
+    session(runId: string, session: string) {
+      return this.report(runId, { hook_event_name: 'SessionStart', source: 'resume', session_id: session });
     } };
 }
+
+test('locating a session finds the panel currently on it, following session switches', async context => {
+  const f = await fixture(context);
+  const { run: first } = await f.start(f.project.panels[0]);
+  const { run: second } = await f.start(f.project.panels[1]);
+  assert.equal(f.supervision.locate('original'), undefined, 'no run has reported a session yet');
+  assert.equal(await f.session(first.id, 'original'), 204);
+  await f.session(second.id, 'other');
+  assert.deepEqual(f.supervision.locate('original'), { projectId: 'project', panelId: 'one' });
+  assert.deepEqual(f.supervision.locate('other'), { projectId: 'project', panelId: 'two' });
+  const changes = f.changes();
+  await f.session(first.id, 'cleared');
+  assert.ok(f.changes() > changes, 'a session switch publishes a change');
+  assert.equal(f.supervision.locate('original'), undefined, 'the panel left the session');
+  assert.deepEqual(f.supervision.locate('cleared'), { projectId: 'project', panelId: 'one' });
+  await f.session(first.id, 'original');
+  assert.deepEqual(f.supervision.locate('original'), { projectId: 'project', panelId: 'one' }, 'resuming finds the panel again');
+});
+
+test('a session cannot be located once its run is stopped, has exited or its panel is released', async context => {
+  const f = await fixture(context);
+  const { run: stopped } = await f.start(f.project.panels[0]);
+  await f.session(stopped.id, 'stopped');
+  await f.supervision.stopPanel(stopped.panelId);
+  assert.equal(f.supervision.locate('stopped'), undefined);
+  const { run: exited } = await f.start(f.project.panels[0]);
+  await f.session(exited.id, 'exited');
+  f.terminal.event({ kind: 'exit', runId: exited.id });
+  assert.equal(f.supervision.locate('exited'), undefined);
+  const { run: released } = await f.start(f.project.panels[1]);
+  await f.session(released.id, 'released');
+  f.supervision.release([released.panelId]);
+  assert.equal(f.supervision.locate('released'), undefined);
+});
+
+test('a pending dispatch is handed the first session its run reports, once', async context => {
+  const f = await fixture(context);
+  const { run } = await f.start();
+  const handed: string[] = [];
+  f.supervision.holdDispatch(run.id, session => handed.push(session));
+  await f.report(run.id, { hook_event_name: 'UserPromptSubmit' });
+  assert.deepEqual(handed, [], 'a fact without a session hands nothing over');
+  await f.session(run.id, 'first');
+  await f.session(run.id, 'second');
+  assert.deepEqual(handed, ['first']);
+  const late: string[] = [];
+  f.supervision.holdDispatch(run.id, session => late.push(session));
+  assert.deepEqual(late, ['second'], 'a run that already reported a session hands over its current one at once');
+});
+
+test('a pending dispatch is dropped when its run ends before reporting a session', async context => {
+  const f = await fixture(context);
+  const handed: string[] = [];
+  const { run: exited } = await f.start(f.project.panels[0]);
+  f.supervision.holdDispatch(exited.id, session => handed.push(session));
+  f.terminal.event({ kind: 'exit', runId: exited.id });
+  const { run: next } = await f.start(f.project.panels[0]);
+  await f.session(next.id, 'next');
+  const { run: released } = await f.start(f.project.panels[1]);
+  f.supervision.holdDispatch(released.id, session => handed.push(session));
+  f.supervision.release([released.panelId]);
+  f.terminal.answer = 'failed';
+  const { run: failed } = await f.start(f.project.panels[1]);
+  f.supervision.holdDispatch(failed.id, session => handed.push(session));
+  assert.deepEqual(handed, []);
+});
 
 test('a confirmed launch is running and observed, and announces itself', async context => {
   const f = await fixture(context);

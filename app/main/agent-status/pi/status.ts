@@ -12,8 +12,12 @@ interface Evidence {
  */
 class PiInterpreter implements StatusInterpreter {
   private evidence: Evidence = {};
+  private session?: string;
+
+  currentSession() { return this.session; }
 
   accept(event: Payload): Outcome {
+    if (typeof event.sessionId === 'string' && event.sessionId) this.session = event.sessionId;
     switch (event.type) {
       case 'session_start': case 'session_switch': case 'session_fork': case 'session_tree':
         delete this.evidence.stopReason;

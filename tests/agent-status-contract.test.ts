@@ -24,6 +24,8 @@ interface Contract {
   unclassified: Payload[];
   /** A distinct progress fact per id: Needs input while a wait is pending, otherwise Busy. */
   progress: (id: string) => Payload;
+  /** Facts that start the session with this ID, as after launch, `/clear` or `/resume`. */
+  start: (session: string) => Payload[];
   /** A fact from a session this run has retired, or null without session identity. */
   retired: { before: Payload[]; stale: Payload } | null;
 }
@@ -41,6 +43,7 @@ const contracts: Record<AgentType, Contract> = {
     auxiliary: [hook('UserPromptSubmit', { turn_id: 'turn' }), hook('SessionEnd')],
     unclassified: [hook('Unclassified')],
     progress: id => hook('PreToolUse', { turn_id: 'turn', tool_use_id: id, tool_name: 'Bash' }),
+    start: session => [hook('SessionStart', { source: 'resume', session_id: session })],
     retired: { before: [hook('SessionStart', { source: 'startup', session_id: 'old' }), hook('SessionStart', { source: 'clear' })],
       stale: hook('Stop', { session_id: 'old' }) },
   },
@@ -53,6 +56,7 @@ const contracts: Record<AgentType, Contract> = {
     auxiliary: [hook('UserPromptSubmit'), hook('SessionEnd')],
     unclassified: [hook('Unclassified')],
     progress: id => hook('PreToolUse', { tool_name: 'Read', tool_use_id: id }),
+    start: session => [hook('SessionStart', { source: 'resume', session_id: session })],
     retired: { before: [hook('SessionStart', { source: 'startup', session_id: 'old' }), hook('SessionStart', { source: 'clear' })],
       stale: hook('Stop', { session_id: 'old' }) },
   },
@@ -65,6 +69,7 @@ const contracts: Record<AgentType, Contract> = {
     auxiliary: [fact('agent_start'), fact('turn_start')],
     unclassified: [fact('unclassified')],
     progress: () => fact('tool_execution_start'),
+    start: session => [fact('session_start', { isIdle: true, sessionId: session })],
     retired: null,
   },
 };
@@ -122,6 +127,20 @@ for (const [agent, contract] of Object.entries(contracts)) {
       retired.interpreter.discardEvidence();
       assert.equal(retired.accept(contract.retired.stale), 'discard');
     }
+  });
+
+  test(`${agent}: the interpreter reports the current session ID and follows session changes`, () => {
+    const run = observe(contract.adapter);
+    assert.equal(run.interpreter.currentSession(), undefined, 'no session before the CLI reports one');
+    run.feed(contract.start('first'));
+    assert.equal(run.interpreter.currentSession(), 'first');
+    run.feed(contract.busy);
+    run.interpreter.discardEvidence();
+    assert.equal(run.interpreter.currentSession(), 'first', 'discarding evidence keeps the session');
+    run.feed(contract.start('second'));
+    assert.equal(run.interpreter.currentSession(), 'second');
+    run.feed(contract.start('first'));
+    assert.equal(run.interpreter.currentSession(), 'first', 'resuming an earlier session reports it again');
   });
 
   test(`${agent}: interpreters of two runs are independent`, () => {

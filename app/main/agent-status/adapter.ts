@@ -24,6 +24,9 @@ export interface StatusAdapter {
 export interface StatusInterpreter {
   /** An authenticated main-run CLI fact, never an observation report. Identity checks and classification share this state. */
   accept(payload: Payload): Outcome;
+  /** The ID of the session the run is on, once the CLI has reported one. It follows session
+   * changes such as `/clear` and `/resume`, and survives discarded evidence. */
+  currentSession(): string | undefined;
   /** Called after every Error: discard outcome evidence, keep session identity and duplicate records. */
   discardEvidence(): void;
 }

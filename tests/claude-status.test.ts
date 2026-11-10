@@ -202,3 +202,20 @@ test('Claude launch preparation keeps invocation settings, existing hooks and fi
     }
   } finally { await rm(directory, { recursive: true, force: true }); }
 });
+
+test('the current Claude session follows /clear and /resume and ignores late facts of the session it left', () => {
+  const run = claude.observe();
+  const hook = (hook_event_name: string, session_id: string, fields: Payload = {}) => run.accept({ hook_event_name, session_id, ...fields });
+  hook('SessionStart', 'first', { source: 'startup' });
+  hook('UserPromptSubmit', 'first', { prompt_id: 'work' });
+  assert.equal(run.currentSession(), 'first');
+  hook('SessionEnd', 'first', { source: 'clear', prompt_id: 'clear' });
+  hook('SessionStart', 'cleared', { source: 'clear', prompt_id: 'clear' });
+  assert.equal(run.currentSession(), 'cleared');
+  hook('Stop', 'first', { prompt_id: 'work' });
+  hook('PreToolUse', 'first', { agent_id: 'child', tool_use_id: 'child' });
+  assert.equal(run.currentSession(), 'cleared', 'late and child facts keep the current session');
+  hook('SessionStart', 'first', { source: 'resume', prompt_id: 'pick' });
+  hook('SessionEnd', 'cleared', { source: 'resume', prompt_id: 'pick' });
+  assert.equal(run.currentSession(), 'first', 'the left session\'s SessionEnd arriving after the resume keeps the resumed session');
+});
