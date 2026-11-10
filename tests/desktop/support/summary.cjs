@@ -20,7 +20,7 @@ module.exports = async context => {
     const id = `summary-${++sequence}`;
     const payload = message.payload && { session_id: session, ...message.payload };
     await evaluate(`window.workbench.sendInput(${JSON.stringify(run.id)}, ${JSON.stringify(JSON.stringify({ ...message, payload, id }) + '\n')})`);
-    await until(() => evaluate(`window.summaryOutput[${JSON.stringify(run.id)}]?.includes(${JSON.stringify(`ACK:${id}\r\n`)})`));
+    await until(() => evaluate(`window.summaryOutput[${JSON.stringify(run.id)}]?.includes(${JSON.stringify(`ACK:${id}\r\n`)})`), `run ${run.id} acknowledged message ${id}`);
   };
   const nativeKey = keyCode => {
     window.webContents.sendInputEvent({ type: 'keyDown', keyCode });
@@ -28,14 +28,14 @@ module.exports = async context => {
   };
   const focused = run => evaluate(`document.activeElement?.classList.contains('xterm-helper-textarea') && document.activeElement.closest('[data-panel-id]')?.dataset.panelId === ${JSON.stringify(run.panelId)}`);
   const receiveInput = async (run, marker) => {
-    await until(() => focused(run));
+    await until(() => focused(run), `terminal of panel ${run.panelId} focused`);
     const message = JSON.stringify({ id: marker, output: `RECEIVED:${marker}\n` });
     for (const character of message) window.webContents.sendInputEvent({ type: 'char', keyCode: character });
     nativeKey('Enter');
-    await until(() => evaluate(`window.summaryOutput[${JSON.stringify(run.id)}]?.includes(${JSON.stringify(`ACK:${marker}\r\n`)})`));
+    await until(() => evaluate(`window.summaryOutput[${JSON.stringify(run.id)}]?.includes(${JSON.stringify(`ACK:${marker}\r\n`)})`), `run ${run.id} acknowledged typed input ${marker}`);
     const outputs = await evaluate('window.summaryOutput');
     for (const other of runs.filter(other => other.id !== run.id)) assert.ok(!outputs[other.id]?.includes(`ACK:${marker}\r\n`));
-    await until(() => evaluate(`document.querySelector('[data-panel-id="${run.panelId}"] .xterm-rows').textContent.includes(${JSON.stringify(`RECEIVED:${marker}`)})`));
+    await until(() => evaluate(`document.querySelector('[data-panel-id="${run.panelId}"] .xterm-rows').textContent.includes(${JSON.stringify(`RECEIVED:${marker}`)})`), `terminal of panel ${run.panelId} shows RECEIVED:${marker}`);
   };
   const open = async state => {
     const current = await snapshot();
@@ -44,12 +44,12 @@ module.exports = async context => {
       ? { ready: '就绪', 'needs-input': '等待输入', done: '本轮结束', error: '异常' }
       : { ready: 'Ready', 'needs-input': 'Needs input', done: 'Done', error: 'Error' };
     await click(`${count} ${labels[state]}`);
-    await until(() => evaluate('!!document.querySelector(".summary-list")'));
+    await until(() => evaluate('!!document.querySelector(".summary-list")'), `${state} summary list opened`);
   };
   const choose = async (state, run) => {
     await open(state);
     await evaluate(`document.querySelector('.summary-list [data-run-id="${run.id}"] button').click()`);
-    await until(() => evaluate('!document.querySelector(".summary-list")'));
+    await until(() => evaluate('!document.querySelector(".summary-list")'), 'summary list closed after choosing a run');
   };
   for (const [index, run] of runs.entries()) await send(run, {
     payload: { hook_event_name: index === 2 ? 'PermissionRequest' : 'Stop' },
