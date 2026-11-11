@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, type CSSProperties, type ReactNode } from 'react';
 import type { DesktopAPI } from '../shared/api';
-import { defaultIssueFilter, platformDescriptions, type IssueFilter, type IssueLabel, type IssuePage, type IssuePageResult, type IssueSummary, type RepositoryReference } from '../shared/code-hosting';
+import { defaultIssueFilter, platformDescriptions, type IssueFilter, type IssueLabel, type IssuePage, type IssueReference, type IssuePageResult, type IssueSummary, type PlatformDescription, type RepositoryReference } from '../shared/code-hosting';
 import type { Language } from '../shared/model';
 import { useLocalization } from './Localization';
 
@@ -79,7 +79,7 @@ function IssueTab({ tabs, filter, setFilter, load, repository, changeBinding }: 
     <FilterBar filter={filter} setFilter={setFilter} labels={list.page?.labels ?? []} search={t('searchIssues')} />
     <div className="issue-list">
       {list.page && <ul aria-label={platform.name}>
-        {list.page.issues.map(issue => <IssueRow key={issue.number} issue={issue} language={language} addLabel={addLabel} />)}
+        {topLevel(list.page.issues, platform).map(issue => <IssueRow key={issue.number} issue={issue} platform={platform} language={language} addLabel={addLabel} />)}
       </ul>}
       {list.page && !list.page.issues.length && !list.loading && <p className="issue-list-empty">{t('noMatchingIssues')}</p>}
       {list.page?.next && <button className="issue-list-more" disabled={!!list.loading} onClick={list.more}>{t('loadMore')}</button>}
@@ -120,23 +120,69 @@ function FilterBar({ filter, setFilter, labels, search }: { filter: IssueFilter;
   </div>;
 }
 
-function IssueRow({ issue, language, addLabel }: { issue: IssueSummary; language: Language; addLabel(name: string): void }) {
+/** The issues listed at the top level: those whose parent is not listed. Where the platform has no sub-issues, every issue. */
+function topLevel(issues: IssueSummary[], platform: PlatformDescription) {
+  if (!platform.capabilities.includes('subIssues')) return issues;
+  const listed = new Set(issues.map(issue => issue.number));
+  return issues.filter(issue => issue.parent === null || !listed.has(issue.parent));
+}
+
+function IssueRow({ issue, platform, language, addLabel }: { issue: IssueSummary; platform: PlatformDescription; language: Language; addLabel(name: string): void }) {
   const { t } = useLocalization();
+  const [expanded, setExpanded] = useState(false);
   const created = new Date(issue.createdAt);
-  return <li className="issue-row" aria-label={`#${issue.number} ${issue.title}`}>
-    <IssueStateIcon issue={issue} />
-    <div className="issue-row-main">
-      <div className="issue-row-title">{issue.title}</div>
-      <div className="issue-row-meta">
-        <span className="issue-row-number">#{issue.number}</span>
-        <time dateTime={issue.createdAt} title={created.toLocaleString(language)}>{relativeTime(created, language)}</time>
-        {issue.labels.map(label => <button key={label.name} className="issue-label" style={{ '--label-color': `#${label.color}` } as CSSProperties}
-          aria-label={t('filterByLabel', { label: label.name })} onClick={() => addLabel(label.name)}>{label.name}</button>)}
+  const subIssues = platform.capabilities.includes('subIssues') ? issue.subIssues : null;
+  return <li aria-label={`#${issue.number} ${issue.title}`}>
+    <div className="issue-row">
+      <IssueStateIcon issue={issue} />
+      <div className="issue-row-main">
+        <div className="issue-row-title">{issue.title}</div>
+        <div className="issue-row-meta">
+          <span className="issue-row-number">#{issue.number}</span>
+          <time dateTime={issue.createdAt} title={created.toLocaleString(language)}>{relativeTime(created, language)}</time>
+          {subIssues && <button className="issue-progress" aria-expanded={expanded} onClick={() => setExpanded(open => !open)}
+            aria-label={t('subIssueProgress', { completed: subIssues.completed, total: subIssues.total })}>
+            <span aria-hidden="true">{expanded ? '▾' : '▸'}</span>
+            <span className="issue-progress-bar"><span style={{ width: `${subIssues.completed / subIssues.total * 100}%` }} /></span>
+            {subIssues.completed}/{subIssues.total}</button>}
+          {platform.capabilities.includes('nativeBlocking') && issue.blockedBy.length > 0 && <BlockedMark blockers={issue.blockedBy} />}
+          {issue.labels.map(label => <button key={label.name} className="issue-label" style={{ '--label-color': `#${label.color}` } as CSSProperties}
+            aria-label={t('filterByLabel', { label: label.name })} onClick={() => addLabel(label.name)}>{label.name}</button>)}
+        </div>
       </div>
+      {/* Dispatch controls take this place. */}
+      <div className="issue-row-actions" />
     </div>
-    {/* Dispatch controls take this place. */}
-    <div className="issue-row-actions" />
+    {subIssues && expanded && <SubIssueList parent={issue.number} issues={subIssues.issues} platform={platform} language={language} addLabel={addLabel} />}
   </li>;
+}
+
+/** Sub-issues in number order; the closed ones fold behind one button. */
+function SubIssueList({ parent, issues, platform, language, addLabel }: {
+  parent: number; issues: IssueSummary[]; platform: PlatformDescription; language: Language; addLabel(name: string): void;
+}) {
+  const { t } = useLocalization();
+  const [showClosed, setShowClosed] = useState(false);
+  const closed = issues.filter(issue => issue.state === 'closed').length;
+  const shown = issues.filter(issue => showClosed || issue.state === 'open').sort((a, b) => a.number - b.number);
+  return <div className="issue-sub-issues">
+    <ul aria-label={t('subIssuesOf', { number: parent })}>
+      {shown.map(issue => <IssueRow key={issue.number} issue={issue} platform={platform} language={language} addLabel={addLabel} />)}
+    </ul>
+    {closed > 0 && <button className="issue-closed-fold" onClick={() => setShowClosed(open => !open)}>
+      {showClosed ? t('hideClosedSubIssues') : t('closedSubIssues', { count: closed })}</button>}
+  </div>;
+}
+
+/** GitHub's blocked octicon and the blockers' numbers; hovering names them. */
+function BlockedMark({ blockers }: { blockers: IssueReference[] }) {
+  const { t } = useLocalization();
+  const numbers = blockers.map(blocker => `#${blocker.number}`).join(', ');
+  return <span className="issue-blocked" role="img" aria-label={t('blockedBy', { numbers })}
+    title={blockers.map(blocker => `#${blocker.number} ${blocker.title}`).join('\n')}>
+    <svg aria-hidden="true" viewBox="0 0 16 16" width="12" height="12" fill="currentColor"><path d="M4.467.22a.749.749 0 0 1 .53-.22h6.006c.199 0 .389.079.53.22l4.247 4.247c.141.14.22.331.22.53v6.006a.749.749 0 0 1-.22.53l-4.247 4.247a.749.749 0 0 1-.53.22H4.997a.749.749 0 0 1-.53-.22L.22 11.533a.749.749 0 0 1-.22-.53V4.997c0-.199.079-.389.22-.53Zm.84 1.28L1.5 5.308v5.384l3.807 3.808h5.384l3.808-3.808V5.308L10.692 1.5ZM4 7.75A.75.75 0 0 1 4.75 7h6.5a.75.75 0 0 1 0 1.5h-6.5A.75.75 0 0 1 4 7.75Z" /></svg>
+    <span aria-hidden="true">{numbers}</span>
+  </span>;
 }
 
 function LabelSwatch({ label }: { label: IssueLabel }) {

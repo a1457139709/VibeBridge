@@ -45,7 +45,7 @@ test('an issue list page holds the 25 newest matching issues and the cursor load
   assert.ok(second.ok);
   assert.equal(second.page.next, null);
   assert.deepEqual(first.page.issues[0], { number: 59, title: 'Issue 59', state: 'open', closedAs: null,
-    createdAt: '2026-03-01T00:00:00.000Z', labels: [], url: 'https://github.com/octo/app/issues/59' });
+    createdAt: '2026-03-01T00:00:00.000Z', labels: [], url: 'https://github.com/octo/app/issues/59', parent: null, subIssues: null, blockedBy: [] });
 });
 
 test('the issue list filters by state, by every chosen label and by title or number on the platform', async context => {
@@ -106,4 +106,27 @@ test('an unbound project has no issue list', async context => {
   const f = await boundProject(context, 'issue-list-unbound', { issues: issues(3) });
   await f.workbench.bindRepository(f.project.id, null);
   await assert.rejects(f.page(), /repositoryUnbound/);
+});
+
+test('the issue list reads parents, sub-issues with their progress and open native blockers from the platform', async context => {
+  const day = (n: number) => `2026-01-0${n}T00:00:00Z`;
+  const f = await boundProject(context, 'issue-list-relations', { issues: [
+    { number: 1, title: 'Epic', state: 'OPEN', stateReason: null, createdAt: day(1), labels: [] },
+    { number: 2, title: 'Child A', state: 'OPEN', stateReason: null, createdAt: day(2), labels: [], parent: 1, blockedBy: [5, 6] },
+    { number: 3, title: 'Child B', state: 'CLOSED', stateReason: 'COMPLETED', createdAt: day(3), labels: [], parent: 1 },
+    { number: 5, title: 'Blocker', state: 'OPEN', stateReason: null, createdAt: day(5), labels: [] },
+    { number: 6, title: 'Done blocker', state: 'CLOSED', stateReason: 'COMPLETED', createdAt: day(6), labels: [] },
+    { number: 7, title: 'Orphan', state: 'OPEN', stateReason: null, createdAt: day(7), labels: [], parent: 6 },
+  ] });
+  const result = await f.page();
+  assert.deepEqual(numbers(result), [7, 5, 2, 1]);
+  assert.ok(result.ok);
+  const [orphan, blocker, child, epic] = result.page.issues;
+  assert.equal(orphan.parent, 6);
+  assert.deepEqual([blocker.parent, blocker.subIssues, blocker.blockedBy], [null, null, []]);
+  assert.deepEqual([child.parent, child.blockedBy], [1, [{ number: 5, title: 'Blocker' }]], 'a closed blocker no longer blocks');
+  assert.ok(epic.subIssues);
+  assert.deepEqual([epic.subIssues.completed, epic.subIssues.total], [1, 2]);
+  assert.deepEqual(epic.subIssues.issues.map(issue => [issue.number, issue.state, issue.parent, issue.blockedBy]),
+    [[2, 'open', 1, [{ number: 5, title: 'Blocker' }]], [3, 'closed', 1, []]]);
 });

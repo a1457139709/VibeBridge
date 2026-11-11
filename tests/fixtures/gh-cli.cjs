@@ -58,10 +58,20 @@ function repository(state, owner, name) {
   return path;
 }
 
-function issueNode(state, path, issue) {
+// Relations come from each issue's `parent` and `blockedBy` numbers. Sub-issues are listed one
+// level deep, in the order the state holds them, as the Workbench's query asks.
+function issueNode(state, path, issue, depth = 0) {
+  const all = state.issues ?? [];
   const color = name => (state.labels ?? []).find(label => label.name === name)?.color ?? 'ededed';
-  return { number: issue.number, title: issue.title, state: issue.state, stateReason: issue.stateReason, createdAt: issue.createdAt,
-    url: `https://github.com/${path}/issues/${issue.number}`, labels: { nodes: issue.labels.map(name => ({ name, color: color(name) })) } };
+  const byNumber = number => all.find(item => item.number === number);
+  const children = all.filter(item => item.parent === issue.number);
+  const node = { number: issue.number, title: issue.title, state: issue.state, stateReason: issue.stateReason, createdAt: issue.createdAt,
+    url: `https://github.com/${path}/issues/${issue.number}`, labels: { nodes: issue.labels.map(name => ({ name, color: color(name) })) },
+    parent: issue.parent ? { number: issue.parent } : null,
+    blockedBy: { nodes: (issue.blockedBy ?? []).map(byNumber).map(item => ({ number: item.number, title: item.title, state: item.state })) } };
+  if (depth > 0) return node;
+  return { ...node, subIssuesSummary: { total: children.length, completed: children.filter(item => item.state === 'CLOSED').length },
+    subIssues: { nodes: children.map(child => issueNode(state, path, child, depth + 1)) } };
 }
 
 // GitHub search syntax, as far as the Workbench uses it: qualifiers, quoted values, and title words.
