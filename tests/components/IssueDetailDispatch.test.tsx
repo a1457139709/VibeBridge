@@ -38,7 +38,7 @@ async function renderDetail({ shown = detail(7), state = project(), workflows = 
   };
   render(<Localization language="en">
     <IssueDetailView project={state} repository={state.repository!} number={shown.number} workflows={workflows} shortcuts={defaultShortcuts()}
-      openIssue={() => {}} close={() => {}} locate={location => locations.push(location)} api={api} />
+      open={() => {}} close={() => {}} locate={location => locations.push(location)} api={api} />
   </Localization>);
   await screen.findByRole('heading', { name: /Issue 7/ });
   return { user: userEvent.setup(), dispatched, locations, region: screen.getByRole('region', { name: 'Issue #7' }) };

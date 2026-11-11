@@ -33,7 +33,7 @@ async function renderList({ shortcuts = defaultShortcuts(), issues = [issue(7)] 
   };
   render(<Localization language="en">
     <IssueLists project={project} repository={project.repository!} workflows={defaultWorkflowSettings()} shortcuts={shortcuts} changeBinding={() => {}}
-      locate={location => locations.push(location)} filled={location => locations.push(location)} detail={{ open() {} }} api={api} />
+      locate={location => locations.push(location)} filled={location => locations.push(location)} detail={{ open() {} }} mergeRequestDetail={{ open() {} }} api={api} />
   </Localization>);
   await screen.findByRole('listitem', { name: `#${issues[0].number} Issue ${issues[0].number}` });
   return { user: userEvent.setup(), dispatched, locations };

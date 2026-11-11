@@ -1,9 +1,9 @@
-import type { IssueDetailResult, IssueFilter, IssuePageResult, MergeRequestPageResult, RepositoryChoices, RepositoryReference } from '../../shared/code-hosting';
+import type { IssueDetailResult, IssueFilter, IssuePageResult, MergeRequestDetailResult, MergeRequestPageResult, RepositoryChoices, RepositoryReference } from '../../shared/code-hosting';
 import type { Project } from '../../shared/model';
 import { commandEnvironment } from '../../terminal/environment';
 import type { CommandEnvironment } from './platform';
 import { bindableRepository, repositoryChoices } from './binding';
-import { issueDetail, issuePage, mergeRequestPage } from './issues';
+import { issueDetail, issuePage, mergeRequestDetail, mergeRequestPage } from './issues';
 
 /** The Code Hosting Platform reads the Workbench makes for its projects. Platform CLIs and git run in the
  * login-shell environment Agent Runs get, read once per Workbench. */
@@ -27,5 +27,9 @@ export class ProjectRepositories {
   /** The project's bound repository's issue with that number, with its comments and relations, read from its platform. */
   async issueDetail(project: Project, number: number): Promise<IssueDetailResult> {
     return issueDetail(project.repository, number, await this.commandEnvironment());
+  }
+  /** The project's bound repository's merge request with that number, with its conversation and merge state, read from its platform. */
+  async mergeRequestDetail(project: Project, number: number): Promise<MergeRequestDetailResult> {
+    return mergeRequestDetail(project.repository, number, await this.commandEnvironment());
   }
 }

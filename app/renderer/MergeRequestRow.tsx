@@ -1,13 +1,13 @@
 import type { CheckConclusion, MergeRequestSummary } from '../shared/code-hosting';
 import { useLocalization } from './Localization';
-import { LabelButtons, relativeTime } from './list-row-parts';
+import { LabelButtons, relativeTime, type DetailOpening } from './list-row-parts';
 
-/** A merge request row: no actions, since dispatch starts from issues. */
-export function MergeRequestRow({ request, addLabel }: { request: MergeRequestSummary; addLabel(name: string): void }) {
+/** A merge request row: no actions, since dispatch starts from issues. Clicking it outside its labels opens its detail. */
+export function MergeRequestRow({ request, addLabel, detail }: { request: MergeRequestSummary; addLabel(name: string): void; detail: DetailOpening }) {
   const { t, language } = useLocalization();
   const created = new Date(request.createdAt);
-  return <li aria-label={`#${request.number} ${request.title}`}>
-    <div className="issue-row">
+  return <li aria-label={`#${request.number} ${request.title}`} aria-current={detail.opened === request.number || undefined}>
+    <div className="issue-row" onClick={event => { if (!(event.target as Element).closest('button, a')) detail.open(request.number); }}>
       <MergeRequestStateIcon request={request} />
       <div className="issue-row-main">
         <div className="issue-row-title">{request.title}</div>

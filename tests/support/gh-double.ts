@@ -35,7 +35,27 @@ export interface GhPullRequest {
   createdAt: string;
   labels: string[];
   checks: 'SUCCESS' | 'FAILURE' | 'ERROR' | 'PENDING' | 'EXPECTED' | null;
+  /** The owner of the head branch's repository when it is not the base repository's. */
+  headOwner?: string;
+  headRefName?: string;
+  baseRefName?: string;
+  bodyHTML?: string;
+  comments?: { author: string; createdAt: string; bodyHTML: string }[];
+  /** Reviews in submission order; a PENDING one is the viewer's unsubmitted review. */
+  reviews?: { author: string; state: 'APPROVED' | 'CHANGES_REQUESTED' | 'COMMENTED' | 'DISMISSED' | 'PENDING'; submittedAt: string | null; bodyHTML: string; codeComments: number }[];
+  /** Issues, by number, the pull request closes when merged. */
+  closes?: number[];
+  reviewDecision?: 'APPROVED' | 'CHANGES_REQUESTED' | 'REVIEW_REQUIRED' | null;
+  mergeable?: 'MERGEABLE' | 'CONFLICTING' | 'UNKNOWN';
+  /** Whether its base branch merges through a merge queue. */
+  mergeQueue?: boolean;
+  /** The head commit's check runs and commit statuses, in GitHub's order. */
+  checkContexts?: GhCheckContext[];
 }
+
+export type GhCheckContext =
+  | { kind: 'run'; name: string; status: 'QUEUED' | 'IN_PROGRESS' | 'COMPLETED'; conclusion: string | null; required: boolean; url: string | null }
+  | { kind: 'status'; name: string; state: 'SUCCESS' | 'FAILURE' | 'ERROR' | 'PENDING' | 'EXPECTED'; required: boolean; url: string | null };
 
 export interface GhState {
   login?: string;
@@ -48,6 +68,8 @@ export interface GhState {
   /** At most this many comments per page, whatever the query asks for. */
   commentPageSize?: number;
   labels?: { name: string; color: string }[];
+  /** The merge methods the repository allows; all of them when unset. */
+  mergeMethods?: { merge: boolean; squash: boolean; rebase: boolean };
   failure?: { exit: number; stdout?: string; stderr?: string };
 }
 

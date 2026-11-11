@@ -1,7 +1,7 @@
 import type { IssueSidebarPreferences, NavigationPreferences, AgentType, CommandCheck, DirectoryResult, Layout, ProjectCreation, PanelCreation, ProjectDraft, ProjectEdit, ProjectEditResult, Settings, Snapshot, WorkbenchEvent } from './model';
 import type { SettingsSaveResult } from './settings';
 import type { DispatchRequest } from './dispatch';
-import type { IssueDetailResult, IssueFilter, IssuePageResult, MergeRequestPageResult, RepositoryChoices, RepositoryReference } from './code-hosting';
+import type { IssueDetailResult, IssueFilter, IssuePageResult, MergeRequestDetailResult, MergeRequestPageResult, RepositoryChoices, RepositoryReference } from './code-hosting';
 
 export interface DesktopAPI {
   snapshot(): Promise<Snapshot>;
@@ -21,6 +21,8 @@ export interface DesktopAPI {
   mergeRequestPage(projectId: string, filter: IssueFilter, cursor: string | null): Promise<MergeRequestPageResult>;
   /** The bound repository's issue with that number, with its comments and relations, or why the platform could not read it. */
   issueDetail(projectId: string, number: number): Promise<IssueDetailResult>;
+  /** The bound repository's merge request with that number, with its conversation and merge state, or why the platform could not read it. */
+  mergeRequestDetail(projectId: string, number: number): Promise<MergeRequestDetailResult>;
   inspectDirectory(directory: string): Promise<DirectoryResult>;
   chooseDirectory(): Promise<string | null>;
   activateProject(id: string): Promise<void>;

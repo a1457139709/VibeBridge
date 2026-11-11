@@ -145,6 +145,46 @@ export interface IssueDetail extends Omit<IssueSummary, 'parent' | 'subIssues' |
 /** An issue's detail, or why it could not be read. A missing issue reads as unreachable. */
 export type IssueDetailResult = { ok: true; issue: IssueDetail } | { ok: false; failure: PlatformFailure };
 
+/** How a merge request's changes reach its base branch: a merge commit, one squashed commit, or its commits rebased. */
+export type MergeMethod = 'merge' | 'squash' | 'rebase';
+/** Whether the reviews a merge request has meet what its base branch asks for. */
+export type ReviewDecision = 'approved' | 'changesRequested' | 'reviewRequired';
+export type ReviewState = 'approved' | 'changesRequested' | 'commented' | 'dismissed';
+/** A submitted review's summary. Its line comments are only counted; `url` opens them on the platform. */
+export interface MergeRequestReview { author: string | null; state: ReviewState; submittedAt: string; body: string; codeComments: number; url: string }
+/** One check on a merge request's latest commit. `url` opens its log on the platform, when it has one. */
+export interface Check { name: string; conclusion: CheckConclusion; required: boolean; url: string | null }
+/** What decides whether a merge request can merge. Without the platform capability, `required` is
+ * always false (`requiredChecks`), `methods` is empty (`mergeMethods`) and `queue` false (`mergeQueue`). */
+export interface MergeState {
+  /** Null when the base branch asks for no review. */
+  review: ReviewDecision | null;
+  checks: Check[];
+  /** Whether it conflicts with its base branch; false while the platform has not worked it out. */
+  conflicting: boolean;
+  /** The merge methods the repository allows, in the platform's order. */
+  methods: MergeMethod[];
+  /** Whether its base branch merges only through a merge queue. */
+  queue: boolean;
+}
+/** What a merge request's detail shows. It has no diff, change counts or reviewer list. */
+export interface MergeRequestDetail extends Omit<MergeRequestSummary, 'checks'> {
+  /** Branch names; a head branch in another repository is prefixed with that repository's owner. */
+  head: string;
+  base: string;
+  /** Where the platform shows its changes. */
+  changesUrl: string;
+  /** HTML as the platform renders it, before the Workbench's allowlist filter. */
+  body: string;
+  comments: IssueComment[];
+  reviews: MergeRequestReview[];
+  /** Issues it closes when merged. */
+  closingIssues: RelatedIssue[];
+  merge: MergeState;
+}
+/** A merge request's detail, or why it could not be read. A missing merge request reads as unreachable. */
+export type MergeRequestDetailResult = { ok: true; mergeRequest: MergeRequestDetail } | { ok: false; failure: PlatformFailure };
+
 /** An issue or merge request of a repository, as a link names it. */
 export interface RepositoryItem { kind: 'issue' | 'mergeRequest'; number: number }
 const itemLinks: Record<PlatformId, (path: string, url: URL) => RepositoryItem | null> = {

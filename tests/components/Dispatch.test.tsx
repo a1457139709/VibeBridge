@@ -40,7 +40,7 @@ function renderList({ state = project(), workflows = defaultWorkflowSettings(), 
     dispatch: async (_projectId: string, request: DispatchRequest) => { dispatched.push(request); return creation; },
   };
   const view = (next: ProjectView) => <Localization language="en">
-    <IssueLists project={next} repository={next.repository!} workflows={workflows} shortcuts={defaultShortcuts()} changeBinding={() => {}} locate={location => locations.push(location)} filled={location => fills.push(location)} detail={{ open() {} }} api={api} />
+    <IssueLists project={next} repository={next.repository!} workflows={workflows} shortcuts={defaultShortcuts()} changeBinding={() => {}} locate={location => locations.push(location)} filled={location => fills.push(location)} detail={{ open() {} }} mergeRequestDetail={{ open() {} }} api={api} />
   </Localization>;
   const result = render(view(state));
   return { user: userEvent.setup(), dispatched, locations, fills, reads: () => reads, rerender: (next: ProjectView) => result.rerender(view(next)) };

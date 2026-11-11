@@ -13,6 +13,7 @@ const api: DesktopAPI = {
   dispatch: (id, request) => ipcRenderer.invoke('workbench:dispatch', id, request),
   mergeRequestPage: (id, filter, cursor) => ipcRenderer.invoke('workbench:merge-request-page', id, filter, cursor),
   issueDetail: (id, number) => ipcRenderer.invoke('workbench:issue-detail', id, number),
+  mergeRequestDetail: (id, number) => ipcRenderer.invoke('workbench:merge-request-detail', id, number),
   inspectDirectory: directory => ipcRenderer.invoke('workbench:directory', directory),
   chooseDirectory: () => ipcRenderer.invoke('workbench:choose-directory'),
   activateProject: id => ipcRenderer.invoke('workbench:activate', id),

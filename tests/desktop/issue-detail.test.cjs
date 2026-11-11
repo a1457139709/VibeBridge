@@ -13,7 +13,9 @@ const box = (evaluate, selector) => evaluate(`(() => { const r = document.queryS
 module.exports = {
   async run(base) {
     await require('./support/gh-double.cjs')(base.directory, { login: 'octo', repositories: ['octo/app'],
-      issues: [{ number: 1, title: 'Detail issue', state: 'OPEN', stateReason: null, createdAt: '2026-01-01T00:00:00Z', labels: [], author: 'octo', bodyHTML: '<p>Detail body</p>' }] });
+      issues: [{ number: 1, title: 'Detail issue', state: 'OPEN', stateReason: null, createdAt: '2026-01-01T00:00:00Z', labels: [], author: 'octo', bodyHTML: '<p>Detail body</p>', closedBy: [2] }],
+      pullRequests: [{ number: 2, title: 'Fix detail', state: 'OPEN', isDraft: false, author: 'octo', createdAt: '2026-01-02T00:00:00Z', labels: [], checks: null,
+        bodyHTML: '<p>Fix body</p>' }] });
     const context = await require('./support/terminal-waits.cjs')(base);
     const { evaluate, until, click, window } = context;
     window.setContentSize(1280, 800);
@@ -52,9 +54,12 @@ module.exports = {
     await until(async () => (squeezed = await runSize(context, runId)) !== closedSize && Number(squeezed.split('x')[0]) < Number(closedSize.split('x')[0]),
       'squeezing resized the PTY to fewer columns', { context: () => `closed ${closedSize}, now ${squeezed}` });
 
+    // A merge request that closes the issue opens its own detail in its place.
+    await click('#2 Fix detail');
+    await until(() => evaluate('document.querySelector(".issue-detail")?.textContent.includes("Fix body") ?? false'), 'merge request detail shows its body');
     await click('Close detail');
     await until(() => evaluate('!document.querySelector(".issue-detail")'), 'detail closed');
     await until(async () => await runSize(context, runId) === closedSize, 'PTY back to its size without the detail');
-    console.log('Overlay kept the layout area and PTY size beside the list; squeeze narrowed the layout area and resized the PTY; closing restored it.');
+    console.log('Overlay kept the layout area and PTY size beside the list; squeeze narrowed the layout area and resized the PTY; a closing merge request opened its detail; closing restored it.');
   },
 };
