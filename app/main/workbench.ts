@@ -10,10 +10,10 @@ import { SettingsFile, defaultSettings } from './settings';
 import { settingsConflicts, type SettingsSaveResult } from '../shared/settings';
 import { RunSupervision } from './run-supervision';
 import { commandEnvironment } from '../terminal/environment';
-import type { IssueFilter, IssuePageResult, RepositoryChoices, RepositoryReference } from '../shared/code-hosting';
+import type { IssueFilter, IssuePageResult, MergeRequestPageResult, RepositoryChoices, RepositoryReference } from '../shared/code-hosting';
 import type { CommandEnvironment } from './code-hosting/platform';
 import { bindableRepository, repositoryChoices } from './code-hosting/binding';
-import { issuePage } from './code-hosting/issues';
+import { issuePage, mergeRequestPage } from './code-hosting/issues';
 
 export class WorkbenchOpenError extends Error {
   constructor(error: unknown, readonly language: Language) {
@@ -282,6 +282,12 @@ export class Workbench {
     const { repository } = this.project(projectId);
     if (!repository) throw new Error(message('repositoryUnbound'));
     return issuePage(repository, filter, cursor, await this.commandEnvironment());
+  }
+  /** One page of the merge requests of the project's bound repository, filtered by its platform; null reads the first page. */
+  async mergeRequestPage(projectId: string, filter: IssueFilter, cursor: string | null): Promise<MergeRequestPageResult> {
+    const { repository } = this.project(projectId);
+    if (!repository) throw new Error(message('repositoryUnbound'));
+    return mergeRequestPage(repository, filter, cursor, await this.commandEnvironment());
   }
   sendInput(runId: string, data: string) { return this.supervision.input(runId, data); }
   resizeRun(runId: string, cols: number, rows: number) { return this.supervision.resize(runId, cols, rows); }

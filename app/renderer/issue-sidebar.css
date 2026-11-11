@@ -14,8 +14,8 @@
 .issue-sidebar-repository { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--muted); font-family: Menlo, monospace; font-size: 11px; }
 .issue-sidebar-state { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; padding: 24px; text-align: center; color: var(--muted); line-height: 1.6; }
 /* Lists: tabs and refresh, filters, rows. Colours follow GitHub's issue states. */
-:root { --issue-open: #1a7f37; --issue-done: #8250df; --issue-skipped: #59636e; --issue-blocked: #d1242f; }
-:root[data-theme='dark'] { --issue-open: #3fb950; --issue-done: #ab7df8; --issue-skipped: #9198a1; --issue-blocked: #f85149; }
+:root { --issue-open: #1a7f37; --issue-done: #8250df; --issue-skipped: #59636e; --issue-blocked: #d1242f; --merge-request-closed: #d1242f; --checks-pending: #9a6700; }
+:root[data-theme='dark'] { --issue-open: #3fb950; --issue-done: #ab7df8; --issue-skipped: #9198a1; --issue-blocked: #f85149; --merge-request-closed: #f85149; --checks-pending: #d29922; }
 .issue-tab { flex: 1; min-height: 0; display: flex; flex-direction: column; }
 .issue-toolbar { display: flex; align-items: center; gap: 6px; padding: 6px 8px 0 12px; border-bottom: 1px solid var(--line); }
 .issue-tabs { flex: 1; display: flex; gap: 2px; }
@@ -68,3 +68,11 @@
 .issue-list-more { display: block; margin: 10px auto; min-height: 28px; font-size: 12px; }
 .issue-state-actions { display: flex; flex-wrap: wrap; justify-content: center; gap: 6px; margin-top: 6px; }
 .issue-sidebar-state code { font-family: Menlo, monospace; font-size: 12px; }
+.merge-request-state-open { color: var(--issue-open); }
+.merge-request-state-draft { color: var(--issue-skipped); }
+.merge-request-state-merged { color: var(--issue-done); }
+.merge-request-state-closed { color: var(--merge-request-closed); }
+.merge-request-checks { font-size: 11px; line-height: 1; }
+.merge-request-checks-passing { color: var(--issue-open); }
+.merge-request-checks-failing { color: var(--merge-request-closed); }
+.merge-request-checks-pending { color: var(--checks-pending); }

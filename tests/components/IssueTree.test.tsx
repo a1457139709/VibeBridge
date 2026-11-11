@@ -15,7 +15,7 @@ const closed = (number: number, extra: Partial<IssueSummary> = {}) => issue(numb
 /** The issue list of octo/app showing one page of these issues. */
 async function renderList(issues: IssueSummary[]) {
   render(<IssueLists projectId="app" repository={{ platform: 'github', path: 'octo/app' }} changeBinding={() => {}}
-    api={{ issuePage: async () => ({ ok: true, page: { issues, next: null, labels: [] } }) }} />);
+    api={{ issuePage: async () => ({ ok: true, page: { issues, next: null, labels: [] } }), mergeRequestPage: () => new Promise(() => {}) }} />);
   const list = await screen.findByRole('list', { name: 'GitHub' });
   /** The labels of the rows directly in a list, in order. */
   const rows = (parent: HTMLElement = list) => [...parent.children].filter(child => child.tagName === 'LI').map(row => row.getAttribute('aria-label'));

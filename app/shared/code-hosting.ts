@@ -43,8 +43,9 @@ export interface PlatformFailure { kind: PlatformFailureKind; platform: Platform
 export type RepositoryChoices = { ok: true; platform: PlatformDescription; account: string; repositories: RepositoryReference[]; suggested: RepositoryReference | null }
   | { ok: false; failure: PlatformFailure };
 
-/** What an issue list shows: a server-side search over titles or the issue number, open or
- * closed, and labels the issues must all carry. A fresh list is open with no search or labels. */
+/** What an issue or merge request list shows: a server-side search over titles or the number,
+ * open or closed (a merged merge request is closed), and labels the items must all carry.
+ * A fresh list is open with no search or labels. */
 export interface IssueFilter { search: string; state: 'open' | 'closed'; labels: string[] }
 export const defaultIssueFilter: IssueFilter = { search: '', state: 'open', labels: [] };
 export const issueFilterSchema = z.strictObject({ search: z.string(), state: z.enum(['open', 'closed']), labels: z.array(z.string()) });
@@ -80,5 +81,28 @@ export interface SubIssues { completed: number; total: number; issues: IssueSumm
 /** One page of a list, newest first. `next` is the platform's opaque cursor for the following
  * page, null on the last. `labels` are the repository's labels, offered as filters. */
 export interface IssuePage { issues: IssueSummary[]; next: string | null; labels: IssueLabel[] }
-/** A list page, or why it could not be read. An unreachable repository names the signed-in account when the platform tells it. */
-export type IssuePageResult = { ok: true; page: IssuePage } | { ok: false; failure: PlatformFailure; account?: string };
+/** Why a list page could not be read. An unreachable repository names the signed-in account when the platform tells it. */
+export interface ListFailure { ok: false; failure: PlatformFailure; account?: string }
+export type IssuePageResult = { ok: true; page: IssuePage } | ListFailure;
+
+/** A draft is open; the UI tells it apart from other open merge requests. */
+export type MergeRequestState = 'open' | 'merged' | 'closed';
+/** The combined conclusion of the checks on a merge request's latest commit. */
+export type CheckConclusion = 'passing' | 'failing' | 'pending';
+export interface MergeRequestSummary {
+  number: number;
+  title: string;
+  state: MergeRequestState;
+  draft: boolean;
+  /** The author's account, or null when the platform no longer knows it. */
+  author: string | null;
+  /** ISO 8601. */
+  createdAt: string;
+  /** Null when nothing reports checks on it. */
+  checks: CheckConclusion | null;
+  labels: IssueLabel[];
+  url: string;
+}
+/** One page of merge requests, as an IssuePage is for issues. */
+export interface MergeRequestPage { mergeRequests: MergeRequestSummary[]; next: string | null; labels: IssueLabel[] }
+export type MergeRequestPageResult = { ok: true; page: MergeRequestPage } | ListFailure;

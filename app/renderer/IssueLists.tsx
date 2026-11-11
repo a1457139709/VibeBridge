@@ -1,11 +1,13 @@
-import { useEffect, useRef, useState, type CSSProperties, type ReactNode } from 'react';
+import { useEffect, useRef, useState, type ReactNode } from 'react';
 import type { DesktopAPI } from '../shared/api';
-import { defaultIssueFilter, platformDescriptions, type IssueFilter, type IssueLabel, type IssuePage, type IssueReference, type IssuePageResult, type IssueSummary, type PlatformDescription, type RepositoryReference } from '../shared/code-hosting';
+import { defaultIssueFilter, platformDescriptions, type IssueFilter, type IssueLabel, type IssueReference, type IssueSummary, type ListFailure, type MergeRequestSummary, type PlatformDescription, type RepositoryReference } from '../shared/code-hosting';
 import type { Language } from '../shared/model';
 import { useLocalization } from './Localization';
+import { LabelButtons, relativeTime } from './list-row-parts';
+import { MergeRequestRow } from './MergeRequestRow';
 
 type Tab = 'issues' | 'mergeRequests';
-type Failure = Extract<IssuePageResult, { ok: false }> | { ok: false; error: string };
+type Failure = ListFailure | { ok: false; error: string };
 
 /**
  * The bound repository's lists. Mounted while the sidebar is open on one project and binding,
@@ -13,9 +15,9 @@ type Failure = Extract<IssuePageResult, { ok: false }> | { ok: false; error: str
  * Each tab keeps its own filters; only the shown tab reads from the platform.
  */
 export function IssueLists({ projectId, repository, changeBinding, api = window.workbench }: {
-  projectId: string; repository: RepositoryReference; changeBinding(): void; api?: Pick<DesktopAPI, 'issuePage'>;
+  projectId: string; repository: RepositoryReference; changeBinding(): void; api?: Pick<DesktopAPI, 'issuePage' | 'mergeRequestPage'>;
 }) {
-  const { t } = useLocalization();
+  const { t, language } = useLocalization();
   const [tab, setTab] = useState<Tab>('issues');
   const [filters, setFilters] = useState<Record<Tab, IssueFilter>>({ issues: defaultIssueFilter, mergeRequests: defaultIssueFilter });
   const setFilter = (filter: IssueFilter) => setFilters(current => ({ ...current, [tab]: filter }));
@@ -23,25 +25,34 @@ export function IssueLists({ projectId, repository, changeBinding, api = window.
     {(['issues', 'mergeRequests'] as const).map(id => <button key={id} role="tab" aria-selected={tab === id} onClick={() => setTab(id)}>
       {t(id === 'issues' ? 'issuesTab' : 'mergeRequestsTab')}</button>)}
   </div>;
+  const platform = platformDescriptions[repository.platform];
+  const common = { tabs, setFilter, repository, changeBinding };
   return tab === 'issues'
-    ? <IssueTab tabs={tabs} filter={filters.issues} setFilter={setFilter} load={(filter, cursor) => api.issuePage(projectId, filter, cursor)}
-      repository={repository} changeBinding={changeBinding} />
-    // The merge request list reads nothing yet; its tab already keeps its own filters.
-    : <div className="issue-tab">
-      <div className="issue-toolbar">{tabs}<RefreshButton busy={false} disabled onClick={() => {}} /></div>
-      <FilterBar filter={filters.mergeRequests} setFilter={setFilter} labels={[]} search={t('searchMergeRequests')} />
-    </div>;
+    ? <ListTab key="issues" {...common} filter={filters.issues} search={t('searchIssues')} empty={t('noMatchingIssues')}
+      load={(filter, cursor) => api.issuePage(projectId, filter, cursor).then(result => result.ok
+        ? { ok: true, page: { items: result.page.issues, next: result.page.next, labels: result.page.labels } } : result)}
+      rows={(issues: IssueSummary[], addLabel) => topLevel(issues, platform).map(issue =>
+        <IssueRow key={issue.number} issue={issue} platform={platform} language={language} addLabel={addLabel} />)} />
+    : <ListTab key="mergeRequests" {...common} filter={filters.mergeRequests} search={t('searchMergeRequests')} empty={t('noMatchingMergeRequests')}
+      load={(filter, cursor) => api.mergeRequestPage(projectId, filter, cursor).then(result => result.ok
+        ? { ok: true, page: { items: result.page.mergeRequests, next: result.page.next, labels: result.page.labels } } : result)}
+      rows={(requests: MergeRequestSummary[], addLabel) => requests.map(request =>
+        <MergeRequestRow key={request.number} request={request} addLabel={addLabel} />)} />;
 }
 
-interface ListState {
-  page?: IssuePage;
+/** A list page whatever the list holds. */
+interface ListPage<Item> { items: Item[]; next: string | null; labels: IssueLabel[] }
+type ListResult<Item> = { ok: true; page: ListPage<Item> } | ListFailure;
+
+interface ListState<Item> {
+  page?: ListPage<Item>;
   loading: 'refresh' | 'more' | null;
   failure?: Failure;
 }
 
 /** Reads the first page whenever the filter changes and on refresh; later pages append. A request superseded by another is ignored. */
-function useIssuePages(filter: IssueFilter, load: (filter: IssueFilter, cursor: string | null) => Promise<IssuePageResult>) {
-  const [state, setState] = useState<ListState>({ loading: 'refresh' });
+function useListPages<Item>(filter: IssueFilter, load: (filter: IssueFilter, cursor: string | null) => Promise<ListResult<Item>>) {
+  const [state, setState] = useState<ListState<Item>>({ loading: 'refresh' });
   const latest = useRef(0);
   const read = (cursor: string | null) => {
     const request = ++latest.current;
@@ -49,7 +60,7 @@ function useIssuePages(filter: IssueFilter, load: (filter: IssueFilter, cursor: 
     load(filter, cursor).then(result => result, (error: Error) => ({ ok: false, error: error.message }) as const).then(result => {
       if (request !== latest.current) return;
       setState(current => result.ok
-        ? { loading: null, page: cursor && current.page ? { ...result.page, issues: [...current.page.issues, ...result.page.issues] } : result.page }
+        ? { loading: null, page: cursor && current.page ? { ...result.page, items: [...current.page.items, ...result.page.items] } : result.page }
         : { ...current, loading: null, failure: result });
     });
   };
@@ -57,12 +68,14 @@ function useIssuePages(filter: IssueFilter, load: (filter: IssueFilter, cursor: 
   return { ...state, refresh: () => read(null), more: () => { if (state.page?.next) read(state.page.next); } };
 }
 
-function IssueTab({ tabs, filter, setFilter, load, repository, changeBinding }: {
+/** One tab's list: refresh, filters, rows, paging and the failure states, the same for every kind of item. */
+function ListTab<Item>({ tabs, filter, setFilter, load, rows, search, empty, repository, changeBinding }: {
   tabs: ReactNode; filter: IssueFilter; setFilter(filter: IssueFilter): void; repository: RepositoryReference; changeBinding(): void;
-  load(filter: IssueFilter, cursor: string | null): Promise<IssuePageResult>;
+  load(filter: IssueFilter, cursor: string | null): Promise<ListResult<Item>>;
+  rows(items: Item[], addLabel: (name: string) => void): ReactNode; search: string; empty: string;
 }) {
-  const { t, language } = useLocalization();
-  const list = useIssuePages(filter, load);
+  const { t } = useLocalization();
+  const list = useListPages(filter, load);
   const platform = platformDescriptions[repository.platform];
   const addLabel = (name: string) => { if (!filter.labels.includes(name)) setFilter({ ...filter, labels: [...filter.labels, name] }); };
   // A transient failure leaves rows already read in place; any other failure, or one before any rows, fills the content area.
@@ -76,12 +89,10 @@ function IssueTab({ tabs, filter, setFilter, load, repository, changeBinding }: 
     {toolbar}
     {stale && <div className="issue-stale" role="status"><span>{t('listMayBeStale')}</span>
       <button disabled={!!list.loading} onClick={list.refresh}>{t('retry')}</button></div>}
-    <FilterBar filter={filter} setFilter={setFilter} labels={list.page?.labels ?? []} search={t('searchIssues')} />
+    <FilterBar filter={filter} setFilter={setFilter} labels={list.page?.labels ?? []} search={search} />
     <div className="issue-list">
-      {list.page && <ul aria-label={platform.name}>
-        {topLevel(list.page.issues, platform).map(issue => <IssueRow key={issue.number} issue={issue} platform={platform} language={language} addLabel={addLabel} />)}
-      </ul>}
-      {list.page && !list.page.issues.length && !list.loading && <p className="issue-list-empty">{t('noMatchingIssues')}</p>}
+      {list.page && <ul aria-label={platform.name}>{rows(list.page.items, addLabel)}</ul>}
+      {list.page && !list.page.items.length && !list.loading && <p className="issue-list-empty">{empty}</p>}
       {list.page?.next && <button className="issue-list-more" disabled={!!list.loading} onClick={list.more}>{t('loadMore')}</button>}
     </div>
   </div>;
@@ -146,8 +157,7 @@ function IssueRow({ issue, platform, language, addLabel }: { issue: IssueSummary
             <span className="issue-progress-bar"><span style={{ width: `${subIssues.completed / subIssues.total * 100}%` }} /></span>
             {subIssues.completed}/{subIssues.total}</button>}
           {platform.capabilities.includes('nativeBlocking') && issue.blockedBy.length > 0 && <BlockedMark blockers={issue.blockedBy} />}
-          {issue.labels.map(label => <button key={label.name} className="issue-label" style={{ '--label-color': `#${label.color}` } as CSSProperties}
-            aria-label={t('filterByLabel', { label: label.name })} onClick={() => addLabel(label.name)}>{label.name}</button>)}
+          <LabelButtons labels={issue.labels} addLabel={addLabel} />
         </div>
       </div>
       {/* Dispatch controls take this place. */}
@@ -206,14 +216,6 @@ function IssueStateIcon({ issue }: { issue: IssueSummary }) {
   return <svg className={`issue-state issue-state-${icon}`} role="img" aria-label={name} viewBox="0 0 16 16" width="16" height="16" fill="currentColor">
     {stateIcons[icon].map(path => <path key={path} d={path} />)}
   </svg>;
-}
-
-function relativeTime(date: Date, language: Language) {
-  const seconds = (date.getTime() - Date.now()) / 1000;
-  const units: [Intl.RelativeTimeFormatUnit, number][] = [['year', 31536000], ['month', 2592000], ['day', 86400], ['hour', 3600], ['minute', 60]];
-  const format = new Intl.RelativeTimeFormat(language, { numeric: 'auto' });
-  for (const [unit, size] of units) if (Math.abs(seconds) >= size) return format.format(Math.round(seconds / size), unit);
-  return format.format(0, 'minute');
 }
 
 function FailureState({ failure, path, retry, changeBinding }: { failure: Failure; path: string; retry(): void; changeBinding(): void }) {
