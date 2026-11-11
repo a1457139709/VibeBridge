@@ -49,6 +49,10 @@ export interface GhPullRequest {
   mergeable?: 'MERGEABLE' | 'CONFLICTING' | 'UNKNOWN';
   /** Whether its base branch merges through a merge queue. */
   mergeQueue?: boolean;
+  /** GitHub's merge state status; CLEAN when not given. */
+  mergeStateStatus?: 'BEHIND' | 'BLOCKED' | 'CLEAN' | 'DIRTY' | 'DRAFT' | 'HAS_HOOKS' | 'UNKNOWN' | 'UNSTABLE';
+  /** Whether the viewer can enable auto-merge on it. */
+  viewerCanEnableAutoMerge?: boolean;
   /** The head commit's check runs and commit statuses, in GitHub's order. */
   checkContexts?: GhCheckContext[];
 }

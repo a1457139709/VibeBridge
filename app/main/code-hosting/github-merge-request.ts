@@ -1,4 +1,4 @@
-import type { Check, IssueLabel, MergeMethod, MergeRequestDetail, MergeRequestReview, ReviewDecision, ReviewState } from '../../shared/code-hosting';
+import type { Check, IssueLabel, MergeMethod, MergeRequestDetail, MergeRoute, MergeRequestReview, ReviewDecision, ReviewState } from '../../shared/code-hosting';
 import { PlatformError, type CommandEnvironment } from './platform';
 import { commentFields, description, graphql, issueComment, labelFields, listLabels, ownerAndName, pullRequestStates, relatedIssue, relatedIssueFields, writable,
   type CommentNode, type PageInfo, type RelatedIssueNode } from './github-graphql';
@@ -15,7 +15,7 @@ const query = `query($owner: String!, $name: String!, $number: Int!, $comments: 
       comments(first: 100, after: $comments) { nodes { ${commentFields} } pageInfo { hasNextPage endCursor } }
       reviews(first: 100, after: $reviews) { nodes { author { login } state submittedAt bodyHTML url comments { totalCount } } pageInfo { hasNextPage endCursor } }
       closingIssuesReferences(first: 50) { nodes { ${relatedIssueFields} } }
-      reviewDecision mergeable isMergeQueueEnabled
+      reviewDecision mergeable isMergeQueueEnabled mergeStateStatus viewerCanEnableAutoMerge
       commits(last: 1) { nodes { commit { statusCheckRollup { contexts(first: 100) { nodes { ${checkFields} } } } } } } } } }`;
 
 type CheckNode = { __typename: 'CheckRun'; name: string; status: string; conclusion: string | null; detailsUrl: string | null; isRequired: boolean }
@@ -28,7 +28,7 @@ interface PullRequestDetailNode {
   comments: { nodes: CommentNode[]; pageInfo: PageInfo };
   reviews: { nodes: ReviewNode[]; pageInfo: PageInfo };
   closingIssuesReferences: { nodes: RelatedIssueNode[] };
-  reviewDecision: string | null; mergeable: string; isMergeQueueEnabled: boolean;
+  reviewDecision: string | null; mergeable: string; isMergeQueueEnabled: boolean; mergeStateStatus: string; viewerCanEnableAutoMerge: boolean;
   commits: { nodes: { commit: { statusCheckRollup: { contexts: { nodes: CheckNode[] } } | null } }[] };
 }
 interface DetailPage { repository: { viewerPermission: string | null; mergeCommitAllowed: boolean; squashMergeAllowed: boolean; rebaseMergeAllowed: boolean; pullRequest: PullRequestDetailNode | null } }
@@ -38,6 +38,16 @@ const decisions: Record<string, ReviewDecision> = { APPROVED: 'approved', CHANGE
 const reviewStates: Record<string, ReviewState> = { APPROVED: 'approved', CHANGES_REQUESTED: 'changesRequested', COMMENTED: 'commented', DISMISSED: 'dismissed' };
 const passedRuns = new Set(['SUCCESS', 'NEUTRAL', 'SKIPPED']);
 const statusConclusions = { SUCCESS: 'passing', FAILURE: 'failing', ERROR: 'failing', PENDING: 'pending', EXPECTED: 'pending' } as const;
+
+/**
+ * A base branch with a merge queue merges only through it. Otherwise GitHub has no setting that requires auto-merge;
+ * what it reads as such is branch protection blocking a direct merge (BLOCKED) while it offers this viewer auto-merge
+ * instead, which is the route its own merge box then offers.
+ */
+function mergeThrough(node: PullRequestDetailNode): MergeRoute | null {
+  if (node.isMergeQueueEnabled) return 'mergeQueue';
+  return node.mergeStateStatus === 'BLOCKED' && node.viewerCanEnableAutoMerge ? 'autoMerge' : null;
+}
 
 /** Check runs report a status and, once completed, a conclusion; commit statuses report one state. */
 function check(node: CheckNode): Check {
@@ -83,5 +93,5 @@ export async function mergeRequest(environment: CommandEnvironment, path: string
     head, base: node.baseRefName, body: node.bodyHTML, comments: comments.map(issueComment), reviews: reviews(reviewNodes),
     closingIssues: node.closingIssuesReferences.nodes.map(relatedIssue),
     merge: { review: decisions[node.reviewDecision ?? ''] ?? null, checks: (node.commits.nodes[0]?.commit.statusCheckRollup?.contexts.nodes ?? []).map(check),
-      conflicting: node.mergeable === 'CONFLICTING', methods, queue: node.isMergeQueueEnabled }, writable: writable(repository.viewerPermission) };
+      conflicting: node.mergeable === 'CONFLICTING', methods, mergeThrough: mergeThrough(node) }, writable: writable(repository.viewerPermission) };
 }

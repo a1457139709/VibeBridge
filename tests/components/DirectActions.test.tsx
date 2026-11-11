@@ -28,7 +28,7 @@ const app: ProjectView = { id: 'app', name: 'App project', directory: '/work/app
 
 const summary = (number: number): MergeRequestSummary => ({ number, title: `Change ${number}`, state: 'open', draft: false, author: 'mona',
   createdAt: '2026-11-01T00:00:00Z', checks: null, labels: [], url: `https://github.com/octo/app/pull/${number}` });
-const mergeState = (extra: Partial<MergeState> = {}): MergeState => ({ review: null, checks: [], conflicting: false, methods: ['merge', 'squash', 'rebase'], queue: false, ...extra });
+const mergeState = (extra: Partial<MergeState> = {}): MergeState => ({ review: null, checks: [], conflicting: false, methods: ['merge', 'squash', 'rebase'], mergeThrough: null, ...extra });
 const mergeRequest = (number: number, extra: Partial<MergeRequestDetail> = {}): MergeRequestDetail => {
   const { checks: _checks, ...rest } = summary(number);
   return { ...rest, head: 'feature', base: 'main', changesUrl: `https://github.com/octo/app/pull/${number}/files`, body: '<p>Body</p>',
@@ -39,7 +39,7 @@ const issue = (number: number, extra: Partial<IssueDetail> = {}): IssueDetail =>
   commentCount: 0, comments: [], parent: null, subIssues: [], blockedBy: [], blocking: [], closingMergeRequests: [], writable: true, ...extra });
 
 /**
- * The workbench with the sidebar open on the App project, listing issue #3 and pull requests #10 and #11. Details answer with
+ * The workbench with the sidebar open on the App project, listing issue #3 and pull requests #10 to #12. Details answer with
  * what the test holds for them; every direct action waits for the test to answer it.
  */
 async function renderSidebar(shown: { issues: IssueDetail[]; mergeRequests: MergeRequestDetail[] }) {
@@ -58,7 +58,7 @@ async function renderSidebar(shown: { issues: IssueDetail[]; mergeRequests: Merg
       return { ok: true, page: { issues: [{ number: 3, title: 'Issue 3', state: 'open', closedAs: null, createdAt: '2026-11-01T00:00:00Z',
         labels: [], url: 'https://github.com/octo/app/issues/3', parent: null, subIssues: null, blockedBy: [] }], next: null, labels: [] } };
     },
-    mergeRequestPage: async () => { reads.mergeRequestPage++; return { ok: true, page: { mergeRequests: [summary(11), summary(10)], next: null, labels: [] } }; },
+    mergeRequestPage: async () => { reads.mergeRequestPage++; return { ok: true, page: { mergeRequests: [summary(12), summary(11), summary(10)], next: null, labels: [] } }; },
     issueDetail: async (_projectId, number) => { reads.issue++; return { ok: true, issue: shown.issues.find(each => each.number === number)! }; },
     mergeRequestDetail: async (_projectId, number) => { reads.mergeRequest++; return { ok: true, mergeRequest: shown.mergeRequests.find(each => each.number === number)! }; },
     directAction: (_projectId, action) => {
@@ -190,11 +190,12 @@ test('merging takes two clicks in place with the method chosen from the allowed 
   assert.deepEqual((await f.nextAction(1)).action, { kind: 'closeMergeRequest', number: 11 });
 });
 
-test('a blocked merge is greyed out with its reasons, and a merge queue sends the user to the platform', async () => {
+test('a blocked merge is greyed out with its reasons, and a merge queue or auto-merge sends the user to the platform', async () => {
   const f = await renderSidebar({ issues: [], mergeRequests: [
     mergeRequest(10, { draft: true, merge: mergeState({ review: 'reviewRequired', conflicting: true, checks: [
       { name: 'build', conclusion: 'failing', required: true, url: null }, { name: 'lint', conclusion: 'failing', required: false, url: null }] }) }),
-    mergeRequest(11, { merge: mergeState({ queue: true }) }),
+    mergeRequest(11, { merge: mergeState({ mergeThrough: 'mergeQueue' }) }),
+    mergeRequest(12, { merge: mergeState({ mergeThrough: 'autoMerge' }) }),
   ] });
   // The method a test before chose is still remembered: the app has not quit.
   const mergeButton = { name: /^(Create a merge commit|Squash and merge|Rebase and merge)$/ };
@@ -208,6 +209,11 @@ test('a blocked merge is greyed out with its reasons, and a merge queue sends th
   assert.ok((within(queued).getByRole('button', mergeButton) as HTMLButtonElement).disabled);
   assert.ok(within(queued).getByText('This repository merges through a merge queue; merge it on GitHub.'));
   assert.equal(within(queued).getByRole('link', { name: 'Open in browser ↗' }).getAttribute('href'), 'https://github.com/octo/app/pull/11');
+
+  const autoMerged = await f.openPullRequest(12);
+  assert.ok((within(autoMerged).getByRole('button', mergeButton) as HTMLButtonElement).disabled);
+  assert.ok(within(autoMerged).getByText('This pull request merges only through auto-merge; merge it on GitHub.'));
+  assert.equal(within(autoMerged).getByRole('link', { name: 'Open in browser ↗' }).getAttribute('href'), 'https://github.com/octo/app/pull/12');
 });
 
 test('a closed pull request can be reopened and a merged one offers no action', async () => {

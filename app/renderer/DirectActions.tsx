@@ -80,6 +80,7 @@ export function IssueActions({ projectId, issue, host, api = window.workbench }:
 }
 
 const methodNames = { merge: 'mergeWithMerge', squash: 'mergeWithSquash', rebase: 'mergeWithRebase' } as const;
+const routeNames = { mergeQueue: 'mergeThroughQueue', autoMerge: 'mergeThroughAutoMerge' } as const;
 
 /** What keeps the platform from merging it, in the merge area's order. Checks count when required, or all of them where the platform marks none. */
 function blockers(request: MergeRequestDetail, platform: PlatformDescription) {
@@ -97,7 +98,7 @@ function blockers(request: MergeRequestDetail, platform: PlatformDescription) {
 
 /**
  * Merging an open merge request in two clicks with one of the repository's methods, and closing it; reopening a closed one.
- * A merge the platform would block is greyed out with why; one that must go through a merge queue is left to the platform.
+ * A merge the platform would block is greyed out with why; one that must go through a merge queue or auto-merge is left to the platform.
  */
 export function MergeRequestActions({ projectId, repository, request, host, api = window.workbench }: {
   projectId: string; repository: RepositoryReference; request: MergeRequestDetail; host: DirectActionHost; api?: Api;
@@ -117,7 +118,7 @@ export function MergeRequestActions({ projectId, repository, request, host, api 
   const platform = platformDescriptions[repository.platform];
   const current = method && merge.methods.includes(method) ? method : merge.methods[0];
   const reasons = blockers(request, platform);
-  const blocked = !!reasons.length || merge.queue;
+  const blocked = !!reasons.length || !!merge.mergeThrough;
   const mergeAction: DirectAction | undefined = current && { kind: 'mergeMergeRequest', number, method: current };
   return <div className="direct-actions">
     <div className="direct-action-buttons">
@@ -135,7 +136,7 @@ export function MergeRequestActions({ projectId, repository, request, host, api 
       {actions.button({ kind: 'closeMergeRequest', number }, t('closeMergeRequest'))}
     </div>
     {!!reasons.length && <ul className="merge-blockers" aria-label={t('mergeBlocked')}>{reasons.map(reason => <li key={reason}>{t(reason)}</li>)}</ul>}
-    {merge.queue && <p className="merge-on-platform">{t('mergeOnPlatform', { platform: platform.name })}{' '}
+    {merge.mergeThrough && <p className="merge-on-platform">{t(routeNames[merge.mergeThrough], { platform: platform.name })}{' '}
       <a href={request.url} target="_blank" rel="noreferrer">{t('openInBrowser')}</a></p>}
     {actions.failure}
   </div>;

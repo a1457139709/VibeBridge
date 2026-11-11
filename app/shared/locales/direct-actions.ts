@@ -19,7 +19,8 @@ export const englishDirectActions = {
   'mergeBlockedChangesRequested': 'Changes were requested',
   'mergeBlockedChecksFailing': 'Required checks have not passed',
   'mergeBlockedChecksPending': 'Required checks are still running',
-  'mergeOnPlatform': 'This repository merges through a merge queue; merge it on {platform}.',
+  'mergeThroughQueue': 'This repository merges through a merge queue; merge it on {platform}.',
+  'mergeThroughAutoMerge': 'This pull request merges only through auto-merge; merge it on {platform}.',
   'openInBrowser': 'Open in browser ↗',
   'dismissFailure': 'Dismiss',
 } as const;
@@ -43,7 +44,8 @@ export const chineseDirectActions: Record<keyof typeof englishDirectActions, str
   mergeBlockedChangesRequested: '有人要求修改',
   mergeBlockedChecksFailing: '必需的检查没有通过',
   mergeBlockedChecksPending: '必需的检查还在进行',
-  mergeOnPlatform: '这个仓库通过 merge queue 合并，需要到 {platform} 上操作。',
+  mergeThroughQueue: '这个仓库通过 merge queue 合并，需要到 {platform} 上操作。',
+  mergeThroughAutoMerge: '这个 PR 只能通过 auto-merge 合并，需要到 {platform} 上操作。',
   openInBrowser: '在浏览器中打开 ↗',
   dismissFailure: '关闭',
 };
