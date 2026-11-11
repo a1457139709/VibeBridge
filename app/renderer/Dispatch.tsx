@@ -187,7 +187,11 @@ export function DispatchRecords({ issue, records, locate }: {
   issue: Pick<IssueSummary, 'state'>; records: DispatchRecordView[]; locate(location: DispatchLocation): void;
 }) {
   const { t } = useLocalization();
-  const [open, setOpen] = useState(issue.state === 'open');
+  // Unfolded while the issue is open; folded whenever it is read as closed.
+  const [fold, setFold] = useState({ state: issue.state, open: issue.state === 'open' });
+  if (fold.state !== issue.state) setFold({ state: issue.state, open: issue.state === 'open' });
+  const open = fold.state === issue.state ? fold.open : issue.state === 'open';
+  const setOpen = (toggle: (open: boolean) => boolean) => setFold({ state: issue.state, open: toggle(open) });
   if (!records.length) return null;
   const heading = t('dispatchRecords', { count: records.length });
   return <section className="dispatch-records" aria-label={heading}>
