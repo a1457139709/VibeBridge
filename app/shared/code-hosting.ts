@@ -65,7 +65,18 @@ export interface IssueSummary {
   createdAt: string;
   labels: IssueLabel[];
   url: string;
+  /** The issue this one is a sub-issue of. Null without one, or when the platform lacks `subIssues`. */
+  parent: number | null;
+  /** Null when it has none, when it is itself read as a sub-issue (the list reads one level),
+   * or when the platform lacks `subIssues`. */
+  subIssues: SubIssues | null;
+  /** The open issues natively marked as blocking it; empty when the platform lacks `nativeBlocking`.
+   * Text in the body is never read as a blocker. */
+  blockedBy: IssueReference[];
 }
+export interface IssueReference { number: number; title: string }
+/** An issue's sub-issues, open and closed, in the platform's order, with how many are closed. */
+export interface SubIssues { completed: number; total: number; issues: IssueSummary[] }
 /** One page of a list, newest first. `next` is the platform's opaque cursor for the following
  * page, null on the last. `labels` are the repository's labels, offered as filters. */
 export interface IssuePage { issues: IssueSummary[]; next: string | null; labels: IssueLabel[] }

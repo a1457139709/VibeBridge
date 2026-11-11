@@ -58,14 +58,24 @@ function remotePath(url: string): string | null {
   return match ? match[1] : null;
 }
 
-const issueFields = `number title state stateReason createdAt url labels(first: 20) { nodes { name color } }`;
+// Sub-issues and blockers come from their own fields, never from search qualifiers or body text.
+const relationFields = `parent { number } blockedBy(first: 20) { nodes { number title state } }`;
+const ownFields = `number title state stateReason createdAt url labels(first: 20) { nodes { name color } } ${relationFields}`;
+const issueFields = `${ownFields} subIssuesSummary { total completed } subIssues(first: 50) { nodes { ${ownFields} } }`;
 const issuesQuery = `query($owner: String!, $name: String!, $q: String!, $first: Int!, $cursor: String) {
   repository(owner: $owner, name: $name) { labels(first: 100, orderBy: { field: NAME, direction: ASC }) { nodes { name color } } }
   search(query: $q, type: ISSUE, first: $first, after: $cursor) { nodes { ... on Issue { ${issueFields} } } pageInfo { hasNextPage endCursor } } }`;
 const issueByNumberQuery = `query($owner: String!, $name: String!, $number: Int!) {
   repository(owner: $owner, name: $name) { issueOrPullRequest(number: $number) { ... on Issue { ${issueFields} } } } }`;
 
-interface IssueNode { number: number; title: string; state: 'OPEN' | 'CLOSED'; stateReason: string | null; createdAt: string; url: string; labels: { nodes: IssueLabel[] } }
+interface IssueNode {
+  number: number; title: string; state: 'OPEN' | 'CLOSED'; stateReason: string | null; createdAt: string; url: string; labels: { nodes: IssueLabel[] };
+  parent: { number: number } | null;
+  blockedBy: { nodes: { number: number; title: string; state: 'OPEN' | 'CLOSED' }[] };
+  /** Read only for listed issues, not for their sub-issues. */
+  subIssuesSummary?: { total: number; completed: number };
+  subIssues?: { nodes: IssueNode[] };
+}
 /** A search or number lookup also meets pull requests, which the Issue fragment leaves empty. */
 type SearchNode = IssueNode | Record<string, never>;
 const isIssue = (node: SearchNode): node is IssueNode => 'number' in node;
@@ -78,7 +88,12 @@ const closures: Record<string, IssueClosure> = { COMPLETED: 'completed', NOT_PLA
 function issueSummary(node: IssueNode): IssueSummary {
   const state = node.state === 'OPEN' ? 'open' : 'closed';
   return { number: node.number, title: node.title, state, closedAs: state === 'closed' ? closures[node.stateReason ?? ''] ?? null : null,
-    createdAt: node.createdAt, labels: node.labels.nodes.map(({ name, color }) => ({ name, color })), url: node.url };
+    createdAt: node.createdAt, labels: node.labels.nodes.map(({ name, color }) => ({ name, color })), url: node.url,
+    parent: node.parent?.number ?? null,
+    subIssues: node.subIssuesSummary?.total && node.subIssues
+      ? { total: node.subIssuesSummary.total, completed: node.subIssuesSummary.completed, issues: node.subIssues.nodes.map(issueSummary) }
+      : null,
+    blockedBy: node.blockedBy.nodes.filter(blocker => blocker.state === 'OPEN').map(({ number, title }) => ({ number, title })) };
 }
 
 // A search term only becomes a value: quotes inside it are dropped.
