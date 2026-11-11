@@ -5,7 +5,7 @@ import { cleanup, render, screen, waitFor, within } from '@testing-library/react
 import { userEvent } from '@testing-library/user-event';
 import { IssueLists } from '../../app/renderer/IssueLists';
 import { Localization } from '../../app/renderer/Localization';
-import type { PanelView, ProjectView } from '../../app/shared/model';
+import type { PanelCreation, PanelView, ProjectView } from '../../app/shared/model';
 import type { DispatchLocation, DispatchRecordView, DispatchRequest } from '../../app/shared/dispatch';
 import type { IssuePageResult, IssueSummary } from '../../app/shared/code-hosting';
 import { defaultWorkflowSettings, type WorkflowSettings } from '../../app/shared/workflows';
@@ -28,20 +28,21 @@ function project(extra: Partial<ProjectView> = {}): ProjectView {
 }
 
 /** The issue list of the App project, answering every page request with these issues. */
-function renderList({ state = project(), workflows = defaultWorkflowSettings(), issues = [issue(7)] }: { state?: ProjectView; workflows?: WorkflowSettings; issues?: IssueSummary[] } = {}) {
+function renderList({ state = project(), workflows = defaultWorkflowSettings(), issues = [issue(7)], creation = null }:
+  { state?: ProjectView; workflows?: WorkflowSettings; issues?: IssueSummary[]; creation?: PanelCreation | null } = {}) {
   const dispatched: DispatchRequest[] = [];
-  const locations: DispatchLocation[] = [];
+  const locations: DispatchLocation[] = [], fills: DispatchLocation[] = [];
   let reads = 0;
   const api = {
     issuePage: async (): Promise<IssuePageResult> => { reads++; return { ok: true, page: { issues, next: null, labels: [] } }; },
     mergeRequestPage: () => new Promise<never>(() => {}),
-    dispatch: async (_projectId: string, request: DispatchRequest) => { dispatched.push(request); },
+    dispatch: async (_projectId: string, request: DispatchRequest) => { dispatched.push(request); return creation; },
   };
   const view = (next: ProjectView) => <Localization language="en">
-    <IssueLists project={next} repository={next.repository!} workflows={workflows} changeBinding={() => {}} locate={location => locations.push(location)} detail={{ open() {} }} api={api} />
+    <IssueLists project={next} repository={next.repository!} workflows={workflows} changeBinding={() => {}} locate={location => locations.push(location)} filled={location => fills.push(location)} detail={{ open() {} }} api={api} />
   </Localization>;
   const result = render(view(state));
-  return { user: userEvent.setup(), dispatched, locations, reads: () => reads, rerender: (next: ProjectView) => result.rerender(view(next)) };
+  return { user: userEvent.setup(), dispatched, locations, fills, reads: () => reads, rerender: (next: ProjectView) => result.rerender(view(next)) };
 }
 const row = async (number: number) => screen.findByRole('listitem', { name: `#${number} Issue ${number}` });
 const openMenu = async (user: ReturnType<typeof userEvent.setup>, number = 7) => {
@@ -95,14 +96,46 @@ test('submitting to a panel sends the dispatch, closes the menu, returns focus t
   assert.deepEqual(locations, []);
 });
 
-test('filling a panel locates it', async () => {
+test('filling a panel shows it as filled', async () => {
   const workflows = defaultWorkflowSettings();
   workflows.matt.instructions.tdd.delivery = 'fill';
-  const { user, locations } = renderList({ workflows });
+  const { user, fills } = renderList({ workflows });
   await user.click(within(await openMenu(user)).getByRole('menuitem', { name: /^tdd/ }));
   await user.click(screen.getByRole('menuitem', { name: /Ephemeral$/ }));
-  await waitFor(() => assert.deepEqual(locations.map(location => location.panelId), ['ephemeral']));
+  await waitFor(() => assert.deepEqual(fills.map(location => location.panelId), ['ephemeral']));
   assert.equal(screen.queryByRole('menu'), null);
+});
+
+const created = (outcome: 'started' | 'failed' = 'started'): PanelCreation =>
+  ({ panel: { id: 'new', agent: 'codex' }, launch: { outcome, agent: 'codex', run: { id: 'run-new', panelId: 'new', projectId: 'app', state: outcome === 'started' ? 'running' : 'failed' } } });
+
+test('submitting to a new panel leaves it in the tray and returns focus to the dispatch button', async () => {
+  const { user, dispatched, locations, fills } = renderList({ creation: created() });
+  await user.click(within(await openMenu(user)).getByRole('menuitem', { name: /^to-spec/ }));
+  await user.click(screen.getByRole('menuitem', { name: 'New · Codex' }));
+  assert.deepEqual(dispatched.map(request => request.target), [{ agent: 'codex' }]);
+  await waitFor(() => assert.equal(document.activeElement, within(screen.getByRole('listitem', { name: '#7 Issue 7' })).getByRole('button', { name: 'Dispatch ▾' })));
+  assert.equal(screen.queryByRole('menu'), null);
+  assert.deepEqual([...locations, ...fills], []);
+});
+
+test('filling a new panel opens it once the snapshot shows it in the tray', async () => {
+  const workflows = defaultWorkflowSettings();
+  workflows.matt.instructions.tdd.delivery = 'fill';
+  const { user, dispatched, fills, rerender } = renderList({ workflows, creation: created() });
+  await user.click(within(await openMenu(user)).getByRole('menuitem', { name: /^tdd/ }));
+  await user.click(screen.getByRole('menuitem', { name: 'New · Codex' }));
+  await waitFor(() => assert.equal(dispatched.length, 1));
+  rerender(project({ tray: [running('ephemeral', 'codex'), running('new', 'codex')] }));
+  await waitFor(() => assert.deepEqual(fills, [{ projectId: 'app', panelId: 'new', runId: 'run-new', ephemeral: true }]));
+});
+
+test('a new panel whose Agent could not start shows why', async () => {
+  const { user, fills } = renderList({ creation: created('failed') });
+  await user.click(within(await openMenu(user)).getByRole('menuitem', { name: /^to-spec/ }));
+  await user.click(screen.getByRole('menuitem', { name: 'New · Claude Code' }));
+  assert.equal((await screen.findByRole('alert')).textContent, 'Agent could not start');
+  assert.deepEqual(fills, []);
 });
 
 test('an issue row shows its latest dispatch: the panel on its session, or a grey dispatched time, and nothing once closed', async () => {

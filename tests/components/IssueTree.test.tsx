@@ -17,8 +17,8 @@ const closed = (number: number, extra: Partial<IssueSummary> = {}) => issue(numb
 /** The issue list of octo/app showing one page of these issues. */
 async function renderList(issues: IssueSummary[]) {
   const project: ProjectView = { id: 'app', name: 'App', directory: '/work/app', layout: null, panels: [], tray: [], dispatches: [], repository: { platform: 'github', path: 'octo/app' } };
-  render(<IssueLists project={project} repository={project.repository!} workflows={defaultWorkflowSettings()} changeBinding={() => {}} locate={() => {}} detail={{ open() {} }}
-    api={{ issuePage: async () => ({ ok: true, page: { issues, next: null, labels: [] } }), mergeRequestPage: () => new Promise(() => {}), dispatch: async () => {} }} />);
+  render(<IssueLists project={project} repository={project.repository!} workflows={defaultWorkflowSettings()} changeBinding={() => {}} locate={() => {}} filled={() => {}} detail={{ open() {} }}
+    api={{ issuePage: async () => ({ ok: true, page: { issues, next: null, labels: [] } }), mergeRequestPage: () => new Promise(() => {}), dispatch: async () => null }} />);
   const list = await screen.findByRole('list', { name: 'GitHub' });
   /** The labels of the rows directly in a list, in order. */
   const rows = (parent: HTMLElement = list) => [...parent.children].filter(child => child.tagName === 'LI').map(row => row.getAttribute('aria-label'));

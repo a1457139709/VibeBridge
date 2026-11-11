@@ -2,8 +2,7 @@ import { message, detail } from '../shared/messages';
 import { projectNameError } from '../shared/project-name';
 import type { Language, ProjectEdit, ProjectEditResult } from '../shared/model';
 import { randomUUID } from 'node:crypto';
-import { realpath, stat } from 'node:fs/promises';
-import { basename } from 'node:path';
+import { inspectDirectory } from './project-directory';
 import { defaultIssueSidebar, defaultNavigation, issueSidebarSchema, issueSidebarWidth, navigationSchema, navigationWidth, type IssueSidebarPreferences, type NavigationPreferences, assignedAgents, arrange, validateDraft, removeFromLayout, parseLayout, layoutStructure, layoutPanelIds, panelPosition, projectPanels, panelLimitReached, agentTypes, type AgentType, type DirectoryResult, type LaunchResult, type Layout, type Panel, type Project, type ProjectCreation, type ProjectDraft, type PanelCreation, type Settings, type Snapshot, type WorkbenchEvent } from '../shared/model';
 import { ProjectStore } from './storage';
 import { SettingsFile, defaultSettings } from './settings';
@@ -42,7 +41,7 @@ export class Workbench {
       } });
     this.dispatches = new Dispatches(dispatchRecords, store, this.supervision, {
       projects: () => this.state.projects, tray: id => this.tray(id),
-      workflows: () => this.state.settings.workflows, changed: () => this.changed(), report: text => this.report(text) });
+      workflows: () => this.state.settings.workflows, addPanel: (id, agent, args) => this.appendPanel(id, agent, args), changed: () => this.changed(), report: text => this.report(text) });
   }
   static async open(directory: string, systemDark = false) {
     const settingsFile = new SettingsFile(directory);
@@ -87,14 +86,7 @@ export class Workbench {
   }
   private tray(projectId: string) { return this.trays.get(projectId) ?? []; }
   private panels(project: Project) { return projectPanels({ panels: project.panels, tray: this.tray(project.id) }); }
-  async inspectDirectory(path: string): Promise<DirectoryResult> {
-    try {
-      const directory = await realpath(path);
-      if (!(await stat(directory)).isDirectory()) return { valid: false };
-      const existing = this.state.projects.find(project => project.directory === directory);
-      return { valid: true, directory, name: basename(directory), existingProjectId: existing?.id, existingProjectName: existing?.name };
-    } catch { return { valid: false }; }
-  }
+  inspectDirectory(path: string): Promise<DirectoryResult> { return inspectDirectory(path, this.state.projects); }
   createProject(draft: ProjectDraft): Promise<ProjectCreation> { return this.operation(async () => {
     validateDraft(draft);
     const directory = await this.inspectDirectory(draft.directory);
@@ -153,7 +145,10 @@ export class Workbench {
     this.changed();
     if (activateNext && nextActive) await this.startProject(this.project(nextActive));
   }); }
-  private startPanel(project: Project, panel: Panel) { return this.supervision.start(project, panel, this.state.settings.agents[panel.agent]); }
+  private startPanel(project: Project, panel: Panel, args: string[] = []) {
+    const agent = this.state.settings.agents[panel.agent];
+    return this.supervision.start(project, panel, { ...agent, args: [...agent.args, ...args] });
+  }
   private async startProject(project: Project): Promise<LaunchResult[]> {
     if (this.visited.has(project.id)) return [];
     this.visited.add(project.id);
@@ -173,17 +168,19 @@ export class Workbench {
     await this.startProject(project);
   }); }
   /** Adds a panel to the end of the project's tray and starts its Agent. The layout is unchanged. */
-  addPanel(projectId: string, agent: AgentType): Promise<PanelCreation> { return this.operation(async () => {
+  addPanel(projectId: string, agent: AgentType): Promise<PanelCreation> { return this.operation(() => this.appendPanel(projectId, agent, [])); }
+  /** As addPanel, with these arguments after its Agent settings. */
+  private async appendPanel(projectId: string, agent: AgentType, args: string[]): Promise<PanelCreation> {
     const project = this.project(projectId);
     if (!agentTypes.includes(agent)) throw new Error(message('agentInvalid'));
     const tray = this.tray(projectId);
     if (panelLimitReached({ panels: project.panels, tray })) throw new Error(message('panelLimit'));
     const panel = { id: randomUUID(), agent };
     this.trays.set(projectId, [...tray, panel]); this.changed();
-    const launch = await this.startPanel(project, panel);
+    const launch = await this.startPanel(project, panel, args);
     if (launch.outcome === 'failed') this.removeFromTray(projectId, panel.id);
     return { panel: structuredClone(panel), launch };
-  }); }
+  }
   // Undoes the addition of panels whose Agent never started. Restored layouts keep
   // their failed panels; this is neither closing a panel nor a run exit.
   private async withdrawPanels(project: Project, panelIds: string[]) {
@@ -279,8 +276,8 @@ export class Workbench {
   }
   /** One page of the issues of the project's bound repository, filtered by its platform; null reads the first page. */
   issuePage(projectId: string, filter: IssueFilter, cursor: string | null): Promise<IssuePageResult> { return this.repositories.issuePage(this.project(projectId), filter, cursor); }
-  /** Dispatches an issue to a panel of the project; see Dispatches. */
-  dispatch(projectId: string, request: DispatchRequest): Promise<void> { return this.operation(() => this.dispatches.dispatch(projectId, request)); }
+  /** Dispatches an issue to a panel of the project or a new one; see Dispatches. */
+  dispatch(projectId: string, request: DispatchRequest): Promise<PanelCreation | null> { return this.operation(() => this.dispatches.dispatch(projectId, request)); }
   /** One page of the merge requests of the project's bound repository, filtered by its platform; null reads the first page. */
   mergeRequestPage(projectId: string, filter: IssueFilter, cursor: string | null): Promise<MergeRequestPageResult> { return this.repositories.mergeRequestPage(this.project(projectId), filter, cursor); }
   /** The bound repository's issue with that number, with its comments and relations, read from its platform. */

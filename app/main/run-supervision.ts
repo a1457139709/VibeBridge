@@ -139,8 +139,10 @@ export class RunSupervision {
     return run && { projectId: run.projectId, panelId: run.panelId };
   }
   /** Holds a pending dispatch on the run: `write` receives the first session the run reports.
-   * It is dropped, unpersisted, if the run ends before reporting one. */
-  holdDispatch(runId: string, write: (session: string) => void) { this.processing.awaitSession(runId, write); }
+   * If the run ends before reporting one, or already has, `drop` is called instead; nothing is persisted. */
+  holdDispatch(runId: string, write: (session: string) => void, drop: () => void) { this.processing.awaitSession(runId, write, drop); }
+  /** Runs `deliver` when the run first reports Ready, or at once if it is Ready now; dropped if the run ends first. */
+  awaitReady(runId: string, deliver: () => void) { this.processing.awaitReady(runId, deliver); }
   input(runId: string, data: string) { return this.terminal.input(runId, data); }
   resize(runId: string, cols: number, rows: number) { return this.terminal.resize(runId, cols, rows); }
   acknowledgeOutput(runId: string, characters: number) { this.terminal.acknowledgeOutput(runId, characters); }

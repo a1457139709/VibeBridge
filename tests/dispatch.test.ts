@@ -22,13 +22,22 @@ async function open(context: TestContext, directory: string) {
   });
   const output = (runId: string) => events.flatMap(e => e.kind === 'output' && e.runId === runId ? [e.data] : []).join('');
   let sequence = 0;
-  return { workbench, output,
+  /** Sends the Claude CLI double one request and waits for its acknowledgement. */
+  async function request(runId: string, fields: object) {
+    const id = ++sequence;
+    await workbench.sendInput(runId, JSON.stringify({ id, ...fields }) + '\n');
+    await until(() => output(runId).includes(`ACK:${id}\r\n`), () => output(runId));
+  }
+  return { workbench, output, request,
     view: (id: string) => workbench.snapshot().projects.find(project => project.id === id)!,
     /** Has the Claude CLI double report this session as resumed. */
-    async resume(runId: string, session: string) {
-      const id = ++sequence;
-      await workbench.sendInput(runId, JSON.stringify({ id, payload: { hook_event_name: 'SessionStart', session_id: session, source: 'resume' } }) + '\n');
-      await until(() => output(runId).includes(`ACK:${id}\r\n`), () => output(runId));
+    resume: (runId: string, session: string) => request(runId, { payload: { hook_event_name: 'SessionStart', session_id: session, source: 'resume' } }),
+    /** Has the Claude CLI double report its startup session, which makes it Ready. */
+    start: (runId: string) => request(runId, { payload: { hook_event_name: 'SessionStart', source: 'startup' } }),
+    /** The launch arguments the Claude CLI double received. */
+    async arguments(runId: string): Promise<string[]> {
+      await request(runId, { arguments: true });
+      return JSON.parse(/ARGUMENTS:(.*)\r\n/.exec(output(runId))![1]);
     } };
 }
 
@@ -43,7 +52,12 @@ async function dispatchable(context: TestContext, scope: string) {
   const { project, launches: [{ run }] } = await f.workbench.createProject({ name: 'Bound', directory, total: 1, counts: { codex: 0, claude: 1, pi: 0 } });
   await f.workbench.bindRepository(project.id, { platform: 'github', path: 'octo/app' });
   await until(() => f.output(run.id).includes('CLI-DOUBLE-READY') && f.view(project.id).panels[0].status === 'ready', () => f.output(run.id));
-  return { ...f, directory, project, run, panelId: project.panels[0].id, session: `session-${run.pid}` };
+  return { ...f, directory, project, run, panelId: project.panels[0].id, session: `session-${run.pid}`,
+    /** New Claude Code panels report neither a session nor Ready until the test has them start. */
+    async holdSessions() {
+      agents.claude = { ...agents.claude, args: [...agents.claude.args, '--hold-session'] };
+      await f.workbench.saveSettings({ agents });
+    } };
 }
 
 test('dispatching to an existing panel pastes the instruction into its terminal, adding a return to submit, and records it on the panel session', async context => {
@@ -110,6 +124,52 @@ test('a dispatch names an enabled instruction and a panel of the project with a 
   await f.workbench.saveSettings({ workflows });
   await assert.rejects(f.workbench.dispatch(f.project.id, request), /instructionUnavailable/);
   assert.deepEqual(f.view(f.project.id).dispatches, []);
+});
+
+test('dispatching to a new panel and submitting launches it with the instruction, and records it once the panel reports a session', async context => {
+  const f = await dispatchable(context, 'dispatch-new-submit');
+  await f.holdSessions();
+  const creation = await f.workbench.dispatch(f.project.id, { issue: { number: 9, title: 'New' }, workflow: 'matt', instruction: 'to-spec', target: { agent: 'claude' }, invert: false });
+  assert.equal(creation?.launch.outcome, 'started');
+  const { panel, launch: { run } } = creation!;
+  assert.deepEqual(f.view(f.project.id).tray.map(panel => panel.id), [panel.id], 'the new panel joins the tray');
+  assert.deepEqual((await f.arguments(run.id)).slice(0, 3), ['--echo-bytes', '--hold-session', '/to-spec https://github.com/octo/app/issues/9'],
+    'the instruction follows the Agent settings arguments');
+  assert.deepEqual(f.view(f.project.id).dispatches.map(({ issue, text, location }) => ({ issue, text, location: location && { panelId: location.panelId, runId: location.runId, ephemeral: location.ephemeral } })),
+    [{ issue: 9, text: '/to-spec https://github.com/octo/app/issues/9', location: { panelId: panel.id, runId: run.id, ephemeral: true } }],
+    'before its session is known the issue already shows the new panel');
+  await f.start(run.id);
+  await f.workbench.closePanel(f.project.id, panel.id);
+  await until(() => f.view(f.project.id).dispatches.length === 1 && f.view(f.project.id).dispatches[0].location === null,
+    () => JSON.stringify(f.view(f.project.id).dispatches));
+});
+
+test('dispatching to a new panel to fill pastes the instruction without a return once the panel first reports Ready', async context => {
+  const f = await dispatchable(context, 'dispatch-new-fill');
+  await f.holdSessions();
+  const creation = await f.workbench.dispatch(f.project.id, { issue: { number: 4, title: 'Fill' }, workflow: 'matt', instruction: 'to-spec', target: { agent: 'claude' }, invert: true });
+  const { panel, launch: { run } } = creation!;
+  assert.deepEqual((await f.arguments(run.id)).slice(0, 3), ['--echo-bytes', '--hold-session', '--settings'], 'a filled instruction is not a launch argument');
+  const filled = paste('/to-spec https://github.com/octo/app/issues/4');
+  assert.ok(!f.output(run.id).includes(filled), 'nothing is pasted before Ready');
+  await f.start(run.id);
+  await until(() => f.output(run.id).includes(`BYTES:${filled}\r\n`), () => f.output(run.id));
+  await f.workbench.closePanel(f.project.id, panel.id);
+  await until(() => f.view(f.project.id).dispatches.length === 1 && f.view(f.project.id).dispatches[0].location === null,
+    () => JSON.stringify(f.view(f.project.id).dispatches));
+});
+
+test('a new panel whose Agent exits before reporting a session leaves no dispatch record', async context => {
+  const f = await dispatchable(context, 'dispatch-new-exit');
+  await f.holdSessions();
+  const creation = await f.workbench.dispatch(f.project.id, { issue: { number: 2, title: 'Gone' }, workflow: 'matt', instruction: 'tdd', target: { agent: 'claude' }, invert: false });
+  const { launch: { run } } = creation!;
+  assert.equal(f.view(f.project.id).dispatches.length, 1);
+  await f.request(run.id, { exit: true });
+  await until(() => !f.view(f.project.id).tray.length && !f.view(f.project.id).dispatches.length, () => JSON.stringify(f.view(f.project.id)));
+  await f.workbench.quit();
+  const reopened = await open(context, f.directory);
+  assert.deepEqual(reopened.view(f.project.id).dispatches, []);
 });
 
 test('a bracketed paste carries text that cannot end the paste early or turn the submitting return into a new line', () => {

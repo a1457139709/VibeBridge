@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 import type { DesktopAPI } from '../shared/api';
 import { defaultIssueFilter, platformDescriptions, type IssueFilter, type IssueLabel, type IssueReference, type IssueSummary, type ListFailure, type MergeRequestSummary, type PlatformDescription, type RepositoryReference } from '../shared/code-hosting';
-import type { Language, ProjectView } from '../shared/model';
+import type { Language, PanelCreation, ProjectView } from '../shared/model';
 import type { DispatchLocation, DispatchRequest } from '../shared/dispatch';
 import type { WorkflowSettings } from '../shared/workflows';
 import { DispatchMenu, DispatchStatus } from './Dispatch';
@@ -17,10 +17,12 @@ type Failure = ListFailure | { ok: false; error: string };
  * so opening the sidebar or returning to a project reads afresh from an open, unfiltered list.
  * Each tab keeps its own filters; only the shown tab reads from the platform.
  */
-export function IssueLists({ project, repository, workflows, changeBinding, locate, detail, api = window.workbench }: {
+export function IssueLists({ project, repository, workflows, changeBinding, locate, filled, detail, api = window.workbench }: {
   project: ProjectView; repository: RepositoryReference; workflows: WorkflowSettings; changeBinding(): void;
   /** Shows the panel a dispatch went to. */
   locate(location: DispatchLocation): void;
+  /** Shows the panel an instruction was just filled into, with input going to it. */
+  filled(location: DispatchLocation): void;
   detail: IssueDetailOpening;
   api?: Pick<DesktopAPI, 'issuePage' | 'mergeRequestPage' | 'dispatch'>;
 }) {
@@ -40,7 +42,8 @@ export function IssueLists({ project, repository, workflows, changeBinding, loca
         ? { ok: true, page: { items: result.page.issues, next: result.page.next, labels: result.page.labels } } : result)}
       rows={(issues: IssueSummary[], addLabel, refresh) => {
         // The list refreshes once after each dispatch.
-        const dispatching: Dispatching = { project, workflows, locate, dispatch: request => api.dispatch(project.id, request).then(refresh) };
+        const dispatching: Dispatching = { project, workflows, locate, filled,
+          dispatch: request => api.dispatch(project.id, request).then(creation => { refresh(); return creation; }) };
         return topLevel(issues, platform).map(issue =>
           <IssueRow key={issue.number} issue={issue} platform={platform} language={language} addLabel={addLabel} dispatching={dispatching} detail={detail} />);
       }} />
@@ -52,7 +55,8 @@ export function IssueLists({ project, repository, workflows, changeBinding, loca
 }
 
 interface Dispatching {
-  project: ProjectView; workflows: WorkflowSettings; locate(location: DispatchLocation): void; dispatch(request: DispatchRequest): Promise<void>;
+  project: ProjectView; workflows: WorkflowSettings; locate(location: DispatchLocation): void; filled(location: DispatchLocation): void;
+  dispatch(request: DispatchRequest): Promise<PanelCreation | null>;
 }
 
 /** A list page whatever the list holds. */
@@ -182,7 +186,7 @@ function IssueRow({ issue, platform, language, addLabel, dispatching, detail }: 
         </div>
       </div>
       <div className="issue-row-actions">
-        <DispatchMenu issue={issue} project={dispatching.project} workflows={dispatching.workflows} dispatch={dispatching.dispatch} locate={dispatching.locate} />
+        <DispatchMenu issue={issue} project={dispatching.project} workflows={dispatching.workflows} dispatch={dispatching.dispatch} filled={dispatching.filled} />
         <DispatchStatus issue={issue} records={dispatching.project.dispatches.filter(record => record.issue === issue.number)} locate={dispatching.locate} />
       </div>
     </div>

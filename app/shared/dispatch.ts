@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import type { AgentType } from './model';
+import { agentTypeSchema, type AgentType } from './model';
 import type { ProcessingState } from './processing-status';
 import type { RepositoryReference } from './code-hosting';
 import type { Delivery } from './workflows';
@@ -22,19 +22,19 @@ export interface DispatchLocation { projectId: string; panelId: string; runId: s
 /** A Dispatch Record as the snapshot shows it: located by its session, or null when no panel is on that session now. */
 export interface DispatchRecordView { issue: number; time: string; agent: AgentType; text: string; location: DispatchLocation | null }
 
-/** A dispatch to a panel of the project: an instruction of a built-in workflow for one issue of the bound repository.
- * `invert` flips the instruction's delivery for this dispatch only. */
+/** A dispatch to a panel of the project, or to a new panel of an Agent type: an instruction of a built-in workflow for
+ * one issue of the bound repository. `invert` flips the instruction's delivery for this dispatch only. */
 export interface DispatchRequest {
   issue: { number: number; title: string };
   workflow: string;
   instruction: string;
-  target: { panelId: string };
+  target: { panelId: string } | { agent: AgentType };
   invert: boolean;
 }
 export const dispatchRequestSchema = z.strictObject({
   issue: z.strictObject({ number: z.number().int().positive(), title: z.string() }),
   workflow: z.string(), instruction: z.string(),
-  target: z.strictObject({ panelId: z.string() }),
+  target: z.union([z.strictObject({ panelId: z.string() }), z.strictObject({ agent: agentTypeSchema })]),
   invert: z.boolean(),
 });
 

@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState, type MouseEvent } from 'react';
-import { agentNames, projectPanels, type AgentType, type PanelView, type ProjectView } from '../shared/model';
+import { agentNames, projectPanels, type AgentType, type PanelCreation, type PanelView, type ProjectView } from '../shared/model';
+import { message } from '../shared/messages';
 import type { IssueSummary } from '../shared/code-hosting';
 import type { DispatchLocation, DispatchRecordView, DispatchRequest } from '../shared/dispatch';
 import { workflowCatalog, type Delivery, type Workflow, type WorkflowInstruction, type WorkflowSettings } from '../shared/workflows';
@@ -20,17 +21,25 @@ const flipped = (delivery: Delivery): Delivery => delivery === 'submit' ? 'fill'
 
 /**
  * The issue's 派发 button and its cascading menu: the instructions of enabled workflows, then, to the left, the targets
- * for the chosen one. Nothing is preselected. ⌥ while clicking a target inverts the delivery once. A submitted dispatch
- * returns focus to the button; a filled one locates its panel.
+ * for the chosen one: a new panel of each Agent type, then the project's panels with a running Agent. Nothing is
+ * preselected. ⌥ while clicking a target inverts the delivery once. A submitted dispatch returns focus to the button,
+ * leaving a new panel as a card in the tray; a filled one shows its panel, a new one once the snapshot has it.
  */
-export function DispatchMenu({ issue, project, workflows, dispatch, locate }: {
+export function DispatchMenu({ issue, project, workflows, dispatch, filled }: {
   issue: IssueSummary; project: ProjectView; workflows: WorkflowSettings;
-  dispatch(request: DispatchRequest): Promise<void>; locate(location: DispatchLocation): void;
+  dispatch(request: DispatchRequest): Promise<PanelCreation | null>; filled(location: DispatchLocation): void;
 }) {
   const { t, text } = useLocalization();
   const [open, setOpen] = useState(false);
   const [chosen, setChosen] = useState<{ workflow: Workflow; instruction: WorkflowInstruction }>();
   const [failure, setFailure] = useState<string>();
+  // A new panel filled into: the dispatch resolves before the snapshot showing the panel may have arrived.
+  const [opening, setOpening] = useState<DispatchLocation>();
+  useEffect(() => {
+    if (!opening || !project.tray.some(panel => panel.id === opening.panelId && panel.run?.id === opening.runId)) return;
+    setOpening(undefined);
+    filled(opening);
+  }, [opening, project]);
   const root = useRef<HTMLDivElement>(null);
   const button = useRef<HTMLButtonElement>(null);
   const enabled = workflowCatalog.filter(workflow => workflows[workflow.id]?.enabled);
@@ -42,15 +51,20 @@ export function DispatchMenu({ issue, project, workflows, dispatch, locate }: {
     return () => document.removeEventListener('pointerdown', outside);
   }, [open]);
   const delivery = (workflow: Workflow, instruction: WorkflowInstruction): Delivery => workflows[workflow.id]?.instructions[instruction.id]?.delivery ?? 'submit';
-  async function send(target: Target, event: MouseEvent) {
+  async function send(target: Target | AgentType, event: MouseEvent) {
     if (!chosen) return;
     const invert = event.altKey;
     const effective = invert ? flipped(delivery(chosen.workflow, chosen.instruction)) : delivery(chosen.workflow, chosen.instruction);
     close(); setFailure(undefined);
     try {
-      await dispatch({ issue: { number: issue.number, title: issue.title }, workflow: chosen.workflow.id, instruction: chosen.instruction.id,
-        target: { panelId: target.panel.id }, invert });
-      if (effective === 'fill') locate(target.location); else button.current?.focus();
+      const creation = await dispatch({ issue: { number: issue.number, title: issue.title }, workflow: chosen.workflow.id, instruction: chosen.instruction.id,
+        target: typeof target === 'string' ? { agent: target } : { panelId: target.panel.id }, invert });
+      const launch = creation?.launch;
+      if (launch && launch.outcome !== 'started') {
+        setFailure(launch.outcome === 'failed' ? message('launchFailed') : launch.reason); button.current?.focus();
+      } else if (effective === 'submit') button.current?.focus();
+      else if (creation) setOpening({ projectId: project.id, panelId: creation.panel.id, runId: creation.launch.run.id, ephemeral: true });
+      else if (typeof target !== 'string') filled(target.location);
     } catch (error) { setFailure((error as Error).message); button.current?.focus(); }
   }
   const instructions = (workflow: Workflow) => workflow.instructions.map(instruction => {
@@ -71,8 +85,8 @@ export function DispatchMenu({ issue, project, workflows, dispatch, locate }: {
       {enabled.length > 1 && enabled.map(workflow => <div key={workflow.id} role="group" aria-label={workflow.name}>
         <div className="dispatch-heading" aria-hidden="true">{workflow.name}</div>{instructions(workflow)}</div>)}
       {chosen && <div className="dispatch-targets" role="menu" aria-label={t('dispatchTargets', { instruction: chosen.instruction.skill })}>
-        {/* New panels are dispatched to by the next step of this feature. */}
-        {newPanelAgents.map(agent => <button key={agent} role="menuitem" disabled aria-label={t('newPanelTarget', { agent: agentNames[agent] })}>
+        {newPanelAgents.map(agent => <button key={agent} role="menuitem" aria-label={t('newPanelTarget', { agent: agentNames[agent] })}
+          onClick={event => void send(agent, event)}>
           <span className="agent-mark">{agentIcons[agent]}</span><span className="dispatch-target-title">{t('newPanelTarget', { agent: agentNames[agent] })}</span>
         </button>)}
         <hr />
