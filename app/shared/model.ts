@@ -23,7 +23,9 @@ export type DefaultLayout = 'auto' | 'row' | 'column';
 export type Language = 'en' | 'zh-CN';
 /** Whether the open issue sidebar narrows the layout area or lies over it. */
 export type SidebarCoexistence = 'squeeze' | 'overlay';
-export interface Settings { language: Language; theme: 'system' | 'dark' | 'light'; defaultLayout: DefaultLayout; sidebarCoexistence: SidebarCoexistence; agents: Record<AgentType, AgentCommand>; workflows: WorkflowSettings; shortcuts: Shortcuts }
+/** Whether an open issue detail narrows the layout area or lies over it. */
+export type DetailCoexistence = 'overlay' | 'squeeze';
+export interface Settings { language: Language; theme: 'system' | 'dark' | 'light'; defaultLayout: DefaultLayout; sidebarCoexistence: SidebarCoexistence; detailCoexistence: DetailCoexistence; agents: Record<AgentType, AgentCommand>; workflows: WorkflowSettings; shortcuts: Shortcuts }
 export type CommandCheck = { available: true; path: string } | { available: false; message: string };
 export interface Run { id: string; projectId: string; panelId: string; state: 'running' | 'starting' | 'failed' | 'stopped'; pid?: number; title?: string }
 // An unconfirmed launch may still be running; only a failed one is known not to have started.

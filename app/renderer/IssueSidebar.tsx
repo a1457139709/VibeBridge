@@ -1,10 +1,11 @@
-import { useLayoutEffect, useRef, type CSSProperties } from 'react';
+import { useLayoutEffect, useRef, useState, type CSSProperties } from 'react';
 import type { DesktopAPI } from '../shared/api';
 import { platformDescriptions } from '../shared/code-hosting';
 import { defaultIssueSidebar, issueSidebarWidth, type ProjectView, type Snapshot } from '../shared/model';
 import { useLocalization } from './Localization';
 import { useSavedPreferences } from './saved-preferences';
 import { IssueLists } from './IssueLists';
+import { IssueDetailView } from './IssueDetail';
 import './issue-sidebar.css';
 
 interface Host {
@@ -33,22 +34,33 @@ export function useIssueSidebar(host: Host, api: Pick<DesktopAPI, 'saveIssueSide
   }, [preferences.visible]);
   const visible = preferences.visible;
   const repository = project?.repository;
+  // The open detail belongs to one project and binding; it closes with the sidebar.
+  const lists = project && repository ? `${project.id}:${repository.platform}:${repository.path}` : undefined;
+  const [opened, setOpened] = useState<{ lists: string; number: number }>();
+  const openedNumber = visible && opened && opened.lists === lists ? opened.number : undefined;
+  const openIssue = (number: number) => { if (lists) setOpened({ lists, number }); };
+  const closeDetail = () => setOpened(undefined);
   const title = repository ? platformDescriptions[repository.platform].name : t('issueSidebar');
   return {
     visible,
     width: preferences.width,
     /** The shortcut: opens the sidebar with focus inside it, or closes it wherever focus is. */
-    toggleWithFocus() { focusOnOpen.current = !visible; toggle(); },
+    toggleWithFocus() { focusOnOpen.current = !visible; closeDetail(); toggle(); },
+    /** Whether an issue's detail is open beside the sidebar. */
+    detailOpen: openedNumber !== undefined,
+    /** Lies left of the sidebar; the host places it over or beside the layout area. */
+    detail: project && repository && openedNumber !== undefined && <IssueDetailView key={`${lists}#${openedNumber}`} projectId={project.id}
+      repository={repository} number={openedNumber} openIssue={openIssue} close={closeDetail} />,
     toggle: <button className="issue-sidebar-toggle" aria-label={visible ? t('closeIssueSidebar') : t('openIssueSidebar')} aria-expanded={visible}
-      disabled={!snapshot} onClick={() => toggle()}><SidebarIcon /></button>,
+      disabled={!snapshot} onClick={() => { closeDetail(); toggle(); }}><SidebarIcon /></button>,
     sidebar: visible && <aside ref={element} tabIndex={-1} className="issue-sidebar" aria-label={title}
       style={{ '--issue-sidebar-width': `${preferences.width}px` } as CSSProperties}>
       <div className="issue-sidebar-resize" role="separator" aria-label={t('resizeIssueSidebar')} aria-orientation="vertical" onPointerDown={resize} />
       <header className="issue-sidebar-heading"><span className="issue-sidebar-title">{title}</span>
         {repository && <span className="issue-sidebar-repository">{repository.path}</span>}</header>
-      {project && repository && <IssueLists key={`${project.id}:${repository.platform}:${repository.path}`} project={project} repository={repository}
+      {project && repository && <IssueLists key={lists} project={project} repository={repository}
         workflows={snapshot!.settings.workflows} changeBinding={() => host.bindRepository(project)}
-        locate={location => host.locatePanel(location.projectId, location.panelId, location.runId)} />}
+        locate={location => host.locatePanel(location.projectId, location.panelId, location.runId)} detail={{ opened: openedNumber, open: openIssue }} />}
       {project && !repository && <div className="issue-sidebar-state">
         <p>{t('issueSidebarUnbound')}</p>
         <button className="primary" onClick={() => host.bindRepository(project)}>{t('bindRepository')}</button>

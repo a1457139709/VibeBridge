@@ -9,7 +9,7 @@ import { ProjectStore } from './storage';
 import { SettingsFile, defaultSettings } from './settings';
 import { settingsConflicts, type SettingsSaveResult } from '../shared/settings';
 import { RunSupervision } from './run-supervision';
-import type { IssueFilter, IssuePageResult, MergeRequestPageResult, RepositoryChoices, RepositoryReference } from '../shared/code-hosting';
+import type { IssueDetailResult, IssueFilter, IssuePageResult, MergeRequestPageResult, RepositoryChoices, RepositoryReference } from '../shared/code-hosting';
 import { ProjectRepositories } from './code-hosting/project-repositories';
 import type { DispatchRecord, DispatchRequest } from '../shared/dispatch';
 import { Dispatches } from './dispatch';
@@ -283,6 +283,8 @@ export class Workbench {
   dispatch(projectId: string, request: DispatchRequest): Promise<void> { return this.operation(() => this.dispatches.dispatch(projectId, request)); }
   /** One page of the merge requests of the project's bound repository, filtered by its platform; null reads the first page. */
   mergeRequestPage(projectId: string, filter: IssueFilter, cursor: string | null): Promise<MergeRequestPageResult> { return this.repositories.mergeRequestPage(this.project(projectId), filter, cursor); }
+  /** The bound repository's issue with that number, with its comments and relations, read from its platform. */
+  issueDetail(projectId: string, number: number): Promise<IssueDetailResult> { return this.repositories.issueDetail(this.project(projectId), number); }
   sendInput(runId: string, data: string) { return this.supervision.input(runId, data); }
   resizeRun(runId: string, cols: number, rows: number) { return this.supervision.resize(runId, cols, rows); }
   acknowledgeOutput(runId: string, characters: number) { this.supervision.acknowledgeOutput(runId, characters); }

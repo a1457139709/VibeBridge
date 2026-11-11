@@ -1,10 +1,9 @@
-import { message } from '../../shared/messages';
-import type { IssueFilter, IssuePageResult, MergeRequestPageResult, RepositoryChoices, RepositoryReference } from '../../shared/code-hosting';
+import type { IssueDetailResult, IssueFilter, IssuePageResult, MergeRequestPageResult, RepositoryChoices, RepositoryReference } from '../../shared/code-hosting';
 import type { Project } from '../../shared/model';
 import { commandEnvironment } from '../../terminal/environment';
 import type { CommandEnvironment } from './platform';
 import { bindableRepository, repositoryChoices } from './binding';
-import { issuePage, mergeRequestPage } from './issues';
+import { issueDetail, issuePage, mergeRequestPage } from './issues';
 
 /** The Code Hosting Platform reads the Workbench makes for its projects. Platform CLIs and git run in the
  * login-shell environment Agent Runs get, read once per Workbench. */
@@ -19,15 +18,14 @@ export class ProjectRepositories {
   bindable(repository: RepositoryReference) { return bindableRepository(repository, () => this.commandEnvironment()); }
   /** One page of the issues of the project's bound repository, filtered by its platform; null reads the first page. */
   async issuePage(project: Project, filter: IssueFilter, cursor: string | null): Promise<IssuePageResult> {
-    return issuePage(bound(project), filter, cursor, await this.commandEnvironment());
+    return issuePage(project.repository, filter, cursor, await this.commandEnvironment());
   }
   /** One page of the merge requests of the project's bound repository, filtered by its platform; null reads the first page. */
   async mergeRequestPage(project: Project, filter: IssueFilter, cursor: string | null): Promise<MergeRequestPageResult> {
-    return mergeRequestPage(bound(project), filter, cursor, await this.commandEnvironment());
+    return mergeRequestPage(project.repository, filter, cursor, await this.commandEnvironment());
   }
-}
-
-function bound({ repository }: Project) {
-  if (!repository) throw new Error(message('repositoryUnbound'));
-  return repository;
+  /** The project's bound repository's issue with that number, with its comments and relations, read from its platform. */
+  async issueDetail(project: Project, number: number): Promise<IssueDetailResult> {
+    return issueDetail(project.repository, number, await this.commandEnvironment());
+  }
 }

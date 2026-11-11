@@ -1,6 +1,6 @@
 import { execFile } from 'node:child_process';
 import { executable } from '../../terminal/environment';
-import { listPageSize, platformDescriptions, type CheckConclusion, type IssueClosure, type IssueFilter, type IssueLabel, type IssueSummary, type MergeRequestSummary, type PlatformFailureKind } from '../../shared/code-hosting';
+import { listPageSize, platformDescriptions, type CheckConclusion, type IssueClosure, type IssueFilter, type IssueLabel, type IssueComment, type IssueDetail, type IssueSummary, type MergeRequestReference, type MergeRequestSummary, type PlatformFailureKind, type RelatedIssue } from '../../shared/code-hosting';
 import { PlatformError, type CodeHostingPlatform, type CommandEnvironment } from './platform';
 
 const description = platformDescriptions.github;
@@ -175,6 +175,40 @@ async function list<Node, Summary extends { number: number; labels: IssueLabel[]
   return { items, next: hasNextPage ? endCursor : null, labels: listLabels(page.repository.labels) };
 }
 
+const relatedIssueFields = `number title state stateReason url repository { nameWithOwner }`;
+// GitHub leaves closed pull requests out of the closing references unless asked; the detail shows them too.
+const issueDetailQuery = `query($owner: String!, $name: String!, $number: Int!, $comments: String) {
+  repository(owner: $owner, name: $name) { issue(number: $number) { number title state stateReason createdAt url ${labelFields}
+    author { login } bodyHTML assignees(first: 50) { nodes { login } }
+    comments(first: 100, after: $comments) { totalCount nodes { author { login } createdAt bodyHTML } pageInfo { hasNextPage endCursor } }
+    parent { ${relatedIssueFields} }
+    subIssues(first: 100) { nodes { ${relatedIssueFields} } }
+    blockedBy(first: 100) { nodes { ${relatedIssueFields} } }
+    blocking(first: 100) { nodes { ${relatedIssueFields} } }
+    closedByPullRequestsReferences(first: 50, includeClosedPrs: true) { nodes { number title state isDraft url
+      commits(last: 1) { nodes { commit { statusCheckRollup { state } } } } } } } } }`;
+
+interface RelatedIssueNode { number: number; title: string; state: 'OPEN' | 'CLOSED'; stateReason: string | null; url: string; repository: { nameWithOwner: string } }
+interface CommentNode { author: { login: string } | null; createdAt: string; bodyHTML: string }
+type ClosingPullRequestNode = Pick<PullRequestNode, 'number' | 'title' | 'state' | 'isDraft' | 'url' | 'commits'>;
+interface IssueDetailNode {
+  number: number; title: string; state: 'OPEN' | 'CLOSED'; stateReason: string | null; createdAt: string; url: string; labels: { nodes: IssueLabel[] };
+  author: { login: string } | null; bodyHTML: string; assignees: { nodes: { login: string }[] };
+  comments: { totalCount: number; nodes: CommentNode[]; pageInfo: { hasNextPage: boolean; endCursor: string | null } };
+  parent: RelatedIssueNode | null; subIssues: { nodes: RelatedIssueNode[] }; blockedBy: { nodes: RelatedIssueNode[] }; blocking: { nodes: RelatedIssueNode[] };
+  closedByPullRequestsReferences: { nodes: ClosingPullRequestNode[] };
+}
+
+const closure = (state: 'OPEN' | 'CLOSED', reason: string | null) => state === 'CLOSED' ? closures[reason ?? ''] ?? null : null;
+const relatedIssue = (node: RelatedIssueNode): RelatedIssue => ({ number: node.number, title: node.title, state: node.state === 'OPEN' ? 'open' : 'closed',
+  closedAs: closure(node.state, node.stateReason), repository: node.repository.nameWithOwner, url: node.url });
+function closingMergeRequest(node: ClosingPullRequestNode): MergeRequestReference {
+  const rollup = node.commits.nodes[0]?.commit.statusCheckRollup;
+  return { number: node.number, title: node.title, state: pullRequestStates[node.state], draft: node.isDraft,
+    checks: rollup ? conclusions[rollup.state] ?? null : null, url: node.url };
+}
+const issueComment = (node: CommentNode): IssueComment => ({ author: node.author?.login ?? null, createdAt: node.createdAt, body: node.bodyHTML });
+
 export const github: CodeHostingPlatform = {
   description,
   async account(environment) {
@@ -187,6 +221,30 @@ export const github: CodeHostingPlatform = {
   async mergeRequests(environment, path, filter, cursor) {
     const { items, next, labels } = await list(environment, path, filter, cursor, pullRequestKind);
     return { mergeRequests: items, next, labels };
+  },
+  async issue(environment, path, number) {
+    const [owner, name] = [path.slice(0, path.indexOf('/')), path.slice(path.indexOf('/') + 1)];
+    const read = async (cursor: string | null) => {
+      const { repository: { issue } } = await graphql<{ repository: { issue: IssueDetailNode | null } }>(environment, issueDetailQuery,
+        { owner, name, number, ...(cursor ? { comments: cursor } : {}) });
+      if (!issue) throw new PlatformError('unreachable', description, `#${number}`);
+      return issue;
+    };
+    const node = await read(null);
+    const comments = node.comments.nodes.map(issueComment);
+    for (let page = node.comments.pageInfo; page.hasNextPage && page.endCursor;) {
+      const next = await read(page.endCursor);
+      comments.push(...next.comments.nodes.map(issueComment));
+      page = next.comments.pageInfo;
+    }
+    const detail: IssueDetail = { number: node.number, title: node.title, state: node.state === 'OPEN' ? 'open' : 'closed', closedAs: closure(node.state, node.stateReason),
+      createdAt: node.createdAt, labels: listLabels(node.labels), url: node.url,
+      author: node.author?.login ?? null, assignees: node.assignees.nodes.map(({ login }) => login),
+      body: node.bodyHTML, commentCount: node.comments.totalCount, comments,
+      parent: node.parent && relatedIssue(node.parent), subIssues: node.subIssues.nodes.map(relatedIssue),
+      blockedBy: node.blockedBy.nodes.map(relatedIssue), blocking: node.blocking.nodes.map(relatedIssue),
+      closingMergeRequests: node.closedByPullRequestsReferences.nodes.map(closingMergeRequest) };
+    return detail;
   },
   async bindable(environment) {
     const paths: string[] = [];

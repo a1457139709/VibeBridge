@@ -14,6 +14,13 @@ export interface GhIssue {
   parent?: number;
   /** Numbers of the issues natively marked as blocking this one. */
   blockedBy?: number[];
+  author?: string;
+  assignees?: string[];
+  /** The body as GitHub renders it; the double passes it through unchanged. */
+  bodyHTML?: string;
+  comments?: { author: string; createdAt: string; bodyHTML: string }[];
+  /** Pull requests, by number, that close the issue when merged. */
+  closedBy?: number[];
 }
 
 /** A pull request of every repository the double lists, as GitHub's API names its fields.
@@ -38,6 +45,8 @@ export interface GhState {
   issues?: GhIssue[];
   /** Numbers are shared with issues, as on GitHub, so keep them apart. */
   pullRequests?: GhPullRequest[];
+  /** At most this many comments per page, whatever the query asks for. */
+  commentPageSize?: number;
   labels?: { name: string; color: string }[];
   failure?: { exit: number; stdout?: string; stderr?: string };
 }

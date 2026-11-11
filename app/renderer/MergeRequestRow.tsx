@@ -32,7 +32,7 @@ const mergeRequestIcons = {
   closed: 'M3.25 1A2.25 2.25 0 0 1 4 5.372v5.256a2.251 2.251 0 1 1-1.5 0V5.372A2.251 2.251 0 0 1 3.25 1Zm9.5 5.5a.75.75 0 0 1 .75.75v3.378a2.251 2.251 0 1 1-1.5 0V7.25a.75.75 0 0 1 .75-.75Zm-2.03-5.273a.75.75 0 0 1 1.06 0l.97.97.97-.97a.748.748 0 0 1 1.265.332.75.75 0 0 1-.205.729l-.97.97.97.97a.751.751 0 0 1-.018 1.042.751.751 0 0 1-1.042.018l-.97-.97-.97.97a.749.749 0 0 1-1.275-.326.749.749 0 0 1 .215-.734l.97-.97-.97-.97a.75.75 0 0 1 0-1.06ZM2.5 3.25a.75.75 0 1 0 1.5 0 .75.75 0 0 0-1.5 0ZM3.25 12a.75.75 0 1 0 0 1.5.75.75 0 0 0 0-1.5Zm9.5 0a.75.75 0 1 0 0 1.5.75.75 0 0 0 0-1.5Z',
 };
 
-function MergeRequestStateIcon({ request }: { request: MergeRequestSummary }) {
+export function MergeRequestStateIcon({ request }: { request: Pick<MergeRequestSummary, 'state' | 'draft'> }) {
   const { t } = useLocalization();
   const [icon, name] = request.state === 'merged' ? ['merged', t('mergeRequestMerged')] as const
     : request.state === 'closed' ? ['closed', t('mergeRequestClosed')] as const
@@ -44,7 +44,7 @@ function MergeRequestStateIcon({ request }: { request: MergeRequestSummary }) {
 }
 
 /** ✓ / ✗ / ● as GitHub marks a commit's checks. */
-function CheckIcon({ conclusion }: { conclusion: CheckConclusion }) {
+export function CheckIcon({ conclusion }: { conclusion: CheckConclusion }) {
   const { t } = useLocalization();
   const [mark, name] = conclusion === 'passing' ? ['✓', t('checksPassed')] : conclusion === 'failing' ? ['✗', t('checksFailed')] : ['●', t('checksInProgress')];
   return <span className={`merge-request-checks merge-request-checks-${conclusion}`} role="img" aria-label={name} title={name}>{mark}</span>;
