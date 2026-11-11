@@ -1,7 +1,7 @@
 import type { IssueSidebarPreferences, NavigationPreferences, AgentType, CommandCheck, DirectoryResult, Layout, ProjectCreation, PanelCreation, ProjectDraft, ProjectEdit, ProjectEditResult, Settings, Snapshot, WorkbenchEvent } from './model';
 import type { SettingsSaveResult } from './settings';
 import type { DispatchRequest } from './dispatch';
-import type { IssueFilter, IssuePageResult, RepositoryChoices, RepositoryReference } from './code-hosting';
+import type { IssueFilter, IssuePageResult, MergeRequestPageResult, RepositoryChoices, RepositoryReference } from './code-hosting';
 
 export interface DesktopAPI {
   snapshot(): Promise<Snapshot>;
@@ -16,6 +16,8 @@ export interface DesktopAPI {
   issuePage(projectId: string, filter: IssueFilter, cursor: string | null): Promise<IssuePageResult>;
   /** Pastes an instruction for an issue of the bound repository into a panel's terminal and records the dispatch on its session. */
   dispatch(projectId: string, request: DispatchRequest): Promise<void>;
+  /** One page of the merge requests of the project's bound repository, as `issuePage` reads issues. */
+  mergeRequestPage(projectId: string, filter: IssueFilter, cursor: string | null): Promise<MergeRequestPageResult>;
   inspectDirectory(directory: string): Promise<DirectoryResult>;
   chooseDirectory(): Promise<string | null>;
   activateProject(id: string): Promise<void>;

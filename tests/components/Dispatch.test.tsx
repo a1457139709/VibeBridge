@@ -15,7 +15,7 @@ afterEach(cleanup);
 const running = (id: string, agent: PanelView['agent'], title?: string, status: PanelView['status'] = 'ready'): PanelView =>
   ({ id, agent, run: { id: `run-${id}`, panelId: id, projectId: 'app', state: 'running', ...(title ? { title } : {}) }, status });
 const issue = (number: number, state: IssueSummary['state'] = 'open'): IssueSummary => ({ number, title: `Issue ${number}`, state,
-  closedAs: state === 'closed' ? 'completed' : null, createdAt: '2026-11-01T00:00:00Z', labels: [], url: `https://github.com/octo/app/issues/${number}` });
+  closedAs: state === 'closed' ? 'completed' : null, createdAt: '2026-11-01T00:00:00Z', labels: [], url: `https://github.com/octo/app/issues/${number}`, parent: null, subIssues: null, blockedBy: [] });
 const located = (panelId: string, extra: Partial<DispatchLocation> = {}): DispatchLocation =>
   ({ projectId: 'app', panelId, runId: `run-${panelId}`, ephemeral: false, status: 'busy', title: 'Fix the crash', ...extra });
 const record = (issue: number, location: DispatchLocation | null, minutesAgo = 5): DispatchRecordView =>
@@ -34,6 +34,7 @@ function renderList({ state = project(), workflows = defaultWorkflowSettings(), 
   let reads = 0;
   const api = {
     issuePage: async (): Promise<IssuePageResult> => { reads++; return { ok: true, page: { issues, next: null, labels: [] } }; },
+    mergeRequestPage: () => new Promise<never>(() => {}),
     dispatch: async (_projectId: string, request: DispatchRequest) => { dispatched.push(request); },
   };
   const view = (next: ProjectView) => <Localization language="en">

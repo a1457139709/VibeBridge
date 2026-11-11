@@ -1,4 +1,4 @@
-import type { IssueFilter, IssuePage, PlatformDescription, PlatformFailure, PlatformFailureKind } from '../../shared/code-hosting';
+import type { IssueFilter, IssuePage, MergeRequestPage, PlatformDescription, PlatformFailure, PlatformFailureKind } from '../../shared/code-hosting';
 
 /** The environment platform CLIs run in: the user's login-shell environment, the one Agent Runs get. */
 export type CommandEnvironment = Record<string, string>;
@@ -16,6 +16,8 @@ export interface CodeHostingPlatform {
   issues(environment: CommandEnvironment, path: string, filter: IssueFilter, cursor: string | null): Promise<IssuePage>;
   /** The web page of the repository's issue with this number. */
   issueUrl(path: string, number: number): string;
+  /** One page of the repository's merge requests, as `issues` reads issues; closed includes merged. */
+  mergeRequests(environment: CommandEnvironment, path: string, filter: IssueFilter, cursor: string | null): Promise<MergeRequestPage>;
   /** The repository path a git remote URL points to on this platform, or null for anything else. */
   remotePath(url: string): string | null;
 }

@@ -6,7 +6,7 @@ import { userEvent } from '@testing-library/user-event';
 import { App } from '../../app/renderer/Workbench';
 import { defaultSettings } from '../../app/shared/settings';
 import type { ProjectView, Snapshot, WorkbenchEvent } from '../../app/shared/model';
-import { platformDescriptions, type IssueFilter, type IssuePage, type IssuePageResult, type IssueSummary, type PlatformFailureKind, type RepositoryChoices } from '../../app/shared/code-hosting';
+import { platformDescriptions, type IssueFilter, type IssuePage, type IssuePageResult, type IssueSummary, type MergeRequestPageResult, type PlatformFailureKind, type RepositoryChoices } from '../../app/shared/code-hosting';
 import { deferred, provideWorkbench } from './support/workbench';
 
 afterEach(cleanup);
@@ -27,7 +27,7 @@ const docs: ProjectView = { id: 'docs', name: 'Docs project', directory: '/work/
   repository: { platform: 'github', path: 'octo/docs' } };
 
 const issue = (number: number, extra: Partial<IssueSummary> = {}): IssueSummary => ({ number, title: `Issue ${number}`, state: 'open', closedAs: null,
-  createdAt: '2026-11-01T00:00:00Z', labels: [], url: `https://github.com/octo/app/issues/${number}`, ...extra });
+  createdAt: '2026-11-01T00:00:00Z', labels: [], url: `https://github.com/octo/app/issues/${number}`, parent: null, subIssues: null, blockedBy: [], ...extra });
 const page = (issues: IssueSummary[], next: string | null = null, labels: IssuePage['labels'] = []): IssuePageResult => ({ ok: true, page: { issues, next, labels } });
 const failure = (kind: PlatformFailureKind, output = '', account?: string): IssuePageResult =>
   ({ ok: false, failure: { kind, platform: platformDescriptions.github, output }, ...(account ? { account } : {}) });
@@ -49,6 +49,7 @@ function renderSidebar({ visible = true }: { visible?: boolean } = {}) {
     }, saveNavigation: async () => {}, saveLayout: async () => {}, saveIssueSidebar: async () => {},
     inspectDirectory: async directory => ({ valid: true, directory }),
     repositoryChoices: () => new Promise<RepositoryChoices>(() => {}),
+    mergeRequestPage: () => new Promise<MergeRequestPageResult>(() => {}),
     issuePage: (projectId, filter, cursor) => {
       const reply = deferred<IssuePageResult>();
       requests.push({ projectId, filter, cursor, answer: reply.resolve });

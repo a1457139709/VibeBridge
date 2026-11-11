@@ -9,11 +9,8 @@ import { ProjectStore } from './storage';
 import { SettingsFile, defaultSettings } from './settings';
 import { settingsConflicts, type SettingsSaveResult } from '../shared/settings';
 import { RunSupervision } from './run-supervision';
-import { commandEnvironment } from '../terminal/environment';
-import type { IssueFilter, IssuePageResult, RepositoryChoices, RepositoryReference } from '../shared/code-hosting';
-import type { CommandEnvironment } from './code-hosting/platform';
-import { bindableRepository, repositoryChoices } from './code-hosting/binding';
-import { issuePage } from './code-hosting/issues';
+import type { IssueFilter, IssuePageResult, MergeRequestPageResult, RepositoryChoices, RepositoryReference } from '../shared/code-hosting';
+import { ProjectRepositories } from './code-hosting/project-repositories';
 import type { DispatchRecord, DispatchRequest } from '../shared/dispatch';
 import { Dispatches } from './dispatch';
 
@@ -33,8 +30,7 @@ export class Workbench {
   private trays = new Map<string, Panel[]>();
   private dispatches: Dispatches;
   private quitting = false;
-  // Platform CLIs and git run in the login-shell environment Agent Runs get, read once per Workbench.
-  private environment?: Promise<CommandEnvironment>;
+  private repositories = new ProjectRepositories();
   private quitPromise?: Promise<void>;
   private constructor(directory: string, private store: ProjectStore, private settingsFile: SettingsFile, dispatchRecords: Record<string, DispatchRecord[]>) {
     this.supervision = new RunSupervision(directory, { changed: () => this.changed(), emit: event => this.emit(event), report: message => this.report(message),
@@ -267,16 +263,12 @@ export class Workbench {
     await this.store.issueSidebar(issueSidebar);
     this.state.issueSidebar = issueSidebar; this.changed();
   }); }
-  private commandEnvironment() { return this.environment ??= commandEnvironment().catch(error => { this.environment = undefined; throw error; }); }
   /** The repositories the platform CLI's signed-in account may bind to the project, with the one its directory's `origin` points to. */
-  async repositoryChoices(projectId: string): Promise<RepositoryChoices> {
-    const project = this.project(projectId);
-    return repositoryChoices(project, await this.commandEnvironment());
-  }
+  repositoryChoices(projectId: string): Promise<RepositoryChoices> { return this.repositories.choices(this.project(projectId)); }
   /** Binds one of the project's repository choices, or with null removes its binding. A project has at most one binding. */
   async bindRepository(projectId: string, repository: RepositoryReference | null): Promise<void> {
     this.project(projectId);
-    if (repository) repository = await bindableRepository(repository, () => this.commandEnvironment());
+    if (repository) repository = await this.repositories.bindable(repository);
     const binding = repository;
     return this.operation(async () => {
       const project = this.project(projectId);
@@ -286,13 +278,11 @@ export class Workbench {
     });
   }
   /** One page of the issues of the project's bound repository, filtered by its platform; null reads the first page. */
-  async issuePage(projectId: string, filter: IssueFilter, cursor: string | null): Promise<IssuePageResult> {
-    const { repository } = this.project(projectId);
-    if (!repository) throw new Error(message('repositoryUnbound'));
-    return issuePage(repository, filter, cursor, await this.commandEnvironment());
-  }
+  issuePage(projectId: string, filter: IssueFilter, cursor: string | null): Promise<IssuePageResult> { return this.repositories.issuePage(this.project(projectId), filter, cursor); }
   /** Dispatches an issue to a panel of the project; see Dispatches. */
   dispatch(projectId: string, request: DispatchRequest): Promise<void> { return this.operation(() => this.dispatches.dispatch(projectId, request)); }
+  /** One page of the merge requests of the project's bound repository, filtered by its platform; null reads the first page. */
+  mergeRequestPage(projectId: string, filter: IssueFilter, cursor: string | null): Promise<MergeRequestPageResult> { return this.repositories.mergeRequestPage(this.project(projectId), filter, cursor); }
   sendInput(runId: string, data: string) { return this.supervision.input(runId, data); }
   resizeRun(runId: string, cols: number, rows: number) { return this.supervision.resize(runId, cols, rows); }
   acknowledgeOutput(runId: string, characters: number) { this.supervision.acknowledgeOutput(runId, characters); }

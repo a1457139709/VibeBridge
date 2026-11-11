@@ -5,7 +5,7 @@ import type { DispatchLocation, DispatchRecordView, DispatchRequest } from '../s
 import { workflowCatalog, type Delivery, type Workflow, type WorkflowInstruction, type WorkflowSettings } from '../shared/workflows';
 import { ProcessingStatusIcon } from './ProcessingStatusIcon';
 import { agentIcons } from './agent-icons';
-import { relativeTime } from './relative-time';
+import { relativeTime } from './list-row-parts';
 import { useLocalization } from './Localization';
 import './dispatch.css';
 

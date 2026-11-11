@@ -1,0 +1,33 @@
+import { message } from '../../shared/messages';
+import type { IssueFilter, IssuePageResult, MergeRequestPageResult, RepositoryChoices, RepositoryReference } from '../../shared/code-hosting';
+import type { Project } from '../../shared/model';
+import { commandEnvironment } from '../../terminal/environment';
+import type { CommandEnvironment } from './platform';
+import { bindableRepository, repositoryChoices } from './binding';
+import { issuePage, mergeRequestPage } from './issues';
+
+/** The Code Hosting Platform reads the Workbench makes for its projects. Platform CLIs and git run in the
+ * login-shell environment Agent Runs get, read once per Workbench. */
+export class ProjectRepositories {
+  private environment?: Promise<CommandEnvironment>;
+  private commandEnvironment() { return this.environment ??= commandEnvironment().catch(error => { this.environment = undefined; throw error; }); }
+  /** The repositories the platform CLI's signed-in account may bind to the project, with the one its directory's `origin` points to. */
+  async choices(project: Project): Promise<RepositoryChoices> {
+    return repositoryChoices(project, await this.commandEnvironment());
+  }
+  /** The repository as a binding, once its platform lists it among the repositories the account may bind. */
+  bindable(repository: RepositoryReference) { return bindableRepository(repository, () => this.commandEnvironment()); }
+  /** One page of the issues of the project's bound repository, filtered by its platform; null reads the first page. */
+  async issuePage(project: Project, filter: IssueFilter, cursor: string | null): Promise<IssuePageResult> {
+    return issuePage(bound(project), filter, cursor, await this.commandEnvironment());
+  }
+  /** One page of the merge requests of the project's bound repository, filtered by its platform; null reads the first page. */
+  async mergeRequestPage(project: Project, filter: IssueFilter, cursor: string | null): Promise<MergeRequestPageResult> {
+    return mergeRequestPage(bound(project), filter, cursor, await this.commandEnvironment());
+  }
+}
+
+function bound({ repository }: Project) {
+  if (!repository) throw new Error(message('repositoryUnbound'));
+  return repository;
+}

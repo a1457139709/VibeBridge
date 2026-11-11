@@ -89,6 +89,7 @@ void app.whenReady().then(async () => {
   handle('bind-repository', (service, id, repository) => service.bindRepository(id, repository));
   handle('issue-page', (service, id, filter, cursor) => service.issuePage(id, filter, cursor));
   handle('dispatch', (service, id, request) => service.dispatch(id, request));
+  handle('merge-request-page', (service, id, filter, cursor) => service.mergeRequestPage(id, filter, cursor));
   handle('directory', (service, directory) => service.inspectDirectory(directory));
   handle('activate', (service, id) => service.activateProject(id));
   handle('add', (service, project, agent) => service.addPanel(project, agent));

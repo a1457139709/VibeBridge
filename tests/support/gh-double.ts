@@ -10,6 +10,24 @@ export interface GhIssue {
   stateReason: 'COMPLETED' | 'NOT_PLANNED' | 'DUPLICATE' | null;
   createdAt: string;
   labels: string[];
+  /** The number of the issue this one is a sub-issue of. */
+  parent?: number;
+  /** Numbers of the issues natively marked as blocking this one. */
+  blockedBy?: number[];
+}
+
+/** A pull request of every repository the double lists, as GitHub's API names its fields.
+ * `checks` is the head commit's check rollup state, null when nothing reports on it. */
+export interface GhPullRequest {
+  number: number;
+  title: string;
+  state: 'OPEN' | 'CLOSED' | 'MERGED';
+  isDraft: boolean;
+  /** Null for a deleted account. */
+  author: string | null;
+  createdAt: string;
+  labels: string[];
+  checks: 'SUCCESS' | 'FAILURE' | 'ERROR' | 'PENDING' | 'EXPECTED' | null;
 }
 
 export interface GhState {
@@ -18,6 +36,8 @@ export interface GhState {
   repositories?: string[];
   pageSize?: number;
   issues?: GhIssue[];
+  /** Numbers are shared with issues, as on GitHub, so keep them apart. */
+  pullRequests?: GhPullRequest[];
   labels?: { name: string; color: string }[];
   failure?: { exit: number; stdout?: string; stderr?: string };
 }
