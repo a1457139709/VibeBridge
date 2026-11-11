@@ -6,6 +6,7 @@ import { agentNames, agentTypes, type AgentCommand, type CommandCheck, type Sett
 import { defaultShortcuts, displayShortcut, shortcutActions, shortcutFromEvent, shortcutConflicts, type ShortcutAction } from '../shared/shortcuts';
 import type { ReportNotice } from './Notices';
 import { agentIcons } from './agent-icons';
+import { AppearanceFields } from './AppearanceSettings';
 import './workflow-settings.css';
 import { deliveries, workflowCatalog, type Workflow, type WorkflowSetting } from '../shared/workflows';
 import { defaultSettings, dirtySettingsCategories, settingsCategories, settingsConflicts, settingsIssues, settingsPatch, type SettingsCategory, type SettingsIssue } from '../shared/settings';
@@ -73,7 +74,7 @@ function SettingsEditor({ settings, startupTheme, initialCategory = settingsCate
   const [draft, setDraft] = useState(settings);
   const [saved, setSaved] = useState(settings);
   useEffect(() => setSaved(settings), [settings]);
-  const { agents, workflows, theme, defaultLayout, sidebarCoexistence, shortcuts } = draft;
+  const { agents, workflows, shortcuts } = draft;
   const [submittedIssues, setSubmittedIssues] = useState<SettingsIssue[]>([]);
   const issues = [...submittedIssues, ...settingsIssues(draft)];
   const fieldError = (field: string) => text(issues.find(issue => issue.field === field)?.message ?? '');
@@ -175,16 +176,7 @@ function SettingsEditor({ settings, startupTheme, initialCategory = settingsCate
             {workflowCatalog.map(workflow => <WorkflowFields key={`${workflow.id}-${agentRevision}`} workflow={workflow} value={workflows[workflow.id]} change={value => changeDraft({ workflows: { ...workflows, [workflow.id]: value } })} />)}
           </>}
           {section === 'appearance' && <form onSubmit={event => { event.preventDefault(); void save([section]); }}>
-            <h2>{t('theme')}</h2><p className="muted">{t('themeHelp')}</p>
-            <div className="theme-options" role="radiogroup" aria-label={t('theme')} data-settings-field="theme" tabIndex={-1} aria-invalid={!!fieldError('theme') || undefined} aria-describedby={fieldError('theme') ? 'theme-error' : undefined}>{(['system', 'dark', 'light'] as const).map(option => <label key={option}><input type="radio" name="theme" value={option} checked={theme === option} onChange={() => changeDraft({ theme: option })} />{t(({ system: 'themeSystem', dark: 'themeDark', light: 'themeLight' } as const)[option])}</label>)}</div>
-            {fieldError('theme') && <p id="theme-error" className="error-text" role="alert">{fieldError('theme')}</p>}
-            {settings.theme !== startupTheme && <p className="restart-notice" role="status">{t('themeRestart')}</p>}
-            <hr /><label htmlFor="default-layout">{t('defaultLayout')}</label><select id="default-layout" data-settings-field="defaultLayout" aria-invalid={!!fieldError('defaultLayout') || undefined} aria-describedby={fieldError('defaultLayout') ? 'layout-error' : undefined} value={defaultLayout} onChange={event => changeDraft({ defaultLayout: event.target.value as Settings['defaultLayout'] })}><option value="auto">{t('layoutAuto')}</option><option value="row">{t('layoutRow')}</option><option value="column">{t('layoutColumn')}</option></select>
-            {fieldError('defaultLayout') && <p id="layout-error" className="error-text" role="alert">{fieldError('defaultLayout')}</p>}
-            <p className="muted">{t('layoutHelp')}</p>
-            <hr /><h2>{t('sidebarCoexistence')}</h2><p className="muted">{t('sidebarCoexistenceHelp')}</p>
-            <div className="theme-options" role="radiogroup" aria-label={t('sidebarCoexistence')} data-settings-field="sidebarCoexistence" tabIndex={-1} aria-invalid={!!fieldError('sidebarCoexistence') || undefined} aria-describedby={fieldError('sidebarCoexistence') ? 'sidebar-coexistence-error' : undefined}>{(['squeeze', 'overlay'] as const).map(option => <label key={option}><input type="radio" name="sidebarCoexistence" value={option} checked={sidebarCoexistence === option} onChange={() => changeDraft({ sidebarCoexistence: option })} />{t(option === 'squeeze' ? 'sidebarSqueeze' : 'sidebarOverlay')}</label>)}</div>
-            {fieldError('sidebarCoexistence') && <p id="sidebar-coexistence-error" className="error-text" role="alert">{fieldError('sidebarCoexistence')}</p>}
+            <AppearanceFields draft={draft} changeDraft={changeDraft} fieldError={fieldError} themeRestart={settings.theme !== startupTheme} />
           </form>}
           {section === 'shortcuts' && <>
             <p className="muted">{t('shortcutHelp')}</p>

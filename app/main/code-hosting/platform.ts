@@ -1,4 +1,4 @@
-import type { IssueFilter, IssuePage, PlatformDescription, PlatformFailure, PlatformFailureKind } from '../../shared/code-hosting';
+import type { IssueDetail, IssueFilter, IssuePage, PlatformDescription, PlatformFailure, PlatformFailureKind } from '../../shared/code-hosting';
 
 /** The environment platform CLIs run in: the user's login-shell environment, the one Agent Runs get. */
 export type CommandEnvironment = Record<string, string>;
@@ -14,6 +14,8 @@ export interface CodeHostingPlatform {
   /** One page of the repository's issues matching the filter, newest first, filtered by the platform.
    * A null cursor reads the first page; any other is a `next` this method returned. */
   issues(environment: CommandEnvironment, path: string, filter: IssueFilter, cursor: string | null): Promise<IssuePage>;
+  /** The repository's issue with that number, with its comments and relations. A missing issue throws an unreachable PlatformError. */
+  issue(environment: CommandEnvironment, path: string, number: number): Promise<IssueDetail>;
   /** The repository path a git remote URL points to on this platform, or null for anything else. */
   remotePath(url: string): string | null;
 }

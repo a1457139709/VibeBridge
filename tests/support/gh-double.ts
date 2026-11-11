@@ -10,6 +10,27 @@ export interface GhIssue {
   stateReason: 'COMPLETED' | 'NOT_PLANNED' | 'DUPLICATE' | null;
   createdAt: string;
   labels: string[];
+  author?: string;
+  assignees?: string[];
+  /** The body as GitHub renders it; the double passes it through unchanged. */
+  bodyHTML?: string;
+  comments?: { author: string; createdAt: string; bodyHTML: string }[];
+  /** Relations name issues of the same repository by number. */
+  parent?: number;
+  subIssues?: number[];
+  blockedBy?: number[];
+  blocking?: number[];
+  /** Pull requests, by number, that close the issue when merged. */
+  closedBy?: number[];
+}
+
+/** A pull request; `checks` is the head commit's status check rollup state. */
+export interface GhPullRequest {
+  number: number;
+  title: string;
+  state: 'OPEN' | 'CLOSED' | 'MERGED';
+  isDraft: boolean;
+  checks: 'SUCCESS' | 'FAILURE' | 'ERROR' | 'PENDING' | 'EXPECTED' | null;
 }
 
 export interface GhState {
@@ -18,6 +39,9 @@ export interface GhState {
   repositories?: string[];
   pageSize?: number;
   issues?: GhIssue[];
+  pullRequests?: GhPullRequest[];
+  /** At most this many comments per page, whatever the query asks for. */
+  commentPageSize?: number;
   labels?: { name: string; color: string }[];
   failure?: { exit: number; stdout?: string; stderr?: string };
 }

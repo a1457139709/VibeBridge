@@ -86,6 +86,8 @@ function WorkbenchView({ state, setState }: { state?: Snapshot; setState(snapsho
   const workspaceShown = !!active && !settingsOpen && !setup;
   // Overlaying covers only the layout area: the toolbar and tray yield, and every other page is narrowed.
   const overlay = issueSidebar.visible && workspaceShown && state?.settings.sidebarCoexistence === 'overlay';
+  // The detail covers the layout area between the toolbar and the tray, or narrows it when squeezing.
+  const detailSqueeze = issueSidebar.detailOpen && workspaceShown && state?.settings.detailCoexistence === 'squeeze';
   const conflictCategory = state?.settingsConflicts[0]?.category;
   useEffect(() => {
     const keydown = (event: KeyboardEvent) => {
@@ -108,11 +110,12 @@ function WorkbenchView({ state, setState }: { state?: Snapshot; setState(snapsho
   }, [state, setup, settingsOpen, issueSidebar.visible]);
   return <div className="app">
     <header className="system-bar"><div className="system-brand">{navigation.toggle}<span className="wordmark">VibeBridge</span></div>{issueSidebar.toggle}</header>
-    <div className={`app-body ${overlay ? 'issue-sidebar-overlay' : ''}`} style={overlay ? { '--issue-sidebar-yield': `${issueSidebar.width}px` } as CSSProperties : undefined}>{navigation.sidebar}<main>
+    <div className={`app-body ${overlay ? 'issue-sidebar-overlay' : ''} ${detailSqueeze ? 'issue-detail-squeeze' : ''}`} style={overlay ? { '--issue-sidebar-yield': `${issueSidebar.width}px` } as CSSProperties : undefined}>{navigation.sidebar}<main>
       <div className={`workbench-page ${location.locating ? 'locating-panel' : ''}`} hidden={settingsOpen} inert={settingsOpen}>
         {!state ? <div className="empty">{t('opening')}</div> : setup ? <Setup defaultLayout={state.settings.defaultLayout} draft={draft} change={setDraft} cancel={() => setSetup(false)} created={id => { setDraft(newDraft()); activate(id); }} openProject={activate} report={report} openAgentSettings={openAgentSettings} /> : active ? <Workspace ref={workspace} visible={!settingsOpen} key={active.id} project={active} report={report} openAgentSettings={openAgentSettings} location={location} /> : <div className="empty"><p>{t('welcome')}</p><button className="primary" onClick={create}>{t('createProject')}</button></div>}
       </div>
       {state && settingsOpen && <SettingsPage ref={settingsPage} settings={state.settings} startupTheme={state.startupTheme} initialCategory={initialSettingsCategory} report={report} back={() => void leaveSettings()} />}
+      {issueSidebar.detail}
     </main>{issueSidebar.sidebar}</div>
     {bindingProject && <ProjectEditor project={bindingProject} running={runningPanels(bindingProject)} focus="repository" close={() => setBindingId(undefined)}
       openProject={id => { setBindingId(undefined); activate(id); }} />}

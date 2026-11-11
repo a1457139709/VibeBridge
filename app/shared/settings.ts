@@ -4,7 +4,7 @@ import { agentNames, agentTypes, type AgentType, type Settings } from './model';
 import { defaultWorkflowSettings, deliveries, workflowCatalog } from './workflows';
 import { defaultShortcuts, shortcutActions, shortcutConflicts, shortcutConflictMessage, shortcutFormatError } from './shortcuts';
 
-export const defaultSettings = (): Settings => ({ language: 'en', theme: 'system', defaultLayout: 'auto', sidebarCoexistence: 'squeeze', shortcuts: defaultShortcuts(), agents: {
+export const defaultSettings = (): Settings => ({ language: 'en', theme: 'system', defaultLayout: 'auto', sidebarCoexistence: 'squeeze', detailCoexistence: 'overlay', shortcuts: defaultShortcuts(), agents: {
   codex: { command: 'codex', args: [] }, claude: { command: 'claude', args: [] }, pi: { command: 'pi', args: [] },
 }, workflows: defaultWorkflowSettings() });
 
@@ -26,6 +26,7 @@ function settingsSchema(reading: boolean) {
     theme: field(z.enum(['system', 'dark', 'light'], { error: message('themeInvalid') }), defaults.theme),
     defaultLayout: field(z.enum(['auto', 'row', 'column'], { error: message('layoutPreferenceInvalid') }), defaults.defaultLayout),
     sidebarCoexistence: field(z.enum(['squeeze', 'overlay'], { error: message('sidebarCoexistenceInvalid') }), defaults.sidebarCoexistence),
+    detailCoexistence: field(z.enum(['overlay', 'squeeze'], { error: message('detailCoexistenceInvalid') }), defaults.detailCoexistence),
     agents: field(object(Object.fromEntries(agentTypes.map(type => [type, field(object({
       command: field(command(type), defaults.agents[type].command), args: field(args, []),
     }, message('commandInvalid', { agent: agentNames[type] })), defaults.agents[type])])), message('settingsInvalid')), defaults.agents),
@@ -57,7 +58,7 @@ export const settingsCategories = [
   { id: 'general', keys: ['language'] },
   { id: 'agents', keys: ['agents'] },
   { id: 'workflows', keys: ['workflows'] },
-  { id: 'appearance', keys: ['theme', 'defaultLayout', 'sidebarCoexistence'] },
+  { id: 'appearance', keys: ['theme', 'defaultLayout', 'sidebarCoexistence', 'detailCoexistence'] },
   { id: 'shortcuts', keys: ['shortcuts'], conflicts(settings: Settings): FieldIssue[] {
     return shortcutConflicts(settings.shortcuts).flatMap(conflict => conflict.actions.map(action => ({
       field: `shortcuts.${action}`, code: 'conflict' as const, message: shortcutConflictMessage(conflict, action) })));

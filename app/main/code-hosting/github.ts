@@ -1,6 +1,6 @@
 import { execFile } from 'node:child_process';
 import { executable } from '../../terminal/environment';
-import { listPageSize, platformDescriptions, type IssueClosure, type IssueFilter, type IssueLabel, type IssueSummary, type PlatformFailureKind } from '../../shared/code-hosting';
+import { listPageSize, platformDescriptions, type ChecksVerdict, type IssueClosure, type IssueComment, type IssueReference, type MergeRequestReference, type IssueFilter, type IssueLabel, type IssueSummary, type PlatformFailureKind } from '../../shared/code-hosting';
 import { PlatformError, type CodeHostingPlatform, type CommandEnvironment } from './platform';
 
 const description = platformDescriptions.github;
@@ -101,13 +101,52 @@ async function issueByNumber(environment: CommandEnvironment, owner: string, nam
   return issue.state === filter.state && filter.labels.every(label => names.has(label)) ? issue : null;
 }
 
+const referenceFields = `number title state stateReason url repository { nameWithOwner }`;
+// GitHub leaves closed pull requests out of the closing references unless asked; the detail shows them too.
+const issueDetailQuery = `query($owner: String!, $name: String!, $number: Int!, $comments: String) {
+  repository(owner: $owner, name: $name) { issue(number: $number) { ${issueFields}
+    author { login } bodyHTML assignees(first: 50) { nodes { login } }
+    comments(first: 100, after: $comments) { totalCount nodes { author { login } createdAt bodyHTML } pageInfo { hasNextPage endCursor } }
+    parent { ${referenceFields} }
+    subIssues(first: 100) { nodes { ${referenceFields} } }
+    blockedBy(first: 100) { nodes { ${referenceFields} } }
+    blocking(first: 100) { nodes { ${referenceFields} } }
+    closedByPullRequestsReferences(first: 50, includeClosedPrs: true) { nodes { number title state isDraft url
+      commits(last: 1) { nodes { commit { statusCheckRollup { state } } } } } } } } }`;
+
+interface ReferenceNode { number: number; title: string; state: 'OPEN' | 'CLOSED'; stateReason: string | null; url: string; repository: { nameWithOwner: string } }
+interface CommentNode { author: { login: string } | null; createdAt: string; bodyHTML: string }
+interface PullRequestNode { number: number; title: string; state: 'OPEN' | 'CLOSED' | 'MERGED'; isDraft: boolean; url: string;
+  commits: { nodes: { commit: { statusCheckRollup: { state: string } | null } }[] } }
+interface IssueDetailNode extends IssueNode {
+  author: { login: string } | null; bodyHTML: string; assignees: { nodes: { login: string }[] };
+  comments: { totalCount: number; nodes: CommentNode[]; pageInfo: { hasNextPage: boolean; endCursor: string | null } };
+  parent: ReferenceNode | null; subIssues: { nodes: ReferenceNode[] }; blockedBy: { nodes: ReferenceNode[] }; blocking: { nodes: ReferenceNode[] };
+  closedByPullRequestsReferences: { nodes: PullRequestNode[] };
+}
+
+function issueReference(node: ReferenceNode): IssueReference {
+  const state = node.state === 'OPEN' ? 'open' : 'closed';
+  return { number: node.number, title: node.title, state, closedAs: state === 'closed' ? closures[node.stateReason ?? ''] ?? null : null,
+    repository: node.repository.nameWithOwner, url: node.url };
+}
+const verdicts: Record<string, ChecksVerdict> = { SUCCESS: 'passing', FAILURE: 'failing', ERROR: 'failing', PENDING: 'pending', EXPECTED: 'pending' };
+function mergeRequestReference(node: PullRequestNode): MergeRequestReference {
+  const rollup = node.commits.nodes[0]?.commit.statusCheckRollup;
+  return { number: node.number, title: node.title, state: node.state === 'MERGED' ? 'merged' : node.state === 'CLOSED' ? 'closed' : node.isDraft ? 'draft' : 'open',
+    checks: rollup ? verdicts[rollup.state] ?? null : null, url: node.url };
+}
+const issueComment = (node: CommentNode): IssueComment => ({ author: node.author?.login ?? null, createdAt: node.createdAt, body: node.bodyHTML });
+
+const repositoryName = (path: string) => [path.slice(0, path.indexOf('/')), path.slice(path.indexOf('/') + 1)];
+
 export const github: CodeHostingPlatform = {
   description,
   async account(environment) {
     return (await graphql<{ viewer: { login: string } }>(environment, 'query { viewer { login } }')).viewer.login;
   },
   async issues(environment, path, filter, cursor) {
-    const [owner, name] = [path.slice(0, path.indexOf('/')), path.slice(path.indexOf('/') + 1)];
+    const [owner, name] = repositoryName(path);
     const search = filter.search.trim();
     const number = /^#?(\d+)$/.exec(search);
     const words = number ? number[1] : search;
@@ -122,6 +161,27 @@ export const github: CodeHostingPlatform = {
     }
     const { hasNextPage, endCursor } = page.search.pageInfo;
     return { issues, next: hasNextPage ? endCursor : null, labels: page.repository.labels.nodes.map(({ name, color }) => ({ name, color })) };
+  },
+  async issue(environment, path, number) {
+    const [owner, name] = repositoryName(path);
+    const read = async (cursor: string | null) => {
+      const { repository: { issue } } = await graphql<{ repository: { issue: IssueDetailNode | null } }>(environment, issueDetailQuery,
+        { owner, name, number, ...(cursor ? { comments: cursor } : {}) });
+      if (!issue) throw new PlatformError('unreachable', description, `#${number}`);
+      return issue;
+    };
+    const node = await read(null);
+    const comments = node.comments.nodes.map(issueComment);
+    for (let page = node.comments.pageInfo; page.hasNextPage && page.endCursor;) {
+      const next = await read(page.endCursor);
+      comments.push(...next.comments.nodes.map(issueComment));
+      page = next.comments.pageInfo;
+    }
+    return { ...issueSummary(node), author: node.author?.login ?? null, assignees: node.assignees.nodes.map(({ login }) => login),
+      body: node.bodyHTML, commentCount: node.comments.totalCount, comments,
+      parent: node.parent && issueReference(node.parent), subIssues: node.subIssues.nodes.map(issueReference),
+      blockedBy: node.blockedBy.nodes.map(issueReference), blocking: node.blocking.nodes.map(issueReference),
+      closingMergeRequests: node.closedByPullRequestsReferences.nodes.map(mergeRequestReference) };
   },
   async bindable(environment) {
     const paths: string[] = [];

@@ -12,8 +12,11 @@ type Failure = Extract<IssuePageResult, { ok: false }> | { ok: false; error: str
  * so opening the sidebar or returning to a project reads afresh from an open, unfiltered list.
  * Each tab keeps its own filters; only the shown tab reads from the platform.
  */
-export function IssueLists({ projectId, repository, changeBinding, api = window.workbench }: {
+export function IssueLists({ projectId, repository, changeBinding, opened, openIssue, api = window.workbench }: {
   projectId: string; repository: RepositoryReference; changeBinding(): void; api?: Pick<DesktopAPI, 'issuePage'>;
+  /** The issue whose detail is open. */
+  opened?: number;
+  openIssue(number: number): void;
 }) {
   const { t } = useLocalization();
   const [tab, setTab] = useState<Tab>('issues');
@@ -25,7 +28,7 @@ export function IssueLists({ projectId, repository, changeBinding, api = window.
   </div>;
   return tab === 'issues'
     ? <IssueTab tabs={tabs} filter={filters.issues} setFilter={setFilter} load={(filter, cursor) => api.issuePage(projectId, filter, cursor)}
-      repository={repository} changeBinding={changeBinding} />
+      repository={repository} changeBinding={changeBinding} opened={opened} openIssue={openIssue} />
     // The merge request list reads nothing yet; its tab already keeps its own filters.
     : <div className="issue-tab">
       <div className="issue-toolbar">{tabs}<RefreshButton busy={false} disabled onClick={() => {}} /></div>
@@ -57,8 +60,9 @@ function useIssuePages(filter: IssueFilter, load: (filter: IssueFilter, cursor: 
   return { ...state, refresh: () => read(null), more: () => { if (state.page?.next) read(state.page.next); } };
 }
 
-function IssueTab({ tabs, filter, setFilter, load, repository, changeBinding }: {
+function IssueTab({ tabs, filter, setFilter, load, repository, changeBinding, opened, openIssue }: {
   tabs: ReactNode; filter: IssueFilter; setFilter(filter: IssueFilter): void; repository: RepositoryReference; changeBinding(): void;
+  opened?: number; openIssue(number: number): void;
   load(filter: IssueFilter, cursor: string | null): Promise<IssuePageResult>;
 }) {
   const { t, language } = useLocalization();
@@ -79,7 +83,8 @@ function IssueTab({ tabs, filter, setFilter, load, repository, changeBinding }: 
     <FilterBar filter={filter} setFilter={setFilter} labels={list.page?.labels ?? []} search={t('searchIssues')} />
     <div className="issue-list">
       {list.page && <ul aria-label={platform.name}>
-        {list.page.issues.map(issue => <IssueRow key={issue.number} issue={issue} language={language} addLabel={addLabel} />)}
+        {list.page.issues.map(issue => <IssueRow key={issue.number} issue={issue} language={language} addLabel={addLabel}
+          opened={opened === issue.number} open={() => openIssue(issue.number)} />)}
       </ul>}
       {list.page && !list.page.issues.length && !list.loading && <p className="issue-list-empty">{t('noMatchingIssues')}</p>}
       {list.page?.next && <button className="issue-list-more" disabled={!!list.loading} onClick={list.more}>{t('loadMore')}</button>}
@@ -120,10 +125,12 @@ function FilterBar({ filter, setFilter, labels, search }: { filter: IssueFilter;
   </div>;
 }
 
-function IssueRow({ issue, language, addLabel }: { issue: IssueSummary; language: Language; addLabel(name: string): void }) {
+/** Clicking the row opens the issue's detail; its controls act on their own. */
+function IssueRow({ issue, language, addLabel, opened, open }: { issue: IssueSummary; language: Language; addLabel(name: string): void; opened: boolean; open(): void }) {
   const { t } = useLocalization();
   const created = new Date(issue.createdAt);
-  return <li className="issue-row" aria-label={`#${issue.number} ${issue.title}`}>
+  return <li className="issue-row" aria-label={`#${issue.number} ${issue.title}`} aria-current={opened || undefined}
+    onClick={event => { if (!(event.target as Element).closest('button, a')) open(); }}>
     <IssueStateIcon issue={issue} />
     <div className="issue-row-main">
       <div className="issue-row-title">{issue.title}</div>
@@ -150,7 +157,7 @@ const stateIcons = {
   skipped: ['M8 0a8 8 0 1 1 0 16A8 8 0 0 1 8 0ZM1.5 8a6.5 6.5 0 1 0 13 0 6.5 6.5 0 0 0-13 0Zm9.78-2.22-5.5 5.5a.749.749 0 0 1-1.275-.326.749.749 0 0 1 .215-.734l5.5-5.5a.751.751 0 0 1 1.042.018.751.751 0 0 1 .018 1.042Z'],
 };
 
-function IssueStateIcon({ issue }: { issue: IssueSummary }) {
+export function IssueStateIcon({ issue }: { issue: Pick<IssueSummary, 'state' | 'closedAs'> }) {
   const { t } = useLocalization();
   const [icon, name] = issue.state === 'open' ? ['open', t('issueOpen')] as const
     : issue.closedAs === 'notPlanned' ? ['skipped', t('issueNotPlanned')] as const
@@ -162,7 +169,7 @@ function IssueStateIcon({ issue }: { issue: IssueSummary }) {
   </svg>;
 }
 
-function relativeTime(date: Date, language: Language) {
+export function relativeTime(date: Date, language: Language) {
   const seconds = (date.getTime() - Date.now()) / 1000;
   const units: [Intl.RelativeTimeFormatUnit, number][] = [['year', 31536000], ['month', 2592000], ['day', 86400], ['hour', 3600], ['minute', 60]];
   const format = new Intl.RelativeTimeFormat(language, { numeric: 'auto' });

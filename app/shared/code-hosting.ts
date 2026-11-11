@@ -71,3 +71,59 @@ export interface IssueSummary {
 export interface IssuePage { issues: IssueSummary[]; next: string | null; labels: IssueLabel[] }
 /** A list page, or why it could not be read. An unreachable repository names the signed-in account when the platform tells it. */
 export type IssuePageResult = { ok: true; page: IssuePage } | { ok: false; failure: PlatformFailure; account?: string };
+
+/** An issue another issue relates to; `repository` is its repository's path, which may differ from the bound one. */
+export interface IssueReference {
+  number: number;
+  title: string;
+  state: 'open' | 'closed';
+  closedAs: IssueClosure | null;
+  repository: string;
+  url: string;
+}
+export type MergeRequestState = 'open' | 'draft' | 'merged' | 'closed';
+/** The combined result of a merge request's checks. */
+export type ChecksVerdict = 'passing' | 'failing' | 'pending';
+export interface MergeRequestReference {
+  number: number;
+  title: string;
+  state: MergeRequestState;
+  /** Null when the merge request has no checks. */
+  checks: ChecksVerdict | null;
+  url: string;
+}
+/** `body` is HTML as the platform renders it, before the Workbench's allowlist filter. */
+export interface IssueComment { author: string | null; createdAt: string; body: string }
+/** What an issue's detail shows. Relations a platform does not declare as capabilities stay empty. */
+export interface IssueDetail extends IssueSummary {
+  author: string | null;
+  assignees: string[];
+  /** HTML as the platform renders it, before the Workbench's allowlist filter. */
+  body: string;
+  commentCount: number;
+  comments: IssueComment[];
+  parent: IssueReference | null;
+  subIssues: IssueReference[];
+  blockedBy: IssueReference[];
+  blocking: IssueReference[];
+  /** Merge requests that close the issue when merged, closed ones included. */
+  closingMergeRequests: MergeRequestReference[];
+}
+/** An issue's detail, or why it could not be read. A missing issue reads as unreachable. */
+export type IssueDetailResult = { ok: true; issue: IssueDetail } | { ok: false; failure: PlatformFailure };
+
+/** An issue or merge request of a repository, as a link names it. */
+export interface RepositoryItem { kind: 'issue' | 'mergeRequest'; number: number }
+const itemLinks: Record<PlatformId, (path: string, url: URL) => RepositoryItem | null> = {
+  github(path, url) {
+    if (url.hostname.toLowerCase() !== 'github.com') return null;
+    const match = /^\/([^/]+\/[^/]+)\/(issues|pull)\/(\d+)\/?$/.exec(url.pathname);
+    if (!match || match[1].toLowerCase() !== path.toLowerCase()) return null;
+    return { kind: match[2] === 'issues' ? 'issue' : 'mergeRequest', number: Number(match[3]) };
+  },
+};
+/** The repository's issue or merge request a link points to, or null for any other link. */
+export function repositoryItem(repository: RepositoryReference, href: string): RepositoryItem | null {
+  const url = URL.parse(href);
+  return url && /^https?:$/.test(url.protocol) ? itemLinks[repository.platform](repository.path, url) : null;
+}

@@ -1,7 +1,9 @@
 const { readFileSync } = require('node:fs');
 
 // External CLI double for GitHub's `gh`: answers `gh api graphql` from a state file the test
-// writes, for the viewer, the viewer's repositories, issue search and an issue by number.
+// writes, for the viewer, the viewer's repositories, issue search, an issue by number and an
+// issue's detail. Comment pages hold at most `commentPageSize` comments. Closing pull requests
+// leave out closed unmerged ones unless the query asks with `includeClosedPrs: true`, as GitHub does.
 // A state `failure` makes every call end with the given exit code, stdout and stderr, as
 // `gh` does when the API refuses. Repository pages hold at most `pageSize` repositories,
 // whatever the query asks for, so a caller that reads only the first page sees an incomplete
@@ -24,6 +26,7 @@ module.exports = function gh(stateFile, args) {
   if (args[0] !== 'api' || args[1] !== 'graphql' || !query) unsupported(args);
   if (query.includes('search(')) return answer(search(state, fields));
   if (query.includes('issueOrPullRequest(')) return answer(issueByNumber(state, fields));
+  if (query.includes('issue(number:')) return answer(issueDetail(state, fields, query));
   if (!query.includes('viewer')) unsupported(args);
   const viewer = { login: state.login };
   if (query.includes('repositories')) {
@@ -105,4 +108,38 @@ function issueByNumber(state, fields) {
   const issue = (state.issues ?? []).find(item => item.number === Number(fields.number));
   if (!issue) notFound('repository', `Could not resolve to an issue or pull request with the number of ${fields.number}.`, { repository: { issueOrPullRequest: null } });
   return { repository: { issueOrPullRequest: issueNode(state, path, issue) } };
+}
+
+function reference(state, path, number) {
+  const issue = (state.issues ?? []).find(item => item.number === number);
+  return { number, title: issue.title, state: issue.state, stateReason: issue.stateReason, url: `https://github.com/${path}/issues/${number}`,
+    repository: { nameWithOwner: path } };
+}
+
+function issueDetail(state, fields, query) {
+  const path = repository(state, fields.owner, fields.name);
+  const issue = (state.issues ?? []).find(item => item.number === Number(fields.number));
+  if (!issue) notFound('repository', `Could not resolve to an Issue with the number of ${fields.number}.`, { repository: { issue: null } });
+  const comments = issue.comments ?? [];
+  const size = state.commentPageSize ?? 100;
+  const start = fields.comments ? Number(fields.comments) : 0;
+  const page = comments.slice(start, start + size);
+  const end = start + page.length;
+  const nodes = numbers => ({ nodes: (numbers ?? []).map(number => reference(state, path, number)) });
+  const includeClosed = /includeClosedPrs:\s*true/.test(query);
+  const pulls = (issue.closedBy ?? []).map(number => state.pullRequests.find(pull => pull.number === number))
+    .filter(pull => includeClosed || pull.state !== 'CLOSED');
+  return { repository: { issue: {
+    ...issueNode(state, path, issue),
+    author: issue.author ? { login: issue.author } : null,
+    bodyHTML: issue.bodyHTML ?? '',
+    assignees: { nodes: (issue.assignees ?? []).map(login => ({ login })) },
+    comments: { totalCount: comments.length, nodes: page.map(comment => ({ author: { login: comment.author }, createdAt: comment.createdAt, bodyHTML: comment.bodyHTML })),
+      pageInfo: { hasNextPage: end < comments.length, endCursor: String(end) } },
+    parent: issue.parent ? reference(state, path, issue.parent) : null,
+    subIssues: nodes(issue.subIssues), blockedBy: nodes(issue.blockedBy), blocking: nodes(issue.blocking),
+    closedByPullRequestsReferences: { nodes: pulls.map(pull => ({ number: pull.number, title: pull.title, state: pull.state, isDraft: pull.isDraft,
+      url: `https://github.com/${path}/pull/${pull.number}`,
+      commits: { nodes: [{ commit: { statusCheckRollup: pull.checks ? { state: pull.checks } : null } }] } })) },
+  } } };
 }

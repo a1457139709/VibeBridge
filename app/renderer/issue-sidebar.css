@@ -59,3 +59,62 @@
 .issue-list-more { display: block; margin: 10px auto; min-height: 28px; font-size: 12px; }
 .issue-state-actions { display: flex; flex-wrap: wrap; justify-content: center; gap: 6px; margin-top: 6px; }
 .issue-sidebar-state code { font-family: Menlo, monospace; font-size: 12px; }
+/* Detail: opens leftwards from the sidebar's edge, between the workspace toolbar and the tray.
+   Overlaying leaves the layout area as it is; squeezing narrows it by the detail's width. */
+.app-body { --issue-detail-width: min(560px, max(280px, calc(100% - var(--issue-sidebar-yield, 0px) - 240px))); }
+.issue-detail { position: absolute; top: 0; bottom: 0; right: var(--issue-sidebar-yield, 0px); width: var(--issue-detail-width); z-index: 6;
+  display: flex; flex-direction: column; border-left: 1px solid var(--line); background: var(--surface); box-shadow: -6px 0 18px #0001; }
+main:has(> .workbench-page:not([hidden]) .workspace-toolbar) > .issue-detail { top: 33px; }
+main:has(> .workbench-page:not([hidden]) .panel-tray:not(.empty)) > .issue-detail { bottom: 41px; }
+.issue-detail-squeeze .canvas { margin-right: calc(var(--issue-detail-width) + var(--issue-sidebar-yield, 0px) + 4px); }
+.issue-detail-bar { height: 32px; flex-shrink: 0; display: flex; align-items: center; gap: 8px; padding: 0 8px 0 14px; border-bottom: 1px solid var(--line); font-size: 12px; }
+.issue-detail-crumb { flex: 1; color: var(--muted); font-family: Menlo, monospace; font-size: 11px; }
+.issue-detail-bar a { color: var(--accent); text-decoration: none; }
+.issue-detail-close { min-height: 24px; width: 26px; padding: 0; border: 0; background: transparent; font-size: 16px; color: var(--muted); }
+.issue-detail-scroll { flex: 1; min-height: 0; overflow: auto; padding: 12px 16px 24px; }
+.issue-detail-loading { color: var(--muted); }
+.issue-detail-title { margin: 0 0 6px; font-size: 17px; line-height: 1.35; overflow-wrap: anywhere; }
+.issue-detail-meta { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 10px; color: var(--muted); font-size: 12px; }
+.issue-detail-author { color: inherit; font-weight: 600; }
+.issue-detail-labels { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 8px; }
+.issue-detail-card { margin-top: 12px; border: 1px solid var(--line); border-radius: 8px; overflow: hidden; }
+.issue-detail-card > header { padding: 6px 10px; border-bottom: 1px solid var(--line); background: var(--hover); color: var(--muted); font-size: 12px; }
+.issue-detail-card > header b { color: var(--text, inherit); }
+.platform-html { padding: 8px 12px; line-height: 1.55; overflow-wrap: anywhere; }
+.platform-html > :first-child { margin-top: 0; }
+.platform-html > :last-child { margin-bottom: 0; }
+.platform-html a { color: var(--accent); }
+.platform-html img { max-width: 100%; }
+.platform-html pre { overflow: auto; padding: 8px; border-radius: 6px; background: var(--hover); }
+.platform-html code { font-family: Menlo, monospace; font-size: 12px; }
+.platform-html blockquote { margin: 0 0 8px; padding: 0 10px; border-left: 3px solid var(--line); color: var(--muted); }
+.platform-html table { border-collapse: collapse; }
+.platform-html th, .platform-html td { border: 1px solid var(--line); padding: 3px 8px; }
+/* Relation graph: a three-column strip of issues joined by edges. */
+.relation-graph { position: relative; margin-top: 12px; }
+.relation-graph svg { position: absolute; inset: 0; width: 100%; height: 100%; overflow: visible; }
+.relation-edge { fill: none; stroke-width: 1.5; vector-effect: non-scaling-stroke; }
+.relation-edge-parent { stroke: var(--muted); stroke-dasharray: 3 3; }
+.relation-edge-blocks { stroke: #cf222e; }
+.relation-node { position: absolute; height: 24px; display: flex; align-items: center; gap: 4px; padding: 0 6px; border: 1px solid var(--line); border-radius: 6px;
+  background: var(--surface); font-size: 11px; overflow: hidden; text-align: left; }
+.relation-node-left { left: 0; width: 34%; }
+.relation-node-right { left: 66%; width: 34%; }
+.relation-self { left: 38%; width: 24%; justify-content: center; border-color: var(--accent); font-weight: 600; }
+.relation-blockedBy, .relation-blocking { border-color: color-mix(in srgb, #cf222e 55%, var(--line)); }
+.relation-title { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.closing-merge-requests { margin-top: 12px; }
+.closing-merge-requests h3 { margin: 0 0 6px; font-size: 12px; color: var(--muted); font-weight: 600; }
+.closing-merge-requests ul { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 4px; }
+.closing-merge-request { --merge-request-color: var(--issue-open); display: flex; align-items: center; gap: 6px; padding: 4px 8px; font-size: 12px;
+  border: 1px solid color-mix(in srgb, var(--merge-request-color) 60%, transparent); border-left-width: 3px; border-radius: 6px; }
+.merge-request-icon { flex-shrink: 0; color: var(--merge-request-color); }
+.merge-request-draft { --merge-request-color: var(--issue-skipped); }
+.merge-request-merged { --merge-request-color: var(--issue-done); }
+.merge-request-closed { --merge-request-color: #cf222e; }
+.checks-mark { margin-left: auto; font-size: 11px; }
+.checks-passing { color: var(--issue-open); }
+.checks-failing { color: #cf222e; }
+.checks-pending { color: #bf8700; }
+.issue-row { cursor: default; }
+.issue-row[aria-current='true'] { background: color-mix(in srgb, var(--accent) 12%, transparent); }
