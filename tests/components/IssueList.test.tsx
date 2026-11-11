@@ -6,7 +6,7 @@ import { userEvent } from '@testing-library/user-event';
 import { App } from '../../app/renderer/Workbench';
 import { defaultSettings } from '../../app/shared/settings';
 import type { ProjectView, Snapshot, WorkbenchEvent } from '../../app/shared/model';
-import { platformDescriptions, type IssueFilter, type IssuePage, type IssuePageResult, type IssueSummary, type PlatformFailureKind, type RepositoryChoices } from '../../app/shared/code-hosting';
+import { platformDescriptions, type IssueFilter, type IssuePage, type IssuePageResult, type IssueSummary, type MergeRequestPageResult, type PlatformFailureKind, type RepositoryChoices } from '../../app/shared/code-hosting';
 import { deferred, provideWorkbench } from './support/workbench';
 
 afterEach(cleanup);
@@ -49,6 +49,7 @@ function renderSidebar({ visible = true }: { visible?: boolean } = {}) {
     }, saveNavigation: async () => {}, saveLayout: async () => {}, saveIssueSidebar: async () => {},
     inspectDirectory: async directory => ({ valid: true, directory }),
     repositoryChoices: () => new Promise<RepositoryChoices>(() => {}),
+    mergeRequestPage: () => new Promise<MergeRequestPageResult>(() => {}),
     issuePage: (projectId, filter, cursor) => {
       const reply = deferred<IssuePageResult>();
       requests.push({ projectId, filter, cursor, answer: reply.resolve });

@@ -1,6 +1,6 @@
 import { execFile } from 'node:child_process';
 import { executable } from '../../terminal/environment';
-import { listPageSize, platformDescriptions, type IssueClosure, type IssueFilter, type IssueLabel, type IssueSummary, type PlatformFailureKind } from '../../shared/code-hosting';
+import { listPageSize, platformDescriptions, type CheckConclusion, type IssueClosure, type IssueFilter, type IssueLabel, type IssueSummary, type MergeRequestSummary, type PlatformFailureKind } from '../../shared/code-hosting';
 import { PlatformError, type CodeHostingPlatform, type CommandEnvironment } from './platform';
 
 const description = platformDescriptions.github;
@@ -58,47 +58,105 @@ function remotePath(url: string): string | null {
   return match ? match[1] : null;
 }
 
-const issueFields = `number title state stateReason createdAt url labels(first: 20) { nodes { name color } }`;
-const issuesQuery = `query($owner: String!, $name: String!, $q: String!, $first: Int!, $cursor: String) {
-  repository(owner: $owner, name: $name) { labels(first: 100, orderBy: { field: NAME, direction: ASC }) { nodes { name color } } }
-  search(query: $q, type: ISSUE, first: $first, after: $cursor) { nodes { ... on Issue { ${issueFields} } } pageInfo { hasNextPage endCursor } } }`;
-const issueByNumberQuery = `query($owner: String!, $name: String!, $number: Int!) {
-  repository(owner: $owner, name: $name) { issueOrPullRequest(number: $number) { ... on Issue { ${issueFields} } } } }`;
+const labelFields = `labels(first: 20) { nodes { name color } }`;
+const listLabels = (labels: { nodes: IssueLabel[] }) => labels.nodes.map(({ name, color }) => ({ name, color }));
 
 interface IssueNode { number: number; title: string; state: 'OPEN' | 'CLOSED'; stateReason: string | null; createdAt: string; url: string; labels: { nodes: IssueLabel[] } }
-/** A search or number lookup also meets pull requests, which the Issue fragment leaves empty. */
-type SearchNode = IssueNode | Record<string, never>;
-const isIssue = (node: SearchNode): node is IssueNode => 'number' in node;
-interface IssuesPage {
-  repository: { labels: { nodes: IssueLabel[] } };
-  search: { nodes: SearchNode[]; pageInfo: { hasNextPage: boolean; endCursor: string | null } };
+interface PullRequestNode {
+  number: number; title: string; state: 'OPEN' | 'CLOSED' | 'MERGED'; isDraft: boolean; createdAt: string; url: string;
+  author: { login: string } | null; labels: { nodes: IssueLabel[] };
+  commits: { nodes: { commit: { statusCheckRollup: { state: string } | null } }[] };
+}
+
+/** What a list reads: its search qualifier, the GraphQL fragment of its type and the domain shape it makes. */
+interface ListKind<Node, Summary> {
+  qualifier: 'issue' | 'pr';
+  fragment: string;
+  summary(node: Node): Summary;
+  /** The filter state the item belongs to. */
+  filterState(summary: Summary): IssueFilter['state'];
 }
 
 const closures: Record<string, IssueClosure> = { COMPLETED: 'completed', NOT_PLANNED: 'notPlanned', DUPLICATE: 'duplicate' };
-function issueSummary(node: IssueNode): IssueSummary {
-  const state = node.state === 'OPEN' ? 'open' : 'closed';
-  return { number: node.number, title: node.title, state, closedAs: state === 'closed' ? closures[node.stateReason ?? ''] ?? null : null,
-    createdAt: node.createdAt, labels: node.labels.nodes.map(({ name, color }) => ({ name, color })), url: node.url };
+const issueKind: ListKind<IssueNode, IssueSummary> = {
+  qualifier: 'issue',
+  fragment: `... on Issue { number title state stateReason createdAt url ${labelFields} }`,
+  summary(node) {
+    const state = node.state === 'OPEN' ? 'open' : 'closed';
+    return { number: node.number, title: node.title, state, closedAs: state === 'closed' ? closures[node.stateReason ?? ''] ?? null : null,
+      createdAt: node.createdAt, labels: listLabels(node.labels), url: node.url };
+  },
+  filterState: issue => issue.state,
+};
+
+// The head commit's check rollup; EXPECTED is a required check that has not reported yet.
+const conclusions: Record<string, CheckConclusion> = { SUCCESS: 'passing', FAILURE: 'failing', ERROR: 'failing', PENDING: 'pending', EXPECTED: 'pending' };
+const pullRequestStates = { OPEN: 'open', CLOSED: 'closed', MERGED: 'merged' } as const;
+const pullRequestKind: ListKind<PullRequestNode, MergeRequestSummary> = {
+  qualifier: 'pr',
+  fragment: `... on PullRequest { number title state isDraft createdAt url author { login } ${labelFields}
+    commits(last: 1) { nodes { commit { statusCheckRollup { state } } } } }`,
+  summary(node) {
+    const rollup = node.commits.nodes[0]?.commit.statusCheckRollup;
+    return { number: node.number, title: node.title, state: pullRequestStates[node.state], draft: node.isDraft, author: node.author?.login ?? null,
+      createdAt: node.createdAt, checks: rollup ? conclusions[rollup.state] ?? null : null, labels: listLabels(node.labels), url: node.url };
+  },
+  filterState: request => request.state === 'open' ? 'open' : 'closed',
+};
+
+const listQuery = (fragment: string) => `query($owner: String!, $name: String!, $q: String!, $first: Int!, $cursor: String) {
+  repository(owner: $owner, name: $name) { labels(first: 100, orderBy: { field: NAME, direction: ASC }) { nodes { name color } } }
+  search(query: $q, type: ISSUE, first: $first, after: $cursor) { nodes { ${fragment} } pageInfo { hasNextPage endCursor } } }`;
+const byNumberQuery = (fragment: string) => `query($owner: String!, $name: String!, $number: Int!) {
+  repository(owner: $owner, name: $name) { issueOrPullRequest(number: $number) { ${fragment} } } }`;
+
+/** A search or number lookup can meet the other type, which the fragment leaves empty. */
+type SearchNode<Node> = Node | Record<string, never>;
+const isKind = <Node,>(node: SearchNode<Node>): node is Node => 'number' in (node as object);
+interface SearchPage<Node> {
+  repository: { labels: { nodes: IssueLabel[] } };
+  search: { nodes: SearchNode<Node>[]; pageInfo: { hasNextPage: boolean; endCursor: string | null } };
 }
 
 // A search term only becomes a value: quotes inside it are dropped.
 const quoted = (value: string) => `"${value.replaceAll('"', '')}"`;
 
-/** The issue whose number the search names, when it matches the rest of the filter. */
-async function issueByNumber(environment: CommandEnvironment, owner: string, name: string, number: number, filter: IssueFilter): Promise<IssueSummary | null> {
-  let node: SearchNode | null;
+/** The item whose number the search names, when it is of the list's type and matches the rest of the filter. */
+async function byNumber<Node, Summary extends { labels: IssueLabel[] }>(environment: CommandEnvironment, owner: string, name: string,
+  number: number, filter: IssueFilter, kind: ListKind<Node, Summary>): Promise<Summary | null> {
+  let node: SearchNode<Node> | null;
   try {
-    ({ repository: { issueOrPullRequest: node } } = await graphql<{ repository: { issueOrPullRequest: SearchNode | null } }>(
-      environment, issueByNumberQuery, { owner, name, number }));
+    ({ repository: { issueOrPullRequest: node } } = await graphql<{ repository: { issueOrPullRequest: SearchNode<Node> | null } }>(
+      environment, byNumberQuery(kind.fragment), { owner, name, number }));
   } catch (error) {
-    // The repository was just found, so not found here means no issue has that number.
+    // The repository was just found, so not found here means nothing has that number.
     if (error instanceof PlatformError && error.failure.kind === 'unreachable') return null;
     throw error;
   }
-  if (!node || !isIssue(node)) return null;
-  const issue = issueSummary(node);
-  const names = new Set(issue.labels.map(label => label.name));
-  return issue.state === filter.state && filter.labels.every(label => names.has(label)) ? issue : null;
+  if (!node || !isKind(node)) return null;
+  const item = kind.summary(node);
+  const names = new Set(item.labels.map(label => label.name));
+  return kind.filterState(item) === filter.state && filter.labels.every(label => names.has(label)) ? item : null;
+}
+
+/** One page of a list, newest first, filtered by GitHub's search. */
+async function list<Node, Summary extends { number: number; labels: IssueLabel[] }>(environment: CommandEnvironment, path: string,
+  filter: IssueFilter, cursor: string | null, kind: ListKind<Node, Summary>) {
+  const [owner, name] = [path.slice(0, path.indexOf('/')), path.slice(path.indexOf('/') + 1)];
+  const search = filter.search.trim();
+  const number = /^#?(\d+)$/.exec(search);
+  const words = number ? number[1] : search;
+  const q = [`repo:${path}`, `is:${kind.qualifier}`, `is:${filter.state}`, 'sort:created-desc', ...filter.labels.map(label => `label:${quoted(label)}`),
+    ...(words ? [words, 'in:title'] : [])].join(' ');
+  const page = await graphql<SearchPage<Node>>(environment, listQuery(kind.fragment), { owner, name, q, first: listPageSize, ...(cursor ? { cursor } : {}) });
+  let items = page.search.nodes.filter(isKind).map(node => kind.summary(node));
+  // GitHub's search matches words, not numbers: the numbered item leads the first page.
+  if (number && !cursor) {
+    const numbered = await byNumber(environment, owner, name, Number(number[1]), filter, kind);
+    if (numbered) items = [numbered, ...items.filter(item => item.number !== numbered.number)];
+  }
+  const { hasNextPage, endCursor } = page.search.pageInfo;
+  return { items, next: hasNextPage ? endCursor : null, labels: listLabels(page.repository.labels) };
 }
 
 export const github: CodeHostingPlatform = {
@@ -107,21 +165,12 @@ export const github: CodeHostingPlatform = {
     return (await graphql<{ viewer: { login: string } }>(environment, 'query { viewer { login } }')).viewer.login;
   },
   async issues(environment, path, filter, cursor) {
-    const [owner, name] = [path.slice(0, path.indexOf('/')), path.slice(path.indexOf('/') + 1)];
-    const search = filter.search.trim();
-    const number = /^#?(\d+)$/.exec(search);
-    const words = number ? number[1] : search;
-    const q = [`repo:${path}`, 'is:issue', `is:${filter.state}`, 'sort:created-desc', ...filter.labels.map(label => `label:${quoted(label)}`),
-      ...(words ? [words, 'in:title'] : [])].join(' ');
-    const page = await graphql<IssuesPage>(environment, issuesQuery, { owner, name, q, first: listPageSize, ...(cursor ? { cursor } : {}) });
-    let issues = page.search.nodes.filter(isIssue).map(issueSummary);
-    // GitHub's search matches words, not numbers: the numbered issue leads the first page.
-    if (number && !cursor) {
-      const numbered = await issueByNumber(environment, owner, name, Number(number[1]), filter);
-      if (numbered) issues = [numbered, ...issues.filter(issue => issue.number !== numbered.number)];
-    }
-    const { hasNextPage, endCursor } = page.search.pageInfo;
-    return { issues, next: hasNextPage ? endCursor : null, labels: page.repository.labels.nodes.map(({ name, color }) => ({ name, color })) };
+    const { items, next, labels } = await list(environment, path, filter, cursor, issueKind);
+    return { issues: items, next, labels };
+  },
+  async mergeRequests(environment, path, filter, cursor) {
+    const { items, next, labels } = await list(environment, path, filter, cursor, pullRequestKind);
+    return { mergeRequests: items, next, labels };
   },
   async bindable(environment) {
     const paths: string[] = [];
