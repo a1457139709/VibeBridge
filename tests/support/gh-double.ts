@@ -10,26 +10,30 @@ export interface GhIssue {
   stateReason: 'COMPLETED' | 'NOT_PLANNED' | 'DUPLICATE' | null;
   createdAt: string;
   labels: string[];
+  /** The number of the issue this one is a sub-issue of. */
+  parent?: number;
+  /** Numbers of the issues natively marked as blocking this one. */
+  blockedBy?: number[];
   author?: string;
   assignees?: string[];
   /** The body as GitHub renders it; the double passes it through unchanged. */
   bodyHTML?: string;
   comments?: { author: string; createdAt: string; bodyHTML: string }[];
-  /** Relations name issues of the same repository by number. */
-  parent?: number;
-  subIssues?: number[];
-  blockedBy?: number[];
-  blocking?: number[];
   /** Pull requests, by number, that close the issue when merged. */
   closedBy?: number[];
 }
 
-/** A pull request; `checks` is the head commit's status check rollup state. */
+/** A pull request of every repository the double lists, as GitHub's API names its fields.
+ * `checks` is the head commit's check rollup state, null when nothing reports on it. */
 export interface GhPullRequest {
   number: number;
   title: string;
   state: 'OPEN' | 'CLOSED' | 'MERGED';
   isDraft: boolean;
+  /** Null for a deleted account. */
+  author: string | null;
+  createdAt: string;
+  labels: string[];
   checks: 'SUCCESS' | 'FAILURE' | 'ERROR' | 'PENDING' | 'EXPECTED' | null;
 }
 
@@ -39,6 +43,7 @@ export interface GhState {
   repositories?: string[];
   pageSize?: number;
   issues?: GhIssue[];
+  /** Numbers are shared with issues, as on GitHub, so keep them apart. */
   pullRequests?: GhPullRequest[];
   /** At most this many comments per page, whatever the query asks for. */
   commentPageSize?: number;

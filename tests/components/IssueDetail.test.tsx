@@ -6,7 +6,7 @@ import { userEvent } from '@testing-library/user-event';
 import { App } from '../../app/renderer/Workbench';
 import { defaultSettings } from '../../app/shared/settings';
 import type { ProjectView, Snapshot } from '../../app/shared/model';
-import { platformDescriptions, type IssueDetail, type IssueDetailResult, type IssuePageResult, type IssueReference, type IssueSummary, type RepositoryChoices } from '../../app/shared/code-hosting';
+import { platformDescriptions, type IssueDetail, type IssueDetailResult, type IssuePageResult, type RelatedIssue, type IssueSummary, type RepositoryChoices } from '../../app/shared/code-hosting';
 import { deferred, provideWorkbench } from './support/workbench';
 
 afterEach(cleanup);
@@ -25,11 +25,11 @@ const app: ProjectView = { id: 'app', name: 'App project', directory: '/work/app
   repository: { platform: 'github', path: 'octo/app' } };
 
 const summary = (number: number): IssueSummary => ({ number, title: `Issue ${number}`, state: 'open', closedAs: null,
-  createdAt: '2026-11-01T00:00:00Z', labels: [], url: `https://github.com/octo/app/issues/${number}` });
-const reference = (number: number, extra: Partial<IssueReference> = {}): IssueReference => ({ number, title: `Issue ${number}`, state: 'open', closedAs: null,
+  createdAt: '2026-11-01T00:00:00Z', labels: [], url: `https://github.com/octo/app/issues/${number}`, parent: null, subIssues: null, blockedBy: [] });
+const reference = (number: number, extra: Partial<RelatedIssue> = {}): RelatedIssue => ({ number, title: `Issue ${number}`, state: 'open', closedAs: null,
   repository: 'octo/app', url: `https://github.com/octo/app/issues/${number}`, ...extra });
-const detail = (number: number, extra: Partial<IssueDetail> = {}): IssueDetail => ({ ...summary(number), author: 'mona', assignees: [], body: '<p>Body</p>',
-  commentCount: 0, comments: [], parent: null, subIssues: [], blockedBy: [], blocking: [], closingMergeRequests: [], ...extra });
+const detail = (number: number, extra: Partial<IssueDetail> = {}): IssueDetail => ({ ...summary(number), parent: null, subIssues: [], blockedBy: [], author: 'mona', assignees: [], body: '<p>Body</p>',
+  commentCount: 0, comments: [], blocking: [], closingMergeRequests: [], ...extra });
 
 interface DetailRequest { projectId: string; number: number; answer(result: IssueDetailResult): void }
 
@@ -157,17 +157,17 @@ test('relations a platform does not declare are not drawn, and an issue without 
 test('the merge requests that close the issue are listed with their state and check verdict, closed ones included', async () => {
   const { open } = await renderSidebar();
   const shown = await open(3, detail(3, { closingMergeRequests: [
-    { number: 10, title: 'Fix it', state: 'open', checks: 'failing', url: 'https://github.com/octo/app/pull/10' },
-    { number: 11, title: 'Draft fix', state: 'draft', checks: 'pending', url: 'https://github.com/octo/app/pull/11' },
-    { number: 12, title: 'Merged fix', state: 'merged', checks: 'passing', url: 'https://github.com/octo/app/pull/12' },
-    { number: 13, title: 'Abandoned fix', state: 'closed', checks: null, url: 'https://github.com/octo/app/pull/13' },
+    { number: 10, title: 'Fix it', state: 'open', draft: false, checks: 'failing', url: 'https://github.com/octo/app/pull/10' },
+    { number: 11, title: 'Draft fix', state: 'open', draft: true, checks: 'pending', url: 'https://github.com/octo/app/pull/11' },
+    { number: 12, title: 'Merged fix', state: 'merged', draft: false, checks: 'passing', url: 'https://github.com/octo/app/pull/12' },
+    { number: 13, title: 'Abandoned fix', state: 'closed', draft: false, checks: null, url: 'https://github.com/octo/app/pull/13' },
   ] }));
   const block = within(shown).getByRole('list', { name: 'Pull requests that close this issue when merged' });
   const items = within(block).getAllByRole('listitem');
   assert.deepEqual(items.map(item => item.className), ['closing-merge-request merge-request-open', 'closing-merge-request merge-request-draft',
     'closing-merge-request merge-request-merged', 'closing-merge-request merge-request-closed']);
   assert.deepEqual(items.map(item => within(item).getAllByRole('img').map(image => image.getAttribute('aria-label'))), [
-    ['Open', 'Checks failing'], ['Draft', 'Checks pending'], ['Merged', 'Checks passing'], ['Closed'],
+    ['Open', 'Checks failed'], ['Draft', 'Checks in progress'], ['Merged', 'Checks passed'], ['Closed'],
   ]);
   assert.ok(within(items[0]).getByText('Fix it'));
   assert.ok(within(items[0]).getByText('#10'));

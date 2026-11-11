@@ -57,7 +57,7 @@ export function useIssueSidebar(host: Host, api: Pick<DesktopAPI, 'saveIssueSide
       <header className="issue-sidebar-heading"><span className="issue-sidebar-title">{title}</span>
         {repository && <span className="issue-sidebar-repository">{repository.path}</span>}</header>
       {project && repository && <IssueLists key={lists} projectId={project.id} repository={repository}
-        changeBinding={() => host.bindRepository(project)} opened={openedNumber} openIssue={openIssue} />}
+        changeBinding={() => host.bindRepository(project)} detail={{ opened: openedNumber, open: openIssue }} />}
       {project && !repository && <div className="issue-sidebar-state">
         <p>{t('issueSidebarUnbound')}</p>
         <button className="primary" onClick={() => host.bindRepository(project)}>{t('bindRepository')}</button>

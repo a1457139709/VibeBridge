@@ -1,10 +1,12 @@
 import { useEffect, useRef, useState, type CSSProperties, type MouseEvent } from 'react';
 import type { DesktopAPI } from '../shared/api';
-import { platformDescriptions, repositoryItem, type ChecksVerdict, type IssueDetail, type IssueDetailResult, type IssueReference,
-  type MergeRequestReference, type MergeRequestState, type RepositoryReference } from '../shared/code-hosting';
+import { platformDescriptions, repositoryItem, type IssueDetail, type IssueDetailResult, type MergeRequestReference,
+  type RelatedIssue, type RepositoryReference } from '../shared/code-hosting';
 import { useLocalization } from './Localization';
 import { allowedHtml } from './platform-html';
-import { IssueStateIcon, relativeTime } from './IssueLists';
+import { IssueStateIcon } from './IssueLists';
+import { relativeTime } from './list-row-parts';
+import { CheckIcon, MergeRequestStateIcon } from './MergeRequestRow';
 
 type Failure = Extract<IssueDetailResult, { ok: false }> | { ok: false; error: string };
 
@@ -40,7 +42,7 @@ export function IssueDetailView({ projectId, repository, number, openIssue, clos
     if (item?.kind === 'issue') openIssue(item.number);
     else window.open(href, '_blank');
   };
-  const openReference = (reference: IssueReference) => {
+  const openReference = (reference: RelatedIssue) => {
     if (reference.repository.toLowerCase() === repository.path.toLowerCase()) openIssue(reference.number);
     else window.open(reference.url, '_blank');
   };
@@ -109,12 +111,12 @@ const rowHeight = 28;
  * middle, its sub-issues and what it blocks on the right. A relation the platform does not
  * declare is not drawn; with nothing to draw there is no graph.
  */
-function RelationGraph({ issue, repository, open }: { issue: IssueDetail; repository: RepositoryReference; open(reference: IssueReference): void }) {
+function RelationGraph({ issue, repository, open }: { issue: IssueDetail; repository: RepositoryReference; open(reference: RelatedIssue): void }) {
   const { t } = useLocalization();
   const capabilities = platformDescriptions[repository.platform].capabilities;
   const subIssues = capabilities.includes('subIssues');
   const blocking = capabilities.includes('nativeBlocking');
-  const node = (kind: RelationKind) => (reference: IssueReference) => ({ kind, reference });
+  const node = (kind: RelationKind) => (reference: RelatedIssue) => ({ kind, reference });
   const left = [...(subIssues && issue.parent ? [node('parent')(issue.parent)] : []), ...(blocking ? issue.blockedBy.map(node('blockedBy')) : [])];
   const right = [...(subIssues ? issue.subIssues.map(node('subIssue')) : []), ...(blocking ? issue.blocking.map(node('blocking')) : [])];
   if (!left.length && !right.length) return null;
@@ -148,9 +150,6 @@ function RelationGraph({ issue, repository, open }: { issue: IssueDetail; reposi
   </div>;
 }
 
-const mergeRequestStates = { open: 'mergeRequestOpen', draft: 'mergeRequestDraft', merged: 'mergeRequestMerged', closed: 'mergeRequestClosed' } as const;
-const verdicts = { passing: ['✓', 'checksPassing'], failing: ['✗', 'checksFailing'], pending: ['●', 'checksPending'] } as const;
-
 /** Merge requests that close the issue when merged. Opening one belongs to the merge request detail. */
 function ClosingMergeRequests({ mergeRequests }: { mergeRequests: MergeRequestReference[] }) {
   const { t } = useLocalization();
@@ -158,26 +157,13 @@ function ClosingMergeRequests({ mergeRequests }: { mergeRequests: MergeRequestRe
   return <section className="closing-merge-requests">
     <h3>{t('closingMergeRequests')}</h3>
     <ul aria-label={t('closingMergeRequests')}>
-      {mergeRequests.map(request => <li key={request.number} className={`closing-merge-request merge-request-${request.state}`}>
-        <MergeRequestIcon state={request.state} />
+      {mergeRequests.map(request => <li key={request.number}
+        className={`closing-merge-request merge-request-${request.state === 'open' && request.draft ? 'draft' : request.state}`}>
+        <MergeRequestStateIcon request={request} />
         <span className="issue-row-number">#{request.number}</span>
         <span className="relation-title">{request.title}</span>
-        {request.checks && <ChecksMark verdict={request.checks} />}
+        {request.checks && <CheckIcon conclusion={request.checks} />}
       </li>)}
     </ul>
   </section>;
-}
-
-function ChecksMark({ verdict }: { verdict: ChecksVerdict }) {
-  const { t } = useLocalization();
-  const [mark, name] = verdicts[verdict];
-  return <span className={`checks-mark checks-${verdict}`} role="img" aria-label={t(name)}>{mark}</span>;
-}
-
-// GitHub's octicon git-pull-request.
-function MergeRequestIcon({ state }: { state: MergeRequestState }) {
-  const { t } = useLocalization();
-  return <svg className="merge-request-icon" role="img" aria-label={t(mergeRequestStates[state])} viewBox="0 0 16 16" width="14" height="14" fill="currentColor">
-    <path d="M1.5 3.25a2.25 2.25 0 1 1 3 2.122v5.256a2.251 2.251 0 1 1-1.5 0V5.372A2.25 2.25 0 0 1 1.5 3.25Zm5.677-.177L9.573.677A.25.25 0 0 1 10 .854V2.5h1A2.5 2.5 0 0 1 13.5 5v5.628a2.251 2.251 0 1 1-1.5 0V5a1 1 0 0 0-1-1h-1v1.646a.25.25 0 0 1-.427.177L7.177 3.427a.25.25 0 0 1 0-.354ZM3.75 2.5a.75.75 0 1 0 0 1.5.75.75 0 0 0 0-1.5Zm0 9.5a.75.75 0 1 0 0 1.5.75.75 0 0 0 0-1.5Zm8.25.75a.75.75 0 1 0 1.5 0 .75.75 0 0 0-1.5 0Z" />
-  </svg>;
 }

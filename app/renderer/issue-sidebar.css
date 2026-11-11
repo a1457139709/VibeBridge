@@ -14,8 +14,8 @@
 .issue-sidebar-repository { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--muted); font-family: Menlo, monospace; font-size: 11px; }
 .issue-sidebar-state { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; padding: 24px; text-align: center; color: var(--muted); line-height: 1.6; }
 /* Lists: tabs and refresh, filters, rows. Colours follow GitHub's issue states. */
-:root { --issue-open: #1a7f37; --issue-done: #8250df; --issue-skipped: #59636e; }
-:root[data-theme='dark'] { --issue-open: #3fb950; --issue-done: #ab7df8; --issue-skipped: #9198a1; }
+:root { --issue-open: #1a7f37; --issue-done: #8250df; --issue-skipped: #59636e; --issue-blocked: #d1242f; --merge-request-closed: #d1242f; --checks-pending: #9a6700; }
+:root[data-theme='dark'] { --issue-open: #3fb950; --issue-done: #ab7df8; --issue-skipped: #9198a1; --issue-blocked: #f85149; --merge-request-closed: #f85149; --checks-pending: #d29922; }
 .issue-tab { flex: 1; min-height: 0; display: flex; flex-direction: column; }
 .issue-toolbar { display: flex; align-items: center; gap: 6px; padding: 6px 8px 0 12px; border-bottom: 1px solid var(--line); }
 .issue-tabs { flex: 1; display: flex; gap: 2px; }
@@ -55,10 +55,27 @@
 .issue-label { --label-color: #888; min-height: 18px; padding: 0 7px; border-radius: 999px; font-size: 11px; line-height: 16px;
   border: 1px solid color-mix(in srgb, var(--label-color) 55%, transparent); background: color-mix(in srgb, var(--label-color) 18%, transparent); color: inherit; }
 .issue-row-actions { flex-shrink: 0; }
+.issue-progress { min-height: 18px; padding: 0 6px; display: inline-flex; align-items: center; gap: 4px; border: 0; background: transparent; color: inherit; font-size: 11px; font-variant-numeric: tabular-nums; }
+.issue-progress:hover { background: var(--hover); }
+.issue-progress-bar { width: 36px; height: 6px; border-radius: 3px; background: var(--line); overflow: hidden; display: inline-block; }
+.issue-progress-bar span { display: block; height: 100%; background: var(--issue-done); }
+/* Expanded sub-issues sit one step in, with a line down their left edge. */
+.issue-sub-issues { margin-left: 20px; border-left: 2px solid var(--line); }
+.issue-closed-fold { display: block; width: 100%; min-height: 26px; padding: 0 12px; border: 0; border-bottom: 1px solid var(--line); border-radius: 0; background: transparent; text-align: left; color: var(--muted); font-size: 11px; }
+.issue-closed-fold:hover { background: var(--hover); color: inherit; }
+.issue-blocked { display: inline-flex; align-items: center; gap: 3px; color: var(--issue-blocked); font-weight: 600; white-space: nowrap; }
 .issue-list-empty { margin: 24px 12px; text-align: center; color: var(--muted); }
 .issue-list-more { display: block; margin: 10px auto; min-height: 28px; font-size: 12px; }
 .issue-state-actions { display: flex; flex-wrap: wrap; justify-content: center; gap: 6px; margin-top: 6px; }
 .issue-sidebar-state code { font-family: Menlo, monospace; font-size: 12px; }
+.merge-request-state-open { color: var(--issue-open); }
+.merge-request-state-draft { color: var(--issue-skipped); }
+.merge-request-state-merged { color: var(--issue-done); }
+.merge-request-state-closed { color: var(--merge-request-closed); }
+.merge-request-checks { font-size: 11px; line-height: 1; }
+.merge-request-checks-passing { color: var(--issue-open); }
+.merge-request-checks-failing { color: var(--merge-request-closed); }
+.merge-request-checks-pending { color: var(--checks-pending); }
 /* Detail: opens leftwards from the sidebar's edge, between the workspace toolbar and the tray.
    Overlaying leaves the layout area as it is; squeezing narrows it by the detail's width. */
 .app-body { --issue-detail-width: min(560px, max(280px, calc(100% - var(--issue-sidebar-yield, 0px) - 240px))); }
@@ -95,26 +112,21 @@ main:has(> .workbench-page:not([hidden]) .panel-tray:not(.empty)) > .issue-detai
 .relation-graph svg { position: absolute; inset: 0; width: 100%; height: 100%; overflow: visible; }
 .relation-edge { fill: none; stroke-width: 1.5; vector-effect: non-scaling-stroke; }
 .relation-edge-parent { stroke: var(--muted); stroke-dasharray: 3 3; }
-.relation-edge-blocks { stroke: #cf222e; }
+.relation-edge-blocks { stroke: var(--issue-blocked); }
 .relation-node { position: absolute; height: 24px; display: flex; align-items: center; gap: 4px; padding: 0 6px; border: 1px solid var(--line); border-radius: 6px;
   background: var(--surface); font-size: 11px; overflow: hidden; text-align: left; }
 .relation-node-left { left: 0; width: 34%; }
 .relation-node-right { left: 66%; width: 34%; }
 .relation-self { left: 38%; width: 24%; justify-content: center; border-color: var(--accent); font-weight: 600; }
-.relation-blockedBy, .relation-blocking { border-color: color-mix(in srgb, #cf222e 55%, var(--line)); }
+.relation-blockedBy, .relation-blocking { border-color: color-mix(in srgb, var(--issue-blocked) 55%, var(--line)); }
 .relation-title { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .closing-merge-requests { margin-top: 12px; }
 .closing-merge-requests h3 { margin: 0 0 6px; font-size: 12px; color: var(--muted); font-weight: 600; }
 .closing-merge-requests ul { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 4px; }
 .closing-merge-request { --merge-request-color: var(--issue-open); display: flex; align-items: center; gap: 6px; padding: 4px 8px; font-size: 12px;
   border: 1px solid color-mix(in srgb, var(--merge-request-color) 60%, transparent); border-left-width: 3px; border-radius: 6px; }
-.merge-request-icon { flex-shrink: 0; color: var(--merge-request-color); }
 .merge-request-draft { --merge-request-color: var(--issue-skipped); }
 .merge-request-merged { --merge-request-color: var(--issue-done); }
-.merge-request-closed { --merge-request-color: #cf222e; }
-.checks-mark { margin-left: auto; font-size: 11px; }
-.checks-passing { color: var(--issue-open); }
-.checks-failing { color: #cf222e; }
-.checks-pending { color: #bf8700; }
-.issue-row { cursor: default; }
-.issue-row[aria-current='true'] { background: color-mix(in srgb, var(--accent) 12%, transparent); }
+.merge-request-closed { --merge-request-color: var(--merge-request-closed); }
+.closing-merge-request .merge-request-checks { margin-left: auto; }
+[aria-current='true'] > .issue-row { background: color-mix(in srgb, var(--accent) 12%, transparent); }

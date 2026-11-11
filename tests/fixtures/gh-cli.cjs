@@ -1,9 +1,10 @@
 const { readFileSync } = require('node:fs');
 
 // External CLI double for GitHub's `gh`: answers `gh api graphql` from a state file the test
-// writes, for the viewer, the viewer's repositories, issue search, an issue by number and an
-// issue's detail. Comment pages hold at most `commentPageSize` comments. Closing pull requests
-// leave out closed unmerged ones unless the query asks with `includeClosedPrs: true`, as GitHub does.
+// writes, for the viewer, the viewer's repositories, issue and pull request search, and an
+// issue or pull request by number, which fills only the fragment of its own type, and an issue's
+// detail. Comment pages hold at most `commentPageSize` comments. Closing pull requests leave out
+// closed unmerged ones unless the query asks with `includeClosedPrs: true`, as GitHub does.
 // A state `failure` makes every call end with the given exit code, stdout and stderr, as
 // `gh` does when the API refuses. Repository pages hold at most `pageSize` repositories,
 // whatever the query asks for, so a caller that reads only the first page sees an incomplete
@@ -61,10 +62,31 @@ function repository(state, owner, name) {
   return path;
 }
 
-function issueNode(state, path, issue) {
+function labelNodes(state, names) {
   const color = name => (state.labels ?? []).find(label => label.name === name)?.color ?? 'ededed';
-  return { number: issue.number, title: issue.title, state: issue.state, stateReason: issue.stateReason, createdAt: issue.createdAt,
-    url: `https://github.com/${path}/issues/${issue.number}`, labels: { nodes: issue.labels.map(name => ({ name, color: color(name) })) } };
+  return { nodes: names.map(name => ({ name, color: color(name) })) };
+}
+
+// Relations come from each issue's `parent` and `blockedBy` numbers. Sub-issues are listed one
+// level deep, in the order the state holds them, as the Workbench's query asks.
+function issueNode(state, path, issue, depth = 0) {
+  const all = state.issues ?? [];
+  const byNumber = number => all.find(item => item.number === number);
+  const children = all.filter(item => item.parent === issue.number);
+  const node = { number: issue.number, title: issue.title, state: issue.state, stateReason: issue.stateReason, createdAt: issue.createdAt,
+    url: `https://github.com/${path}/issues/${issue.number}`, labels: labelNodes(state, issue.labels),
+    parent: issue.parent ? { number: issue.parent } : null,
+    blockedBy: { nodes: (issue.blockedBy ?? []).map(byNumber).map(item => ({ number: item.number, title: item.title, state: item.state })) } };
+  if (depth > 0) return node;
+  return { ...node, subIssuesSummary: { total: children.length, completed: children.filter(item => item.state === 'CLOSED').length },
+    subIssues: { nodes: children.map(child => issueNode(state, path, child, depth + 1)) } };
+}
+
+function pullRequestNode(state, path, request) {
+  return { number: request.number, title: request.title, state: request.state, isDraft: request.isDraft, createdAt: request.createdAt,
+    url: `https://github.com/${path}/pull/${request.number}`, author: request.author === null ? null : { login: request.author },
+    labels: labelNodes(state, request.labels),
+    commits: { nodes: [{ commit: { statusCheckRollup: request.checks === null ? null : { state: request.checks } } }] } };
 }
 
 // GitHub search syntax, as far as the Workbench uses it: qualifiers, quoted values, and title words.
@@ -83,15 +105,20 @@ function search(state, fields) {
   const path = repository(state, fields.owner, fields.name);
   const { qualifiers, words } = terms(fields.q);
   const values = key => qualifiers.filter(([name]) => name === key).map(([, value]) => value);
-  if (!values('repo').includes(path) || !values('is').includes('issue') || !values('sort').includes('created-desc')) {
+  const type = values('is').find(value => value === 'issue' || value === 'pr');
+  if (!values('repo').includes(path) || !type || !values('sort').includes('created-desc')) {
     process.stderr.write(`gh double: unsupported search ${fields.q}\n`);
     process.exit(1);
   }
+  // As on GitHub, a merged pull request is closed.
   const wanted = values('is').find(value => value === 'open' || value === 'closed');
-  const matches = (state.issues ?? [])
-    .filter(issue => !wanted || issue.state === wanted.toUpperCase())
-    .filter(issue => values('label').every(label => issue.labels.includes(label)))
-    .filter(issue => words.every(word => issue.title.toLowerCase().includes(word)))
+  const open = item => item.state === 'OPEN';
+  const items = type === 'issue' ? state.issues ?? [] : state.pullRequests ?? [];
+  const node = type === 'issue' ? issueNode : pullRequestNode;
+  const matches = items
+    .filter(item => !wanted || open(item) === (wanted === 'open'))
+    .filter(item => values('label').every(label => item.labels.includes(label)))
+    .filter(item => words.every(word => item.title.toLowerCase().includes(word)))
     .sort((a, b) => b.createdAt.localeCompare(a.createdAt));
   const size = Number(fields.first);
   const start = fields.cursor ? Number(fields.cursor) : 0;
@@ -99,15 +126,19 @@ function search(state, fields) {
   const end = start + page.length;
   return {
     repository: { labels: { nodes: state.labels ?? [] } },
-    search: { nodes: page.map(issue => issueNode(state, path, issue)), pageInfo: { hasNextPage: end < matches.length, endCursor: String(end) } },
+    search: { nodes: page.map(item => node(state, path, item)), pageInfo: { hasNextPage: end < matches.length, endCursor: String(end) } },
   };
 }
 
 function issueByNumber(state, fields) {
   const path = repository(state, fields.owner, fields.name);
-  const issue = (state.issues ?? []).find(item => item.number === Number(fields.number));
-  if (!issue) notFound('repository', `Could not resolve to an issue or pull request with the number of ${fields.number}.`, { repository: { issueOrPullRequest: null } });
-  return { repository: { issueOrPullRequest: issueNode(state, path, issue) } };
+  const number = Number(fields.number);
+  const issue = (state.issues ?? []).find(item => item.number === number);
+  const request = (state.pullRequests ?? []).find(item => item.number === number);
+  if (!issue && !request) notFound('repository', `Could not resolve to an issue or pull request with the number of ${fields.number}.`, { repository: { issueOrPullRequest: null } });
+  const node = issue ? (fields.query.includes('... on Issue') ? issueNode(state, path, issue) : {})
+    : fields.query.includes('... on PullRequest') ? pullRequestNode(state, path, request) : {};
+  return { repository: { issueOrPullRequest: node } };
 }
 
 function reference(state, path, number) {
@@ -125,7 +156,8 @@ function issueDetail(state, fields, query) {
   const start = fields.comments ? Number(fields.comments) : 0;
   const page = comments.slice(start, start + size);
   const end = start + page.length;
-  const nodes = numbers => ({ nodes: (numbers ?? []).map(number => reference(state, path, number)) });
+  const nodes = numbers => ({ nodes: numbers.map(number => reference(state, path, number)) });
+  const others = state.issues.filter(item => item.number !== issue.number);
   const includeClosed = /includeClosedPrs:\s*true/.test(query);
   const pulls = (issue.closedBy ?? []).map(number => state.pullRequests.find(pull => pull.number === number))
     .filter(pull => includeClosed || pull.state !== 'CLOSED');
@@ -137,7 +169,8 @@ function issueDetail(state, fields, query) {
     comments: { totalCount: comments.length, nodes: page.map(comment => ({ author: { login: comment.author }, createdAt: comment.createdAt, bodyHTML: comment.bodyHTML })),
       pageInfo: { hasNextPage: end < comments.length, endCursor: String(end) } },
     parent: issue.parent ? reference(state, path, issue.parent) : null,
-    subIssues: nodes(issue.subIssues), blockedBy: nodes(issue.blockedBy), blocking: nodes(issue.blocking),
+    subIssues: nodes(others.filter(item => item.parent === issue.number).map(item => item.number)), blockedBy: nodes(issue.blockedBy ?? []),
+    blocking: nodes(others.filter(item => (item.blockedBy ?? []).includes(issue.number)).map(item => item.number)),
     closedByPullRequestsReferences: { nodes: pulls.map(pull => ({ number: pull.number, title: pull.title, state: pull.state, isDraft: pull.isDraft,
       url: `https://github.com/${path}/pull/${pull.number}`,
       commits: { nodes: [{ commit: { statusCheckRollup: pull.checks ? { state: pull.checks } : null } }] } })) },

@@ -1,24 +1,24 @@
-import { useEffect, useRef, useState, type CSSProperties, type ReactNode } from 'react';
+import { useEffect, useRef, useState, type ReactNode } from 'react';
 import type { DesktopAPI } from '../shared/api';
-import { defaultIssueFilter, platformDescriptions, type IssueFilter, type IssueLabel, type IssuePage, type IssuePageResult, type IssueSummary, type RepositoryReference } from '../shared/code-hosting';
+import { defaultIssueFilter, platformDescriptions, type IssueFilter, type IssueLabel, type IssueReference, type IssueSummary, type ListFailure, type MergeRequestSummary, type PlatformDescription, type RepositoryReference } from '../shared/code-hosting';
 import type { Language } from '../shared/model';
 import { useLocalization } from './Localization';
+import { LabelButtons, relativeTime } from './list-row-parts';
+import { MergeRequestRow } from './MergeRequestRow';
 
 type Tab = 'issues' | 'mergeRequests';
-type Failure = Extract<IssuePageResult, { ok: false }> | { ok: false; error: string };
+type Failure = ListFailure | { ok: false; error: string };
 
 /**
  * The bound repository's lists. Mounted while the sidebar is open on one project and binding,
  * so opening the sidebar or returning to a project reads afresh from an open, unfiltered list.
  * Each tab keeps its own filters; only the shown tab reads from the platform.
  */
-export function IssueLists({ projectId, repository, changeBinding, opened, openIssue, api = window.workbench }: {
-  projectId: string; repository: RepositoryReference; changeBinding(): void; api?: Pick<DesktopAPI, 'issuePage'>;
-  /** The issue whose detail is open. */
-  opened?: number;
-  openIssue(number: number): void;
+export function IssueLists({ projectId, repository, changeBinding, detail, api = window.workbench }: {
+  projectId: string; repository: RepositoryReference; changeBinding(): void; api?: Pick<DesktopAPI, 'issuePage' | 'mergeRequestPage'>;
+  detail: IssueDetailOpening;
 }) {
-  const { t } = useLocalization();
+  const { t, language } = useLocalization();
   const [tab, setTab] = useState<Tab>('issues');
   const [filters, setFilters] = useState<Record<Tab, IssueFilter>>({ issues: defaultIssueFilter, mergeRequests: defaultIssueFilter });
   const setFilter = (filter: IssueFilter) => setFilters(current => ({ ...current, [tab]: filter }));
@@ -26,25 +26,34 @@ export function IssueLists({ projectId, repository, changeBinding, opened, openI
     {(['issues', 'mergeRequests'] as const).map(id => <button key={id} role="tab" aria-selected={tab === id} onClick={() => setTab(id)}>
       {t(id === 'issues' ? 'issuesTab' : 'mergeRequestsTab')}</button>)}
   </div>;
+  const platform = platformDescriptions[repository.platform];
+  const common = { tabs, setFilter, repository, changeBinding };
   return tab === 'issues'
-    ? <IssueTab tabs={tabs} filter={filters.issues} setFilter={setFilter} load={(filter, cursor) => api.issuePage(projectId, filter, cursor)}
-      repository={repository} changeBinding={changeBinding} opened={opened} openIssue={openIssue} />
-    // The merge request list reads nothing yet; its tab already keeps its own filters.
-    : <div className="issue-tab">
-      <div className="issue-toolbar">{tabs}<RefreshButton busy={false} disabled onClick={() => {}} /></div>
-      <FilterBar filter={filters.mergeRequests} setFilter={setFilter} labels={[]} search={t('searchMergeRequests')} />
-    </div>;
+    ? <ListTab key="issues" {...common} filter={filters.issues} search={t('searchIssues')} empty={t('noMatchingIssues')}
+      load={(filter, cursor) => api.issuePage(projectId, filter, cursor).then(result => result.ok
+        ? { ok: true, page: { items: result.page.issues, next: result.page.next, labels: result.page.labels } } : result)}
+      rows={(issues: IssueSummary[], addLabel) => topLevel(issues, platform).map(issue =>
+        <IssueRow key={issue.number} issue={issue} platform={platform} language={language} addLabel={addLabel} detail={detail} />)} />
+    : <ListTab key="mergeRequests" {...common} filter={filters.mergeRequests} search={t('searchMergeRequests')} empty={t('noMatchingMergeRequests')}
+      load={(filter, cursor) => api.mergeRequestPage(projectId, filter, cursor).then(result => result.ok
+        ? { ok: true, page: { items: result.page.mergeRequests, next: result.page.next, labels: result.page.labels } } : result)}
+      rows={(requests: MergeRequestSummary[], addLabel) => requests.map(request =>
+        <MergeRequestRow key={request.number} request={request} addLabel={addLabel} />)} />;
 }
 
-interface ListState {
-  page?: IssuePage;
+/** A list page whatever the list holds. */
+interface ListPage<Item> { items: Item[]; next: string | null; labels: IssueLabel[] }
+type ListResult<Item> = { ok: true; page: ListPage<Item> } | ListFailure;
+
+interface ListState<Item> {
+  page?: ListPage<Item>;
   loading: 'refresh' | 'more' | null;
   failure?: Failure;
 }
 
 /** Reads the first page whenever the filter changes and on refresh; later pages append. A request superseded by another is ignored. */
-function useIssuePages(filter: IssueFilter, load: (filter: IssueFilter, cursor: string | null) => Promise<IssuePageResult>) {
-  const [state, setState] = useState<ListState>({ loading: 'refresh' });
+function useListPages<Item>(filter: IssueFilter, load: (filter: IssueFilter, cursor: string | null) => Promise<ListResult<Item>>) {
+  const [state, setState] = useState<ListState<Item>>({ loading: 'refresh' });
   const latest = useRef(0);
   const read = (cursor: string | null) => {
     const request = ++latest.current;
@@ -52,7 +61,7 @@ function useIssuePages(filter: IssueFilter, load: (filter: IssueFilter, cursor: 
     load(filter, cursor).then(result => result, (error: Error) => ({ ok: false, error: error.message }) as const).then(result => {
       if (request !== latest.current) return;
       setState(current => result.ok
-        ? { loading: null, page: cursor && current.page ? { ...result.page, issues: [...current.page.issues, ...result.page.issues] } : result.page }
+        ? { loading: null, page: cursor && current.page ? { ...result.page, items: [...current.page.items, ...result.page.items] } : result.page }
         : { ...current, loading: null, failure: result });
     });
   };
@@ -60,13 +69,14 @@ function useIssuePages(filter: IssueFilter, load: (filter: IssueFilter, cursor: 
   return { ...state, refresh: () => read(null), more: () => { if (state.page?.next) read(state.page.next); } };
 }
 
-function IssueTab({ tabs, filter, setFilter, load, repository, changeBinding, opened, openIssue }: {
+/** One tab's list: refresh, filters, rows, paging and the failure states, the same for every kind of item. */
+function ListTab<Item>({ tabs, filter, setFilter, load, rows, search, empty, repository, changeBinding }: {
   tabs: ReactNode; filter: IssueFilter; setFilter(filter: IssueFilter): void; repository: RepositoryReference; changeBinding(): void;
-  opened?: number; openIssue(number: number): void;
-  load(filter: IssueFilter, cursor: string | null): Promise<IssuePageResult>;
+  load(filter: IssueFilter, cursor: string | null): Promise<ListResult<Item>>;
+  rows(items: Item[], addLabel: (name: string) => void): ReactNode; search: string; empty: string;
 }) {
-  const { t, language } = useLocalization();
-  const list = useIssuePages(filter, load);
+  const { t } = useLocalization();
+  const list = useListPages(filter, load);
   const platform = platformDescriptions[repository.platform];
   const addLabel = (name: string) => { if (!filter.labels.includes(name)) setFilter({ ...filter, labels: [...filter.labels, name] }); };
   // A transient failure leaves rows already read in place; any other failure, or one before any rows, fills the content area.
@@ -80,13 +90,10 @@ function IssueTab({ tabs, filter, setFilter, load, repository, changeBinding, op
     {toolbar}
     {stale && <div className="issue-stale" role="status"><span>{t('listMayBeStale')}</span>
       <button disabled={!!list.loading} onClick={list.refresh}>{t('retry')}</button></div>}
-    <FilterBar filter={filter} setFilter={setFilter} labels={list.page?.labels ?? []} search={t('searchIssues')} />
+    <FilterBar filter={filter} setFilter={setFilter} labels={list.page?.labels ?? []} search={search} />
     <div className="issue-list">
-      {list.page && <ul aria-label={platform.name}>
-        {list.page.issues.map(issue => <IssueRow key={issue.number} issue={issue} language={language} addLabel={addLabel}
-          opened={opened === issue.number} open={() => openIssue(issue.number)} />)}
-      </ul>}
-      {list.page && !list.page.issues.length && !list.loading && <p className="issue-list-empty">{t('noMatchingIssues')}</p>}
+      {list.page && <ul aria-label={platform.name}>{rows(list.page.items, addLabel)}</ul>}
+      {list.page && !list.page.items.length && !list.loading && <p className="issue-list-empty">{empty}</p>}
       {list.page?.next && <button className="issue-list-more" disabled={!!list.loading} onClick={list.more}>{t('loadMore')}</button>}
     </div>
   </div>;
@@ -125,25 +132,74 @@ function FilterBar({ filter, setFilter, labels, search }: { filter: IssueFilter;
   </div>;
 }
 
+/** The issues listed at the top level: those whose parent is not listed. Where the platform has no sub-issues, every issue. */
+function topLevel(issues: IssueSummary[], platform: PlatformDescription) {
+  if (!platform.capabilities.includes('subIssues')) return issues;
+  const listed = new Set(issues.map(issue => issue.number));
+  return issues.filter(issue => issue.parent === null || !listed.has(issue.parent));
+}
+
+/** Which issue's detail is open, and how a row opens one. */
+interface IssueDetailOpening { opened?: number; open(number: number): void }
+
 /** Clicking the row opens the issue's detail; its controls act on their own. */
-function IssueRow({ issue, language, addLabel, opened, open }: { issue: IssueSummary; language: Language; addLabel(name: string): void; opened: boolean; open(): void }) {
+function IssueRow({ issue, platform, language, addLabel, detail }: {
+  issue: IssueSummary; platform: PlatformDescription; language: Language; addLabel(name: string): void; detail: IssueDetailOpening;
+}) {
   const { t } = useLocalization();
+  const [expanded, setExpanded] = useState(false);
   const created = new Date(issue.createdAt);
-  return <li className="issue-row" aria-label={`#${issue.number} ${issue.title}`} aria-current={opened || undefined}
-    onClick={event => { if (!(event.target as Element).closest('button, a')) open(); }}>
-    <IssueStateIcon issue={issue} />
-    <div className="issue-row-main">
-      <div className="issue-row-title">{issue.title}</div>
-      <div className="issue-row-meta">
-        <span className="issue-row-number">#{issue.number}</span>
-        <time dateTime={issue.createdAt} title={created.toLocaleString(language)}>{relativeTime(created, language)}</time>
-        {issue.labels.map(label => <button key={label.name} className="issue-label" style={{ '--label-color': `#${label.color}` } as CSSProperties}
-          aria-label={t('filterByLabel', { label: label.name })} onClick={() => addLabel(label.name)}>{label.name}</button>)}
+  const subIssues = platform.capabilities.includes('subIssues') ? issue.subIssues : null;
+  return <li aria-label={`#${issue.number} ${issue.title}`} aria-current={detail.opened === issue.number || undefined}>
+    <div className="issue-row" onClick={event => { if (!(event.target as Element).closest('button, a')) detail.open(issue.number); }}>
+      <IssueStateIcon issue={issue} />
+      <div className="issue-row-main">
+        <div className="issue-row-title">{issue.title}</div>
+        <div className="issue-row-meta">
+          <span className="issue-row-number">#{issue.number}</span>
+          <time dateTime={issue.createdAt} title={created.toLocaleString(language)}>{relativeTime(created, language)}</time>
+          {subIssues && <button className="issue-progress" aria-expanded={expanded} onClick={() => setExpanded(open => !open)}
+            aria-label={t('subIssueProgress', { completed: subIssues.completed, total: subIssues.total })}>
+            <span aria-hidden="true">{expanded ? '▾' : '▸'}</span>
+            <span className="issue-progress-bar"><span style={{ width: `${subIssues.completed / subIssues.total * 100}%` }} /></span>
+            {subIssues.completed}/{subIssues.total}</button>}
+          {platform.capabilities.includes('nativeBlocking') && issue.blockedBy.length > 0 && <BlockedMark blockers={issue.blockedBy} />}
+          <LabelButtons labels={issue.labels} addLabel={addLabel} />
+        </div>
       </div>
+      {/* Dispatch controls take this place. */}
+      <div className="issue-row-actions" />
     </div>
-    {/* Dispatch controls take this place. */}
-    <div className="issue-row-actions" />
+    {subIssues && expanded && <SubIssueList parent={issue.number} issues={subIssues.issues} platform={platform} language={language} addLabel={addLabel} detail={detail} />}
   </li>;
+}
+
+/** Sub-issues in number order; the closed ones fold behind one button. */
+function SubIssueList({ parent, issues, platform, language, addLabel, detail }: {
+  parent: number; issues: IssueSummary[]; platform: PlatformDescription; language: Language; addLabel(name: string): void; detail: IssueDetailOpening;
+}) {
+  const { t } = useLocalization();
+  const [showClosed, setShowClosed] = useState(false);
+  const closed = issues.filter(issue => issue.state === 'closed').length;
+  const shown = issues.filter(issue => showClosed || issue.state === 'open').sort((a, b) => a.number - b.number);
+  return <div className="issue-sub-issues">
+    <ul aria-label={t('subIssuesOf', { number: parent })}>
+      {shown.map(issue => <IssueRow key={issue.number} issue={issue} platform={platform} language={language} addLabel={addLabel} detail={detail} />)}
+    </ul>
+    {closed > 0 && <button className="issue-closed-fold" onClick={() => setShowClosed(open => !open)}>
+      {showClosed ? t('hideClosedSubIssues') : t('closedSubIssues', { count: closed })}</button>}
+  </div>;
+}
+
+/** GitHub's blocked octicon and the blockers' numbers; hovering names them. */
+function BlockedMark({ blockers }: { blockers: IssueReference[] }) {
+  const { t } = useLocalization();
+  const numbers = blockers.map(blocker => `#${blocker.number}`).join(', ');
+  return <span className="issue-blocked" role="img" aria-label={t('blockedBy', { numbers })}
+    title={blockers.map(blocker => `#${blocker.number} ${blocker.title}`).join('\n')}>
+    <svg aria-hidden="true" viewBox="0 0 16 16" width="12" height="12" fill="currentColor"><path d="M4.467.22a.749.749 0 0 1 .53-.22h6.006c.199 0 .389.079.53.22l4.247 4.247c.141.14.22.331.22.53v6.006a.749.749 0 0 1-.22.53l-4.247 4.247a.749.749 0 0 1-.53.22H4.997a.749.749 0 0 1-.53-.22L.22 11.533a.749.749 0 0 1-.22-.53V4.997c0-.199.079-.389.22-.53Zm.84 1.28L1.5 5.308v5.384l3.807 3.808h5.384l3.808-3.808V5.308L10.692 1.5ZM4 7.75A.75.75 0 0 1 4.75 7h6.5a.75.75 0 0 1 0 1.5h-6.5A.75.75 0 0 1 4 7.75Z" /></svg>
+    <span aria-hidden="true">{numbers}</span>
+  </span>;
 }
 
 function LabelSwatch({ label }: { label: IssueLabel }) {
@@ -167,14 +223,6 @@ export function IssueStateIcon({ issue }: { issue: Pick<IssueSummary, 'state' | 
   return <svg className={`issue-state issue-state-${icon}`} role="img" aria-label={name} viewBox="0 0 16 16" width="16" height="16" fill="currentColor">
     {stateIcons[icon].map(path => <path key={path} d={path} />)}
   </svg>;
-}
-
-export function relativeTime(date: Date, language: Language) {
-  const seconds = (date.getTime() - Date.now()) / 1000;
-  const units: [Intl.RelativeTimeFormatUnit, number][] = [['year', 31536000], ['month', 2592000], ['day', 86400], ['hour', 3600], ['minute', 60]];
-  const format = new Intl.RelativeTimeFormat(language, { numeric: 'auto' });
-  for (const [unit, size] of units) if (Math.abs(seconds) >= size) return format.format(Math.round(seconds / size), unit);
-  return format.format(0, 'minute');
 }
 
 function FailureState({ failure, path, retry, changeBinding }: { failure: Failure; path: string; retry(): void; changeBinding(): void }) {

@@ -10,10 +10,10 @@ import { SettingsFile, defaultSettings } from './settings';
 import { settingsConflicts, type SettingsSaveResult } from '../shared/settings';
 import { RunSupervision } from './run-supervision';
 import { commandEnvironment } from '../terminal/environment';
-import type { IssueDetailResult, IssueFilter, IssuePageResult, RepositoryChoices, RepositoryReference } from '../shared/code-hosting';
+import type { IssueDetailResult, IssueFilter, IssuePageResult, MergeRequestPageResult, RepositoryChoices, RepositoryReference } from '../shared/code-hosting';
 import type { CommandEnvironment } from './code-hosting/platform';
 import { bindableRepository, repositoryChoices } from './code-hosting/binding';
-import { issueDetail, issuePage } from './code-hosting/issues';
+import { issueDetail, issuePage, mergeRequestPage } from './code-hosting/issues';
 
 export class WorkbenchOpenError extends Error {
   constructor(error: unknown, readonly language: Language) {
@@ -279,15 +279,15 @@ export class Workbench {
   }
   /** One page of the issues of the project's bound repository, filtered by its platform; null reads the first page. */
   async issuePage(projectId: string, filter: IssueFilter, cursor: string | null): Promise<IssuePageResult> {
-    const { repository } = this.project(projectId);
-    if (!repository) throw new Error(message('repositoryUnbound'));
-    return issuePage(repository, filter, cursor, await this.commandEnvironment());
+    return issuePage(this.project(projectId).repository, filter, cursor, await this.commandEnvironment());
+  }
+  /** One page of the merge requests of the project's bound repository, filtered by its platform; null reads the first page. */
+  async mergeRequestPage(projectId: string, filter: IssueFilter, cursor: string | null): Promise<MergeRequestPageResult> {
+    return mergeRequestPage(this.project(projectId).repository, filter, cursor, await this.commandEnvironment());
   }
   /** The bound repository's issue with that number, with its comments and relations, read from its platform. */
   async issueDetail(projectId: string, number: number): Promise<IssueDetailResult> {
-    const { repository } = this.project(projectId);
-    if (!repository) throw new Error(message('repositoryUnbound'));
-    return issueDetail(repository, number, await this.commandEnvironment());
+    return issueDetail(this.project(projectId).repository, number, await this.commandEnvironment());
   }
   sendInput(runId: string, data: string) { return this.supervision.input(runId, data); }
   resizeRun(runId: string, cols: number, rows: number) { return this.supervision.resize(runId, cols, rows); }
