@@ -11,6 +11,8 @@ export interface DirectActionHost {
   changed(): void;
   /** The platform's CLI turned out missing or signed out; the sidebar shows that instead of its content. */
   unavailable(failure: PlatformFailure): void;
+  /** Counts the sidebar's refreshes; a refusal shown clears on the next one. */
+  refreshes: number;
 }
 
 type Api = Pick<DesktopAPI, 'directAction'>;
@@ -20,11 +22,11 @@ let chosenMethod: MergeMethod | undefined;
 
 const sameAction = (a: DirectAction | undefined, b: DirectAction) => JSON.stringify(a) === JSON.stringify(b);
 
-/** Runs one action at a time for an item. A refusal stays under the buttons until dismissed or the item is read afresh. */
+/** Runs one action at a time for an item. A refusal stays under the buttons until dismissed, the item is read afresh or the sidebar refreshes. */
 function useDirectActions(projectId: string, item: object, host: DirectActionHost, api: Api) {
   const { t, text } = useLocalization();
   const [state, setState] = useState<{ running?: DirectAction; failure?: { action: DirectAction; reason: string } }>({});
-  useEffect(() => setState(current => current.running ? current : {}), [item]);
+  useEffect(() => setState(current => current.running ? current : {}), [item, host.refreshes]);
   const run = (action: DirectAction) => {
     setState({ running: action });
     api.directAction(projectId, action).then(result => {

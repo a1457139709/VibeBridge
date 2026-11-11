@@ -46,7 +46,7 @@ async function renderDetail({ shown = detail(7), state = project(), workflows = 
   render(<Localization language="en">
     <IssueDetailView project={state} repository={state.repository!} number={shown.number} workflows={workflows} shortcuts={defaultShortcuts()}
       open={() => {}} close={() => {}} returnToList={() => returns.push(shown.number)} locate={location => locations.push(location)}
-      host={{ changed() { changes.push('changed'); }, unavailable() {} }} api={api} />
+      host={{ changed() { changes.push('changed'); }, unavailable() {}, refreshes: 0 }} api={api} />
   </Localization>);
   await screen.findByRole('heading', { name: /Issue 7/ });
   return { user: userEvent.setup(), dispatched, locations, returns, changes, region: screen.getByRole('region', { name: 'Issue #7' }) };

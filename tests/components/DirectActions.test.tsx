@@ -147,6 +147,14 @@ test('a refused action shows the platform\'s words under the buttons with a retr
   await f.user.click(within(detail).getByRole('button', { name: 'Close detail' }));
   const reopened = await f.openIssue(3);
   assert.equal(within(reopened).queryByRole('alert'), null, 'a fresh read clears the failure');
+
+  await f.user.click(within(reopened).getByRole('button', { name: 'Close as completed' }));
+  (await f.nextAction(3)).answer(refusal);
+  await within(reopened).findByRole('alert');
+  const listReads = f.reads.issuePage;
+  await f.user.click(within(f.sidebar()).getByRole('button', { name: 'Refresh' }));
+  await waitFor(() => assert.equal(f.reads.issuePage, listReads + 1));
+  await waitFor(() => assert.equal(within(reopened).queryByRole('alert'), null, 'a sidebar refresh clears the failure'));
 });
 
 test('a CLI found missing or signed out while acting fills the sidebar with its state', async () => {

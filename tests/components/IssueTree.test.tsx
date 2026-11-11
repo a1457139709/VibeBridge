@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import test, { afterEach } from 'node:test';
 import { cleanup, render, screen, waitFor, within } from '@testing-library/react';
 import { userEvent } from '@testing-library/user-event';
-import { IssueLists } from '../../app/renderer/IssueLists';
+import { IssueLists, unfiltered } from '../../app/renderer/IssueLists';
 import { platformDescriptions, type IssueSummary } from '../../app/shared/code-hosting';
 import type { ProjectView } from '../../app/shared/model';
 import { defaultWorkflowSettings } from '../../app/shared/workflows';
@@ -18,7 +18,7 @@ const closed = (number: number, extra: Partial<IssueSummary> = {}) => issue(numb
 /** The issue list of octo/app showing one page of these issues. */
 async function renderList(issues: IssueSummary[]) {
   const project: ProjectView = { id: 'app', name: 'App', directory: '/work/app', layout: null, panels: [], tray: [], dispatches: [], repository: { platform: 'github', path: 'octo/app' } };
-  render(<IssueLists project={project} repository={project.repository!} workflows={defaultWorkflowSettings()} shortcuts={defaultShortcuts()} changeBinding={() => {}} locate={() => {}} filled={() => {}} detail={{ open() {} }} mergeRequestDetail={{ open() {} }}
+  render(<IssueLists project={project} repository={project.repository!} workflows={defaultWorkflowSettings()} shortcuts={defaultShortcuts()} changeBinding={() => {}} filters={unfiltered} setFilters={() => {}} refreshed={() => {}} locate={() => {}} filled={() => {}} detail={{ open() {} }} mergeRequestDetail={{ open() {} }}
     api={{ issuePage: async () => ({ ok: true, page: { issues, next: null, labels: [] } }), mergeRequestPage: () => new Promise(() => {}), dispatch: async () => null }} />);
   const list = await screen.findByRole('list', { name: 'GitHub' });
   /** The labels of the rows directly in a list, in order. */

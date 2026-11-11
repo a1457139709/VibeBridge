@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import test, { afterEach } from 'node:test';
 import { cleanup, render, screen, waitFor, within } from '@testing-library/react';
 import { userEvent } from '@testing-library/user-event';
-import { IssueLists } from '../../app/renderer/IssueLists';
+import { IssueLists, unfiltered } from '../../app/renderer/IssueLists';
 import { Localization } from '../../app/renderer/Localization';
 import type { PanelCreation, PanelView, ProjectView } from '../../app/shared/model';
 import type { DispatchLocation, DispatchRecordView, DispatchRequest } from '../../app/shared/dispatch';
@@ -40,7 +40,7 @@ function renderList({ state = project(), workflows = defaultWorkflowSettings(), 
     dispatch: async (_projectId: string, request: DispatchRequest) => { dispatched.push(request); return creation; },
   };
   const view = (next: ProjectView) => <Localization language="en">
-    <IssueLists project={next} repository={next.repository!} workflows={workflows} shortcuts={defaultShortcuts()} changeBinding={() => {}} locate={location => locations.push(location)} filled={location => fills.push(location)} detail={{ open() {} }} mergeRequestDetail={{ open() {} }} api={api} />
+    <IssueLists project={next} repository={next.repository!} workflows={workflows} shortcuts={defaultShortcuts()} changeBinding={() => {}} filters={unfiltered} setFilters={() => {}} refreshed={() => {}} locate={location => locations.push(location)} filled={location => fills.push(location)} detail={{ open() {} }} mergeRequestDetail={{ open() {} }} api={api} />
   </Localization>;
   const result = render(view(state));
   return { user: userEvent.setup(), dispatched, locations, fills, reads: () => reads, rerender: (next: ProjectView) => result.rerender(view(next)) };
