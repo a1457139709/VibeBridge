@@ -67,7 +67,7 @@ test('a merge request detail holds its branches, body, comments, review summarie
   assert.equal(detail(await f.detail(11)).head, 'fork:patch-1', 'a head branch in another repository names its owner');
 });
 
-test('the merge state holds the review decision, every check with whether it is required, conflicts, merge methods and the merge queue', async context => {
+test('the merge state holds the review decision, every check with whether it is required, conflicts, merge methods and what a merge must go through', async context => {
   const f = await boundProject(context, 'merge-request-merge-state', {
     mergeMethods: { merge: false, squash: true, rebase: true },
     pullRequests: [pullRequest(10, {
@@ -79,7 +79,9 @@ test('the merge state holds the review decision, every check with whether it is 
         { kind: 'status', name: 'deploy', state: 'SUCCESS', required: true, url: 'https://ci.example/deploy' },
         { kind: 'status', name: 'license', state: 'EXPECTED', required: true, url: null },
       ],
-    }), pullRequest(11, { reviewDecision: null, mergeable: 'UNKNOWN' })],
+    }), pullRequest(11, { reviewDecision: null, mergeable: 'UNKNOWN' }),
+    pullRequest(12, { mergeStateStatus: 'BLOCKED', viewerCanEnableAutoMerge: true }),
+    pullRequest(13, { mergeStateStatus: 'UNSTABLE', viewerCanEnableAutoMerge: true })],
   });
   assert.deepEqual(detail(await f.detail(10)).merge, {
     review: 'reviewRequired',
@@ -90,10 +92,12 @@ test('the merge state holds the review decision, every check with whether it is 
       { name: 'deploy', conclusion: 'passing', required: true, url: 'https://ci.example/deploy' },
       { name: 'license', conclusion: 'pending', required: true, url: null },
     ],
-    conflicting: true, methods: ['squash', 'rebase'], queue: true,
+    conflicting: true, methods: ['squash', 'rebase'], mergeThrough: 'mergeQueue',
   });
-  assert.deepEqual(detail(await f.detail(11)).merge, { review: null, checks: [], conflicting: false, methods: ['squash', 'rebase'], queue: false },
+  assert.deepEqual(detail(await f.detail(11)).merge, { review: null, checks: [], conflicting: false, methods: ['squash', 'rebase'], mergeThrough: null },
     'a mergeability GitHub has not worked out yet is no conflict');
+  assert.equal(detail(await f.detail(12)).merge.mergeThrough, 'autoMerge', 'branch protection blocks a direct merge and GitHub offers auto-merge instead');
+  assert.equal(detail(await f.detail(13)).merge.mergeThrough, null, 'auto-merge being available does not stop a merge GitHub would take directly');
 });
 
 test('a merge request detail tells a missing merge request and platform failures apart', async context => {

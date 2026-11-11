@@ -35,3 +35,12 @@ export class PlatformError extends Error {
     this.failure = { kind, platform, output };
   }
 }
+
+/** What `read` resolves to, or the failure a PlatformError reports; any other error is thrown. */
+export async function platformResult<T>(read: () => Promise<T>): Promise<{ ok: true; value: T } | { ok: false; failure: PlatformFailure }> {
+  try { return { ok: true, value: await read() }; }
+  catch (error) {
+    if (error instanceof PlatformError) return { ok: false, failure: error.failure };
+    throw error;
+  }
+}

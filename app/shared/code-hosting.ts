@@ -13,7 +13,7 @@ export const sameRepository = (a: RepositoryReference | null | undefined, b: Rep
   a?.platform === b?.platform && a?.path === b?.path;
 
 /** Features that differ between platforms. The UI shows a feature only when the platform declares it. */
-export type PlatformCapability = 'subIssues' | 'nativeBlocking' | 'mergeMethods' | 'mergeQueue' | 'requiredChecks';
+export type PlatformCapability = 'subIssues' | 'nativeBlocking' | 'mergeMethods' | 'mergeQueue' | 'autoMerge' | 'requiredChecks';
 
 /** What the UI needs to name a platform and help the user when its CLI cannot be used. */
 export interface PlatformDescription {
@@ -29,7 +29,7 @@ export interface PlatformDescription {
 /** Each platform's description, shared by its adapter and the UI that names it. */
 export const platformDescriptions: Record<PlatformId, PlatformDescription> = {
   github: { id: 'github', name: 'GitHub', installUrl: 'https://cli.github.com', signInCommand: 'gh auth login',
-    capabilities: ['subIssues', 'nativeBlocking', 'mergeMethods', 'mergeQueue', 'requiredChecks'] },
+    capabilities: ['subIssues', 'nativeBlocking', 'mergeMethods', 'mergeQueue', 'autoMerge', 'requiredChecks'] },
 };
 
 /** Why a platform call failed: its CLI is not installed, not signed in, cannot reach the
@@ -156,8 +156,11 @@ export type ReviewState = 'approved' | 'changesRequested' | 'commented' | 'dismi
 export interface MergeRequestReview { author: string | null; state: ReviewState; submittedAt: string; body: string; codeComments: number; url: string }
 /** One check on a merge request's latest commit. `url` opens its log on the platform, when it has one. */
 export interface Check { name: string; conclusion: CheckConclusion; required: boolean; url: string | null }
+/** What a merge must go through on the platform instead of merging directly. */
+export type MergeRoute = 'mergeQueue' | 'autoMerge';
 /** What decides whether a merge request can merge. Without the platform capability, `required` is
- * always false (`requiredChecks`), `methods` is empty (`mergeMethods`) and `queue` false (`mergeQueue`). */
+ * always false (`requiredChecks`), `methods` is empty (`mergeMethods`) and `mergeThrough` is never that route
+ * (`mergeQueue`, `autoMerge`). */
 export interface MergeState {
   /** Null when the base branch asks for no review. */
   review: ReviewDecision | null;
@@ -166,8 +169,8 @@ export interface MergeState {
   conflicting: boolean;
   /** The merge methods the repository allows, in the platform's order. */
   methods: MergeMethod[];
-  /** Whether its base branch merges only through a merge queue. */
-  queue: boolean;
+  /** Null when it can merge directly. */
+  mergeThrough: MergeRoute | null;
 }
 /** What a merge request's detail shows. It has no diff, change counts or reviewer list. */
 export interface MergeRequestDetail extends Omit<MergeRequestSummary, 'checks'> {

@@ -187,8 +187,6 @@ export const chinese: Record<keyof typeof english, string> = {
   "repositorySelected": "已选择：{path}",
   "removeBinding": "解除绑定",
   "retry": "重试",
-  "platformNotInstalled": "未安装 {platform} CLI。请从 {url} 安装后重试。",
-  "platformSignedOut": "{platform} CLI 未登录。请在终端运行 {command} 后重试。",
   "changeBindingQuestion": "修改仓库绑定？",
   "removeBindingQuestion": "解除仓库绑定？",
   "bindingChange": "{from} → {to}",

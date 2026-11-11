@@ -19,8 +19,8 @@ const scrollStep = 40;
 /**
  * One issue's read-only detail, read from the platform each time it opens. Links to the bound
  * repository's issues and merge requests open in the sidebar; every other link goes to the
- * system browser. The issue is dispatched from here as from its list row, and its Dispatch
- * Records follow the snapshot.
+ * system browser. The issue is dispatched from here as from its list row, refreshing the list once,
+ * and its Dispatch Records follow the snapshot.
  */
 export function IssueDetailView({ project, repository, number, workflows, shortcuts, open, close, returnToList, locate, host, api = window.workbench }: {
   project: ProjectView; repository: RepositoryReference; number: number; workflows: WorkflowSettings; shortcuts: Shortcuts; open(item: RepositoryItem): void; close(): void;
@@ -75,7 +75,7 @@ export function IssueDetailView({ project, repository, number, workflows, shortc
             <IssueStateIcon issue={issue} />
             {issue.labels.map(label =>
               <span key={label.name} className="issue-label" style={{ '--label-color': `#${label.color}` } as CSSProperties}>{label.name}</span>)}
-            <DispatchMenu ref={menu} issue={issue} project={project} workflows={workflows} dispatch={request => api.dispatch(projectId, request)} filled={locate} />
+            <DispatchMenu ref={menu} issue={issue} project={project} workflows={workflows} dispatch={request => api.dispatch(projectId, request).then(creation => { host.changed(); return creation; })} filled={locate} />
           </div>
           <div className="issue-detail-meta">
             {issue.author && <span className="issue-detail-author">{issue.author}</span>}

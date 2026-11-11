@@ -1,6 +1,7 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { useLocalization } from './Localization';
-import { sameRepository, type PlatformFailure, type RepositoryChoices, type RepositoryReference } from '../shared/code-hosting';
+import { PlatformFailureHelp, platformFailureReason } from './platform-failure';
+import { sameRepository, type RepositoryChoices, type RepositoryReference } from '../shared/code-hosting';
 
 /** What the field shows: nothing yet, the platform's answer, or a request that did not reach the Workbench. */
 type Loaded = RepositoryChoices | { ok: false; error: string } | undefined;
@@ -42,7 +43,9 @@ export function RepositoryPicker({ projectId, bound, value, onChange, disabled, 
     <label htmlFor="edit-project-repository">{t('repository')}</label>
     {!loaded ? <div className="field-status" role="status" aria-label={t('repository')} tabIndex={-1} data-repository-focus>{t('loadingRepositories')}</div>
       : !loaded.ok ? <div className="field-status repository-failure" role="status" aria-label={t('repository')}>
-        <span className="error-text">{'failure' in loaded ? <FailureText failure={loaded.failure} /> : text(loaded.error)}</span>
+        <span className="error-text">{'failure' in loaded ? platformFailureReason(t, loaded.failure, {
+          failed: reason => t('repositoryListFailed', { platform: loaded.failure.platform.name, reason }) }) : text(loaded.error)}</span>
+        {'failure' in loaded && <PlatformFailureHelp failure={loaded.failure} />}
         <button type="button" data-repository-focus onClick={() => setAttempt(count => count + 1)}>{t('retry')}</button>
       </div>
       : <>
@@ -66,11 +69,4 @@ export function RepositoryPicker({ projectId, bound, value, onChange, disabled, 
       {value && <button type="button" disabled={disabled} onClick={() => onChange(null)}>{t('removeBinding')}</button>}
     </div>
   </div>;
-}
-
-function FailureText({ failure: { kind, platform, output } }: { failure: PlatformFailure }) {
-  const { t } = useLocalization();
-  if (kind === 'notInstalled') return <>{t('platformNotInstalled', { platform: platform.name, url: platform.installUrl })}</>;
-  if (kind === 'signedOut') return <>{t('platformSignedOut', { platform: platform.name, command: platform.signInCommand })}</>;
-  return <>{t('repositoryListFailed', { platform: platform.name, reason: output })}</>;
 }

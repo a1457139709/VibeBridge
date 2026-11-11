@@ -138,6 +138,24 @@ test('switching projects reads the other repository from an open, unfiltered lis
   assert.deepEqual([returned.projectId, returned.filter], ['app', { search: '', state: 'open', labels: [] }]);
 });
 
+test('search and filters survive closing and reopening the sidebar, and retrying a failed read', async () => {
+  const { user, request } = renderSidebar();
+  (await request(0)).answer(page([issue(1)]));
+  await user.type(within(sidebar()).getByRole('searchbox', { name: 'Search issues' }), 'crash{Enter}');
+  (await request(1)).answer(page([]));
+  await user.click(within(sidebar()).getByRole('button', { name: 'Closed' }));
+  (await request(2)).answer(failure('signedOut'));
+  await user.click(await within(sidebar()).findByRole('button', { name: 'Retry' }));
+  const retried = await request(3);
+  assert.deepEqual(retried.filter, { search: 'crash', state: 'closed', labels: [] });
+  retried.answer(page([]));
+  await user.click(screen.getByRole('button', { name: 'Close issue sidebar' }));
+  await user.click(screen.getByRole('button', { name: 'Open issue sidebar' }));
+  const reopened = await request(4);
+  assert.deepEqual(reopened.filter, { search: 'crash', state: 'closed', labels: [] });
+  assert.equal((within(sidebar()).getByRole('searchbox', { name: 'Search issues' }) as HTMLInputElement).value, 'crash');
+});
+
 test('opening the sidebar refreshes the list', async () => {
   const { user, request, requests } = renderSidebar({ visible: false });
   await screen.findByRole('button', { name: 'Open issue sidebar' });

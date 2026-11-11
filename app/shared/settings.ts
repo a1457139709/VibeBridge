@@ -1,7 +1,7 @@
 import { z } from 'zod';
 import { message } from './messages';
-import { agentNames, agentTypes, type AgentType, type Settings } from './model';
-import { defaultWorkflowSettings, deliveries, workflowCatalog } from './workflows';
+import { agentNames, agentTypes, coexistences, type AgentType, type Settings } from './model';
+import { defaultDelivery, defaultWorkflowSettings, deliveries, workflowCatalog } from './workflows';
 import { defaultShortcuts, shortcutActions, shortcutConflicts, shortcutConflictMessage, shortcutFormatError } from './shortcuts';
 
 export const defaultSettings = (): Settings => ({ language: 'en', theme: 'system', defaultLayout: 'auto', sidebarCoexistence: 'squeeze', detailCoexistence: 'overlay', shortcuts: defaultShortcuts(), agents: {
@@ -25,15 +25,15 @@ function settingsSchema(reading: boolean) {
     language: field(z.enum(['en', 'zh-CN'], { error: message('languageInvalid') }), defaults.language),
     theme: field(z.enum(['system', 'dark', 'light'], { error: message('themeInvalid') }), defaults.theme),
     defaultLayout: field(z.enum(['auto', 'row', 'column'], { error: message('layoutPreferenceInvalid') }), defaults.defaultLayout),
-    sidebarCoexistence: field(z.enum(['squeeze', 'overlay'], { error: message('sidebarCoexistenceInvalid') }), defaults.sidebarCoexistence),
-    detailCoexistence: field(z.enum(['overlay', 'squeeze'], { error: message('detailCoexistenceInvalid') }), defaults.detailCoexistence),
+    sidebarCoexistence: field(z.enum(coexistences, { error: message('sidebarCoexistenceInvalid') }), defaults.sidebarCoexistence),
+    detailCoexistence: field(z.enum(coexistences, { error: message('detailCoexistenceInvalid') }), defaults.detailCoexistence),
     agents: field(object(Object.fromEntries(agentTypes.map(type => [type, field(object({
       command: field(command(type), defaults.agents[type].command), args: field(args, []),
     }, message('commandInvalid', { agent: agentNames[type] })), defaults.agents[type])])), message('settingsInvalid')), defaults.agents),
     workflows: field(object(Object.fromEntries(workflowCatalog.map(workflow => [workflow.id, field(object({
       enabled: field(z.boolean({ error: message('workflowSettingInvalid') }), defaults.workflows[workflow.id].enabled),
       instructions: field(object(Object.fromEntries(workflow.instructions.map(instruction => [instruction.id, field(object({
-        delivery: field(z.enum(deliveries, { error: message('workflowSettingInvalid') }), 'submit'),
+        delivery: field(z.enum(deliveries, { error: message('workflowSettingInvalid') }), defaultDelivery),
       }, message('workflowSettingInvalid')), defaults.workflows[workflow.id].instructions[instruction.id])])), message('workflowSettingInvalid')),
       defaults.workflows[workflow.id].instructions),
     }, message('workflowSettingInvalid')), defaults.workflows[workflow.id])])), message('workflowSettingInvalid')), defaults.workflows),

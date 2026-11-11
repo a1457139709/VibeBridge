@@ -232,8 +232,6 @@ export const english = {
   "repositorySelected": "Selected: {path}",
   "removeBinding": "Remove binding",
   "retry": "Retry",
-  "platformNotInstalled": "{platform} CLI is not installed. Install it from {url}, then retry.",
-  "platformSignedOut": "{platform} CLI is not signed in. Run {command} in a terminal, then retry.",
   "changeBindingQuestion": "Change repository binding?",
   "removeBindingQuestion": "Remove repository binding?",
   "bindingChange": "{from} → {to}",

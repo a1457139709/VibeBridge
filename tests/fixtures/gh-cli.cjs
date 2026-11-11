@@ -215,6 +215,7 @@ function pullRequestDetail(state, fields) {
       submittedAt: review.submittedAt, bodyHTML: review.bodyHTML, url: `${url}#pullrequestreview-${index + 1}`, comments: { totalCount: review.codeComments } })),
     closingIssuesReferences: { nodes: (request.closes ?? []).map(number => reference(state, path, number)) },
     reviewDecision: request.reviewDecision ?? null, mergeable: request.mergeable ?? 'MERGEABLE', isMergeQueueEnabled: !!request.mergeQueue,
+    mergeStateStatus: request.mergeStateStatus ?? 'CLEAN', viewerCanEnableAutoMerge: !!request.viewerCanEnableAutoMerge,
     commits: { nodes: [{ commit: { statusCheckRollup: contexts.length || request.checks
       ? { state: request.checks ?? 'PENDING', contexts: { nodes: contexts.map(checkContext) } } : null } }] },
   } } };

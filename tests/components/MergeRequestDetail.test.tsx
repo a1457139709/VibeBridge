@@ -27,7 +27,7 @@ const app: ProjectView = { id: 'app', name: 'App project', directory: '/work/app
 
 const summary = (number: number): MergeRequestSummary => ({ number, title: `Change ${number}`, state: 'open', draft: false, author: 'mona',
   createdAt: '2026-11-01T00:00:00Z', checks: null, labels: [], url: `https://github.com/octo/app/pull/${number}` });
-const mergeState = (extra: Partial<MergeState> = {}): MergeState => ({ review: null, checks: [], conflicting: false, methods: ['merge'], queue: false, ...extra });
+const mergeState = (extra: Partial<MergeState> = {}): MergeState => ({ review: null, checks: [], conflicting: false, methods: ['merge'], mergeThrough: null, ...extra });
 const detail = (number: number, extra: Partial<MergeRequestDetail> = {}): MergeRequestDetail => {
   const { checks: _checks, ...rest } = summary(number);
   return { ...rest, head: 'feature', base: 'main', changesUrl: `https://github.com/octo/app/pull/${number}/files`, body: '<p>Body</p>',

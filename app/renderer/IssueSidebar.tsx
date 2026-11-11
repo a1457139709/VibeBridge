@@ -4,7 +4,7 @@ import { platformDescriptions, type PlatformFailure, type RepositoryItem } from 
 import { defaultIssueSidebar, issueSidebarWidth, type ProjectView, type Snapshot } from '../shared/model';
 import { useLocalization } from './Localization';
 import { useSavedPreferences } from './saved-preferences';
-import { FailureState, IssueLists } from './IssueLists';
+import { FailureState, IssueLists, unfiltered } from './IssueLists';
 import type { DirectActionHost } from './DirectActions';
 import { IssueDetailView } from './IssueDetail';
 import { MergeRequestDetailView } from './MergeRequestDetail';
@@ -48,11 +48,16 @@ export function useIssueSidebar(host: Host, api: Pick<DesktopAPI, 'saveIssueSide
     closeDetail();
     (issueRow(element.current, number) ?? element.current)?.focus();
   };
-  // A direct action's success refreshes the lists once; a platform CLI found missing or signed out takes their place until retried.
+  // Search and filters last while the sidebar shows this project and binding, across closing it and retrying; they reset on a switch.
+  const [filtered, setFiltered] = useState({ lists, filters: unfiltered });
+  if (filtered.lists !== lists) setFiltered({ lists, filters: unfiltered });
+  // A direct action's success or a dispatch refreshes the lists once; a platform CLI found missing or signed out takes their place until retried.
+  // A refused action's line clears on any refresh of the lists.
   const [changes, setChanges] = useState(0);
+  const [refreshes, setRefreshes] = useState(0);
   const [unavailable, setUnavailable] = useState<{ lists: string; failure: PlatformFailure }>();
   const shownUnavailable = unavailable?.lists === lists ? unavailable?.failure : undefined;
-  const actionHost: DirectActionHost = { changed: () => setChanges(count => count + 1),
+  const actionHost: DirectActionHost = { refreshes, changed: () => setChanges(count => count + 1),
     unavailable: failure => { if (lists) { closeDetail(); setUnavailable({ lists, failure }); } } };
   const title = repository ? platformDescriptions[repository.platform].name : t('issueSidebar');
   return {
@@ -79,7 +84,8 @@ export function useIssueSidebar(host: Host, api: Pick<DesktopAPI, 'saveIssueSide
         {repository && <span className="issue-sidebar-repository">{repository.path}</span>}</header>
       {project && repository && shownUnavailable && <FailureState failure={{ ok: false, failure: shownUnavailable }} path={repository.path}
         retry={() => setUnavailable(undefined)} changeBinding={() => host.bindRepository(project)} />}
-      {project && repository && !shownUnavailable && <IssueLists key={lists} project={project} repository={repository} changes={changes}
+      {project && repository && !shownUnavailable && <IssueLists key={lists} project={project} repository={repository} changes={changes} refreshed={() => setRefreshes(count => count + 1)}
+        filters={filtered.filters} setFilters={update => setFiltered(current => ({ ...current, filters: update(current.filters) }))}
         workflows={snapshot!.settings.workflows} shortcuts={snapshot!.settings.shortcuts} changeBinding={() => host.bindRepository(project)}
         locate={location => host.locatePanel(location.projectId, location.panelId, location.runId)}
         filled={location => { closeDetail(); host.locatePanel(location.projectId, location.panelId, location.runId); }}

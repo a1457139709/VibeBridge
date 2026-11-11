@@ -3,6 +3,7 @@ import type { DesktopAPI } from '../shared/api';
 import { platformDescriptions, type DirectAction, type IssueDetail, type MergeMethod, type MergeRequestDetail, type PlatformDescription,
   type PlatformFailure, type RepositoryReference } from '../shared/code-hosting';
 import { useLocalization } from './Localization';
+import { platformFailureReason } from './platform-failure';
 import './direct-actions.css';
 
 /** Where a detail's direct actions report what came of them. */
@@ -11,6 +12,8 @@ export interface DirectActionHost {
   changed(): void;
   /** The platform's CLI turned out missing or signed out; the sidebar shows that instead of its content. */
   unavailable(failure: PlatformFailure): void;
+  /** Counts the sidebar's refreshes; a refusal shown clears on the next one. */
+  refreshes: number;
 }
 
 type Api = Pick<DesktopAPI, 'directAction'>;
@@ -20,17 +23,17 @@ let chosenMethod: MergeMethod | undefined;
 
 const sameAction = (a: DirectAction | undefined, b: DirectAction) => JSON.stringify(a) === JSON.stringify(b);
 
-/** Runs one action at a time for an item. A refusal stays under the buttons until dismissed or the item is read afresh. */
+/** Runs one action at a time for an item. A refusal stays under the buttons until dismissed, the item is read afresh or the sidebar refreshes. */
 function useDirectActions(projectId: string, item: object, host: DirectActionHost, api: Api) {
   const { t, text } = useLocalization();
   const [state, setState] = useState<{ running?: DirectAction; failure?: { action: DirectAction; reason: string } }>({});
-  useEffect(() => setState(current => current.running ? current : {}), [item]);
+  useEffect(() => setState(current => current.running ? current : {}), [item, host.refreshes]);
   const run = (action: DirectAction) => {
     setState({ running: action });
     api.directAction(projectId, action).then(result => {
       if (result.ok) { setState({}); host.changed(); }
       else if (result.failure.kind === 'notInstalled' || result.failure.kind === 'signedOut') { setState({}); host.unavailable(result.failure); }
-      else setState({ failure: { action, reason: result.failure.output || result.failure.kind } });
+      else setState({ failure: { action, reason: platformFailureReason(t, result.failure, { failed: reason => reason }) } });
     }, (error: Error) => setState({ failure: { action, reason: text(error.message) } }));
   };
   const busy = state.running !== undefined;
@@ -78,13 +81,14 @@ export function IssueActions({ projectId, issue, host, api = window.workbench }:
 }
 
 const methodNames = { merge: 'mergeWithMerge', squash: 'mergeWithSquash', rebase: 'mergeWithRebase' } as const;
+const routeNames = { mergeQueue: 'mergeThroughQueue', autoMerge: 'mergeThroughAutoMerge' } as const;
 
 /** What keeps the platform from merging it, in the merge area's order. Checks count when required, or all of them where the platform marks none. */
 function blockers(request: MergeRequestDetail, platform: PlatformDescription) {
   const { review, checks, conflicting } = request.merge;
   const counted = platform.capabilities.includes('requiredChecks') ? checks.filter(check => check.required) : checks;
   return ([
-    request.draft && 'mergeBlockedDraft',
+    request.draft && 'mergeDraft',
     conflicting && 'mergeBlockedConflicts',
     review === 'reviewRequired' && 'mergeBlockedReview',
     review === 'changesRequested' && 'mergeBlockedChangesRequested',
@@ -95,7 +99,7 @@ function blockers(request: MergeRequestDetail, platform: PlatformDescription) {
 
 /**
  * Merging an open merge request in two clicks with one of the repository's methods, and closing it; reopening a closed one.
- * A merge the platform would block is greyed out with why; one that must go through a merge queue is left to the platform.
+ * A merge the platform would block is greyed out with why; one that must go through a merge queue or auto-merge is left to the platform.
  */
 export function MergeRequestActions({ projectId, repository, request, host, api = window.workbench }: {
   projectId: string; repository: RepositoryReference; request: MergeRequestDetail; host: DirectActionHost; api?: Api;
@@ -115,7 +119,7 @@ export function MergeRequestActions({ projectId, repository, request, host, api 
   const platform = platformDescriptions[repository.platform];
   const current = method && merge.methods.includes(method) ? method : merge.methods[0];
   const reasons = blockers(request, platform);
-  const blocked = !!reasons.length || merge.queue;
+  const blocked = !!reasons.length || !!merge.mergeThrough;
   const mergeAction: DirectAction | undefined = current && { kind: 'mergeMergeRequest', number, method: current };
   return <div className="direct-actions">
     <div className="direct-action-buttons">
@@ -133,7 +137,7 @@ export function MergeRequestActions({ projectId, repository, request, host, api 
       {actions.button({ kind: 'closeMergeRequest', number }, t('closeMergeRequest'))}
     </div>
     {!!reasons.length && <ul className="merge-blockers" aria-label={t('mergeBlocked')}>{reasons.map(reason => <li key={reason}>{t(reason)}</li>)}</ul>}
-    {merge.queue && <p className="merge-on-platform">{t('mergeOnPlatform', { platform: platform.name })}{' '}
+    {merge.mergeThrough && <p className="merge-on-platform">{t(routeNames[merge.mergeThrough], { platform: platform.name })}{' '}
       <a href={request.url} target="_blank" rel="noreferrer">{t('openInBrowser')}</a></p>}
     {actions.failure}
   </div>;

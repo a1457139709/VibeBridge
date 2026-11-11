@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import test, { afterEach } from 'node:test';
 import { cleanup, fireEvent, render, screen, within } from '@testing-library/react';
 import { userEvent } from '@testing-library/user-event';
-import { IssueLists } from '../../app/renderer/IssueLists';
+import { IssueLists, unfiltered } from '../../app/renderer/IssueLists';
 import { Localization } from '../../app/renderer/Localization';
 import type { PanelView, ProjectView } from '../../app/shared/model';
 import type { DispatchLocation, DispatchRequest } from '../../app/shared/dispatch';
@@ -32,7 +32,7 @@ async function renderList({ shortcuts = defaultShortcuts(), issues = [issue(7)] 
     dispatch: async (_projectId: string, request: DispatchRequest) => { dispatched.push(request); return null; },
   };
   render(<Localization language="en">
-    <IssueLists project={project} repository={project.repository!} workflows={defaultWorkflowSettings()} shortcuts={shortcuts} changeBinding={() => {}}
+    <IssueLists project={project} repository={project.repository!} workflows={defaultWorkflowSettings()} shortcuts={shortcuts} changeBinding={() => {}} filters={unfiltered} setFilters={() => {}} refreshed={() => {}}
       locate={location => locations.push(location)} filled={location => locations.push(location)} detail={{ open() {} }} mergeRequestDetail={{ open() {} }} api={api} />
   </Localization>);
   await screen.findByRole('listitem', { name: `#${issues[0].number} Issue ${issues[0].number}` });

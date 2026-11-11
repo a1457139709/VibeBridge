@@ -1,6 +1,6 @@
 import { message } from '../../shared/messages';
 import { directActionSchema, issueFilterSchema, type DirectAction, type DirectActionResult, type IssueDetailResult, type IssueFilter, type IssuePageResult, type ListFailure, type MergeRequestDetailResult, type MergeRequestPageResult, type RepositoryReference } from '../../shared/code-hosting';
-import { PlatformError, type CodeHostingPlatform, type CommandEnvironment } from './platform';
+import { platformResult, type CodeHostingPlatform, type CommandEnvironment } from './platform';
 import { platforms } from './platforms';
 
 /** The project's Repository Binding; an unbound project reads nothing. */
@@ -26,16 +26,13 @@ async function listPage<Page>(repository: RepositoryReference, filter: IssueFilt
   const parsed = issueFilterSchema.safeParse(filter);
   if (!parsed.success || (cursor !== null && typeof cursor !== 'string')) throw new Error(message('issueFilterInvalid'));
   const platform = platforms[repository.platform];
-  try {
-    return { ok: true, page: await read(platform, parsed.data) };
-  } catch (error) {
-    if (!(error instanceof PlatformError)) throw error;
-    const { failure } = error;
-    if (failure.kind !== 'unreachable') return { ok: false, failure };
-    // Missing and forbidden look alike, so the account tells the user whose access to check.
-    const account = await platform.account(environment).catch(() => undefined);
-    return account === undefined ? { ok: false, failure } : { ok: false, failure, account };
-  }
+  const result = await platformResult(() => read(platform, parsed.data));
+  if (result.ok) return { ok: true, page: result.value };
+  const { failure } = result;
+  if (failure.kind !== 'unreachable') return { ok: false, failure };
+  // Missing and forbidden look alike, so the account tells the user whose access to check.
+  const account = await platform.account(environment).catch(() => undefined);
+  return account === undefined ? { ok: false, failure } : { ok: false, failure, account };
 }
 
 /** The bound repository's issue with that number, or the kind of failure the platform reported. */
@@ -55,22 +52,12 @@ export async function directAction(repository: RepositoryReference | undefined, 
   const { platform, path } = boundRepository(repository);
   const parsed = directActionSchema.safeParse(action);
   if (!parsed.success) throw new Error(message('directActionInvalid'));
-  try {
-    await platforms[platform].act(environment, path, parsed.data);
-    return { ok: true };
-  } catch (error) {
-    if (error instanceof PlatformError) return { ok: false, failure: error.failure };
-    throw error;
-  }
+  const result = await platformResult(() => platforms[platform].act(environment, path, parsed.data));
+  return result.ok ? { ok: true } : result;
 }
 
 async function detail<T>(repository: RepositoryReference | undefined, number: number, read: (platform: CodeHostingPlatform, path: string) => Promise<T>) {
   const { platform, path } = boundRepository(repository);
   if (!Number.isSafeInteger(number) || number < 1) throw new Error(message('issueNumberInvalid'));
-  try {
-    return { ok: true as const, value: await read(platforms[platform], path) };
-  } catch (error) {
-    if (error instanceof PlatformError) return { ok: false as const, failure: error.failure };
-    throw error;
-  }
+  return platformResult(() => read(platforms[platform], path));
 }
