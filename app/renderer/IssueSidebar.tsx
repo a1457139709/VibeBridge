@@ -49,8 +49,9 @@ export function useIssueSidebar(host: Host, api: Pick<DesktopAPI, 'saveIssueSide
     /** Whether an issue's detail is open beside the sidebar. */
     detailOpen: openedNumber !== undefined,
     /** Lies left of the sidebar; the host places it over or beside the layout area. */
-    detail: project && repository && openedNumber !== undefined && <IssueDetailView key={`${lists}#${openedNumber}`} projectId={project.id}
-      repository={repository} number={openedNumber} openIssue={openIssue} close={closeDetail} />,
+    detail: project && repository && openedNumber !== undefined && <IssueDetailView key={`${lists}#${openedNumber}`} project={project}
+      repository={repository} number={openedNumber} workflows={snapshot!.settings.workflows} openIssue={openIssue} close={closeDetail}
+      locate={location => { closeDetail(); host.locatePanel(location.projectId, location.panelId, location.runId); }} />,
     toggle: <button className="issue-sidebar-toggle" aria-label={visible ? t('closeIssueSidebar') : t('openIssueSidebar')} aria-expanded={visible}
       disabled={!snapshot} onClick={() => { closeDetail(); toggle(); }}><SidebarIcon /></button>,
     sidebar: visible && <aside ref={element} tabIndex={-1} className="issue-sidebar" aria-label={title}

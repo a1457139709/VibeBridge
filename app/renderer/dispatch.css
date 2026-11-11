@@ -23,3 +23,18 @@
 .issue-dispatch .processing-status { width: 14px; height: 14px; flex-shrink: 0; }
 .issue-dispatch-title { max-width: 80px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .issue-dispatch-count, .issue-dispatched { color: var(--muted); white-space: nowrap; }
+/* The issue detail's Dispatch Records. */
+.dispatch-records { margin-top: 12px; border: 1px solid var(--line); border-radius: 8px; font-size: 12px; }
+.dispatch-records-fold { width: 100%; display: flex; gap: 4px; padding: 6px 10px; border: 0; background: var(--hover); color: var(--muted); text-align: left; font-size: 12px; }
+.dispatch-records ul { margin: 0; padding: 0; list-style: none; }
+.dispatch-record { padding: 6px 10px; border-top: 1px solid var(--line); }
+.dispatch-record-line { display: flex; align-items: center; gap: 6px; min-width: 0; }
+.dispatch-record-line time { color: var(--muted); white-space: nowrap; }
+.dispatch-record .agent-mark { width: 14px; height: 14px; flex-shrink: 0; display: grid; place-items: center; }
+.dispatch-record .agent-mark svg { width: 14px; height: 14px; }
+.dispatch-record-session { flex: 1; min-width: 0; display: flex; align-items: center; gap: 4px; padding: 0; border: 0; background: transparent; overflow: hidden; white-space: nowrap; font-size: 12px; text-align: left; }
+.dispatch-record-session span { overflow: hidden; text-overflow: ellipsis; }
+.dispatch-record-session .processing-status { width: 14px; height: 14px; flex-shrink: 0; }
+.dispatch-record-session.unlocated { color: var(--muted); }
+.dispatch-record-fold { flex-shrink: 0; display: flex; gap: 2px; padding: 0 4px; border: 0; background: transparent; color: var(--muted); font-size: 11px; }
+.dispatch-record-text { margin: 6px 0 0; padding: 6px 8px; border-radius: 6px; background: var(--hover); font-family: Menlo, monospace; font-size: 11px; white-space: pre-wrap; overflow-wrap: anywhere; }
