@@ -44,7 +44,7 @@ async function renderWorkbench() {
     navigation: { visible: true, width: 212 }, activeProjectId: 'project', settings: defaultSettings(),
     settingsConflicts: [], startupTheme: 'light', resolvedTheme: 'light', errors: [],
     projects: [{ id: 'project', name: 'Drops', directory: '/work/drops', layout: sideBySide('codex', 'claude'),
-      panels: [panel('codex', 'codex'), panel('claude', 'claude')], tray: [panel('pi', 'pi')] }],
+      panels: [panel('codex', 'codex'), panel('claude', 'claude')], tray: [panel('pi', 'pi')], repository: null }],
   };
   const saves: Layout[] = [];
   // Placing a tray panel or moving a resident panel to the tray are the other changes a release can request.

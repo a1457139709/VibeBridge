@@ -9,6 +9,10 @@ import { ProjectStore } from './storage';
 import { SettingsFile, defaultSettings } from './settings';
 import { settingsConflicts, type SettingsSaveResult } from '../shared/settings';
 import { RunSupervision } from './run-supervision';
+import { codeHostingPlatformIdSchema, type RepositoryChoices, type RepositoryReference } from '../shared/code-hosting';
+import { codeHostingPlatforms, defaultPlatform } from './code-hosting/platforms';
+import { CodeHostingError } from './code-hosting/platform';
+import { originUrl } from './code-hosting/origin';
 
 export class WorkbenchOpenError extends Error {
   constructor(error: unknown, readonly language: Language) {
@@ -24,6 +28,8 @@ export class Workbench {
   private visited = new Set<string>();
   // Each project's tray: its ephemeral panels in the order they joined. Never stored.
   private trays = new Map<string, Panel[]>();
+  // Each project's Repository Binding, as stored.
+  private repositories = new Map<string, RepositoryReference>();
   private quitting = false;
   private quitPromise?: Promise<void>;
   private constructor(directory: string, private store: ProjectStore, private settingsFile: SettingsFile) {
@@ -44,9 +50,10 @@ export class Workbench {
     let store: ProjectStore | undefined;
     try {
       store = await ProjectStore.open(directory);
-      const projects = await store.load();
+      const { repositories, ...projects } = await store.load();
       const workbench = new Workbench(directory, store, settingsFile);
       Object.assign(workbench.state, projects, { settings, settingsConflicts: settingsConflicts(settings), errors });
+      workbench.repositories = new Map(Object.entries(repositories));
       workbench.state.startupTheme = settings.theme;
       workbench.state.resolvedTheme = workbench.state.startupTheme === 'system' ? (systemDark ? 'dark' : 'light') : workbench.state.startupTheme;
       return workbench;
@@ -57,7 +64,8 @@ export class Workbench {
   }
   snapshot(): Snapshot {
     const view = (panel: Panel) => this.supervision.panelView(panel);
-    const projects = this.state.projects.map(project => ({ ...project, panels: project.panels.map(view), tray: this.tray(project.id).map(view) }));
+    const projects = this.state.projects.map(project => ({ ...project, panels: project.panels.map(view), tray: this.tray(project.id).map(view),
+      repository: this.repositories.get(project.id) ?? null }));
     return structuredClone({ ...this.state, projects });
   }
   subscribe(listener: (event: WorkbenchEvent) => void) { this.listeners.add(listener); return () => { this.listeners.delete(listener); }; }
@@ -136,12 +144,52 @@ export class Workbench {
     this.state.projects = this.state.projects.filter(item => item.id !== id);
     this.supervision.release(panels.map(panel => panel.id));
     this.trays.delete(id);
+    this.repositories.delete(id);
     this.visited.delete(id);
     const activateNext = this.state.activeProjectId === id;
     this.state.activeProjectId = nextActive;
     this.changed();
     if (activateNext && nextActive) await this.startProject(this.project(nextActive));
   }); }
+  /** The repositories the project can bind, from its bound platform, or the default one when unbound. */
+  async repositoryChoices(projectId: string): Promise<RepositoryChoices> {
+    const project = this.project(projectId);
+    const platform = codeHostingPlatforms[this.repositories.get(projectId)?.platform ?? defaultPlatform];
+    try {
+      const [account, repositories, origin] = await Promise.all([platform.account(), platform.repositories(), originUrl(project.directory)]);
+      const originPath = origin === null ? null : platform.recognize(origin, repositories);
+      return { ok: true, platform: platform.presentation, account,
+        repositories: repositories.map(path => ({ platform: platform.id, path })),
+        origin: originPath === null ? null : { platform: platform.id, path: originPath } };
+    } catch (error) {
+      if (error instanceof CodeHostingError) return { ok: false, failure: { kind: error.kind, detail: error.detail, platform: platform.presentation } };
+      throw error;
+    }
+  }
+  /** Binds the project to a repository its platform currently lists, replacing any binding; null unbinds it. */
+  async bindRepository(projectId: string, repository: RepositoryReference | null) {
+    this.project(projectId);
+    let binding: RepositoryReference | null = null;
+    if (repository !== null) {
+      const id = codeHostingPlatformIdSchema.safeParse(repository.platform);
+      if (!id.success || typeof repository.path !== 'string') throw new Error(message('repositoryNotListed'));
+      let listed: string[];
+      try { listed = await codeHostingPlatforms[id.data].repositories(); }
+      catch (error) {
+        if (error instanceof CodeHostingError) throw new Error(message('repositoryListFailed', { reason: detail(error.detail
+          || message('codeHostingNotInstalled', { cli: codeHostingPlatforms[id.data].presentation.cli })) }));
+        throw error;
+      }
+      if (!listed.includes(repository.path)) throw new Error(message('repositoryNotListed'));
+      binding = { platform: id.data, path: repository.path };
+    }
+    return this.operation(async () => {
+      this.project(projectId);
+      await this.store.bind(projectId, binding);
+      if (binding) this.repositories.set(projectId, binding); else this.repositories.delete(projectId);
+      this.changed();
+    });
+  }
   private startPanel(project: Project, panel: Panel) { return this.supervision.start(project, panel, this.state.settings.agents[panel.agent]); }
   private async startProject(project: Project): Promise<LaunchResult[]> {
     if (this.visited.has(project.id)) return [];

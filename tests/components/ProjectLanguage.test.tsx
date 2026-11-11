@@ -13,9 +13,10 @@ afterEach(cleanup);
 
 for (const language of ['en', 'zh-CN'] as const) {
   test(`project editing and deletion explain results in ${language} and preserve user content`, async () => {
-    const project: ProjectView = { id: 'project', name: 'Untitled task 原样', directory: '/原样/old', panels: [{ id: 'panel', agent: 'pi' }], tray: [], layout: { panel: 'panel' } };
+    const project: ProjectView = { id: 'project', name: 'Untitled task 原样', directory: '/原样/old', panels: [{ id: 'panel', agent: 'pi' }], tray: [], layout: { panel: 'panel' }, repository: null };
     const calls: unknown[] = [];
     provideWorkbench({ inspectDirectory: async directory => ({ valid: true, directory }),
+      repositoryChoices: async () => ({ ok: false, failure: { kind: 'notInstalled', detail: '', platform: { name: 'GitHub', cli: 'gh', installUrl: 'https://cli.github.com', loginCommand: 'gh auth login' } } }),
       editProject: async (id, edit, restart) => {
         calls.push([id, edit, restart]);
         return { project: { ...project, ...edit }, launches: [{ outcome: 'failed', run: { id: 'run', projectId: id, panelId: 'panel', state: 'failed' }, agent: 'pi' }] };
@@ -30,6 +31,7 @@ for (const language of ['en', 'zh-CN'] as const) {
     const path = screen.getByRole('textbox', { name: en ? 'Local directory' : '本地目录' });
     await user.clear(path); await user.type(path, '/原样/new');
     await screen.findByText(en ? 'Previous directory' : '原目录');
+    assert.ok(screen.getByText(en ? 'Could not find gh; install it to bind a repository.' : '没有找到 gh，安装后才能绑定。'));
     await user.click(screen.getByRole('button', { name: en ? 'Change and restart' : '更改并重启' }));
     assert.deepEqual(calls, [['project', { name: project.name, directory: '/原样/new' }, true]]);
     assert.ok(screen.getByText(en ? 'Saved project name and directory: Untitled task 原样' : '已保存项目名称和目录：Untitled task 原样'));

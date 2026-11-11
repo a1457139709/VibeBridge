@@ -20,10 +20,10 @@ const snapshot = (): Snapshot => ({
   settingsConflicts: [], startupTheme: 'light', resolvedTheme: 'light', errors: [],
   projects: [
     { id: 'current', name: 'Current', directory: '/current', layout: null, panels: [panel('current', 'resident', 'ready')],
-      tray: [panel('current', 'waiting', 'needs-input'), panel('current', 'working', 'busy'), panel('current', 'finished', 'done')] },
+      tray: [panel('current', 'waiting', 'needs-input'), panel('current', 'working', 'busy'), panel('current', 'finished', 'done')], repository: null },
     { id: 'other', name: 'Other', directory: '/other', layout: null, panels: [panel('other', 'other-resident', 'ready')],
-      tray: [panel('other', 'failed', 'error'), panel('other', 'idle', 'ready')] },
-    { id: 'quiet', name: 'Quiet', directory: '/quiet', layout: null, panels: [panel('quiet', 'quiet-resident', 'ready')], tray: [] },
+      tray: [panel('other', 'failed', 'error'), panel('other', 'idle', 'ready')], repository: null },
+    { id: 'quiet', name: 'Quiet', directory: '/quiet', layout: null, panels: [panel('quiet', 'quiet-resident', 'ready')], tray: [], repository: null },
   ],
 });
 

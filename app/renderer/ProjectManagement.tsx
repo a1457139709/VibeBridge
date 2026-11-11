@@ -1,7 +1,8 @@
 import { useLocalization } from './Localization';
-import { message } from '../shared/messages';
+import { detail, message } from '../shared/messages';
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { type DirectoryResult, type Project, type ProjectEditResult, type ProjectView } from '../shared/model';
+import { sameRepository, type RepositoryChoices, type RepositoryReference } from '../shared/code-hosting';
 import { projectNameError, projectNameHasControls } from '../shared/project-name';
 import { LaunchResults } from './LaunchResults';
 import './project-management.css';
@@ -34,7 +35,61 @@ export function ProjectNavigationItem({ project, openProject, children }: {
   </div>;
 }
 
-function ProjectEditor({ project, running, close, openProject }: { project: Project; running: number; close(): void; openProject(id: string): void }) {
+/** Loads the repositories a project can bind and tracks the one picked: the bound one, else the one origin points at. */
+function useRepositoryPicker(project: ProjectView) {
+  const [choices, setChoices] = useState<RepositoryChoices | { ok: false; error: string }>();
+  const [picked, setPicked] = useState<RepositoryReference | null>(project.repository);
+  const load = () => {
+    setChoices(undefined);
+    void window.workbench.repositoryChoices(project.id).then(result => {
+      setChoices(result);
+      if (result.ok && !project.repository) setPicked(result.origin);
+    }, error => setChoices({ ok: false, error: (error as Error).message }));
+  };
+  useEffect(load, [project.id]);
+  // A binding changes only from a listed repository; a failed list leaves the binding as it is.
+  const change = choices?.ok && picked && !sameRepository(picked, project.repository) ? picked : undefined;
+  return { choices, picked, setPicked, load, change };
+}
+
+function RepositoryField({ project, picker, disabled }: { project: ProjectView; picker: ReturnType<typeof useRepositoryPicker>; disabled: boolean }) {
+  const { t } = useLocalization();
+  const [query, setQuery] = useState('');
+  const { choices, picked, setPicked, load } = picker;
+  const retry = <button type="button" onClick={load}>{t('retry')}</button>;
+  let body: ReactNode;
+  if (!choices) body = <span className="muted">{t('loadingRepositories')}</span>;
+  else if (!choices.ok && 'error' in choices) body = <div className="repository-error"><span>{t('repositoryListFailed', { reason: detail(choices.error) })}</span>{retry}</div>;
+  else if (!choices.ok) {
+    const { kind, detail: reason, platform } = choices.failure;
+    body = <div className="repository-error">
+      {kind === 'notInstalled' ? <><span>{t('codeHostingNotInstalled', { cli: platform.cli })}</span><a href={platform.installUrl} target="_blank" rel="noreferrer">{t('installInstructions')}</a></>
+        : kind === 'loggedOut' ? <span>{t('codeHostingLoggedOut', { cli: platform.cli, command: platform.loginCommand })}</span>
+        : <span>{t('repositoryListFailed', { reason: reason ? detail(reason) : kind })}</span>}
+      {retry}</div>;
+  } else {
+    // The bound repository stays visible even when the account no longer lists it.
+    const repositories = project.repository && !choices.repositories.some(item => sameRepository(item, project.repository))
+      ? [project.repository, ...choices.repositories] : choices.repositories;
+    const term = query.trim().toLowerCase();
+    const shown = repositories.filter(item => item.path.toLowerCase().includes(term));
+    body = <div className="repository-picker">
+      <input type="search" aria-label={t('searchRepositories')} placeholder={t('searchRepositories')} autoComplete="off" value={query} disabled={disabled} onChange={event => setQuery(event.target.value)} />
+      <div className="repository-list" role="listbox" aria-labelledby="edit-project-repository">
+        {shown.map(item => <button type="button" role="option" key={item.path} data-path={item.path} aria-selected={sameRepository(item, picked)} className={sameRepository(item, picked) ? 'on' : ''} disabled={disabled} onClick={() => setPicked(item)}>
+          <span className="repository-path">{item.path}</span>
+          {sameRepository(item, choices.origin) && <small>{t('repositoryOrigin')}</small>}
+          {sameRepository(item, project.repository) && <small>{t('repositoryCurrent')}</small>}
+        </button>)}
+        {!shown.length && <span className="muted repository-empty">{t('noRepositories')}</span>}
+      </div>
+      <span className="muted repository-source">{t('repositoryListSource', { cli: choices.platform.cli })}</span>
+    </div>;
+  }
+  return <div className="repository-field"><span id="edit-project-repository" className="repository-label">{t('repository')}</span>{body}</div>;
+}
+
+function ProjectEditor({ project, running, close, openProject }: { project: ProjectView; running: number; close(): void; openProject(id: string): void }) {
   const { t, text } = useLocalization();
   const dialog = useRef<HTMLDialogElement>(null);
   const [original] = useState(project);
@@ -43,6 +98,8 @@ function ProjectEditor({ project, running, close, openProject }: { project: Proj
   const [nameInputError, setNameInputError] = useState('');
   const [busy, setBusy] = useState(false), [choosing, setChoosing] = useState(false), [error, setError] = useState('');
   const [result, setResult] = useState<ProjectEditResult>();
+  const picker = useRepositoryPicker(project);
+  const [confirm, setConfirm] = useState<{ kind: 'change'; restart: boolean } | { kind: 'unbind' }>();
   const directory = inspection.path === path ? inspection.result : undefined;
   const checking = !!path && !directory;
   const duplicate = directory?.existingProjectId && directory.existingProjectId !== project.id;
@@ -61,13 +118,23 @@ function ProjectEditor({ project, running, close, openProject }: { project: Proj
     }, 180);
     return () => { live = false; clearTimeout(timer); };
   }, [path]);
-  async function save(restart: boolean) {
+  async function save(restart: boolean, confirmed = false) {
     if (!canSave) return;
-    setBusy(true); setError('');
+    const change = picker.change;
+    if (change && project.repository && !confirmed) { setConfirm({ kind: 'change', restart }); return; }
+    setConfirm(undefined); setBusy(true); setError('');
     try {
+      // The binding is saved only once the name and directory are.
       const outcome = await window.workbench.editProject(project.id, { name, directory: path }, restart);
+      if (change) await window.workbench.bindRepository(project.id, change);
       if (outcome.error || outcome.launches.length) setResult(outcome); else close();
     } catch (error) { setError((error as Error).message); }
+    finally { setBusy(false); }
+  }
+  async function unbind() {
+    setConfirm(undefined); setBusy(true); setError('');
+    try { await window.workbench.bindRepository(project.id, null); close(); }
+    catch (error) { setError((error as Error).message); }
     finally { setBusy(false); }
   }
   return <dialog ref={dialog} className="project-dialog" aria-label={t('editProject')} onCancel={event => { event.preventDefault(); if (!busy) close(); }}>
@@ -86,13 +153,19 @@ function ProjectEditor({ project, running, close, openProject }: { project: Proj
       {nameError && <div id="edit-project-name-status" className="field-status error-text">{nameError}</div>}
       <label htmlFor="edit-project-directory">{t('localDirectory')}</label><div className="directory-input"><input id="edit-project-directory" autoComplete="off" value={path} disabled={busy} aria-invalid={!!directoryError} aria-describedby="edit-project-directory-status" onChange={event => setPath(event.target.value)} /><button type="button" disabled={busy || choosing} aria-label={t('chooseNewDirectory')} onClick={async () => { setChoosing(true); try { const selected = await window.workbench.chooseDirectory(); if (selected !== null) setPath(selected); } catch (error) { setError((error as Error).message); } finally { setChoosing(false); } }}>{t('browse')}</button></div>
       {(checking || directoryError) && <div id="edit-project-directory-status" className="field-status" aria-live="polite">{checking ? t('checkingDirectory') : <span className="error-text">{directoryError}</span>}{duplicate && <button type="button" className="open-existing-project" onClick={() => openProject(directory!.existingProjectId!)}>{t('openExisting')}</button>}</div>}
+      <RepositoryField project={project} picker={picker} disabled={busy} />
+      {confirm && <div className="repository-confirm" role="group" aria-label={t('confirm')}>
+        <span>{confirm.kind === 'change' ? t('changeBindingQuestion', { from: project.repository!.path, to: picker.picked!.path }) : t('unbindQuestion', { repository: project.repository!.path })}</span>
+        <span className="repository-confirm-actions"><button type="button" onClick={() => setConfirm(undefined)}>{t('cancel')}</button>
+          <button type="button" className="primary" onClick={() => void (confirm.kind === 'change' ? save(confirm.restart, true) : unbind())}>{confirm.kind === 'change' ? t('changeBinding') : t('unbind')}</button></span>
+      </div>}
       {changedDirectory && <section className="directory-change" aria-label={t('directoryChange')}><dl><dt>{t('oldDirectory')}</dt><dd>{original.directory}</dd><dt>{t('newDirectory')}</dt><dd>{directory!.directory}</dd></dl><p>{t('currentRuns', { count: running })}</p>
         <p><strong>{t('changeAndRestart')}: </strong>{t('restartImpact')}</p>
         <p><strong>{t('changeWithoutRestart')}: </strong>{t('noRestartImpact')}</p>
         <p>{t('directoryHistory')}</p>
       </section>}
       {error && <p className="error-text" role="alert">{text(error)}</p>}
-      <div className="project-dialog-actions"><button type="button" disabled={busy} onClick={close}>{changedDirectory ? t('cancelChange') : t('cancel')}</button>{changedDirectory ? <><button type="button" disabled={!canSave} onClick={() => void save(false)}>{t('changeWithoutRestart')}</button><button className="primary" type="button" disabled={!canSave} onClick={() => void save(true)}>{busy ? t('processing') : t('changeAndRestart')}</button></> : <button type="submit" className="primary" disabled={!canSave}>{busy ? t('saving') : t('saveChanges')}</button>}</div>
+      <div className="project-dialog-actions">{project.repository && <button type="button" className="danger unbind-repository" disabled={busy} onClick={() => setConfirm({ kind: 'unbind' })}>{t('unbind')}</button>}<button type="button" disabled={busy} onClick={close}>{changedDirectory ? t('cancelChange') : t('cancel')}</button>{changedDirectory ? <><button type="button" disabled={!canSave} onClick={() => void save(false)}>{t('changeWithoutRestart')}</button><button className="primary" type="button" disabled={!canSave} onClick={() => void save(true)}>{busy ? t('processing') : t('changeAndRestart')}</button></> : <button type="submit" className="primary" disabled={!canSave}>{busy ? t('saving') : t('saveChanges')}</button>}</div>
     </form>}
   </dialog>;
 }

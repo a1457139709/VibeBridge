@@ -17,3 +17,17 @@
 .project-path { overflow-wrap: anywhere; }
 .project-launch-results { padding-left: 20px; line-height: 1.8; }
 .danger { color: var(--error, #b33e2d); }
+.repository-field { display: flex; flex-direction: column; gap: 4px; margin-top: 14px; }
+.repository-label { font-weight: 600; }
+.repository-picker { display: flex; flex-direction: column; gap: 6px; }
+.repository-list { max-height: 150px; overflow: auto; border: 1px solid var(--line); border-radius: 6px; }
+.repository-list button { display: flex; gap: 6px; width: 100%; min-height: 0; padding: 5px 10px; border: 0; border-radius: 0; background: none; text-align: left; font-size: 12px; }
+.repository-list button.on { background: var(--selection, var(--hover)); color: var(--selection-text, var(--accent)); }
+.repository-list small { margin-left: auto; color: var(--muted); }
+.repository-path { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.repository-empty { display: block; padding: 5px 10px; font-size: 12px; }
+.repository-source { font-size: 11px; }
+.repository-error { display: flex; flex-direction: column; align-items: flex-start; gap: 8px; padding: 10px; border-radius: 6px; background: color-mix(in srgb, var(--error, #b33e2d) 10%, transparent); font-size: 12px; overflow-wrap: anywhere; }
+.repository-confirm { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-top: 12px; padding: 10px; border-radius: 6px; background: color-mix(in srgb, var(--muted) 14%, transparent); font-size: 12px; }
+.repository-confirm-actions { display: flex; gap: 8px; margin-left: auto; }
+.project-dialog-actions .unbind-repository { margin-right: auto; }

@@ -2,6 +2,7 @@ import { message } from '../shared/messages';
 import { parentPort, workerData } from 'node:worker_threads';
 import { DatabaseSync } from 'node:sqlite';
 import { agentTypeSchema, defaultNavigation, navigationSchema, parseLayout, type NavigationPreferences, type Panel, type Project } from '../shared/model';
+import { codeHostingPlatformIdSchema, type RepositoryReference } from '../shared/code-hosting';
 
 const file: string = workerData.file;
 const db = new DatabaseSync(file);
@@ -9,6 +10,7 @@ db.exec(`PRAGMA journal_mode=WAL; PRAGMA foreign_keys=ON;
   CREATE TABLE IF NOT EXISTS projects (id TEXT PRIMARY KEY, name TEXT NOT NULL, directory TEXT NOT NULL UNIQUE, layout TEXT);
   CREATE TABLE IF NOT EXISTS panels (id TEXT PRIMARY KEY, project_id TEXT NOT NULL REFERENCES projects(id), agent TEXT NOT NULL, position INTEGER NOT NULL);
   CREATE TABLE IF NOT EXISTS workspace (id INTEGER PRIMARY KEY CHECK(id=1), active_project TEXT, navigation TEXT);
+  CREATE TABLE IF NOT EXISTS repository_bindings (project_id TEXT PRIMARY KEY REFERENCES projects(id), platform TEXT NOT NULL, path TEXT NOT NULL);
 `);
 
 // Stored content is read in its current format only: anything else fails the whole load and leaves the file untouched.
@@ -26,6 +28,19 @@ function readProject(row: Record<string, unknown>): Project {
   return { id, name, directory, layout, panels };
 }
 
+/** Each project's Repository Binding: the platform must be one the Workbench has an adapter for. */
+function readBindings(projects: Project[]): Record<string, RepositoryReference> {
+  const bindings: Record<string, RepositoryReference> = {};
+  for (const row of db.prepare('SELECT project_id, platform, path FROM repository_bindings').all()) {
+    const project = projects.find(project => project.id === row.project_id)!;
+    const platform = codeHostingPlatformIdSchema.safeParse(row.platform);
+    if (!platform.success) throw new Error(message('projectDataInvalid', { file, field: 'repository_bindings.platform', id: project.id, name: project.name }));
+    if (!row.path) throw new Error(message('projectDataInvalid', { file, field: 'repository_bindings.path', id: project.id, name: project.name }));
+    bindings[project.id] = { platform: platform.data, path: row.path as string };
+  }
+  return bindings;
+}
+
 function readNavigation(stored: unknown): NavigationPreferences {
   if (stored === null || stored === undefined) return defaultNavigation;
   try { return navigationSchema.parse(JSON.parse(stored as string)); }
@@ -37,8 +52,10 @@ parentPort!.on('message', ({ id, operation, value }) => {
     let result: unknown;
     if (operation === 'load') {
       const workspace = db.prepare('SELECT navigation, active_project FROM workspace WHERE id=1').get();
+      const projects = db.prepare('SELECT * FROM projects ORDER BY rowid').all().map(readProject);
       result = {
-        projects: db.prepare('SELECT * FROM projects ORDER BY rowid').all().map(readProject),
+        projects,
+        repositories: readBindings(projects),
         navigation: readNavigation(workspace?.navigation),
         activeProjectId: workspace?.active_project ?? null,
       };
@@ -57,12 +74,18 @@ parentPort!.on('message', ({ id, operation, value }) => {
       db.exec('BEGIN IMMEDIATE');
       try {
         db.prepare('DELETE FROM panels WHERE project_id=?').run(value.id);
+        db.prepare('DELETE FROM repository_bindings WHERE project_id=?').run(value.id);
         db.prepare('DELETE FROM projects WHERE id=?').run(value.id);
         db.prepare('INSERT INTO workspace (id, active_project) VALUES (1,?) ON CONFLICT(id) DO UPDATE SET active_project=excluded.active_project').run(value.activeProjectId);
         db.exec('COMMIT');
       } catch (error) { db.exec('ROLLBACK'); throw error; }
     } else if (operation === 'active') {
       db.prepare('INSERT INTO workspace (id, active_project) VALUES (1,?) ON CONFLICT(id) DO UPDATE SET active_project=excluded.active_project').run(value);
+    } else if (operation === 'bind') {
+      const { projectId, repository } = value as { projectId: string; repository: RepositoryReference | null };
+      if (repository) db.prepare('INSERT INTO repository_bindings VALUES (?,?,?) ON CONFLICT(project_id) DO UPDATE SET platform=excluded.platform, path=excluded.path')
+        .run(projectId, repository.platform, repository.path);
+      else db.prepare('DELETE FROM repository_bindings WHERE project_id=?').run(projectId);
     } else if (operation === 'navigation') {
       db.prepare('INSERT INTO workspace (id, navigation) VALUES (1,?) ON CONFLICT(id) DO UPDATE SET navigation=excluded.navigation').run(JSON.stringify(value));
     } else if (operation === 'close') db.close();

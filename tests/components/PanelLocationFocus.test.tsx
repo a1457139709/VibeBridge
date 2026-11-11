@@ -54,7 +54,7 @@ async function renderWorkbench() {
     settingsConflicts: [], startupTheme: 'light', resolvedTheme: 'light', errors: [],
     projects: [{ id: 'project', name: 'Locating', directory: '/work/locating',
       layout: { axis: 'row', ratio: .5, first: { panel: 'first' }, second: { panel: 'second' } },
-      panels: [panel('first'), panel('second')], tray: [] }],
+      panels: [panel('first'), panel('second')], tray: [], repository: null }],
   };
   let listener: (event: WorkbenchEvent) => void = () => {};
   provideWorkbench({ snapshot: async () => structuredClone(snapshot), ready: async () => {},
