@@ -9,6 +9,7 @@ import type { PanelView, ProjectView } from '../../app/shared/model';
 import type { DispatchLocation, DispatchRecordView, DispatchRequest } from '../../app/shared/dispatch';
 import type { IssuePageResult, IssueSummary } from '../../app/shared/code-hosting';
 import { defaultWorkflowSettings, type WorkflowSettings } from '../../app/shared/workflows';
+import { defaultShortcuts } from '../../app/shared/shortcuts';
 
 afterEach(cleanup);
 
@@ -38,7 +39,7 @@ function renderList({ state = project(), workflows = defaultWorkflowSettings(), 
     dispatch: async (_projectId: string, request: DispatchRequest) => { dispatched.push(request); },
   };
   const view = (next: ProjectView) => <Localization language="en">
-    <IssueLists project={next} repository={next.repository!} workflows={workflows} changeBinding={() => {}} locate={location => locations.push(location)} detail={{ open() {} }} api={api} />
+    <IssueLists project={next} repository={next.repository!} workflows={workflows} shortcuts={defaultShortcuts()} changeBinding={() => {}} locate={location => locations.push(location)} detail={{ open() {} }} api={api} />
   </Localization>;
   const result = render(view(state));
   return { user: userEvent.setup(), dispatched, locations, reads: () => reads, rerender: (next: ProjectView) => result.rerender(view(next)) };

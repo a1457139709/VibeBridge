@@ -33,9 +33,23 @@ test('missing and invalid settings values fall back to their defaults field by f
       shortcuts: {
         previousProject: 'Command+Shift+[', nextProject: 'Command+Shift+]', previousPanel: 'Command+[', nextPanel: 'Command+K',
         maximizePanel: 'Command+Enter', addPanel: 'Command+N', closePanel: 'Command+Shift+W', settings: 'Command+,',
-        toggleIssueSidebar: 'Command+Alt+B',
+        toggleIssueSidebar: 'Command+Alt+B', dispatch: 'Command+D', locateDispatch: 'Command+L',
       },
     });
+  } finally { await workbench.quit(); }
+});
+
+test('the dispatch and locate-dispatch shortcuts join the conflict check', async context => {
+  const directory = await testDirectory(context, 'settings-contract-dispatch-shortcuts');
+  await writeFile(`${directory}/settings.json`, JSON.stringify({ shortcuts: { locateDispatch: 'Command+D', addPanel: 'Command+L' } }));
+  const workbench = await Workbench.open(directory);
+  try {
+    const { settings, settingsConflicts } = workbench.snapshot();
+    assert.deepEqual(settingsConflicts.map(issue => issue.field), ['shortcuts.dispatch', 'shortcuts.locateDispatch']);
+    const result = await workbench.saveSettings({ shortcuts: { ...settings.shortcuts, addPanel: 'Command+N', dispatch: 'Command+Alt+D', locateDispatch: 'Command+L' } });
+    assert.equal(result.ok, true);
+    assert.deepEqual((await storedSettings(directory)).shortcuts, { ...defaultSettings().shortcuts, dispatch: 'Command+Alt+D' });
+    assert.deepEqual(workbench.snapshot().settingsConflicts, []);
   } finally { await workbench.quit(); }
 });
 

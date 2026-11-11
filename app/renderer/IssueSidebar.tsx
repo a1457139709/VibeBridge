@@ -59,7 +59,7 @@ export function useIssueSidebar(host: Host, api: Pick<DesktopAPI, 'saveIssueSide
       <header className="issue-sidebar-heading"><span className="issue-sidebar-title">{title}</span>
         {repository && <span className="issue-sidebar-repository">{repository.path}</span>}</header>
       {project && repository && <IssueLists key={lists} project={project} repository={repository}
-        workflows={snapshot!.settings.workflows} changeBinding={() => host.bindRepository(project)}
+        workflows={snapshot!.settings.workflows} shortcuts={snapshot!.settings.shortcuts} changeBinding={() => host.bindRepository(project)}
         locate={location => host.locatePanel(location.projectId, location.panelId, location.runId)} detail={{ opened: openedNumber, open: openIssue }} />}
       {project && !repository && <div className="issue-sidebar-state">
         <p>{t('issueSidebarUnbound')}</p>

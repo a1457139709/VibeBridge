@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type MouseEvent } from 'react';
+import { useEffect, useImperativeHandle, useLayoutEffect, useRef, useState, type KeyboardEvent, type Ref, type RefObject } from 'react';
 import { agentNames, projectPanels, type AgentType, type PanelView, type ProjectView } from '../shared/model';
 import type { IssueSummary } from '../shared/code-hosting';
 import type { DispatchLocation, DispatchRecordView, DispatchRequest } from '../shared/dispatch';
@@ -7,6 +7,7 @@ import { ProcessingStatusIcon } from './ProcessingStatusIcon';
 import { agentIcons } from './agent-icons';
 import { relativeTime } from './list-row-parts';
 import { useLocalization } from './Localization';
+import { shortcutFromEvent, type Shortcuts } from '../shared/shortcuts';
 import './dispatch.css';
 
 /** A panel the menu can dispatch to: one of the project's panels whose Agent is running. */
@@ -17,15 +18,30 @@ const targets = (project: ProjectView): Target[] => projectPanels(project).flatM
 // The order the spec lists new panels in.
 const newPanelAgents: AgentType[] = ['claude', 'codex', 'pi'];
 const flipped = (delivery: Delivery): Delivery => delivery === 'submit' ? 'fill' : 'submit';
+// The panel each instruction last went to, remembered while the app runs, keyed by workflow and instruction.
+const lastTargets = new Map<string, string>();
+const instructionKey = (workflow: Workflow, instruction: WorkflowInstruction) => `${workflow.id}/${instruction.id}`;
+const isSpace = (event: KeyboardEvent) => event.code === 'Space' || event.key === ' ';
+
+/** The enabled items of one menu layer, not of the layer nested in it. */
+const items = (layer: HTMLElement | null) => [...layer?.querySelectorAll<HTMLButtonElement>('[role=menuitem]:not(:disabled)') ?? []]
+  .filter(item => item.parentElement?.closest('[role=menu]') === layer);
+/** The latest of an open issue's dispatches whose session a panel is on now. */
+const locatable = (issue: IssueSummary, records: DispatchRecordView[]) => issue.state === 'closed' ? undefined : records.find(record => record.location)?.location;
+
+/** Opens the menu from the keyboard, with focus on its first instruction. */
+export interface DispatchMenuActions { open(): void }
 
 /**
  * The issue's 派发 button and its cascading menu: the instructions of enabled workflows, then, to the left, the targets
- * for the chosen one. Nothing is preselected. ⌥ while clicking a target inverts the delivery once. A submitted dispatch
- * returns focus to the button; a filled one locates its panel.
+ * for the chosen one, the one it last went to highlighted. Nothing is preselected. Opening the menu moves focus into
+ * it: ↑/↓ move, ← or Space opens an instruction's targets, → returns to the instructions, Space dispatches, Escape
+ * closes the whole menu and Enter does nothing. ⌥ with Space or a click inverts the delivery once. A submitted
+ * dispatch returns focus to the button; a filled one locates its panel.
  */
-export function DispatchMenu({ issue, project, workflows, dispatch, locate }: {
+export function DispatchMenu({ issue, project, workflows, dispatch, locate, ref }: {
   issue: IssueSummary; project: ProjectView; workflows: WorkflowSettings;
-  dispatch(request: DispatchRequest): Promise<void>; locate(location: DispatchLocation): void;
+  dispatch(request: DispatchRequest): Promise<void>; locate(location: DispatchLocation): void; ref?: Ref<DispatchMenuActions>;
 }) {
   const { t, text } = useLocalization();
   const [open, setOpen] = useState(false);
@@ -33,6 +49,16 @@ export function DispatchMenu({ issue, project, workflows, dispatch, locate }: {
   const [failure, setFailure] = useState<string>();
   const root = useRef<HTMLDivElement>(null);
   const button = useRef<HTMLButtonElement>(null);
+  const menu = useRef<HTMLDivElement>(null);
+  const targetMenu = useRef<HTMLDivElement>(null);
+  // Set when the keyboard opens an instruction's targets, which then take focus.
+  const focusTargets = useRef(false);
+  useImperativeHandle(ref, () => ({ open: () => setOpen(true) }));
+  useLayoutEffect(() => { if (open) (items(menu.current)[0] ?? menu.current)?.focus(); }, [open]);
+  useLayoutEffect(() => {
+    if (focusTargets.current) items(targetMenu.current)[0]?.focus();
+    focusTargets.current = false;
+  }, [chosen]);
   const enabled = workflowCatalog.filter(workflow => workflows[workflow.id]?.enabled);
   const close = () => { setOpen(false); setChosen(undefined); };
   useEffect(() => {
@@ -42,10 +68,10 @@ export function DispatchMenu({ issue, project, workflows, dispatch, locate }: {
     return () => document.removeEventListener('pointerdown', outside);
   }, [open]);
   const delivery = (workflow: Workflow, instruction: WorkflowInstruction): Delivery => workflows[workflow.id]?.instructions[instruction.id]?.delivery ?? 'submit';
-  async function send(target: Target, event: MouseEvent) {
+  async function send(target: Target, invert: boolean) {
     if (!chosen) return;
-    const invert = event.altKey;
     const effective = invert ? flipped(delivery(chosen.workflow, chosen.instruction)) : delivery(chosen.workflow, chosen.instruction);
+    lastTargets.set(instructionKey(chosen.workflow, chosen.instruction), target.panel.id);
     close(); setFailure(undefined);
     try {
       await dispatch({ issue: { number: issue.number, title: issue.title }, workflow: chosen.workflow.id, instruction: chosen.instruction.id,
@@ -56,32 +82,48 @@ export function DispatchMenu({ issue, project, workflows, dispatch, locate }: {
   const instructions = (workflow: Workflow) => workflow.instructions.map(instruction => {
     const mode = delivery(workflow, instruction);
     const current = chosen?.instruction === instruction;
+    const enter = () => { focusTargets.current = true; setChosen({ workflow, instruction }); };
     return [instruction.separatorBefore && <hr key={`${instruction.id}-separator`} />,
       <button key={instruction.id} role="menuitem" aria-haspopup="menu" aria-expanded={current} className={current ? 'chosen' : undefined}
-        onMouseEnter={() => setChosen({ workflow, instruction })} onClick={() => setChosen({ workflow, instruction })}>
+        onMouseEnter={() => setChosen({ workflow, instruction })} onClick={() => setChosen({ workflow, instruction })}
+        onKeyUp={event => { if (isSpace(event)) enter(); }} onKeyDown={event => { if (event.key === 'ArrowLeft') enter(); }}>
         <code>{instruction.skill}</code><small className={`dispatch-delivery ${mode}`}>{t(mode === 'submit' ? 'deliverySubmit' : 'deliveryFill')}</small>
       </button>];
   });
+  // Keys stay in the open menu, so none reaches a terminal; Space acts on its release, after the press it belongs to.
+  function keys(event: KeyboardEvent) {
+    if (event.metaKey || event.ctrlKey) return;
+    if (event.type === 'keydown' && (event.key === 'ArrowDown' || event.key === 'ArrowUp')) {
+      const layer = items((event.target as Element).closest<HTMLElement>('[role=menu]'));
+      const next = layer[layer.indexOf(event.target as HTMLButtonElement) + (event.key === 'ArrowDown' ? 1 : -1)];
+      next?.focus();
+    } else if (event.type === 'keydown' && event.key === 'ArrowRight' && chosen) {
+      menu.current?.querySelector<HTMLElement>('[aria-expanded=true]')?.focus(); setChosen(undefined);
+    } else if (event.type === 'keydown' && event.key === 'Escape') { close(); button.current?.focus(); }
+    else if (event.key !== 'Enter' && !isSpace(event) && event.key !== 'ArrowLeft') return;
+    event.preventDefault(); event.stopPropagation();
+  }
   return <div className="dispatch" ref={root}>
     <button ref={button} className="dispatch-button" aria-haspopup="menu" aria-expanded={open} onClick={() => open ? close() : setOpen(true)}>{t('dispatch')}</button>
-    {open && <div className="dispatch-menu" role="menu" aria-label={t('dispatchIssue', { number: issue.number })}
-      onKeyDown={event => { if (event.key === 'Escape') { event.preventDefault(); close(); button.current?.focus(); } }}>
+    {open && <div ref={menu} tabIndex={-1} className="dispatch-menu" role="menu" aria-label={t('dispatchIssue', { number: issue.number })} onKeyDown={keys} onKeyUp={keys}>
       {!enabled.length && <p className="dispatch-empty">{t('noEnabledWorkflows')}</p>}
       {enabled.length === 1 && instructions(enabled[0])}
       {enabled.length > 1 && enabled.map(workflow => <div key={workflow.id} role="group" aria-label={workflow.name}>
         <div className="dispatch-heading" aria-hidden="true">{workflow.name}</div>{instructions(workflow)}</div>)}
-      {chosen && <div className="dispatch-targets" role="menu" aria-label={t('dispatchTargets', { instruction: chosen.instruction.skill })}>
+      {chosen && <div ref={targetMenu} className="dispatch-targets" role="menu" aria-label={t('dispatchTargets', { instruction: chosen.instruction.skill })}>
         {/* New panels are dispatched to by the next step of this feature. */}
         {newPanelAgents.map(agent => <button key={agent} role="menuitem" disabled aria-label={t('newPanelTarget', { agent: agentNames[agent] })}>
           <span className="agent-mark">{agentIcons[agent]}</span><span className="dispatch-target-title">{t('newPanelTarget', { agent: agentNames[agent] })}</span>
         </button>)}
         <hr />
         {targets(project).map(target => {
+          const last = lastTargets.get(instructionKey(chosen.workflow, chosen.instruction)) === target.panel.id;
           const { panel } = target;
           const title = panel.run?.title ?? t('untitled');
           const side = t(target.location.ephemeral ? 'ephemeralPanel' : 'residentPanel');
           return <button key={panel.id} role="menuitem" aria-label={`${title} · ${t(panel.status ?? 'error')} · ${agentNames[panel.agent]} · ${side}`}
-            onClick={event => void send(target, event)}>
+            aria-current={last || undefined} className={last ? 'last-target' : undefined}
+            onClick={event => void send(target, event.altKey)} onKeyUp={event => { if (isSpace(event)) void send(target, event.altKey); }}>
             <span className="agent-mark">{agentIcons[panel.agent]}</span><ProcessingStatusIcon state={panel.status} />
             <span className="dispatch-target-title">{title}</span><small>{side}</small>
           </button>;
@@ -105,7 +147,7 @@ export function DispatchStatus({ issue, records, locate }: { issue: IssueSummary
   const dispatched = t('dispatchedAt', { time: relativeTime(time, language) });
   const summary = t('dispatchSummary', { title: latest.location ? latest.location.title ?? t('untitled') : dispatched,
     agent: agentNames[latest.agent], time: time.toLocaleString(language), text: latest.text });
-  const target = records.find(record => record.location)?.location;
+  const target = locatable(issue, records);
   return <button className="issue-dispatch" aria-label={t('locateDispatch', { summary })} data-hint={summary}
     onClick={() => { if (target) locate(target); }}>
     {latest.location ? <>
@@ -114,4 +156,20 @@ export function DispatchStatus({ issue, records, locate }: { issue: IssueSummary
       {records.length > 1 && <span className="issue-dispatch-count">{t('dispatchCount', { count: records.length })}</span>}
     </> : <span className="issue-dispatched">{dispatched}</span>}
   </button>;
+}
+
+/**
+ * The dispatch and locate shortcuts while focus is within an issue: open its dispatch menu, or locate the latest of its
+ * dispatches a panel is on now. Every other key passes on, as both do outside an issue, so they reach a focused terminal.
+ */
+export function issueShortcutKeys({ issue, records, shortcuts, menu, locate }: {
+  issue: IssueSummary; records: DispatchRecordView[]; shortcuts: Shortcuts; menu: RefObject<DispatchMenuActions | null>; locate(location: DispatchLocation): void;
+}) {
+  return (event: KeyboardEvent) => {
+    const binding = shortcutFromEvent(event.nativeEvent);
+    if (!binding || (binding !== shortcuts.dispatch && binding !== shortcuts.locateDispatch)) return;
+    event.preventDefault(); event.stopPropagation();
+    if (binding === shortcuts.dispatch) menu.current?.open();
+    else { const target = locatable(issue, records); if (target) locate(target); }
+  };
 }

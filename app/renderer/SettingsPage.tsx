@@ -3,7 +3,7 @@ import { localize } from '../shared/localization';
 import { message } from '../shared/messages';
 import { useEffect, useImperativeHandle, useLayoutEffect, useRef, useState, type CSSProperties, type Ref } from 'react';
 import { agentNames, agentTypes, type AgentCommand, type CommandCheck, type Settings } from '../shared/model';
-import { defaultShortcuts, displayShortcut, shortcutActions, shortcutFromEvent, shortcutConflicts, type ShortcutAction } from '../shared/shortcuts';
+import { defaultShortcuts, displayShortcut, shortcutActions, shortcutFromEvent, shortcutConflicts, shortcutNames, type ShortcutAction } from '../shared/shortcuts';
 import type { ReportNotice } from './Notices';
 import { agentIcons } from './agent-icons';
 import { AppearanceFields } from './AppearanceSettings';
@@ -153,7 +153,7 @@ function SettingsEditor({ settings, startupTheme, initialCategory = settingsCate
     decideLeave(await save(settingsCategories.filter(category => leaveCategories.includes(category.id) || conflicting.includes(category.id)).map(category => category.id)));
   }
   const query = search.trim().toLowerCase();
-  const actions = shortcutActions.filter(action => `${t(action === 'settings' ? 'openSettings' : action)} ${shortcuts[action]} ${displayShortcut(shortcuts[action])}`.toLowerCase().includes(query));
+  const actions = shortcutActions.filter(action => `${text(shortcutNames[action])} ${shortcuts[action]} ${displayShortcut(shortcuts[action])}`.toLowerCase().includes(query));
   return <div className="settings-page">
     <div className="settings-shell"><button className="settings-back text-button" autoFocus disabled={saving} onClick={back}>{t('back')}</button>
       <h1>{t('settings')}</h1><div className="settings-columns">
@@ -186,7 +186,7 @@ function SettingsEditor({ settings, startupTheme, initialCategory = settingsCate
               const groupIndex = conflicts.findIndex(group => group.actions.includes(action));
               const conflict = conflicts[groupIndex];
               const issue = fieldError(`shortcuts.${action}`);
-              return <div className={`shortcut-row ${conflict ? 'shortcut-conflict' : ''}`} style={conflict ? { '--conflict-color': conflictColors[groupIndex] } as CSSProperties : undefined} key={action}><div><label htmlFor={`shortcut-${action}`}>{t(action === 'settings' ? 'openSettings' : action)}</label><small>{t('shortcutDefault', { binding: displayShortcut(defaults[action]) })}</small>{issue && <p id={`conflict-${action}`} className="shortcut-conflict-message error-text">{issue}</p>}</div>
+              return <div className={`shortcut-row ${conflict ? 'shortcut-conflict' : ''}`} style={conflict ? { '--conflict-color': conflictColors[groupIndex] } as CSSProperties : undefined} key={action}><div><label htmlFor={`shortcut-${action}`}>{text(shortcutNames[action])}</label><small>{t('shortcutDefault', { binding: displayShortcut(defaults[action]) })}</small>{issue && <p id={`conflict-${action}`} className="shortcut-conflict-message error-text">{issue}</p>}</div>
               <input id={`shortcut-${action}`} data-settings-field={`shortcuts.${action}`} data-shortcut-recorder aria-invalid={!!issue || undefined} aria-describedby={issue ? `conflict-${action}` : undefined} data-hint={shortcuts[action]} readOnly value={recording === action ? t('shortcutRecording') : displayShortcut(shortcuts[action])}
                 onFocus={() => setRecording(action)} onBlur={() => setRecording(undefined)} onKeyDown={event => {
                   if (event.key === 'Tab' && !event.metaKey && !event.ctrlKey && !event.altKey) return;
