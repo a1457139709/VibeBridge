@@ -1,8 +1,8 @@
 import { message } from '../shared/messages';
 import { sameRepository } from '../shared/code-hosting';
 import { bracketedPaste, dispatchRequestSchema, type DispatchLocation, type DispatchRecord, type DispatchRecordView, type DispatchRequest, type UnwrittenDispatch } from '../shared/dispatch';
-import { instructionText, workflowCatalog, type Delivery, type WorkflowSettings } from '../shared/workflows';
-import type { AgentType, Panel, PanelCreation, Project } from '../shared/model';
+import { defaultDelivery, instructionText, workflowCatalog, type Delivery, type WorkflowSettings } from '../shared/workflows';
+import { projectPanels, type AgentType, type Panel, type PanelCreation, type Project } from '../shared/model';
 import { platforms } from './code-hosting/platforms';
 import type { RunSupervision } from './run-supervision';
 import type { ProjectStore } from './storage';
@@ -74,13 +74,13 @@ export class Dispatches {
     const setting = workflow && this.host.workflows()[workflow.id];
     const instruction = workflow?.instructions.find(instruction => instruction.id === parsed.data.instruction);
     if (!setting?.enabled || !instruction) throw new Error(message('instructionUnavailable'));
-    const configured = setting.instructions[instruction.id]?.delivery ?? 'submit';
+    const configured = setting.instructions[instruction.id]?.delivery ?? defaultDelivery;
     const delivery: Delivery = invert ? (configured === 'submit' ? 'fill' : 'submit') : configured;
     const url = platforms[repository.platform].issueUrl(repository.path, issue.number);
     const dispatched = (agent: AgentType) => ({ repository, issue: issue.number, time: new Date().toISOString(), agent,
       text: instructionText(agent, instruction, { url, number: issue.number, title: issue.title }) });
     if ('agent' in target) return this.dispatchToNewPanel(projectId, dispatched(target.agent), delivery);
-    const panel = [...project.panels, ...this.host.tray(projectId)].find(panel => panel.id === target.panelId);
+    const panel = projectPanels({ panels: project.panels, tray: this.host.tray(projectId) }).find(panel => panel.id === target.panelId);
     if (!panel) throw new Error(message('panelMissing'));
     const run = this.supervision.panelView(panel).run;
     if (run?.state !== 'running') throw new Error(message('dispatchTargetStopped'));

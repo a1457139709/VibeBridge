@@ -5,6 +5,8 @@ export interface WorkflowInstruction { id: string; skill: string; template: stri
 export interface Workflow { id: string; name: string; instructions: readonly WorkflowInstruction[] }
 export type Delivery = 'submit' | 'fill';
 export const deliveries = ['submit', 'fill'] as const satisfies readonly Delivery[];
+/** How an instruction is delivered until the user chooses otherwise. */
+export const defaultDelivery: Delivery = 'submit';
 
 /** The `workflows` entry of settings.json, keyed by workflow ID and then instruction ID. */
 export interface WorkflowSetting { enabled: boolean; instructions: Record<string, { delivery: Delivery }> }
@@ -27,7 +29,7 @@ export const workflowCatalog: readonly Workflow[] = [
 
 /** Every built-in workflow starts switched on, with each instruction submitted. */
 export const defaultWorkflowSettings = (): WorkflowSettings => Object.fromEntries(workflowCatalog.map(workflow => [workflow.id, {
-  enabled: true, instructions: Object.fromEntries(workflow.instructions.map(instruction => [instruction.id, { delivery: 'submit' as const }])),
+  enabled: true, instructions: Object.fromEntries(workflow.instructions.map(instruction => [instruction.id, { delivery: defaultDelivery }])),
 }]));
 
 /** How each Agent type invokes a skill. Skill names are written as built in. */
