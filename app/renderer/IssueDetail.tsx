@@ -1,12 +1,15 @@
-import { useEffect, useRef, useState, type CSSProperties, type MouseEvent } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState, type CSSProperties, type KeyboardEvent, type MouseEvent } from 'react';
 import type { DesktopAPI } from '../shared/api';
 import { platformDescriptions, repositoryItem, type IssueDetail, type IssueDetailResult, type MergeRequestReference,
   type RelatedIssue, type RepositoryReference } from '../shared/code-hosting';
 import { useLocalization } from './Localization';
 import { allowedHtml } from './platform-html';
-import { IssueStateIcon } from './IssueLists';
+import { IssueStateIcon } from './issue-icons';
 import { relativeTime } from './list-row-parts';
 import { CheckIcon, MergeRequestStateIcon } from './MergeRequestRow';
+
+/** How far ↑ and ↓ scroll the detail, in pixels. */
+const scrollStep = 40;
 
 type Failure = Extract<IssueDetailResult, { ok: false }> | { ok: false; error: string };
 
@@ -15,11 +18,24 @@ type Failure = Extract<IssueDetailResult, { ok: false }> | { ok: false; error: s
  * repository's issues open here; every other link, and merge requests until their detail
  * exists, go to the system browser.
  */
-export function IssueDetailView({ projectId, repository, number, openIssue, close, api = window.workbench }: {
+export function IssueDetailView({ projectId, repository, number, openIssue, close, returnToList, api = window.workbench }: {
   projectId: string; repository: RepositoryReference; number: number; openIssue(number: number): void; close(): void;
+  /** Closes the detail with focus on the issue's row. */
+  returnToList(): void;
   api?: Pick<DesktopAPI, 'issueDetail'>;
 }) {
   const { t } = useLocalization();
+  const section = useRef<HTMLElement>(null);
+  // Focus enters the detail when it opens.
+  useLayoutEffect(() => { section.current?.focus(); }, []);
+  const keyDown = (event: KeyboardEvent) => {
+    if (event.defaultPrevented || event.altKey || event.metaKey || event.ctrlKey || event.shiftKey) return;
+    if (event.key === 'ArrowUp' || event.key === 'ArrowDown') {
+      section.current?.querySelector('.issue-detail-scroll')?.scrollBy({ top: event.key === 'ArrowUp' ? -scrollStep : scrollStep });
+    } else if (event.key === 'ArrowRight' || event.key === 'Escape') returnToList();
+    else return;
+    event.preventDefault();
+  };
   const [state, setState] = useState<{ issue?: IssueDetail; failure?: Failure; loading: boolean }>({ loading: true });
   const latest = useRef(0);
   const read = () => {
@@ -47,7 +63,7 @@ export function IssueDetailView({ projectId, repository, number, openIssue, clos
     else window.open(reference.url, '_blank');
   };
   const issue = state.issue?.number === number ? state.issue : undefined;
-  return <section className="issue-detail" aria-label={t('issueDetail', { number })} onClick={follow}>
+  return <section ref={section} tabIndex={-1} className="issue-detail" aria-label={t('issueDetail', { number })} onClick={follow} onKeyDown={keyDown}>
     <header className="issue-detail-bar">
       <span className="issue-detail-crumb">{t('issueDetail', { number })}</span>
       {issue && <a href={issue.url} target="_blank" rel="noreferrer">{t('openOnPlatform', { platform: platform.name })}</a>}

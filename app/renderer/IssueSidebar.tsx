@@ -6,6 +6,7 @@ import { useLocalization } from './Localization';
 import { useSavedPreferences } from './saved-preferences';
 import { IssueLists } from './IssueLists';
 import { IssueDetailView } from './IssueDetail';
+import { issueRow } from './issue-navigation';
 import './issue-sidebar.css';
 
 interface Host {
@@ -40,6 +41,10 @@ export function useIssueSidebar(host: Host, api: Pick<DesktopAPI, 'saveIssueSide
   const openedNumber = visible && opened && opened.lists === lists ? opened.number : undefined;
   const openIssue = (number: number) => { if (lists) setOpened({ lists, number }); };
   const closeDetail = () => setOpened(undefined);
+  const returnToList = (number: number) => {
+    closeDetail();
+    (issueRow(element.current, number) ?? element.current)?.focus();
+  };
   const title = repository ? platformDescriptions[repository.platform].name : t('issueSidebar');
   return {
     visible,
@@ -50,7 +55,7 @@ export function useIssueSidebar(host: Host, api: Pick<DesktopAPI, 'saveIssueSide
     detailOpen: openedNumber !== undefined,
     /** Lies left of the sidebar; the host places it over or beside the layout area. */
     detail: project && repository && openedNumber !== undefined && <IssueDetailView key={`${lists}#${openedNumber}`} projectId={project.id}
-      repository={repository} number={openedNumber} openIssue={openIssue} close={closeDetail} />,
+      repository={repository} number={openedNumber} openIssue={openIssue} close={closeDetail} returnToList={() => returnToList(openedNumber)} />,
     toggle: <button className="issue-sidebar-toggle" aria-label={visible ? t('closeIssueSidebar') : t('openIssueSidebar')} aria-expanded={visible}
       disabled={!snapshot} onClick={() => { closeDetail(); toggle(); }}><SidebarIcon /></button>,
     sidebar: visible && <aside ref={element} tabIndex={-1} className="issue-sidebar" aria-label={title}

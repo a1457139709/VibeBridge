@@ -44,6 +44,9 @@
 .issue-list ul { list-style: none; margin: 0; padding: 0; }
 .issue-row { display: flex; align-items: flex-start; gap: 8px; padding: 8px 12px; border-bottom: 1px solid var(--line); }
 .issue-row:hover { background: var(--hover); }
+/* A focused row outlines its own line, not the sub-issues it holds. */
+[data-issue-row]:focus, .issue-detail:focus { outline: none; }
+[data-issue-row]:focus-visible > .issue-row { outline: 2px solid var(--focus); outline-offset: -2px; }
 .issue-state { flex-shrink: 0; margin-top: 1px; }
 .issue-state-open { color: var(--issue-open); }
 .issue-state-completed { color: var(--issue-done); }
