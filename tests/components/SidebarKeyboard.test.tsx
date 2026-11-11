@@ -49,7 +49,7 @@ async function renderWorkbench(issueSidebar: IssueSidebarPreferences = { visible
   return { user: userEvent.setup() };
 }
 const row = (number: number) => screen.getByRole('listitem', { name: `#${number} Issue ${number}` });
-const focused = (number: number) => waitFor(() => assert.equal(document.activeElement, row(number), `focus on #${number}`));
+const focused = (number: number) => waitFor(() => assert.ok(document.activeElement === row(number), `focus on #${number}`));
 
 test('the list moves with the arrow keys, expands sub-issues to the left and climbs back to the parent to the right', async () => {
   const { user } = await renderWorkbench();
@@ -102,10 +102,12 @@ test('Space or Enter opens the detail with focus inside; arrows scroll it, Tab r
   const link = await within(shown).findByRole('link', { name: 'a link' });
   await user.keyboard('{ArrowDown}{ArrowDown}{ArrowUp}');
   assert.deepEqual(scrolled.map(Math.sign), [1, 1, -1]);
-  await user.tab();
-  await user.tab();
-  await user.tab();
-  assert.equal(document.activeElement, link, 'Tab moves through the links and buttons of the detail');
+  // Tab passes the detail's header link and buttons, never leaving the detail, before it reaches the body's link.
+  for (let step = 0; step < 6 && document.activeElement !== link; step++) {
+    await user.tab();
+    assert.ok(shown.contains(document.activeElement), `Tab ${step + 1} stays in the detail`);
+  }
+  assert.ok(document.activeElement === link, 'Tab reaches the link in the body');
 
   await user.keyboard('{ArrowRight}');
   await waitFor(() => assert.equal(screen.queryByRole('region', { name: 'Issue #20' }), null));

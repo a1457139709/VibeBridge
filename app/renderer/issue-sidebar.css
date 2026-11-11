@@ -94,9 +94,10 @@ main:has(> .workbench-page:not([hidden]) .panel-tray:not(.empty)) > .issue-detai
 .issue-detail-scroll { flex: 1; min-height: 0; overflow: auto; padding: 12px 16px 24px; }
 .issue-detail-loading { color: var(--muted); }
 .issue-detail-title { margin: 0 0 6px; font-size: 17px; line-height: 1.35; overflow-wrap: anywhere; }
+.issue-detail-head { display: flex; flex-wrap: wrap; align-items: center; gap: 4px; margin-bottom: 6px; }
+.issue-detail-head .dispatch { margin-left: auto; }
 .issue-detail-meta { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 10px; color: var(--muted); font-size: 12px; }
 .issue-detail-author { color: inherit; font-weight: 600; }
-.issue-detail-labels { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 8px; }
 .issue-detail-card { margin-top: 12px; border: 1px solid var(--line); border-radius: 8px; overflow: hidden; }
 .issue-detail-card > header { padding: 6px 10px; border-bottom: 1px solid var(--line); background: var(--hover); color: var(--muted); font-size: 12px; }
 .issue-detail-card > header b { color: var(--text, inherit); }
