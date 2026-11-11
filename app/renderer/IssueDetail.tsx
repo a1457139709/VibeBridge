@@ -1,4 +1,4 @@
-import { useRef, type CSSProperties } from 'react';
+import { useLayoutEffect, useRef, type CSSProperties, type KeyboardEvent } from 'react';
 import type { DesktopAPI } from '../shared/api';
 import type { ProjectView } from '../shared/model';
 import type { DispatchLocation } from '../shared/dispatch';
@@ -6,11 +6,14 @@ import type { WorkflowSettings } from '../shared/workflows';
 import { platformDescriptions, repositoryItem, type IssueDetail, type MergeRequestReference,
   type RelatedIssue, type RepositoryItem, type RepositoryReference } from '../shared/code-hosting';
 import { useLocalization } from './Localization';
-import { IssueStateIcon } from './IssueLists';
+import { IssueStateIcon } from './issue-icons';
 import { CreatedAt, DetailFailureState, PlatformHtml, followLinks, useDetail } from './detail-parts';
 import { CheckIcon, MergeRequestStateIcon } from './MergeRequestRow';
 import { DispatchMenu, DispatchRecords, issueShortcutKeys, type DispatchMenuActions } from './Dispatch';
 import type { Shortcuts } from '../shared/shortcuts';
+
+/** How far ↑ and ↓ scroll the detail, in pixels. */
+const scrollStep = 40;
 
 /**
  * One issue's read-only detail, read from the platform each time it opens. Links to the bound
@@ -18,14 +21,28 @@ import type { Shortcuts } from '../shared/shortcuts';
  * system browser. The issue is dispatched from here as from its list row, and its Dispatch
  * Records follow the snapshot.
  */
-export function IssueDetailView({ project, repository, number, workflows, shortcuts, open, close, locate, api = window.workbench }: {
+export function IssueDetailView({ project, repository, number, workflows, shortcuts, open, close, returnToList, locate, api = window.workbench }: {
   project: ProjectView; repository: RepositoryReference; number: number; workflows: WorkflowSettings; shortcuts: Shortcuts; open(item: RepositoryItem): void; close(): void;
+  /** Closes the detail with focus on the issue's row. */
+  returnToList(): void;
   /** Shows the panel a dispatch went to. */
   locate(location: DispatchLocation): void;
   api?: Pick<DesktopAPI, 'issueDetail' | 'dispatch'>;
 }) {
   const projectId = project.id;
   const { t } = useLocalization();
+  const section = useRef<HTMLElement>(null);
+  // Focus enters the detail when it opens.
+  useLayoutEffect(() => { section.current?.focus(); }, []);
+  // Keys already handled, as the dispatch menu's and the shortcuts are, stay theirs.
+  const keyDown = (event: KeyboardEvent) => {
+    if (event.defaultPrevented || event.altKey || event.metaKey || event.ctrlKey || event.shiftKey) return;
+    if (event.key === 'ArrowUp' || event.key === 'ArrowDown') {
+      section.current?.querySelector('.issue-detail-scroll')?.scrollBy({ top: event.key === 'ArrowUp' ? -scrollStep : scrollStep });
+    } else if (event.key === 'ArrowRight' || event.key === 'Escape') returnToList();
+    else return;
+    event.preventDefault();
+  };
   const state = useDetail<IssueDetail>(() => api.issueDetail(projectId, number).then(result => result.ok ? { ok: true as const, item: result.issue } : result), [projectId, number]);
   const menu = useRef<DispatchMenuActions>(null);
   const platform = platformDescriptions[repository.platform];
@@ -39,8 +56,9 @@ export function IssueDetailView({ project, repository, number, workflows, shortc
   };
   const issue = state.item?.number === number ? state.item : undefined;
   const records = project.dispatches.filter(record => record.issue === number);
-  return <section className="issue-detail" aria-label={t('issueDetail', { number })} onClick={followLinks(repository, open)}
-    onKeyDown={issue && issueShortcutKeys({ issue, records, shortcuts, menu, locate })}>
+  const shortcutKeys = issue && issueShortcutKeys({ issue, records, shortcuts, menu, locate });
+  return <section ref={section} tabIndex={-1} className="issue-detail" aria-label={t('issueDetail', { number })} onClick={followLinks(repository, open)}
+    onKeyDown={event => { shortcutKeys?.(event); keyDown(event); }}>
     <header className="issue-detail-bar">
       <span className="issue-detail-crumb">{t('issueDetail', { number })}</span>
       {issue && <a href={issue.url} target="_blank" rel="noreferrer">{t('openOnPlatform', { platform: platform.name })}</a>}

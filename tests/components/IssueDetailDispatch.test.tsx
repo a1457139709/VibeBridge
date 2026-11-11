@@ -32,16 +32,17 @@ async function renderDetail({ shown = detail(7), state = project(), workflows = 
   { shown?: IssueDetail; state?: ProjectView; workflows?: WorkflowSettings } = {}) {
   const dispatched: DispatchRequest[] = [];
   const locations: DispatchLocation[] = [];
+  const returns: number[] = [];
   const api = {
     issueDetail: async (): Promise<IssueDetailResult> => ({ ok: true, issue: shown }),
     dispatch: async (_projectId: string, request: DispatchRequest) => { dispatched.push(request); return null; },
   };
   render(<Localization language="en">
     <IssueDetailView project={state} repository={state.repository!} number={shown.number} workflows={workflows} shortcuts={defaultShortcuts()}
-      open={() => {}} close={() => {}} locate={location => locations.push(location)} api={api} />
+      open={() => {}} close={() => {}} returnToList={() => returns.push(shown.number)} locate={location => locations.push(location)} api={api} />
   </Localization>);
   await screen.findByRole('heading', { name: /Issue 7/ });
-  return { user: userEvent.setup(), dispatched, locations, region: screen.getByRole('region', { name: 'Issue #7' }) };
+  return { user: userEvent.setup(), dispatched, locations, returns, region: screen.getByRole('region', { name: 'Issue #7' }) };
 }
 
 test('the detail dispatches from a small button at the right of its state and labels row, through the same menu as a list row', async () => {
@@ -110,4 +111,28 @@ test('within the detail the dispatch shortcut opens its menu and the locate shor
 test('an issue never dispatched has no dispatch records section', async () => {
   await renderDetail({ state: project([record(8, 'claude', '/tdd 8', null, 1)]) });
   assert.equal(screen.queryByRole('region', { name: /Dispatch records/ }), null);
+});
+
+test('arrow keys in the dispatch menu stay in the menu: they neither scroll the detail holding it nor return to the list', async context => {
+  // jsdom has no layout to scroll; record what the detail asks to scroll instead.
+  const scrolled: number[] = [];
+  const prototype = window.HTMLElement.prototype;
+  const scrollBy = prototype.scrollBy;
+  prototype.scrollBy = function (this: HTMLElement, options?: ScrollToOptions | number) {
+    if (this.classList.contains('issue-detail-scroll') && typeof options === 'object') scrolled.push(options.top ?? 0);
+  } as typeof scrollBy;
+  context.after(() => { prototype.scrollBy = scrollBy; });
+  const { user, region, returns } = await renderDetail();
+  await user.click(within(region).getByRole('button', { name: 'Dispatch ▾' }));
+  // → with no targets open does nothing in the menu, and must not leave the detail either.
+  await user.keyboard('{ArrowDown}{ArrowUp}{ArrowRight}{ArrowLeft}{ArrowDown}{ArrowUp}{ArrowRight}');
+  assert.ok(screen.getByRole('menu', { name: 'Dispatch #7' }), 'the menu stays open');
+  assert.deepEqual(scrolled, []);
+  assert.deepEqual(returns, []);
+
+  await user.keyboard('{Escape}');
+  assert.equal(screen.queryByRole('menu'), null);
+  assert.deepEqual(returns, [], 'Escape closes the menu, not the detail');
+  await user.keyboard('{ArrowDown}');
+  assert.deepEqual(scrolled.map(Math.sign), [1], 'outside the menu the arrows scroll the detail again');
 });

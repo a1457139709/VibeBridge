@@ -1,14 +1,16 @@
-import { useEffect, useRef, useState, type ReactNode } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from 'react';
 import type { DesktopAPI } from '../shared/api';
-import { defaultIssueFilter, platformDescriptions, type IssueFilter, type IssueLabel, type IssueReference, type IssueSummary, type ListFailure, type MergeRequestSummary, type PlatformDescription, type RepositoryReference } from '../shared/code-hosting';
+import { defaultIssueFilter, platformDescriptions, type IssueFilter, type IssueLabel, type IssueSummary, type ListFailure, type MergeRequestSummary, type PlatformDescription, type RepositoryReference } from '../shared/code-hosting';
 import type { Language, PanelCreation, ProjectView } from '../shared/model';
 import type { DispatchLocation, DispatchRequest } from '../shared/dispatch';
 import type { WorkflowSettings } from '../shared/workflows';
 import { DispatchMenu, DispatchStatus, issueShortcutKeys, type DispatchMenuActions } from './Dispatch';
 import type { Shortcuts } from '../shared/shortcuts';
+import { entryRow, issueRowKeyDown } from './issue-navigation';
 import { useLocalization } from './Localization';
 import { LabelButtons, relativeTime, type DetailOpening } from './list-row-parts';
 import { MergeRequestRow } from './MergeRequestRow';
+import { BlockedMark, IssueStateIcon } from './issue-icons';
 
 type Tab = 'issues' | 'mergeRequests';
 type Failure = ListFailure | { ok: false; error: string };
@@ -31,6 +33,8 @@ export function IssueLists({ project, repository, workflows, shortcuts, changeBi
 }) {
   const { t, language } = useLocalization();
   const [tab, setTab] = useState<Tab>('issues');
+  // The row last focused is the one Tab reaches in the list.
+  const [focused, setFocused] = useState<number>();
   const [filters, setFilters] = useState<Record<Tab, IssueFilter>>({ issues: defaultIssueFilter, mergeRequests: defaultIssueFilter });
   const setFilter = (filter: IssueFilter) => setFilters(current => ({ ...current, [tab]: filter }));
   const tabs = <div className="issue-tabs" role="tablist">
@@ -47,8 +51,11 @@ export function IssueLists({ project, repository, workflows, shortcuts, changeBi
         // The list refreshes once after each dispatch.
         const dispatching: Dispatching = { project, workflows, shortcuts, locate, filled,
           dispatch: request => api.dispatch(project.id, request).then(creation => { refresh(); return creation; }) };
-        return topLevel(issues, platform).map(issue =>
-          <IssueRow key={issue.number} issue={issue} platform={platform} language={language} addLabel={addLabel} dispatching={dispatching} detail={detail} />);
+        const shown = topLevel(issues, platform);
+        const tabbable = issues.some(issue => issue.number === focused || issue.subIssues?.issues.some(sub => sub.number === focused)) ? focused : shown[0]?.number;
+        const rows: RowFocus = { ...detail, tabbable, focused: setFocused };
+        return shown.map(issue =>
+          <IssueRow key={issue.number} issue={issue} platform={platform} language={language} addLabel={addLabel} dispatching={dispatching} detail={rows} />);
       }} />
     : <ListTab key="mergeRequests" {...common} filter={filters.mergeRequests} search={t('searchMergeRequests')} empty={t('noMatchingMergeRequests')}
       load={(filter, cursor) => api.mergeRequestPage(project.id, filter, cursor).then(result => result.ok
@@ -98,6 +105,12 @@ function ListTab<Item>({ tabs, filter, setFilter, load, rows, search, empty, rep
 }) {
   const { t } = useLocalization();
   const list = useListPages(filter, load);
+  const items = useRef<HTMLDivElement>(null);
+  // Focus resting on the sidebar itself, as opening it by shortcut leaves it, enters the list once rows are shown.
+  useLayoutEffect(() => {
+    const container = items.current;
+    if (container && document.activeElement === container.closest('.issue-sidebar')) entryRow(container)?.focus();
+  }, [list.page]);
   const platform = platformDescriptions[repository.platform];
   const addLabel = (name: string) => { if (!filter.labels.includes(name)) setFilter({ ...filter, labels: [...filter.labels, name] }); };
   // A transient failure leaves rows already read in place; any other failure, or one before any rows, fills the content area.
@@ -112,7 +125,7 @@ function ListTab<Item>({ tabs, filter, setFilter, load, rows, search, empty, rep
     {stale && <div className="issue-stale" role="status"><span>{t('listMayBeStale')}</span>
       <button disabled={!!list.loading} onClick={list.refresh}>{t('retry')}</button></div>}
     <FilterBar filter={filter} setFilter={setFilter} labels={list.page?.labels ?? []} search={search} />
-    <div className="issue-list">
+    <div className="issue-list" ref={items}>
       {list.page && <ul aria-label={platform.name}>{rows(list.page.items, addLabel, list.refresh)}</ul>}
       {list.page && !list.page.items.length && !list.loading && <p className="issue-list-empty">{empty}</p>}
       {list.page?.next && <button className="issue-list-more" disabled={!!list.loading} onClick={list.more}>{t('loadMore')}</button>}
@@ -160,9 +173,12 @@ function topLevel(issues: IssueSummary[], platform: PlatformDescription) {
   return issues.filter(issue => issue.parent === null || !listed.has(issue.parent));
 }
 
+/** The detail opening, plus the one row Tab reaches and how a focused row claims that. */
+interface RowFocus extends DetailOpening { tabbable?: number; focused(number: number): void }
+
 /** Clicking the row opens the issue's detail; its controls and dispatch actions act on their own. */
 function IssueRow({ issue, platform, language, addLabel, dispatching, detail }: {
-  issue: IssueSummary; platform: PlatformDescription; language: Language; addLabel(name: string): void; dispatching: Dispatching; detail: DetailOpening;
+  issue: IssueSummary; platform: PlatformDescription; language: Language; addLabel(name: string): void; dispatching: Dispatching; detail: RowFocus;
 }) {
   const { t } = useLocalization();
   const [expanded, setExpanded] = useState(false);
@@ -170,8 +186,12 @@ function IssueRow({ issue, platform, language, addLabel, dispatching, detail }: 
   const subIssues = platform.capabilities.includes('subIssues') ? issue.subIssues : null;
   const menu = useRef<DispatchMenuActions>(null);
   const records = dispatching.project.dispatches.filter(record => record.issue === issue.number);
+  const shortcutKeys = issueShortcutKeys({ issue, records, shortcuts: dispatching.shortcuts, menu, locate: dispatching.locate });
+  // The dispatch and locate shortcuts come first; the row's fixed keys leave any key they handled.
   return <li aria-label={`#${issue.number} ${issue.title}`} aria-current={detail.opened === issue.number || undefined}
-    onKeyDown={issueShortcutKeys({ issue, records, shortcuts: dispatching.shortcuts, menu, locate: dispatching.locate })}>
+    data-issue-row={issue.number} tabIndex={detail.tabbable === issue.number ? 0 : -1}
+    onFocus={event => { if (event.target === event.currentTarget) detail.focused(issue.number); }}
+    onKeyDown={event => { shortcutKeys(event); issueRowKeyDown(event, { expandable: !!subIssues, expanded, setExpanded, open: () => detail.open(issue.number) }); }}>
     <div className="issue-row" onClick={event => { if (!(event.target as Element).closest('button, a, .issue-row-actions')) detail.open(issue.number); }}>
       <IssueStateIcon issue={issue} />
       <div className="issue-row-main">
@@ -200,7 +220,7 @@ function IssueRow({ issue, platform, language, addLabel, dispatching, detail }: 
 /** Sub-issues in number order; the closed ones fold behind one button. */
 function SubIssueList({ parent, issues, platform, language, addLabel, dispatching, detail }: {
   parent: number; issues: IssueSummary[]; platform: PlatformDescription; language: Language; addLabel(name: string): void; dispatching: Dispatching;
-  detail: DetailOpening;
+  detail: RowFocus;
 }) {
   const { t } = useLocalization();
   const [showClosed, setShowClosed] = useState(false);
@@ -215,38 +235,8 @@ function SubIssueList({ parent, issues, platform, language, addLabel, dispatchin
   </div>;
 }
 
-/** GitHub's blocked octicon and the blockers' numbers; hovering names them. */
-function BlockedMark({ blockers }: { blockers: IssueReference[] }) {
-  const { t } = useLocalization();
-  const numbers = blockers.map(blocker => `#${blocker.number}`).join(', ');
-  return <span className="issue-blocked" role="img" aria-label={t('blockedBy', { numbers })}
-    title={blockers.map(blocker => `#${blocker.number} ${blocker.title}`).join('\n')}>
-    <svg aria-hidden="true" viewBox="0 0 16 16" width="12" height="12" fill="currentColor"><path d="M4.467.22a.749.749 0 0 1 .53-.22h6.006c.199 0 .389.079.53.22l4.247 4.247c.141.14.22.331.22.53v6.006a.749.749 0 0 1-.22.53l-4.247 4.247a.749.749 0 0 1-.53.22H4.997a.749.749 0 0 1-.53-.22L.22 11.533a.749.749 0 0 1-.22-.53V4.997c0-.199.079-.389.22-.53Zm.84 1.28L1.5 5.308v5.384l3.807 3.808h5.384l3.808-3.808V5.308L10.692 1.5ZM4 7.75A.75.75 0 0 1 4.75 7h6.5a.75.75 0 0 1 0 1.5h-6.5A.75.75 0 0 1 4 7.75Z" /></svg>
-    <span aria-hidden="true">{numbers}</span>
-  </span>;
-}
-
 function LabelSwatch({ label }: { label: IssueLabel }) {
   return <span className="issue-label-swatch" style={{ background: `#${label.color}` }} />;
-}
-
-// GitHub's own octicons: issue-opened, issue-closed and skip.
-const stateIcons = {
-  open: ['M8 9.5a1.5 1.5 0 1 0 0-3 1.5 1.5 0 0 0 0 3Z', 'M8 0a8 8 0 1 1 0 16A8 8 0 0 1 8 0ZM1.5 8a6.5 6.5 0 1 0 13 0 6.5 6.5 0 0 0-13 0Z'],
-  completed: ['M11.28 6.78a.75.75 0 0 0-1.06-1.06L7.25 8.69 5.78 7.22a.75.75 0 0 0-1.06 1.06l2 2a.75.75 0 0 0 1.06 0l3.5-3.5Z', 'M16 8A8 8 0 1 1 0 8a8 8 0 0 1 16 0Zm-1.5 0a6.5 6.5 0 1 0-13 0 6.5 6.5 0 0 0 13 0Z'],
-  skipped: ['M8 0a8 8 0 1 1 0 16A8 8 0 0 1 8 0ZM1.5 8a6.5 6.5 0 1 0 13 0 6.5 6.5 0 0 0-13 0Zm9.78-2.22-5.5 5.5a.749.749 0 0 1-1.275-.326.749.749 0 0 1 .215-.734l5.5-5.5a.751.751 0 0 1 1.042.018.751.751 0 0 1 .018 1.042Z'],
-};
-
-export function IssueStateIcon({ issue }: { issue: Pick<IssueSummary, 'state' | 'closedAs'> }) {
-  const { t } = useLocalization();
-  const [icon, name] = issue.state === 'open' ? ['open', t('issueOpen')] as const
-    : issue.closedAs === 'notPlanned' ? ['skipped', t('issueNotPlanned')] as const
-    : issue.closedAs === 'duplicate' ? ['skipped', t('issueDuplicate')] as const
-    : issue.closedAs === 'completed' ? ['completed', t('issueCompleted')] as const
-    : ['completed', t('issueClosed')] as const;
-  return <svg className={`issue-state issue-state-${icon}`} role="img" aria-label={name} viewBox="0 0 16 16" width="16" height="16" fill="currentColor">
-    {stateIcons[icon].map(path => <path key={path} d={path} />)}
-  </svg>;
 }
 
 function FailureState({ failure, path, retry, changeBinding }: { failure: Failure; path: string; retry(): void; changeBinding(): void }) {

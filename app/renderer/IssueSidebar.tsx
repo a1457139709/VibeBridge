@@ -7,6 +7,7 @@ import { useSavedPreferences } from './saved-preferences';
 import { IssueLists } from './IssueLists';
 import { IssueDetailView } from './IssueDetail';
 import { MergeRequestDetailView } from './MergeRequestDetail';
+import { issueRow } from './issue-navigation';
 import './issue-sidebar.css';
 
 interface Host {
@@ -42,6 +43,10 @@ export function useIssueSidebar(host: Host, api: Pick<DesktopAPI, 'saveIssueSide
   const open = (item: RepositoryItem) => { if (lists) setOpened({ lists, item }); };
   const closeDetail = () => setOpened(undefined);
   const opening = (kind: RepositoryItem['kind']) => ({ opened: openedItem?.kind === kind ? openedItem.number : undefined, open: (number: number) => open({ kind, number }) });
+  const returnToList = (number: number) => {
+    closeDetail();
+    (issueRow(element.current, number) ?? element.current)?.focus();
+  };
   const title = repository ? platformDescriptions[repository.platform].name : t('issueSidebar');
   return {
     visible,
@@ -56,6 +61,7 @@ export function useIssueSidebar(host: Host, api: Pick<DesktopAPI, 'saveIssueSide
         repository={repository} number={openedItem.number} open={open} close={closeDetail} />
       : <IssueDetailView key={`${lists}:issue#${openedItem.number}`} project={project} repository={repository} number={openedItem.number}
         workflows={snapshot!.settings.workflows} shortcuts={snapshot!.settings.shortcuts} open={open} close={closeDetail}
+        returnToList={() => returnToList(openedItem.number)}
         locate={location => { closeDetail(); host.locatePanel(location.projectId, location.panelId, location.runId); }} />),
     toggle: <button className="issue-sidebar-toggle" aria-label={visible ? t('closeIssueSidebar') : t('openIssueSidebar')} aria-expanded={visible}
       disabled={!snapshot} onClick={() => { closeDetail(); toggle(); }}><SidebarIcon /></button>,

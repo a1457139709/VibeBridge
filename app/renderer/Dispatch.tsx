@@ -25,6 +25,7 @@ const lastTargets = new Map<string, string>();
 const targetKey = (target: Target | AgentType) => typeof target === 'string' ? `new:${target}` : `panel:${target.panel.id}`;
 const instructionKey = (workflow: Workflow, instruction: WorkflowInstruction) => `${workflow.id}/${instruction.id}`;
 const isSpace = (event: KeyboardEvent) => event.code === 'Space' || event.key === ' ';
+const menuKeys = new Set(['ArrowDown', 'ArrowUp', 'ArrowLeft', 'ArrowRight', 'Enter', 'Escape']);
 
 /** The enabled items of one menu layer, not of the layer nested in it. */
 const items = (layer: HTMLElement | null) => [...layer?.querySelectorAll<HTMLButtonElement>('[role=menuitem]:not(:disabled)') ?? []]
@@ -106,9 +107,10 @@ export function DispatchMenu({ issue, project, workflows, dispatch, filled, ref 
         <code>{instruction.skill}</code><small className={`dispatch-delivery ${mode}`}>{t(mode === 'submit' ? 'deliverySubmit' : 'deliveryFill')}</small>
       </button>];
   });
-  // Keys stay in the open menu, so none reaches a terminal; Space acts on its release, after the press it belongs to.
+  // The menu's keys stay in the open menu, handled, so none reaches a terminal or scrolls or leaves what holds the menu,
+  // even where they do nothing; Space acts on its release, after the press it belongs to.
   function keys(event: KeyboardEvent) {
-    if (event.metaKey || event.ctrlKey) return;
+    if (event.metaKey || event.ctrlKey || (!menuKeys.has(event.key) && !isSpace(event))) return;
     if (event.type === 'keydown' && (event.key === 'ArrowDown' || event.key === 'ArrowUp')) {
       const layer = items((event.target as Element).closest<HTMLElement>('[role=menu]'));
       const next = layer[layer.indexOf(event.target as HTMLButtonElement) + (event.key === 'ArrowDown' ? 1 : -1)];
@@ -116,7 +118,6 @@ export function DispatchMenu({ issue, project, workflows, dispatch, filled, ref 
     } else if (event.type === 'keydown' && event.key === 'ArrowRight' && chosen) {
       menu.current?.querySelector<HTMLElement>('[aria-expanded=true]')?.focus(); setChosen(undefined);
     } else if (event.type === 'keydown' && event.key === 'Escape') { close(); button.current?.focus(); }
-    else if (event.key !== 'Enter' && !isSpace(event) && event.key !== 'ArrowLeft') return;
     event.preventDefault(); event.stopPropagation();
   }
   return <div className="dispatch" ref={root}>
