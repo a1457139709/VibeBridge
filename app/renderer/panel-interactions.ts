@@ -115,14 +115,28 @@ export function createPanelInteractions(canvas: HTMLElement, context: PanelInter
     if (kind === 'resize') canvas.classList.add('resizing');
     schedule();
   };
+  // A drop is shown before its save returns. When the saved layout becomes the one the active gesture
+  // was computed from, the gesture and the displayed layout are still current.
+  const layoutChanged = (layout: Layout | null, sameProject = true) => {
+    const key = JSON.stringify(layout);
+    return (!sameProject || layoutKey !== key) && !(sameProject && active?.base === key);
+  };
   const interactions = {
+    /**
+     * Takes each layout the project is saved with as it is delivered. Renders may show only the latest of several
+     * saves, and a drop followed by a save of the layout before it would then look like no change at all.
+     */
+    layoutSaved(layout: Layout | null) {
+      if (disposed) return;
+      const changed = layoutChanged(layout);
+      current = { ...current, layout }; layoutKey = JSON.stringify(layout);
+      if (changed) { cancel(); present(layout); }
+    },
     update(next: PanelInteractionContext) {
       if (disposed) return;
       const nextKey = JSON.stringify(next.layout);
       const sameProject = current.projectId === next.projectId;
-      // A drop is shown before its save returns. When the saved layout becomes the one the active gesture
-      // was computed from, the gesture and the displayed layout are still current.
-      const changedLayout = (!sameProject || layoutKey !== nextKey) && !(sameProject && active?.base === nextKey);
+      const changedLayout = layoutChanged(next.layout, sameProject);
       const invalidated = changedLayout
         || JSON.stringify(current.panels.map(panel => [panel.id, panel.agent])) !== JSON.stringify(next.panels.map(panel => [panel.id, panel.agent]))
         || JSON.stringify(current.tray.map(panel => panel.id)) !== JSON.stringify(next.tray.map(panel => panel.id))

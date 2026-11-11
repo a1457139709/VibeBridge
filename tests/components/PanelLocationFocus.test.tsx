@@ -56,9 +56,9 @@ async function renderWorkbench() {
       layout: { axis: 'row', ratio: .5, first: { panel: 'first' }, second: { panel: 'second' } },
       panels: [panel('first'), panel('second')], tray: [], dispatches: [] }],
   };
-  let listener: (event: WorkbenchEvent) => void = () => {};
+  const listeners = new Set<(event: WorkbenchEvent) => void>();
   provideWorkbench({ snapshot: async () => structuredClone(snapshot), ready: async () => {},
-    subscribe: next => { listener = next; return () => {}; },
+    subscribe: next => { listeners.add(next); return () => { listeners.delete(next); }; },
     activateProject: async () => {}, saveNavigation: async () => {}, saveLayout: async () => {} });
   render(<App />);
   await screen.findAllByText('Session first');
@@ -78,7 +78,7 @@ async function renderWorkbench() {
     close: (panelId: string) => act(() => {
       const [project] = snapshot.projects;
       Object.assign(project, { layout: { panel: project.panels.find(item => item.id !== panelId)!.id }, panels: project.panels.filter(item => item.id !== panelId) });
-      listener({ kind: 'snapshot', snapshot: structuredClone(snapshot) });
+      for (const listener of listeners) listener({ kind: 'snapshot', snapshot: structuredClone(snapshot) });
     }),
   };
 }

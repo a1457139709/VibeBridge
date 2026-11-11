@@ -49,9 +49,9 @@ async function renderWorkbench() {
   const saves: Layout[] = [];
   // Placing a tray panel or moving a resident panel to the tray are the other changes a release can request.
   const otherChanges: string[] = [];
-  let listener: (event: WorkbenchEvent) => void = () => {};
+  const listeners = new Set<(event: WorkbenchEvent) => void>();
   provideWorkbench({ snapshot: async () => structuredClone(snapshot), ready: async () => {},
-    subscribe: next => { listener = next; return () => {}; },
+    subscribe: next => { listeners.add(next); return () => { listeners.delete(next); }; },
     activateProject: async () => {}, saveNavigation: async () => {},
     saveLayout: async (_project, layout) => { saves.push(layout!); },
     placeInLayout: async (_project, panelId) => { otherChanges.push(`place ${panelId}`); },
@@ -61,10 +61,13 @@ async function renderWorkbench() {
   const canvas = document.querySelector<HTMLElement>('.canvas')!;
   return {
     canvas, saves, otherChanges,
-    // The main process saves a layout and reports the project as it now is.
-    saved: (change: (project: Snapshot['projects'][number]) => void) => act(() => {
-      change(snapshot.projects[0]);
-      listener({ kind: 'snapshot', snapshot: structuredClone(snapshot) });
+    // The main process saves a layout and reports the project as it now is, once for each change; the
+    // interface draws only after the last report.
+    saved: (...changes: ((project: Snapshot['projects'][number]) => void)[]) => act(() => {
+      for (const change of changes) {
+        change(snapshot.projects[0]);
+        for (const listener of listeners) listener({ kind: 'snapshot', snapshot: structuredClone(snapshot) });
+      }
     }),
   };
 }
@@ -106,6 +109,15 @@ test('a snapshot that keeps the saved layout leaves a drag on an unsaved drop ru
   await saved(project => { project.panels[0].run!.title = 'Renamed'; });
   assert.ok(canvas.classList.contains('dragging'));
   assert.ok(swapPreview('Swap preview: Claude Code and Codex'));
+});
+
+test('a layout saved after a drop is drawn even when it equals the layout before the drop', async () => {
+  const { saved } = await renderWorkbench();
+  press('codex', right).release();
+  // The drop's save and a later save restoring the earlier layout arrive before the interface draws either.
+  await saved(project => { project.layout = sideBySide('claude', 'codex'); }, project => { project.layout = sideBySide('codex', 'claude'); });
+  const codex = document.querySelector<HTMLElement>('[data-panel-id="codex"]')!;
+  assert.equal(codex.style.left, '0%');
 });
 
 test('a drag is cancelled when the saved layout becomes a different one', async () => {

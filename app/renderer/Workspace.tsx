@@ -81,6 +81,11 @@ export function Workspace({ project, report, openAgentSettings, location, visibl
     else interactions.current = createPanelInteractions(canvas.current!, context);
   });
   useLayoutEffect(() => () => { interactions.current?.dispose(); interactions.current = null; }, []);
+  // Saved layouts are observed as they are delivered, independently of React's batching of App snapshots.
+  useLayoutEffect(() => window.workbench.subscribe(event => {
+    const saved = event.kind === 'snapshot' && event.snapshot.projects.find(item => item.id === project.id);
+    if (saved) interactions.current?.layoutSaved(saved.layout);
+  }), [project.id]);
   const close = (panelId: string) => { void window.workbench.closePanel(project.id, panelId).catch(error => report(error.message)); };
   // Resident and open tray panels differ only in where they sit and in their first action.
   const agentPanel = (panel: PanelView, position: CSSProperties, isFocused: boolean, action: ReactNode) =>
