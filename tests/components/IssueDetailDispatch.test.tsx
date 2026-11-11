@@ -28,23 +28,28 @@ const project = (dispatches: DispatchRecordView[] = []): ProjectView => ({ id: '
   repository: { platform: 'github', path: 'octo/app' }, panels: [running('resident', 'Fix the crash')], tray: [], dispatches });
 
 /** Issue #7's detail in the App project, read as `shown`. */
-async function renderDetail({ shown = detail(7), state = project(), workflows = defaultWorkflowSettings() }:
-  { shown?: IssueDetail; state?: ProjectView; workflows?: WorkflowSettings } = {}) {
+async function renderDetail({ shown = detail(7), state = project(), workflows = defaultWorkflowSettings(), afterAction }:
+  { shown?: IssueDetail; state?: ProjectView; workflows?: WorkflowSettings; /** What the platform shows once a direct action succeeds. */ afterAction?: IssueDetail } = {}) {
   const dispatched: DispatchRequest[] = [];
   const locations: DispatchLocation[] = [];
   const returns: number[] = [];
+  const changes: string[] = [];
   const api = {
     issueDetail: async (): Promise<IssueDetailResult> => ({ ok: true, issue: shown }),
     dispatch: async (_projectId: string, request: DispatchRequest) => { dispatched.push(request); return null; },
-    directAction: async () => { throw new Error('Unexpected direct action'); },
+    directAction: async () => {
+      if (!afterAction) throw new Error('Unexpected direct action');
+      shown = afterAction;
+      return { ok: true as const };
+    },
   };
   render(<Localization language="en">
     <IssueDetailView project={state} repository={state.repository!} number={shown.number} workflows={workflows} shortcuts={defaultShortcuts()}
       open={() => {}} close={() => {}} returnToList={() => returns.push(shown.number)} locate={location => locations.push(location)}
-      host={{ changed() {}, unavailable() {} }} api={api} />
+      host={{ changed() { changes.push('changed'); }, unavailable() {} }} api={api} />
   </Localization>);
   await screen.findByRole('heading', { name: /Issue 7/ });
-  return { user: userEvent.setup(), dispatched, locations, returns, region: screen.getByRole('region', { name: 'Issue #7' }) };
+  return { user: userEvent.setup(), dispatched, locations, returns, changes, region: screen.getByRole('region', { name: 'Issue #7' }) };
 }
 
 test('the detail dispatches from a small button at the right of its state and labels row, through the same menu as a list row', async () => {
@@ -56,6 +61,25 @@ test('the detail dispatches from a small button at the right of its state and la
   await user.click(within(screen.getByRole('menu', { name: 'Dispatch #7' })).getByRole('menuitem', { name: /^to-spec/ }));
   await user.click(screen.getByRole('menuitem', { name: /^Fix the crash/ }));
   await waitFor(() => assert.deepEqual(dispatched, [{ issue: { number: 7, title: 'Issue 7' }, workflow: 'matt', instruction: 'to-spec', target: { panelId: 'resident' }, invert: false }]));
+});
+
+test('a dispatch from the detail refreshes the sidebar list once', async () => {
+  const { user, dispatched, changes, region } = await renderDetail();
+  await user.click(within(region).getByRole('button', { name: 'Dispatch ▾' }));
+  await user.click(within(screen.getByRole('menu', { name: 'Dispatch #7' })).getByRole('menuitem', { name: /^to-spec/ }));
+  await user.click(screen.getByRole('menuitem', { name: /^Fix the crash/ }));
+  await waitFor(() => assert.equal(dispatched.length, 1));
+  await waitFor(() => assert.deepEqual(changes, ['changed']));
+});
+
+test('dispatch records shown while the issue is open fold to their count once it is closed', async () => {
+  const { user } = await renderDetail({ shown: { ...detail(7), writable: true }, afterAction: { ...detail(7, 'closed'), writable: true },
+    state: project([record(7, 'claude', '/tdd 7', null, 1)]) });
+  assert.equal(screen.getByRole('button', { name: 'Dispatch records (1)' }).getAttribute('aria-expanded'), 'true');
+  await user.click(screen.getByRole('button', { name: 'Close as completed' }));
+  await screen.findByRole('button', { name: 'Reopen' });
+  assert.equal(screen.getByRole('button', { name: 'Dispatch records (1)' }).getAttribute('aria-expanded'), 'false');
+  assert.equal(screen.queryByRole('button', { name: 'Instruction' }), null);
 });
 
 test('the dispatch records list every dispatch of the issue newest first, with its time, Agent type and session', async () => {
