@@ -4,7 +4,8 @@ import { defaultIssueFilter, platformDescriptions, type IssueFilter, type IssueL
 import type { Language, ProjectView } from '../shared/model';
 import type { DispatchLocation, DispatchRequest } from '../shared/dispatch';
 import type { WorkflowSettings } from '../shared/workflows';
-import { DispatchMenu, DispatchStatus } from './Dispatch';
+import { DispatchMenu, DispatchStatus, issueShortcutKeys, type DispatchMenuActions } from './Dispatch';
+import type { Shortcuts } from '../shared/shortcuts';
 import { useLocalization } from './Localization';
 import { LabelButtons, relativeTime } from './list-row-parts';
 import { MergeRequestRow } from './MergeRequestRow';
@@ -17,8 +18,8 @@ type Failure = ListFailure | { ok: false; error: string };
  * so opening the sidebar or returning to a project reads afresh from an open, unfiltered list.
  * Each tab keeps its own filters; only the shown tab reads from the platform.
  */
-export function IssueLists({ project, repository, workflows, changeBinding, locate, detail, api = window.workbench }: {
-  project: ProjectView; repository: RepositoryReference; workflows: WorkflowSettings; changeBinding(): void;
+export function IssueLists({ project, repository, workflows, shortcuts, changeBinding, locate, detail, api = window.workbench }: {
+  project: ProjectView; repository: RepositoryReference; workflows: WorkflowSettings; shortcuts: Shortcuts; changeBinding(): void;
   /** Shows the panel a dispatch went to. */
   locate(location: DispatchLocation): void;
   detail: IssueDetailOpening;
@@ -40,7 +41,7 @@ export function IssueLists({ project, repository, workflows, changeBinding, loca
         ? { ok: true, page: { items: result.page.issues, next: result.page.next, labels: result.page.labels } } : result)}
       rows={(issues: IssueSummary[], addLabel, refresh) => {
         // The list refreshes once after each dispatch.
-        const dispatching: Dispatching = { project, workflows, locate, dispatch: request => api.dispatch(project.id, request).then(refresh) };
+        const dispatching: Dispatching = { project, workflows, shortcuts, locate, dispatch: request => api.dispatch(project.id, request).then(refresh) };
         return topLevel(issues, platform).map(issue =>
           <IssueRow key={issue.number} issue={issue} platform={platform} language={language} addLabel={addLabel} dispatching={dispatching} detail={detail} />);
       }} />
@@ -52,7 +53,7 @@ export function IssueLists({ project, repository, workflows, changeBinding, loca
 }
 
 interface Dispatching {
-  project: ProjectView; workflows: WorkflowSettings; locate(location: DispatchLocation): void; dispatch(request: DispatchRequest): Promise<void>;
+  project: ProjectView; workflows: WorkflowSettings; shortcuts: Shortcuts; locate(location: DispatchLocation): void; dispatch(request: DispatchRequest): Promise<void>;
 }
 
 /** A list page whatever the list holds. */
@@ -164,7 +165,10 @@ function IssueRow({ issue, platform, language, addLabel, dispatching, detail }: 
   const [expanded, setExpanded] = useState(false);
   const created = new Date(issue.createdAt);
   const subIssues = platform.capabilities.includes('subIssues') ? issue.subIssues : null;
-  return <li aria-label={`#${issue.number} ${issue.title}`} aria-current={detail.opened === issue.number || undefined}>
+  const menu = useRef<DispatchMenuActions>(null);
+  const records = dispatching.project.dispatches.filter(record => record.issue === issue.number);
+  return <li aria-label={`#${issue.number} ${issue.title}`} aria-current={detail.opened === issue.number || undefined}
+    onKeyDown={issueShortcutKeys({ issue, records, shortcuts: dispatching.shortcuts, menu, locate: dispatching.locate })}>
     <div className="issue-row" onClick={event => { if (!(event.target as Element).closest('button, a, .issue-row-actions')) detail.open(issue.number); }}>
       <IssueStateIcon issue={issue} />
       <div className="issue-row-main">
@@ -182,8 +186,8 @@ function IssueRow({ issue, platform, language, addLabel, dispatching, detail }: 
         </div>
       </div>
       <div className="issue-row-actions">
-        <DispatchMenu issue={issue} project={dispatching.project} workflows={dispatching.workflows} dispatch={dispatching.dispatch} locate={dispatching.locate} />
-        <DispatchStatus issue={issue} records={dispatching.project.dispatches.filter(record => record.issue === issue.number)} locate={dispatching.locate} />
+        <DispatchMenu ref={menu} issue={issue} project={dispatching.project} workflows={dispatching.workflows} dispatch={dispatching.dispatch} locate={dispatching.locate} />
+        <DispatchStatus issue={issue} records={records} locate={dispatching.locate} />
       </div>
     </div>
     {subIssues && expanded && <SubIssueList parent={issue.number} issues={subIssues.issues} platform={platform} language={language} addLabel={addLabel} dispatching={dispatching} detail={detail} />}

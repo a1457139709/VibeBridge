@@ -272,6 +272,8 @@ export const english = {
   "zoom": "Zoom",
   "selectDirectory": "Select directory",
   "toggleIssueSidebar": "Open or close the issue sidebar",
+  "openDispatchMenu": "Open the dispatch menu of the selected issue",
+  "locateDispatchedPanel": "Locate the panel the selected issue was dispatched to",
   "openIssueSidebar": "Open issue sidebar",
   "closeIssueSidebar": "Close issue sidebar",
   "issueSidebar": "Issues",

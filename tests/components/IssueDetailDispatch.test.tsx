@@ -9,6 +9,7 @@ import type { PanelView, ProjectView } from '../../app/shared/model';
 import type { DispatchLocation, DispatchRecordView, DispatchRequest } from '../../app/shared/dispatch';
 import type { IssueDetail, IssueDetailResult } from '../../app/shared/code-hosting';
 import { defaultWorkflowSettings, type WorkflowSettings } from '../../app/shared/workflows';
+import { defaultShortcuts } from '../../app/shared/shortcuts';
 
 afterEach(cleanup);
 
@@ -36,7 +37,7 @@ async function renderDetail({ shown = detail(7), state = project(), workflows = 
     dispatch: async (_projectId: string, request: DispatchRequest) => { dispatched.push(request); },
   };
   render(<Localization language="en">
-    <IssueDetailView project={state} repository={state.repository!} number={shown.number} workflows={workflows}
+    <IssueDetailView project={state} repository={state.repository!} number={shown.number} workflows={workflows} shortcuts={defaultShortcuts()}
       openIssue={() => {}} close={() => {}} locate={location => locations.push(location)} api={api} />
   </Localization>);
   await screen.findByRole('heading', { name: /Issue 7/ });
@@ -94,6 +95,16 @@ test('switching every workflow off keeps the dispatch records shown', async () =
   workflows.matt.enabled = false;
   await renderDetail({ workflows, state: project([record(7, 'claude', '/tdd 7', located('resident', 'Fix the crash'), 1)]) });
   assert.equal(within(screen.getByRole('region', { name: 'Dispatch records (1)' })).getAllByRole('listitem').length, 1);
+});
+
+test('within the detail the dispatch shortcut opens its menu and the locate shortcut locates its latest located dispatch', async () => {
+  const records = [record(7, 'claude', '/tdd 7', null, 1), record(7, 'claude', '/tdd 7', located('resident', 'Fix the crash'), 5)];
+  const { user, locations, region } = await renderDetail({ state: project(records) });
+  within(region).getByRole('button', { name: 'Close detail' }).focus();
+  await user.keyboard('{Meta>}d{/Meta}');
+  assert.ok(within(region).getByRole('menu', { name: 'Dispatch #7' }).contains(document.activeElement), 'focus moves into the menu');
+  await user.keyboard('{Escape}{Meta>}l{/Meta}');
+  assert.deepEqual(locations.map(location => location.panelId), ['resident']);
 });
 
 test('an issue never dispatched has no dispatch records section', async () => {

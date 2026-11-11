@@ -228,6 +228,8 @@ export const chinese: Record<keyof typeof english, string> = {
   "zoom": "缩放",
   "selectDirectory": "选择目录",
   "toggleIssueSidebar": "打开 / 关闭侧边栏",
+  "openDispatchMenu": "打开选中 issue 的派发菜单",
+  "locateDispatchedPanel": "定位选中 issue 派发到的面板",
   "openIssueSidebar": "打开侧边栏",
   "closeIssueSidebar": "关闭侧边栏",
   "issueSidebar": "Issues",

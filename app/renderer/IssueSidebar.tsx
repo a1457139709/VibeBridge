@@ -50,7 +50,7 @@ export function useIssueSidebar(host: Host, api: Pick<DesktopAPI, 'saveIssueSide
     detailOpen: openedNumber !== undefined,
     /** Lies left of the sidebar; the host places it over or beside the layout area. */
     detail: project && repository && openedNumber !== undefined && <IssueDetailView key={`${lists}#${openedNumber}`} project={project}
-      repository={repository} number={openedNumber} workflows={snapshot!.settings.workflows} openIssue={openIssue} close={closeDetail}
+      repository={repository} number={openedNumber} workflows={snapshot!.settings.workflows} shortcuts={snapshot!.settings.shortcuts} openIssue={openIssue} close={closeDetail}
       locate={location => { closeDetail(); host.locatePanel(location.projectId, location.panelId, location.runId); }} />,
     toggle: <button className="issue-sidebar-toggle" aria-label={visible ? t('closeIssueSidebar') : t('openIssueSidebar')} aria-expanded={visible}
       disabled={!snapshot} onClick={() => { closeDetail(); toggle(); }}><SidebarIcon /></button>,
@@ -60,7 +60,7 @@ export function useIssueSidebar(host: Host, api: Pick<DesktopAPI, 'saveIssueSide
       <header className="issue-sidebar-heading"><span className="issue-sidebar-title">{title}</span>
         {repository && <span className="issue-sidebar-repository">{repository.path}</span>}</header>
       {project && repository && <IssueLists key={lists} project={project} repository={repository}
-        workflows={snapshot!.settings.workflows} changeBinding={() => host.bindRepository(project)}
+        workflows={snapshot!.settings.workflows} shortcuts={snapshot!.settings.shortcuts} changeBinding={() => host.bindRepository(project)}
         locate={location => host.locatePanel(location.projectId, location.panelId, location.runId)} detail={{ opened: openedNumber, open: openIssue }} />}
       {project && !repository && <div className="issue-sidebar-state">
         <p>{t('issueSidebarUnbound')}</p>
