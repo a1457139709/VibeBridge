@@ -1,20 +1,29 @@
+import type { CSSProperties } from 'react';
 import type { DesktopAPI } from '../shared/api';
+import type { ProjectView } from '../shared/model';
+import type { DispatchLocation } from '../shared/dispatch';
+import type { WorkflowSettings } from '../shared/workflows';
 import { platformDescriptions, repositoryItem, type IssueDetail, type MergeRequestReference,
   type RelatedIssue, type RepositoryItem, type RepositoryReference } from '../shared/code-hosting';
 import { useLocalization } from './Localization';
 import { IssueStateIcon } from './IssueLists';
-import { CreatedAt, DetailFailureState, Labels, PlatformHtml, followLinks, useDetail } from './detail-parts';
+import { CreatedAt, DetailFailureState, PlatformHtml, followLinks, useDetail } from './detail-parts';
 import { CheckIcon, MergeRequestStateIcon } from './MergeRequestRow';
+import { DispatchMenu, DispatchRecords } from './Dispatch';
 
 /**
  * One issue's read-only detail, read from the platform each time it opens. Links to the bound
  * repository's issues and merge requests open in the sidebar; every other link goes to the
- * system browser.
+ * system browser. The issue is dispatched from here as from its list row, and its Dispatch
+ * Records follow the snapshot.
  */
-export function IssueDetailView({ projectId, repository, number, open, close, api = window.workbench }: {
-  projectId: string; repository: RepositoryReference; number: number; open(item: RepositoryItem): void; close(): void;
-  api?: Pick<DesktopAPI, 'issueDetail'>;
+export function IssueDetailView({ project, repository, number, workflows, open, close, locate, api = window.workbench }: {
+  project: ProjectView; repository: RepositoryReference; number: number; workflows: WorkflowSettings; open(item: RepositoryItem): void; close(): void;
+  /** Shows the panel a dispatch went to. */
+  locate(location: DispatchLocation): void;
+  api?: Pick<DesktopAPI, 'issueDetail' | 'dispatch'>;
 }) {
+  const projectId = project.id;
   const { t } = useLocalization();
   const state = useDetail<IssueDetail>(() => api.issueDetail(projectId, number).then(result => result.ok ? { ok: true as const, item: result.issue } : result), [projectId, number]);
   const platform = platformDescriptions[repository.platform];
@@ -38,14 +47,19 @@ export function IssueDetailView({ projectId, repository, number, open, close, ap
         : !issue ? <p className="issue-detail-loading" role="status">{t('loadingIssue')}</p>
         : <>
           <h2 className="issue-detail-title">{issue.title} <span className="issue-row-number">#{issue.number}</span></h2>
-          <div className="issue-detail-meta">
+          <div className="issue-detail-head">
             <IssueStateIcon issue={issue} />
+            {issue.labels.map(label =>
+              <span key={label.name} className="issue-label" style={{ '--label-color': `#${label.color}` } as CSSProperties}>{label.name}</span>)}
+            <DispatchMenu issue={issue} project={project} workflows={workflows} dispatch={request => api.dispatch(projectId, request)} locate={locate} />
+          </div>
+          <div className="issue-detail-meta">
             {issue.author && <span className="issue-detail-author">{issue.author}</span>}
             <CreatedAt at={issue.createdAt} />
             <span>{t(issue.commentCount === 1 ? 'commentCountOne' : 'commentCount', { count: issue.commentCount })}</span>
             {!!issue.assignees.length && <span>{t('assignees')} <span>{issue.assignees.join(', ')}</span></span>}
           </div>
-          <Labels labels={issue.labels} />
+          <DispatchRecords issue={issue} records={project.dispatches.filter(record => record.issue === issue.number)} locate={locate} />
           <RelationGraph issue={issue} repository={repository} open={openReference} />
           <ClosingMergeRequests mergeRequests={issue.closingMergeRequests} open={openMergeRequest} />
           <article className="issue-detail-card">

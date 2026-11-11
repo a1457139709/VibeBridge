@@ -24,7 +24,7 @@ const flipped = (delivery: Delivery): Delivery => delivery === 'submit' ? 'fill'
  * returns focus to the button; a filled one locates its panel.
  */
 export function DispatchMenu({ issue, project, workflows, dispatch, locate }: {
-  issue: IssueSummary; project: ProjectView; workflows: WorkflowSettings;
+  issue: Pick<IssueSummary, 'number' | 'title'>; project: ProjectView; workflows: WorkflowSettings;
   dispatch(request: DispatchRequest): Promise<void>; locate(location: DispatchLocation): void;
 }) {
   const { t, text } = useLocalization();
@@ -114,4 +114,42 @@ export function DispatchStatus({ issue, records, locate }: { issue: IssueSummary
       {records.length > 1 && <span className="issue-dispatch-count">{t('dispatchCount', { count: records.length })}</span>}
     </> : <span className="issue-dispatched">{dispatched}</span>}
   </button>;
+}
+
+/**
+ * Every Dispatch Record of the issue, newest first: when, which Agent type, the session (locatable while a panel is on
+ * it) and the instruction sent, folded. A closed issue folds the whole section to its count.
+ */
+export function DispatchRecords({ issue, records, locate }: {
+  issue: Pick<IssueSummary, 'state'>; records: DispatchRecordView[]; locate(location: DispatchLocation): void;
+}) {
+  const { t } = useLocalization();
+  const [open, setOpen] = useState(issue.state === 'open');
+  if (!records.length) return null;
+  const heading = t('dispatchRecords', { count: records.length });
+  return <section className="dispatch-records" aria-label={heading}>
+    <button className="dispatch-records-fold" aria-expanded={open} onClick={() => setOpen(current => !current)}>
+      <span aria-hidden="true">{open ? '▾' : '▸'}</span>{heading}</button>
+    {open && <ul>{records.map((record, index) => <DispatchRecordItem key={`${record.time}:${index}`} record={record} locate={locate} />)}</ul>}
+  </section>;
+}
+
+function DispatchRecordItem({ record, locate }: { record: DispatchRecordView; locate(location: DispatchLocation): void }) {
+  const { t, language } = useLocalization();
+  const [shown, setShown] = useState(false);
+  const time = new Date(record.time);
+  const { location } = record;
+  const title = location?.title ?? t('untitled');
+  return <li className="dispatch-record">
+    <div className="dispatch-record-line">
+      <time dateTime={record.time} title={time.toLocaleString(language)}>{relativeTime(time, language)}</time>
+      <span className="agent-mark" aria-hidden="true">{agentIcons[record.agent]}</span><span>{agentNames[record.agent]}</span>
+      {location ? <button className="dispatch-record-session" aria-label={t('locateSession', { title })} onClick={() => locate(location)}>
+        <ProcessingStatusIcon state={location.status} /><span>{title}</span></button>
+        : <span className="dispatch-record-session unlocated">{t('noPanelOnSession')}</span>}
+      <button className="dispatch-record-fold" aria-expanded={shown} onClick={() => setShown(current => !current)}>
+        <span aria-hidden="true">{shown ? '▾' : '▸'}</span>{t('dispatchInstruction')}</button>
+    </div>
+    {shown && <pre className="dispatch-record-text">{record.text}</pre>}
+  </li>;
 }

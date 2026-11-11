@@ -42,7 +42,6 @@ export function useIssueSidebar(host: Host, api: Pick<DesktopAPI, 'saveIssueSide
   const open = (item: RepositoryItem) => { if (lists) setOpened({ lists, item }); };
   const closeDetail = () => setOpened(undefined);
   const opening = (kind: RepositoryItem['kind']) => ({ opened: openedItem?.kind === kind ? openedItem.number : undefined, open: (number: number) => open({ kind, number }) });
-  const Detail = openedItem?.kind === 'mergeRequest' ? MergeRequestDetailView : IssueDetailView;
   const title = repository ? platformDescriptions[repository.platform].name : t('issueSidebar');
   return {
     visible,
@@ -52,8 +51,12 @@ export function useIssueSidebar(host: Host, api: Pick<DesktopAPI, 'saveIssueSide
     /** Whether an issue's or merge request's detail is open beside the sidebar. */
     detailOpen: openedItem !== undefined,
     /** Lies left of the sidebar; the host places it over or beside the layout area. */
-    detail: project && repository && openedItem && <Detail key={`${lists}:${openedItem.kind}#${openedItem.number}`} projectId={project.id}
-      repository={repository} number={openedItem.number} open={open} close={closeDetail} />,
+    detail: project && repository && openedItem && (openedItem.kind === 'mergeRequest'
+      ? <MergeRequestDetailView key={`${lists}:mergeRequest#${openedItem.number}`} projectId={project.id}
+        repository={repository} number={openedItem.number} open={open} close={closeDetail} />
+      : <IssueDetailView key={`${lists}:issue#${openedItem.number}`} project={project}
+        repository={repository} number={openedItem.number} workflows={snapshot!.settings.workflows} open={open} close={closeDetail}
+        locate={location => { closeDetail(); host.locatePanel(location.projectId, location.panelId, location.runId); }} />),
     toggle: <button className="issue-sidebar-toggle" aria-label={visible ? t('closeIssueSidebar') : t('openIssueSidebar')} aria-expanded={visible}
       disabled={!snapshot} onClick={() => { closeDetail(); toggle(); }}><SidebarIcon /></button>,
     sidebar: visible && <aside ref={element} tabIndex={-1} className="issue-sidebar" aria-label={title}
