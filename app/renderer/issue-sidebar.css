@@ -14,8 +14,8 @@
 .issue-sidebar-repository { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--muted); font-family: Menlo, monospace; font-size: 11px; }
 .issue-sidebar-state { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; padding: 24px; text-align: center; color: var(--muted); line-height: 1.6; }
 /* Lists: tabs and refresh, filters, rows. Colours follow GitHub's issue states. */
-:root { --issue-open: #1a7f37; --issue-done: #8250df; --issue-skipped: #59636e; --merge-request-closed: #d1242f; --checks-pending: #9a6700; }
-:root[data-theme='dark'] { --issue-open: #3fb950; --issue-done: #ab7df8; --issue-skipped: #9198a1; --merge-request-closed: #f85149; --checks-pending: #d29922; }
+:root { --issue-open: #1a7f37; --issue-done: #8250df; --issue-skipped: #59636e; --issue-blocked: #d1242f; --merge-request-closed: #d1242f; --checks-pending: #9a6700; }
+:root[data-theme='dark'] { --issue-open: #3fb950; --issue-done: #ab7df8; --issue-skipped: #9198a1; --issue-blocked: #f85149; --merge-request-closed: #f85149; --checks-pending: #d29922; }
 .issue-tab { flex: 1; min-height: 0; display: flex; flex-direction: column; }
 .issue-toolbar { display: flex; align-items: center; gap: 6px; padding: 6px 8px 0 12px; border-bottom: 1px solid var(--line); }
 .issue-tabs { flex: 1; display: flex; gap: 2px; }
@@ -55,6 +55,15 @@
 .issue-label { --label-color: #888; min-height: 18px; padding: 0 7px; border-radius: 999px; font-size: 11px; line-height: 16px;
   border: 1px solid color-mix(in srgb, var(--label-color) 55%, transparent); background: color-mix(in srgb, var(--label-color) 18%, transparent); color: inherit; }
 .issue-row-actions { flex-shrink: 0; }
+.issue-progress { min-height: 18px; padding: 0 6px; display: inline-flex; align-items: center; gap: 4px; border: 0; background: transparent; color: inherit; font-size: 11px; font-variant-numeric: tabular-nums; }
+.issue-progress:hover { background: var(--hover); }
+.issue-progress-bar { width: 36px; height: 6px; border-radius: 3px; background: var(--line); overflow: hidden; display: inline-block; }
+.issue-progress-bar span { display: block; height: 100%; background: var(--issue-done); }
+/* Expanded sub-issues sit one step in, with a line down their left edge. */
+.issue-sub-issues { margin-left: 20px; border-left: 2px solid var(--line); }
+.issue-closed-fold { display: block; width: 100%; min-height: 26px; padding: 0 12px; border: 0; border-bottom: 1px solid var(--line); border-radius: 0; background: transparent; text-align: left; color: var(--muted); font-size: 11px; }
+.issue-closed-fold:hover { background: var(--hover); color: inherit; }
+.issue-blocked { display: inline-flex; align-items: center; gap: 3px; color: var(--issue-blocked); font-weight: 600; white-space: nowrap; }
 .issue-list-empty { margin: 24px 12px; text-align: center; color: var(--muted); }
 .issue-list-more { display: block; margin: 10px auto; min-height: 28px; font-size: 12px; }
 .issue-state-actions { display: flex; flex-wrap: wrap; justify-content: center; gap: 6px; margin-top: 6px; }

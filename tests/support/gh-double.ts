@@ -10,6 +10,10 @@ export interface GhIssue {
   stateReason: 'COMPLETED' | 'NOT_PLANNED' | 'DUPLICATE' | null;
   createdAt: string;
   labels: string[];
+  /** The number of the issue this one is a sub-issue of. */
+  parent?: number;
+  /** Numbers of the issues natively marked as blocking this one. */
+  blockedBy?: number[];
 }
 
 /** A pull request of every repository the double lists, as GitHub's API names its fields.

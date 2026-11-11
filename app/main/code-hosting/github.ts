@@ -61,7 +61,14 @@ function remotePath(url: string): string | null {
 const labelFields = `labels(first: 20) { nodes { name color } }`;
 const listLabels = (labels: { nodes: IssueLabel[] }) => labels.nodes.map(({ name, color }) => ({ name, color }));
 
-interface IssueNode { number: number; title: string; state: 'OPEN' | 'CLOSED'; stateReason: string | null; createdAt: string; url: string; labels: { nodes: IssueLabel[] } }
+interface IssueNode {
+  number: number; title: string; state: 'OPEN' | 'CLOSED'; stateReason: string | null; createdAt: string; url: string; labels: { nodes: IssueLabel[] };
+  parent: { number: number } | null;
+  blockedBy: { nodes: { number: number; title: string; state: 'OPEN' | 'CLOSED' }[] };
+  /** Read only for listed issues, not for their sub-issues. */
+  subIssuesSummary?: { total: number; completed: number };
+  subIssues?: { nodes: IssueNode[] };
+}
 interface PullRequestNode {
   number: number; title: string; state: 'OPEN' | 'CLOSED' | 'MERGED'; isDraft: boolean; createdAt: string; url: string;
   author: { login: string } | null; labels: { nodes: IssueLabel[] };
@@ -77,15 +84,24 @@ interface ListKind<Node, Summary> {
   filterState(summary: Summary): IssueFilter['state'];
 }
 
+// Sub-issues and blockers come from their own fields, never from search qualifiers or body text.
+const relationFields = `parent { number } blockedBy(first: 20) { nodes { number title state } }`;
+const ownIssueFields = `number title state stateReason createdAt url ${labelFields} ${relationFields}`;
 const closures: Record<string, IssueClosure> = { COMPLETED: 'completed', NOT_PLANNED: 'notPlanned', DUPLICATE: 'duplicate' };
+function issueSummary(node: IssueNode): IssueSummary {
+  const state = node.state === 'OPEN' ? 'open' : 'closed';
+  return { number: node.number, title: node.title, state, closedAs: state === 'closed' ? closures[node.stateReason ?? ''] ?? null : null,
+    createdAt: node.createdAt, labels: listLabels(node.labels), url: node.url,
+    parent: node.parent?.number ?? null,
+    subIssues: node.subIssuesSummary?.total && node.subIssues
+      ? { total: node.subIssuesSummary.total, completed: node.subIssuesSummary.completed, issues: node.subIssues.nodes.map(issueSummary) }
+      : null,
+    blockedBy: node.blockedBy.nodes.filter(blocker => blocker.state === 'OPEN').map(({ number, title }) => ({ number, title })) };
+}
 const issueKind: ListKind<IssueNode, IssueSummary> = {
   qualifier: 'issue',
-  fragment: `... on Issue { number title state stateReason createdAt url ${labelFields} }`,
-  summary(node) {
-    const state = node.state === 'OPEN' ? 'open' : 'closed';
-    return { number: node.number, title: node.title, state, closedAs: state === 'closed' ? closures[node.stateReason ?? ''] ?? null : null,
-      createdAt: node.createdAt, labels: listLabels(node.labels), url: node.url };
-  },
+  fragment: `... on Issue { ${ownIssueFields} subIssuesSummary { total completed } subIssues(first: 50) { nodes { ${ownIssueFields} } } }`,
+  summary: issueSummary,
   filterState: issue => issue.state,
 };
 

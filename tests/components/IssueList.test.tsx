@@ -27,7 +27,7 @@ const docs: ProjectView = { id: 'docs', name: 'Docs project', directory: '/work/
   repository: { platform: 'github', path: 'octo/docs' } };
 
 const issue = (number: number, extra: Partial<IssueSummary> = {}): IssueSummary => ({ number, title: `Issue ${number}`, state: 'open', closedAs: null,
-  createdAt: '2026-11-01T00:00:00Z', labels: [], url: `https://github.com/octo/app/issues/${number}`, ...extra });
+  createdAt: '2026-11-01T00:00:00Z', labels: [], url: `https://github.com/octo/app/issues/${number}`, parent: null, subIssues: null, blockedBy: [], ...extra });
 const page = (issues: IssueSummary[], next: string | null = null, labels: IssuePage['labels'] = []): IssuePageResult => ({ ok: true, page: { issues, next, labels } });
 const failure = (kind: PlatformFailureKind, output = '', account?: string): IssuePageResult =>
   ({ ok: false, failure: { kind, platform: platformDescriptions.github, output }, ...(account ? { account } : {}) });
