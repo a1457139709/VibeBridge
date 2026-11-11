@@ -2,8 +2,8 @@ const { readFileSync, writeFileSync } = require('node:fs');
 
 // External CLI double for GitHub's `gh`: answers `gh api graphql` from a state file the test
 // writes, for the viewer, the viewer's repositories, issue and pull request search, and an
-// issue or pull request by number, which fills only the fragment of its own type, and an issue's
-// detail, and a pull request's detail. Comment and review pages hold at most `commentPageSize` items. Closing pull requests leave out
+// issue or pull request by number, which fills only the fragment of its own type, an issue's
+// sub-issues, at most `subIssuePageSize` per page, an issue's detail, and a pull request's detail. Comment and review pages hold at most `commentPageSize` items. Closing pull requests leave out
 // closed unmerged ones unless the query asks with `includeClosedPrs: true`, as GitHub does.
 // A state `failure` makes every call end with the given exit code, stdout and stderr, as
 // `gh` does when the API refuses. Repository pages hold at most `pageSize` repositories,
@@ -30,6 +30,7 @@ module.exports = function gh(stateFile, args) {
   if (/^\s*mutation\b/.test(query)) return mutate(stateFile, state, fields, query, args);
   if (query.includes('search(')) return answer(search(state, fields));
   if (query.includes('issueOrPullRequest(')) return answer(issueByNumber(state, fields));
+  if (/issue\(number: \$number\) \{\s*subIssues\(/.test(query)) return answer(subIssuePage(state, fields));
   if (query.includes('issue(number:')) return answer(issueDetail(state, fields, query));
   if (query.includes('pullRequest(number:')) return answer(pullRequestDetail(state, fields));
   if (!query.includes('viewer')) unsupported(args);
@@ -71,19 +72,31 @@ function labelNodes(state, names) {
   return { nodes: names.map(name => ({ name, color: color(name) })) };
 }
 
-// Relations come from each issue's `parent` and `blockedBy` numbers. Sub-issues are listed one
-// level deep, in the order the state holds them, as the Workbench's query asks.
-function issueNode(state, path, issue, depth = 0) {
+// Relations come from each issue's `parent` and `blockedBy` numbers. An issue carries only its
+// sub-issue progress; its sub-issues are read on their own, in the order the state holds them.
+function issueNode(state, path, issue) {
   const all = state.issues ?? [];
   const byNumber = number => all.find(item => item.number === number);
   const children = all.filter(item => item.parent === issue.number);
   const node = { number: issue.number, title: issue.title, state: issue.state, stateReason: issue.stateReason, createdAt: issue.createdAt,
     url: `https://github.com/${path}/issues/${issue.number}`, labels: labelNodes(state, issue.labels),
     parent: issue.parent ? { number: issue.parent } : null,
-    blockedBy: { nodes: (issue.blockedBy ?? []).map(byNumber).map(item => ({ number: item.number, title: item.title, state: item.state })) } };
-  if (depth > 0) return node;
-  return { ...node, subIssuesSummary: { total: children.length, completed: children.filter(item => item.state === 'CLOSED').length },
-    subIssues: { nodes: children.map(child => issueNode(state, path, child, depth + 1)) } };
+    blockedBy: { nodes: (issue.blockedBy ?? []).map(byNumber).map(item => ({ number: item.number, title: item.title, state: item.state })) },
+    subIssuesSummary: { total: children.length, completed: children.filter(item => item.state === 'CLOSED').length } };
+  return node;
+}
+
+function subIssuePage(state, fields) {
+  const path = repository(state, fields.owner, fields.name);
+  const issue = (state.issues ?? []).find(item => item.number === Number(fields.number));
+  if (!issue) notFound('repository', `Could not resolve to an Issue with the number of ${fields.number}.`, { repository: { issue: null } });
+  const children = state.issues.filter(item => item.parent === issue.number);
+  const size = state.subIssuePageSize ?? 100;
+  const start = fields.cursor ? Number(fields.cursor) : 0;
+  const page = children.slice(start, start + size);
+  const end = start + page.length;
+  return { repository: { issue: { subIssues: { nodes: page.map(child => issueNode(state, path, child)),
+    pageInfo: { hasNextPage: end < children.length, endCursor: String(end) } } } } };
 }
 
 function pullRequestNode(state, path, request) {

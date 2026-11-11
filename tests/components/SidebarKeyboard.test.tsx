@@ -31,7 +31,8 @@ const detail = (number: number): IssueDetail => ({ ...issue(number), parent: nul
   body: '<p>Body of the issue with <a href="https://example.com/spec">a link</a></p>', commentCount: 0, comments: [], blocking: [], closingMergeRequests: [], writable: false });
 
 /** Issue #10 has open sub-issues #11 and #12; #20 and #30 stand alone. */
-const issues = [issue(30), issue(20), issue(10, { subIssues: { completed: 0, total: 2, issues: [issue(12, { parent: 10 }), issue(11, { parent: 10 })] } })];
+const issues = [issue(30), issue(20), issue(10, { subIssues: { completed: 0, total: 2 } })];
+const subIssues = [issue(12, { parent: 10 }), issue(11, { parent: 10 })];
 
 /** The workbench on `project` bound to octo/app, listing `issues`; details answer at once. */
 async function renderWorkbench(issueSidebar: IssueSidebarPreferences = { visible: true, width: 420 }, project = app) {
@@ -43,6 +44,7 @@ async function renderWorkbench(issueSidebar: IssueSidebarPreferences = { visible
     ready: async () => {}, activateProject: async () => {}, saveNavigation: async () => {}, saveLayout: async () => {}, saveIssueSidebar: async () => {},
     inspectDirectory: async directory => ({ valid: true, directory }), repositoryChoices: () => new Promise<RepositoryChoices>(() => {}),
     issuePage: async (): Promise<IssuePageResult> => ({ ok: true, page: { issues, next: null, labels: [] } }),
+    subIssues: async () => ({ ok: true, issues: subIssues }),
     issueDetail: async (_projectId, number): Promise<IssueDetailResult> => ({ ok: true, issue: detail(number) }) });
   render(<App />);
   if (issueSidebar.visible) await screen.findByRole('listitem', { name: '#30 Issue 30' });

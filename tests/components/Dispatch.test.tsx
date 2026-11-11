@@ -37,6 +37,7 @@ function renderList({ state = project(), workflows = defaultWorkflowSettings(), 
   const api = {
     issuePage: async (): Promise<IssuePageResult> => { reads++; return { ok: true, page: { issues, next: null, labels: [] } }; },
     mergeRequestPage: () => new Promise<never>(() => {}),
+    subIssues: async () => ({ ok: true as const, issues: [] }),
     dispatch: async (_projectId: string, request: DispatchRequest) => { dispatched.push(request); return creation; },
   };
   const view = (next: ProjectView) => <Localization language="en">

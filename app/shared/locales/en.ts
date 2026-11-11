@@ -303,6 +303,7 @@ export const english = {
   "filterByLabel": "Filter by label {label}",
   "subIssueProgress": "Sub-issues: {completed} of {total} closed",
   "subIssuesOf": "Sub-issues of #{number}",
+  "loadingSubIssues": "Loading sub-issues…",
   "closedSubIssues": "{count} closed",
   "hideClosedSubIssues": "Hide closed",
   "blockedBy": "Blocked by {numbers}",

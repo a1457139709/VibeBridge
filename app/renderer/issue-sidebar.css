@@ -64,6 +64,7 @@
 .issue-progress-bar span { display: block; height: 100%; background: var(--issue-done); }
 /* Expanded sub-issues sit one step in, with a line down their left edge. */
 .issue-sub-issues { margin-left: 20px; border-left: 2px solid var(--line); }
+.issue-sub-issues-loading { margin-top: 0; margin-bottom: 0; padding: 6px 12px; color: var(--muted); font-size: 11px; }
 .issue-closed-fold { display: block; width: 100%; min-height: 26px; padding: 0 12px; border: 0; border-bottom: 1px solid var(--line); border-radius: 0; background: transparent; text-align: left; color: var(--muted); font-size: 11px; }
 .issue-closed-fold:hover { background: var(--hover); color: inherit; }
 .issue-blocked { display: inline-flex; align-items: center; gap: 3px; color: var(--issue-blocked); font-weight: 600; white-space: nowrap; }
@@ -96,6 +97,7 @@ main:has(> .workbench-page:not([hidden]) .panel-tray:not(.empty)) > .issue-detai
 .issue-detail-title { margin: 0 0 6px; font-size: 17px; line-height: 1.35; overflow-wrap: anywhere; }
 .issue-detail-head { display: flex; flex-wrap: wrap; align-items: center; gap: 4px; margin-bottom: 6px; }
 .issue-detail-head .dispatch { margin-left: auto; }
+.issue-detail-labels { display: flex; flex-wrap: wrap; gap: 4px; margin-bottom: 6px; }
 .issue-detail-meta { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 10px; color: var(--muted); font-size: 12px; }
 .issue-detail-author { color: inherit; font-weight: 600; }
 .issue-detail-card { margin-top: 12px; border: 1px solid var(--line); border-radius: 8px; overflow: hidden; }

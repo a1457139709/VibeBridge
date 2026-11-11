@@ -29,6 +29,7 @@ async function renderList({ shortcuts = defaultShortcuts(), issues = [issue(7)] 
   const api = {
     issuePage: async () => ({ ok: true as const, page: { issues, next: null, labels: [] } }),
     mergeRequestPage: () => new Promise<never>(() => {}),
+    subIssues: async () => ({ ok: true as const, issues: [] }),
     dispatch: async (_projectId: string, request: DispatchRequest) => { dispatched.push(request); return null; },
   };
   render(<Localization language="en">

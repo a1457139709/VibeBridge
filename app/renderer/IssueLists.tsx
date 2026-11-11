@@ -1,16 +1,16 @@
 import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from 'react';
 import type { DesktopAPI } from '../shared/api';
-import { defaultListFilter, platformDescriptions, type ListFilter, type IssueLabel, type IssueSummary, type ListFailure, type MergeRequestSummary, type PlatformDescription, type RepositoryReference } from '../shared/code-hosting';
-import type { Language, PanelCreation, ProjectView } from '../shared/model';
-import type { DispatchLocation, DispatchRequest } from '../shared/dispatch';
+import { defaultListFilter, platformDescriptions, type ListFilter, type IssueLabel, type IssueSummary, type ListFailure, type MergeRequestSummary, type PlatformDescription,
+  type RepositoryReference } from '../shared/code-hosting';
+import type { ProjectView } from '../shared/model';
+import type { DispatchLocation } from '../shared/dispatch';
 import type { WorkflowSettings } from '../shared/workflows';
-import { DispatchMenu, DispatchStatus, issueShortcutKeys, type DispatchMenuActions } from './Dispatch';
 import type { Shortcuts } from '../shared/shortcuts';
-import { entryRow, issueRowKeyDown } from './issue-navigation';
+import { entryRow } from './issue-navigation';
 import { useLocalization } from './Localization';
-import { LabelButtons, relativeTime, type DetailOpening } from './list-row-parts';
+import type { DetailOpening } from './list-row-parts';
 import { MergeRequestRow } from './MergeRequestRow';
-import { BlockedMark, IssueStateIcon } from './issue-icons';
+import { IssueRow, type Dispatching, type IssueRowContext } from './IssueRow';
 import { ReadFailureState, useLatestRead, type ReadFailure } from './platform-failure';
 
 /** The sidebar's lists, one per tab. */
@@ -39,12 +39,18 @@ export function IssueLists({ project, repository, changes = 0, refreshed, filter
   /** Which issue's and which merge request's detail is open, and how rows open them. */
   detail: DetailOpening;
   mergeRequestDetail: DetailOpening;
-  api?: Pick<DesktopAPI, 'issuePage' | 'mergeRequestPage' | 'dispatch'>;
+  api?: Pick<DesktopAPI, 'issuePage' | 'mergeRequestPage' | 'dispatch' | 'subIssues'>;
 }) {
   const { t, language } = useLocalization();
   const [tab, setTab] = useState<SidebarList>('issues');
-  // The row last focused is the one Tab reaches in the list.
+  // The row last focused is the one Tab reaches in the list, while it is shown.
   const [focused, setFocused] = useState<number>();
+  // The sub-issue rows each expanded issue shows, by its number.
+  const [nested, setNested] = useState<Record<number, number[]>>({});
+  const showing = (parent: number, rows: number[] | null) => setNested(current => {
+    const { [parent]: _, ...rest } = current;
+    return rows ? { ...rest, [parent]: rows } : rest;
+  });
   const setFilter = (filter: ListFilter) => setFilters(current => ({ ...current, [tab]: filter }));
   const tabs = <div className="issue-tabs" role="tablist">
     {(['issues', 'mergeRequests'] as const).map(id => <button key={id} role="tab" aria-selected={tab === id} onClick={() => setTab(id)}>
@@ -61,21 +67,18 @@ export function IssueLists({ project, repository, changes = 0, refreshed, filter
         const dispatching: Dispatching = { project, workflows, shortcuts, locate, filled,
           dispatch: request => api.dispatch(project.id, request).then(creation => { refresh(); return creation; }) };
         const shown = topLevel(issues, platform);
-        const tabbable = issues.some(issue => issue.number === focused || issue.subIssues?.issues.some(sub => sub.number === focused)) ? focused : shown[0]?.number;
-        const rows: RowFocus = { ...detail, tabbable, focused: setFocused };
-        return shown.map(issue =>
-          <IssueRow key={issue.number} issue={issue} platform={platform} language={language} addLabel={addLabel} dispatching={dispatching} detail={rows} />);
+        const reachable = new Set(shown.map(issue => issue.number));
+        for (const number of reachable) for (const sub of nested[number] ?? []) reachable.add(sub);
+        const tabbable = focused !== undefined && reachable.has(focused) ? focused : shown[0]?.number;
+        const context: IssueRowContext = { platform, language, addLabel, dispatching, detail: { ...detail, tabbable, focused: setFocused, showing },
+          readSubIssues: number => api.subIssues(project.id, number) };
+        return shown.map(issue => <IssueRow key={issue.number} issue={issue} context={context} />);
       }} />
     : <ListTab key="mergeRequests" {...common} filter={filters.mergeRequests} search={t('searchMergeRequests')} empty={t('noMatchingMergeRequests')}
       load={(filter, cursor) => api.mergeRequestPage(project.id, filter, cursor).then(result => result.ok
         ? { ok: true, page: { items: result.page.mergeRequests, next: result.page.next, labels: result.page.labels } } : result)}
       rows={(requests: MergeRequestSummary[], addLabel) => requests.map(request =>
         <MergeRequestRow key={request.number} request={request} addLabel={addLabel} detail={mergeRequestDetail} />)} />;
-}
-
-interface Dispatching {
-  project: ProjectView; workflows: WorkflowSettings; shortcuts: Shortcuts; locate(location: DispatchLocation): void; filled(location: DispatchLocation): void;
-  dispatch(request: DispatchRequest): Promise<PanelCreation | null>;
 }
 
 /** A list page whatever the list holds. */
@@ -177,68 +180,6 @@ function topLevel(issues: IssueSummary[], platform: PlatformDescription) {
   if (!platform.capabilities.includes('subIssues')) return issues;
   const listed = new Set(issues.map(issue => issue.number));
   return issues.filter(issue => issue.parent === null || !listed.has(issue.parent));
-}
-
-/** The detail opening, plus the one row Tab reaches and how a focused row claims that. */
-interface RowFocus extends DetailOpening { tabbable?: number; focused(number: number): void }
-
-/** Clicking the row opens the issue's detail; its controls and dispatch actions act on their own. */
-function IssueRow({ issue, platform, language, addLabel, dispatching, detail }: {
-  issue: IssueSummary; platform: PlatformDescription; language: Language; addLabel(name: string): void; dispatching: Dispatching; detail: RowFocus;
-}) {
-  const { t } = useLocalization();
-  const [expanded, setExpanded] = useState(false);
-  const created = new Date(issue.createdAt);
-  const subIssues = platform.capabilities.includes('subIssues') ? issue.subIssues : null;
-  const menu = useRef<DispatchMenuActions>(null);
-  const records = dispatching.project.dispatches.filter(record => record.issue === issue.number);
-  const shortcutKeys = issueShortcutKeys({ issue, records, shortcuts: dispatching.shortcuts, menu, locate: dispatching.locate });
-  // The dispatch and locate shortcuts come first; the row's fixed keys leave any key they handled.
-  return <li aria-label={`#${issue.number} ${issue.title}`} aria-current={detail.opened === issue.number || undefined}
-    data-issue-row={issue.number} tabIndex={detail.tabbable === issue.number ? 0 : -1}
-    onFocus={event => { if (event.target === event.currentTarget) detail.focused(issue.number); }}
-    onKeyDown={event => { shortcutKeys(event); issueRowKeyDown(event, { expandable: !!subIssues, expanded, setExpanded, open: () => detail.open(issue.number) }); }}>
-    <div className="issue-row" onClick={event => { if (!(event.target as Element).closest('button, a, .issue-row-actions')) detail.open(issue.number); }}>
-      <IssueStateIcon issue={issue} />
-      <div className="issue-row-main">
-        <div className="issue-row-title">{issue.title}</div>
-        <div className="issue-row-meta">
-          <span className="issue-row-number">#{issue.number}</span>
-          <time dateTime={issue.createdAt} title={created.toLocaleString(language)}>{relativeTime(created, language)}</time>
-          {subIssues && <button className="issue-progress" aria-expanded={expanded} onClick={() => setExpanded(open => !open)}
-            aria-label={t('subIssueProgress', { completed: subIssues.completed, total: subIssues.total })}>
-            <span aria-hidden="true">{expanded ? '▾' : '▸'}</span>
-            <span className="issue-progress-bar"><span style={{ width: `${subIssues.completed / subIssues.total * 100}%` }} /></span>
-            {subIssues.completed}/{subIssues.total}</button>}
-          {platform.capabilities.includes('nativeBlocking') && issue.blockedBy.length > 0 && <BlockedMark blockers={issue.blockedBy} />}
-          <LabelButtons labels={issue.labels} addLabel={addLabel} />
-        </div>
-      </div>
-      <div className="issue-row-actions">
-        <DispatchMenu ref={menu} issue={issue} project={dispatching.project} workflows={dispatching.workflows} dispatch={dispatching.dispatch} filled={dispatching.filled} />
-        <DispatchStatus issue={issue} records={records} locate={dispatching.locate} />
-      </div>
-    </div>
-    {subIssues && expanded && <SubIssueList parent={issue.number} issues={subIssues.issues} platform={platform} language={language} addLabel={addLabel} dispatching={dispatching} detail={detail} />}
-  </li>;
-}
-
-/** Sub-issues in number order; the closed ones fold behind one button. */
-function SubIssueList({ parent, issues, platform, language, addLabel, dispatching, detail }: {
-  parent: number; issues: IssueSummary[]; platform: PlatformDescription; language: Language; addLabel(name: string): void; dispatching: Dispatching;
-  detail: RowFocus;
-}) {
-  const { t } = useLocalization();
-  const [showClosed, setShowClosed] = useState(false);
-  const closed = issues.filter(issue => issue.state === 'closed').length;
-  const shown = issues.filter(issue => showClosed || issue.state === 'open').sort((a, b) => a.number - b.number);
-  return <div className="issue-sub-issues">
-    <ul aria-label={t('subIssuesOf', { number: parent })}>
-      {shown.map(issue => <IssueRow key={issue.number} issue={issue} platform={platform} language={language} addLabel={addLabel} dispatching={dispatching} detail={detail} />)}
-    </ul>
-    {closed > 0 && <button className="issue-closed-fold" onClick={() => setShowClosed(open => !open)}>
-      {showClosed ? t('hideClosedSubIssues') : t('closedSubIssues', { count: closed })}</button>}
-  </div>;
 }
 
 function LabelSwatch({ label }: { label: IssueLabel }) {

@@ -279,6 +279,7 @@ export class Workbench {
   /** Dispatches an issue to a panel of the project or a new one; see Dispatches. */
   dispatch(projectId: string, request: DispatchRequest): Promise<PanelCreation | null> { return this.operation(() => this.dispatches.dispatch(projectId, request)); }
   mergeRequestPage(projectId: string, filter: ListFilter, cursor: string | null) { return this.repositories.mergeRequestPage(this.project(projectId), filter, cursor); }
+  subIssues(projectId: string, number: number) { return this.repositories.subIssues(this.project(projectId), number); }
   issueDetail(projectId: string, number: number) { return this.repositories.issueDetail(this.project(projectId), number); }
   mergeRequestDetail(projectId: string, number: number) { return this.repositories.mergeRequestDetail(this.project(projectId), number); }
   directAction(projectId: string, action: DirectAction) { return this.repositories.directAction(this.project(projectId), action); }

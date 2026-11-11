@@ -27,7 +27,8 @@ async function boundProject(context: TestContext, scope: string, state: GhState)
   const { project } = await workbench.createProject({ name: 'Bound', directory, total: 1, counts: { codex: 1, claude: 0, pi: 0 } });
   await workbench.bindRepository(project.id, { platform: 'github', path: 'octo/app' });
   const page = (filter: Partial<ListFilter> = {}, cursor: string | null = null) => workbench.issuePage(project.id, { ...defaultListFilter, ...filter }, cursor);
-  return { gh, workbench, project, page };
+  const subIssues = (number: number) => workbench.subIssues(project.id, number);
+  return { gh, workbench, project, page, subIssues };
 }
 
 function numbers(result: IssuePageResult) {
@@ -108,7 +109,7 @@ test('an unbound project has no issue list', async context => {
   await assert.rejects(f.page(), /repositoryUnbound/);
 });
 
-test('the issue list reads parents, sub-issues with their progress and open native blockers from the platform', async context => {
+test('the issue list reads parents, sub-issue progress and open native blockers from the platform', async context => {
   const day = (n: number) => `2026-01-0${n}T00:00:00Z`;
   const f = await boundProject(context, 'issue-list-relations', { issues: [
     { number: 1, title: 'Epic', state: 'OPEN', stateReason: null, createdAt: day(1), labels: [] },
@@ -125,8 +126,26 @@ test('the issue list reads parents, sub-issues with their progress and open nati
   assert.equal(orphan.parent, 6);
   assert.deepEqual([blocker.parent, blocker.subIssues, blocker.blockedBy], [null, null, []]);
   assert.deepEqual([child.parent, child.blockedBy], [1, [{ number: 5, title: 'Blocker' }]], 'a closed blocker no longer blocks');
-  assert.ok(epic.subIssues);
-  assert.deepEqual([epic.subIssues.completed, epic.subIssues.total], [1, 2]);
-  assert.deepEqual(epic.subIssues.issues.map(issue => [issue.number, issue.state, issue.parent, issue.blockedBy]),
-    [[2, 'open', 1, [{ number: 5, title: 'Blocker' }]], [3, 'closed', 1, []]]);
+  assert.deepEqual(epic.subIssues, { completed: 1, total: 2 });
+});
+
+test('an issue\'s sub-issues are read on their own, every page of them, each with its own progress, at any depth', async context => {
+  const day = (n: number) => `2026-01-${String(n).padStart(2, '0')}T00:00:00Z`;
+  const child = (number: number, parent: number, state: 'OPEN' | 'CLOSED' = 'OPEN'): GhIssue => ({ number, title: `Issue ${number}`, state, stateReason: state === 'OPEN' ? null : 'COMPLETED',
+    createdAt: day(number), labels: [], parent });
+  const f = await boundProject(context, 'issue-list-sub-issues', { subIssuePageSize: 2, issues: [
+    { number: 1, title: 'Epic', state: 'OPEN', stateReason: null, createdAt: day(1), labels: [] },
+    child(2, 1), child(3, 1, 'CLOSED'), child(4, 1), child(5, 1), child(6, 1), child(7, 4), child(8, 7, 'CLOSED'),
+  ] });
+  const epic = await f.subIssues(1);
+  assert.ok(epic.ok, JSON.stringify(epic));
+  assert.deepEqual(epic.issues.map(issue => [issue.number, issue.state, issue.parent]),
+    [[2, 'open', 1], [3, 'closed', 1], [4, 'open', 1], [5, 'open', 1], [6, 'open', 1]], 'more sub-issues than one page holds');
+  assert.deepEqual(epic.issues.find(issue => issue.number === 4)?.subIssues, { completed: 0, total: 1 });
+  const grandchild = await f.subIssues(7);
+  assert.ok(grandchild.ok);
+  assert.deepEqual(grandchild.issues.map(issue => issue.number), [8], 'a sub-issue\'s own sub-issues read the same way');
+  const missing = await f.subIssues(99);
+  assert.ok(!missing.ok);
+  assert.equal(missing.failure.kind, 'unreachable');
 });

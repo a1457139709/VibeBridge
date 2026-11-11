@@ -1,7 +1,7 @@
 import type { IssueSidebarPreferences, NavigationPreferences, AgentType, CommandCheck, DirectoryResult, Layout, ProjectCreation, PanelCreation, ProjectDraft, ProjectEdit, ProjectEditResult, Settings, Snapshot, WorkbenchEvent } from './model';
 import type { SettingsSaveResult } from './settings';
 import type { DispatchRequest } from './dispatch';
-import type { DirectAction, DirectActionResult, IssueDetailResult, ListFilter, IssuePageResult, MergeRequestDetailResult, MergeRequestPageResult, RepositoryChoices, RepositoryReference } from './code-hosting';
+import type { DirectAction, DirectActionResult, IssueDetailResult, ListFilter, IssuePageResult, MergeRequestDetailResult, MergeRequestPageResult, RepositoryChoices, RepositoryReference, SubIssuesResult } from './code-hosting';
 
 export interface DesktopAPI {
   snapshot(): Promise<Snapshot>;
@@ -20,6 +20,8 @@ export interface DesktopAPI {
   /** One page of the merge requests of the project's bound repository, as `issuePage` reads issues. */
   mergeRequestPage(projectId: string, filter: ListFilter, cursor: string | null): Promise<MergeRequestPageResult>;
   /** The bound repository's issue with that number, with its comments and relations, or why the platform could not read it. */
+  /** Every sub-issue of the bound repository's issue with that number, or why the platform could not read them. */
+  subIssues(projectId: string, number: number): Promise<SubIssuesResult>;
   issueDetail(projectId: string, number: number): Promise<IssueDetailResult>;
   /** The bound repository's merge request with that number, with its conversation and merge state, or why the platform could not read it. */
   mergeRequestDetail(projectId: string, number: number): Promise<MergeRequestDetailResult>;

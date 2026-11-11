@@ -1,4 +1,4 @@
-import type { DirectAction, IssueDetail, ListFilter, IssuePage, MergeRequestDetail, MergeRequestPage, PlatformDescription, PlatformFailure, PlatformFailureKind } from '../../shared/code-hosting';
+import type { DirectAction, IssueDetail, IssueSummary, ListFilter, IssuePage, MergeRequestDetail, MergeRequestPage, PlatformDescription, PlatformFailure, PlatformFailureKind } from '../../shared/code-hosting';
 
 /** The environment platform CLIs run in: the user's login-shell environment, the one Agent Runs get. */
 export type CommandEnvironment = Record<string, string>;
@@ -16,6 +16,9 @@ export interface CodeHostingPlatform {
   issues(environment: CommandEnvironment, path: string, filter: ListFilter, cursor: string | null): Promise<IssuePage>;
   /** One page of the repository's merge requests, as `issues` reads issues; closed includes merged. */
   mergeRequests(environment: CommandEnvironment, path: string, filter: ListFilter, cursor: string | null): Promise<MergeRequestPage>;
+  /** Every sub-issue of the repository's issue with that number, in the platform's order, each with its own progress.
+   * A missing issue throws an unreachable PlatformError. */
+  subIssues(environment: CommandEnvironment, path: string, number: number): Promise<IssueSummary[]>;
   /** The repository's issue with that number, with its comments and relations. A missing issue throws an unreachable PlatformError. */
   issue(environment: CommandEnvironment, path: string, number: number): Promise<IssueDetail>;
   /** The repository's merge request with that number, with its conversation and merge state. A missing one throws an unreachable PlatformError. */

@@ -1,7 +1,7 @@
 import { message, detail } from '../../shared/messages';
 import { directActionSchema, listFilterSchema, repositoryReferenceSchema, type DirectAction, type DirectActionResult, type IssueDetailResult, type IssuePageResult,
   type ListFailure, type ListFilter, type MergeRequestDetailResult, type MergeRequestPageResult, type RepositoryChoices,
-  type RepositoryReference } from '../../shared/code-hosting';
+  type RepositoryReference, type SubIssuesResult } from '../../shared/code-hosting';
 import type { Project } from '../../shared/model';
 import { commandEnvironment } from '../../terminal/environment';
 import { platformResult, type CodeHostingPlatform, type CommandEnvironment } from './platform';
@@ -77,6 +77,12 @@ export class ProjectRepositories {
   async mergeRequestPage(project: Project, filter: ListFilter, cursor: string | null): Promise<MergeRequestPageResult> {
     const { platform, path, environment } = await this.bound(project);
     return listPage(platform, environment, filter, cursor, filter => platform.mergeRequests(environment, path, filter, cursor));
+  }
+
+  /** Every sub-issue of the project's bound repository's issue with that number, read from its platform. */
+  async subIssues(project: Project, number: number): Promise<SubIssuesResult> {
+    const read = await this.detail(project, number, (platform, path, environment) => platform.subIssues(environment, path, number));
+    return read.ok ? { ok: true, issues: read.value } : read;
   }
 
   /** The project's bound repository's issue with that number, with its comments and relations, read from its platform. */

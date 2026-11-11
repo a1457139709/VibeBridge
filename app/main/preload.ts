@@ -12,6 +12,7 @@ const api: DesktopAPI = {
   issuePage: (id, filter, cursor) => ipcRenderer.invoke('workbench:issue-page', id, filter, cursor),
   dispatch: (id, request) => ipcRenderer.invoke('workbench:dispatch', id, request),
   mergeRequestPage: (id, filter, cursor) => ipcRenderer.invoke('workbench:merge-request-page', id, filter, cursor),
+  subIssues: (id, number) => ipcRenderer.invoke('workbench:sub-issues', id, number),
   issueDetail: (id, number) => ipcRenderer.invoke('workbench:issue-detail', id, number),
   mergeRequestDetail: (id, number) => ipcRenderer.invoke('workbench:merge-request-detail', id, number),
   directAction: (id, action) => ipcRenderer.invoke('workbench:direct-action', id, action),

@@ -90,6 +90,7 @@ void app.whenReady().then(async () => {
   handle('issue-page', (service, id, filter, cursor) => service.issuePage(id, filter, cursor));
   handle('dispatch', (service, id, request) => service.dispatch(id, request));
   handle('merge-request-page', (service, id, filter, cursor) => service.mergeRequestPage(id, filter, cursor));
+  handle('sub-issues', (service, id, number) => service.subIssues(id, number));
   handle('issue-detail', (service, id, number) => service.issueDetail(id, number));
   handle('merge-request-detail', (service, id, number) => service.mergeRequestDetail(id, number));
   handle('direct-action', (service, id, action) => service.directAction(id, action));

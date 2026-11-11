@@ -258,6 +258,7 @@ export const chinese: Record<keyof typeof english, string> = {
   "filterByLabel": "按标签 {label} 筛选",
   "subIssueProgress": "子 issue：已关闭 {completed} / {total}",
   "subIssuesOf": "#{number} 的子 issue",
+  "loadingSubIssues": "正在读取子 issue…",
   "closedSubIssues": "已关闭 {count} 个",
   "hideClosedSubIssues": "收起已关闭",
   "blockedBy": "被 {numbers} 阻塞",

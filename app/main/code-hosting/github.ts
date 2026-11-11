@@ -25,9 +25,7 @@ interface IssueNode {
   number: number; title: string; state: 'OPEN' | 'CLOSED'; stateReason: string | null; createdAt: string; url: string; labels: { nodes: IssueLabel[] };
   parent: { number: number } | null;
   blockedBy: { nodes: { number: number; title: string; state: 'OPEN' | 'CLOSED' }[] };
-  /** Read only for listed issues, not for their sub-issues. */
-  subIssuesSummary?: { total: number; completed: number };
-  subIssues?: { nodes: IssueNode[] };
+  subIssuesSummary: { total: number; completed: number };
 }
 interface PullRequestNode {
   number: number; title: string; state: 'OPEN' | 'CLOSED' | 'MERGED'; isDraft: boolean; createdAt: string; url: string;
@@ -46,20 +44,18 @@ interface ListKind<Node, Summary> {
 
 // Sub-issues and blockers come from their own fields, never from search qualifiers or body text.
 const relationFields = `parent { number } blockedBy(first: 20) { nodes { number title state } }`;
-const ownIssueFields = `number title state stateReason createdAt url ${labelFields} ${relationFields}`;
+const issueFields = `number title state stateReason createdAt url ${labelFields} ${relationFields} subIssuesSummary { total completed }`;
 function issueSummary(node: IssueNode): IssueSummary {
   const state = node.state === 'OPEN' ? 'open' : 'closed';
   return { number: node.number, title: node.title, state, closedAs: closure(node.state, node.stateReason),
     createdAt: node.createdAt, labels: listLabels(node.labels), url: node.url,
     parent: node.parent?.number ?? null,
-    subIssues: node.subIssuesSummary?.total && node.subIssues
-      ? { total: node.subIssuesSummary.total, completed: node.subIssuesSummary.completed, issues: node.subIssues.nodes.map(issueSummary) }
-      : null,
+    subIssues: node.subIssuesSummary.total ? { total: node.subIssuesSummary.total, completed: node.subIssuesSummary.completed } : null,
     blockedBy: node.blockedBy.nodes.filter(blocker => blocker.state === 'OPEN').map(({ number, title }) => ({ number, title })) };
 }
 const issueKind: ListKind<IssueNode, IssueSummary> = {
   qualifier: 'issue',
-  fragment: `... on Issue { ${ownIssueFields} subIssuesSummary { total completed } subIssues(first: 50) { nodes { ${ownIssueFields} } } }`,
+  fragment: `... on Issue { ${issueFields} }`,
   summary: issueSummary,
   filterState: issue => issue.state,
 };
@@ -131,6 +127,11 @@ async function list<Node, Summary extends { number: number; labels: IssueLabel[]
   return { items, next: hasNextPage ? endCursor : null, labels: listLabels(page.repository.labels) };
 }
 
+const subIssuesQuery = `query($owner: String!, $name: String!, $number: Int!, $cursor: String) {
+  repository(owner: $owner, name: $name) { issue(number: $number) {
+    subIssues(first: 100, after: $cursor) { nodes { ${issueFields} } pageInfo { hasNextPage endCursor } } } } }`;
+interface SubIssuesPage { repository: { issue: { subIssues: { nodes: IssueNode[]; pageInfo: { hasNextPage: boolean; endCursor: string | null } } } | null } }
+
 // GitHub leaves closed pull requests out of the closing references unless asked; the detail shows them too.
 const issueDetailQuery = `query($owner: String!, $name: String!, $number: Int!, $comments: String) {
   repository(owner: $owner, name: $name) { viewerPermission issue(number: $number) { number title state stateReason createdAt url ${labelFields}
@@ -170,6 +171,20 @@ export const github: CodeHostingPlatform = {
   async mergeRequests(environment, path, filter, cursor) {
     const { items, next, labels } = await list(environment, path, filter, cursor, pullRequestKind);
     return { mergeRequests: items, next, labels };
+  },
+  async subIssues(environment, path, number) {
+    const { owner, name } = ownerAndName(path);
+    const issues: IssueSummary[] = [];
+    let cursor: string | null = null;
+    do {
+      const variables: Record<string, string | number> = cursor ? { owner, name, number, cursor } : { owner, name, number };
+      const page: SubIssuesPage = await graphql<SubIssuesPage>(environment, subIssuesQuery, variables);
+      const { issue } = page.repository;
+      if (!issue) throw new PlatformError('unreachable', description, `#${number}`);
+      issues.push(...issue.subIssues.nodes.map(issueSummary));
+      cursor = issue.subIssues.pageInfo.hasNextPage ? issue.subIssues.pageInfo.endCursor : null;
+    } while (cursor);
+    return issues;
   },
   async issue(environment, path, number) {
     const { owner, name } = ownerAndName(path);
