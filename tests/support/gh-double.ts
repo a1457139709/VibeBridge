@@ -1,6 +1,7 @@
-import { chmod, mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { join, resolve } from 'node:path';
 import type { TestContext } from 'node:test';
+import { writeGhDoubleScripts } from './gh-double-scripts.cjs';
 
 /** An issue of every repository the double lists, as GitHub's API names its fields. */
 export interface GhIssue {
@@ -95,14 +96,7 @@ export async function ghDouble(context: TestContext, state: GhState) {
   const bin = join(directory, 'bin');
   await mkdir(bin);
   const stateFile = join(directory, 'state.json');
-  const node = process.env.VIBEBRIDGE_TEST_NODE!;
-  const gh = join(bin, 'gh');
-  const shell = join(directory, 'login-shell');
-  const fixture = JSON.stringify(resolve('tests/fixtures/gh-cli.cjs'));
-  // Extensionless scripts in this package load as ES modules, so the fixture is required explicitly.
-  await writeFile(gh, `#!${node}\nprocess.getBuiltinModule('node:module').createRequire(${fixture})(${fixture})(${JSON.stringify(stateFile)}, process.argv.slice(2));\n`);
-  await writeFile(shell, `#!${node}\nprocess.stdout.write('\\0VIBEBRIDGE_ENV\\0' + Object.entries(process.env).map(([key, value]) => key + '=' + value + '\\0').join(''));\n`);
-  await chmod(gh, 0o755); await chmod(shell, 0o755);
+  const { gh, shell } = await writeGhDoubleScripts(bin, stateFile);
   const saved = { PATH: process.env.PATH, SHELL: process.env.SHELL };
   process.env.PATH = `${bin}:/usr/bin:/bin`;
   process.env.SHELL = shell;
