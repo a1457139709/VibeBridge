@@ -1,5 +1,8 @@
 import { useEffect, useRef, useState, type CSSProperties, type MouseEvent } from 'react';
 import type { DesktopAPI } from '../shared/api';
+import type { ProjectView } from '../shared/model';
+import type { DispatchLocation } from '../shared/dispatch';
+import type { WorkflowSettings } from '../shared/workflows';
 import { platformDescriptions, repositoryItem, type IssueDetail, type IssueDetailResult, type MergeRequestReference,
   type RelatedIssue, type RepositoryReference } from '../shared/code-hosting';
 import { useLocalization } from './Localization';
@@ -7,21 +10,28 @@ import { allowedHtml } from './platform-html';
 import { IssueStateIcon } from './IssueLists';
 import { relativeTime } from './list-row-parts';
 import { CheckIcon, MergeRequestStateIcon } from './MergeRequestRow';
+import { DispatchMenu, DispatchRecords, issueShortcutKeys, type DispatchMenuActions } from './Dispatch';
+import type { Shortcuts } from '../shared/shortcuts';
 
 type Failure = Extract<IssueDetailResult, { ok: false }> | { ok: false; error: string };
 
 /**
  * One issue's read-only detail, read from the platform each time it opens. Links to the bound
  * repository's issues open here; every other link, and merge requests until their detail
- * exists, go to the system browser.
+ * exists, go to the system browser. The issue is dispatched from here as from its list row,
+ * and its Dispatch Records follow the snapshot.
  */
-export function IssueDetailView({ projectId, repository, number, openIssue, close, api = window.workbench }: {
-  projectId: string; repository: RepositoryReference; number: number; openIssue(number: number): void; close(): void;
-  api?: Pick<DesktopAPI, 'issueDetail'>;
+export function IssueDetailView({ project, repository, number, workflows, shortcuts, openIssue, close, locate, api = window.workbench }: {
+  project: ProjectView; repository: RepositoryReference; number: number; workflows: WorkflowSettings; shortcuts: Shortcuts; openIssue(number: number): void; close(): void;
+  /** Shows the panel a dispatch went to. */
+  locate(location: DispatchLocation): void;
+  api?: Pick<DesktopAPI, 'issueDetail' | 'dispatch'>;
 }) {
+  const projectId = project.id;
   const { t } = useLocalization();
   const [state, setState] = useState<{ issue?: IssueDetail; failure?: Failure; loading: boolean }>({ loading: true });
   const latest = useRef(0);
+  const menu = useRef<DispatchMenuActions>(null);
   const read = () => {
     const request = ++latest.current;
     setState(current => ({ ...current, loading: true }));
@@ -47,7 +57,9 @@ export function IssueDetailView({ projectId, repository, number, openIssue, clos
     else window.open(reference.url, '_blank');
   };
   const issue = state.issue?.number === number ? state.issue : undefined;
-  return <section className="issue-detail" aria-label={t('issueDetail', { number })} onClick={follow}>
+  const records = project.dispatches.filter(record => record.issue === number);
+  return <section className="issue-detail" aria-label={t('issueDetail', { number })} onClick={follow}
+    onKeyDown={issue && issueShortcutKeys({ issue, records, shortcuts, menu, locate })}>
     <header className="issue-detail-bar">
       <span className="issue-detail-crumb">{t('issueDetail', { number })}</span>
       {issue && <a href={issue.url} target="_blank" rel="noreferrer">{t('openOnPlatform', { platform: platform.name })}</a>}
@@ -58,15 +70,19 @@ export function IssueDetailView({ projectId, repository, number, openIssue, clos
         : !issue ? <p className="issue-detail-loading" role="status">{t('loadingIssue')}</p>
         : <>
           <h2 className="issue-detail-title">{issue.title} <span className="issue-row-number">#{issue.number}</span></h2>
-          <div className="issue-detail-meta">
+          <div className="issue-detail-head">
             <IssueStateIcon issue={issue} />
+            {issue.labels.map(label =>
+              <span key={label.name} className="issue-label" style={{ '--label-color': `#${label.color}` } as CSSProperties}>{label.name}</span>)}
+            <DispatchMenu ref={menu} issue={issue} project={project} workflows={workflows} dispatch={request => api.dispatch(projectId, request)} locate={locate} />
+          </div>
+          <div className="issue-detail-meta">
             {issue.author && <span className="issue-detail-author">{issue.author}</span>}
             <CreatedAt at={issue.createdAt} />
             <span>{t(issue.commentCount === 1 ? 'commentCountOne' : 'commentCount', { count: issue.commentCount })}</span>
             {!!issue.assignees.length && <span>{t('assignees')} <span>{issue.assignees.join(', ')}</span></span>}
           </div>
-          {!!issue.labels.length && <div className="issue-detail-labels">{issue.labels.map(label =>
-            <span key={label.name} className="issue-label" style={{ '--label-color': `#${label.color}` } as CSSProperties}>{label.name}</span>)}</div>}
+          <DispatchRecords issue={issue} records={records} locate={locate} />
           <RelationGraph issue={issue} repository={repository} open={openReference} />
           <ClosingMergeRequests mergeRequests={issue.closingMergeRequests} />
           <article className="issue-detail-card">

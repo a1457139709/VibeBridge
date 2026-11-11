@@ -27,7 +27,7 @@ const isSpace = (event: KeyboardEvent) => event.code === 'Space' || event.key ==
 const items = (layer: HTMLElement | null) => [...layer?.querySelectorAll<HTMLButtonElement>('[role=menuitem]:not(:disabled)') ?? []]
   .filter(item => item.parentElement?.closest('[role=menu]') === layer);
 /** The latest of an open issue's dispatches whose session a panel is on now. */
-const locatable = (issue: IssueSummary, records: DispatchRecordView[]) => issue.state === 'closed' ? undefined : records.find(record => record.location)?.location;
+const locatable = (issue: Pick<IssueSummary, 'state'>, records: DispatchRecordView[]) => issue.state === 'closed' ? undefined : records.find(record => record.location)?.location;
 
 /** Opens the menu from the keyboard, with focus on its first instruction. */
 export interface DispatchMenuActions { open(): void }
@@ -40,7 +40,7 @@ export interface DispatchMenuActions { open(): void }
  * dispatch returns focus to the button; a filled one locates its panel.
  */
 export function DispatchMenu({ issue, project, workflows, dispatch, locate, ref }: {
-  issue: IssueSummary; project: ProjectView; workflows: WorkflowSettings;
+  issue: Pick<IssueSummary, 'number' | 'title'>; project: ProjectView; workflows: WorkflowSettings;
   dispatch(request: DispatchRequest): Promise<void>; locate(location: DispatchLocation): void; ref?: Ref<DispatchMenuActions>;
 }) {
   const { t, text } = useLocalization();
@@ -159,11 +159,49 @@ export function DispatchStatus({ issue, records, locate }: { issue: IssueSummary
 }
 
 /**
+ * Every Dispatch Record of the issue, newest first: when, which Agent type, the session (locatable while a panel is on
+ * it) and the instruction sent, folded. A closed issue folds the whole section to its count.
+ */
+export function DispatchRecords({ issue, records, locate }: {
+  issue: Pick<IssueSummary, 'state'>; records: DispatchRecordView[]; locate(location: DispatchLocation): void;
+}) {
+  const { t } = useLocalization();
+  const [open, setOpen] = useState(issue.state === 'open');
+  if (!records.length) return null;
+  const heading = t('dispatchRecords', { count: records.length });
+  return <section className="dispatch-records" aria-label={heading}>
+    <button className="dispatch-records-fold" aria-expanded={open} onClick={() => setOpen(current => !current)}>
+      <span aria-hidden="true">{open ? '▾' : '▸'}</span>{heading}</button>
+    {open && <ul>{records.map((record, index) => <DispatchRecordItem key={`${record.time}:${index}`} record={record} locate={locate} />)}</ul>}
+  </section>;
+}
+
+function DispatchRecordItem({ record, locate }: { record: DispatchRecordView; locate(location: DispatchLocation): void }) {
+  const { t, language } = useLocalization();
+  const [shown, setShown] = useState(false);
+  const time = new Date(record.time);
+  const { location } = record;
+  const title = location?.title ?? t('untitled');
+  return <li className="dispatch-record">
+    <div className="dispatch-record-line">
+      <time dateTime={record.time} title={time.toLocaleString(language)}>{relativeTime(time, language)}</time>
+      <span className="agent-mark" aria-hidden="true">{agentIcons[record.agent]}</span><span>{agentNames[record.agent]}</span>
+      {location ? <button className="dispatch-record-session" aria-label={t('locateSession', { title })} onClick={() => locate(location)}>
+        <ProcessingStatusIcon state={location.status} /><span>{title}</span></button>
+        : <span className="dispatch-record-session unlocated">{t('noPanelOnSession')}</span>}
+      <button className="dispatch-record-fold" aria-expanded={shown} onClick={() => setShown(current => !current)}>
+        <span aria-hidden="true">{shown ? '▾' : '▸'}</span>{t('dispatchInstruction')}</button>
+    </div>
+    {shown && <pre className="dispatch-record-text">{record.text}</pre>}
+  </li>;
+}
+
+/**
  * The dispatch and locate shortcuts while focus is within an issue: open its dispatch menu, or locate the latest of its
  * dispatches a panel is on now. Every other key passes on, as both do outside an issue, so they reach a focused terminal.
  */
 export function issueShortcutKeys({ issue, records, shortcuts, menu, locate }: {
-  issue: IssueSummary; records: DispatchRecordView[]; shortcuts: Shortcuts; menu: RefObject<DispatchMenuActions | null>; locate(location: DispatchLocation): void;
+  issue: Pick<IssueSummary, 'state'>; records: DispatchRecordView[]; shortcuts: Shortcuts; menu: RefObject<DispatchMenuActions | null>; locate(location: DispatchLocation): void;
 }) {
   return (event: KeyboardEvent) => {
     const binding = shortcutFromEvent(event.nativeEvent);
