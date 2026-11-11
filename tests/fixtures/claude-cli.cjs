@@ -32,13 +32,16 @@ async function emit(payload, malformed) {
 let pending = (args.includes('--hold-session') ? Promise.resolve() : emit({ hook_event_name: 'SessionStart', source: 'startup' }))
   .then(() => console.log('CLI-DOUBLE-READY'));
 // With --echo-bytes the double reads raw input, as the real TUI does, and reports the bytes of
-// each input; an input that starts with `{` holds requests.
+// each read; a line that starts with `{` holds a request. The terminal may join several writes into one
+// read or split one across reads, so requests are taken from lines, whatever the reads.
 if (args.includes('--echo-bytes')) {
   process.stdin.setRawMode(true);
+  let unfinished = '';
   process.stdin.on('data', data => {
     console.log(`BYTES:${data.toString('hex')}`);
-    const text = data.toString();
-    if (text.startsWith('{')) text.split('\n').filter(Boolean).forEach(handle);
+    const lines = (unfinished + data.toString()).split(/[\r\n]/);
+    unfinished = lines.pop();
+    lines.filter(line => line.startsWith('{')).forEach(handle);
   });
 } else readline.createInterface({ input: process.stdin }).on('line', handle);
 function handle(line) {
