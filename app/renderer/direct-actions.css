@@ -1,0 +1,17 @@
+.direct-actions { margin-top: 16px; font-size: 12px; }
+.merge-area > .direct-actions { margin-top: 0; }
+.direct-action-buttons { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
+.direct-action-buttons button[aria-busy='true'] { cursor: progress; opacity: 0.7; }
+.direct-action-buttons button[aria-busy='true']::after { content: '…'; }
+.split-button { position: relative; display: inline-flex; }
+.split-button-main { border-top-right-radius: 0; border-bottom-right-radius: 0; }
+.split-button-more { border-left: 1px solid var(--line); border-top-left-radius: 0; border-bottom-left-radius: 0; padding: 0 6px; }
+.split-button-menu { position: absolute; z-index: 10; top: calc(100% + 4px); left: 0; min-width: 180px; padding: 4px; border: 1px solid var(--line); border-radius: 8px; background: var(--surface); box-shadow: 0 5px 22px #0002; }
+.split-button-menu button { width: 100%; display: block; border: 0; background: transparent; text-align: left; }
+.split-button-menu button:hover { background: var(--hover); }
+.split-button-menu [aria-checked='true']::before { content: '✓ '; }
+.merge-blockers { margin: 8px 0 0; padding-left: 16px; color: var(--muted); }
+.merge-on-platform { margin: 8px 0 0; color: var(--muted); }
+.merge-on-platform a { color: var(--accent); text-decoration: none; }
+.direct-action-failure { display: flex; align-items: center; gap: 6px; margin: 8px 0 0; color: var(--error, #b33e2d); }
+.direct-action-reason { flex: 1; min-width: 0; overflow-wrap: anywhere; white-space: pre-wrap; }

@@ -8,7 +8,7 @@ import { ProjectStore } from './storage';
 import { SettingsFile, defaultSettings } from './settings';
 import { settingsConflicts, type SettingsSaveResult } from '../shared/settings';
 import { RunSupervision } from './run-supervision';
-import type { IssueDetailResult, IssueFilter, IssuePageResult, MergeRequestDetailResult, MergeRequestPageResult, RepositoryChoices, RepositoryReference } from '../shared/code-hosting';
+import type { DirectAction, IssueFilter, RepositoryChoices, RepositoryReference } from '../shared/code-hosting';
 import { ProjectRepositories } from './code-hosting/project-repositories';
 import type { DispatchRecord, DispatchRequest } from '../shared/dispatch';
 import { Dispatches } from './dispatch';
@@ -275,12 +275,13 @@ export class Workbench {
     });
   }
   // Reads of the project's bound repository from its platform, as ProjectRepositories describes them.
-  issuePage(projectId: string, filter: IssueFilter, cursor: string | null): Promise<IssuePageResult> { return this.repositories.issuePage(this.project(projectId), filter, cursor); }
+  issuePage(projectId: string, filter: IssueFilter, cursor: string | null) { return this.repositories.issuePage(this.project(projectId), filter, cursor); }
   /** Dispatches an issue to a panel of the project or a new one; see Dispatches. */
   dispatch(projectId: string, request: DispatchRequest): Promise<PanelCreation | null> { return this.operation(() => this.dispatches.dispatch(projectId, request)); }
-  mergeRequestPage(projectId: string, filter: IssueFilter, cursor: string | null): Promise<MergeRequestPageResult> { return this.repositories.mergeRequestPage(this.project(projectId), filter, cursor); }
-  issueDetail(projectId: string, number: number): Promise<IssueDetailResult> { return this.repositories.issueDetail(this.project(projectId), number); }
-  mergeRequestDetail(projectId: string, number: number): Promise<MergeRequestDetailResult> { return this.repositories.mergeRequestDetail(this.project(projectId), number); }
+  mergeRequestPage(projectId: string, filter: IssueFilter, cursor: string | null) { return this.repositories.mergeRequestPage(this.project(projectId), filter, cursor); }
+  issueDetail(projectId: string, number: number) { return this.repositories.issueDetail(this.project(projectId), number); }
+  mergeRequestDetail(projectId: string, number: number) { return this.repositories.mergeRequestDetail(this.project(projectId), number); }
+  directAction(projectId: string, action: DirectAction) { return this.repositories.directAction(this.project(projectId), action); }
   sendInput(runId: string, data: string) { return this.supervision.input(runId, data); }
   resizeRun(runId: string, cols: number, rows: number) { return this.supervision.resize(runId, cols, rows); }
   acknowledgeOutput(runId: string, characters: number) { this.supervision.acknowledgeOutput(runId, characters); }

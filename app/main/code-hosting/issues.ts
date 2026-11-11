@@ -1,5 +1,5 @@
 import { message } from '../../shared/messages';
-import { issueFilterSchema, type IssueDetailResult, type IssueFilter, type IssuePageResult, type ListFailure, type MergeRequestDetailResult, type MergeRequestPageResult, type RepositoryReference } from '../../shared/code-hosting';
+import { directActionSchema, issueFilterSchema, type DirectAction, type DirectActionResult, type IssueDetailResult, type IssueFilter, type IssuePageResult, type ListFailure, type MergeRequestDetailResult, type MergeRequestPageResult, type RepositoryReference } from '../../shared/code-hosting';
 import { PlatformError, type CodeHostingPlatform, type CommandEnvironment } from './platform';
 import { platforms } from './platforms';
 
@@ -48,6 +48,20 @@ export async function issueDetail(repository: RepositoryReference | undefined, n
 export async function mergeRequestDetail(repository: RepositoryReference | undefined, number: number, environment: CommandEnvironment): Promise<MergeRequestDetailResult> {
   const read = await detail(repository, number, (platform, path) => platform.mergeRequest(environment, path, number));
   return read.ok ? { ok: true, mergeRequest: read.value } : read;
+}
+
+/** Takes the direct action on the bound repository's issue or merge request, or reports the kind of failure the platform reported. */
+export async function directAction(repository: RepositoryReference | undefined, action: DirectAction, environment: CommandEnvironment): Promise<DirectActionResult> {
+  const { platform, path } = boundRepository(repository);
+  const parsed = directActionSchema.safeParse(action);
+  if (!parsed.success) throw new Error(message('directActionInvalid'));
+  try {
+    await platforms[platform].act(environment, path, parsed.data);
+    return { ok: true };
+  } catch (error) {
+    if (error instanceof PlatformError) return { ok: false, failure: error.failure };
+    throw error;
+  }
 }
 
 async function detail<T>(repository: RepositoryReference | undefined, number: number, read: (platform: CodeHostingPlatform, path: string) => Promise<T>) {

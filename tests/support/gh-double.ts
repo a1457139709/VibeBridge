@@ -1,4 +1,4 @@
-import { chmod, mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
+import { chmod, mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { join, resolve } from 'node:path';
 import type { TestContext } from 'node:test';
 
@@ -71,6 +71,12 @@ export interface GhState {
   /** The merge methods the repository allows; all of them when unset. */
   mergeMethods?: { merge: boolean; squash: boolean; rebase: boolean };
   failure?: { exit: number; stdout?: string; stderr?: string };
+  /** The signed-in account's permission on every repository; WRITE when unset. */
+  permission?: 'ADMIN' | 'MAINTAIN' | 'WRITE' | 'TRIAGE' | 'READ';
+  /** Makes every mutation end as `failure` does, while reads still answer. */
+  actionFailure?: { exit: number; stdout?: string; stderr?: string };
+  /** Merges the double performed, with the method and the commit message the call gave, null where it left them to GitHub. */
+  merges?: { number: number; method: string; headline: string | null; body: string | null }[];
 }
 
 /**
@@ -105,6 +111,8 @@ export async function ghDouble(context: TestContext, state: GhState) {
   return {
     /** Replaces what the double answers from the next call on. */
     set: write,
+    /** What the double holds now, mutations included. */
+    state: async (): Promise<GhState> => JSON.parse(await readFile(stateFile, 'utf8')),
     /** Takes `gh` off PATH, as when it is not installed. */
     uninstall: () => rm(gh),
   };

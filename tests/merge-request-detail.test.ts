@@ -62,6 +62,7 @@ test('a merge request detail holds its branches, body, comments, review summarie
       { number: 1, title: 'Broken', state: 'open', closedAs: null, repository: 'octo/app', url: 'https://github.com/octo/app/issues/1' },
       { number: 2, title: 'Issue 2', state: 'closed', closedAs: 'completed', repository: 'octo/app', url: 'https://github.com/octo/app/issues/2' },
     ],
+    writable: true,
   });
   assert.equal(detail(await f.detail(11)).head, 'fork:patch-1', 'a head branch in another repository names its owner');
 });

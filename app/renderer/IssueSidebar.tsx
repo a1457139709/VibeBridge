@@ -1,10 +1,11 @@
 import { useLayoutEffect, useRef, useState, type CSSProperties } from 'react';
 import type { DesktopAPI } from '../shared/api';
-import { platformDescriptions, type RepositoryItem } from '../shared/code-hosting';
+import { platformDescriptions, type PlatformFailure, type RepositoryItem } from '../shared/code-hosting';
 import { defaultIssueSidebar, issueSidebarWidth, type ProjectView, type Snapshot } from '../shared/model';
 import { useLocalization } from './Localization';
 import { useSavedPreferences } from './saved-preferences';
-import { IssueLists } from './IssueLists';
+import { FailureState, IssueLists } from './IssueLists';
+import type { DirectActionHost } from './DirectActions';
 import { IssueDetailView } from './IssueDetail';
 import { MergeRequestDetailView } from './MergeRequestDetail';
 import { issueRow } from './issue-navigation';
@@ -47,6 +48,12 @@ export function useIssueSidebar(host: Host, api: Pick<DesktopAPI, 'saveIssueSide
     closeDetail();
     (issueRow(element.current, number) ?? element.current)?.focus();
   };
+  // A direct action's success refreshes the lists once; a platform CLI found missing or signed out takes their place until retried.
+  const [changes, setChanges] = useState(0);
+  const [unavailable, setUnavailable] = useState<{ lists: string; failure: PlatformFailure }>();
+  const shownUnavailable = unavailable?.lists === lists ? unavailable?.failure : undefined;
+  const actionHost: DirectActionHost = { changed: () => setChanges(count => count + 1),
+    unavailable: failure => { if (lists) { closeDetail(); setUnavailable({ lists, failure }); } } };
   const title = repository ? platformDescriptions[repository.platform].name : t('issueSidebar');
   return {
     visible,
@@ -58,10 +65,10 @@ export function useIssueSidebar(host: Host, api: Pick<DesktopAPI, 'saveIssueSide
     /** Lies left of the sidebar; the host places it over or beside the layout area. */
     detail: project && repository && openedItem && (openedItem.kind === 'mergeRequest'
       ? <MergeRequestDetailView key={`${lists}:mergeRequest#${openedItem.number}`} projectId={project.id}
-        repository={repository} number={openedItem.number} open={open} close={closeDetail} />
+        repository={repository} number={openedItem.number} open={open} close={closeDetail} host={actionHost} />
       : <IssueDetailView key={`${lists}:issue#${openedItem.number}`} project={project} repository={repository} number={openedItem.number}
         workflows={snapshot!.settings.workflows} shortcuts={snapshot!.settings.shortcuts} open={open} close={closeDetail}
-        returnToList={() => returnToList(openedItem.number)}
+        returnToList={() => returnToList(openedItem.number)} host={actionHost}
         locate={location => { closeDetail(); host.locatePanel(location.projectId, location.panelId, location.runId); }} />),
     toggle: <button className="issue-sidebar-toggle" aria-label={visible ? t('closeIssueSidebar') : t('openIssueSidebar')} aria-expanded={visible}
       disabled={!snapshot} onClick={() => { closeDetail(); toggle(); }}><SidebarIcon /></button>,
@@ -70,7 +77,9 @@ export function useIssueSidebar(host: Host, api: Pick<DesktopAPI, 'saveIssueSide
       <div className="issue-sidebar-resize" role="separator" aria-label={t('resizeIssueSidebar')} aria-orientation="vertical" onPointerDown={resize} />
       <header className="issue-sidebar-heading"><span className="issue-sidebar-title">{title}</span>
         {repository && <span className="issue-sidebar-repository">{repository.path}</span>}</header>
-      {project && repository && <IssueLists key={lists} project={project} repository={repository}
+      {project && repository && shownUnavailable && <FailureState failure={{ ok: false, failure: shownUnavailable }} path={repository.path}
+        retry={() => setUnavailable(undefined)} changeBinding={() => host.bindRepository(project)} />}
+      {project && repository && !shownUnavailable && <IssueLists key={lists} project={project} repository={repository} changes={changes}
         workflows={snapshot!.settings.workflows} shortcuts={snapshot!.settings.shortcuts} changeBinding={() => host.bindRepository(project)}
         locate={location => host.locatePanel(location.projectId, location.panelId, location.runId)}
         filled={location => { closeDetail(); host.locatePanel(location.projectId, location.panelId, location.runId); }}

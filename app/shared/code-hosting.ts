@@ -141,6 +141,8 @@ export interface IssueDetail extends Omit<IssueSummary, 'parent' | 'subIssues' |
   blocking: RelatedIssue[];
   /** Merge requests that close the issue when merged, closed ones included. */
   closingMergeRequests: MergeRequestReference[];
+  /** Whether the signed-in account may write to the repository, and so take direct actions on it. */
+  writable: boolean;
 }
 /** An issue's detail, or why it could not be read. A missing issue reads as unreachable. */
 export type IssueDetailResult = { ok: true; issue: IssueDetail } | { ok: false; failure: PlatformFailure };
@@ -181,9 +183,23 @@ export interface MergeRequestDetail extends Omit<MergeRequestSummary, 'checks'> 
   /** Issues it closes when merged. */
   closingIssues: RelatedIssue[];
   merge: MergeState;
+  /** Whether the signed-in account may write to the repository, and so take direct actions on it. */
+  writable: boolean;
 }
 /** A merge request's detail, or why it could not be read. A missing merge request reads as unreachable. */
 export type MergeRequestDetailResult = { ok: true; mergeRequest: MergeRequestDetail } | { ok: false; failure: PlatformFailure };
+
+/** A one-click change to an issue or merge request of the bound repository. A merge takes the platform's own commit message. */
+export type DirectAction = { kind: 'closeIssue'; number: number; reason: 'completed' | 'notPlanned' } | { kind: 'reopenIssue'; number: number }
+  | { kind: 'mergeMergeRequest'; number: number; method: MergeMethod } | { kind: 'closeMergeRequest'; number: number } | { kind: 'reopenMergeRequest'; number: number };
+const actionNumber = z.number().int().positive().max(Number.MAX_SAFE_INTEGER);
+export const directActionSchema: z.ZodType<DirectAction> = z.discriminatedUnion('kind', [
+  z.strictObject({ kind: z.literal('closeIssue'), number: actionNumber, reason: z.enum(['completed', 'notPlanned']) }),
+  z.strictObject({ kind: z.literal('mergeMergeRequest'), number: actionNumber, method: z.enum(['merge', 'squash', 'rebase']) }),
+  ...(['reopenIssue', 'closeMergeRequest', 'reopenMergeRequest'] as const).map(kind => z.strictObject({ kind: z.literal(kind), number: actionNumber })),
+]);
+/** Whether the platform took the change; a refusal carries the platform's own words. Success shows only through a fresh read. */
+export type DirectActionResult = { ok: true } | { ok: false; failure: PlatformFailure };
 
 /** An issue or merge request of a repository, as a link names it. */
 export interface RepositoryItem { kind: 'issue' | 'mergeRequest'; number: number }

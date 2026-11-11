@@ -61,4 +61,7 @@ export const commentFields = `author { login } createdAt bodyHTML`;
 export interface CommentNode { author: { login: string } | null; createdAt: string; bodyHTML: string }
 export const issueComment = (node: CommentNode): IssueComment => ({ author: node.author?.login ?? null, createdAt: node.createdAt, body: node.bodyHTML });
 
+// Write access is what closing, reopening and merging take; triage may close issues on GitHub but is not offered direct actions.
+export const writable = (permission: string | null) => ['ADMIN', 'MAINTAIN', 'WRITE'].includes(permission ?? '');
+
 export interface PageInfo { hasNextPage: boolean; endCursor: string | null }

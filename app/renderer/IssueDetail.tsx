@@ -9,6 +9,7 @@ import { useLocalization } from './Localization';
 import { IssueStateIcon } from './issue-icons';
 import { CreatedAt, DetailFailureState, PlatformHtml, followLinks, useDetail } from './detail-parts';
 import { CheckIcon, MergeRequestStateIcon } from './MergeRequestRow';
+import { IssueActions, type DirectActionHost } from './DirectActions';
 import { DispatchMenu, DispatchRecords, issueShortcutKeys, type DispatchMenuActions } from './Dispatch';
 import type { Shortcuts } from '../shared/shortcuts';
 
@@ -21,13 +22,14 @@ const scrollStep = 40;
  * system browser. The issue is dispatched from here as from its list row, and its Dispatch
  * Records follow the snapshot.
  */
-export function IssueDetailView({ project, repository, number, workflows, shortcuts, open, close, returnToList, locate, api = window.workbench }: {
+export function IssueDetailView({ project, repository, number, workflows, shortcuts, open, close, returnToList, locate, host, api = window.workbench }: {
   project: ProjectView; repository: RepositoryReference; number: number; workflows: WorkflowSettings; shortcuts: Shortcuts; open(item: RepositoryItem): void; close(): void;
   /** Closes the detail with focus on the issue's row. */
   returnToList(): void;
   /** Shows the panel a dispatch went to. */
   locate(location: DispatchLocation): void;
-  api?: Pick<DesktopAPI, 'issueDetail' | 'dispatch'>;
+  host: DirectActionHost;
+  api?: Pick<DesktopAPI, 'issueDetail' | 'dispatch' | 'directAction'>;
 }) {
   const projectId = project.id;
   const { t } = useLocalization();
@@ -92,6 +94,7 @@ export function IssueDetailView({ project, repository, number, workflows, shortc
             <header>{comment.author && <b>{comment.author}</b>} <CreatedAt at={comment.createdAt} /></header>
             <PlatformHtml html={comment.body} />
           </article>)}
+          <IssueActions projectId={projectId} issue={issue} host={{ ...host, changed: () => { state.read(); host.changed(); } }} api={api} />
         </>}
     </div>
   </section>;
