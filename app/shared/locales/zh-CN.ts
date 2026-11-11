@@ -1,4 +1,5 @@
 import type { english } from './en';
+import { chineseMergeRequestDetail } from './merge-request-detail';
 
 export const chinese: Record<keyof typeof english, string> = {
   swapPreview: '交换预览：{first} 与 {second}', draggingPanel: '拖动中的 {agent} 面板',
@@ -312,4 +313,5 @@ export const chinese: Record<keyof typeof english, string> = {
   "relationSubIssue": "子 issue",
   "relationBlocking": "阻塞了",
   "closingMergeRequests": "合并后关闭本 issue 的 PR",
+  ...chineseMergeRequestDetail,
 };

@@ -1,5 +1,5 @@
 import { message } from '../../shared/messages';
-import { issueFilterSchema, type IssueDetailResult, type IssueFilter, type IssuePageResult, type ListFailure, type MergeRequestPageResult, type RepositoryReference } from '../../shared/code-hosting';
+import { issueFilterSchema, type IssueDetailResult, type IssueFilter, type IssuePageResult, type ListFailure, type MergeRequestDetailResult, type MergeRequestPageResult, type RepositoryReference } from '../../shared/code-hosting';
 import { PlatformError, type CodeHostingPlatform, type CommandEnvironment } from './platform';
 import { platforms } from './platforms';
 
@@ -40,12 +40,23 @@ async function listPage<Page>(repository: RepositoryReference, filter: IssueFilt
 
 /** The bound repository's issue with that number, or the kind of failure the platform reported. */
 export async function issueDetail(repository: RepositoryReference | undefined, number: number, environment: CommandEnvironment): Promise<IssueDetailResult> {
+  const read = await detail(repository, number, (platform, path) => platform.issue(environment, path, number));
+  return read.ok ? { ok: true, issue: read.value } : read;
+}
+
+/** The bound repository's merge request with that number, or the kind of failure the platform reported. */
+export async function mergeRequestDetail(repository: RepositoryReference | undefined, number: number, environment: CommandEnvironment): Promise<MergeRequestDetailResult> {
+  const read = await detail(repository, number, (platform, path) => platform.mergeRequest(environment, path, number));
+  return read.ok ? { ok: true, mergeRequest: read.value } : read;
+}
+
+async function detail<T>(repository: RepositoryReference | undefined, number: number, read: (platform: CodeHostingPlatform, path: string) => Promise<T>) {
   const { platform, path } = boundRepository(repository);
   if (!Number.isSafeInteger(number) || number < 1) throw new Error(message('issueNumberInvalid'));
   try {
-    return { ok: true, issue: await platforms[platform].issue(environment, path, number) };
+    return { ok: true as const, value: await read(platforms[platform], path) };
   } catch (error) {
-    if (error instanceof PlatformError) return { ok: false, failure: error.failure };
+    if (error instanceof PlatformError) return { ok: false as const, failure: error.failure };
     throw error;
   }
 }

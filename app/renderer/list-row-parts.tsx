@@ -5,6 +5,9 @@ import { useLocalization } from './Localization';
 
 // Pieces every list row shows the same way, whatever it lists.
 
+/** Which item's detail is open, and how a row opens one. */
+export interface DetailOpening { opened?: number; open(number: number): void }
+
 /** Each label as a button that adds it to the list filter. */
 export function LabelButtons({ labels, addLabel }: { labels: IssueLabel[]; addLabel(name: string): void }) {
   const { t } = useLocalization();

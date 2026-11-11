@@ -1,11 +1,12 @@
 import { useLayoutEffect, useRef, useState, type CSSProperties } from 'react';
 import type { DesktopAPI } from '../shared/api';
-import { platformDescriptions } from '../shared/code-hosting';
+import { platformDescriptions, type RepositoryItem } from '../shared/code-hosting';
 import { defaultIssueSidebar, issueSidebarWidth, type ProjectView, type Snapshot } from '../shared/model';
 import { useLocalization } from './Localization';
 import { useSavedPreferences } from './saved-preferences';
 import { IssueLists } from './IssueLists';
 import { IssueDetailView } from './IssueDetail';
+import { MergeRequestDetailView } from './MergeRequestDetail';
 import './issue-sidebar.css';
 
 interface Host {
@@ -36,21 +37,23 @@ export function useIssueSidebar(host: Host, api: Pick<DesktopAPI, 'saveIssueSide
   const repository = project?.repository;
   // The open detail belongs to one project and binding; it closes with the sidebar.
   const lists = project && repository ? `${project.id}:${repository.platform}:${repository.path}` : undefined;
-  const [opened, setOpened] = useState<{ lists: string; number: number }>();
-  const openedNumber = visible && opened && opened.lists === lists ? opened.number : undefined;
-  const openIssue = (number: number) => { if (lists) setOpened({ lists, number }); };
+  const [opened, setOpened] = useState<{ lists: string; item: RepositoryItem }>();
+  const openedItem = visible && opened && opened.lists === lists ? opened.item : undefined;
+  const open = (item: RepositoryItem) => { if (lists) setOpened({ lists, item }); };
   const closeDetail = () => setOpened(undefined);
+  const opening = (kind: RepositoryItem['kind']) => ({ opened: openedItem?.kind === kind ? openedItem.number : undefined, open: (number: number) => open({ kind, number }) });
+  const Detail = openedItem?.kind === 'mergeRequest' ? MergeRequestDetailView : IssueDetailView;
   const title = repository ? platformDescriptions[repository.platform].name : t('issueSidebar');
   return {
     visible,
     width: preferences.width,
     /** The shortcut: opens the sidebar with focus inside it, or closes it wherever focus is. */
     toggleWithFocus() { focusOnOpen.current = !visible; closeDetail(); toggle(); },
-    /** Whether an issue's detail is open beside the sidebar. */
-    detailOpen: openedNumber !== undefined,
+    /** Whether an issue's or merge request's detail is open beside the sidebar. */
+    detailOpen: openedItem !== undefined,
     /** Lies left of the sidebar; the host places it over or beside the layout area. */
-    detail: project && repository && openedNumber !== undefined && <IssueDetailView key={`${lists}#${openedNumber}`} projectId={project.id}
-      repository={repository} number={openedNumber} openIssue={openIssue} close={closeDetail} />,
+    detail: project && repository && openedItem && <Detail key={`${lists}:${openedItem.kind}#${openedItem.number}`} projectId={project.id}
+      repository={repository} number={openedItem.number} open={open} close={closeDetail} />,
     toggle: <button className="issue-sidebar-toggle" aria-label={visible ? t('closeIssueSidebar') : t('openIssueSidebar')} aria-expanded={visible}
       disabled={!snapshot} onClick={() => { closeDetail(); toggle(); }}><SidebarIcon /></button>,
     sidebar: visible && <aside ref={element} tabIndex={-1} className="issue-sidebar" aria-label={title}
@@ -60,7 +63,7 @@ export function useIssueSidebar(host: Host, api: Pick<DesktopAPI, 'saveIssueSide
         {repository && <span className="issue-sidebar-repository">{repository.path}</span>}</header>
       {project && repository && <IssueLists key={lists} project={project} repository={repository}
         workflows={snapshot!.settings.workflows} changeBinding={() => host.bindRepository(project)}
-        locate={location => host.locatePanel(location.projectId, location.panelId, location.runId)} detail={{ opened: openedNumber, open: openIssue }} />}
+        locate={location => host.locatePanel(location.projectId, location.panelId, location.runId)} detail={opening('issue')} mergeRequestDetail={opening('mergeRequest')} />}
       {project && !repository && <div className="issue-sidebar-state">
         <p>{t('issueSidebarUnbound')}</p>
         <button className="primary" onClick={() => host.bindRepository(project)}>{t('bindRepository')}</button>

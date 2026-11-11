@@ -91,6 +91,7 @@ void app.whenReady().then(async () => {
   handle('dispatch', (service, id, request) => service.dispatch(id, request));
   handle('merge-request-page', (service, id, filter, cursor) => service.mergeRequestPage(id, filter, cursor));
   handle('issue-detail', (service, id, number) => service.issueDetail(id, number));
+  handle('merge-request-detail', (service, id, number) => service.mergeRequestDetail(id, number));
   handle('directory', (service, directory) => service.inspectDirectory(directory));
   handle('activate', (service, id) => service.activateProject(id));
   handle('add', (service, project, agent) => service.addPanel(project, agent));

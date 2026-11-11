@@ -1,3 +1,5 @@
+import { englishMergeRequestDetail } from './merge-request-detail';
+
 export const english = {
   'swapPreview': 'Swap preview: {first} and {second}',
   'draggingPanel': 'Dragging {agent} panel',
@@ -356,4 +358,5 @@ export const english = {
   "relationSubIssue": "Sub-issue",
   "relationBlocking": "Blocking",
   "closingMergeRequests": "Pull requests that close this issue when merged",
+  ...englishMergeRequestDetail,
 } as const;

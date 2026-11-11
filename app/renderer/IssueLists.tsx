@@ -6,7 +6,7 @@ import type { DispatchLocation, DispatchRequest } from '../shared/dispatch';
 import type { WorkflowSettings } from '../shared/workflows';
 import { DispatchMenu, DispatchStatus } from './Dispatch';
 import { useLocalization } from './Localization';
-import { LabelButtons, relativeTime } from './list-row-parts';
+import { LabelButtons, relativeTime, type DetailOpening } from './list-row-parts';
 import { MergeRequestRow } from './MergeRequestRow';
 
 type Tab = 'issues' | 'mergeRequests';
@@ -17,11 +17,13 @@ type Failure = ListFailure | { ok: false; error: string };
  * so opening the sidebar or returning to a project reads afresh from an open, unfiltered list.
  * Each tab keeps its own filters; only the shown tab reads from the platform.
  */
-export function IssueLists({ project, repository, workflows, changeBinding, locate, detail, api = window.workbench }: {
+export function IssueLists({ project, repository, workflows, changeBinding, locate, detail, mergeRequestDetail, api = window.workbench }: {
   project: ProjectView; repository: RepositoryReference; workflows: WorkflowSettings; changeBinding(): void;
   /** Shows the panel a dispatch went to. */
   locate(location: DispatchLocation): void;
-  detail: IssueDetailOpening;
+  /** Which issue's and which merge request's detail is open, and how rows open them. */
+  detail: DetailOpening;
+  mergeRequestDetail: DetailOpening;
   api?: Pick<DesktopAPI, 'issuePage' | 'mergeRequestPage' | 'dispatch'>;
 }) {
   const { t, language } = useLocalization();
@@ -48,7 +50,7 @@ export function IssueLists({ project, repository, workflows, changeBinding, loca
       load={(filter, cursor) => api.mergeRequestPage(project.id, filter, cursor).then(result => result.ok
         ? { ok: true, page: { items: result.page.mergeRequests, next: result.page.next, labels: result.page.labels } } : result)}
       rows={(requests: MergeRequestSummary[], addLabel) => requests.map(request =>
-        <MergeRequestRow key={request.number} request={request} addLabel={addLabel} />)} />;
+        <MergeRequestRow key={request.number} request={request} addLabel={addLabel} detail={mergeRequestDetail} />)} />;
 }
 
 interface Dispatching {
@@ -153,12 +155,9 @@ function topLevel(issues: IssueSummary[], platform: PlatformDescription) {
   return issues.filter(issue => issue.parent === null || !listed.has(issue.parent));
 }
 
-/** Which issue's detail is open, and how a row opens one. */
-interface IssueDetailOpening { opened?: number; open(number: number): void }
-
 /** Clicking the row opens the issue's detail; its controls and dispatch actions act on their own. */
 function IssueRow({ issue, platform, language, addLabel, dispatching, detail }: {
-  issue: IssueSummary; platform: PlatformDescription; language: Language; addLabel(name: string): void; dispatching: Dispatching; detail: IssueDetailOpening;
+  issue: IssueSummary; platform: PlatformDescription; language: Language; addLabel(name: string): void; dispatching: Dispatching; detail: DetailOpening;
 }) {
   const { t } = useLocalization();
   const [expanded, setExpanded] = useState(false);
@@ -193,7 +192,7 @@ function IssueRow({ issue, platform, language, addLabel, dispatching, detail }: 
 /** Sub-issues in number order; the closed ones fold behind one button. */
 function SubIssueList({ parent, issues, platform, language, addLabel, dispatching, detail }: {
   parent: number; issues: IssueSummary[]; platform: PlatformDescription; language: Language; addLabel(name: string): void; dispatching: Dispatching;
-  detail: IssueDetailOpening;
+  detail: DetailOpening;
 }) {
   const { t } = useLocalization();
   const [showClosed, setShowClosed] = useState(false);

@@ -1,60 +1,40 @@
-import { useEffect, useRef, useState, type CSSProperties, type MouseEvent } from 'react';
 import type { DesktopAPI } from '../shared/api';
-import { platformDescriptions, repositoryItem, type IssueDetail, type IssueDetailResult, type MergeRequestReference,
-  type RelatedIssue, type RepositoryReference } from '../shared/code-hosting';
+import { platformDescriptions, repositoryItem, type IssueDetail, type MergeRequestReference,
+  type RelatedIssue, type RepositoryItem, type RepositoryReference } from '../shared/code-hosting';
 import { useLocalization } from './Localization';
-import { allowedHtml } from './platform-html';
 import { IssueStateIcon } from './IssueLists';
-import { relativeTime } from './list-row-parts';
+import { CreatedAt, DetailFailureState, Labels, PlatformHtml, followLinks, useDetail } from './detail-parts';
 import { CheckIcon, MergeRequestStateIcon } from './MergeRequestRow';
-
-type Failure = Extract<IssueDetailResult, { ok: false }> | { ok: false; error: string };
 
 /**
  * One issue's read-only detail, read from the platform each time it opens. Links to the bound
- * repository's issues open here; every other link, and merge requests until their detail
- * exists, go to the system browser.
+ * repository's issues and merge requests open in the sidebar; every other link goes to the
+ * system browser.
  */
-export function IssueDetailView({ projectId, repository, number, openIssue, close, api = window.workbench }: {
-  projectId: string; repository: RepositoryReference; number: number; openIssue(number: number): void; close(): void;
+export function IssueDetailView({ projectId, repository, number, open, close, api = window.workbench }: {
+  projectId: string; repository: RepositoryReference; number: number; open(item: RepositoryItem): void; close(): void;
   api?: Pick<DesktopAPI, 'issueDetail'>;
 }) {
   const { t } = useLocalization();
-  const [state, setState] = useState<{ issue?: IssueDetail; failure?: Failure; loading: boolean }>({ loading: true });
-  const latest = useRef(0);
-  const read = () => {
-    const request = ++latest.current;
-    setState(current => ({ ...current, loading: true }));
-    api.issueDetail(projectId, number).then(result => result, (error: Error) => ({ ok: false, error: error.message }) as const).then(result => {
-      if (request !== latest.current) return;
-      setState(result.ok ? { issue: result.issue, loading: false } : { failure: result, loading: false });
-    });
-  };
-  useEffect(() => { setState({ loading: true }); read(); }, [projectId, number]);
+  const state = useDetail<IssueDetail>(() => api.issueDetail(projectId, number).then(result => result.ok ? { ok: true as const, item: result.issue } : result), [projectId, number]);
   const platform = platformDescriptions[repository.platform];
-  const follow = (event: MouseEvent) => {
-    // Only links inside the platform's HTML: the header's link opens the issue on the platform.
-    const link = (event.target as Element).closest?.('.platform-html a[href]');
-    if (!link) return;
-    event.preventDefault();
-    const href = link.getAttribute('href')!;
-    const item = repositoryItem(repository, href);
-    if (item?.kind === 'issue') openIssue(item.number);
-    else window.open(href, '_blank');
-  };
   const openReference = (reference: RelatedIssue) => {
-    if (reference.repository.toLowerCase() === repository.path.toLowerCase()) openIssue(reference.number);
+    if (reference.repository.toLowerCase() === repository.path.toLowerCase()) open({ kind: 'issue', number: reference.number });
     else window.open(reference.url, '_blank');
   };
-  const issue = state.issue?.number === number ? state.issue : undefined;
-  return <section className="issue-detail" aria-label={t('issueDetail', { number })} onClick={follow}>
+  const openMergeRequest = (request: MergeRequestReference) => {
+    const item = repositoryItem(repository, request.url);
+    if (item) open(item); else window.open(request.url, '_blank');
+  };
+  const issue = state.item?.number === number ? state.item : undefined;
+  return <section className="issue-detail" aria-label={t('issueDetail', { number })} onClick={followLinks(repository, open)}>
     <header className="issue-detail-bar">
       <span className="issue-detail-crumb">{t('issueDetail', { number })}</span>
       {issue && <a href={issue.url} target="_blank" rel="noreferrer">{t('openOnPlatform', { platform: platform.name })}</a>}
       <button className="issue-detail-close" aria-label={t('closeDetail')} onClick={close}>×</button>
     </header>
     <div className="issue-detail-scroll">
-      {state.failure && !state.loading ? <DetailFailure failure={state.failure} number={number} retry={read} />
+      {state.failure && !state.loading ? <DetailFailureState failure={state.failure} number={number} retry={state.read} />
         : !issue ? <p className="issue-detail-loading" role="status">{t('loadingIssue')}</p>
         : <>
           <h2 className="issue-detail-title">{issue.title} <span className="issue-row-number">#{issue.number}</span></h2>
@@ -65,10 +45,9 @@ export function IssueDetailView({ projectId, repository, number, openIssue, clos
             <span>{t(issue.commentCount === 1 ? 'commentCountOne' : 'commentCount', { count: issue.commentCount })}</span>
             {!!issue.assignees.length && <span>{t('assignees')} <span>{issue.assignees.join(', ')}</span></span>}
           </div>
-          {!!issue.labels.length && <div className="issue-detail-labels">{issue.labels.map(label =>
-            <span key={label.name} className="issue-label" style={{ '--label-color': `#${label.color}` } as CSSProperties}>{label.name}</span>)}</div>}
+          <Labels labels={issue.labels} />
           <RelationGraph issue={issue} repository={repository} open={openReference} />
-          <ClosingMergeRequests mergeRequests={issue.closingMergeRequests} />
+          <ClosingMergeRequests mergeRequests={issue.closingMergeRequests} open={openMergeRequest} />
           <article className="issue-detail-card">
             <header>{issue.author && <b>{issue.author}</b>} <CreatedAt at={issue.createdAt} /></header>
             <PlatformHtml html={issue.body} />
@@ -80,26 +59,6 @@ export function IssueDetailView({ projectId, repository, number, openIssue, clos
         </>}
     </div>
   </section>;
-}
-
-function CreatedAt({ at }: { at: string }) {
-  const { language } = useLocalization();
-  const date = new Date(at);
-  return <time dateTime={at} title={date.toLocaleString(language)}>{relativeTime(date, language)}</time>;
-}
-
-function PlatformHtml({ html }: { html: string }) {
-  return <div className="platform-html" dangerouslySetInnerHTML={{ __html: allowedHtml(html) }} />;
-}
-
-function DetailFailure({ failure, number, retry }: { failure: Failure; number: number; retry(): void }) {
-  const { t, text } = useLocalization();
-  const reason = 'error' in failure ? text(failure.error)
-    : failure.failure.kind === 'notInstalled' ? t('platformCliMissing', { platform: failure.failure.platform.name })
-    : failure.failure.kind === 'signedOut' ? t('platformSignInNeeded', { platform: failure.failure.platform.name })
-    : failure.failure.kind === 'unreachable' ? t('issueUnreachable', { number })
-    : t('listReadFailed', { platform: failure.failure.platform.name, reason: failure.failure.output || failure.failure.kind });
-  return <div className="issue-sidebar-state" role="alert"><p>{reason}</p><button onClick={retry}>{t('retry')}</button></div>;
 }
 
 type RelationKind = 'parent' | 'blockedBy' | 'subIssue' | 'blocking';
@@ -150,8 +109,8 @@ function RelationGraph({ issue, repository, open }: { issue: IssueDetail; reposi
   </div>;
 }
 
-/** Merge requests that close the issue when merged. Opening one belongs to the merge request detail. */
-function ClosingMergeRequests({ mergeRequests }: { mergeRequests: MergeRequestReference[] }) {
+/** Merge requests that close the issue when merged; each opens its own detail. */
+function ClosingMergeRequests({ mergeRequests, open }: { mergeRequests: MergeRequestReference[]; open(request: MergeRequestReference): void }) {
   const { t } = useLocalization();
   if (!mergeRequests.length) return null;
   return <section className="closing-merge-requests">
@@ -159,10 +118,12 @@ function ClosingMergeRequests({ mergeRequests }: { mergeRequests: MergeRequestRe
     <ul aria-label={t('closingMergeRequests')}>
       {mergeRequests.map(request => <li key={request.number}
         className={`closing-merge-request merge-request-${request.state === 'open' && request.draft ? 'draft' : request.state}`}>
-        <MergeRequestStateIcon request={request} />
-        <span className="issue-row-number">#{request.number}</span>
-        <span className="relation-title">{request.title}</span>
-        {request.checks && <CheckIcon conclusion={request.checks} />}
+        <button aria-label={`#${request.number} ${request.title}`} title={request.title} onClick={() => open(request)}>
+          <MergeRequestStateIcon request={request} />
+          <span className="issue-row-number">#{request.number}</span>
+          <span className="relation-title">{request.title}</span>
+          {request.checks && <CheckIcon conclusion={request.checks} />}
+        </button>
       </li>)}
     </ul>
   </section>;

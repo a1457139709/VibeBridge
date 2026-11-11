@@ -123,10 +123,13 @@ main:has(> .workbench-page:not([hidden]) .panel-tray:not(.empty)) > .issue-detai
 .closing-merge-requests { margin-top: 12px; }
 .closing-merge-requests h3 { margin: 0 0 6px; font-size: 12px; color: var(--muted); font-weight: 600; }
 .closing-merge-requests ul { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 4px; }
-.closing-merge-request { --merge-request-color: var(--issue-open); display: flex; align-items: center; gap: 6px; padding: 4px 8px; font-size: 12px;
+.closing-merge-request { --merge-request-color: var(--issue-open);
   border: 1px solid color-mix(in srgb, var(--merge-request-color) 60%, transparent); border-left-width: 3px; border-radius: 6px; }
 .merge-request-draft { --merge-request-color: var(--issue-skipped); }
 .merge-request-merged { --merge-request-color: var(--issue-done); }
 .merge-request-closed { --merge-request-color: var(--merge-request-closed); }
+.closing-merge-request > button { width: 100%; min-height: 0; display: flex; align-items: center; gap: 6px; padding: 4px 8px; border: 0; border-radius: 0;
+  background: transparent; color: inherit; font-size: 12px; text-align: left; }
+.closing-merge-request > button:hover { background: var(--hover); }
 .closing-merge-request .merge-request-checks { margin-left: auto; }
 [aria-current='true'] > .issue-row { background: color-mix(in srgb, var(--accent) 12%, transparent); }

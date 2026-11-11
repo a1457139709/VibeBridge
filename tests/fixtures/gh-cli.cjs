@@ -3,7 +3,7 @@ const { readFileSync } = require('node:fs');
 // External CLI double for GitHub's `gh`: answers `gh api graphql` from a state file the test
 // writes, for the viewer, the viewer's repositories, issue and pull request search, and an
 // issue or pull request by number, which fills only the fragment of its own type, and an issue's
-// detail. Comment pages hold at most `commentPageSize` comments. Closing pull requests leave out
+// detail, and a pull request's detail. Comment and review pages hold at most `commentPageSize` items. Closing pull requests leave out
 // closed unmerged ones unless the query asks with `includeClosedPrs: true`, as GitHub does.
 // A state `failure` makes every call end with the given exit code, stdout and stderr, as
 // `gh` does when the API refuses. Repository pages hold at most `pageSize` repositories,
@@ -28,6 +28,7 @@ module.exports = function gh(stateFile, args) {
   if (query.includes('search(')) return answer(search(state, fields));
   if (query.includes('issueOrPullRequest(')) return answer(issueByNumber(state, fields));
   if (query.includes('issue(number:')) return answer(issueDetail(state, fields, query));
+  if (query.includes('pullRequest(number:')) return answer(pullRequestDetail(state, fields));
   if (!query.includes('viewer')) unsupported(args);
   const viewer = { login: state.login };
   if (query.includes('repositories')) {
@@ -174,5 +175,43 @@ function issueDetail(state, fields, query) {
     closedByPullRequestsReferences: { nodes: pulls.map(pull => ({ number: pull.number, title: pull.title, state: pull.state, isDraft: pull.isDraft,
       url: `https://github.com/${path}/pull/${pull.number}`,
       commits: { nodes: [{ commit: { statusCheckRollup: pull.checks ? { state: pull.checks } : null } }] } })) },
+  } } };
+}
+
+// A page of a pull request's comments or reviews, read from the cursor its query passes.
+function connection(state, items, cursor, node) {
+  const size = state.commentPageSize ?? 100;
+  const start = cursor ? Number(cursor) : 0;
+  const page = items.slice(start, start + size);
+  const end = start + page.length;
+  return { totalCount: items.length, nodes: page.map((item, index) => node(item, start + index)), pageInfo: { hasNextPage: end < items.length, endCursor: String(end) } };
+}
+
+function checkContext(context) {
+  return context.kind === 'run'
+    ? { __typename: 'CheckRun', name: context.name, status: context.status, conclusion: context.conclusion, detailsUrl: context.url, isRequired: context.required }
+    : { __typename: 'StatusContext', context: context.name, state: context.state, targetUrl: context.url, isRequired: context.required };
+}
+
+function pullRequestDetail(state, fields) {
+  const path = repository(state, fields.owner, fields.name);
+  const request = (state.pullRequests ?? []).find(item => item.number === Number(fields.number));
+  if (!request) notFound('repository', `Could not resolve to a PullRequest with the number of ${fields.number}.`, { repository: { pullRequest: null } });
+  const methods = state.mergeMethods ?? { merge: true, squash: true, rebase: true };
+  const url = `https://github.com/${path}/pull/${request.number}`;
+  const contexts = request.checkContexts ?? [];
+  return { repository: { mergeCommitAllowed: methods.merge, squashMergeAllowed: methods.squash, rebaseMergeAllowed: methods.rebase, pullRequest: {
+    ...pullRequestNode(state, path, request),
+    headRefName: request.headRefName ?? 'head', baseRefName: request.baseRefName ?? 'main',
+    isCrossRepository: !!request.headOwner, headRepositoryOwner: { login: request.headOwner ?? fields.owner },
+    bodyHTML: request.bodyHTML ?? '',
+    comments: connection(state, request.comments ?? [], fields.comments,
+      comment => ({ author: { login: comment.author }, createdAt: comment.createdAt, bodyHTML: comment.bodyHTML })),
+    reviews: connection(state, request.reviews ?? [], fields.reviews, (review, index) => ({ author: { login: review.author }, state: review.state,
+      submittedAt: review.submittedAt, bodyHTML: review.bodyHTML, url: `${url}#pullrequestreview-${index + 1}`, comments: { totalCount: review.codeComments } })),
+    closingIssuesReferences: { nodes: (request.closes ?? []).map(number => reference(state, path, number)) },
+    reviewDecision: request.reviewDecision ?? null, mergeable: request.mergeable ?? 'MERGEABLE', isMergeQueueEnabled: !!request.mergeQueue,
+    commits: { nodes: [{ commit: { statusCheckRollup: contexts.length || request.checks
+      ? { state: request.checks ?? 'PENDING', contexts: { nodes: contexts.map(checkContext) } } : null } }] },
   } } };
 }
