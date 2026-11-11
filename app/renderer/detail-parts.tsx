@@ -2,6 +2,7 @@ import { useEffect, useRef, useState, type CSSProperties, type MouseEvent } from
 import { repositoryItem, type IssueLabel, type PlatformFailure, type RepositoryItem, type RepositoryReference } from '../shared/code-hosting';
 import { useLocalization } from './Localization';
 import { allowedHtml } from './platform-html';
+import { PlatformFailureHelp, platformFailureReason } from './platform-failure';
 import { relativeTime } from './list-row-parts';
 
 // Pieces every detail shows the same way, whatever it details.
@@ -54,10 +55,10 @@ export function Labels({ labels }: { labels: IssueLabel[] }) {
 
 export function DetailFailureState({ failure, number, retry }: { failure: DetailFailure; number: number; retry(): void }) {
   const { t, text } = useLocalization();
-  const reason = 'error' in failure ? text(failure.error)
-    : failure.failure.kind === 'notInstalled' ? t('platformCliMissing', { platform: failure.failure.platform.name })
-    : failure.failure.kind === 'signedOut' ? t('platformSignInNeeded', { platform: failure.failure.platform.name })
-    : failure.failure.kind === 'unreachable' ? t('issueUnreachable', { number })
-    : t('listReadFailed', { platform: failure.failure.platform.name, reason: failure.failure.output || failure.failure.kind });
-  return <div className="issue-sidebar-state" role="alert"><p>{reason}</p><button onClick={retry}>{t('retry')}</button></div>;
+  if ('error' in failure) return <div className="issue-sidebar-state" role="alert"><p>{text(failure.error)}</p><button onClick={retry}>{t('retry')}</button></div>;
+  const { platform } = failure.failure;
+  const reason = platformFailureReason(t, failure.failure,
+    { unreachable: t('issueUnreachable', { number }), failed: reason => t('listReadFailed', { platform: platform.name, reason }) });
+  return <div className="issue-sidebar-state" role="alert"><p>{reason}</p>
+    <div className="issue-state-actions"><PlatformFailureHelp failure={failure.failure} /><button onClick={retry}>{t('retry')}</button></div></div>;
 }

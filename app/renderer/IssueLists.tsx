@@ -11,6 +11,7 @@ import { useLocalization } from './Localization';
 import { LabelButtons, relativeTime, type DetailOpening } from './list-row-parts';
 import { MergeRequestRow } from './MergeRequestRow';
 import { BlockedMark, IssueStateIcon } from './issue-icons';
+import { PlatformFailureHelp, platformFailureReason } from './platform-failure';
 
 export type Tab = 'issues' | 'mergeRequests';
 /** Each tab's search and filters. */
@@ -250,30 +251,12 @@ function LabelSwatch({ label }: { label: IssueLabel }) {
 /** Why the bound repository cannot be listed, filling the sidebar's content area. */
 export function FailureState({ failure, path, retry, changeBinding }: { failure: Failure; path: string; retry(): void; changeBinding(): void }) {
   const { t, text } = useLocalization();
-  const [copied, setCopied] = useState(false);
-  const retryButton = <button onClick={retry}>{t('retry')}</button>;
-  if ('error' in failure) return <div className="issue-sidebar-state" role="alert"><p>{text(failure.error)}</p>{retryButton}</div>;
-  const { kind, platform, output } = failure.failure;
-  if (kind === 'notInstalled') return <div className="issue-sidebar-state" role="alert">
-    <p>{t('platformCliMissing', { platform: platform.name })}</p>
-    <p>{t('installFrom')} <a href={platform.installUrl} target="_blank" rel="noreferrer">{platform.installUrl}</a></p>
-    {retryButton}
-  </div>;
-  if (kind === 'signedOut') return <div className="issue-sidebar-state" role="alert">
-    <p>{t('platformSignInNeeded', { platform: platform.name })}</p>
-    <div className="issue-state-actions">
-      <button aria-label={t('copyCommand', { command: platform.signInCommand })}
-        onClick={() => { void navigator.clipboard.writeText(platform.signInCommand).then(() => setCopied(true)); }}>
-        <code>{platform.signInCommand}</code>{copied ? ` · ${t('copied')}` : ''}</button>
-      {retryButton}
-    </div>
-  </div>;
-  if (kind === 'unreachable') return <div className="issue-sidebar-state" role="alert">
-    <p>{failure.account ? t('repositoryUnreachable', { path, account: failure.account }) : t('repositoryUnreachableAnonymous', { path })}</p>
-    <div className="issue-state-actions">{retryButton}<button onClick={changeBinding}>{t('changeBinding')}</button></div>
-  </div>;
+  if ('error' in failure) return <div className="issue-sidebar-state" role="alert"><p>{text(failure.error)}</p><button onClick={retry}>{t('retry')}</button></div>;
+  const { platform } = failure.failure;
+  const unreachable = failure.account ? t('repositoryUnreachable', { path, account: failure.account }) : t('repositoryUnreachableAnonymous', { path });
   return <div className="issue-sidebar-state" role="alert">
-    <p>{t('listReadFailed', { platform: platform.name, reason: output || kind })}</p>
-    {retryButton}
+    <p>{platformFailureReason(t, failure.failure, { unreachable, failed: reason => t('listReadFailed', { platform: platform.name, reason }) })}</p>
+    <div className="issue-state-actions"><PlatformFailureHelp failure={failure.failure} /><button onClick={retry}>{t('retry')}</button>
+      {failure.failure.kind === 'unreachable' && <button onClick={changeBinding}>{t('changeBinding')}</button>}</div>
   </div>;
 }

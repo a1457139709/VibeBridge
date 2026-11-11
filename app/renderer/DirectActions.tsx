@@ -3,6 +3,7 @@ import type { DesktopAPI } from '../shared/api';
 import { platformDescriptions, type DirectAction, type IssueDetail, type MergeMethod, type MergeRequestDetail, type PlatformDescription,
   type PlatformFailure, type RepositoryReference } from '../shared/code-hosting';
 import { useLocalization } from './Localization';
+import { platformFailureReason } from './platform-failure';
 import './direct-actions.css';
 
 /** Where a detail's direct actions report what came of them. */
@@ -32,7 +33,7 @@ function useDirectActions(projectId: string, item: object, host: DirectActionHos
     api.directAction(projectId, action).then(result => {
       if (result.ok) { setState({}); host.changed(); }
       else if (result.failure.kind === 'notInstalled' || result.failure.kind === 'signedOut') { setState({}); host.unavailable(result.failure); }
-      else setState({ failure: { action, reason: result.failure.output || result.failure.kind } });
+      else setState({ failure: { action, reason: platformFailureReason(t, result.failure, { failed: reason => reason }) } });
     }, (error: Error) => setState({ failure: { action, reason: text(error.message) } }));
   };
   const busy = state.running !== undefined;
@@ -87,7 +88,7 @@ function blockers(request: MergeRequestDetail, platform: PlatformDescription) {
   const { review, checks, conflicting } = request.merge;
   const counted = platform.capabilities.includes('requiredChecks') ? checks.filter(check => check.required) : checks;
   return ([
-    request.draft && 'mergeBlockedDraft',
+    request.draft && 'mergeDraft',
     conflicting && 'mergeBlockedConflicts',
     review === 'reviewRequired' && 'mergeBlockedReview',
     review === 'changesRequested' && 'mergeBlockedChangesRequested',
