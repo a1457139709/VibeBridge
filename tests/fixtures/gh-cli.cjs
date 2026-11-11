@@ -3,7 +3,7 @@ const { readFileSync, writeFileSync } = require('node:fs');
 // External CLI double for GitHub's `gh`: answers `gh api graphql` from a state file the test
 // writes, for the viewer, the viewer's repositories, issue and pull request search, and an
 // issue or pull request by number, which fills only the fragment of its own type, an issue's
-// sub-issues, at most `subIssuePageSize` per page, an issue's detail, and a pull request's detail. Comment and review pages hold at most `commentPageSize` items. Closing pull requests leave out
+// sub-issues, blockers or blocked issues, at most `relationPageSize` per page in every query, an issue's detail, and a pull request's detail. Comment and review pages hold at most `commentPageSize` items. Closing pull requests leave out
 // closed unmerged ones unless the query asks with `includeClosedPrs: true`, as GitHub does.
 // A state `failure` makes every call end with the given exit code, stdout and stderr, as
 // `gh` does when the API refuses. Repository pages hold at most `pageSize` repositories,
@@ -30,7 +30,8 @@ module.exports = function gh(stateFile, args) {
   if (/^\s*mutation\b/.test(query)) return mutate(stateFile, state, fields, query, args);
   if (query.includes('search(')) return answer(search(state, fields));
   if (query.includes('issueOrPullRequest(')) return answer(issueByNumber(state, fields));
-  if (/issue\(number: \$number\) \{\s*subIssues\(/.test(query)) return answer(subIssuePage(state, fields));
+  const relation = /issue\(number: \$number\) \{\s*(subIssues|blockedBy|blocking)\(/.exec(query);
+  if (relation) return answer(relationPage(state, fields, relation[1]));
   if (query.includes('issue(number:')) return answer(issueDetail(state, fields, query));
   if (query.includes('pullRequest(number:')) return answer(pullRequestDetail(state, fields));
   if (!query.includes('viewer')) unsupported(args);
@@ -78,25 +79,39 @@ function issueNode(state, path, issue) {
   const all = state.issues ?? [];
   const byNumber = number => all.find(item => item.number === number);
   const children = all.filter(item => item.parent === issue.number);
+  const blockers = (issue.blockedBy ?? []).map(byNumber);
   const node = { number: issue.number, title: issue.title, state: issue.state, stateReason: issue.stateReason, createdAt: issue.createdAt,
     url: `https://github.com/${path}/issues/${issue.number}`, labels: labelNodes(state, issue.labels),
     parent: issue.parent ? { number: issue.parent } : null,
-    blockedBy: { nodes: (issue.blockedBy ?? []).map(byNumber).map(item => ({ number: item.number, title: item.title, state: item.state })) },
+    blockedBy: { nodes: blockers.slice(0, state.relationPageSize ?? 100).map(item => ({ number: item.number, title: item.title, state: item.state })) },
+    issueDependenciesSummary: { blockedBy: blockers.filter(item => item.state === 'OPEN').length, totalBlockedBy: blockers.length },
     subIssuesSummary: { total: children.length, completed: children.filter(item => item.state === 'CLOSED').length } };
   return node;
 }
 
-function subIssuePage(state, fields) {
+// The issues on the other end of one of an issue's list relations, in the order the state holds them.
+function related(state, issue, relation) {
+  const others = (state.issues ?? []).filter(item => item.number !== issue.number);
+  const numbers = relation === 'subIssues' ? others.filter(item => item.parent === issue.number).map(item => item.number)
+    : relation === 'blockedBy' ? issue.blockedBy ?? [] : others.filter(item => (item.blockedBy ?? []).includes(issue.number)).map(item => item.number);
+  return numbers.map(number => state.issues.find(item => item.number === number));
+}
+
+// One page of a relation from `cursor`. Nodes carry both the list's and the detail's fields.
+function relationConnection(state, path, items, cursor) {
+  const size = state.relationPageSize ?? 100;
+  const start = cursor ? Number(cursor) : 0;
+  const page = items.slice(start, start + size);
+  const end = start + page.length;
+  return { nodes: page.map(item => ({ ...reference(state, path, item.number), ...issueNode(state, path, item) })),
+    pageInfo: { hasNextPage: end < items.length, endCursor: String(end) } };
+}
+
+function relationPage(state, fields, relation) {
   const path = repository(state, fields.owner, fields.name);
   const issue = (state.issues ?? []).find(item => item.number === Number(fields.number));
   if (!issue) notFound('repository', `Could not resolve to an Issue with the number of ${fields.number}.`, { repository: { issue: null } });
-  const children = state.issues.filter(item => item.parent === issue.number);
-  const size = state.subIssuePageSize ?? 100;
-  const start = fields.cursor ? Number(fields.cursor) : 0;
-  const page = children.slice(start, start + size);
-  const end = start + page.length;
-  return { repository: { issue: { subIssues: { nodes: page.map(child => issueNode(state, path, child)),
-    pageInfo: { hasNextPage: end < children.length, endCursor: String(end) } } } } };
+  return { repository: { issue: { [relation]: relationConnection(state, path, related(state, issue, relation), fields.cursor) } } };
 }
 
 function pullRequestNode(state, path, request) {
@@ -173,8 +188,6 @@ function issueDetail(state, fields, query) {
   const start = fields.comments ? Number(fields.comments) : 0;
   const page = comments.slice(start, start + size);
   const end = start + page.length;
-  const nodes = numbers => ({ nodes: numbers.map(number => reference(state, path, number)) });
-  const others = state.issues.filter(item => item.number !== issue.number);
   const includeClosed = /includeClosedPrs:\s*true/.test(query);
   const pulls = (issue.closedBy ?? []).map(number => state.pullRequests.find(pull => pull.number === number))
     .filter(pull => includeClosed || pull.state !== 'CLOSED');
@@ -186,8 +199,9 @@ function issueDetail(state, fields, query) {
     comments: { totalCount: comments.length, nodes: page.map(comment => ({ author: { login: comment.author }, createdAt: comment.createdAt, bodyHTML: comment.bodyHTML })),
       pageInfo: { hasNextPage: end < comments.length, endCursor: String(end) } },
     parent: issue.parent ? reference(state, path, issue.parent) : null,
-    subIssues: nodes(others.filter(item => item.parent === issue.number).map(item => item.number)), blockedBy: nodes(issue.blockedBy ?? []),
-    blocking: nodes(others.filter(item => (item.blockedBy ?? []).includes(issue.number)).map(item => item.number)),
+    subIssues: relationConnection(state, path, related(state, issue, 'subIssues'), null),
+    blockedBy: relationConnection(state, path, related(state, issue, 'blockedBy'), null),
+    blocking: relationConnection(state, path, related(state, issue, 'blocking'), null),
     closedByPullRequestsReferences: { nodes: pulls.map(pull => ({ number: pull.number, title: pull.title, state: pull.state, isDraft: pull.isDraft,
       url: `https://github.com/${path}/pull/${pull.number}`,
       commits: { nodes: [{ commit: { statusCheckRollup: pull.checks ? { state: pull.checks } : null } }] } })) },

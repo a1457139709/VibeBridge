@@ -25,7 +25,7 @@ const app: ProjectView = { id: 'app', name: 'App project', directory: '/work/app
   repository: { platform: 'github', path: 'octo/app' } };
 
 const summary = (number: number): IssueSummary => ({ number, title: `Issue ${number}`, state: 'open', closedAs: null,
-  createdAt: '2026-11-01T00:00:00Z', labels: [], url: `https://github.com/octo/app/issues/${number}`, parent: null, subIssues: null, blockedBy: [] });
+  createdAt: '2026-11-01T00:00:00Z', labels: [], url: `https://github.com/octo/app/issues/${number}`, parent: null, subIssues: null, blockedBy: [], moreBlockers: 0 });
 const reference = (number: number, extra: Partial<RelatedIssue> = {}): RelatedIssue => ({ number, title: `Issue ${number}`, state: 'open', closedAs: null,
   repository: { platform: 'github', path: 'octo/app' }, url: `https://github.com/octo/app/issues/${number}`, ...extra });
 const detail = (number: number, extra: Partial<IssueDetail> = {}): IssueDetail => ({ ...summary(number), parent: null, subIssues: [], blockedBy: [], author: 'mona', assignees: [], body: '<p>Body</p>',

@@ -70,6 +70,21 @@ test('an issue detail holds its rendered body and every comment, its people, its
     'comments past the first page are read too');
 });
 
+test('an issue detail reads every sub-issue, blocker and blocked issue, however many pages they take', async context => {
+  const f = await boundProject(context, 'issue-detail-relation-pages', { relationPageSize: 2, issues: [
+    issue(1, { blockedBy: [20, 21, 22] }),
+    issue(10, { parent: 1 }), issue(11, { parent: 1 }), issue(12, { parent: 1, state: 'CLOSED', stateReason: 'COMPLETED' }),
+    issue(20), issue(21), issue(22),
+    issue(30, { blockedBy: [1] }), issue(31, { blockedBy: [1] }), issue(32, { blockedBy: [1] }),
+  ] });
+  const read = detail(await f.detail(1));
+  assert.deepEqual(read.subIssues.map(each => each.number), [10, 11, 12]);
+  assert.deepEqual(read.blockedBy.map(each => each.number), [20, 21, 22]);
+  assert.deepEqual(read.blocking.map(each => each.number), [30, 31, 32]);
+  assert.deepEqual(read.subIssues[2], { number: 12, title: 'Issue 12', state: 'closed', closedAs: 'completed',
+    repository: { platform: 'github', path: 'octo/app' }, url: 'https://github.com/octo/app/issues/12' });
+});
+
 test('an issue detail tells a missing issue and platform failures apart', async context => {
   const f = await boundProject(context, 'issue-detail-failures', { issues: [issue(1)] });
   const missing = await f.detail(99);

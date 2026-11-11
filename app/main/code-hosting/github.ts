@@ -1,7 +1,7 @@
 import { listPageSize, type ListFilter, type IssueLabel, type IssueDetail, type IssueSummary, type MergeRequestReference, type MergeRequestSummary } from '../../shared/code-hosting';
 import { PlatformError, type CodeHostingPlatform, type CommandEnvironment } from './platform';
 import { closure, commentFields, conclusions, description, graphql, issueComment, labelFields, listLabels, ownerAndName, pullRequestStates,
-  relatedIssue, relatedIssueFields, writable, type CommentNode, type RelatedIssueNode } from './github-graphql';
+  relatedIssue, relatedIssueFields, writable, type CommentNode, type PageInfo, type RelatedIssueNode } from './github-graphql';
 import { mergeRequest } from './github-merge-request';
 import { act } from './github-direct-actions';
 
@@ -25,6 +25,8 @@ interface IssueNode {
   number: number; title: string; state: 'OPEN' | 'CLOSED'; stateReason: string | null; createdAt: string; url: string; labels: { nodes: IssueLabel[] };
   parent: { number: number } | null;
   blockedBy: { nodes: { number: number; title: string; state: 'OPEN' | 'CLOSED' }[] };
+  /** `blockedBy` counts the open blockers, however many the list reads. */
+  issueDependenciesSummary: { blockedBy: number };
   subIssuesSummary: { total: number; completed: number };
 }
 interface PullRequestNode {
@@ -42,16 +44,18 @@ interface ListKind<Node, Summary> {
   filterState(summary: Summary): ListFilter['state'];
 }
 
-// Sub-issues and blockers come from their own fields, never from search qualifiers or body text.
-const relationFields = `parent { number } blockedBy(first: 20) { nodes { number title state } }`;
+// Sub-issues and blockers come from their own fields, never from search qualifiers or body text. A row names the
+// open ones among its first 20 blockers and counts the rest, so an issue blocked only further down still reads as blocked.
+const relationFields = `parent { number } blockedBy(first: 20) { nodes { number title state } } issueDependenciesSummary { blockedBy }`;
 const issueFields = `number title state stateReason createdAt url ${labelFields} ${relationFields} subIssuesSummary { total completed }`;
 function issueSummary(node: IssueNode): IssueSummary {
   const state = node.state === 'OPEN' ? 'open' : 'closed';
-  return { number: node.number, title: node.title, state, closedAs: closure(node.state, node.stateReason),
+  const summary: Omit<IssueSummary, 'blockedBy' | 'moreBlockers'> = { number: node.number, title: node.title, state, closedAs: closure(node.state, node.stateReason),
     createdAt: node.createdAt, labels: listLabels(node.labels), url: node.url,
     parent: node.parent?.number ?? null,
-    subIssues: node.subIssuesSummary.total ? { total: node.subIssuesSummary.total, completed: node.subIssuesSummary.completed } : null,
-    blockedBy: node.blockedBy.nodes.filter(blocker => blocker.state === 'OPEN').map(({ number, title }) => ({ number, title })) };
+    subIssues: node.subIssuesSummary.total ? { total: node.subIssuesSummary.total, completed: node.subIssuesSummary.completed } : null };
+  const blockedBy = node.blockedBy.nodes.filter(blocker => blocker.state === 'OPEN').map(({ number, title }) => ({ number, title }));
+  return { ...summary, blockedBy, moreBlockers: Math.max(0, node.issueDependenciesSummary.blockedBy - blockedBy.length) };
 }
 const issueKind: ListKind<IssueNode, IssueSummary> = {
   qualifier: 'issue',
@@ -127,10 +131,27 @@ async function list<Node, Summary extends { number: number; labels: IssueLabel[]
   return { items, next: hasNextPage ? endCursor : null, labels: listLabels(page.repository.labels) };
 }
 
-const subIssuesQuery = `query($owner: String!, $name: String!, $number: Int!, $cursor: String) {
+/** An issue's relations that are lists, read page by page. */
+type Relation = 'subIssues' | 'blockedBy' | 'blocking';
+interface Connection<Node> { nodes: Node[]; pageInfo: PageInfo }
+const relationQuery = (relation: Relation, fields: string) => `query($owner: String!, $name: String!, $number: Int!, $cursor: String) {
   repository(owner: $owner, name: $name) { issue(number: $number) {
-    subIssues(first: 100, after: $cursor) { nodes { ${issueFields} } pageInfo { hasNextPage endCursor } } } } }`;
-interface SubIssuesPage { repository: { issue: { subIssues: { nodes: IssueNode[]; pageInfo: { hasNextPage: boolean; endCursor: string | null } } } | null } }
+    ${relation}(first: 100, after: $cursor) { nodes { ${fields} } pageInfo { hasNextPage endCursor } } } } }`;
+
+/** Every node of one of the issue's relations: the pages after `first`, or all of them when null. A missing issue throws an unreachable PlatformError. */
+async function relationNodes<Node>(environment: CommandEnvironment, path: string, number: number, relation: Relation, fields: string,
+  first: Connection<Node> | null): Promise<Node[]> {
+  const { owner, name } = ownerAndName(path);
+  const nodes = [...first?.nodes ?? []];
+  for (let page = first; !page || (page.pageInfo.hasNextPage && page.pageInfo.endCursor);) {
+    const variables: Record<string, string | number> = page?.pageInfo.endCursor ? { owner, name, number, cursor: page.pageInfo.endCursor } : { owner, name, number };
+    const { repository: { issue } } = await graphql<{ repository: { issue: Record<Relation, Connection<Node>> | null } }>(environment, relationQuery(relation, fields), variables);
+    if (!issue) throw new PlatformError('unreachable', description, `#${number}`);
+    page = issue[relation];
+    nodes.push(...page.nodes);
+  }
+  return nodes;
+}
 
 // GitHub leaves closed pull requests out of the closing references unless asked; the detail shows them too.
 const issueDetailQuery = `query($owner: String!, $name: String!, $number: Int!, $comments: String) {
@@ -138,9 +159,9 @@ const issueDetailQuery = `query($owner: String!, $name: String!, $number: Int!, 
     author { login } bodyHTML assignees(first: 50) { nodes { login } }
     comments(first: 100, after: $comments) { totalCount nodes { ${commentFields} } pageInfo { hasNextPage endCursor } }
     parent { ${relatedIssueFields} }
-    subIssues(first: 100) { nodes { ${relatedIssueFields} } }
-    blockedBy(first: 100) { nodes { ${relatedIssueFields} } }
-    blocking(first: 100) { nodes { ${relatedIssueFields} } }
+    subIssues(first: 100) { nodes { ${relatedIssueFields} } pageInfo { hasNextPage endCursor } }
+    blockedBy(first: 100) { nodes { ${relatedIssueFields} } pageInfo { hasNextPage endCursor } }
+    blocking(first: 100) { nodes { ${relatedIssueFields} } pageInfo { hasNextPage endCursor } }
     closedByPullRequestsReferences(first: 50, includeClosedPrs: true) { nodes { number title state isDraft url
       commits(last: 1) { nodes { commit { statusCheckRollup { state } } } } } } } } }`;
 
@@ -149,7 +170,7 @@ interface IssueDetailNode {
   number: number; title: string; state: 'OPEN' | 'CLOSED'; stateReason: string | null; createdAt: string; url: string; labels: { nodes: IssueLabel[] };
   author: { login: string } | null; bodyHTML: string; assignees: { nodes: { login: string }[] };
   comments: { totalCount: number; nodes: CommentNode[]; pageInfo: { hasNextPage: boolean; endCursor: string | null } };
-  parent: RelatedIssueNode | null; subIssues: { nodes: RelatedIssueNode[] }; blockedBy: { nodes: RelatedIssueNode[] }; blocking: { nodes: RelatedIssueNode[] };
+  parent: RelatedIssueNode | null; subIssues: Connection<RelatedIssueNode>; blockedBy: Connection<RelatedIssueNode>; blocking: Connection<RelatedIssueNode>;
   closedByPullRequestsReferences: { nodes: ClosingPullRequestNode[] };
 }
 
@@ -173,18 +194,7 @@ export const github: CodeHostingPlatform = {
     return { mergeRequests: items, next, labels };
   },
   async subIssues(environment, path, number) {
-    const { owner, name } = ownerAndName(path);
-    const issues: IssueSummary[] = [];
-    let cursor: string | null = null;
-    do {
-      const variables: Record<string, string | number> = cursor ? { owner, name, number, cursor } : { owner, name, number };
-      const page: SubIssuesPage = await graphql<SubIssuesPage>(environment, subIssuesQuery, variables);
-      const { issue } = page.repository;
-      if (!issue) throw new PlatformError('unreachable', description, `#${number}`);
-      issues.push(...issue.subIssues.nodes.map(issueSummary));
-      cursor = issue.subIssues.pageInfo.hasNextPage ? issue.subIssues.pageInfo.endCursor : null;
-    } while (cursor);
-    return issues;
+    return (await relationNodes<IssueNode>(environment, path, number, 'subIssues', issueFields, null)).map(issueSummary);
   },
   async issue(environment, path, number) {
     const { owner, name } = ownerAndName(path);
@@ -201,12 +211,15 @@ export const github: CodeHostingPlatform = {
       comments.push(...next.comments.nodes.map(issueComment));
       page = next.comments.pageInfo;
     }
+    // Relations longer than one page read on from where the detail's page ended.
+    const [subIssues, blockedBy, blocking] = await Promise.all((['subIssues', 'blockedBy', 'blocking'] as const)
+      .map(relation => relationNodes(environment, path, number, relation, relatedIssueFields, node[relation])));
     const detail: IssueDetail = { number: node.number, title: node.title, state: node.state === 'OPEN' ? 'open' : 'closed', closedAs: closure(node.state, node.stateReason),
       createdAt: node.createdAt, labels: listLabels(node.labels), url: node.url,
       author: node.author?.login ?? null, assignees: node.assignees.nodes.map(({ login }) => login),
       body: node.bodyHTML, commentCount: node.comments.totalCount, comments,
-      parent: node.parent && relatedIssue(node.parent), subIssues: node.subIssues.nodes.map(relatedIssue),
-      blockedBy: node.blockedBy.nodes.map(relatedIssue), blocking: node.blocking.nodes.map(relatedIssue),
+      parent: node.parent && relatedIssue(node.parent), subIssues: subIssues.map(relatedIssue),
+      blockedBy: blockedBy.map(relatedIssue), blocking: blocking.map(relatedIssue),
       closingMergeRequests: node.closedByPullRequestsReferences.nodes.map(closingMergeRequest), writable: writable(node.permission) };
     return detail;
   },

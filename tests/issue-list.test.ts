@@ -46,7 +46,7 @@ test('an issue list page holds the 25 newest matching issues and the cursor load
   assert.ok(second.ok);
   assert.equal(second.page.next, null);
   assert.deepEqual(first.page.issues[0], { number: 59, title: 'Issue 59', state: 'open', closedAs: null,
-    createdAt: '2026-03-01T00:00:00.000Z', labels: [], url: 'https://github.com/octo/app/issues/59', parent: null, subIssues: null, blockedBy: [] });
+    createdAt: '2026-03-01T00:00:00.000Z', labels: [], url: 'https://github.com/octo/app/issues/59', parent: null, subIssues: null, blockedBy: [], moreBlockers: 0 });
 });
 
 test('the issue list filters by state, by every chosen label and by title or number on the platform', async context => {
@@ -129,11 +129,28 @@ test('the issue list reads parents, sub-issue progress and open native blockers 
   assert.deepEqual(epic.subIssues, { completed: 1, total: 2 });
 });
 
+test('an issue blocked only by blockers past the ones the list reads still reads as blocked, with the rest counted', async context => {
+  const day = (n: number) => `2026-01-${String(n).padStart(2, '0')}T00:00:00Z`;
+  const blocker = (number: number, state: 'OPEN' | 'CLOSED'): GhIssue => ({ number, title: `Blocker ${number}`, state, stateReason: state === 'OPEN' ? null : 'COMPLETED',
+    createdAt: day(number), labels: [] });
+  const f = await boundProject(context, 'issue-list-blockers-counted', { relationPageSize: 2, issues: [
+    blocker(1, 'CLOSED'), blocker(2, 'CLOSED'), blocker(3, 'OPEN'), blocker(4, 'OPEN'),
+    { number: 10, title: 'Late blockers', state: 'OPEN', stateReason: null, createdAt: day(10), labels: [], blockedBy: [1, 2, 3, 4] },
+    { number: 11, title: 'Mixed blockers', state: 'OPEN', stateReason: null, createdAt: day(11), labels: [], blockedBy: [3, 1, 4] },
+  ] });
+  const result = await f.page();
+  assert.ok(result.ok);
+  const byNumber = (number: number) => result.page.issues.find(issue => issue.number === number)!;
+  assert.deepEqual([byNumber(10).blockedBy, byNumber(10).moreBlockers], [[], 2], 'its first blockers are closed, the open ones come later');
+  assert.deepEqual([byNumber(11).blockedBy, byNumber(11).moreBlockers], [[{ number: 3, title: 'Blocker 3' }], 1]);
+  assert.equal(byNumber(3).moreBlockers, 0);
+});
+
 test('an issue\'s sub-issues are read on their own, every page of them, each with its own progress, at any depth', async context => {
   const day = (n: number) => `2026-01-${String(n).padStart(2, '0')}T00:00:00Z`;
   const child = (number: number, parent: number, state: 'OPEN' | 'CLOSED' = 'OPEN'): GhIssue => ({ number, title: `Issue ${number}`, state, stateReason: state === 'OPEN' ? null : 'COMPLETED',
     createdAt: day(number), labels: [], parent });
-  const f = await boundProject(context, 'issue-list-sub-issues', { subIssuePageSize: 2, issues: [
+  const f = await boundProject(context, 'issue-list-sub-issues', { relationPageSize: 2, issues: [
     { number: 1, title: 'Epic', state: 'OPEN', stateReason: null, createdAt: day(1), labels: [] },
     child(2, 1), child(3, 1, 'CLOSED'), child(4, 1), child(5, 1), child(6, 1), child(7, 4), child(8, 7, 'CLOSED'),
   ] });

@@ -56,7 +56,7 @@ async function renderSidebar(shown: { issues: IssueDetail[]; mergeRequests: Merg
     issuePage: async () => {
       reads.issuePage++;
       return { ok: true, page: { issues: [{ number: 3, title: 'Issue 3', state: 'open', closedAs: null, createdAt: '2026-11-01T00:00:00Z',
-        labels: [], url: 'https://github.com/octo/app/issues/3', parent: null, subIssues: null, blockedBy: [] }], next: null, labels: [] } };
+        labels: [], url: 'https://github.com/octo/app/issues/3', parent: null, subIssues: null, blockedBy: [], moreBlockers: 0 }], next: null, labels: [] } };
     },
     mergeRequestPage: async () => { reads.mergeRequestPage++; return { ok: true, page: { mergeRequests: [summary(12), summary(11), summary(10)], next: null, labels: [] } }; },
     issueDetail: async (_projectId, number) => { reads.issue++; return { ok: true, issue: shown.issues.find(each => each.number === number)! }; },

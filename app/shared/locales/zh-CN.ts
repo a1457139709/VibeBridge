@@ -262,6 +262,7 @@ export const chinese: Record<keyof typeof english, string> = {
   "closedSubIssues": "已关闭 {count} 个",
   "hideClosedSubIssues": "收起已关闭",
   "blockedBy": "被 {numbers} 阻塞",
+  "moreBlockers": "另有 {count} 个，打开 issue 查看全部",
   "removeLabelFilter": "移除标签筛选 {label}",
   "loadMore": "加载更多",
   "noMatchingIssues": "没有符合条件的 issue",

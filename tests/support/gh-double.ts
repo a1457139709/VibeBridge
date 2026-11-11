@@ -70,8 +70,8 @@ export interface GhState {
   issues?: GhIssue[];
   /** Numbers are shared with issues, as on GitHub, so keep them apart. */
   pullRequests?: GhPullRequest[];
-  /** At most this many sub-issues per page, whatever the query asks for. */
-  subIssuePageSize?: number;
+  /** At most this many sub-issues, blockers or blocked issues per page, whatever the query asks for. */
+  relationPageSize?: number;
   /** At most this many comments per page, whatever the query asks for. */
   commentPageSize?: number;
   labels?: { name: string; color: string }[];

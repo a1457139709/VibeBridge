@@ -1,12 +1,12 @@
 import type { IssueReference, IssueSummary } from '../shared/code-hosting';
 import { useLocalization } from './Localization';
 
-/** GitHub's blocked octicon and the blockers' numbers; hovering names them. */
-export function BlockedMark({ blockers }: { blockers: IssueReference[] }) {
+/** GitHub's blocked octicon and the blockers' numbers, with how many more there are; hovering names them. */
+export function BlockedMark({ blockers, more }: { blockers: IssueReference[]; more: number }) {
   const { t } = useLocalization();
-  const numbers = blockers.map(blocker => `#${blocker.number}`).join(', ');
+  const numbers = [...blockers.map(blocker => `#${blocker.number}`), ...(more ? [`+${more}`] : [])].join(', ');
   return <span className="issue-blocked" role="img" aria-label={t('blockedBy', { numbers })}
-    title={blockers.map(blocker => `#${blocker.number} ${blocker.title}`).join('\n')}>
+    title={[...blockers.map(blocker => `#${blocker.number} ${blocker.title}`), ...(more ? [t('moreBlockers', { count: more })] : [])].join('\n')}>
     <svg aria-hidden="true" viewBox="0 0 16 16" width="12" height="12" fill="currentColor"><path d="M4.467.22a.749.749 0 0 1 .53-.22h6.006c.199 0 .389.079.53.22l4.247 4.247c.141.14.22.331.22.53v6.006a.749.749 0 0 1-.22.53l-4.247 4.247a.749.749 0 0 1-.53.22H4.997a.749.749 0 0 1-.53-.22L.22 11.533a.749.749 0 0 1-.22-.53V4.997c0-.199.079-.389.22-.53Zm.84 1.28L1.5 5.308v5.384l3.807 3.808h5.384l3.808-3.808V5.308L10.692 1.5ZM4 7.75A.75.75 0 0 1 4.75 7h6.5a.75.75 0 0 1 0 1.5h-6.5A.75.75 0 0 1 4 7.75Z" /></svg>
     <span aria-hidden="true">{numbers}</span>
   </span>;

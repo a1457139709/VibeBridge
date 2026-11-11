@@ -12,7 +12,7 @@ import { defaultShortcuts } from '../../app/shared/shortcuts';
 afterEach(cleanup);
 
 const issue = (number: number, extra: Partial<IssueSummary> = {}): IssueSummary => ({ number, title: `Issue ${number}`, state: 'open', closedAs: null,
-  createdAt: '2026-11-01T00:00:00Z', labels: [], url: `https://github.com/octo/app/issues/${number}`, parent: null, subIssues: null, blockedBy: [], ...extra });
+  createdAt: '2026-11-01T00:00:00Z', labels: [], url: `https://github.com/octo/app/issues/${number}`, parent: null, subIssues: null, blockedBy: [], moreBlockers: 0, ...extra });
 const closed = (number: number, extra: Partial<IssueSummary> = {}) => issue(number, { state: 'closed', closedAs: 'completed', ...extra });
 
 /** The issue list of octo/app showing one page of these issues; an issue's sub-issues are read from `subIssues`, as the platform answers. */
@@ -95,6 +95,13 @@ test('a blocked issue shows its blockers by number, names them on hover and keep
   assert.equal(mark.getAttribute('title'), '#143 Storage schema\n#142 Platform interface');
   assert.ok(row('#150 Issue 150').querySelector('.issue-row-actions'), 'a blocked issue can still be dispatched');
   assert.equal(within(row('#149 Issue 149')).queryByRole('img', { name: /^Blocked/ }), null);
+});
+
+test('open blockers the list did not name still mark the issue blocked, counted after the named ones', async () => {
+  const { row } = await renderList([issue(150, { blockedBy: [{ number: 143, title: 'Storage schema' }], moreBlockers: 3 }), issue(149, { moreBlockers: 2 })]);
+  const named = within(row('#150 Issue 150')).getByRole('img', { name: 'Blocked by #143, +3' });
+  assert.equal(named.getAttribute('title'), '#143 Storage schema\n3 more; open the issue to see them all');
+  assert.ok(within(row('#149 Issue 149')).getByRole('img', { name: 'Blocked by +2' }), 'blocked only by blockers the list did not name');
 });
 
 test('a platform that does not declare sub-issues or native blocking shows neither the tree nor blocking marks', async context => {

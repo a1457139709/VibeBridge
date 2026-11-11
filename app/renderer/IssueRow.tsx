@@ -65,7 +65,7 @@ export function IssueRow({ issue, context }: { issue: IssueSummary; context: Iss
             <span aria-hidden="true">{expanded ? '▾' : '▸'}</span>
             <span className="issue-progress-bar"><span style={{ width: `${subIssues.completed / subIssues.total * 100}%` }} /></span>
             {subIssues.completed}/{subIssues.total}</button>}
-          {platform.capabilities.includes('nativeBlocking') && issue.blockedBy.length > 0 && <BlockedMark blockers={issue.blockedBy} />}
+          {platform.capabilities.includes('nativeBlocking') && (issue.blockedBy.length > 0 || issue.moreBlockers > 0) && <BlockedMark blockers={issue.blockedBy} more={issue.moreBlockers} />}
           <LabelButtons labels={issue.labels} addLabel={addLabel} />
         </div>
       </div>

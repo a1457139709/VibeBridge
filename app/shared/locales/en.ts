@@ -307,6 +307,7 @@ export const english = {
   "closedSubIssues": "{count} closed",
   "hideClosedSubIssues": "Hide closed",
   "blockedBy": "Blocked by {numbers}",
+  "moreBlockers": "{count} more; open the issue to see them all",
   "removeLabelFilter": "Remove label filter {label}",
   "loadMore": "Load more",
   "noMatchingIssues": "No matching issues",

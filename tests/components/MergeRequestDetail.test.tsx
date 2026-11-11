@@ -58,7 +58,7 @@ async function renderSidebar() {
     saveNavigation: async () => {}, saveLayout: async () => {}, saveIssueSidebar: async () => {},
     repositoryChoices: () => new Promise<RepositoryChoices>(() => {}),
     issuePage: async () => ({ ok: true, page: { issues: [{ number: 3, title: 'Issue 3', state: 'open', closedAs: null, createdAt: '2026-11-01T00:00:00Z',
-      labels: [], url: 'https://github.com/octo/app/issues/3', parent: null, subIssues: null, blockedBy: [] }], next: null, labels: [] } }),
+      labels: [], url: 'https://github.com/octo/app/issues/3', parent: null, subIssues: null, blockedBy: [], moreBlockers: 0 }], next: null, labels: [] } }),
     mergeRequestPage: async () => ({ ok: true, page: { mergeRequests: [summary(11), summary(10)], next: null, labels: [] } }),
     issueDetail: reading(issueReads), mergeRequestDetail: reading(mergeRequestReads) });
   render(<App />);

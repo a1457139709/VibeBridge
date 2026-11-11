@@ -77,9 +77,11 @@ export interface IssueSummary {
   /** How far its sub-issues are; null when it has none, or when the platform lacks `subIssues`. The sub-issues
    * themselves are read on their own, at any depth. */
   subIssues: SubIssueProgress | null;
-  /** The open issues natively marked as blocking it; empty when the platform lacks `nativeBlocking`.
+  /** Open issues natively marked as blocking it, as many as the list reads; empty when the platform lacks `nativeBlocking`.
    * Text in the body is never read as a blocker. */
   blockedBy: IssueReference[];
+  /** How many more open issues block it than `blockedBy` names; the detail names them all. */
+  moreBlockers: number;
 }
 export interface IssueReference { number: number; title: string }
 /** How many sub-issues an issue has, open and closed, and how many of them are closed. */
@@ -136,7 +138,7 @@ export interface MergeRequestReference {
 /** `body` is HTML as the platform renders it, before the Workbench's allowlist filter. */
 export interface IssueComment { author: string | null; createdAt: string; body: string }
 /** What an issue's detail shows: every relation, open or closed. Relations a platform does not declare as capabilities stay empty. */
-export interface IssueDetail extends Omit<IssueSummary, 'parent' | 'subIssues' | 'blockedBy'> {
+export interface IssueDetail extends Omit<IssueSummary, 'parent' | 'subIssues' | 'blockedBy' | 'moreBlockers'> {
   author: string | null;
   assignees: string[];
   /** HTML as the platform renders it, before the Workbench's allowlist filter. */
