@@ -138,9 +138,10 @@ export class RunSupervision {
     const run = this.list.find(run => this.processing.session(run.id) === session);
     return run && { projectId: run.projectId, panelId: run.panelId };
   }
-  /** Holds a pending dispatch on the run: `write` receives the first session the run reports.
-   * If the run ends before reporting one, or already has, `drop` is called instead; nothing is persisted. */
-  holdDispatch(runId: string, write: (session: string) => void, drop: () => void) { this.processing.awaitSession(runId, write, drop); }
+  /** The session the run is on now, once it has reported one. */
+  session(runId: string) { return this.processing.session(runId); }
+  /** `receive` gets the run's session once it reports one, at once if it has; `drop` runs instead if the run ends first. */
+  awaitSession(runId: string, receive: (session: string) => void, drop: () => void) { this.processing.awaitSession(runId, receive, drop); }
   /** Runs `deliver` when the run first reports Ready, or at once if it is Ready now; dropped if the run ends first. */
   awaitReady(runId: string, deliver: () => void) { this.processing.awaitReady(runId, deliver); }
   input(runId: string, data: string) { return this.terminal.input(runId, data); }

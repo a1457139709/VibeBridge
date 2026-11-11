@@ -1,6 +1,6 @@
 import { message } from '../shared/messages';
 import { sameRepository } from '../shared/code-hosting';
-import { bracketedPaste, dispatchRequestSchema, type DispatchLocation, type DispatchRecord, type DispatchRecordView, type DispatchRequest } from '../shared/dispatch';
+import { bracketedPaste, dispatchRequestSchema, type DispatchLocation, type DispatchRecord, type DispatchRecordView, type DispatchRequest, type UnwrittenDispatch } from '../shared/dispatch';
 import { instructionText, workflowCatalog, type Delivery, type WorkflowSettings } from '../shared/workflows';
 import type { AgentType, Panel, PanelCreation, Project } from '../shared/model';
 import { platforms } from './code-hosting/platforms';
@@ -20,8 +20,8 @@ export interface DispatchHost {
   report(message: string): void;
 }
 
-/** A dispatch to a new panel whose first session is not known yet. */
-interface PendingDispatch { projectId: string; panelId: string; record: Omit<DispatchRecord, 'session'> }
+/** A dispatch to a panel whose first session is not known yet. */
+interface PendingDispatch { projectId: string; panelId: string; record: UnwrittenDispatch }
 
 /**
  * Dispatch: turns an instruction for an issue into text in a panel's terminal, and keeps the append-only Dispatch
@@ -40,8 +40,8 @@ export class Dispatches {
   /** The project's records for its bound repository, newest first, each with the panel now on its session,
    * and its pending dispatches with their new panel. */
   views(project: Project): DispatchRecordView[] {
-    const view = ({ issue, time, agent, text }: Omit<DispatchRecord, 'session'>, location: DispatchLocation | null) => ({ issue, time, agent, text, location });
-    const bound = (record: Omit<DispatchRecord, 'session'>) => sameRepository(record.repository, project.repository);
+    const view = ({ issue, time, agent, text }: UnwrittenDispatch, location: DispatchLocation | null) => ({ issue, time, agent, text, location });
+    const bound = (record: UnwrittenDispatch) => sameRepository(record.repository, project.repository);
     const records = (this.records.get(project.id) ?? []).filter(bound).map(record => view(record, this.locate(record.session)));
     const pending = [...this.pending].filter(pending => pending.projectId === project.id && bound(pending.record))
       .map(({ panelId, record }) => view(record, this.panelLocation(project, panelId)));
@@ -58,7 +58,8 @@ export class Dispatches {
   /**
    * Delivers an instruction of an enabled workflow for an issue of the bound repository, in the target Agent type's
    * spelling, submitting it when the instruction's delivery (inverted on request) says so. An existing panel gets it
-   * pasted regardless of its state or draft, and the record is written on the session the panel is on at that moment.
+   * pasted regardless of its state or draft, and the record is written on the session the panel is on at that moment;
+   * a panel with no session yet keeps it pending as a new panel does.
    * A new panel joins the tray; see `dispatchToNewPanel`. Resolves with the new panel, or null for an existing one.
    */
   async dispatch(projectId: string, request: DispatchRequest): Promise<PanelCreation | null> {
@@ -85,29 +86,36 @@ export class Dispatches {
     if (run?.state !== 'running') throw new Error(message('dispatchTargetStopped'));
     const record = dispatched(panel.agent);
     await this.supervision.input(run.id, bracketedPaste(record.text, delivery));
-    let written: Promise<void> | undefined;
-    this.supervision.holdDispatch(run.id, session => { written = this.write(projectId, { ...record, session }); }, () => {});
-    await written;
+    const session = this.supervision.session(run.id);
+    if (session) await this.write(projectId, { ...record, session });
+    else this.awaitFirstSession(projectId, panel.id, run.id, record);
     return null;
   }
 
   /**
    * Adds a panel of the Agent type to the tray. A submitted instruction is its launch argument; a filled one is pasted,
    * without a return, when the panel first reports Ready. Until the panel reports its first session the dispatch shows
-   * on that panel; then its record is written. If the run ends before that, nothing is kept (ADR 0003).
+   * on that panel; see `awaitFirstSession`.
    */
-  private async dispatchToNewPanel(projectId: string, record: Omit<DispatchRecord, 'session'>, delivery: Delivery) {
+  private async dispatchToNewPanel(projectId: string, record: UnwrittenDispatch, delivery: Delivery) {
     const creation = await this.host.addPanel(projectId, record.agent, delivery === 'submit' ? [record.text] : []);
     const { run } = creation.launch;
-    const pending: PendingDispatch = { projectId, panelId: creation.panel.id, record };
-    this.pending.add(pending);
-    this.supervision.holdDispatch(run.id,
-      session => { void this.write(projectId, { ...record, session }, () => this.pending.delete(pending)); },
-      () => { if (this.pending.delete(pending)) this.host.changed(); });
+    this.awaitFirstSession(projectId, creation.panel.id, run.id, record);
     if (delivery === 'fill') this.supervision.awaitReady(run.id, () => {
       this.supervision.input(run.id, bracketedPaste(record.text, 'fill')).catch(error => this.host.report((error as Error).message));
     });
     return creation;
+  }
+
+  /** Shows the dispatch on its panel until the run reports its first session, then writes the record on that session.
+   * If the run ends before that, nothing is kept (ADR 0003). */
+  private awaitFirstSession(projectId: string, panelId: string, runId: string, record: UnwrittenDispatch) {
+    const pending: PendingDispatch = { projectId, panelId, record };
+    this.pending.add(pending);
+    this.host.changed();
+    this.supervision.awaitSession(runId,
+      session => { void this.write(projectId, { ...record, session }, () => this.pending.delete(pending)); },
+      () => { if (this.pending.delete(pending)) this.host.changed(); });
   }
 
   /** Appends the record; the text is already delivered, so a failure to store it is reported, not thrown.

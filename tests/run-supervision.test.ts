@@ -107,38 +107,38 @@ test('a session cannot be located once its run is stopped, has exited or its pan
   assert.equal(f.supervision.locate('released'), undefined);
 });
 
-test('a pending dispatch is handed the first session its run reports, once', async context => {
+test('awaiting a session hands over the first session its run reports, once', async context => {
   const f = await fixture(context);
   const { run } = await f.start();
   const handed: string[] = [];
   const dropped: string[] = [];
-  f.supervision.holdDispatch(run.id, session => handed.push(session), () => dropped.push(run.id));
+  f.supervision.awaitSession(run.id, session => handed.push(session), () => dropped.push(run.id));
   await f.report(run.id, { hook_event_name: 'UserPromptSubmit' });
   assert.deepEqual(handed, [], 'a fact without a session hands nothing over');
   await f.session(run.id, 'first');
   await f.session(run.id, 'second');
   assert.deepEqual(handed, ['first']);
   const late: string[] = [];
-  f.supervision.holdDispatch(run.id, session => late.push(session), () => dropped.push(run.id));
+  f.supervision.awaitSession(run.id, session => late.push(session), () => dropped.push(run.id));
   assert.deepEqual(late, ['second'], 'a run that already reported a session hands over its current one at once');
   f.terminal.event({ kind: 'exit', runId: run.id });
   assert.deepEqual(dropped, [], 'a dispatch handed its session is not dropped later');
 });
 
-test('a pending dispatch is dropped when its run ends before reporting a session', async context => {
+test('awaiting a session is dropped when its run ends before reporting one', async context => {
   const f = await fixture(context);
   const handed: string[] = [], dropped: string[] = [];
   const { run: exited } = await f.start(f.project.panels[0]);
-  f.supervision.holdDispatch(exited.id, session => handed.push(session), () => dropped.push('exited'));
+  f.supervision.awaitSession(exited.id, session => handed.push(session), () => dropped.push('exited'));
   f.terminal.event({ kind: 'exit', runId: exited.id });
   const { run: next } = await f.start(f.project.panels[0]);
   await f.session(next.id, 'next');
   const { run: released } = await f.start(f.project.panels[1]);
-  f.supervision.holdDispatch(released.id, session => handed.push(session), () => dropped.push('released'));
+  f.supervision.awaitSession(released.id, session => handed.push(session), () => dropped.push('released'));
   f.supervision.release([released.panelId]);
   f.terminal.answer = 'failed';
   const { run: failed } = await f.start(f.project.panels[1]);
-  f.supervision.holdDispatch(failed.id, session => handed.push(session), () => dropped.push('failed'));
+  f.supervision.awaitSession(failed.id, session => handed.push(session), () => dropped.push('failed'));
   assert.deepEqual(handed, []);
   assert.deepEqual(dropped, ['exited', 'released', 'failed'], 'each is dropped once its run ends, or at once if it already has');
 });

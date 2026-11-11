@@ -114,6 +114,23 @@ test('dispatch records outlive the panel and the app run, follow the binding, an
   assert.equal(database.prepare('SELECT COUNT(*) AS count FROM dispatch_records').get()!.count, 0, 'a deleted project takes its records with it');
 });
 
+test('dispatching to an existing panel that has not reported a session yet shows on that panel until its first session, then records it there', async context => {
+  const f = await dispatchable(context, 'dispatch-existing-no-session');
+  await f.holdSessions();
+  const { panel, launch: { run } } = await f.workbench.addPanel(f.project.id, 'claude');
+  await until(() => f.output(run.id).includes('CLI-DOUBLE-READY'), () => f.output(run.id));
+  await f.workbench.dispatch(f.project.id, { issue: { number: 6, title: 'Early' }, workflow: 'matt', instruction: 'tdd', target: { panelId: panel.id }, invert: false });
+  assert.deepEqual(f.view(f.project.id).dispatches.map(({ issue, location }) => ({ issue, panelId: location?.panelId })), [{ issue: 6, panelId: panel.id }],
+    'before its session is known the issue already shows the panel');
+  await f.start(run.id);
+  await f.workbench.closePanel(f.project.id, panel.id);
+  await until(() => f.view(f.project.id).dispatches.length === 1 && f.view(f.project.id).dispatches[0].location === null,
+    () => JSON.stringify(f.view(f.project.id).dispatches));
+  await f.workbench.quit();
+  const reopened = await open(context, f.directory);
+  assert.deepEqual(reopened.view(f.project.id).dispatches.map(record => record.issue), [6], 'the record was written once the session was reported');
+});
+
 test('a dispatch names an enabled instruction and a panel of the project with a running Agent', async context => {
   const f = await dispatchable(context, 'dispatch-invalid');
   const request = { issue: { number: 1, title: 'One' }, workflow: 'matt', instruction: 'to-spec', target: { panelId: f.panelId }, invert: false };

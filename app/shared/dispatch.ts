@@ -16,6 +16,9 @@ export interface DispatchRecord {
   session: string;
 }
 
+/** A dispatch before its record names the session that took it. */
+export type UnwrittenDispatch = Omit<DispatchRecord, 'session'>;
+
 /** The panel currently on a record's session, with what it displays. */
 export interface DispatchLocation { projectId: string; panelId: string; runId: string; ephemeral: boolean; status?: ProcessingState; title?: string }
 
