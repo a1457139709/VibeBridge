@@ -10,11 +10,9 @@ Name test fixtures by behavior and have tests create and clean their own data so
 
 Before writing, changing, or reviewing code or tests, read `CODING_STANDARDS.md`.
 
-### Prototype scope
+### Prototypes
 
-Use prototypes only to imitate their visible UI and frontend interactions. Implement production code independently from the approved specification, issue resolutions, and architecture decisions.
-
-Never reuse, copy, adapt, or import prototype code, including frontend code. Never reuse prototype software design, architecture, component structure, data models, or implementation patterns. Prototype behavior and code are not evidence for backend behavior, process management, communication, state ownership, or lifecycle rules.
+The prototype is the authority on visible UI and interaction. Frontend code may start from its components and styles, wired to the data interfaces the spec defines; record each deviation a real constraint forces (such as paging a long list) in the spec or ticket. Derive backend behavior, state ownership, data models, and lifecycle rules from the spec, issue resolutions, and ADRs.
 
 ### Issue tracker
 
