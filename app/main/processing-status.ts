@@ -26,7 +26,9 @@ interface Observation {
   /** The current session ID the interpreter reports. */
   session?: string;
   /** Waits for the first session the run reports; dropped with the observation. */
-  awaitingSession?: (session: string) => void;
+  awaitingSession?: { receive(session: string): void; drop(): void };
+  /** Waits for the first Ready the run reports; dropped silently with the observation. */
+  awaitingReady?: () => void;
   cleanup?: () => Promise<void>;
 }
 
@@ -67,6 +69,7 @@ export class ProcessingStatus {
   forget(runId: string) {
     const observation = this.observations.get(runId);
     this.observations.delete(runId);
+    observation?.awaitingSession?.drop();
     if (observation?.cleanup) {
       const task = observation.cleanup();
       this.cleanups.add(task);
@@ -79,12 +82,20 @@ export class ProcessingStatus {
   session(runId: string): string | undefined { return this.observations.get(runId)?.session; }
 
   /** Hands the first session ID the run reports to `receive`, or its current one if it has
-   * reported one already. Dropped if the run's observation is released before that. */
-  awaitSession(runId: string, receive: (session: string) => void) {
+   * reported one already. If the run's observation is released before that, or already was, `drop` is called instead. */
+  awaitSession(runId: string, receive: (session: string) => void, drop: () => void) {
     const observation = this.observations.get(runId);
-    if (!observation) return;
-    if (observation.session) receive(observation.session);
-    else observation.awaitingSession = receive;
+    if (!observation) drop();
+    else if (observation.session) receive(observation.session);
+    else observation.awaitingSession = { receive, drop };
+  }
+
+  /** Calls `receive` when the run first reports Ready, or at once if it is Ready now. Dropped if the run's
+   * observation is released before that. */
+  awaitReady(runId: string, receive: () => void) {
+    const observation = this.observations.get(runId);
+    if (observation?.state === 'ready') receive();
+    else if (observation) observation.awaitingReady = receive;
   }
 
   /** The processing state the run displays: only a running instance has one. */
@@ -139,6 +150,8 @@ export class ProcessingStatus {
     if (state !== 'keep' && state !== 'discard' && observation.state !== state) {
       observation.state = state;
       changed = true;
+      const ready = observation.awaitingReady;
+      if (state === 'ready' && ready) { delete observation.awaitingReady; ready(); }
     }
     if (changed && observation.running) this.changed();
     return 204;
@@ -149,8 +162,8 @@ export class ProcessingStatus {
     const session = observation.interpreter.currentSession();
     if (session === observation.session) return false;
     observation.session = session;
-    const receive = observation.awaitingSession;
-    if (session && receive) { delete observation.awaitingSession; receive(session); }
+    const awaiting = observation.awaitingSession;
+    if (session && awaiting) { delete observation.awaitingSession; awaiting.receive(session); }
     return true;
   }
 

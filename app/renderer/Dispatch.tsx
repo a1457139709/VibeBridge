@@ -1,5 +1,6 @@
 import { useEffect, useImperativeHandle, useLayoutEffect, useRef, useState, type KeyboardEvent, type Ref, type RefObject } from 'react';
-import { agentNames, projectPanels, type AgentType, type PanelView, type ProjectView } from '../shared/model';
+import { agentNames, projectPanels, type AgentType, type PanelCreation, type PanelView, type ProjectView } from '../shared/model';
+import { message } from '../shared/messages';
 import type { IssueSummary } from '../shared/code-hosting';
 import type { DispatchLocation, DispatchRecordView, DispatchRequest } from '../shared/dispatch';
 import { workflowCatalog, type Delivery, type Workflow, type WorkflowInstruction, type WorkflowSettings } from '../shared/workflows';
@@ -18,8 +19,10 @@ const targets = (project: ProjectView): Target[] => projectPanels(project).flatM
 // The order the spec lists new panels in.
 const newPanelAgents: AgentType[] = ['claude', 'codex', 'pi'];
 const flipped = (delivery: Delivery): Delivery => delivery === 'submit' ? 'fill' : 'submit';
-// The panel each instruction last went to, remembered while the app runs, keyed by workflow and instruction.
+// The target each instruction last went to, an existing panel or a new one of an Agent type, remembered while the app
+// runs, keyed by workflow and instruction.
 const lastTargets = new Map<string, string>();
+const targetKey = (target: Target | AgentType) => typeof target === 'string' ? `new:${target}` : `panel:${target.panel.id}`;
 const instructionKey = (workflow: Workflow, instruction: WorkflowInstruction) => `${workflow.id}/${instruction.id}`;
 const isSpace = (event: KeyboardEvent) => event.code === 'Space' || event.key === ' ';
 
@@ -34,19 +37,27 @@ export interface DispatchMenuActions { open(): void }
 
 /**
  * The issue's 派发 button and its cascading menu: the instructions of enabled workflows, then, to the left, the targets
- * for the chosen one, the one it last went to highlighted. Nothing is preselected. Opening the menu moves focus into
- * it: ↑/↓ move, ← or Space opens an instruction's targets, → returns to the instructions, Space dispatches, Escape
- * closes the whole menu and Enter does nothing. ⌥ with Space or a click inverts the delivery once. A submitted
- * dispatch returns focus to the button; a filled one locates its panel.
+ * for the chosen one: a new panel of each Agent type, then the project's panels with a running Agent, the one it last went
+ * to highlighted. Nothing is preselected. Opening the menu moves focus into it: ↑/↓ move, ← or Space opens an
+ * instruction's targets, → returns to the instructions, Space dispatches, Escape closes the whole menu and Enter does
+ * nothing. ⌥ with Space or a click inverts the delivery once. A submitted dispatch returns focus to the button, leaving
+ * a new panel as a card in the tray; a filled one shows its panel, a new one once the snapshot has it.
  */
-export function DispatchMenu({ issue, project, workflows, dispatch, locate, ref }: {
+export function DispatchMenu({ issue, project, workflows, dispatch, filled, ref }: {
   issue: Pick<IssueSummary, 'number' | 'title'>; project: ProjectView; workflows: WorkflowSettings;
-  dispatch(request: DispatchRequest): Promise<void>; locate(location: DispatchLocation): void; ref?: Ref<DispatchMenuActions>;
+  dispatch(request: DispatchRequest): Promise<PanelCreation | null>; filled(location: DispatchLocation): void; ref?: Ref<DispatchMenuActions>;
 }) {
   const { t, text } = useLocalization();
   const [open, setOpen] = useState(false);
   const [chosen, setChosen] = useState<{ workflow: Workflow; instruction: WorkflowInstruction }>();
   const [failure, setFailure] = useState<string>();
+  // A new panel filled into: the dispatch resolves before the snapshot showing the panel may have arrived.
+  const [opening, setOpening] = useState<DispatchLocation>();
+  useEffect(() => {
+    if (!opening || !project.tray.some(panel => panel.id === opening.panelId && panel.run?.id === opening.runId)) return;
+    setOpening(undefined);
+    filled(opening);
+  }, [opening, project]);
   const root = useRef<HTMLDivElement>(null);
   const button = useRef<HTMLButtonElement>(null);
   const menu = useRef<HTMLDivElement>(null);
@@ -68,15 +79,20 @@ export function DispatchMenu({ issue, project, workflows, dispatch, locate, ref 
     return () => document.removeEventListener('pointerdown', outside);
   }, [open]);
   const delivery = (workflow: Workflow, instruction: WorkflowInstruction): Delivery => workflows[workflow.id]?.instructions[instruction.id]?.delivery ?? 'submit';
-  async function send(target: Target, invert: boolean) {
+  async function send(target: Target | AgentType, invert: boolean) {
     if (!chosen) return;
     const effective = invert ? flipped(delivery(chosen.workflow, chosen.instruction)) : delivery(chosen.workflow, chosen.instruction);
-    lastTargets.set(instructionKey(chosen.workflow, chosen.instruction), target.panel.id);
+    lastTargets.set(instructionKey(chosen.workflow, chosen.instruction), targetKey(target));
     close(); setFailure(undefined);
     try {
-      await dispatch({ issue: { number: issue.number, title: issue.title }, workflow: chosen.workflow.id, instruction: chosen.instruction.id,
-        target: { panelId: target.panel.id }, invert });
-      if (effective === 'fill') locate(target.location); else button.current?.focus();
+      const creation = await dispatch({ issue: { number: issue.number, title: issue.title }, workflow: chosen.workflow.id, instruction: chosen.instruction.id,
+        target: typeof target === 'string' ? { agent: target } : { panelId: target.panel.id }, invert });
+      const launch = creation?.launch;
+      if (launch && launch.outcome !== 'started') {
+        setFailure(launch.outcome === 'failed' ? message('launchFailed') : launch.reason); button.current?.focus();
+      } else if (effective === 'submit') button.current?.focus();
+      else if (creation) setOpening({ projectId: project.id, panelId: creation.panel.id, runId: creation.launch.run.id, ephemeral: true });
+      else if (typeof target !== 'string') filled(target.location);
     } catch (error) { setFailure((error as Error).message); button.current?.focus(); }
   }
   const instructions = (workflow: Workflow) => workflow.instructions.map(instruction => {
@@ -111,13 +127,17 @@ export function DispatchMenu({ issue, project, workflows, dispatch, locate, ref 
       {enabled.length > 1 && enabled.map(workflow => <div key={workflow.id} role="group" aria-label={workflow.name}>
         <div className="dispatch-heading" aria-hidden="true">{workflow.name}</div>{instructions(workflow)}</div>)}
       {chosen && <div ref={targetMenu} className="dispatch-targets" role="menu" aria-label={t('dispatchTargets', { instruction: chosen.instruction.skill })}>
-        {/* New panels are dispatched to by the next step of this feature. */}
-        {newPanelAgents.map(agent => <button key={agent} role="menuitem" disabled aria-label={t('newPanelTarget', { agent: agentNames[agent] })}>
-          <span className="agent-mark">{agentIcons[agent]}</span><span className="dispatch-target-title">{t('newPanelTarget', { agent: agentNames[agent] })}</span>
-        </button>)}
+        {newPanelAgents.map(agent => {
+          const last = lastTargets.get(instructionKey(chosen.workflow, chosen.instruction)) === targetKey(agent);
+          return <button key={agent} role="menuitem" aria-label={t('newPanelTarget', { agent: agentNames[agent] })}
+            aria-current={last || undefined} className={last ? 'last-target' : undefined}
+            onClick={event => void send(agent, event.altKey)} onKeyUp={event => { if (isSpace(event)) void send(agent, event.altKey); }}>
+            <span className="agent-mark">{agentIcons[agent]}</span><span className="dispatch-target-title">{t('newPanelTarget', { agent: agentNames[agent] })}</span>
+          </button>;
+        })}
         <hr />
         {targets(project).map(target => {
-          const last = lastTargets.get(instructionKey(chosen.workflow, chosen.instruction)) === target.panel.id;
+          const last = lastTargets.get(instructionKey(chosen.workflow, chosen.instruction)) === targetKey(target);
           const { panel } = target;
           const title = panel.run?.title ?? t('untitled');
           const side = t(target.location.ephemeral ? 'ephemeralPanel' : 'residentPanel');

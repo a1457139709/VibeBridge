@@ -34,7 +34,7 @@ async function renderDetail({ shown = detail(7), state = project(), workflows = 
   const locations: DispatchLocation[] = [];
   const api = {
     issueDetail: async (): Promise<IssueDetailResult> => ({ ok: true, issue: shown }),
-    dispatch: async (_projectId: string, request: DispatchRequest) => { dispatched.push(request); },
+    dispatch: async (_projectId: string, request: DispatchRequest) => { dispatched.push(request); return null; },
   };
   render(<Localization language="en">
     <IssueDetailView project={state} repository={state.repository!} number={shown.number} workflows={workflows} shortcuts={defaultShortcuts()}

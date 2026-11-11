@@ -28,7 +28,9 @@ async function emit(payload, malformed) {
       child.stdin.end(malformed ? '{' : JSON.stringify(input));
     })));
 }
-let pending = emit({ hook_event_name: 'SessionStart', source: 'startup' }).then(() => console.log('CLI-DOUBLE-READY'));
+// With --hold-session the double reports nothing until asked, so its session and Ready arrive when the test sends them.
+let pending = (args.includes('--hold-session') ? Promise.resolve() : emit({ hook_event_name: 'SessionStart', source: 'startup' }))
+  .then(() => console.log('CLI-DOUBLE-READY'));
 // With --echo-bytes the double reads raw input, as the real TUI does, and reports the bytes of
 // each input; an input that starts with `{` holds requests.
 if (args.includes('--echo-bytes')) {
@@ -50,5 +52,6 @@ function handle(line) {
     if (payload) await emit(payload, message.malformed);
     if (message.output) console.log(message.output);
     console.log(`ACK:${message.id}`);
+    if (message.exit) process.exit(0);
   }).catch(error => { console.error(error); process.exitCode = 1; });
 }

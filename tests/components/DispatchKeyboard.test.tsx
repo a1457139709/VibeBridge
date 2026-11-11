@@ -29,11 +29,11 @@ async function renderList({ shortcuts = defaultShortcuts(), issues = [issue(7)] 
   const api = {
     issuePage: async () => ({ ok: true as const, page: { issues, next: null, labels: [] } }),
     mergeRequestPage: () => new Promise<never>(() => {}),
-    dispatch: async (_projectId: string, request: DispatchRequest) => { dispatched.push(request); },
+    dispatch: async (_projectId: string, request: DispatchRequest) => { dispatched.push(request); return null; },
   };
   render(<Localization language="en">
     <IssueLists project={project} repository={project.repository!} workflows={defaultWorkflowSettings()} shortcuts={shortcuts} changeBinding={() => {}}
-      locate={location => locations.push(location)} detail={{ open() {} }} api={api} />
+      locate={location => locations.push(location)} filled={location => locations.push(location)} detail={{ open() {} }} api={api} />
   </Localization>);
   await screen.findByRole('listitem', { name: `#${issues[0].number} Issue ${issues[0].number}` });
   return { user: userEvent.setup(), dispatched, locations };
@@ -51,7 +51,9 @@ test('arrow keys move through the instructions, left opens and right leaves an i
   assert.equal(focused(), 'to-specSubmit');
   await user.keyboard('{ArrowLeft}');
   assert.ok(targets('to-spec'));
-  assert.equal(focused(), 'Fix the crash · Ready · Claude Code · Resident', 'the first target that can take a dispatch has focus');
+  assert.equal(focused(), 'New · Claude Code', 'the first target, a new panel, has focus');
+  await user.keyboard('{ArrowDown}{ArrowDown}{ArrowDown}');
+  assert.equal(focused(), 'Fix the crash · Ready · Claude Code · Resident', 'the existing panels follow the new ones');
   await user.keyboard('{ArrowDown}');
   assert.equal(focused(), 'Untitled task · Ready · Codex · Ephemeral');
   await user.keyboard('{ArrowDown}');
@@ -69,6 +71,8 @@ test('Space on an instruction opens its targets and Space on a target dispatches
   const { user, dispatched, locations } = await renderList();
   await user.click(dispatchButton());
   await user.keyboard('{ArrowDown}{ArrowDown} ');
+  assert.equal(focused(), 'New · Claude Code');
+  await user.keyboard('{ArrowDown}{ArrowDown}{ArrowDown}');
   assert.equal(focused(), 'Fix the crash · Ready · Claude Code · Resident');
   await user.keyboard(' ');
   assert.deepEqual(dispatched, [{ issue: { number: 7, title: 'Issue 7' }, workflow: 'matt', instruction: 'to-tickets', target: { panelId: 'resident' }, invert: false }]);
@@ -84,7 +88,7 @@ test('Enter does nothing in the menu', async () => {
   assert.equal(targets('grill-with-docs'), null);
   await user.keyboard('{ArrowLeft}{Enter}');
   assert.ok(targets('grill-with-docs'));
-  assert.equal(focused(), 'Fix the crash · Ready · Claude Code · Resident');
+  assert.equal(focused(), 'New · Claude Code');
   assert.deepEqual(dispatched, []);
 });
 
@@ -92,7 +96,7 @@ test('Option with Space or with a click inverts the delivery of that one dispatc
   const { user, dispatched, locations } = await renderList();
   await user.click(dispatchButton());
   await user.click(within(instructions()).getByRole('menuitem', { name: /^implement-spec/ }));
-  await user.keyboard('{ArrowLeft}{ArrowDown}{Alt>}[Space]{/Alt}');
+  await user.keyboard('{ArrowLeft}{ArrowDown}{ArrowDown}{ArrowDown}{ArrowDown}{Alt>}[Space]{/Alt}');
   assert.deepEqual(dispatched.map(({ instruction, target, invert }) => ({ instruction, target, invert })),
     [{ instruction: 'implement-spec', target: { panelId: 'ephemeral' }, invert: true }]);
   assert.deepEqual(locations.map(location => location.panelId), ['ephemeral'], 'the submit instruction was filled, so its panel is located');
@@ -121,6 +125,19 @@ test('an instruction\'s targets highlight the one it last went to without dispat
   assert.equal(dispatched.length, 1, 'highlighting dispatches nothing');
   await user.click(within(instructions()).getByRole('menuitem', { name: /^prototype/ }));
   assert.deepEqual(within(targets('prototype')!).getAllByRole('menuitem').filter(item => item.getAttribute('aria-current')), [], 'other instructions remember their own');
+});
+
+test('a new panel of an Agent type is remembered and highlighted as the target an instruction last went to', async () => {
+  const { user, dispatched } = await renderList();
+  await user.click(dispatchButton());
+  await user.click(within(instructions()).getByRole('menuitem', { name: /^triage/ }));
+  await user.click(screen.getByRole('menuitem', { name: 'New · Codex' }));
+  assert.deepEqual(dispatched.map(({ target }) => target), [{ agent: 'codex' }]);
+
+  await user.click(dispatchButton());
+  await user.click(within(instructions()).getByRole('menuitem', { name: /^triage/ }));
+  const highlighted = within(targets('triage')!).getAllByRole('menuitem').filter(item => item.getAttribute('aria-current'));
+  assert.deepEqual(highlighted.map(item => item.getAttribute('aria-label')), ['New · Codex']);
 });
 
 test('the dispatch shortcut opens the menu of the issue holding focus and the locate shortcut locates its dispatch', async () => {

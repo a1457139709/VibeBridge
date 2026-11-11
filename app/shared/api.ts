@@ -14,8 +14,9 @@ export interface DesktopAPI {
   bindRepository(projectId: string, repository: RepositoryReference | null): Promise<void>;
   /** One page of the issues of the project's bound repository, or why the platform could not read it; a null cursor reads the first page. */
   issuePage(projectId: string, filter: IssueFilter, cursor: string | null): Promise<IssuePageResult>;
-  /** Pastes an instruction for an issue of the bound repository into a panel's terminal and records the dispatch on its session. */
-  dispatch(projectId: string, request: DispatchRequest): Promise<void>;
+  /** Pastes an instruction for an issue of the bound repository into a panel's terminal and records the dispatch on its session.
+   * A dispatch to a new panel resolves with the panel added to the tray and its launch; one to an existing panel with null. */
+  dispatch(projectId: string, request: DispatchRequest): Promise<PanelCreation | null>;
   /** One page of the merge requests of the project's bound repository, as `issuePage` reads issues. */
   mergeRequestPage(projectId: string, filter: IssueFilter, cursor: string | null): Promise<MergeRequestPageResult>;
   /** The bound repository's issue with that number, with its comments and relations, or why the platform could not read it. */

@@ -111,32 +111,57 @@ test('a pending dispatch is handed the first session its run reports, once', asy
   const f = await fixture(context);
   const { run } = await f.start();
   const handed: string[] = [];
-  f.supervision.holdDispatch(run.id, session => handed.push(session));
+  const dropped: string[] = [];
+  f.supervision.holdDispatch(run.id, session => handed.push(session), () => dropped.push(run.id));
   await f.report(run.id, { hook_event_name: 'UserPromptSubmit' });
   assert.deepEqual(handed, [], 'a fact without a session hands nothing over');
   await f.session(run.id, 'first');
   await f.session(run.id, 'second');
   assert.deepEqual(handed, ['first']);
   const late: string[] = [];
-  f.supervision.holdDispatch(run.id, session => late.push(session));
+  f.supervision.holdDispatch(run.id, session => late.push(session), () => dropped.push(run.id));
   assert.deepEqual(late, ['second'], 'a run that already reported a session hands over its current one at once');
+  f.terminal.event({ kind: 'exit', runId: run.id });
+  assert.deepEqual(dropped, [], 'a dispatch handed its session is not dropped later');
 });
 
 test('a pending dispatch is dropped when its run ends before reporting a session', async context => {
   const f = await fixture(context);
-  const handed: string[] = [];
+  const handed: string[] = [], dropped: string[] = [];
   const { run: exited } = await f.start(f.project.panels[0]);
-  f.supervision.holdDispatch(exited.id, session => handed.push(session));
+  f.supervision.holdDispatch(exited.id, session => handed.push(session), () => dropped.push('exited'));
   f.terminal.event({ kind: 'exit', runId: exited.id });
   const { run: next } = await f.start(f.project.panels[0]);
   await f.session(next.id, 'next');
   const { run: released } = await f.start(f.project.panels[1]);
-  f.supervision.holdDispatch(released.id, session => handed.push(session));
+  f.supervision.holdDispatch(released.id, session => handed.push(session), () => dropped.push('released'));
   f.supervision.release([released.panelId]);
   f.terminal.answer = 'failed';
   const { run: failed } = await f.start(f.project.panels[1]);
-  f.supervision.holdDispatch(failed.id, session => handed.push(session));
+  f.supervision.holdDispatch(failed.id, session => handed.push(session), () => dropped.push('failed'));
   assert.deepEqual(handed, []);
+  assert.deepEqual(dropped, ['exited', 'released', 'failed'], 'each is dropped once its run ends, or at once if it already has');
+});
+
+test('a run hands a waiting delivery its first Ready, once, and drops it when it ends first', async context => {
+  const f = await fixture(context);
+  const { run } = await f.start(f.project.panels[0]);
+  const delivered: string[] = [];
+  f.supervision.awaitReady(run.id, () => delivered.push('first'));
+  await f.report(run.id, { hook_event_name: 'UserPromptSubmit', session_id: 'busy' });
+  assert.deepEqual([...delivered], [], 'a busy run has not reported Ready');
+  await f.session(run.id, 'ready');
+  await f.report(run.id, { hook_event_name: 'UserPromptSubmit', session_id: 'ready' });
+  await f.session(run.id, 'ready');
+  assert.deepEqual([...delivered], ['first']);
+  await f.session(run.id, 'again');
+  f.supervision.awaitReady(run.id, () => delivered.push('now'));
+  assert.deepEqual(delivered, ['first', 'now'], 'a run that is Ready now delivers at once');
+  const { run: exited } = await f.start(f.project.panels[1]);
+  f.supervision.awaitReady(exited.id, () => delivered.push('exited'));
+  f.terminal.event({ kind: 'exit', runId: exited.id });
+  assert.equal(await f.report(exited.id, { hook_event_name: 'SessionStart', source: 'startup', session_id: 'late' }), 403);
+  assert.deepEqual(delivered, ['first', 'now']);
 });
 
 test('a confirmed launch is running and observed, and announces itself', async context => {

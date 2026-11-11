@@ -74,7 +74,7 @@ export function IssueDetailView({ project, repository, number, workflows, shortc
             <IssueStateIcon issue={issue} />
             {issue.labels.map(label =>
               <span key={label.name} className="issue-label" style={{ '--label-color': `#${label.color}` } as CSSProperties}>{label.name}</span>)}
-            <DispatchMenu ref={menu} issue={issue} project={project} workflows={workflows} dispatch={request => api.dispatch(projectId, request)} locate={locate} />
+            <DispatchMenu ref={menu} issue={issue} project={project} workflows={workflows} dispatch={request => api.dispatch(projectId, request)} filled={locate} />
           </div>
           <div className="issue-detail-meta">
             {issue.author && <span className="issue-detail-author">{issue.author}</span>}
