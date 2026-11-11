@@ -10,6 +10,7 @@ const api: DesktopAPI = {
   repositoryChoices: id => ipcRenderer.invoke('workbench:repository-choices', id),
   bindRepository: (id, repository) => ipcRenderer.invoke('workbench:bind-repository', id, repository),
   issuePage: (id, filter, cursor) => ipcRenderer.invoke('workbench:issue-page', id, filter, cursor),
+  dispatch: (id, request) => ipcRenderer.invoke('workbench:dispatch', id, request),
   inspectDirectory: directory => ipcRenderer.invoke('workbench:directory', directory),
   chooseDirectory: () => ipcRenderer.invoke('workbench:choose-directory'),
   activateProject: id => ipcRenderer.invoke('workbench:activate', id),

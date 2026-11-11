@@ -30,7 +30,7 @@ function openEditor(project: ProjectView, choices: () => Promise<RepositoryChoic
     await user.click(screen.getByRole('menuitem', { name: 'Edit project' }));
   } };
 }
-const unbound: ProjectView = { id: 'project', name: 'App', directory: '/work/app', panels: [], tray: [], layout: null };
+const unbound: ProjectView = { id: 'project', name: 'App', directory: '/work/app', panels: [], tray: [], dispatches: [], layout: null };
 const selected = () => screen.getAllByRole('option').filter(option => option.getAttribute('aria-selected') === 'true').map(option => option.textContent);
 
 test('the repository field offers only listed repositories, preselects the origin repository and binds it on save', async () => {

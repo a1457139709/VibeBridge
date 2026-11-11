@@ -14,6 +14,8 @@ import type { IssueFilter, IssuePageResult, RepositoryChoices, RepositoryReferen
 import type { CommandEnvironment } from './code-hosting/platform';
 import { bindableRepository, repositoryChoices } from './code-hosting/binding';
 import { issuePage } from './code-hosting/issues';
+import type { DispatchRecord, DispatchRequest } from '../shared/dispatch';
+import { Dispatches } from './dispatch';
 
 export class WorkbenchOpenError extends Error {
   constructor(error: unknown, readonly language: Language) {
@@ -29,11 +31,12 @@ export class Workbench {
   private visited = new Set<string>();
   // Each project's tray: its ephemeral panels in the order they joined. Never stored.
   private trays = new Map<string, Panel[]>();
+  private dispatches: Dispatches;
   private quitting = false;
   // Platform CLIs and git run in the login-shell environment Agent Runs get, read once per Workbench.
   private environment?: Promise<CommandEnvironment>;
   private quitPromise?: Promise<void>;
-  private constructor(directory: string, private store: ProjectStore, private settingsFile: SettingsFile) {
+  private constructor(directory: string, private store: ProjectStore, private settingsFile: SettingsFile, dispatchRecords: Record<string, DispatchRecord[]>) {
     this.supervision = new RunSupervision(directory, { changed: () => this.changed(), emit: event => this.emit(event), report: message => this.report(message),
       onRunExited: run => {
         if (!this.quitting) void this.operation(async () => {
@@ -41,6 +44,9 @@ export class Workbench {
           await this.removePanel(run.projectId, run.panelId);
         }).catch(error => this.report(error.message));
       } });
+    this.dispatches = new Dispatches(dispatchRecords, store, this.supervision, {
+      projects: () => this.state.projects, tray: id => this.tray(id),
+      workflows: () => this.state.settings.workflows, changed: () => this.changed(), report: text => this.report(text) });
   }
   static async open(directory: string, systemDark = false) {
     const settingsFile = new SettingsFile(directory);
@@ -51,8 +57,8 @@ export class Workbench {
     let store: ProjectStore | undefined;
     try {
       store = await ProjectStore.open(directory);
-      const projects = await store.load();
-      const workbench = new Workbench(directory, store, settingsFile);
+      const { dispatchRecords, ...projects } = await store.load();
+      const workbench = new Workbench(directory, store, settingsFile, dispatchRecords);
       Object.assign(workbench.state, projects, { settings, settingsConflicts: settingsConflicts(settings), errors });
       workbench.state.startupTheme = settings.theme;
       workbench.state.resolvedTheme = workbench.state.startupTheme === 'system' ? (systemDark ? 'dark' : 'light') : workbench.state.startupTheme;
@@ -64,7 +70,8 @@ export class Workbench {
   }
   snapshot(): Snapshot {
     const view = (panel: Panel) => this.supervision.panelView(panel);
-    const projects = this.state.projects.map(project => ({ ...project, panels: project.panels.map(view), tray: this.tray(project.id).map(view) }));
+    const projects = this.state.projects.map(project => ({ ...project, panels: project.panels.map(view), tray: this.tray(project.id).map(view),
+      dispatches: this.dispatches.views(project) }));
     return structuredClone({ ...this.state, projects });
   }
   subscribe(listener: (event: WorkbenchEvent) => void) { this.listeners.add(listener); return () => { this.listeners.delete(listener); }; }
@@ -143,6 +150,7 @@ export class Workbench {
     this.state.projects = this.state.projects.filter(item => item.id !== id);
     this.supervision.release(panels.map(panel => panel.id));
     this.trays.delete(id);
+    this.dispatches.forget(id);
     this.visited.delete(id);
     const activateNext = this.state.activeProjectId === id;
     this.state.activeProjectId = nextActive;
@@ -283,6 +291,8 @@ export class Workbench {
     if (!repository) throw new Error(message('repositoryUnbound'));
     return issuePage(repository, filter, cursor, await this.commandEnvironment());
   }
+  /** Dispatches an issue to a panel of the project; see Dispatches. */
+  dispatch(projectId: string, request: DispatchRequest): Promise<void> { return this.operation(() => this.dispatches.dispatch(projectId, request)); }
   sendInput(runId: string, data: string) { return this.supervision.input(runId, data); }
   resizeRun(runId: string, cols: number, rows: number) { return this.supervision.resize(runId, cols, rows); }
   acknowledgeOutput(runId: string, characters: number) { this.supervision.acknowledgeOutput(runId, characters); }

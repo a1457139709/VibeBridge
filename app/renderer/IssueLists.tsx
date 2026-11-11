@@ -1,7 +1,11 @@
 import { useEffect, useRef, useState, type CSSProperties, type ReactNode } from 'react';
 import type { DesktopAPI } from '../shared/api';
 import { defaultIssueFilter, platformDescriptions, type IssueFilter, type IssueLabel, type IssuePage, type IssuePageResult, type IssueSummary, type RepositoryReference } from '../shared/code-hosting';
-import type { Language } from '../shared/model';
+import type { Language, ProjectView } from '../shared/model';
+import type { DispatchLocation, DispatchRequest } from '../shared/dispatch';
+import type { WorkflowSettings } from '../shared/workflows';
+import { DispatchMenu, DispatchStatus } from './Dispatch';
+import { relativeTime } from './relative-time';
 import { useLocalization } from './Localization';
 
 type Tab = 'issues' | 'mergeRequests';
@@ -12,8 +16,11 @@ type Failure = Extract<IssuePageResult, { ok: false }> | { ok: false; error: str
  * so opening the sidebar or returning to a project reads afresh from an open, unfiltered list.
  * Each tab keeps its own filters; only the shown tab reads from the platform.
  */
-export function IssueLists({ projectId, repository, changeBinding, api = window.workbench }: {
-  projectId: string; repository: RepositoryReference; changeBinding(): void; api?: Pick<DesktopAPI, 'issuePage'>;
+export function IssueLists({ project, repository, workflows, changeBinding, locate, api = window.workbench }: {
+  project: ProjectView; repository: RepositoryReference; workflows: WorkflowSettings; changeBinding(): void;
+  /** Shows the panel a dispatch went to. */
+  locate(location: DispatchLocation): void;
+  api?: Pick<DesktopAPI, 'issuePage' | 'dispatch'>;
 }) {
   const { t } = useLocalization();
   const [tab, setTab] = useState<Tab>('issues');
@@ -24,8 +31,8 @@ export function IssueLists({ projectId, repository, changeBinding, api = window.
       {t(id === 'issues' ? 'issuesTab' : 'mergeRequestsTab')}</button>)}
   </div>;
   return tab === 'issues'
-    ? <IssueTab tabs={tabs} filter={filters.issues} setFilter={setFilter} load={(filter, cursor) => api.issuePage(projectId, filter, cursor)}
-      repository={repository} changeBinding={changeBinding} />
+    ? <IssueTab tabs={tabs} filter={filters.issues} setFilter={setFilter} load={(filter, cursor) => api.issuePage(project.id, filter, cursor)}
+      repository={repository} changeBinding={changeBinding} dispatching={{ project, workflows, locate, dispatch: request => api.dispatch(project.id, request) }} />
     // The merge request list reads nothing yet; its tab already keeps its own filters.
     : <div className="issue-tab">
       <div className="issue-toolbar">{tabs}<RefreshButton busy={false} disabled onClick={() => {}} /></div>
@@ -57,8 +64,12 @@ function useIssuePages(filter: IssueFilter, load: (filter: IssueFilter, cursor: 
   return { ...state, refresh: () => read(null), more: () => { if (state.page?.next) read(state.page.next); } };
 }
 
-function IssueTab({ tabs, filter, setFilter, load, repository, changeBinding }: {
-  tabs: ReactNode; filter: IssueFilter; setFilter(filter: IssueFilter): void; repository: RepositoryReference; changeBinding(): void;
+interface Dispatching {
+  project: ProjectView; workflows: WorkflowSettings; locate(location: DispatchLocation): void; dispatch(request: DispatchRequest): Promise<void>;
+}
+
+function IssueTab({ tabs, filter, setFilter, load, repository, changeBinding, dispatching }: {
+  tabs: ReactNode; filter: IssueFilter; setFilter(filter: IssueFilter): void; repository: RepositoryReference; changeBinding(): void; dispatching: Dispatching;
   load(filter: IssueFilter, cursor: string | null): Promise<IssuePageResult>;
 }) {
   const { t, language } = useLocalization();
@@ -79,7 +90,9 @@ function IssueTab({ tabs, filter, setFilter, load, repository, changeBinding }: 
     <FilterBar filter={filter} setFilter={setFilter} labels={list.page?.labels ?? []} search={t('searchIssues')} />
     <div className="issue-list">
       {list.page && <ul aria-label={platform.name}>
-        {list.page.issues.map(issue => <IssueRow key={issue.number} issue={issue} language={language} addLabel={addLabel} />)}
+        {list.page.issues.map(issue => <IssueRow key={issue.number} issue={issue} language={language} addLabel={addLabel}
+          // The list refreshes once after each dispatch.
+          dispatching={{ ...dispatching, dispatch: request => dispatching.dispatch(request).then(list.refresh) }} />)}
       </ul>}
       {list.page && !list.page.issues.length && !list.loading && <p className="issue-list-empty">{t('noMatchingIssues')}</p>}
       {list.page?.next && <button className="issue-list-more" disabled={!!list.loading} onClick={list.more}>{t('loadMore')}</button>}
@@ -120,7 +133,7 @@ function FilterBar({ filter, setFilter, labels, search }: { filter: IssueFilter;
   </div>;
 }
 
-function IssueRow({ issue, language, addLabel }: { issue: IssueSummary; language: Language; addLabel(name: string): void }) {
+function IssueRow({ issue, language, addLabel, dispatching }: { issue: IssueSummary; language: Language; addLabel(name: string): void; dispatching: Dispatching }) {
   const { t } = useLocalization();
   const created = new Date(issue.createdAt);
   return <li className="issue-row" aria-label={`#${issue.number} ${issue.title}`}>
@@ -134,8 +147,10 @@ function IssueRow({ issue, language, addLabel }: { issue: IssueSummary; language
           aria-label={t('filterByLabel', { label: label.name })} onClick={() => addLabel(label.name)}>{label.name}</button>)}
       </div>
     </div>
-    {/* Dispatch controls take this place. */}
-    <div className="issue-row-actions" />
+    <div className="issue-row-actions">
+      <DispatchMenu issue={issue} project={dispatching.project} workflows={dispatching.workflows} dispatch={dispatching.dispatch} locate={dispatching.locate} />
+      <DispatchStatus issue={issue} records={dispatching.project.dispatches.filter(record => record.issue === issue.number)} locate={dispatching.locate} />
+    </div>
   </li>;
 }
 
@@ -160,14 +175,6 @@ function IssueStateIcon({ issue }: { issue: IssueSummary }) {
   return <svg className={`issue-state issue-state-${icon}`} role="img" aria-label={name} viewBox="0 0 16 16" width="16" height="16" fill="currentColor">
     {stateIcons[icon].map(path => <path key={path} d={path} />)}
   </svg>;
-}
-
-function relativeTime(date: Date, language: Language) {
-  const seconds = (date.getTime() - Date.now()) / 1000;
-  const units: [Intl.RelativeTimeFormatUnit, number][] = [['year', 31536000], ['month', 2592000], ['day', 86400], ['hour', 3600], ['minute', 60]];
-  const format = new Intl.RelativeTimeFormat(language, { numeric: 'auto' });
-  for (const [unit, size] of units) if (Math.abs(seconds) >= size) return format.format(Math.round(seconds / size), unit);
-  return format.format(0, 'minute');
 }
 
 function FailureState({ failure, path, retry, changeBinding }: { failure: Failure; path: string; retry(): void; changeBinding(): void }) {

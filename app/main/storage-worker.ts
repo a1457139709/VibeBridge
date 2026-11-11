@@ -2,6 +2,7 @@ import { message } from '../shared/messages';
 import { parentPort, workerData } from 'node:worker_threads';
 import { DatabaseSync } from 'node:sqlite';
 import { platformIdSchema } from '../shared/code-hosting';
+import type { DispatchRecord } from '../shared/dispatch';
 import { agentTypeSchema, defaultIssueSidebar, defaultNavigation, issueSidebarSchema, navigationSchema, parseLayout, type IssueSidebarPreferences, type NavigationPreferences, type Panel, type Project } from '../shared/model';
 
 const file: string = workerData.file;
@@ -12,6 +13,8 @@ db.exec(`PRAGMA journal_mode=WAL; PRAGMA foreign_keys=ON;
   CREATE TABLE IF NOT EXISTS workspace (id INTEGER PRIMARY KEY CHECK(id=1), active_project TEXT, navigation TEXT);
   CREATE TABLE IF NOT EXISTS issue_sidebar (id INTEGER PRIMARY KEY CHECK(id=1), state TEXT NOT NULL);
   CREATE TABLE IF NOT EXISTS repository_bindings (project_id TEXT PRIMARY KEY REFERENCES projects(id), platform TEXT NOT NULL, path TEXT NOT NULL);
+  CREATE TABLE IF NOT EXISTS dispatch_records (project_id TEXT NOT NULL REFERENCES projects(id), platform TEXT NOT NULL, path TEXT NOT NULL,
+    issue INTEGER NOT NULL, time TEXT NOT NULL, agent TEXT NOT NULL, text TEXT NOT NULL, session TEXT NOT NULL);
 `);
 
 // Stored content is read in its current format only: anything else fails the whole load and leaves the file untouched.
@@ -33,6 +36,19 @@ function readProject(row: Record<string, unknown>): Project {
   return { id, name, directory, layout, panels, repository: { platform: platform.data, path: binding.path as string } };
 }
 
+/** The project's Dispatch Records in the order they were written. */
+function readDispatchRecords(project: Project): DispatchRecord[] {
+  const invalid = (field: string) => new Error(message('projectDataInvalid', { file, field, id: project.id, name: project.name }));
+  return db.prepare('SELECT platform, path, issue, time, agent, text, session FROM dispatch_records WHERE project_id=? ORDER BY rowid').all(project.id).map(row => {
+    const platform = platformIdSchema.safeParse(row.platform);
+    if (!platform.success) throw invalid('dispatch_records.platform');
+    const agent = agentTypeSchema.safeParse(row.agent);
+    if (!agent.success) throw invalid('dispatch_records.agent');
+    return { repository: { platform: platform.data, path: row.path as string }, issue: Number(row.issue), time: row.time as string,
+      agent: agent.data, text: row.text as string, session: row.session as string };
+  });
+}
+
 function readNavigation(stored: unknown): NavigationPreferences {
   if (stored === null || stored === undefined) return defaultNavigation;
   try { return navigationSchema.parse(JSON.parse(stored as string)); }
@@ -51,8 +67,10 @@ parentPort!.on('message', ({ id, operation, value }) => {
     let result: unknown;
     if (operation === 'load') {
       const workspace = db.prepare('SELECT navigation, active_project FROM workspace WHERE id=1').get();
+      const projects = db.prepare('SELECT * FROM projects ORDER BY rowid').all().map(readProject);
       result = {
-        projects: db.prepare('SELECT * FROM projects ORDER BY rowid').all().map(readProject),
+        projects,
+        dispatchRecords: Object.fromEntries(projects.map(project => [project.id, readDispatchRecords(project)])),
         navigation: readNavigation(workspace?.navigation),
         issueSidebar: readIssueSidebar(),
         activeProjectId: workspace?.active_project ?? null,
@@ -73,6 +91,7 @@ parentPort!.on('message', ({ id, operation, value }) => {
       try {
         db.prepare('DELETE FROM panels WHERE project_id=?').run(value.id);
         db.prepare('DELETE FROM repository_bindings WHERE project_id=?').run(value.id);
+        db.prepare('DELETE FROM dispatch_records WHERE project_id=?').run(value.id);
         db.prepare('DELETE FROM projects WHERE id=?').run(value.id);
         db.prepare('INSERT INTO workspace (id, active_project) VALUES (1,?) ON CONFLICT(id) DO UPDATE SET active_project=excluded.active_project').run(value.activeProjectId);
         db.exec('COMMIT');
@@ -81,6 +100,10 @@ parentPort!.on('message', ({ id, operation, value }) => {
       if (value.repository) db.prepare('INSERT INTO repository_bindings VALUES (?,?,?) ON CONFLICT(project_id) DO UPDATE SET platform=excluded.platform, path=excluded.path')
         .run(value.projectId, value.repository.platform, value.repository.path);
       else db.prepare('DELETE FROM repository_bindings WHERE project_id=?').run(value.projectId);
+    } else if (operation === 'recordDispatch') {
+      const { projectId, record } = value as { projectId: string; record: DispatchRecord };
+      db.prepare('INSERT INTO dispatch_records VALUES (?,?,?,?,?,?,?,?)').run(projectId, record.repository.platform, record.repository.path,
+        record.issue, record.time, record.agent, record.text, record.session);
     } else if (operation === 'active') {
       db.prepare('INSERT INTO workspace (id, active_project) VALUES (1,?) ON CONFLICT(id) DO UPDATE SET active_project=excluded.active_project').run(value);
     } else if (operation === 'navigation') {

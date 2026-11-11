@@ -29,7 +29,17 @@ async function emit(payload, malformed) {
     })));
 }
 let pending = emit({ hook_event_name: 'SessionStart', source: 'startup' }).then(() => console.log('CLI-DOUBLE-READY'));
-readline.createInterface({ input: process.stdin }).on('line', line => {
+// With --echo-bytes the double reads raw input, as the real TUI does, and reports the bytes of
+// each input; an input that starts with `{` holds requests.
+if (args.includes('--echo-bytes')) {
+  process.stdin.setRawMode(true);
+  process.stdin.on('data', data => {
+    console.log(`BYTES:${data.toString('hex')}`);
+    const text = data.toString();
+    if (text.startsWith('{')) text.split('\n').filter(Boolean).forEach(handle);
+  });
+} else readline.createInterface({ input: process.stdin }).on('line', handle);
+function handle(line) {
   pending = pending.then(async () => {
     const message = JSON.parse(line);
     if (message.context) console.log(`CONTEXT:${process.env.VIBEBRIDGE_STATUS_CONTEXT}`);
@@ -41,4 +51,4 @@ readline.createInterface({ input: process.stdin }).on('line', line => {
     if (message.output) console.log(message.output);
     console.log(`ACK:${message.id}`);
   }).catch(error => { console.error(error); process.exitCode = 1; });
-});
+}

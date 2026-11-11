@@ -21,9 +21,9 @@ before(() => {
   Object.defineProperty(document, 'hasFocus', { configurable: true, value: () => true });
 });
 
-const app: ProjectView = { id: 'app', name: 'App project', directory: '/work/app', layout: null, panels: [], tray: [],
+const app: ProjectView = { id: 'app', name: 'App project', directory: '/work/app', layout: null, panels: [], tray: [], dispatches: [],
   repository: { platform: 'github', path: 'octo/app' } };
-const docs: ProjectView = { id: 'docs', name: 'Docs project', directory: '/work/docs', layout: null, panels: [], tray: [],
+const docs: ProjectView = { id: 'docs', name: 'Docs project', directory: '/work/docs', layout: null, panels: [], tray: [], dispatches: [],
   repository: { platform: 'github', path: 'octo/docs' } };
 
 const issue = (number: number, extra: Partial<IssueSummary> = {}): IssueSummary => ({ number, title: `Issue ${number}`, state: 'open', closedAs: null,

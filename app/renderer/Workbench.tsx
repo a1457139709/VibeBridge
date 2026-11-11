@@ -81,7 +81,7 @@ function WorkbenchView({ state, setState }: { state?: Snapshot; setState(snapsho
     view: location.view, openProject: activate, locatePanel, createProject: create, toggleSettings, report });
   const active = state?.projects.find(project => project.id === state.activeProjectId);
   const [bindingId, setBindingId] = useState<string>();
-  const issueSidebar = useIssueSidebar({ snapshot: state, project: active, bindRepository: project => setBindingId(project.id), report });
+  const issueSidebar = useIssueSidebar({ snapshot: state, project: active, bindRepository: project => setBindingId(project.id), locatePanel, report });
   const bindingProject = state?.projects.find(project => project.id === bindingId);
   const workspaceShown = !!active && !settingsOpen && !setup;
   // Overlaying covers only the layout area: the toolbar and tray yield, and every other page is narrowed.
