@@ -1,25 +1,20 @@
-import { useEffect, useRef, useState, type CSSProperties, type MouseEvent } from 'react';
-import { repositoryItem, type IssueLabel, type PlatformFailure, type RepositoryItem, type RepositoryReference } from '../shared/code-hosting';
+import { useEffect, useState, type CSSProperties, type MouseEvent, type ReactNode } from 'react';
+import { platformDescriptions, repositoryItem, sameRepository, type IssueLabel, type PlatformFailure, type RelatedIssue, type RepositoryItem,
+  type RepositoryReference } from '../shared/code-hosting';
 import { useLocalization } from './Localization';
 import { allowedHtml } from './platform-html';
-import { PlatformFailureHelp, platformFailureReason } from './platform-failure';
+import { ReadFailureState, useLatestRead, type ReadFailure } from './platform-failure';
 import { relativeTime } from './list-row-parts';
 
 // Pieces every detail shows the same way, whatever it details.
 
-export type DetailFailure = { ok: false; failure: PlatformFailure } | { ok: false; error: string };
-
 /** Reads a detail from the platform when it opens and on `read()`; only the latest read's answer is shown. */
 export function useDetail<Item>(request: () => Promise<{ ok: true; item: Item } | { ok: false; failure: PlatformFailure }>, key: unknown[]) {
-  const [state, setState] = useState<{ item?: Item; failure?: DetailFailure; loading: boolean }>({ loading: true });
-  const latest = useRef(0);
+  const [state, setState] = useState<{ item?: Item; failure?: ReadFailure; loading: boolean }>({ loading: true });
+  const latestRead = useLatestRead();
   const read = () => {
-    const current = ++latest.current;
     setState(shown => ({ ...shown, loading: true }));
-    request().then(result => result, (error: Error) => ({ ok: false, error: error.message }) as const).then(result => {
-      if (current !== latest.current) return;
-      setState(result.ok ? { item: result.item, loading: false } : { failure: result, loading: false });
-    });
+    latestRead(request(), result => setState(result.ok ? { item: result.item, loading: false } : { failure: result, loading: false }));
   };
   useEffect(() => { setState({ loading: true }); read(); }, key);
   return { ...state, read };
@@ -35,6 +30,41 @@ export function followLinks(repository: RepositoryReference, open: (item: Reposi
     const item = repositoryItem(repository, href);
     if (item) open(item); else window.open(href, '_blank');
   };
+}
+
+/** Opens a related issue: one of the bound repository in the sidebar, any other in the system browser. */
+export function openRelatedIssue(repository: RepositoryReference, open: (item: RepositoryItem) => void) {
+  return (issue: RelatedIssue) => {
+    if (sameRepository(issue.repository, repository)) open({ kind: 'issue', number: issue.number });
+    else window.open(issue.url, '_blank');
+  };
+}
+
+/** A related issue's number, prefixed with its repository's path when that is not the bound repository. */
+export const relatedIssueNumber = (issue: RelatedIssue, repository: RepositoryReference) =>
+  `${sameRepository(issue.repository, repository) ? '' : issue.repository.path}#${issue.number}`;
+
+/** The bar above a detail: what it shows, a link to it on the platform once read, and the close button. */
+export function DetailBar({ label, url, repository, close }: { label: string; url?: string; repository: RepositoryReference; close(): void }) {
+  const { t } = useLocalization();
+  return <header className="issue-detail-bar">
+    <span className="issue-detail-crumb">{label}</span>
+    {url && <a href={url} target="_blank" rel="noreferrer">{t('openOnPlatform', { platform: platformDescriptions[repository.platform].name })}</a>}
+    <button className="issue-detail-close" aria-label={t('closeDetail')} onClick={close}>×</button>
+  </header>;
+}
+
+/** One entry of a conversation: who wrote it and when, with `note` between them, above its content. */
+export function ConversationCard({ author, at, note, className, children }: { author: string | null; at: string; note?: ReactNode; className?: string; children: ReactNode }) {
+  return <article className={className ? `issue-detail-card ${className}` : 'issue-detail-card'}>
+    <header>{author && <b>{author}</b>} {note && <>{note} </>}<CreatedAt at={at} /></header>
+    {children}
+  </article>;
+}
+
+/** A body or comment as the platform rendered it. */
+export function CommentCard({ author, at, body }: { author: string | null; at: string; body: string }) {
+  return <ConversationCard author={author} at={at}><PlatformHtml html={body} /></ConversationCard>;
 }
 
 export function CreatedAt({ at }: { at: string }) {
@@ -53,12 +83,8 @@ export function Labels({ labels }: { labels: IssueLabel[] }) {
     <span key={label.name} className="issue-label" style={{ '--label-color': `#${label.color}` } as CSSProperties}>{label.name}</span>)}</div>;
 }
 
-export function DetailFailureState({ failure, number, retry }: { failure: DetailFailure; number: number; retry(): void }) {
-  const { t, text } = useLocalization();
-  if ('error' in failure) return <div className="issue-sidebar-state" role="alert"><p>{text(failure.error)}</p><button onClick={retry}>{t('retry')}</button></div>;
-  const { platform } = failure.failure;
-  const reason = platformFailureReason(t, failure.failure,
-    { unreachable: t('issueUnreachable', { number }), failed: reason => t('listReadFailed', { platform: platform.name, reason }) });
-  return <div className="issue-sidebar-state" role="alert"><p>{reason}</p>
-    <div className="issue-state-actions"><PlatformFailureHelp failure={failure.failure} /><button onClick={retry}>{t('retry')}</button></div></div>;
+/** Why the issue or merge request with that number could not be read. */
+export function DetailFailureState({ failure, number, retry }: { failure: ReadFailure; number: number; retry(): void }) {
+  const { t } = useLocalization();
+  return <ReadFailureState failure={failure} unreachable={t('itemUnreachable', { number })} retry={retry} />;
 }

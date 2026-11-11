@@ -1,9 +1,9 @@
 import type { ReactNode } from 'react';
 import type { DesktopAPI } from '../shared/api';
-import { platformDescriptions, type Check, type IssueComment, type MergeRequestDetail, type MergeRequestReview, type MergeState, type RelatedIssue,
+import { platformDescriptions, type Check, type IssueComment, type MergeRequestDetail, type MergeRequestReview, type MergeState,
   type RepositoryItem, type RepositoryReference } from '../shared/code-hosting';
 import { useLocalization } from './Localization';
-import { CreatedAt, DetailFailureState, Labels, PlatformHtml, followLinks, useDetail } from './detail-parts';
+import { CommentCard, ConversationCard, DetailBar, DetailFailureState, Labels, PlatformHtml, followLinks, openRelatedIssue, relatedIssueNumber, useDetail } from './detail-parts';
 import { CheckIcon, MergeRequestStateIcon } from './MergeRequestRow';
 import { MergeRequestActions, type DirectActionHost } from './DirectActions';
 import './merge-request-detail.css';
@@ -20,16 +20,11 @@ export function MergeRequestDetailView({ projectId, repository, number, open, cl
   const { t } = useLocalization();
   const state = useDetail<MergeRequestDetail>(() => api.mergeRequestDetail(projectId, number)
     .then(result => result.ok ? { ok: true as const, item: result.mergeRequest } : result), [projectId, number]);
-  const platform = platformDescriptions[repository.platform];
   const request = state.item?.number === number ? state.item : undefined;
   const actions = (shown: MergeRequestDetail) => <MergeRequestActions projectId={projectId} repository={repository} request={shown}
     host={{ ...host, changed: () => { state.read(); host.changed(); } }} api={api} />;
   return <section className="issue-detail" aria-label={t('mergeRequestDetail', { number })} onClick={followLinks(repository, open)}>
-    <header className="issue-detail-bar">
-      <span className="issue-detail-crumb">{t('mergeRequestDetail', { number })}</span>
-      {request && <a href={request.url} target="_blank" rel="noreferrer">{t('openOnPlatform', { platform: platform.name })}</a>}
-      <button className="issue-detail-close" aria-label={t('closeDetail')} onClick={close}>×</button>
-    </header>
+    <DetailBar label={t('mergeRequestDetail', { number })} url={request?.url} repository={repository} close={close} />
     <div className="issue-detail-scroll">
       {state.failure && !state.loading ? <DetailFailureState failure={state.failure} number={number} retry={state.read} />
         : !request ? <p className="issue-detail-loading" role="status">{t('loadingMergeRequest')}</p>
@@ -44,10 +39,7 @@ export function MergeRequestDetailView({ projectId, repository, number, open, cl
 
 function Header({ request, repository, open }: { request: MergeRequestDetail; repository: RepositoryReference; open(item: RepositoryItem): void }) {
   const { t } = useLocalization();
-  const openIssue = (issue: RelatedIssue) => {
-    if (issue.repository.toLowerCase() === repository.path.toLowerCase()) open({ kind: 'issue', number: issue.number });
-    else window.open(issue.url, '_blank');
-  };
+  const openIssue = openRelatedIssue(repository, open);
   return <div className="merge-request-header">
     <h2 className="issue-detail-title">{request.title} <span className="issue-row-number">#{request.number}</span></h2>
     <div className="issue-detail-meta">
@@ -58,8 +50,8 @@ function Header({ request, repository, open }: { request: MergeRequestDetail; re
     <Labels labels={request.labels} />
     {!!request.closingIssues.length && <div className="merge-request-closes" role="group" aria-label={t('closesWhenMerged')}>
       <span>{t('closesWhenMerged')}</span>
-      {request.closingIssues.map(issue => <button key={`${issue.repository}#${issue.number}`} aria-label={`#${issue.number} ${issue.title}`} title={issue.title}
-        onClick={() => openIssue(issue)}>{issue.repository.toLowerCase() === repository.path.toLowerCase() ? '' : issue.repository}#{issue.number}</button>)}
+      {request.closingIssues.map(issue => <button key={`${issue.repository.path}#${issue.number}`} aria-label={`#${issue.number} ${issue.title}`} title={issue.title}
+        onClick={() => openIssue(issue)}>{relatedIssueNumber(issue, repository)}</button>)}
     </div>}
   </div>;
 }
@@ -75,21 +67,15 @@ function Conversation({ request }: { request: MergeRequestDetail }) {
     ...request.comments.map(comment => ({ at: comment.createdAt, comment })), ...request.reviews.map(review => ({ at: review.submittedAt, review })),
   ].sort((a, b) => a.at.localeCompare(b.at));
   return <>
-    <article className="issue-detail-card">
-      <header>{request.author && <b>{request.author}</b>} <CreatedAt at={request.createdAt} /></header>
-      <PlatformHtml html={request.body} />
-    </article>
+    <CommentCard author={request.author} at={request.createdAt} body={request.body} />
     {entries.map((entry, index) => 'comment' in entry
-      ? <article key={index} className="issue-detail-card">
-        <header>{entry.comment.author && <b>{entry.comment.author}</b>} <CreatedAt at={entry.at} /></header>
-        <PlatformHtml html={entry.comment.body} />
-      </article>
-      : <article key={index} className={`issue-detail-card merge-request-review review-${entry.review.state}`}>
-        <header>{entry.review.author && <b>{entry.review.author}</b>} <span className="review-state">{t(reviewNames[entry.review.state])}</span> <CreatedAt at={entry.at} /></header>
+      ? <CommentCard key={index} author={entry.comment.author} at={entry.at} body={entry.comment.body} />
+      : <ConversationCard key={index} className={`merge-request-review review-${entry.review.state}`} author={entry.review.author} at={entry.at}
+        note={<span className="review-state">{t(reviewNames[entry.review.state])}</span>}>
         {entry.review.body && <PlatformHtml html={entry.review.body} />}
         {entry.review.codeComments > 0 && <a className="review-code-comments" href={entry.review.url} target="_blank" rel="noreferrer">
           {entry.review.codeComments === 1 ? t('codeCommentsOne') : t('codeComments', { count: entry.review.codeComments })}</a>}
-      </article>)}
+      </ConversationCard>)}
   </>;
 }
 

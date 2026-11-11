@@ -3,7 +3,7 @@ import { agentNames, projectPanels, type AgentType, type PanelCreation, type Pan
 import { message } from '../shared/messages';
 import type { IssueSummary } from '../shared/code-hosting';
 import type { DispatchLocation, DispatchRecordView, DispatchRequest } from '../shared/dispatch';
-import { workflowCatalog, type Delivery, type Workflow, type WorkflowInstruction, type WorkflowSettings } from '../shared/workflows';
+import { instructionDelivery, workflowCatalog, type Workflow, type WorkflowInstruction, type WorkflowSettings } from '../shared/workflows';
 import { ProcessingStatusIcon } from './ProcessingStatusIcon';
 import { agentIcons } from './agent-icons';
 import { relativeTime } from './list-row-parts';
@@ -18,7 +18,6 @@ const targets = (project: ProjectView): Target[] => projectPanels(project).flatM
 
 // The order the spec lists new panels in.
 const newPanelAgents: AgentType[] = ['claude', 'codex', 'pi'];
-const flipped = (delivery: Delivery): Delivery => delivery === 'submit' ? 'fill' : 'submit';
 // The target each instruction last went to, an existing panel or a new one of an Agent type, remembered while the app
 // runs, keyed by workflow and instruction.
 const lastTargets = new Map<string, string>();
@@ -79,10 +78,10 @@ export function DispatchMenu({ issue, project, workflows, dispatch, filled, ref 
     document.addEventListener('pointerdown', outside);
     return () => document.removeEventListener('pointerdown', outside);
   }, [open]);
-  const delivery = (workflow: Workflow, instruction: WorkflowInstruction): Delivery => workflows[workflow.id]?.instructions[instruction.id]?.delivery ?? 'submit';
+  const delivery = (workflow: Workflow, instruction: WorkflowInstruction, invert = false) => instructionDelivery(workflows, workflow.id, instruction.id, invert);
   async function send(target: Target | AgentType, invert: boolean) {
     if (!chosen) return;
-    const effective = invert ? flipped(delivery(chosen.workflow, chosen.instruction)) : delivery(chosen.workflow, chosen.instruction);
+    const effective = delivery(chosen.workflow, chosen.instruction, invert);
     lastTargets.set(instructionKey(chosen.workflow, chosen.instruction), targetKey(target));
     close(); setFailure(undefined);
     try {

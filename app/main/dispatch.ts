@@ -1,9 +1,8 @@
 import { message } from '../shared/messages';
-import { sameRepository } from '../shared/code-hosting';
+import { itemUrl, sameRepository } from '../shared/code-hosting';
 import { bracketedPaste, dispatchRequestSchema, type DispatchLocation, type DispatchRecord, type DispatchRecordView, type DispatchRequest, type UnwrittenDispatch } from '../shared/dispatch';
-import { defaultDelivery, instructionText, workflowCatalog, type Delivery, type WorkflowSettings } from '../shared/workflows';
+import { instructionDelivery, instructionText, workflowCatalog, type Delivery, type WorkflowSettings } from '../shared/workflows';
 import { projectPanels, type AgentType, type Panel, type PanelCreation, type Project } from '../shared/model';
-import { platforms } from './code-hosting/platforms';
 import type { RunSupervision } from './run-supervision';
 import type { ProjectStore } from './storage';
 
@@ -73,10 +72,9 @@ export class Dispatches {
     const workflow = workflowCatalog.find(workflow => workflow.id === parsed.data.workflow);
     const setting = workflow && this.host.workflows()[workflow.id];
     const instruction = workflow?.instructions.find(instruction => instruction.id === parsed.data.instruction);
-    if (!setting?.enabled || !instruction) throw new Error(message('instructionUnavailable'));
-    const configured = setting.instructions[instruction.id]?.delivery ?? defaultDelivery;
-    const delivery: Delivery = invert ? (configured === 'submit' ? 'fill' : 'submit') : configured;
-    const url = platforms[repository.platform].issueUrl(repository.path, issue.number);
+    if (!workflow || !setting?.enabled || !instruction) throw new Error(message('instructionUnavailable'));
+    const delivery = instructionDelivery(this.host.workflows(), workflow.id, instruction.id, invert);
+    const url = itemUrl(repository, { kind: 'issue', number: issue.number });
     const dispatched = (agent: AgentType) => ({ repository, issue: issue.number, time: new Date().toISOString(), agent,
       text: instructionText(agent, instruction, { url, number: issue.number, title: issue.title }) });
     if ('agent' in target) return this.dispatchToNewPanel(projectId, dispatched(target.agent), delivery);

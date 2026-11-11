@@ -7,6 +7,7 @@ import { ProjectNavigationItem } from '../../app/renderer/ProjectManagement';
 import { Localization } from '../../app/renderer/Localization';
 import { message } from '../../app/shared/messages';
 import type { ProjectView } from '../../app/shared/model';
+import { platformDescriptions } from '../../app/shared/code-hosting';
 import { provideWorkbench } from './support/workbench';
 
 afterEach(cleanup);
@@ -16,7 +17,7 @@ for (const language of ['en', 'zh-CN'] as const) {
     const project: ProjectView = { id: 'project', name: 'Untitled task 原样', directory: '/原样/old', panels: [{ id: 'panel', agent: 'pi' }], tray: [], dispatches: [], layout: { panel: 'panel' } };
     const calls: unknown[] = [];
     provideWorkbench({ inspectDirectory: async directory => ({ valid: true, directory }),
-      repositoryChoices: async () => ({ ok: false, failure: { kind: 'notInstalled', output: '', platform: { id: 'github', name: 'GitHub', installUrl: 'https://cli.github.com', signInCommand: 'gh auth login', capabilities: [] } } }),
+      repositoryChoices: async () => ({ ok: false, failure: { kind: 'notInstalled', output: '', platform: { ...platformDescriptions.github, capabilities: [] } } }),
       editProject: async (id, edit, restart) => {
         calls.push([id, edit, restart]);
         return { project: { ...project, ...edit }, launches: [{ outcome: 'failed', run: { id: 'run', projectId: id, panelId: 'panel', state: 'failed' }, agent: 'pi' }] };

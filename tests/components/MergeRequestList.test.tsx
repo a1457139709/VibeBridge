@@ -6,7 +6,7 @@ import { userEvent } from '@testing-library/user-event';
 import { App } from '../../app/renderer/Workbench';
 import { defaultSettings } from '../../app/shared/settings';
 import type { ProjectView, Snapshot } from '../../app/shared/model';
-import { platformDescriptions, type IssueFilter, type MergeRequestPage, type MergeRequestPageResult, type MergeRequestSummary, type PlatformFailureKind, type RepositoryChoices } from '../../app/shared/code-hosting';
+import { platformDescriptions, type ListFilter, type MergeRequestPage, type MergeRequestPageResult, type MergeRequestSummary, type PlatformFailureKind, type RepositoryChoices } from '../../app/shared/code-hosting';
 import { deferred, provideWorkbench } from './support/workbench';
 
 afterEach(cleanup);
@@ -30,7 +30,7 @@ const page = (mergeRequests: MergeRequestSummary[], next: string | null = null, 
   ({ ok: true, page: { mergeRequests, next, labels } });
 const failure = (kind: PlatformFailureKind, output = ''): MergeRequestPageResult => ({ ok: false, failure: { kind, platform: platformDescriptions.github, output } });
 
-interface Request { projectId: string; filter: IssueFilter; cursor: string | null; answer(result: MergeRequestPageResult): void }
+interface Request { projectId: string; filter: ListFilter; cursor: string | null; answer(result: MergeRequestPageResult): void }
 
 /** The workbench with its issue sidebar open on the Pull requests tab; every merge request request waits for the test to answer it. */
 async function renderPullRequests() {

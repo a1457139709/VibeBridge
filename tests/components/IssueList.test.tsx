@@ -6,7 +6,7 @@ import { userEvent } from '@testing-library/user-event';
 import { App } from '../../app/renderer/Workbench';
 import { defaultSettings } from '../../app/shared/settings';
 import type { ProjectView, Snapshot, WorkbenchEvent } from '../../app/shared/model';
-import { platformDescriptions, type IssueFilter, type IssuePage, type IssuePageResult, type IssueSummary, type MergeRequestPageResult, type PlatformFailureKind, type RepositoryChoices } from '../../app/shared/code-hosting';
+import { platformDescriptions, type ListFilter, type IssuePage, type IssuePageResult, type IssueSummary, type MergeRequestPageResult, type PlatformFailureKind, type RepositoryChoices } from '../../app/shared/code-hosting';
 import { deferred, provideWorkbench } from './support/workbench';
 
 afterEach(cleanup);
@@ -32,7 +32,7 @@ const page = (issues: IssueSummary[], next: string | null = null, labels: IssueP
 const failure = (kind: PlatformFailureKind, output = '', account?: string): IssuePageResult =>
   ({ ok: false, failure: { kind, platform: platformDescriptions.github, output }, ...(account ? { account } : {}) });
 
-interface Request { projectId: string; filter: IssueFilter; cursor: string | null; answer(result: IssuePageResult): void }
+interface Request { projectId: string; filter: ListFilter; cursor: string | null; answer(result: IssuePageResult): void }
 
 /** The workbench with its issue sidebar open on the App project; every list request waits for the test to answer it. */
 function renderSidebar({ visible = true }: { visible?: boolean } = {}) {

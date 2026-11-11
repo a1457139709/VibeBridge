@@ -9,8 +9,9 @@ export const platformIdSchema = z.enum(platformIds);
  * which may have more than two segments (nested groups). */
 export interface RepositoryReference { platform: PlatformId; path: string }
 export const repositoryReferenceSchema = z.strictObject({ platform: platformIdSchema, path: z.string().min(1) });
+/** Whether both name the same repository, or neither names one. Platforms match repository paths whatever their case. */
 export const sameRepository = (a: RepositoryReference | null | undefined, b: RepositoryReference | null | undefined) =>
-  a?.platform === b?.platform && a?.path === b?.path;
+  !a || !b ? !a && !b : a.platform === b.platform && a.path.toLowerCase() === b.path.toLowerCase();
 
 /** Features that differ between platforms. The UI shows a feature only when the platform declares it. */
 export type PlatformCapability = 'subIssues' | 'nativeBlocking' | 'mergeMethods' | 'mergeQueue' | 'autoMerge' | 'requiredChecks';
@@ -23,12 +24,17 @@ export interface PlatformDescription {
   installUrl: string;
   /** The command that signs the platform's CLI in. */
   signInCommand: string;
+  /** The host of the platform's web pages and git remotes. */
+  host: string;
+  /** Where the web pages of a repository's issues and merge requests sit under its path, before their number. */
+  itemPaths: Record<RepositoryItem['kind'], string>;
   capabilities: PlatformCapability[];
 }
 
 /** Each platform's description, shared by its adapter and the UI that names it. */
 export const platformDescriptions: Record<PlatformId, PlatformDescription> = {
   github: { id: 'github', name: 'GitHub', installUrl: 'https://cli.github.com', signInCommand: 'gh auth login',
+    host: 'github.com', itemPaths: { issue: 'issues', mergeRequest: 'pull' },
     capabilities: ['subIssues', 'nativeBlocking', 'mergeMethods', 'mergeQueue', 'autoMerge', 'requiredChecks'] },
 };
 
@@ -46,9 +52,9 @@ export type RepositoryChoices = { ok: true; platform: PlatformDescription; accou
 /** What an issue or merge request list shows: a server-side search over titles or the number,
  * open or closed (a merged merge request is closed), and labels the items must all carry.
  * A fresh list is open with no search or labels. */
-export interface IssueFilter { search: string; state: 'open' | 'closed'; labels: string[] }
-export const defaultIssueFilter: IssueFilter = { search: '', state: 'open', labels: [] };
-export const issueFilterSchema = z.strictObject({ search: z.string(), state: z.enum(['open', 'closed']), labels: z.array(z.string()) });
+export interface ListFilter { search: string; state: 'open' | 'closed'; labels: string[] }
+export const defaultListFilter: ListFilter = { search: '', state: 'open', labels: [] };
+export const listFilterSchema = z.strictObject({ search: z.string(), state: z.enum(['open', 'closed']), labels: z.array(z.string()) });
 /** How many items one list page holds. */
 export const listPageSize = 25;
 
@@ -107,13 +113,13 @@ export interface MergeRequestSummary {
 export interface MergeRequestPage { mergeRequests: MergeRequestSummary[]; next: string | null; labels: IssueLabel[] }
 export type MergeRequestPageResult = { ok: true; page: MergeRequestPage } | ListFailure;
 
-/** An issue another issue relates to; `repository` is its repository's path, which may differ from the bound one. */
+/** An issue another issue relates to; its repository may differ from the bound one. */
 export interface RelatedIssue {
   number: number;
   title: string;
   state: 'open' | 'closed';
   closedAs: IssueClosure | null;
-  repository: string;
+  repository: RepositoryReference;
   url: string;
 }
 export interface MergeRequestReference {
@@ -206,16 +212,21 @@ export type DirectActionResult = { ok: true } | { ok: false; failure: PlatformFa
 
 /** An issue or merge request of a repository, as a link names it. */
 export interface RepositoryItem { kind: 'issue' | 'mergeRequest'; number: number }
-const itemLinks: Record<PlatformId, (path: string, url: URL) => RepositoryItem | null> = {
-  github(path, url) {
-    if (url.hostname.toLowerCase() !== 'github.com') return null;
-    const match = /^\/([^/]+\/[^/]+)\/(issues|pull)\/(\d+)\/?$/.exec(url.pathname);
-    if (!match || match[1].toLowerCase() !== path.toLowerCase()) return null;
-    return { kind: match[2] === 'issues' ? 'issue' : 'mergeRequest', number: Number(match[3]) };
-  },
-};
+/** The platform's web page of the repository's issue or merge request. */
+export function itemUrl(repository: RepositoryReference, item: RepositoryItem): string {
+  const { host, itemPaths } = platformDescriptions[repository.platform];
+  return `https://${host}/${repository.path}/${itemPaths[item.kind]}/${item.number}`;
+}
 /** The repository's issue or merge request a link points to, or null for any other link. */
 export function repositoryItem(repository: RepositoryReference, href: string): RepositoryItem | null {
+  const { host, itemPaths } = platformDescriptions[repository.platform];
   const url = URL.parse(href);
-  return url && /^https?:$/.test(url.protocol) ? itemLinks[repository.platform](repository.path, url) : null;
+  if (!url || !/^https?:$/.test(url.protocol) || url.hostname.toLowerCase() !== host) return null;
+  const prefix = `/${repository.path.toLowerCase()}/`;
+  const path = url.pathname.replace(/\/$/, '');
+  if (!path.toLowerCase().startsWith(prefix)) return null;
+  const rest = path.slice(prefix.length);
+  const number = rest.slice(rest.lastIndexOf('/') + 1);
+  const kind = (['issue', 'mergeRequest'] as const).find(kind => rest === `${itemPaths[kind]}/${number}`);
+  return kind && /^\d+$/.test(number) ? { kind, number: Number(number) } : null;
 }

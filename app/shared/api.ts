@@ -1,7 +1,7 @@
 import type { IssueSidebarPreferences, NavigationPreferences, AgentType, CommandCheck, DirectoryResult, Layout, ProjectCreation, PanelCreation, ProjectDraft, ProjectEdit, ProjectEditResult, Settings, Snapshot, WorkbenchEvent } from './model';
 import type { SettingsSaveResult } from './settings';
 import type { DispatchRequest } from './dispatch';
-import type { DirectAction, DirectActionResult, IssueDetailResult, IssueFilter, IssuePageResult, MergeRequestDetailResult, MergeRequestPageResult, RepositoryChoices, RepositoryReference } from './code-hosting';
+import type { DirectAction, DirectActionResult, IssueDetailResult, ListFilter, IssuePageResult, MergeRequestDetailResult, MergeRequestPageResult, RepositoryChoices, RepositoryReference } from './code-hosting';
 
 export interface DesktopAPI {
   snapshot(): Promise<Snapshot>;
@@ -13,12 +13,12 @@ export interface DesktopAPI {
   /** Binds one of the project's repository choices; null removes the binding. */
   bindRepository(projectId: string, repository: RepositoryReference | null): Promise<void>;
   /** One page of the issues of the project's bound repository, or why the platform could not read it; a null cursor reads the first page. */
-  issuePage(projectId: string, filter: IssueFilter, cursor: string | null): Promise<IssuePageResult>;
+  issuePage(projectId: string, filter: ListFilter, cursor: string | null): Promise<IssuePageResult>;
   /** Pastes an instruction for an issue of the bound repository into a panel's terminal and records the dispatch on its session.
    * A dispatch to a new panel resolves with the panel added to the tray and its launch; one to an existing panel with null. */
   dispatch(projectId: string, request: DispatchRequest): Promise<PanelCreation | null>;
   /** One page of the merge requests of the project's bound repository, as `issuePage` reads issues. */
-  mergeRequestPage(projectId: string, filter: IssueFilter, cursor: string | null): Promise<MergeRequestPageResult>;
+  mergeRequestPage(projectId: string, filter: ListFilter, cursor: string | null): Promise<MergeRequestPageResult>;
   /** The bound repository's issue with that number, with its comments and relations, or why the platform could not read it. */
   issueDetail(projectId: string, number: number): Promise<IssueDetailResult>;
   /** The bound repository's merge request with that number, with its conversation and merge state, or why the platform could not read it. */

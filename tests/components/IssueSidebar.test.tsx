@@ -6,7 +6,7 @@ import { userEvent } from '@testing-library/user-event';
 import { App } from '../../app/renderer/Workbench';
 import { defaultSettings } from '../../app/shared/settings';
 import type { IssueSidebarPreferences, ProjectView, Snapshot, WorkbenchEvent } from '../../app/shared/model';
-import type { IssuePageResult, RepositoryChoices } from '../../app/shared/code-hosting';
+import { platformDescriptions, type IssuePageResult, type RepositoryChoices } from '../../app/shared/code-hosting';
 import { deferred, provideWorkbench } from './support/workbench';
 
 afterEach(cleanup);
@@ -103,7 +103,7 @@ test('binding a repository from the empty state opens the project editor with fo
   const dialog = screen.getByRole('dialog', { name: 'Edit project' });
   assert.equal((within(dialog).getByRole('textbox', { name: 'Project name' }) as HTMLInputElement).value, 'Unbound project');
   assert.equal(document.activeElement, within(dialog).getByRole('status', { name: 'Repository' }));
-  choices.resolve({ ok: true, platform: { id: 'github', name: 'GitHub', installUrl: '', signInCommand: '', capabilities: [] }, account: 'octo',
+  choices.resolve({ ok: true, platform: { ...platformDescriptions.github, capabilities: [] }, account: 'octo',
     repositories: [{ platform: 'github', path: 'octo/app' }], suggested: null });
   const field = await within(dialog).findByRole('combobox', { name: 'Repository' });
   assert.equal(document.activeElement, field);

@@ -85,7 +85,7 @@ async function renderSidebar() {
 test('a pull request row opens its detail, whose header leads with title, state, branches, the changes link, labels and the issues it closes', async () => {
   const { user, sidebar, openPullRequest, issueReads, next } = await renderSidebar();
   const shown = await openPullRequest(detail(10, { title: 'Fix the bug', head: 'fork:fix', base: 'main', labels: [{ name: 'bug', color: 'd73a4a' }],
-    closingIssues: [{ number: 3, title: 'Issue 3', state: 'open', closedAs: null, repository: 'octo/app', url: 'https://github.com/octo/app/issues/3' }] }));
+    closingIssues: [{ number: 3, title: 'Issue 3', state: 'open', closedAs: null, repository: { platform: 'github', path: 'octo/app' }, url: 'https://github.com/octo/app/issues/3' }] }));
   assert.equal(within(sidebar()).getByRole('listitem', { name: '#10 Change 10' }).getAttribute('aria-current'), 'true');
   const header = shown.querySelector('.merge-request-header')!;
   assert.deepEqual([...header.children].map(part => part.className), ['issue-detail-title', 'issue-detail-meta', 'issue-detail-labels', 'merge-request-closes']);

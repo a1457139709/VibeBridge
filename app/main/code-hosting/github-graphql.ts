@@ -55,7 +55,7 @@ export const pullRequestStates = { OPEN: 'open', CLOSED: 'closed', MERGED: 'merg
 export const relatedIssueFields = `number title state stateReason url repository { nameWithOwner }`;
 export interface RelatedIssueNode { number: number; title: string; state: 'OPEN' | 'CLOSED'; stateReason: string | null; url: string; repository: { nameWithOwner: string } }
 export const relatedIssue = (node: RelatedIssueNode): RelatedIssue => ({ number: node.number, title: node.title, state: node.state === 'OPEN' ? 'open' : 'closed',
-  closedAs: closure(node.state, node.stateReason), repository: node.repository.nameWithOwner, url: node.url });
+  closedAs: closure(node.state, node.stateReason), repository: { platform: description.id, path: node.repository.nameWithOwner }, url: node.url });
 
 export const commentFields = `author { login } createdAt bodyHTML`;
 export interface CommentNode { author: { login: string } | null; createdAt: string; bodyHTML: string }

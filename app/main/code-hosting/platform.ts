@@ -1,4 +1,4 @@
-import type { DirectAction, IssueDetail, IssueFilter, IssuePage, MergeRequestDetail, MergeRequestPage, PlatformDescription, PlatformFailure, PlatformFailureKind } from '../../shared/code-hosting';
+import type { DirectAction, IssueDetail, ListFilter, IssuePage, MergeRequestDetail, MergeRequestPage, PlatformDescription, PlatformFailure, PlatformFailureKind } from '../../shared/code-hosting';
 
 /** The environment platform CLIs run in: the user's login-shell environment, the one Agent Runs get. */
 export type CommandEnvironment = Record<string, string>;
@@ -13,11 +13,9 @@ export interface CodeHostingPlatform {
   account(environment: CommandEnvironment): Promise<string>;
   /** One page of the repository's issues matching the filter, newest first, filtered by the platform.
    * A null cursor reads the first page; any other is a `next` this method returned. */
-  issues(environment: CommandEnvironment, path: string, filter: IssueFilter, cursor: string | null): Promise<IssuePage>;
-  /** The web page of the repository's issue with this number. */
-  issueUrl(path: string, number: number): string;
+  issues(environment: CommandEnvironment, path: string, filter: ListFilter, cursor: string | null): Promise<IssuePage>;
   /** One page of the repository's merge requests, as `issues` reads issues; closed includes merged. */
-  mergeRequests(environment: CommandEnvironment, path: string, filter: IssueFilter, cursor: string | null): Promise<MergeRequestPage>;
+  mergeRequests(environment: CommandEnvironment, path: string, filter: ListFilter, cursor: string | null): Promise<MergeRequestPage>;
   /** The repository's issue with that number, with its comments and relations. A missing issue throws an unreachable PlatformError. */
   issue(environment: CommandEnvironment, path: string, number: number): Promise<IssueDetail>;
   /** The repository's merge request with that number, with its conversation and merge state. A missing one throws an unreachable PlatformError. */

@@ -1,6 +1,6 @@
 import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from 'react';
 import type { DesktopAPI } from '../shared/api';
-import { defaultIssueFilter, platformDescriptions, type IssueFilter, type IssueLabel, type IssueSummary, type ListFailure, type MergeRequestSummary, type PlatformDescription, type RepositoryReference } from '../shared/code-hosting';
+import { defaultListFilter, platformDescriptions, type ListFilter, type IssueLabel, type IssueSummary, type ListFailure, type MergeRequestSummary, type PlatformDescription, type RepositoryReference } from '../shared/code-hosting';
 import type { Language, PanelCreation, ProjectView } from '../shared/model';
 import type { DispatchLocation, DispatchRequest } from '../shared/dispatch';
 import type { WorkflowSettings } from '../shared/workflows';
@@ -11,13 +11,14 @@ import { useLocalization } from './Localization';
 import { LabelButtons, relativeTime, type DetailOpening } from './list-row-parts';
 import { MergeRequestRow } from './MergeRequestRow';
 import { BlockedMark, IssueStateIcon } from './issue-icons';
-import { PlatformFailureHelp, platformFailureReason } from './platform-failure';
+import { ReadFailureState, useLatestRead, type ReadFailure } from './platform-failure';
 
-export type Tab = 'issues' | 'mergeRequests';
-/** Each tab's search and filters. */
-export type ListFilters = Record<Tab, IssueFilter>;
-export const unfiltered: ListFilters = { issues: defaultIssueFilter, mergeRequests: defaultIssueFilter };
-type Failure = ListFailure | { ok: false; error: string };
+/** The sidebar's lists, one per tab. */
+type SidebarList = 'issues' | 'mergeRequests';
+/** Each list's search and filters. */
+export type ListFilters = Record<SidebarList, ListFilter>;
+export const unfiltered: ListFilters = { issues: defaultListFilter, mergeRequests: defaultListFilter };
+type Failure = ListFailure | ReadFailure;
 
 /**
  * The bound repository's lists. Mounted while the sidebar is open on one project and binding,
@@ -41,10 +42,10 @@ export function IssueLists({ project, repository, changes = 0, refreshed, filter
   api?: Pick<DesktopAPI, 'issuePage' | 'mergeRequestPage' | 'dispatch'>;
 }) {
   const { t, language } = useLocalization();
-  const [tab, setTab] = useState<Tab>('issues');
+  const [tab, setTab] = useState<SidebarList>('issues');
   // The row last focused is the one Tab reaches in the list.
   const [focused, setFocused] = useState<number>();
-  const setFilter = (filter: IssueFilter) => setFilters(current => ({ ...current, [tab]: filter }));
+  const setFilter = (filter: ListFilter) => setFilters(current => ({ ...current, [tab]: filter }));
   const tabs = <div className="issue-tabs" role="tablist">
     {(['issues', 'mergeRequests'] as const).map(id => <button key={id} role="tab" aria-selected={tab === id} onClick={() => setTab(id)}>
       {t(id === 'issues' ? 'issuesTab' : 'mergeRequestsTab')}</button>)}
@@ -88,19 +89,15 @@ interface ListState<Item> {
 }
 
 /** Reads the first page whenever the filter changes and on refresh; later pages append. A request superseded by another is ignored. */
-function useListPages<Item>(filter: IssueFilter, changes: number, refreshed: () => void, load: (filter: IssueFilter, cursor: string | null) => Promise<ListResult<Item>>) {
+function useListPages<Item>(filter: ListFilter, changes: number, refreshed: () => void, load: (filter: ListFilter, cursor: string | null) => Promise<ListResult<Item>>) {
   const [state, setState] = useState<ListState<Item>>({ loading: 'refresh' });
-  const latest = useRef(0);
+  const latestRead = useLatestRead();
   const read = (cursor: string | null) => {
-    const request = ++latest.current;
     if (!cursor) refreshed();
     setState(current => ({ ...current, loading: cursor ? 'more' : 'refresh' }));
-    load(filter, cursor).then(result => result, (error: Error) => ({ ok: false, error: error.message }) as const).then(result => {
-      if (request !== latest.current) return;
-      setState(current => result.ok
-        ? { loading: null, page: cursor && current.page ? { ...result.page, items: [...current.page.items, ...result.page.items] } : result.page }
-        : { ...current, loading: null, failure: result });
-    });
+    latestRead(load(filter, cursor), result => setState(current => result.ok
+      ? { loading: null, page: cursor && current.page ? { ...result.page, items: [...current.page.items, ...result.page.items] } : result.page }
+      : { ...current, loading: null, failure: result }));
   };
   useEffect(() => { read(null); }, [filter, changes]);
   return { ...state, refresh: () => read(null), more: () => { if (state.page?.next) read(state.page.next); } };
@@ -108,8 +105,8 @@ function useListPages<Item>(filter: IssueFilter, changes: number, refreshed: () 
 
 /** One tab's list: refresh, filters, rows, paging and the failure states, the same for every kind of item. */
 function ListTab<Item>({ tabs, filter, setFilter, load, rows, search, empty, repository, changeBinding, changes, refreshed }: {
-  tabs: ReactNode; filter: IssueFilter; setFilter(filter: IssueFilter): void; repository: RepositoryReference; changeBinding(): void; changes: number; refreshed(): void;
-  load(filter: IssueFilter, cursor: string | null): Promise<ListResult<Item>>;
+  tabs: ReactNode; filter: ListFilter; setFilter(filter: ListFilter): void; repository: RepositoryReference; changeBinding(): void; changes: number; refreshed(): void;
+  load(filter: ListFilter, cursor: string | null): Promise<ListResult<Item>>;
   rows(items: Item[], addLabel: (name: string) => void, refresh: () => void): ReactNode; search: string; empty: string;
 }) {
   const { t } = useLocalization();
@@ -150,7 +147,7 @@ function RefreshButton({ busy, disabled = busy, onClick }: { busy: boolean; disa
 }
 
 /** The search is sent when Enter is pressed; the state and labels apply at once. */
-function FilterBar({ filter, setFilter, labels, search }: { filter: IssueFilter; setFilter(filter: IssueFilter): void; labels: IssueLabel[]; search: string }) {
+function FilterBar({ filter, setFilter, labels, search }: { filter: ListFilter; setFilter(filter: ListFilter): void; labels: IssueLabel[]; search: string }) {
   const { t } = useLocalization();
   const [draft, setDraft] = useState(filter.search);
   const [menu, setMenu] = useState(false);
@@ -250,13 +247,9 @@ function LabelSwatch({ label }: { label: IssueLabel }) {
 
 /** Why the bound repository cannot be listed, filling the sidebar's content area. */
 export function FailureState({ failure, path, retry, changeBinding }: { failure: Failure; path: string; retry(): void; changeBinding(): void }) {
-  const { t, text } = useLocalization();
-  if ('error' in failure) return <div className="issue-sidebar-state" role="alert"><p>{text(failure.error)}</p><button onClick={retry}>{t('retry')}</button></div>;
-  const { platform } = failure.failure;
-  const unreachable = failure.account ? t('repositoryUnreachable', { path, account: failure.account }) : t('repositoryUnreachableAnonymous', { path });
-  return <div className="issue-sidebar-state" role="alert">
-    <p>{platformFailureReason(t, failure.failure, { unreachable, failed: reason => t('listReadFailed', { platform: platform.name, reason }) })}</p>
-    <div className="issue-state-actions"><PlatformFailureHelp failure={failure.failure} /><button onClick={retry}>{t('retry')}</button>
-      {failure.failure.kind === 'unreachable' && <button onClick={changeBinding}>{t('changeBinding')}</button>}</div>
-  </div>;
+  const { t } = useLocalization();
+  const account = 'account' in failure ? failure.account : undefined;
+  const unreachable = account ? t('repositoryUnreachable', { path, account }) : t('repositoryUnreachableAnonymous', { path });
+  return <ReadFailureState failure={failure} unreachable={unreachable} retry={retry}
+    actions={'failure' in failure && failure.failure.kind === 'unreachable' && <button onClick={changeBinding}>{t('changeBinding')}</button>} />;
 }

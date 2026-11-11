@@ -1,4 +1,4 @@
-import { useLayoutEffect, useRef, type CSSProperties, type KeyboardEvent } from 'react';
+import { useLayoutEffect, useRef, type KeyboardEvent } from 'react';
 import type { DesktopAPI } from '../shared/api';
 import type { ProjectView } from '../shared/model';
 import type { DispatchLocation } from '../shared/dispatch';
@@ -7,7 +7,7 @@ import { platformDescriptions, repositoryItem, type IssueDetail, type MergeReque
   type RelatedIssue, type RepositoryItem, type RepositoryReference } from '../shared/code-hosting';
 import { useLocalization } from './Localization';
 import { IssueStateIcon } from './issue-icons';
-import { CreatedAt, DetailFailureState, PlatformHtml, followLinks, useDetail } from './detail-parts';
+import { CommentCard, CreatedAt, DetailBar, DetailFailureState, Labels, followLinks, openRelatedIssue, relatedIssueNumber, useDetail } from './detail-parts';
 import { CheckIcon, MergeRequestStateIcon } from './MergeRequestRow';
 import { IssueActions, type DirectActionHost } from './DirectActions';
 import { DispatchMenu, DispatchRecords, issueShortcutKeys, type DispatchMenuActions } from './Dispatch';
@@ -47,11 +47,6 @@ export function IssueDetailView({ project, repository, number, workflows, shortc
   };
   const state = useDetail<IssueDetail>(() => api.issueDetail(projectId, number).then(result => result.ok ? { ok: true as const, item: result.issue } : result), [projectId, number]);
   const menu = useRef<DispatchMenuActions>(null);
-  const platform = platformDescriptions[repository.platform];
-  const openReference = (reference: RelatedIssue) => {
-    if (reference.repository.toLowerCase() === repository.path.toLowerCase()) open({ kind: 'issue', number: reference.number });
-    else window.open(reference.url, '_blank');
-  };
   const openMergeRequest = (request: MergeRequestReference) => {
     const item = repositoryItem(repository, request.url);
     if (item) open(item); else window.open(request.url, '_blank');
@@ -61,11 +56,7 @@ export function IssueDetailView({ project, repository, number, workflows, shortc
   const shortcutKeys = issue && issueShortcutKeys({ issue, records, shortcuts, menu, locate });
   return <section ref={section} tabIndex={-1} className="issue-detail" aria-label={t('issueDetail', { number })} onClick={followLinks(repository, open)}
     onKeyDown={event => { shortcutKeys?.(event); keyDown(event); }}>
-    <header className="issue-detail-bar">
-      <span className="issue-detail-crumb">{t('issueDetail', { number })}</span>
-      {issue && <a href={issue.url} target="_blank" rel="noreferrer">{t('openOnPlatform', { platform: platform.name })}</a>}
-      <button className="issue-detail-close" aria-label={t('closeDetail')} onClick={close}>×</button>
-    </header>
+    <DetailBar label={t('issueDetail', { number })} url={issue?.url} repository={repository} close={close} />
     <div className="issue-detail-scroll">
       {state.failure && !state.loading ? <DetailFailureState failure={state.failure} number={number} retry={state.read} />
         : !issue ? <p className="issue-detail-loading" role="status">{t('loadingIssue')}</p>
@@ -73,8 +64,7 @@ export function IssueDetailView({ project, repository, number, workflows, shortc
           <h2 className="issue-detail-title">{issue.title} <span className="issue-row-number">#{issue.number}</span></h2>
           <div className="issue-detail-head">
             <IssueStateIcon issue={issue} />
-            {issue.labels.map(label =>
-              <span key={label.name} className="issue-label" style={{ '--label-color': `#${label.color}` } as CSSProperties}>{label.name}</span>)}
+            <Labels labels={issue.labels} />
             <DispatchMenu ref={menu} issue={issue} project={project} workflows={workflows} dispatch={request => api.dispatch(projectId, request).then(creation => { host.changed(); return creation; })} filled={locate} />
           </div>
           <div className="issue-detail-meta">
@@ -84,16 +74,10 @@ export function IssueDetailView({ project, repository, number, workflows, shortc
             {!!issue.assignees.length && <span>{t('assignees')} <span>{issue.assignees.join(', ')}</span></span>}
           </div>
           <DispatchRecords issue={issue} records={records} locate={locate} />
-          <RelationGraph issue={issue} repository={repository} open={openReference} />
+          <RelationGraph issue={issue} repository={repository} open={openRelatedIssue(repository, open)} />
           <ClosingMergeRequests mergeRequests={issue.closingMergeRequests} open={openMergeRequest} />
-          <article className="issue-detail-card">
-            <header>{issue.author && <b>{issue.author}</b>} <CreatedAt at={issue.createdAt} /></header>
-            <PlatformHtml html={issue.body} />
-          </article>
-          {issue.comments.map((comment, index) => <article key={index} className="issue-detail-card">
-            <header>{comment.author && <b>{comment.author}</b>} <CreatedAt at={comment.createdAt} /></header>
-            <PlatformHtml html={comment.body} />
-          </article>)}
+          <CommentCard author={issue.author} at={issue.createdAt} body={issue.body} />
+          {issue.comments.map((comment, index) => <CommentCard key={index} author={comment.author} at={comment.createdAt} body={comment.body} />)}
           <IssueActions projectId={projectId} issue={issue} host={{ ...host, changed: () => { state.read(); host.changed(); } }} api={api} />
         </>}
     </div>
@@ -124,11 +108,11 @@ function RelationGraph({ issue, repository, open }: { issue: IssueDetail; reposi
   const edge = (kind: RelationKind) => kind === 'parent' || kind === 'subIssue' ? 'relation-edge-parent' : 'relation-edge-blocks';
   const column = (nodes: typeof left, side: 'left' | 'right') => nodes.map(({ kind, reference }, index) => {
     const label = `${t(relationNames[kind])}: #${reference.number} ${reference.title}`;
-    const own = reference.repository.toLowerCase() === repository.path.toLowerCase();
-    return <button key={`${kind}:${reference.repository}#${reference.number}`} className={`relation-node relation-node-${side} relation-${kind}`} aria-label={label} title={label}
+    const shownNumber = relatedIssueNumber(reference, repository);
+    return <button key={`${kind}:${reference.repository.path}#${reference.number}`} className={`relation-node relation-node-${side} relation-${kind}`} aria-label={label} title={label}
       style={{ top: centre(index, nodes.length) - rowHeight / 2 + 2 }} onClick={() => open(reference)}>
       <IssueStateIcon issue={reference} />
-      <span className="issue-row-number">{own ? '' : reference.repository}#{reference.number}</span>
+      <span className="issue-row-number">{shownNumber}</span>
       <span className="relation-title">{reference.title}</span>
     </button>;
   });

@@ -59,8 +59,8 @@ test('a merge request detail holds its branches, body, comments, review summarie
         url: 'https://github.com/octo/app/pull/10#pullrequestreview-3' },
     ],
     closingIssues: [
-      { number: 1, title: 'Broken', state: 'open', closedAs: null, repository: 'octo/app', url: 'https://github.com/octo/app/issues/1' },
-      { number: 2, title: 'Issue 2', state: 'closed', closedAs: 'completed', repository: 'octo/app', url: 'https://github.com/octo/app/issues/2' },
+      { number: 1, title: 'Broken', state: 'open', closedAs: null, repository: { platform: 'github', path: 'octo/app' }, url: 'https://github.com/octo/app/issues/1' },
+      { number: 2, title: 'Issue 2', state: 'closed', closedAs: 'completed', repository: { platform: 'github', path: 'octo/app' }, url: 'https://github.com/octo/app/issues/2' },
     ],
     writable: true,
   });

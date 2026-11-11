@@ -2,7 +2,7 @@ import test, { type TestContext } from 'node:test';
 import assert from 'node:assert/strict';
 import { resolve } from 'node:path';
 import { Workbench } from '../app/main/workbench';
-import { defaultIssueFilter, type IssueFilter, type IssuePageResult } from '../app/shared/code-hosting';
+import { defaultListFilter, type ListFilter, type IssuePageResult } from '../app/shared/code-hosting';
 import { testDirectory } from './support/directory';
 import { ghDouble, type GhIssue, type GhState } from './support/gh-double';
 
@@ -26,7 +26,7 @@ async function boundProject(context: TestContext, scope: string, state: GhState)
   await workbench.saveSettings({ agents });
   const { project } = await workbench.createProject({ name: 'Bound', directory, total: 1, counts: { codex: 1, claude: 0, pi: 0 } });
   await workbench.bindRepository(project.id, { platform: 'github', path: 'octo/app' });
-  const page = (filter: Partial<IssueFilter> = {}, cursor: string | null = null) => workbench.issuePage(project.id, { ...defaultIssueFilter, ...filter }, cursor);
+  const page = (filter: Partial<ListFilter> = {}, cursor: string | null = null) => workbench.issuePage(project.id, { ...defaultListFilter, ...filter }, cursor);
   return { gh, workbench, project, page };
 }
 

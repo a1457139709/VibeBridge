@@ -1,4 +1,4 @@
-import { listPageSize, type IssueFilter, type IssueLabel, type IssueDetail, type IssueSummary, type MergeRequestReference, type MergeRequestSummary } from '../../shared/code-hosting';
+import { listPageSize, type ListFilter, type IssueLabel, type IssueDetail, type IssueSummary, type MergeRequestReference, type MergeRequestSummary } from '../../shared/code-hosting';
 import { PlatformError, type CodeHostingPlatform, type CommandEnvironment } from './platform';
 import { closure, commentFields, conclusions, description, graphql, issueComment, labelFields, listLabels, ownerAndName, pullRequestStates,
   relatedIssue, relatedIssueFields, writable, type CommentNode, type RelatedIssueNode } from './github-graphql';
@@ -13,15 +13,10 @@ interface RepositoriesPage { viewer: { login: string; repositories: { nodes: { n
 
 /** A GitHub remote's `owner/repo`; other hosts and malformed paths give null. */
 function remotePath(url: string): string | null {
-  let path: string | undefined;
-  const scp = /^[^/@:]+@github\.com:(.+)$/i.exec(url);
-  if (scp) path = scp[1];
-  else {
-    try {
-      const parsed = new URL(url);
-      if (parsed.hostname.toLowerCase() === 'github.com') path = parsed.pathname;
-    } catch { return null; }
-  }
+  const scp = /^[^/@:]+@([^/:]+):(.+)$/.exec(url);
+  const parsed = scp ? null : URL.parse(url);
+  const [host, path] = scp ? [scp[1], scp[2]] : [parsed?.hostname, parsed?.pathname];
+  if (host?.toLowerCase() !== description.host) return null;
   const match = path && /^\/?([^/]+\/[^/]+?)(?:\.git)?\/?$/.exec(path);
   return match ? match[1] : null;
 }
@@ -46,7 +41,7 @@ interface ListKind<Node, Summary> {
   fragment: string;
   summary(node: Node): Summary;
   /** The filter state the item belongs to. */
-  filterState(summary: Summary): IssueFilter['state'];
+  filterState(summary: Summary): ListFilter['state'];
 }
 
 // Sub-issues and blockers come from their own fields, never from search qualifiers or body text.
@@ -100,7 +95,7 @@ const quoted = (value: string) => `"${value.replaceAll('"', '')}"`;
 
 /** The item whose number the search names, when it is of the list's type and matches the rest of the filter. */
 async function byNumber<Node, Summary extends { labels: IssueLabel[] }>(environment: CommandEnvironment, owner: string, name: string,
-  number: number, filter: IssueFilter, kind: ListKind<Node, Summary>): Promise<Summary | null> {
+  number: number, filter: ListFilter, kind: ListKind<Node, Summary>): Promise<Summary | null> {
   let node: SearchNode<Node> | null;
   try {
     ({ repository: { issueOrPullRequest: node } } = await graphql<{ repository: { issueOrPullRequest: SearchNode<Node> | null } }>(
@@ -118,7 +113,7 @@ async function byNumber<Node, Summary extends { labels: IssueLabel[] }>(environm
 
 /** One page of a list, newest first, filtered by GitHub's search. */
 async function list<Node, Summary extends { number: number; labels: IssueLabel[] }>(environment: CommandEnvironment, path: string,
-  filter: IssueFilter, cursor: string | null, kind: ListKind<Node, Summary>) {
+  filter: ListFilter, cursor: string | null, kind: ListKind<Node, Summary>) {
   const { owner, name } = ownerAndName(path);
   const search = filter.search.trim();
   const number = /^#?(\d+)$/.exec(search);
@@ -214,6 +209,5 @@ export const github: CodeHostingPlatform = {
   },
   mergeRequest,
   act,
-  issueUrl: (path, number) => `https://github.com/${path}/issues/${number}`,
   remotePath,
 };

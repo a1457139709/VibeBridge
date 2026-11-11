@@ -4,7 +4,8 @@ const { writeGhDoubleScripts } = require('../../support/gh-double-scripts.cjs');
 
 // Puts the `gh` CLI double first on the product's PATH, answering from `state`. The Workbench reads commands
 // from the user's login shell, so SHELL becomes a double that reports this process's environment.
-// Call it before anything reads a platform, in the suite's data directory.
+// Call it before anything reads a platform, in the suite's data directory. PATH and SHELL stay replaced until the
+// suite ends, which ends its process: the desktop runner starts every suite in an Electron process of its own.
 module.exports = async (directory, state) => {
   const bin = join(directory, 'gh-double');
   await mkdir(bin, { recursive: true });

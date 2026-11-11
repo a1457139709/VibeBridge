@@ -6,12 +6,12 @@ import { userEvent } from '@testing-library/user-event';
 import { ProjectNavigationItem } from '../../app/renderer/ProjectManagement';
 import { Localization } from '../../app/renderer/Localization';
 import type { ProjectView } from '../../app/shared/model';
-import type { PlatformDescription, RepositoryChoices, RepositoryReference } from '../../app/shared/code-hosting';
+import { platformDescriptions, type PlatformDescription, type RepositoryChoices, type RepositoryReference } from '../../app/shared/code-hosting';
 import { provideWorkbench } from './support/workbench';
 
 afterEach(cleanup);
 
-const github: PlatformDescription = { id: 'github', name: 'GitHub', installUrl: 'https://cli.github.com', signInCommand: 'gh auth login', capabilities: [] };
+const github: PlatformDescription = { ...platformDescriptions.github, capabilities: [] };
 const repository = (path: string): RepositoryReference => ({ platform: 'github', path });
 const listed = (suggested: string | null): RepositoryChoices => ({ ok: true, platform: github, account: 'octo',
   repositories: ['octo/app', 'octo/docs', 'acme/platform'].map(repository), suggested: suggested ? repository(suggested) : null });

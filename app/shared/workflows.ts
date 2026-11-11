@@ -12,6 +12,12 @@ export const defaultDelivery: Delivery = 'submit';
 export interface WorkflowSetting { enabled: boolean; instructions: Record<string, { delivery: Delivery }> }
 export type WorkflowSettings = Record<string, WorkflowSetting>;
 
+/** How the instruction is delivered under these settings; `invert` swaps submit and fill for one dispatch. */
+export function instructionDelivery(settings: WorkflowSettings, workflow: string, instruction: string, invert = false): Delivery {
+  const configured = settings[workflow]?.instructions[instruction]?.delivery ?? defaultDelivery;
+  return invert ? (configured === 'submit' ? 'fill' : 'submit') : configured;
+}
+
 /** The values a template may use; `url` is the issue's HTML URL in the bound repository. */
 export interface InstructionValues { url: string; number: number; title: string }
 
