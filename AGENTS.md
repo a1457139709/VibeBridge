@@ -12,9 +12,9 @@ Before writing, changing, or reviewing code or tests, read `CODING_STANDARDS.md`
 
 ### Prototype scope
 
-Use prototypes only to imitate their visible UI and frontend interactions. Implement production code independently from the approved specification, issue resolutions, and architecture decisions.
+Treat the prototype as the authority on visible UI and frontend interaction: layout, styling, copy, and interaction behavior. Production frontend code may start from the prototype's components and styles, wired to the data interfaces the specification defines. Deviate from the prototype only where a real implementation constraint requires it, such as paging a long list, and record each deviation in the spec or ticket.
 
-Never reuse, copy, adapt, or import prototype code, including frontend code. Never reuse prototype software design, architecture, component structure, data models, or implementation patterns. Prototype behavior and code are not evidence for backend behavior, process management, communication, state ownership, or lifecycle rules.
+Derive backend behavior, process management, communication, state ownership, data models, and lifecycle rules from the approved specification, issue resolutions, and architecture decisions. Prototype code and behavior are not evidence for these.
 
 ### Issue tracker
 
