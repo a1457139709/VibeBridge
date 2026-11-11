@@ -81,7 +81,10 @@ test('the merge state holds the review decision, every check with whether it is 
       ],
     }), pullRequest(11, { reviewDecision: null, mergeable: 'UNKNOWN' }),
     pullRequest(12, { mergeStateStatus: 'BLOCKED', viewerCanEnableAutoMerge: true }),
-    pullRequest(13, { mergeStateStatus: 'UNSTABLE', viewerCanEnableAutoMerge: true })],
+    pullRequest(13, { mergeStateStatus: 'UNSTABLE', viewerCanEnableAutoMerge: true }),
+    pullRequest(14, { mergeStateStatus: 'BLOCKED', viewerCanEnableAutoMerge: true, reviewDecision: 'REVIEW_REQUIRED' }),
+    pullRequest(15, { mergeStateStatus: 'BLOCKED', viewerCanEnableAutoMerge: true,
+      checkContexts: [{ kind: 'run', name: 'build', status: 'IN_PROGRESS', conclusion: null, required: true, url: null }] })],
   });
   assert.deepEqual(detail(await f.detail(10)).merge, {
     review: 'reviewRequired',
@@ -98,6 +101,8 @@ test('the merge state holds the review decision, every check with whether it is 
     'a mergeability GitHub has not worked out yet is no conflict');
   assert.equal(detail(await f.detail(12)).merge.mergeThrough, 'autoMerge', 'branch protection blocks a direct merge and GitHub offers auto-merge instead');
   assert.equal(detail(await f.detail(13)).merge.mergeThrough, null, 'auto-merge being available does not stop a merge GitHub would take directly');
+  assert.equal(detail(await f.detail(14)).merge.mergeThrough, null, 'a merge blocked by a missing review waits on the review, not on auto-merge');
+  assert.equal(detail(await f.detail(15)).merge.mergeThrough, null, 'a merge blocked by a running required check waits on the check, not on auto-merge');
 });
 
 test('a merge request detail tells a missing merge request and platform failures apart', async context => {

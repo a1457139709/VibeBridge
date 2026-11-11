@@ -178,6 +178,20 @@ export interface MergeState {
   /** Null when it can merge directly. */
   mergeThrough: MergeRoute | null;
 }
+/** Something visible that keeps the platform from merging a merge request. */
+export type MergeBlocker = 'draft' | 'conflicts' | 'reviewRequired' | 'changesRequested' | 'checksFailing' | 'checksPending';
+/** What keeps the platform from merging it, in the merge area's order. Checks count when required, or all of them where the platform marks none. */
+export function mergeBlockers(draft: boolean, { review, checks, conflicting }: Pick<MergeState, 'review' | 'checks' | 'conflicting'>,
+  platform: PlatformDescription): MergeBlocker[] {
+  const counted = platform.capabilities.includes('requiredChecks') ? checks.filter(check => check.required) : checks;
+  return ([
+    draft && 'draft',
+    conflicting && 'conflicts',
+    review === 'reviewRequired' && 'reviewRequired',
+    review === 'changesRequested' && 'changesRequested',
+    counted.some(check => check.conclusion === 'failing') ? 'checksFailing' : counted.some(check => check.conclusion === 'pending') && 'checksPending',
+  ] as const).filter((blocker): blocker is MergeBlocker => blocker !== false);
+}
 /** What a merge request's detail shows. It has no diff, change counts or reviewer list. */
 export interface MergeRequestDetail extends Omit<MergeRequestSummary, 'checks'> {
   /** Branch names; a head branch in another repository is prefixed with that repository's owner. */

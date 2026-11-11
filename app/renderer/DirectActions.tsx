@@ -1,6 +1,6 @@
 import { useEffect, useState, type ReactNode } from 'react';
 import type { DesktopAPI } from '../shared/api';
-import { platformDescriptions, type DirectAction, type IssueDetail, type MergeMethod, type MergeRequestDetail, type PlatformDescription,
+import { mergeBlockers, platformDescriptions, type DirectAction, type IssueDetail, type MergeMethod, type MergeRequestDetail,
   type PlatformFailure, type RepositoryReference } from '../shared/code-hosting';
 import { useLocalization } from './Localization';
 import { platformFailureReason } from './platform-failure';
@@ -83,19 +83,10 @@ export function IssueActions({ projectId, issue, host, api = window.workbench }:
 const methodNames = { merge: 'mergeWithMerge', squash: 'mergeWithSquash', rebase: 'mergeWithRebase' } as const;
 const routeNames = { mergeQueue: 'mergeThroughQueue', autoMerge: 'mergeThroughAutoMerge' } as const;
 
-/** What keeps the platform from merging it, in the merge area's order. Checks count when required, or all of them where the platform marks none. */
-function blockers(request: MergeRequestDetail, platform: PlatformDescription) {
-  const { review, checks, conflicting } = request.merge;
-  const counted = platform.capabilities.includes('requiredChecks') ? checks.filter(check => check.required) : checks;
-  return ([
-    request.draft && 'mergeDraft',
-    conflicting && 'mergeBlockedConflicts',
-    review === 'reviewRequired' && 'mergeBlockedReview',
-    review === 'changesRequested' && 'mergeBlockedChangesRequested',
-    counted.some(check => check.conclusion === 'failing') ? 'mergeBlockedChecksFailing'
-      : counted.some(check => check.conclusion === 'pending') && 'mergeBlockedChecksPending',
-  ] as const).filter((reason): reason is Exclude<typeof reason, false> => reason !== false);
-}
+const blockerNames = {
+  draft: 'mergeDraft', conflicts: 'mergeBlockedConflicts', reviewRequired: 'mergeBlockedReview', changesRequested: 'mergeBlockedChangesRequested',
+  checksFailing: 'mergeBlockedChecksFailing', checksPending: 'mergeBlockedChecksPending',
+} as const;
 
 /**
  * Merging an open merge request in two clicks with one of the repository's methods, and closing it; reopening a closed one.
@@ -118,7 +109,7 @@ export function MergeRequestActions({ projectId, repository, request, host, api 
   }
   const platform = platformDescriptions[repository.platform];
   const current = method && merge.methods.includes(method) ? method : merge.methods[0];
-  const reasons = blockers(request, platform);
+  const reasons = mergeBlockers(request.draft, merge, platform).map(blocker => blockerNames[blocker]);
   const blocked = !!reasons.length || !!merge.mergeThrough;
   const mergeAction: DirectAction | undefined = current && { kind: 'mergeMergeRequest', number, method: current };
   return <div className="direct-actions">

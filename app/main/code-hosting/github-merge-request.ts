@@ -1,4 +1,5 @@
-import type { Check, IssueLabel, MergeMethod, MergeRequestDetail, MergeRoute, MergeRequestReview, ReviewDecision, ReviewState } from '../../shared/code-hosting';
+import { mergeBlockers, type Check, type IssueLabel, type MergeMethod, type MergeRequestDetail, type MergeRoute, type MergeRequestReview, type MergeState,
+  type ReviewDecision, type ReviewState } from '../../shared/code-hosting';
 import { PlatformError, type CommandEnvironment } from './platform';
 import { commentFields, description, graphql, issueComment, labelFields, listLabels, ownerAndName, pullRequestStates, relatedIssue, relatedIssueFields, writable,
   type CommentNode, type PageInfo, type RelatedIssueNode } from './github-graphql';
@@ -41,12 +42,14 @@ const statusConclusions = { SUCCESS: 'passing', FAILURE: 'failing', ERROR: 'fail
 
 /**
  * A base branch with a merge queue merges only through it. Otherwise GitHub has no setting that requires auto-merge;
- * what it reads as such is branch protection blocking a direct merge (BLOCKED) while it offers this viewer auto-merge
- * instead, which is the route its own merge box then offers.
+ * what it reads as such is branch protection blocking a direct merge (BLOCKED) for none of the reasons the merge area
+ * shows, while it offers this viewer auto-merge instead, which is the route its own merge box then offers. A merge
+ * blocked by a review, a check, a conflict or a draft waits on that instead.
  */
-function mergeThrough(node: PullRequestDetailNode): MergeRoute | null {
+function mergeThrough(node: PullRequestDetailNode, merge: Omit<MergeState, 'mergeThrough'>): MergeRoute | null {
   if (node.isMergeQueueEnabled) return 'mergeQueue';
-  return node.mergeStateStatus === 'BLOCKED' && node.viewerCanEnableAutoMerge ? 'autoMerge' : null;
+  const unexplained = node.mergeStateStatus === 'BLOCKED' && !mergeBlockers(node.isDraft, merge, description).length;
+  return unexplained && node.viewerCanEnableAutoMerge ? 'autoMerge' : null;
 }
 
 /** Check runs report a status and, once completed, a conclusion; commit statuses report one state. */
@@ -87,11 +90,12 @@ export async function mergeRequest(environment: CommandEnvironment, path: string
   }
   const methods: MergeMethod[] = [...(repository.mergeCommitAllowed ? ['merge' as const] : []), ...(repository.squashMergeAllowed ? ['squash' as const] : []),
     ...(repository.rebaseMergeAllowed ? ['rebase' as const] : [])];
+  const merge = { review: decisions[node.reviewDecision ?? ''] ?? null, checks: (node.commits.nodes[0]?.commit.statusCheckRollup?.contexts.nodes ?? []).map(check),
+    conflicting: node.mergeable === 'CONFLICTING', methods };
   const head = node.isCrossRepository && node.headRepositoryOwner ? `${node.headRepositoryOwner.login}:${node.headRefName}` : node.headRefName;
   return { number: node.number, title: node.title, state: pullRequestStates[node.state], draft: node.isDraft, author: node.author?.login ?? null,
     createdAt: node.createdAt, labels: listLabels(node.labels), url: node.url, changesUrl: `${node.url}/files`,
     head, base: node.baseRefName, body: node.bodyHTML, comments: comments.map(issueComment), reviews: reviews(reviewNodes),
     closingIssues: node.closingIssuesReferences.nodes.map(relatedIssue),
-    merge: { review: decisions[node.reviewDecision ?? ''] ?? null, checks: (node.commits.nodes[0]?.commit.statusCheckRollup?.contexts.nodes ?? []).map(check),
-      conflicting: node.mergeable === 'CONFLICTING', methods, mergeThrough: mergeThrough(node) }, writable: writable(repository.viewerPermission) };
+    merge: { ...merge, mergeThrough: mergeThrough(node, merge) }, writable: writable(repository.viewerPermission) };
 }
