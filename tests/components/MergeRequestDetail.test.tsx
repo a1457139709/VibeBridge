@@ -31,11 +31,11 @@ const mergeState = (extra: Partial<MergeState> = {}): MergeState => ({ review: n
 const detail = (number: number, extra: Partial<MergeRequestDetail> = {}): MergeRequestDetail => {
   const { checks: _checks, ...rest } = summary(number);
   return { ...rest, head: 'feature', base: 'main', changesUrl: `https://github.com/octo/app/pull/${number}/files`, body: '<p>Body</p>',
-    comments: [], reviews: [], closingIssues: [], merge: mergeState(), ...extra };
+    comments: [], reviews: [], closingIssues: [], merge: mergeState(), writable: false, ...extra };
 };
 const issue = (number: number, extra: Partial<IssueDetail> = {}): IssueDetail => ({ number, title: `Issue ${number}`, state: 'open', closedAs: null,
   createdAt: '2026-11-01T00:00:00Z', labels: [], url: `https://github.com/octo/app/issues/${number}`, author: 'mona', assignees: [], body: '<p>Issue body</p>',
-  commentCount: 0, comments: [], parent: null, subIssues: [], blockedBy: [], blocking: [], closingMergeRequests: [], ...extra });
+  commentCount: 0, comments: [], parent: null, subIssues: [], blockedBy: [], blocking: [], closingMergeRequests: [], writable: false, ...extra });
 
 interface Read<Result> { number: number; answer(result: Result): void }
 

@@ -1,5 +1,6 @@
 import type { english } from './en';
 import { chineseMergeRequestDetail } from './merge-request-detail';
+import { chineseDirectActions } from './direct-actions';
 
 export const chinese: Record<keyof typeof english, string> = {
   swapPreview: '交换预览：{first} 与 {second}', draggingPanel: '拖动中的 {agent} 面板',
@@ -173,6 +174,7 @@ export const chinese: Record<keyof typeof english, string> = {
   "navigationInvalid": "导航偏好无效",
   "issueFilterInvalid": "issue 列表的筛选条件无效",
   "issueNumberInvalid": "issue 编号无效",
+  "directActionInvalid": "issue 或 PR 操作无效",
   "issueSidebarInvalid": "侧边栏状态无效",
   "projectStorageFailed": "项目保存或读取失败：{reason}",
   "projectStorageClosed": "项目存储已关闭",
@@ -320,4 +322,5 @@ export const chinese: Record<keyof typeof english, string> = {
   "relationBlocking": "阻塞了",
   "closingMergeRequests": "合并后关闭本 issue 的 PR",
   ...chineseMergeRequestDetail,
+  ...chineseDirectActions,
 };

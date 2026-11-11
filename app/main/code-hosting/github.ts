@@ -1,8 +1,9 @@
 import { listPageSize, type IssueFilter, type IssueLabel, type IssueDetail, type IssueSummary, type MergeRequestReference, type MergeRequestSummary } from '../../shared/code-hosting';
 import { PlatformError, type CodeHostingPlatform, type CommandEnvironment } from './platform';
 import { closure, commentFields, conclusions, description, graphql, issueComment, labelFields, listLabels, ownerAndName, pullRequestStates,
-  relatedIssue, relatedIssueFields, type CommentNode, type RelatedIssueNode } from './github-graphql';
+  relatedIssue, relatedIssueFields, writable, type CommentNode, type RelatedIssueNode } from './github-graphql';
 import { mergeRequest } from './github-merge-request';
+import { act } from './github-direct-actions';
 
 const repositoriesQuery = `query($cursor: String) { viewer { login
   repositories(first: 100, after: $cursor, affiliations: [OWNER, COLLABORATOR, ORGANIZATION_MEMBER], ownerAffiliations: [OWNER, COLLABORATOR, ORGANIZATION_MEMBER], orderBy: { field: NAME, direction: ASC }) {
@@ -137,7 +138,7 @@ async function list<Node, Summary extends { number: number; labels: IssueLabel[]
 
 // GitHub leaves closed pull requests out of the closing references unless asked; the detail shows them too.
 const issueDetailQuery = `query($owner: String!, $name: String!, $number: Int!, $comments: String) {
-  repository(owner: $owner, name: $name) { issue(number: $number) { number title state stateReason createdAt url ${labelFields}
+  repository(owner: $owner, name: $name) { viewerPermission issue(number: $number) { number title state stateReason createdAt url ${labelFields}
     author { login } bodyHTML assignees(first: 50) { nodes { login } }
     comments(first: 100, after: $comments) { totalCount nodes { ${commentFields} } pageInfo { hasNextPage endCursor } }
     parent { ${relatedIssueFields} }
@@ -178,10 +179,10 @@ export const github: CodeHostingPlatform = {
   async issue(environment, path, number) {
     const { owner, name } = ownerAndName(path);
     const read = async (cursor: string | null) => {
-      const { repository: { issue } } = await graphql<{ repository: { issue: IssueDetailNode | null } }>(environment, issueDetailQuery,
+      const { repository } = await graphql<{ repository: { viewerPermission: string | null; issue: IssueDetailNode | null } }>(environment, issueDetailQuery,
         { owner, name, number, ...(cursor ? { comments: cursor } : {}) });
-      if (!issue) throw new PlatformError('unreachable', description, `#${number}`);
-      return issue;
+      if (!repository.issue) throw new PlatformError('unreachable', description, `#${number}`);
+      return Object.assign(repository.issue, { permission: repository.viewerPermission });
     };
     const node = await read(null);
     const comments = node.comments.nodes.map(issueComment);
@@ -196,7 +197,7 @@ export const github: CodeHostingPlatform = {
       body: node.bodyHTML, commentCount: node.comments.totalCount, comments,
       parent: node.parent && relatedIssue(node.parent), subIssues: node.subIssues.nodes.map(relatedIssue),
       blockedBy: node.blockedBy.nodes.map(relatedIssue), blocking: node.blocking.nodes.map(relatedIssue),
-      closingMergeRequests: node.closedByPullRequestsReferences.nodes.map(closingMergeRequest) };
+      closingMergeRequests: node.closedByPullRequestsReferences.nodes.map(closingMergeRequest), writable: writable(node.permission) };
     return detail;
   },
   async bindable(environment) {
@@ -212,6 +213,7 @@ export const github: CodeHostingPlatform = {
     return { account, paths };
   },
   mergeRequest,
+  act,
   issueUrl: (path, number) => `https://github.com/${path}/issues/${number}`,
   remotePath,
 };

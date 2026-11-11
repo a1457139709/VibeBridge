@@ -1,9 +1,9 @@
-import type { IssueDetailResult, IssueFilter, IssuePageResult, MergeRequestDetailResult, MergeRequestPageResult, RepositoryChoices, RepositoryReference } from '../../shared/code-hosting';
+import type { DirectAction, DirectActionResult, IssueDetailResult, IssueFilter, IssuePageResult, MergeRequestDetailResult, MergeRequestPageResult, RepositoryChoices, RepositoryReference } from '../../shared/code-hosting';
 import type { Project } from '../../shared/model';
 import { commandEnvironment } from '../../terminal/environment';
 import type { CommandEnvironment } from './platform';
 import { bindableRepository, repositoryChoices } from './binding';
-import { issueDetail, issuePage, mergeRequestDetail, mergeRequestPage } from './issues';
+import { directAction, issueDetail, issuePage, mergeRequestDetail, mergeRequestPage } from './issues';
 
 /** The Code Hosting Platform reads the Workbench makes for its projects. Platform CLIs and git run in the
  * login-shell environment Agent Runs get, read once per Workbench. */
@@ -31,5 +31,9 @@ export class ProjectRepositories {
   /** The project's bound repository's merge request with that number, with its conversation and merge state, read from its platform. */
   async mergeRequestDetail(project: Project, number: number): Promise<MergeRequestDetailResult> {
     return mergeRequestDetail(project.repository, number, await this.commandEnvironment());
+  }
+  /** Takes a direct action on an issue or merge request of the project's bound repository, on its platform. */
+  async directAction(project: Project, action: DirectAction): Promise<DirectActionResult> {
+    return directAction(project.repository, action, await this.commandEnvironment());
   }
 }

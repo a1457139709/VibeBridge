@@ -1,9 +1,11 @@
+import type { ReactNode } from 'react';
 import type { DesktopAPI } from '../shared/api';
 import { platformDescriptions, type Check, type IssueComment, type MergeRequestDetail, type MergeRequestReview, type MergeState, type RelatedIssue,
   type RepositoryItem, type RepositoryReference } from '../shared/code-hosting';
 import { useLocalization } from './Localization';
 import { CreatedAt, DetailFailureState, Labels, PlatformHtml, followLinks, useDetail } from './detail-parts';
 import { CheckIcon, MergeRequestStateIcon } from './MergeRequestRow';
+import { MergeRequestActions, type DirectActionHost } from './DirectActions';
 import './merge-request-detail.css';
 
 /**
@@ -11,15 +13,17 @@ import './merge-request-detail.css';
  * its conversation in time order and, while it is open, the merge area. It shows no diff, change
  * counts or reviewers, and approves nothing.
  */
-export function MergeRequestDetailView({ projectId, repository, number, open, close, api = window.workbench }: {
-  projectId: string; repository: RepositoryReference; number: number; open(item: RepositoryItem): void; close(): void;
-  api?: Pick<DesktopAPI, 'mergeRequestDetail'>;
+export function MergeRequestDetailView({ projectId, repository, number, open, close, host, api = window.workbench }: {
+  projectId: string; repository: RepositoryReference; number: number; open(item: RepositoryItem): void; close(): void; host: DirectActionHost;
+  api?: Pick<DesktopAPI, 'mergeRequestDetail' | 'directAction'>;
 }) {
   const { t } = useLocalization();
   const state = useDetail<MergeRequestDetail>(() => api.mergeRequestDetail(projectId, number)
     .then(result => result.ok ? { ok: true as const, item: result.mergeRequest } : result), [projectId, number]);
   const platform = platformDescriptions[repository.platform];
   const request = state.item?.number === number ? state.item : undefined;
+  const actions = (shown: MergeRequestDetail) => <MergeRequestActions projectId={projectId} repository={repository} request={shown}
+    host={{ ...host, changed: () => { state.read(); host.changed(); } }} api={api} />;
   return <section className="issue-detail" aria-label={t('mergeRequestDetail', { number })} onClick={followLinks(repository, open)}>
     <header className="issue-detail-bar">
       <span className="issue-detail-crumb">{t('mergeRequestDetail', { number })}</span>
@@ -32,7 +36,7 @@ export function MergeRequestDetailView({ projectId, repository, number, open, cl
         : <>
           <Header request={request} repository={repository} open={open} />
           <Conversation request={request} />
-          {request.state === 'open' && <MergeArea request={request} merge={request.merge} repository={repository} />}
+          {request.state === 'open' ? <MergeArea request={request} merge={request.merge} repository={repository}>{actions(request)}</MergeArea> : actions(request)}
         </>}
     </div>
   </section>;
@@ -91,8 +95,8 @@ function Conversation({ request }: { request: MergeRequestDetail }) {
 
 const decisionNames = { approved: 'decisionApproved', changesRequested: 'decisionChangesRequested', reviewRequired: 'decisionReviewRequired' } as const;
 
-/** What stands between the merge request and merging, in order: review, checks, conflicts, draft. */
-function MergeArea({ request, merge, repository }: { request: MergeRequestDetail; merge: MergeState; repository: RepositoryReference }) {
+/** What stands between the merge request and merging, in order: review, checks, conflicts, draft, then the merge and close buttons. */
+function MergeArea({ request, merge, repository, children }: { request: MergeRequestDetail; merge: MergeState; repository: RepositoryReference; children: ReactNode }) {
   const { t } = useLocalization();
   const platform = platformDescriptions[repository.platform];
   const required = platform.capabilities.includes('requiredChecks');
@@ -119,5 +123,6 @@ function MergeArea({ request, merge, repository }: { request: MergeRequestDetail
     </div>}
     {merge.conflicting && <p className="merge-conflicts">{t('mergeConflicts')}</p>}
     {request.draft && <p className="merge-draft">{t('mergeDraft')}</p>}
+    {children}
   </section>;
 }

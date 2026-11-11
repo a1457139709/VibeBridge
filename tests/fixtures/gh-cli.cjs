@@ -1,4 +1,4 @@
-const { readFileSync } = require('node:fs');
+const { readFileSync, writeFileSync } = require('node:fs');
 
 // External CLI double for GitHub's `gh`: answers `gh api graphql` from a state file the test
 // writes, for the viewer, the viewer's repositories, issue and pull request search, and an
@@ -9,6 +9,8 @@ const { readFileSync } = require('node:fs');
 // `gh` does when the API refuses. Repository pages hold at most `pageSize` repositories,
 // whatever the query asks for, so a caller that reads only the first page sees an incomplete
 // list. A repository outside `repositories` is not found, as for an account that cannot see it.
+// Details carry the node `id` and the account's `viewerPermission`. Mutations close, reopen and merge
+// by node id and write the change back to the state file; `actionFailure` refuses every mutation.
 module.exports = function gh(stateFile, args) {
   const state = JSON.parse(readFileSync(stateFile, 'utf8'));
   if (state.failure) {
@@ -25,6 +27,7 @@ module.exports = function gh(stateFile, args) {
   }
   const query = fields.query ?? '';
   if (args[0] !== 'api' || args[1] !== 'graphql' || !query) unsupported(args);
+  if (/^\s*mutation\b/.test(query)) return mutate(stateFile, state, fields, query, args);
   if (query.includes('search(')) return answer(search(state, fields));
   if (query.includes('issueOrPullRequest(')) return answer(issueByNumber(state, fields));
   if (query.includes('issue(number:')) return answer(issueDetail(state, fields, query));
@@ -162,8 +165,8 @@ function issueDetail(state, fields, query) {
   const includeClosed = /includeClosedPrs:\s*true/.test(query);
   const pulls = (issue.closedBy ?? []).map(number => state.pullRequests.find(pull => pull.number === number))
     .filter(pull => includeClosed || pull.state !== 'CLOSED');
-  return { repository: { issue: {
-    ...issueNode(state, path, issue),
+  return { repository: { viewerPermission: state.permission ?? 'WRITE', issue: {
+    ...issueNode(state, path, issue), id: `I_${issue.number}`,
     author: issue.author ? { login: issue.author } : null,
     bodyHTML: issue.bodyHTML ?? '',
     assignees: { nodes: (issue.assignees ?? []).map(login => ({ login })) },
@@ -200,8 +203,9 @@ function pullRequestDetail(state, fields) {
   const methods = state.mergeMethods ?? { merge: true, squash: true, rebase: true };
   const url = `https://github.com/${path}/pull/${request.number}`;
   const contexts = request.checkContexts ?? [];
-  return { repository: { mergeCommitAllowed: methods.merge, squashMergeAllowed: methods.squash, rebaseMergeAllowed: methods.rebase, pullRequest: {
-    ...pullRequestNode(state, path, request),
+  return { repository: { viewerPermission: state.permission ?? 'WRITE',
+    mergeCommitAllowed: methods.merge, squashMergeAllowed: methods.squash, rebaseMergeAllowed: methods.rebase, pullRequest: {
+    ...pullRequestNode(state, path, request), id: `PR_${request.number}`,
     headRefName: request.headRefName ?? 'head', baseRefName: request.baseRefName ?? 'main',
     isCrossRepository: !!request.headOwner, headRepositoryOwner: { login: request.headOwner ?? fields.owner },
     bodyHTML: request.bodyHTML ?? '',
@@ -214,4 +218,30 @@ function pullRequestDetail(state, fields) {
     commits: { nodes: [{ commit: { statusCheckRollup: contexts.length || request.checks
       ? { state: request.checks ?? 'PENDING', contexts: { nodes: contexts.map(checkContext) } } : null } }] },
   } } };
+}
+
+// The mutations the Workbench's direct actions send, applied to the item the node id names.
+function mutate(stateFile, state, fields, query, args) {
+  if (state.actionFailure) {
+    process.stdout.write(state.actionFailure.stdout ?? '');
+    process.stderr.write(state.actionFailure.stderr ?? '');
+    process.exit(state.actionFailure.exit);
+  }
+  const name = /\b(closeIssue|reopenIssue|closePullRequest|reopenPullRequest|mergePullRequest)\(/.exec(query)?.[1];
+  if (!name) unsupported(args);
+  const issue = name.endsWith('Issue');
+  const number = Number(/^(?:I|PR)_(\d+)$/.exec(fields.id ?? '')?.[1]);
+  const item = (issue ? state.issues ?? [] : state.pullRequests ?? []).find(each => each.number === number && fields.id.startsWith(issue ? 'I_' : 'PR_'));
+  if (!item) notFound(name, `Could not resolve to a node with the global id of '${fields.id}'`, { [name]: null });
+  if (name === 'closeIssue') Object.assign(item, { state: 'CLOSED', stateReason: fields.reason ?? 'COMPLETED' });
+  else if (name === 'reopenIssue') Object.assign(item, { state: 'OPEN', stateReason: null });
+  else if (name === 'closePullRequest') item.state = 'CLOSED';
+  else if (name === 'reopenPullRequest') item.state = 'OPEN';
+  else {
+    item.state = 'MERGED';
+    state.merges = [...state.merges ?? [], { number, method: fields.method ?? 'MERGE',
+      headline: query.includes('commitHeadline') ? fields.headline ?? null : null, body: query.includes('commitBody') ? fields.body ?? null : null }];
+  }
+  writeFileSync(stateFile, JSON.stringify(state));
+  answer({ [name]: { clientMutationId: null } });
 }

@@ -18,7 +18,7 @@ const running = (id: string, title: string): PanelView =>
 const detail = (number: number, state: IssueDetail['state'] = 'open'): IssueDetail => ({ number, title: `Issue ${number}`, state,
   closedAs: state === 'closed' ? 'completed' : null, createdAt: '2026-11-01T00:00:00Z', labels: [{ name: 'bug', color: 'd73a4a' }],
   url: `https://github.com/octo/app/issues/${number}`, parent: null, subIssues: [], blockedBy: [], author: 'mona', assignees: [], body: '<p>Body</p>',
-  commentCount: 0, comments: [], blocking: [], closingMergeRequests: [] });
+  commentCount: 0, comments: [], blocking: [], closingMergeRequests: [], writable: false });
 const located = (panelId: string, title: string): DispatchLocation =>
   ({ projectId: 'app', panelId, runId: `run-${panelId}`, ephemeral: false, status: 'busy', title });
 const record = (issue: number, agent: DispatchRecordView['agent'], text: string, location: DispatchLocation | null, minutesAgo: number): DispatchRecordView =>
@@ -36,10 +36,12 @@ async function renderDetail({ shown = detail(7), state = project(), workflows = 
   const api = {
     issueDetail: async (): Promise<IssueDetailResult> => ({ ok: true, issue: shown }),
     dispatch: async (_projectId: string, request: DispatchRequest) => { dispatched.push(request); return null; },
+    directAction: async () => { throw new Error('Unexpected direct action'); },
   };
   render(<Localization language="en">
     <IssueDetailView project={state} repository={state.repository!} number={shown.number} workflows={workflows} shortcuts={defaultShortcuts()}
-      open={() => {}} close={() => {}} returnToList={() => returns.push(shown.number)} locate={location => locations.push(location)} api={api} />
+      open={() => {}} close={() => {}} returnToList={() => returns.push(shown.number)} locate={location => locations.push(location)}
+      host={{ changed() {}, unavailable() {} }} api={api} />
   </Localization>);
   await screen.findByRole('heading', { name: /Issue 7/ });
   return { user: userEvent.setup(), dispatched, locations, returns, region: screen.getByRole('region', { name: 'Issue #7' }) };

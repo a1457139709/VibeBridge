@@ -1,7 +1,7 @@
 import type { IssueSidebarPreferences, NavigationPreferences, AgentType, CommandCheck, DirectoryResult, Layout, ProjectCreation, PanelCreation, ProjectDraft, ProjectEdit, ProjectEditResult, Settings, Snapshot, WorkbenchEvent } from './model';
 import type { SettingsSaveResult } from './settings';
 import type { DispatchRequest } from './dispatch';
-import type { IssueDetailResult, IssueFilter, IssuePageResult, MergeRequestDetailResult, MergeRequestPageResult, RepositoryChoices, RepositoryReference } from './code-hosting';
+import type { DirectAction, DirectActionResult, IssueDetailResult, IssueFilter, IssuePageResult, MergeRequestDetailResult, MergeRequestPageResult, RepositoryChoices, RepositoryReference } from './code-hosting';
 
 export interface DesktopAPI {
   snapshot(): Promise<Snapshot>;
@@ -23,6 +23,8 @@ export interface DesktopAPI {
   issueDetail(projectId: string, number: number): Promise<IssueDetailResult>;
   /** The bound repository's merge request with that number, with its conversation and merge state, or why the platform could not read it. */
   mergeRequestDetail(projectId: string, number: number): Promise<MergeRequestDetailResult>;
+  /** Takes a one-click action on an issue or merge request of the bound repository; the platform's words come back unchanged when it refuses. */
+  directAction(projectId: string, action: DirectAction): Promise<DirectActionResult>;
   inspectDirectory(directory: string): Promise<DirectoryResult>;
   chooseDirectory(): Promise<string | null>;
   activateProject(id: string): Promise<void>;

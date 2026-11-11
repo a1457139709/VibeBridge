@@ -1,4 +1,5 @@
 import { englishMergeRequestDetail } from './merge-request-detail';
+import { englishDirectActions } from './direct-actions';
 
 export const english = {
   'swapPreview': 'Swap preview: {first} and {second}',
@@ -218,6 +219,7 @@ export const english = {
   "navigationInvalid": "Invalid navigation preferences",
   "issueFilterInvalid": "Invalid issue list filter",
   "issueNumberInvalid": "Invalid issue number",
+  "directActionInvalid": "Invalid issue or pull request action",
   "issueSidebarInvalid": "Invalid issue sidebar state",
   "projectStorageFailed": "Could not save or read projects: {reason}",
   "projectStorageClosed": "Project storage is closed",
@@ -365,4 +367,5 @@ export const english = {
   "relationBlocking": "Blocking",
   "closingMergeRequests": "Pull requests that close this issue when merged",
   ...englishMergeRequestDetail,
+  ...englishDirectActions,
 } as const;

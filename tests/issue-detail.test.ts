@@ -64,6 +64,7 @@ test('an issue detail holds its rendered body and every comment, its people, its
       { number: 11, title: 'Merged fix', state: 'merged', draft: false, checks: 'passing', url: 'https://github.com/octo/app/pull/11' },
       { number: 12, title: 'Abandoned fix', state: 'closed', draft: true, checks: null, url: 'https://github.com/octo/app/pull/12' },
     ],
+    writable: true,
   });
   assert.deepEqual(shown.comments, [1, 2, 3].map(day => ({ author: 'hubot', createdAt: `2026-02-0${day}T00:00:00Z`, body: `<p>Comment ${day}</p>` })),
     'comments past the first page are read too');

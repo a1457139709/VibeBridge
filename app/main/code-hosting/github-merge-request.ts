@@ -1,6 +1,6 @@
 import type { Check, IssueLabel, MergeMethod, MergeRequestDetail, MergeRequestReview, ReviewDecision, ReviewState } from '../../shared/code-hosting';
 import { PlatformError, type CommandEnvironment } from './platform';
-import { commentFields, description, graphql, issueComment, labelFields, listLabels, ownerAndName, pullRequestStates, relatedIssue, relatedIssueFields,
+import { commentFields, description, graphql, issueComment, labelFields, listLabels, ownerAndName, pullRequestStates, relatedIssue, relatedIssueFields, writable,
   type CommentNode, type PageInfo, type RelatedIssueNode } from './github-graphql';
 
 // A pull request's detail: the GitHub adapter's reading of a merge request.
@@ -9,7 +9,7 @@ const checkFields = `__typename
   ... on CheckRun { name status conclusion detailsUrl isRequired(pullRequestNumber: $number) }
   ... on StatusContext { context state targetUrl isRequired(pullRequestNumber: $number) }`;
 const query = `query($owner: String!, $name: String!, $number: Int!, $comments: String, $reviews: String) {
-  repository(owner: $owner, name: $name) { mergeCommitAllowed squashMergeAllowed rebaseMergeAllowed
+  repository(owner: $owner, name: $name) { viewerPermission mergeCommitAllowed squashMergeAllowed rebaseMergeAllowed
     pullRequest(number: $number) { number title state isDraft createdAt url author { login } ${labelFields}
       headRefName baseRefName isCrossRepository headRepositoryOwner { login } bodyHTML
       comments(first: 100, after: $comments) { nodes { ${commentFields} } pageInfo { hasNextPage endCursor } }
@@ -31,7 +31,7 @@ interface PullRequestDetailNode {
   reviewDecision: string | null; mergeable: string; isMergeQueueEnabled: boolean;
   commits: { nodes: { commit: { statusCheckRollup: { contexts: { nodes: CheckNode[] } } | null } }[] };
 }
-interface DetailPage { repository: { mergeCommitAllowed: boolean; squashMergeAllowed: boolean; rebaseMergeAllowed: boolean; pullRequest: PullRequestDetailNode | null } }
+interface DetailPage { repository: { viewerPermission: string | null; mergeCommitAllowed: boolean; squashMergeAllowed: boolean; rebaseMergeAllowed: boolean; pullRequest: PullRequestDetailNode | null } }
 
 const decisions: Record<string, ReviewDecision> = { APPROVED: 'approved', CHANGES_REQUESTED: 'changesRequested', REVIEW_REQUIRED: 'reviewRequired' };
 // PENDING is the viewer's own unsubmitted review, which is not part of the conversation yet.
@@ -83,5 +83,5 @@ export async function mergeRequest(environment: CommandEnvironment, path: string
     head, base: node.baseRefName, body: node.bodyHTML, comments: comments.map(issueComment), reviews: reviews(reviewNodes),
     closingIssues: node.closingIssuesReferences.nodes.map(relatedIssue),
     merge: { review: decisions[node.reviewDecision ?? ''] ?? null, checks: (node.commits.nodes[0]?.commit.statusCheckRollup?.contexts.nodes ?? []).map(check),
-      conflicting: node.mergeable === 'CONFLICTING', methods, queue: node.isMergeQueueEnabled } };
+      conflicting: node.mergeable === 'CONFLICTING', methods, queue: node.isMergeQueueEnabled }, writable: writable(repository.viewerPermission) };
 }

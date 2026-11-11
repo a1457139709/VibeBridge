@@ -20,8 +20,10 @@ type Failure = ListFailure | { ok: false; error: string };
  * so opening the sidebar or returning to a project reads afresh from an open, unfiltered list.
  * Each tab keeps its own filters; only the shown tab reads from the platform.
  */
-export function IssueLists({ project, repository, workflows, shortcuts, changeBinding, locate, filled, detail, mergeRequestDetail, api = window.workbench }: {
+export function IssueLists({ project, repository, changes = 0, workflows, shortcuts, changeBinding, locate, filled, detail, mergeRequestDetail, api = window.workbench }: {
   project: ProjectView; repository: RepositoryReference; workflows: WorkflowSettings; shortcuts: Shortcuts; changeBinding(): void;
+  /** Counts the direct actions the platform took; each one refreshes the shown list. */
+  changes?: number;
   /** Shows the panel a dispatch went to. */
   locate(location: DispatchLocation): void;
   /** Shows the panel an instruction was just filled into, with input going to it. */
@@ -42,7 +44,7 @@ export function IssueLists({ project, repository, workflows, shortcuts, changeBi
       {t(id === 'issues' ? 'issuesTab' : 'mergeRequestsTab')}</button>)}
   </div>;
   const platform = platformDescriptions[repository.platform];
-  const common = { tabs, setFilter, repository, changeBinding };
+  const common = { tabs, setFilter, repository, changeBinding, changes };
   return tab === 'issues'
     ? <ListTab key="issues" {...common} filter={filters.issues} search={t('searchIssues')} empty={t('noMatchingIssues')}
       load={(filter, cursor) => api.issuePage(project.id, filter, cursor).then(result => result.ok
@@ -80,7 +82,7 @@ interface ListState<Item> {
 }
 
 /** Reads the first page whenever the filter changes and on refresh; later pages append. A request superseded by another is ignored. */
-function useListPages<Item>(filter: IssueFilter, load: (filter: IssueFilter, cursor: string | null) => Promise<ListResult<Item>>) {
+function useListPages<Item>(filter: IssueFilter, changes: number, load: (filter: IssueFilter, cursor: string | null) => Promise<ListResult<Item>>) {
   const [state, setState] = useState<ListState<Item>>({ loading: 'refresh' });
   const latest = useRef(0);
   const read = (cursor: string | null) => {
@@ -93,18 +95,18 @@ function useListPages<Item>(filter: IssueFilter, load: (filter: IssueFilter, cur
         : { ...current, loading: null, failure: result });
     });
   };
-  useEffect(() => { read(null); }, [filter]);
+  useEffect(() => { read(null); }, [filter, changes]);
   return { ...state, refresh: () => read(null), more: () => { if (state.page?.next) read(state.page.next); } };
 }
 
 /** One tab's list: refresh, filters, rows, paging and the failure states, the same for every kind of item. */
-function ListTab<Item>({ tabs, filter, setFilter, load, rows, search, empty, repository, changeBinding }: {
-  tabs: ReactNode; filter: IssueFilter; setFilter(filter: IssueFilter): void; repository: RepositoryReference; changeBinding(): void;
+function ListTab<Item>({ tabs, filter, setFilter, load, rows, search, empty, repository, changeBinding, changes }: {
+  tabs: ReactNode; filter: IssueFilter; setFilter(filter: IssueFilter): void; repository: RepositoryReference; changeBinding(): void; changes: number;
   load(filter: IssueFilter, cursor: string | null): Promise<ListResult<Item>>;
   rows(items: Item[], addLabel: (name: string) => void, refresh: () => void): ReactNode; search: string; empty: string;
 }) {
   const { t } = useLocalization();
-  const list = useListPages(filter, load);
+  const list = useListPages(filter, changes, load);
   const items = useRef<HTMLDivElement>(null);
   // Focus resting on the sidebar itself, as opening it by shortcut leaves it, enters the list once rows are shown.
   useLayoutEffect(() => {
@@ -239,7 +241,8 @@ function LabelSwatch({ label }: { label: IssueLabel }) {
   return <span className="issue-label-swatch" style={{ background: `#${label.color}` }} />;
 }
 
-function FailureState({ failure, path, retry, changeBinding }: { failure: Failure; path: string; retry(): void; changeBinding(): void }) {
+/** Why the bound repository cannot be listed, filling the sidebar's content area. */
+export function FailureState({ failure, path, retry, changeBinding }: { failure: Failure; path: string; retry(): void; changeBinding(): void }) {
   const { t, text } = useLocalization();
   const [copied, setCopied] = useState(false);
   const retryButton = <button onClick={retry}>{t('retry')}</button>;
