@@ -1,0 +1,25 @@
+/* The dispatch button and its cascading menu: instructions, then targets opening to the left. */
+.dispatch { position: relative; display: flex; flex-direction: column; align-items: flex-end; }
+.dispatch-button { min-height: 22px; padding: 0 8px; font-size: 11px; white-space: nowrap; }
+.dispatch-menu { position: absolute; z-index: 10; top: calc(100% + 4px); right: 0; width: 220px; padding: 4px; border: 1px solid var(--line); border-radius: 8px;
+  background: var(--surface); box-shadow: 0 5px 22px #0002; font-size: 12px; }
+.dispatch-menu hr { margin: 4px 2px; border: 0; border-top: 1px solid var(--line); }
+.dispatch-menu [role='menuitem'] { width: 100%; min-height: 26px; display: flex; align-items: center; gap: 6px; padding: 0 8px; border: 0; background: transparent; text-align: left; }
+.dispatch-menu [role='menuitem']:hover:not(:disabled), .dispatch-menu [role='menuitem'].chosen { background: var(--hover); }
+.dispatch-menu [role='menuitem']:disabled { color: var(--muted); cursor: default; }
+.dispatch-menu code { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; font-family: Menlo, monospace; font-size: 11px; }
+.dispatch-menu small { flex-shrink: 0; color: var(--muted); font-size: 10px; }
+.dispatch-delivery.fill { color: var(--accent); }
+.dispatch-heading { padding: 4px 8px 2px; color: var(--muted); font-size: 10px; font-weight: 600; }
+.dispatch-empty { margin: 6px 8px; color: var(--muted); line-height: 1.5; }
+.dispatch-targets { position: absolute; top: 0; right: calc(100% + 4px); width: 240px; padding: 4px; border: 1px solid var(--line); border-radius: 8px;
+  background: var(--surface); box-shadow: 0 5px 22px #0002; }
+.dispatch-targets .agent-mark { width: 14px; height: 14px; flex-shrink: 0; display: grid; place-items: center; }
+.dispatch-targets .agent-mark svg { width: 14px; height: 14px; }
+.dispatch-target-title { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.dispatch .error-text { max-width: 160px; margin: 4px 0 0; font-size: 11px; text-align: right; }
+/* The row's dispatch status under the button. */
+.issue-dispatch { margin-top: 4px; min-height: 18px; max-width: 140px; display: flex; align-items: center; gap: 4px; padding: 0 4px; border: 0; background: transparent; font-size: 11px; }
+.issue-dispatch .processing-status { width: 14px; height: 14px; flex-shrink: 0; }
+.issue-dispatch-title { max-width: 80px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.issue-dispatch-count, .issue-dispatched { color: var(--muted); white-space: nowrap; }

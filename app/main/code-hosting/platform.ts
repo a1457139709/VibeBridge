@@ -14,6 +14,8 @@ export interface CodeHostingPlatform {
   /** One page of the repository's issues matching the filter, newest first, filtered by the platform.
    * A null cursor reads the first page; any other is a `next` this method returned. */
   issues(environment: CommandEnvironment, path: string, filter: IssueFilter, cursor: string | null): Promise<IssuePage>;
+  /** The web page of the repository's issue with this number. */
+  issueUrl(path: string, number: number): string;
   /** One page of the repository's merge requests, as `issues` reads issues; closed includes merged. */
   mergeRequests(environment: CommandEnvironment, path: string, filter: IssueFilter, cursor: string | null): Promise<MergeRequestPage>;
   /** The repository path a git remote URL points to on this platform, or null for anything else. */

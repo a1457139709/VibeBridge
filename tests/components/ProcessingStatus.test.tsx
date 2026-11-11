@@ -19,7 +19,7 @@ test('navigation reads each panel view\'s state, exposes all five states to keyb
     projects: [{ id: 'project', name: 'Project', directory: '/project', layout: null,
       panels: [...(['ready', 'busy', 'needs-input', 'done', 'error'] as const).map(id => ({ id, agent: 'codex' as const,
         run: { id, panelId: id, projectId: 'project', state: 'running' as const, title: `Session ${id}` }, status: id })),
-      { id: 'starting', agent: 'codex', run: { id: 'starting', panelId: 'starting', projectId: 'project', state: 'starting', title: 'Session starting' } }], tray: [] }],
+      { id: 'starting', agent: 'codex', run: { id: 'starting', panelId: 'starting', projectId: 'project', state: 'starting', title: 'Session starting' } }], tray: [], dispatches: [] }],
   };
   const listeners = new Set<(event: WorkbenchEvent) => void>();
   const located: string[] = [];

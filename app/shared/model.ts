@@ -6,6 +6,7 @@ import type { ProcessingState } from './processing-status';
 import type { SettingsIssue } from './settings';
 import type { RepositoryReference } from './code-hosting';
 import type { WorkflowSettings } from './workflows';
+import type { DispatchRecordView } from './dispatch';
 
 export const agentTypes = ['codex', 'claude', 'pi'] as const;
 export type AgentType = typeof agentTypes[number];
@@ -46,8 +47,9 @@ export const issueSidebarWidth = (width: number) => Math.max(300, Math.min(560, 
 export type PanelView = Panel & { run?: Run; status?: ProcessingState };
 /** A project as the snapshot shows it. `panels` are its resident panels, placed by `layout`;
  * `tray` holds its ephemeral panels in the order they joined. The stored Project keeps only
- * the resident panels' configuration and layout; the tray lives in memory for one app run. */
-export type ProjectView = Omit<Project, 'panels'> & { panels: PanelView[]; tray: PanelView[] };
+ * the resident panels' configuration and layout; the tray lives in memory for one app run.
+ * `dispatches` are the project's Dispatch Records for its bound repository, newest first. */
+export type ProjectView = Omit<Project, 'panels'> & { panels: PanelView[]; tray: PanelView[]; dispatches: DispatchRecordView[] };
 export interface Snapshot { navigation: NavigationPreferences; issueSidebar: IssueSidebarPreferences; projects: ProjectView[]; activeProjectId: string | null; settings: Settings; settingsConflicts: SettingsIssue[]; startupTheme: Settings['theme']; resolvedTheme: 'dark' | 'light'; errors: string[] }
 export type TerminalEvent = { kind: 'title'; runId: string; title: string } | { kind: 'output'; runId: string; data: string } | { kind: 'started'; run: Run } | { kind: 'stopping'; runId: string } | { kind: 'exit'; runId: string };
 export type WorkbenchEvent = Extract<TerminalEvent, { kind: 'started' | 'output' | 'exit' }> | { kind: 'snapshot'; snapshot: Snapshot } | { kind: 'error'; message: string };

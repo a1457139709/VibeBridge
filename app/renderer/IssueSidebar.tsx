@@ -13,6 +13,8 @@ interface Host {
   project?: ProjectView;
   /** Opens the project editor on its repository field. */
   bindRepository(project: ProjectView): void;
+  /** Shows a panel as locating does elsewhere: an ephemeral one opens temporarily maximized. */
+  locatePanel(projectId: string, panelId: string, runId: string): void;
   report(message: string): void;
 }
 
@@ -44,8 +46,9 @@ export function useIssueSidebar(host: Host, api: Pick<DesktopAPI, 'saveIssueSide
       <div className="issue-sidebar-resize" role="separator" aria-label={t('resizeIssueSidebar')} aria-orientation="vertical" onPointerDown={resize} />
       <header className="issue-sidebar-heading"><span className="issue-sidebar-title">{title}</span>
         {repository && <span className="issue-sidebar-repository">{repository.path}</span>}</header>
-      {project && repository && <IssueLists key={`${project.id}:${repository.platform}:${repository.path}`} projectId={project.id} repository={repository}
-        changeBinding={() => host.bindRepository(project)} />}
+      {project && repository && <IssueLists key={`${project.id}:${repository.platform}:${repository.path}`} project={project} repository={repository}
+        workflows={snapshot!.settings.workflows} changeBinding={() => host.bindRepository(project)}
+        locate={location => host.locatePanel(location.projectId, location.panelId, location.runId)} />}
       {project && !repository && <div className="issue-sidebar-state">
         <p>{t('issueSidebarUnbound')}</p>
         <button className="primary" onClick={() => host.bindRepository(project)}>{t('bindRepository')}</button>

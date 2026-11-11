@@ -1,7 +1,10 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 import type { DesktopAPI } from '../shared/api';
 import { defaultIssueFilter, platformDescriptions, type IssueFilter, type IssueLabel, type IssueReference, type IssueSummary, type ListFailure, type MergeRequestSummary, type PlatformDescription, type RepositoryReference } from '../shared/code-hosting';
-import type { Language } from '../shared/model';
+import type { Language, ProjectView } from '../shared/model';
+import type { DispatchLocation, DispatchRequest } from '../shared/dispatch';
+import type { WorkflowSettings } from '../shared/workflows';
+import { DispatchMenu, DispatchStatus } from './Dispatch';
 import { useLocalization } from './Localization';
 import { LabelButtons, relativeTime } from './list-row-parts';
 import { MergeRequestRow } from './MergeRequestRow';
@@ -14,8 +17,11 @@ type Failure = ListFailure | { ok: false; error: string };
  * so opening the sidebar or returning to a project reads afresh from an open, unfiltered list.
  * Each tab keeps its own filters; only the shown tab reads from the platform.
  */
-export function IssueLists({ projectId, repository, changeBinding, api = window.workbench }: {
-  projectId: string; repository: RepositoryReference; changeBinding(): void; api?: Pick<DesktopAPI, 'issuePage' | 'mergeRequestPage'>;
+export function IssueLists({ project, repository, workflows, changeBinding, locate, api = window.workbench }: {
+  project: ProjectView; repository: RepositoryReference; workflows: WorkflowSettings; changeBinding(): void;
+  /** Shows the panel a dispatch went to. */
+  locate(location: DispatchLocation): void;
+  api?: Pick<DesktopAPI, 'issuePage' | 'mergeRequestPage' | 'dispatch'>;
 }) {
   const { t, language } = useLocalization();
   const [tab, setTab] = useState<Tab>('issues');
@@ -29,15 +35,23 @@ export function IssueLists({ projectId, repository, changeBinding, api = window.
   const common = { tabs, setFilter, repository, changeBinding };
   return tab === 'issues'
     ? <ListTab key="issues" {...common} filter={filters.issues} search={t('searchIssues')} empty={t('noMatchingIssues')}
-      load={(filter, cursor) => api.issuePage(projectId, filter, cursor).then(result => result.ok
+      load={(filter, cursor) => api.issuePage(project.id, filter, cursor).then(result => result.ok
         ? { ok: true, page: { items: result.page.issues, next: result.page.next, labels: result.page.labels } } : result)}
-      rows={(issues: IssueSummary[], addLabel) => topLevel(issues, platform).map(issue =>
-        <IssueRow key={issue.number} issue={issue} platform={platform} language={language} addLabel={addLabel} />)} />
+      rows={(issues: IssueSummary[], addLabel, refresh) => {
+        // The list refreshes once after each dispatch.
+        const dispatching: Dispatching = { project, workflows, locate, dispatch: request => api.dispatch(project.id, request).then(refresh) };
+        return topLevel(issues, platform).map(issue =>
+          <IssueRow key={issue.number} issue={issue} platform={platform} language={language} addLabel={addLabel} dispatching={dispatching} />);
+      }} />
     : <ListTab key="mergeRequests" {...common} filter={filters.mergeRequests} search={t('searchMergeRequests')} empty={t('noMatchingMergeRequests')}
-      load={(filter, cursor) => api.mergeRequestPage(projectId, filter, cursor).then(result => result.ok
+      load={(filter, cursor) => api.mergeRequestPage(project.id, filter, cursor).then(result => result.ok
         ? { ok: true, page: { items: result.page.mergeRequests, next: result.page.next, labels: result.page.labels } } : result)}
       rows={(requests: MergeRequestSummary[], addLabel) => requests.map(request =>
         <MergeRequestRow key={request.number} request={request} addLabel={addLabel} />)} />;
+}
+
+interface Dispatching {
+  project: ProjectView; workflows: WorkflowSettings; locate(location: DispatchLocation): void; dispatch(request: DispatchRequest): Promise<void>;
 }
 
 /** A list page whatever the list holds. */
@@ -72,7 +86,7 @@ function useListPages<Item>(filter: IssueFilter, load: (filter: IssueFilter, cur
 function ListTab<Item>({ tabs, filter, setFilter, load, rows, search, empty, repository, changeBinding }: {
   tabs: ReactNode; filter: IssueFilter; setFilter(filter: IssueFilter): void; repository: RepositoryReference; changeBinding(): void;
   load(filter: IssueFilter, cursor: string | null): Promise<ListResult<Item>>;
-  rows(items: Item[], addLabel: (name: string) => void): ReactNode; search: string; empty: string;
+  rows(items: Item[], addLabel: (name: string) => void, refresh: () => void): ReactNode; search: string; empty: string;
 }) {
   const { t } = useLocalization();
   const list = useListPages(filter, load);
@@ -91,7 +105,7 @@ function ListTab<Item>({ tabs, filter, setFilter, load, rows, search, empty, rep
       <button disabled={!!list.loading} onClick={list.refresh}>{t('retry')}</button></div>}
     <FilterBar filter={filter} setFilter={setFilter} labels={list.page?.labels ?? []} search={search} />
     <div className="issue-list">
-      {list.page && <ul aria-label={platform.name}>{rows(list.page.items, addLabel)}</ul>}
+      {list.page && <ul aria-label={platform.name}>{rows(list.page.items, addLabel, list.refresh)}</ul>}
       {list.page && !list.page.items.length && !list.loading && <p className="issue-list-empty">{empty}</p>}
       {list.page?.next && <button className="issue-list-more" disabled={!!list.loading} onClick={list.more}>{t('loadMore')}</button>}
     </div>
@@ -138,7 +152,9 @@ function topLevel(issues: IssueSummary[], platform: PlatformDescription) {
   return issues.filter(issue => issue.parent === null || !listed.has(issue.parent));
 }
 
-function IssueRow({ issue, platform, language, addLabel }: { issue: IssueSummary; platform: PlatformDescription; language: Language; addLabel(name: string): void }) {
+function IssueRow({ issue, platform, language, addLabel, dispatching }: {
+  issue: IssueSummary; platform: PlatformDescription; language: Language; addLabel(name: string): void; dispatching: Dispatching;
+}) {
   const { t } = useLocalization();
   const [expanded, setExpanded] = useState(false);
   const created = new Date(issue.createdAt);
@@ -160,16 +176,18 @@ function IssueRow({ issue, platform, language, addLabel }: { issue: IssueSummary
           <LabelButtons labels={issue.labels} addLabel={addLabel} />
         </div>
       </div>
-      {/* Dispatch controls take this place. */}
-      <div className="issue-row-actions" />
+      <div className="issue-row-actions">
+        <DispatchMenu issue={issue} project={dispatching.project} workflows={dispatching.workflows} dispatch={dispatching.dispatch} locate={dispatching.locate} />
+        <DispatchStatus issue={issue} records={dispatching.project.dispatches.filter(record => record.issue === issue.number)} locate={dispatching.locate} />
+      </div>
     </div>
-    {subIssues && expanded && <SubIssueList parent={issue.number} issues={subIssues.issues} platform={platform} language={language} addLabel={addLabel} />}
+    {subIssues && expanded && <SubIssueList parent={issue.number} issues={subIssues.issues} platform={platform} language={language} addLabel={addLabel} dispatching={dispatching} />}
   </li>;
 }
 
 /** Sub-issues in number order; the closed ones fold behind one button. */
-function SubIssueList({ parent, issues, platform, language, addLabel }: {
-  parent: number; issues: IssueSummary[]; platform: PlatformDescription; language: Language; addLabel(name: string): void;
+function SubIssueList({ parent, issues, platform, language, addLabel, dispatching }: {
+  parent: number; issues: IssueSummary[]; platform: PlatformDescription; language: Language; addLabel(name: string): void; dispatching: Dispatching;
 }) {
   const { t } = useLocalization();
   const [showClosed, setShowClosed] = useState(false);
@@ -177,7 +195,7 @@ function SubIssueList({ parent, issues, platform, language, addLabel }: {
   const shown = issues.filter(issue => showClosed || issue.state === 'open').sort((a, b) => a.number - b.number);
   return <div className="issue-sub-issues">
     <ul aria-label={t('subIssuesOf', { number: parent })}>
-      {shown.map(issue => <IssueRow key={issue.number} issue={issue} platform={platform} language={language} addLabel={addLabel} />)}
+      {shown.map(issue => <IssueRow key={issue.number} issue={issue} platform={platform} language={language} addLabel={addLabel} dispatching={dispatching} />)}
     </ul>
     {closed > 0 && <button className="issue-closed-fold" onClick={() => setShowClosed(open => !open)}>
       {showClosed ? t('hideClosedSubIssues') : t('closedSubIssues', { count: closed })}</button>}

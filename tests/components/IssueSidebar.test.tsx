@@ -22,8 +22,8 @@ before(() => {
   Object.defineProperty(document, 'hasFocus', { configurable: true, value: () => true });
 });
 
-const unbound: ProjectView = { id: 'unbound', name: 'Unbound project', directory: '/work/unbound', layout: null, panels: [], tray: [] };
-const bound: ProjectView = { id: 'bound', name: 'Bound project', directory: '/work/bound', layout: null, panels: [], tray: [],
+const unbound: ProjectView = { id: 'unbound', name: 'Unbound project', directory: '/work/unbound', layout: null, panels: [], tray: [], dispatches: [] };
+const bound: ProjectView = { id: 'bound', name: 'Bound project', directory: '/work/bound', layout: null, panels: [], tray: [], dispatches: [],
   repository: { platform: 'github', path: 'octo/app' } };
 
 function renderWorkbench({ issueSidebar = { visible: false, width: 380 }, activeProjectId = unbound.id, choices = async () => new Promise<RepositoryChoices>(() => {}) }: {

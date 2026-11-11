@@ -200,5 +200,6 @@ export const github: CodeHostingPlatform = {
     } while (cursor);
     return { account, paths };
   },
+  issueUrl: (path, number) => `https://github.com/${path}/issues/${number}`,
   remotePath,
 };

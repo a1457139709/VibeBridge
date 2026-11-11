@@ -21,7 +21,7 @@ before(() => {
   Object.defineProperty(document, 'hasFocus', { configurable: true, value: () => true });
 });
 
-const app: ProjectView = { id: 'app', name: 'App project', directory: '/work/app', layout: null, panels: [], tray: [],
+const app: ProjectView = { id: 'app', name: 'App project', directory: '/work/app', layout: null, panels: [], tray: [], dispatches: [],
   repository: { platform: 'github', path: 'octo/app' } };
 
 const request = (number: number, extra: Partial<MergeRequestSummary> = {}): MergeRequestSummary => ({ number, title: `Change ${number}`, state: 'open',
