@@ -1,0 +1,18 @@
+/* PROTOTYPE — throwaway styles for prototype-repository-binding*.tsx only (#181). */
+.pb-page { min-height: 100vh; background: var(--background, var(--surface)); }
+.pb-page .proto-bar { top: 12px; bottom: auto; position: fixed; z-index: 200; }
+.pb-closed { padding: 80px 24px; text-align: center; }
+.pb-current { display: flex; align-items: center; gap: 8px; padding: 8px 10px; border: 1px dashed var(--line); border-radius: 6px; font-size: 12px; }
+.pb-result { margin: 0; padding-left: 18px; line-height: 1.8; }
+.pb-state { position: fixed; left: 12px; bottom: 12px; width: 340px; max-height: 45vh; overflow: auto; padding: 10px 12px; border-radius: 8px; background: #111d; color: #eee; font: 11px/1.6 ui-monospace, monospace; z-index: 150; }
+.pb-state ol { margin: 0; padding-left: 18px; }
+.wb-field small { font-size: 11px; }
+.wb-picker-list button:disabled { opacity: .5; }
+.pb-changed { border-style: solid; border-color: color-mix(in srgb, var(--gh-link) 55%, var(--line)); background: color-mix(in srgb, var(--gh-link) 8%, transparent); }
+.pb-current .gh-btn { height: 24px; padding: 0 10px; }
+.pb-error { margin: 0; font-size: 12px; }
+.pb-impact { display: flex; flex-direction: column; gap: 6px; padding: 10px 12px; border-radius: 6px; background: color-mix(in srgb, var(--gh-pending) 12%, transparent); font-size: 12px; }
+.pb-impact dl { display: grid; grid-template-columns: auto 1fr; gap: 6px 12px; margin: 0; }
+.pb-impact dt { color: var(--muted); }
+.pb-impact dd { margin: 0; min-width: 0; display: flex; flex-direction: column; }
+.pb-impact p { margin: 2px 0 0; color: var(--muted); }
