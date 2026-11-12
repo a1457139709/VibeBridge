@@ -7,6 +7,7 @@ import { App } from '../../app/renderer/Workbench';
 import { defaultSettings } from '../../app/shared/settings';
 import type { PanelView, Snapshot, WorkbenchEvent } from '../../app/shared/model';
 import { provideWorkbench } from './support/workbench';
+import { githubForge } from './support/forge';
 
 // Frames run only when the test runs them, so every frame a pending location could use has run before an assertion.
 const frames = new Map<number, FrameRequestCallback>();
@@ -50,16 +51,16 @@ const panel = (id: string): PanelView =>
 
 async function renderWorkbench() {
   const snapshot: Snapshot = {
-    navigation: { visible: true, width: 212 }, activeProjectId: 'project', settings: defaultSettings(),
+    navigation: { visible: true, width: 212 }, forgeSidebar: { visible: false, width: 380 }, activeProjectId: 'project', settings: defaultSettings(),
     settingsConflicts: [], startupTheme: 'light', resolvedTheme: 'light', errors: [],
     projects: [{ id: 'project', name: 'Locating', directory: '/work/locating',
       layout: { axis: 'row', ratio: .5, first: { panel: 'first' }, second: { panel: 'second' } },
-      panels: [panel('first'), panel('second')], tray: [], repository: null }],
+      panels: [panel('first'), panel('second')], tray: [], repository: null, forge: githubForge }],
   };
   let listener: (event: WorkbenchEvent) => void = () => {};
   provideWorkbench({ snapshot: async () => structuredClone(snapshot), ready: async () => {},
     subscribe: next => { listener = next; return () => {}; },
-    activateProject: async () => {}, saveNavigation: async () => {}, saveLayout: async () => {} });
+    activateProject: async () => {}, saveSidebar: async () => {}, saveLayout: async () => {} });
   render(<App />);
   await screen.findAllByText('Session first');
   const user = userEvent.setup();

@@ -10,14 +10,14 @@ test('navigation preferences default open and survive project deletion and reope
   let workbench = await Workbench.open(directory);
   try {
     assert.deepEqual(workbench.snapshot().navigation, { visible: true, width: 212 });
-    await workbench.saveNavigation({ visible: false, width: 318 });
+    await workbench.saveSidebar('navigation', { visible: false, width: 318 });
     assert.deepEqual(workbench.snapshot().navigation, { visible: false, width: 318 });
     await workbench.quit();
     const settings = JSON.parse(await readFile(`${directory}/settings.json`, 'utf8'));
     assert.equal('navigation' in settings, false);
     workbench = await Workbench.open(directory);
     assert.deepEqual(workbench.snapshot().navigation, { visible: false, width: 318 });
-    await workbench.saveNavigation({ visible: true, width: 318 });
+    await workbench.saveSidebar('navigation', { visible: true, width: 318 });
     assert.deepEqual(workbench.snapshot().navigation, { visible: true, width: 318 });
     const agents = workbench.snapshot().settings.agents;
     agents.codex = { command: process.env.VIBEBRIDGE_TEST_NODE!, args: [resolve('tests/fixtures/interactive.cjs')] };
@@ -36,11 +36,11 @@ test('navigation remains usable for out-of-range widths and invalid requests do 
   const directory = await testDirectory(context, 'navigation-validation');
   const workbench = await Workbench.open(directory);
   try {
-    await workbench.saveNavigation({ visible: false, width: 10000 });
+    await workbench.saveSidebar('navigation', { visible: false, width: 10000 });
     assert.deepEqual(workbench.snapshot().navigation, { visible: false, width: 420 });
-    await workbench.saveNavigation({ visible: true, width: 0 });
+    await workbench.saveSidebar('navigation', { visible: true, width: 0 });
     assert.deepEqual(workbench.snapshot().navigation, { visible: true, width: 168 });
-    await assert.rejects(workbench.saveNavigation({ visible: true, width: NaN }), /navigationInvalid/);
+    await assert.rejects(workbench.saveSidebar('navigation', { visible: true, width: NaN }), /navigationInvalid/);
     assert.deepEqual(workbench.snapshot().navigation, { visible: true, width: 168 });
   } finally { await workbench.quit(); }
 });

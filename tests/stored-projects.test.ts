@@ -82,7 +82,7 @@ for (const [behavior, stored] of [
   test(`stored navigation preferences that ${behavior} keep the workbench closed and the database unchanged`, async context => {
     const { directory, file } = await storedWorkbench(context, 'stored-invalid-navigation', database =>
       database.prepare('INSERT INTO workspace (id, navigation) VALUES (1,?)').run(stored));
-    await assertRejected(directory, file, /navigationDataInvalid/, ['navigation']);
+    await assertRejected(directory, file, /sidebarDataInvalid/, ['navigation']);
   });
 }
 

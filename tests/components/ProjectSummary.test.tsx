@@ -10,6 +10,7 @@ import { defaultSettings } from '../../app/shared/settings';
 import type { PanelView, Snapshot, WorkbenchEvent } from '../../app/shared/model';
 import type { ProcessingState } from '../../app/shared/processing-status';
 import { provideWorkbench } from './support/workbench';
+import { githubForge } from './support/forge';
 
 afterEach(cleanup);
 
@@ -19,11 +20,11 @@ const panel = (id: string, status: ProcessingState): PanelView =>
 // Like the workspace, the harness shows one summary per current project over its resident and tray panels.
 function fixture() {
   const snapshot: Snapshot = {
-    navigation: { visible: true, width: 212 }, activeProjectId: 'project', settings: defaultSettings(),
+    navigation: { visible: true, width: 212 }, forgeSidebar: { visible: false, width: 380 }, activeProjectId: 'project', settings: defaultSettings(),
     settingsConflicts: [], startupTheme: 'light', resolvedTheme: 'light', errors: [],
     projects: [{ id: 'project', name: 'Project title stays out of the bar', directory: '/project', layout: null,
       panels: ([['first', 'done'], ['third', 'needs-input']] as const).map(([id, status]) => panel(id, status)),
-      tray: ([['second', 'done'], ['fresh', 'ready']] as const).map(([id, status]) => panel(id, status)), repository: null }],
+      tray: ([['second', 'done'], ['fresh', 'ready']] as const).map(([id, status]) => panel(id, status)), repository: null, forge: githubForge }],
   };
   const listeners = new Set<(event: WorkbenchEvent) => void>();
   const located: string[] = [];

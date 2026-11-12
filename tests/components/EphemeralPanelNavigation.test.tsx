@@ -9,6 +9,7 @@ import { defaultSettings } from '../../app/main/settings';
 import type { PanelView, Snapshot } from '../../app/shared/model';
 import type { ProcessingState } from '../../app/shared/processing-status';
 import { provideWorkbench } from './support/workbench';
+import { githubForge } from './support/forge';
 
 afterEach(cleanup);
 
@@ -16,21 +17,21 @@ const panel = (projectId: string, id: string, status?: ProcessingState): PanelVi
   ({ id, agent: 'codex', run: { id: `run-${id}`, panelId: id, projectId, state: 'running', title: `Session ${id}` }, status });
 
 const snapshot = (): Snapshot => ({
-  navigation: { visible: true, width: 212 }, activeProjectId: 'current', settings: defaultSettings(),
+  navigation: { visible: true, width: 212 }, forgeSidebar: { visible: false, width: 380 }, activeProjectId: 'current', settings: defaultSettings(),
   settingsConflicts: [], startupTheme: 'light', resolvedTheme: 'light', errors: [],
   projects: [
     { id: 'current', name: 'Current', directory: '/current', layout: null, panels: [panel('current', 'resident', 'ready')],
-      tray: [panel('current', 'waiting', 'needs-input'), panel('current', 'working', 'busy'), panel('current', 'finished', 'done')], repository: null },
+      tray: [panel('current', 'waiting', 'needs-input'), panel('current', 'working', 'busy'), panel('current', 'finished', 'done')], repository: null, forge: githubForge },
     { id: 'other', name: 'Other', directory: '/other', layout: null, panels: [panel('other', 'other-resident', 'ready')],
-      tray: [panel('other', 'failed', 'error'), panel('other', 'idle', 'ready')], repository: null },
-    { id: 'quiet', name: 'Quiet', directory: '/quiet', layout: null, panels: [panel('quiet', 'quiet-resident', 'ready')], tray: [], repository: null },
+      tray: [panel('other', 'failed', 'error'), panel('other', 'idle', 'ready')], repository: null, forge: githubForge },
+    { id: 'quiet', name: 'Quiet', directory: '/quiet', layout: null, panels: [panel('quiet', 'quiet-resident', 'ready')], tray: [], repository: null, forge: githubForge },
   ],
 });
 
 function renderNavigation(language: 'en' | 'zh-CN', state = snapshot()) {
   const located: string[] = [];
   const saved: unknown[] = [];
-  provideWorkbench({ subscribe: () => () => {}, saveNavigation: async navigation => { saved.push(navigation); } });
+  provideWorkbench({ subscribe: () => () => {}, saveSidebar: async (sidebar, preferences) => { if (sidebar === 'navigation') saved.push(preferences); } });
   function Navigation() {
     const navigation = useProjectNavigation({ snapshot: state, page: 'workbench', view: () => ({ selected: 'resident', maximized: 'finished' }),
       openProject: () => {}, locatePanel: (project, panelId) => located.push(`${project}/${panelId}`),

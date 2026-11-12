@@ -4,13 +4,14 @@ import type { Language, ProjectEdit, ProjectEditResult } from '../shared/model';
 import { randomUUID } from 'node:crypto';
 import { realpath, stat } from 'node:fs/promises';
 import { basename } from 'node:path';
-import { defaultNavigation, navigationSchema, navigationWidth, type NavigationPreferences, assignedAgents, arrange, validateDraft, removeFromLayout, parseLayout, layoutStructure, layoutPanelIds, panelPosition, projectPanels, panelLimitReached, agentTypes, type AgentType, type DirectoryResult, type LaunchResult, type Layout, type Panel, type Project, type ProjectCreation, type ProjectDraft, type PanelCreation, type Settings, type Snapshot, type WorkbenchEvent } from '../shared/model';
+import { sidebars, sidebarPreferencesSchema, type Sidebar, type SidebarPreferences, assignedAgents, arrange, validateDraft, removeFromLayout, parseLayout, layoutStructure, layoutPanelIds, panelPosition, projectPanels, panelLimitReached, agentTypes, type AgentType, type DirectoryResult, type LaunchResult, type Layout, type Panel, type Project, type ProjectCreation, type ProjectDraft, type PanelCreation, type Settings, type Snapshot, type WorkbenchEvent } from '../shared/model';
 import { ProjectStore } from './storage';
 import { SettingsFile, defaultSettings } from './settings';
 import { settingsConflicts, type SettingsSaveResult } from '../shared/settings';
 import { RunSupervision } from './run-supervision';
 import { sameRepository, type RepositoryChoices, type RepositoryReference } from '../shared/forge';
 import { listedRepository, repositoryChoices } from './forge/repositories';
+import { defaultForge, forges } from './forge/forges';
 
 export class WorkbenchOpenError extends Error {
   constructor(error: unknown, readonly language: Language) {
@@ -19,7 +20,7 @@ export class WorkbenchOpenError extends Error {
 }
 
 export class Workbench {
-  private state: Omit<Snapshot, 'projects'> & { projects: Project[] } = { navigation: { ...defaultNavigation }, projects: [], activeProjectId: null, settings: defaultSettings(), settingsConflicts: [], startupTheme: 'system', resolvedTheme: 'light', errors: [] };
+  private state: Omit<Snapshot, 'projects'> & { projects: Project[] } = { navigation: { ...sidebars.navigation.defaults }, forgeSidebar: { ...sidebars.forgeSidebar.defaults }, projects: [], activeProjectId: null, settings: defaultSettings(), settingsConflicts: [], startupTheme: 'system', resolvedTheme: 'light', errors: [] };
   private supervision: RunSupervision;
   private listeners = new Set<(event: WorkbenchEvent) => void>();
   private operations: Promise<unknown> = Promise.resolve();
@@ -62,8 +63,11 @@ export class Workbench {
   }
   snapshot(): Snapshot {
     const view = (panel: Panel) => this.supervision.panelView(panel);
-    const projects = this.state.projects.map(project => ({ ...project, panels: project.panels.map(view), tray: this.tray(project.id).map(view),
-      repository: this.repositories.get(project.id) ?? null }));
+    const projects = this.state.projects.map(project => {
+      const repository = this.repositories.get(project.id) ?? null;
+      return { ...project, panels: project.panels.map(view), tray: this.tray(project.id).map(view),
+        repository, forge: forges[repository?.forge ?? defaultForge].presentation };
+    });
     return structuredClone({ ...this.state, projects });
   }
   subscribe(listener: (event: WorkbenchEvent) => void) { this.listeners.add(listener); return () => { this.listeners.delete(listener); }; }
@@ -260,12 +264,14 @@ export class Workbench {
     project.layout = parseLayout(layout, project.panels); this.changed();
     await this.store.save(project);
   }); }
-  saveNavigation(preferences: NavigationPreferences) { return this.operation(async () => {
-    const parsed = navigationSchema.safeParse(preferences);
-    if (!parsed.success) throw new Error(message('navigationInvalid'));
-    const navigation = { ...parsed.data, width: navigationWidth(parsed.data.width) };
-    await this.store.navigation(navigation);
-    this.state.navigation = navigation; this.changed();
+  /** Saves a sidebar's preferences with its width within the bounds the sidebar allows. */
+  saveSidebar(sidebar: Sidebar, preferences: SidebarPreferences) { return this.operation(async () => {
+    const { width, invalid } = sidebars[sidebar];
+    const parsed = sidebarPreferencesSchema.safeParse(preferences);
+    if (!parsed.success) throw new Error(message(invalid));
+    const value = { ...parsed.data, width: width(parsed.data.width) };
+    await this.store.sidebar(sidebar, value);
+    this.state[sidebar] = value; this.changed();
   }); }
   sendInput(runId: string, data: string) { return this.supervision.input(runId, data); }
   resizeRun(runId: string, cols: number, rows: number) { return this.supervision.resize(runId, cols, rows); }

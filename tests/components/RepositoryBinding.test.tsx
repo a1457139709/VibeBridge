@@ -20,7 +20,7 @@ const failed = (kind: ForgeFailureKind, detail = ''): RepositoryChoices => ({ ok
 
 function editor(repository: RepositoryReference | null, choices: (directory: string) => Promise<RepositoryChoices>,
   save: (edit: ProjectEdit) => Promise<void> = async () => {}) {
-  const project: ProjectView = { id: 'project', name: 'Bound', directory: '/work/bound', panels: [], tray: [], layout: null, repository };
+  const project: ProjectView = { id: 'project', name: 'Bound', directory: '/work/bound', panels: [], tray: [], layout: null, repository, forge };
   const edits: { edit: ProjectEdit; restart: boolean }[] = [];
   provideWorkbench({
     inspectDirectory: async directory => ({ valid: true, directory }),

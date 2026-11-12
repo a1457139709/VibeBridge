@@ -5,7 +5,9 @@ import { act, cleanup, fireEvent, render, screen } from '@testing-library/react'
 import { App } from '../../app/renderer/Workbench';
 import { defaultSettings } from '../../app/shared/settings';
 import type { Layout, PanelView, Snapshot, WorkbenchEvent } from '../../app/shared/model';
+import { stubLayoutApis } from './support/no-layout';
 import { provideWorkbench } from './support/workbench';
+import { githubForge } from './support/forge';
 
 afterEach(cleanup);
 before(() => {
@@ -13,11 +15,7 @@ before(() => {
   // covers the share its inline position gives it and everything else (such as the tray) has no area, so
   // drops are hit tested against the displayed layout.
   // Only the layout area reports itself visible: panels report no layout, so terminals are not measured.
-  for (const name of ['ResizeObserver', 'IntersectionObserver'] as const) {
-    Object.defineProperty(globalThis, name, { configurable: true, value: class { observe() {} unobserve() {} disconnect() {} } });
-  }
-  const matchMedia = () => ({ matches: false, addEventListener() {}, removeEventListener() {}, addListener() {}, removeListener() {} });
-  for (const target of [globalThis, window]) Object.assign(target, { matchMedia, requestAnimationFrame: () => 0, cancelAnimationFrame: () => {} });
+  stubLayoutApis();
   const area = new window.DOMRect(0, 0, 800, 600);
   Object.assign(window.HTMLElement.prototype, {
     checkVisibility: () => true,
@@ -41,10 +39,10 @@ const sideBySide = (left: string, right: string): Layout => ({ axis: 'row', rati
 // emits the saved snapshot.
 async function renderWorkbench() {
   const snapshot: Snapshot = {
-    navigation: { visible: true, width: 212 }, activeProjectId: 'project', settings: defaultSettings(),
+    navigation: { visible: true, width: 212 }, forgeSidebar: { visible: false, width: 380 }, activeProjectId: 'project', settings: defaultSettings(),
     settingsConflicts: [], startupTheme: 'light', resolvedTheme: 'light', errors: [],
     projects: [{ id: 'project', name: 'Drops', directory: '/work/drops', layout: sideBySide('codex', 'claude'),
-      panels: [panel('codex', 'codex'), panel('claude', 'claude')], tray: [panel('pi', 'pi')], repository: null }],
+      panels: [panel('codex', 'codex'), panel('claude', 'claude')], tray: [panel('pi', 'pi')], repository: null, forge: githubForge }],
   };
   const saves: Layout[] = [];
   // Placing a tray panel or moving a resident panel to the tray are the other changes a release can request.
@@ -52,7 +50,7 @@ async function renderWorkbench() {
   let listener: (event: WorkbenchEvent) => void = () => {};
   provideWorkbench({ snapshot: async () => structuredClone(snapshot), ready: async () => {},
     subscribe: next => { listener = next; return () => {}; },
-    activateProject: async () => {}, saveNavigation: async () => {},
+    activateProject: async () => {}, saveSidebar: async () => {},
     saveLayout: async (_project, layout) => { saves.push(layout!); },
     placeInLayout: async (_project, panelId) => { otherChanges.push(`place ${panelId}`); },
     moveToTray: async (_project, panelId) => { otherChanges.push(`move ${panelId}`); } });
