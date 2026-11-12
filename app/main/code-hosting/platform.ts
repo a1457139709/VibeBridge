@@ -20,6 +20,8 @@ export interface CodeHostingPlatform {
   account(): Promise<string>;
   /** Paths of every repository the active account can bind. */
   repositories(): Promise<string[]>;
-  /** The path among `repositories` that this `origin` URL points at, or null when it points elsewhere. */
-  recognize(originUrl: string, repositories: string[]): string | null;
+  /** The repository path this `origin` URL points at, or null when it is not on this platform. */
+  remotePath(originUrl: string): string | null;
+  /** The entry of `repositories` that names the same repository as `path`, in its listed spelling, or null. */
+  find(path: string, repositories: string[]): string | null;
 }

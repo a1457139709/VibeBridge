@@ -151,16 +151,21 @@ export class Workbench {
     this.changed();
     if (activateNext && nextActive) await this.startProject(this.project(nextActive));
   }); }
-  /** The repositories the project can bind, from its bound platform, or the default one when unbound. */
-  async repositoryChoices(projectId: string): Promise<RepositoryChoices> {
-    const project = this.project(projectId);
-    const platform = codeHostingPlatforms[this.repositories.get(projectId)?.platform ?? defaultPlatform];
+  /** The repositories the project can bind, from its bound platform, or the default one when unbound, with the
+   * one that `origin` of `directory` (the project directory as the user is editing it) points at. */
+  async repositoryChoices(projectId: string, directory: string): Promise<RepositoryChoices> {
+    this.project(projectId);
+    const bound = this.repositories.get(projectId);
+    const platform = codeHostingPlatforms[bound?.platform ?? defaultPlatform];
     try {
-      const [account, repositories, origin] = await Promise.all([platform.account(), platform.repositories(), originUrl(project.directory)]);
-      const originPath = origin === null ? null : platform.recognize(origin, repositories);
+      const [account, listed, origin] = await Promise.all([platform.account(), platform.repositories(), originUrl(directory)]);
+      // The bound repository keeps its stored spelling wherever the platform lists the same repository.
+      const repositories = bound ? listed.map(path => platform.find(bound.path, [path]) ? bound.path : path) : listed;
+      const originPath = origin === null ? null : platform.remotePath(origin);
+      const offered = originPath === null ? null : platform.find(originPath, repositories);
       return { ok: true, platform: platform.presentation, account,
         repositories: repositories.map(path => ({ platform: platform.id, path })),
-        origin: originPath === null ? null : { platform: platform.id, path: originPath } };
+        origin: offered === null ? null : { platform: platform.id, path: offered } };
     } catch (error) {
       if (error instanceof CodeHostingError) return { ok: false, failure: { kind: error.kind, detail: error.detail, platform: platform.presentation } };
       throw error;
@@ -173,15 +178,17 @@ export class Workbench {
     if (repository !== null) {
       const id = codeHostingPlatformIdSchema.safeParse(repository.platform);
       if (!id.success || typeof repository.path !== 'string') throw new Error(message('repositoryNotListed'));
+      const platform = codeHostingPlatforms[id.data];
       let listed: string[];
-      try { listed = await codeHostingPlatforms[id.data].repositories(); }
+      try { listed = await platform.repositories(); }
       catch (error) {
         if (error instanceof CodeHostingError) throw new Error(message('repositoryListFailed', { reason: detail(error.detail
-          || message('codeHostingNotInstalled', { cli: codeHostingPlatforms[id.data].presentation.cli })) }));
+          || message('codeHostingNotInstalled', { cli: platform.presentation.cli })) }));
         throw error;
       }
-      if (!listed.includes(repository.path)) throw new Error(message('repositoryNotListed'));
-      binding = { platform: id.data, path: repository.path };
+      const path = platform.find(repository.path, listed);
+      if (path === null) throw new Error(message('repositoryNotListed'));
+      binding = { platform: id.data, path };
     }
     return this.operation(async () => {
       this.project(projectId);

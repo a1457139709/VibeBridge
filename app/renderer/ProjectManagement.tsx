@@ -35,28 +35,34 @@ export function ProjectNavigationItem({ project, openProject, children }: {
   </div>;
 }
 
-/** Loads the repositories a project can bind and tracks the one picked: the bound one, else the one origin points at. */
-function useRepositoryPicker(project: ProjectView) {
+/** Loads the repositories a project can bind and tracks the one picked: the bound one, else the one that origin
+ * of `directory` points at until the user picks one. A reload keeps showing the previous list until it answers. */
+function useRepositoryPicker(project: ProjectView, directory: string) {
   const [choices, setChoices] = useState<RepositoryChoices | { ok: false; error: string }>();
   const [picked, setPicked] = useState<RepositoryReference | null>(project.repository);
-  const load = () => {
-    setChoices(undefined);
-    void window.workbench.repositoryChoices(project.id).then(result => {
+  const touched = useRef(false);
+  const [attempt, setAttempt] = useState(0);
+  useEffect(() => {
+    let live = true;
+    void window.workbench.repositoryChoices(project.id, directory).then(result => {
+      if (!live) return;
       setChoices(result);
-      if (result.ok && !project.repository) setPicked(result.origin);
-    }, error => setChoices({ ok: false, error: (error as Error).message }));
-  };
-  useEffect(load, [project.id]);
-  // A binding changes only from a listed repository; a failed list leaves the binding as it is.
+      if (result.ok && !project.repository && !touched.current) setPicked(result.origin);
+    }, error => { if (live) setChoices({ ok: false, error: (error as Error).message }); });
+    return () => { live = false; };
+  }, [project.id, directory, attempt]);
+  const retry = () => { setChoices(undefined); setAttempt(value => value + 1); };
+  const pick = (repository: RepositoryReference) => { touched.current = true; setPicked(repository); };
+  // A binding changes only to a listed repository; a failed list leaves the binding as it is.
   const change = choices?.ok && picked && !sameRepository(picked, project.repository) ? picked : undefined;
-  return { choices, picked, setPicked, load, change };
+  return { choices, picked, pick, retry, change };
 }
 
 function RepositoryField({ project, picker, disabled }: { project: ProjectView; picker: ReturnType<typeof useRepositoryPicker>; disabled: boolean }) {
   const { t } = useLocalization();
   const [query, setQuery] = useState('');
-  const { choices, picked, setPicked, load } = picker;
-  const retry = <button type="button" onClick={load}>{t('retry')}</button>;
+  const { choices, picked, pick } = picker;
+  const retry = <button type="button" onClick={picker.retry}>{t('retry')}</button>;
   let body: ReactNode;
   if (!choices) body = <span className="muted">{t('loadingRepositories')}</span>;
   else if (!choices.ok && 'error' in choices) body = <div className="repository-error"><span>{t('repositoryListFailed', { reason: detail(choices.error) })}</span>{retry}</div>;
@@ -76,7 +82,7 @@ function RepositoryField({ project, picker, disabled }: { project: ProjectView; 
     body = <div className="repository-picker">
       <input type="search" aria-label={t('searchRepositories')} placeholder={t('searchRepositories')} autoComplete="off" value={query} disabled={disabled} onChange={event => setQuery(event.target.value)} />
       <div className="repository-list" role="listbox" aria-labelledby="edit-project-repository">
-        {shown.map(item => <button type="button" role="option" key={item.path} data-path={item.path} aria-selected={sameRepository(item, picked)} className={sameRepository(item, picked) ? 'on' : ''} disabled={disabled} onClick={() => setPicked(item)}>
+        {shown.map(item => <button type="button" role="option" key={item.path} data-path={item.path} aria-selected={sameRepository(item, picked)} className={sameRepository(item, picked) ? 'on' : ''} disabled={disabled} onClick={() => pick(item)}>
           <span className="repository-path">{item.path}</span>
           {sameRepository(item, choices.origin) && <small>{t('repositoryOrigin')}</small>}
           {sameRepository(item, project.repository) && <small>{t('repositoryCurrent')}</small>}
@@ -98,7 +104,8 @@ function ProjectEditor({ project, running, close, openProject }: { project: Proj
   const [nameInputError, setNameInputError] = useState('');
   const [busy, setBusy] = useState(false), [choosing, setChoosing] = useState(false), [error, setError] = useState('');
   const [result, setResult] = useState<ProjectEditResult>();
-  const picker = useRepositoryPicker(project);
+  // The default repository follows the directory being edited once it has been inspected.
+  const picker = useRepositoryPicker(project, inspection.result.valid ? inspection.result.directory! : original.directory);
   const [confirm, setConfirm] = useState<{ kind: 'change'; restart: boolean } | { kind: 'unbind' }>();
   const directory = inspection.path === path ? inspection.result : undefined;
   const checking = !!path && !directory;
@@ -131,9 +138,14 @@ function ProjectEditor({ project, running, close, openProject }: { project: Proj
     } catch (error) { setError((error as Error).message); }
     finally { setBusy(false); }
   }
+  // Unbinding saves a pending name with it; a directory change is settled first, so nothing restarts here.
   async function unbind() {
     setConfirm(undefined); setBusy(true); setError('');
-    try { await window.workbench.bindRepository(project.id, null); close(); }
+    try {
+      await window.workbench.editProject(project.id, { name, directory: path }, false);
+      await window.workbench.bindRepository(project.id, null);
+      close();
+    }
     catch (error) { setError((error as Error).message); }
     finally { setBusy(false); }
   }
@@ -165,7 +177,7 @@ function ProjectEditor({ project, running, close, openProject }: { project: Proj
         <p>{t('directoryHistory')}</p>
       </section>}
       {error && <p className="error-text" role="alert">{text(error)}</p>}
-      <div className="project-dialog-actions">{project.repository && <button type="button" className="danger unbind-repository" disabled={busy} onClick={() => setConfirm({ kind: 'unbind' })}>{t('unbind')}</button>}<button type="button" disabled={busy} onClick={close}>{changedDirectory ? t('cancelChange') : t('cancel')}</button>{changedDirectory ? <><button type="button" disabled={!canSave} onClick={() => void save(false)}>{t('changeWithoutRestart')}</button><button className="primary" type="button" disabled={!canSave} onClick={() => void save(true)}>{busy ? t('processing') : t('changeAndRestart')}</button></> : <button type="submit" className="primary" disabled={!canSave}>{busy ? t('saving') : t('saveChanges')}</button>}</div>
+      <div className="project-dialog-actions">{project.repository && <button type="button" className="danger unbind-repository" disabled={busy || changedDirectory} onClick={() => setConfirm({ kind: 'unbind' })}>{t('unbind')}</button>}<button type="button" disabled={busy} onClick={close}>{changedDirectory ? t('cancelChange') : t('cancel')}</button>{changedDirectory ? <><button type="button" disabled={!canSave} onClick={() => void save(false)}>{t('changeWithoutRestart')}</button><button className="primary" type="button" disabled={!canSave} onClick={() => void save(true)}>{busy ? t('processing') : t('changeAndRestart')}</button></> : <button type="submit" className="primary" disabled={!canSave}>{busy ? t('saving') : t('saveChanges')}</button>}</div>
     </form>}
   </dialog>;
 }

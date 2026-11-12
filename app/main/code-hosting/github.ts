@@ -27,12 +27,6 @@ function classifyFailure(code: number | null, stdout: string, stderr: string) {
 
 const outputLines = (text: string) => text.split('\n').map(line => line.trim()).filter(Boolean);
 
-/** owner/repo from a github.com remote URL in HTTPS, SSH or scp-like form. */
-function remotePath(url: string) {
-  const match = url.trim().match(/^(?:(?:https?|ssh|git):\/\/(?:[^@/]+@)?github\.com(?::\d+)?\/|[^@/\s]+@github\.com:)([^/\s]+\/[^/\s]+?)(?:\.git)?\/?$/i);
-  return match?.[1] ?? null;
-}
-
 export const github: CodeHostingPlatform = {
   id: 'github',
   presentation: { name: 'GitHub', cli: 'gh', installUrl: 'https://cli.github.com', loginCommand: 'gh auth login' },
@@ -41,9 +35,13 @@ export const github: CodeHostingPlatform = {
   async repositories() {
     return outputLines(await gh(['api', '--paginate', 'user/repos?affiliation=owner,collaborator,organization_member&per_page=100', '--jq', '.[].full_name']));
   },
-  recognize(originUrl, repositories) {
-    // GitHub repository paths are case-insensitive; the listed spelling is canonical.
-    const path = remotePath(originUrl)?.toLowerCase();
-    return repositories.find(repository => repository.toLowerCase() === path) ?? null;
+  remotePath(url) {
+    // owner/repo from a github.com remote URL in HTTPS, SSH or scp-like form.
+    const match = url.trim().match(/^(?:(?:https?|ssh|git):\/\/(?:[^@/]+@)?github\.com(?::\d+)?\/|[^@/\s]+@github\.com:)([^/\s]+\/[^/\s]+?)(?:\.git)?\/?$/i);
+    return match?.[1] ?? null;
+  },
+  find(path, repositories) {
+    // GitHub repository paths are case-insensitive.
+    return repositories.find(repository => repository.toLowerCase() === path.toLowerCase()) ?? null;
   },
 };

@@ -8,8 +8,8 @@ export interface DesktopAPI {
   editProject(id: string, edit: ProjectEdit, restart: boolean): Promise<ProjectEditResult>;
   deleteProject(id: string): Promise<void>;
   inspectDirectory(directory: string): Promise<DirectoryResult>;
-  /** The repositories the project can bind, with the one its directory's origin points at; or a platform failure. */
-  repositoryChoices(projectId: string): Promise<RepositoryChoices>;
+  /** The repositories the project can bind, with the one the origin of `directory` points at; or a platform failure. */
+  repositoryChoices(projectId: string, directory: string): Promise<RepositoryChoices>;
   /** Binds a listed repository, replacing any binding; null unbinds. */
   bindRepository(projectId: string, repository: RepositoryReference | null): Promise<void>;
   chooseDirectory(): Promise<string | null>;
