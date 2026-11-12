@@ -14,5 +14,5 @@ export const showing = (snapshot: Snapshot, projectId: string, state: Processing
   const project = snapshot.projects.find(project => project.id === projectId);
   return (project ? projectPanels(project) : []).flatMap(panel => panel.status === state ? [[panel.id, panel.run!.id]] : []);
 };
-/** The snapshot's projects in their stored shape: resident panels without run and processing state, no tray and no Repository Binding. */
-export const storedProjects = (snapshot: Snapshot): Project[] => snapshot.projects.map(({ tray: _tray, repository: _repository, ...project }) => ({ ...project, panels: project.panels.map(({ run: _run, status: _status, ...panel }) => panel) }));
+/** The snapshot's projects in their stored shape: resident panels without run and processing state, no tray, no Repository Binding and no Forge. */
+export const storedProjects = (snapshot: Snapshot): Project[] => snapshot.projects.map(({ tray: _tray, repository: _repository, forge: _forge, ...project }) => ({ ...project, panels: project.panels.map(({ run: _run, status: _status, ...panel }) => panel) }));

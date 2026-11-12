@@ -10,7 +10,7 @@ const storedSettings = async (directory: string) => JSON.parse(await readFile(`$
 test('missing and invalid settings values fall back to their defaults field by field', async context => {
   const directory = await testDirectory(context, 'settings-contract-fallback');
   await writeFile(`${directory}/settings.json`, JSON.stringify({
-    language: 'fr', theme: 'dark', defaultLayout: 42,
+    language: 'fr', theme: 'dark', defaultLayout: 42, sidebarCoexistence: 'float',
     agents: {
       codex: { command: '  ', args: ['--yes'] },
       claude: { command: ' custom-claude ', args: ['--a', 7] },
@@ -24,11 +24,12 @@ test('missing and invalid settings values fall back to their defaults field by f
     assert.deepEqual(errors, []);
     assert.deepEqual(settingsConflicts, []);
     assert.deepEqual(settings, {
-      language: 'en', theme: 'dark', defaultLayout: 'auto',
+      language: 'en', theme: 'dark', defaultLayout: 'auto', sidebarCoexistence: 'squeeze',
       agents: { codex: { command: 'codex', args: ['--yes'] }, claude: { command: ' custom-claude ', args: [] }, pi: { command: 'pi', args: [] } },
       shortcuts: {
         previousProject: 'Command+Shift+[', nextProject: 'Command+Shift+]', previousPanel: 'Command+[', nextPanel: 'Command+K',
         maximizePanel: 'Command+Enter', addPanel: 'Command+N', closePanel: 'Command+Shift+W', settings: 'Command+,',
+        toggleIssueSidebar: 'Command+Alt+B',
       },
     });
   } finally { await workbench.quit(); }
@@ -42,6 +43,7 @@ test('agents and shortcuts that are not objects fall back to their defaults as a
     const { settings, errors } = workbench.snapshot();
     assert.deepEqual(errors, []);
     assert.equal(settings.theme, 'light');
+    assert.equal(settings.sidebarCoexistence, 'squeeze');
     assert.deepEqual(settings.agents.codex, { command: 'codex', args: [] });
     assert.equal(settings.shortcuts.nextPanel, 'Command+]');
   } finally { await workbench.quit(); }
@@ -86,4 +88,19 @@ test('a settings file that is not a JSON object fails to read and is never overw
       assert.equal(await readFile(`${directory}/settings.json`, 'utf8'), contents);
     } finally { await workbench.quit().catch(() => {}); }
   }
+});
+
+test('the sidebar coexistence chosen in Appearance is saved and read back', async context => {
+  const directory = await testDirectory(context, 'settings-contract-sidebar-coexistence');
+  let workbench = await Workbench.open(directory);
+  try {
+    assert.equal(workbench.snapshot().settings.sidebarCoexistence, 'squeeze');
+    assert.ok((await workbench.saveSettings({ sidebarCoexistence: 'overlay' })).ok);
+    await workbench.quit();
+    assert.equal((await storedSettings(directory)).sidebarCoexistence, 'overlay');
+    workbench = await Workbench.open(directory);
+    assert.equal(workbench.snapshot().settings.sidebarCoexistence, 'overlay');
+    const invalid = await workbench.saveSettings({ sidebarCoexistence: 'float' as never });
+    assert.equal(invalid.ok, false);
+  } finally { await workbench.quit(); }
 });

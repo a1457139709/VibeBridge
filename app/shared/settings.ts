@@ -3,7 +3,7 @@ import { message } from './messages';
 import { agentNames, agentTypes, type AgentType, type Settings } from './model';
 import { defaultShortcuts, shortcutActions, shortcutConflicts, shortcutConflictMessage, shortcutFormatError } from './shortcuts';
 
-export const defaultSettings = (): Settings => ({ language: 'en', theme: 'system', defaultLayout: 'auto', shortcuts: defaultShortcuts(), agents: {
+export const defaultSettings = (): Settings => ({ language: 'en', theme: 'system', defaultLayout: 'auto', sidebarCoexistence: 'squeeze', shortcuts: defaultShortcuts(), agents: {
   codex: { command: 'codex', args: [] }, claude: { command: 'claude', args: [] }, pi: { command: 'pi', args: [] },
 } });
 
@@ -24,6 +24,7 @@ function settingsSchema(reading: boolean) {
     language: field(z.enum(['en', 'zh-CN'], { error: message('languageInvalid') }), defaults.language),
     theme: field(z.enum(['system', 'dark', 'light'], { error: message('themeInvalid') }), defaults.theme),
     defaultLayout: field(z.enum(['auto', 'row', 'column'], { error: message('layoutPreferenceInvalid') }), defaults.defaultLayout),
+    sidebarCoexistence: field(z.enum(['squeeze', 'overlay'], { error: message('sidebarCoexistenceInvalid') }), defaults.sidebarCoexistence),
     agents: field(object(Object.fromEntries(agentTypes.map(type => [type, field(object({
       command: field(command(type), defaults.agents[type].command), args: field(args, []),
     }, message('commandInvalid', { agent: agentNames[type] })), defaults.agents[type])])), message('settingsInvalid')), defaults.agents),
@@ -47,7 +48,7 @@ export function readSettings(value: unknown): Settings {
 export const settingsCategories = [
   { id: 'general', keys: ['language'] },
   { id: 'agents', keys: ['agents'] },
-  { id: 'appearance', keys: ['theme', 'defaultLayout'] },
+  { id: 'appearance', keys: ['theme', 'defaultLayout', 'sidebarCoexistence'] },
   { id: 'shortcuts', keys: ['shortcuts'], conflicts(settings: Settings): FieldIssue[] {
     return shortcutConflicts(settings.shortcuts).flatMap(conflict => conflict.actions.map(action => ({
       field: `shortcuts.${action}`, code: 'conflict' as const, message: shortcutConflictMessage(conflict, action) })));

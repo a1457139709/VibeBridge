@@ -4,7 +4,7 @@ import type { Shortcuts } from './shortcuts';
 import { projectNameError } from './project-name';
 import type { ProcessingState } from './processing-status';
 import type { SettingsIssue } from './settings';
-import type { RepositoryReference } from './forge';
+import type { ForgePresentation, RepositoryReference } from './forge';
 
 export const agentTypes = ['codex', 'claude', 'pi'] as const;
 export type AgentType = typeof agentTypes[number];
@@ -18,7 +18,9 @@ export interface Project { id: string; name: string; directory: string; panels: 
 export interface AgentCommand { command: string; args: string[] }
 export type DefaultLayout = 'auto' | 'row' | 'column';
 export type Language = 'en' | 'zh-CN';
-export interface Settings { language: Language; theme: 'system' | 'dark' | 'light'; defaultLayout: DefaultLayout; agents: Record<AgentType, AgentCommand>; shortcuts: Shortcuts }
+/** Whether the open issue sidebar squeezes the layout area or overlays it. */
+export type SidebarCoexistence = 'squeeze' | 'overlay';
+export interface Settings { language: Language; theme: 'system' | 'dark' | 'light'; defaultLayout: DefaultLayout; sidebarCoexistence: SidebarCoexistence; agents: Record<AgentType, AgentCommand>; shortcuts: Shortcuts }
 export type CommandCheck = { available: true; path: string } | { available: false; message: string };
 export interface Run { id: string; projectId: string; panelId: string; state: 'running' | 'starting' | 'failed' | 'stopped'; pid?: number; title?: string }
 // An unconfirmed launch may still be running; only a failed one is known not to have started.
@@ -34,14 +36,20 @@ export const defaultNavigation: NavigationPreferences = { visible: true, width: 
 // Width bounds belong to the interaction that sets them (navigationWidth), not to the stored format.
 export const navigationSchema = z.strictObject({ visible: z.boolean(), width: z.number() });
 export const navigationWidth = (width: number) => Math.max(168, Math.min(420, width));
+/** The issue sidebar's open state and width, one for the whole app. Stored like NavigationPreferences. */
+export interface IssueSidebarPreferences { visible: boolean; width: number }
+export const defaultIssueSidebar: IssueSidebarPreferences = { visible: false, width: 380 };
+export const issueSidebarSchema = z.strictObject({ visible: z.boolean(), width: z.number() });
+export const issueSidebarWidth = (width: number) => Math.max(300, Math.min(560, width));
 /** A panel with its current run, whatever that run's state, and the processing state it displays. */
 export type PanelView = Panel & { run?: Run; status?: ProcessingState };
 /** A project as the snapshot shows it. `panels` are its resident panels, placed by `layout`;
  * `tray` holds its ephemeral panels in the order they joined. The stored Project keeps only
  * the resident panels' configuration and layout; the tray lives in memory for one app run.
- * `repository` is its Repository Binding, stored apart from the project, or null when unbound. */
-export type ProjectView = Omit<Project, 'panels'> & { panels: PanelView[]; tray: PanelView[]; repository: RepositoryReference | null };
-export interface Snapshot { navigation: NavigationPreferences; projects: ProjectView[]; activeProjectId: string | null; settings: Settings; settingsConflicts: SettingsIssue[]; startupTheme: Settings['theme']; resolvedTheme: 'dark' | 'light'; errors: string[] }
+ * `repository` is its Repository Binding, stored apart from the project, or null when unbound; `forge` is the
+ * Forge its issue sidebar shows: the bound one, else the one an unbound project binds from. */
+export type ProjectView = Omit<Project, 'panels'> & { panels: PanelView[]; tray: PanelView[]; repository: RepositoryReference | null; forge: ForgePresentation };
+export interface Snapshot { navigation: NavigationPreferences; issueSidebar: IssueSidebarPreferences; projects: ProjectView[]; activeProjectId: string | null; settings: Settings; settingsConflicts: SettingsIssue[]; startupTheme: Settings['theme']; resolvedTheme: 'dark' | 'light'; errors: string[] }
 export type TerminalEvent = { kind: 'title'; runId: string; title: string } | { kind: 'output'; runId: string; data: string } | { kind: 'started'; run: Run } | { kind: 'stopping'; runId: string } | { kind: 'exit'; runId: string };
 export type WorkbenchEvent = Extract<TerminalEvent, { kind: 'started' | 'output' | 'exit' }> | { kind: 'snapshot'; snapshot: Snapshot } | { kind: 'error'; message: string };
 export interface DirectoryResult { valid: boolean; directory?: string; name?: string; existingProjectId?: string; existingProjectName?: string }

@@ -8,6 +8,7 @@ import { defaultSettings } from '../../app/shared/settings';
 import type { Layout, Snapshot } from '../../app/shared/model';
 import type { WorkbenchEvent } from '../../app/shared/model';
 import { deferred, provideWorkbench } from './support/workbench';
+import { githubForge } from './support/forge';
 
 afterEach(cleanup);
 before(() => {
@@ -32,12 +33,12 @@ function renderWorkbench(resident = false) {
   const moved: [string, string][] = [];
   const listeners = new Set<(event: WorkbenchEvent) => void>();
   const snapshot: Snapshot = {
-    navigation: { visible: true, width: 212 }, activeProjectId: 'project', settings: defaultSettings(),
+    navigation: { visible: true, width: 212 }, issueSidebar: { visible: false, width: 380 }, activeProjectId: 'project', settings: defaultSettings(),
     settingsConflicts: [], startupTheme: 'light', resolvedTheme: 'light', errors: [],
     projects: [{ id: 'project', name: 'Placement', directory: '/work/placement',
       layout: resident ? { panel: 'resident' } : null,
       panels: resident ? [{ id: 'resident', agent: 'claude', run: { id: 'run-resident', panelId: 'resident', projectId: 'project', state: 'starting', title: 'Session resident' } }] : [],
-      tray: [{ id: 'ephemeral', agent: 'codex', run: { id: 'run-ephemeral', panelId: 'ephemeral', projectId: 'project', state: 'starting', title: 'Session ephemeral' } }], repository: null }],
+      tray: [{ id: 'ephemeral', agent: 'codex', run: { id: 'run-ephemeral', panelId: 'ephemeral', projectId: 'project', state: 'starting', title: 'Session ephemeral' } }], repository: null, forge: githubForge }],
   };
   provideWorkbench({ snapshot: async () => structuredClone(snapshot),
     subscribe: listener => { listeners.add(listener); return () => { listeners.delete(listener); }; }, ready: async () => {},

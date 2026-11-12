@@ -1,0 +1,17 @@
+/* The issue sidebar sits at the right of the app body. Squeeze: it takes its width from the main area.
+   Overlay: it covers the right of the main area; the workspace toolbar, tray and settings page make room, so only the layout area is covered. */
+.app-body { position: relative; }
+.issue-sidebar { position: relative; flex-shrink: 0; max-width: max(0px, calc(100vw - 160px)); display: flex; flex-direction: column; min-height: 0; border-left: 1px solid var(--line); background: var(--canvas); font-size: 12px; z-index: 7; }
+.issue-sidebar:focus { outline: none; }
+.issue-sidebar.overlay { position: absolute; right: 0; top: 0; bottom: 0; box-shadow: -12px 0 32px #0004; }
+.issue-sidebar-resize { position: absolute; left: -4px; top: 0; bottom: 0; width: 8px; cursor: col-resize; z-index: 3; touch-action: none; }
+.issue-sidebar-resize:hover { background: color-mix(in srgb, var(--focus) 30%, transparent); }
+.issue-sidebar-head { height: 32px; flex-shrink: 0; display: flex; align-items: center; padding: 0 4px 0 12px; border-bottom: 1px solid var(--line); background: var(--navigation, var(--canvas)); }
+.issue-sidebar-repository { font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.issue-sidebar-state { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 10px; padding: 24px; text-align: center; color: var(--muted); }
+.issue-sidebar-state button { font-size: 12px; min-height: 28px; }
+.app-body.issue-sidebar-yield .workspace-toolbar, .app-body.issue-sidebar-yield .panel-tray { padding-right: calc(var(--issue-sidebar-width) + 12px); }
+.app-body.issue-sidebar-yield .settings-page { padding-right: var(--issue-sidebar-width); }
+.system-bar .issue-sidebar-toggle { display: grid; place-items: center; width: 28px; height: 28px; min-height: 0; margin: 0 12px 0 auto; border-radius: 6px; color: var(--muted); }
+.system-bar .issue-sidebar-toggle:hover:not(:disabled) { background: var(--hover); color: inherit; }
+.system-bar .issue-sidebar-toggle[aria-expanded='true'] { background: var(--hover); color: var(--accent); }

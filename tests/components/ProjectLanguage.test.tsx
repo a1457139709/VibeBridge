@@ -8,12 +8,13 @@ import { Localization } from '../../app/renderer/Localization';
 import { message } from '../../app/shared/messages';
 import type { ProjectView } from '../../app/shared/model';
 import { provideWorkbench } from './support/workbench';
+import { githubForge } from './support/forge';
 
 afterEach(cleanup);
 
 for (const language of ['en', 'zh-CN'] as const) {
   test(`project editing and deletion explain results in ${language} and preserve user content`, async () => {
-    const project: ProjectView = { id: 'project', name: 'Untitled task 原样', directory: '/原样/old', panels: [{ id: 'panel', agent: 'pi' }], tray: [], layout: { panel: 'panel' }, repository: null };
+    const project: ProjectView = { id: 'project', name: 'Untitled task 原样', directory: '/原样/old', panels: [{ id: 'panel', agent: 'pi' }], tray: [], layout: { panel: 'panel' }, repository: null, forge: githubForge };
     const calls: unknown[] = [];
     provideWorkbench({ inspectDirectory: async directory => ({ valid: true, directory }),
       repositoryChoices: async () => ({ ok: false, failure: { kind: 'notInstalled', detail: '', forge: { name: 'GitHub', cli: 'gh', installUrl: 'https://cli.github.com', loginCommand: 'gh auth login' } } }),

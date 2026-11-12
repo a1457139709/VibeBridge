@@ -100,6 +100,7 @@ void app.whenReady().then(async () => {
   handle('tray', (service, project, panel) => service.moveToTray(project, panel));
   handle('layout', (service, project, layout) => service.saveLayout(project, layout));
   handle('navigation', (service, preferences) => service.saveNavigation(preferences));
+  handle('issue-sidebar', (service, preferences) => service.saveIssueSidebar(preferences));
   handle('settings', (service, settings) => service.saveSettings(settings));
   handle('check-command', (service, command) => service.checkCommand(command));
   handle('input', (service, run, data) => service.sendInput(run, data));

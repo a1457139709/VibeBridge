@@ -1,4 +1,4 @@
-import type { NavigationPreferences, AgentType, CommandCheck, DirectoryResult, Layout, ProjectCreation, PanelCreation, ProjectDraft, ProjectEdit, ProjectEditResult, Settings, Snapshot, WorkbenchEvent } from './model';
+import type { IssueSidebarPreferences, NavigationPreferences, AgentType, CommandCheck, DirectoryResult, Layout, ProjectCreation, PanelCreation, ProjectDraft, ProjectEdit, ProjectEditResult, Settings, Snapshot, WorkbenchEvent } from './model';
 import type { SettingsSaveResult } from './settings';
 import type { RepositoryChoices } from './forge';
 
@@ -21,6 +21,8 @@ export interface DesktopAPI {
   moveToTray(projectId: string, panelId: string): Promise<void>;
   saveLayout(projectId: string, layout: Layout | null): Promise<void>;
   saveNavigation(preferences: NavigationPreferences): Promise<void>;
+  /** Saves the issue sidebar's open state and width, shared by the whole app. */
+  saveIssueSidebar(preferences: IssueSidebarPreferences): Promise<void>;
   saveSettings(settings: Partial<Settings>): Promise<SettingsSaveResult>;
   checkCommand(command: string): Promise<CommandCheck>;
   sendInput(runId: string, data: string): Promise<void>;

@@ -8,6 +8,7 @@ import { defaultSettings } from '../../app/shared/settings';
 import type { PanelView, ProjectView, Snapshot } from '../../app/shared/model';
 import type { ProcessingState } from '../../app/shared/processing-status';
 import { provideWorkbench } from './support/workbench';
+import { githubForge } from './support/forge';
 
 afterEach(cleanup);
 before(() => {
@@ -28,12 +29,12 @@ const project = (): ProjectView => ({
   id: 'project', name: 'Toolbar project', directory: '/work/toolbar-directory',
   layout: { panel: 'resident' }, panels: [panel('resident', 'done')],
   tray: [panel('first-ephemeral', 'needs-input'), panel('second-ephemeral', 'done')],
-  repository: null,
+  repository: null, forge: githubForge,
 });
 
 function renderWorkbench(change: (snapshot: Snapshot) => void = () => {}) {
   const snapshot: Snapshot = {
-    navigation: { visible: true, width: 212 }, activeProjectId: 'project', settings: defaultSettings(),
+    navigation: { visible: true, width: 212 }, issueSidebar: { visible: false, width: 380 }, activeProjectId: 'project', settings: defaultSettings(),
     settingsConflicts: [], startupTheme: 'light', resolvedTheme: 'light', errors: [], projects: [project()],
   };
   change(snapshot);
