@@ -28,6 +28,7 @@ const project = (): ProjectView => ({
   id: 'project', name: 'Toolbar project', directory: '/work/toolbar-directory',
   layout: { panel: 'resident' }, panels: [panel('resident', 'done')],
   tray: [panel('first-ephemeral', 'needs-input'), panel('second-ephemeral', 'done')],
+  repository: null,
 });
 
 function renderWorkbench(change: (snapshot: Snapshot) => void = () => {}) {

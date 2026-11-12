@@ -9,6 +9,8 @@ import { ProjectStore } from './storage';
 import { SettingsFile, defaultSettings } from './settings';
 import { settingsConflicts, type SettingsSaveResult } from '../shared/settings';
 import { RunSupervision } from './run-supervision';
+import { sameRepository, type RepositoryChoices, type RepositoryReference } from '../shared/forge';
+import { listedRepository, repositoryChoices } from './forge/repositories';
 
 export class WorkbenchOpenError extends Error {
   constructor(error: unknown, readonly language: Language) {
@@ -24,6 +26,8 @@ export class Workbench {
   private visited = new Set<string>();
   // Each project's tray: its ephemeral panels in the order they joined. Never stored.
   private trays = new Map<string, Panel[]>();
+  // Each project's Repository Binding, as stored.
+  private repositories = new Map<string, RepositoryReference>();
   private quitting = false;
   private quitPromise?: Promise<void>;
   private constructor(directory: string, private store: ProjectStore, private settingsFile: SettingsFile) {
@@ -44,9 +48,10 @@ export class Workbench {
     let store: ProjectStore | undefined;
     try {
       store = await ProjectStore.open(directory);
-      const projects = await store.load();
+      const { repositories, ...projects } = await store.load();
       const workbench = new Workbench(directory, store, settingsFile);
       Object.assign(workbench.state, projects, { settings, settingsConflicts: settingsConflicts(settings), errors });
+      workbench.repositories = new Map(Object.entries(repositories));
       workbench.state.startupTheme = settings.theme;
       workbench.state.resolvedTheme = workbench.state.startupTheme === 'system' ? (systemDark ? 'dark' : 'light') : workbench.state.startupTheme;
       return workbench;
@@ -57,7 +62,8 @@ export class Workbench {
   }
   snapshot(): Snapshot {
     const view = (panel: Panel) => this.supervision.panelView(panel);
-    const projects = this.state.projects.map(project => ({ ...project, panels: project.panels.map(view), tray: this.tray(project.id).map(view) }));
+    const projects = this.state.projects.map(project => ({ ...project, panels: project.panels.map(view), tray: this.tray(project.id).map(view),
+      repository: this.repositories.get(project.id) ?? null }));
     return structuredClone({ ...this.state, projects });
   }
   subscribe(listener: (event: WorkbenchEvent) => void) { this.listeners.add(listener); return () => { this.listeners.delete(listener); }; }
@@ -101,27 +107,37 @@ export class Workbench {
     await this.withdrawPanels(project, launches.filter(launch => launch.outcome === 'failed').map(launch => launch.run.panelId));
     return { project: structuredClone(project), launches };
   }); }
-  editProject(id: string, edit: ProjectEdit, restart: boolean): Promise<ProjectEditResult> { return this.operation(async () => {
-    const project = this.project(id);
-    const nameError = projectNameError(edit.name);
-    if (nameError) throw new Error(nameError);
-    const directory = await this.inspectDirectory(edit.directory);
-    if (!directory.valid) throw new Error(message('projectDirectoryInvalid'));
-    if (directory.existingProjectId && directory.existingProjectId !== id) throw new Error(message('projectDuplicate', { name: directory.existingProjectName! }));
-    const next = { ...project, name: edit.name.trim(), directory: directory.directory! };
-    const changedDirectory = project.directory !== next.directory;
-    if (!changedDirectory && project.name === next.name) return { project: structuredClone(project), launches: [] };
-    await this.store.save(next);
-    Object.assign(project, next); this.changed();
-    const result: ProjectEditResult = { project: structuredClone(project), launches: [] };
-    if (changedDirectory && restart && this.visited.has(id)) {
-      // Tray panels keep running in the directory they started in.
-      const failures = await this.supervision.stopPanels(project.panels);
-      if (failures.length) result.error = message('projectRestartFailed', { reasons: failures.map(detail) });
-      else for (const panel of project.panels) result.launches.push(await this.startPanel(project, panel));
-    }
-    return result;
-  }); }
+  /** Saves name, directory and Repository Binding together. Everything is checked first (a new repository against
+   * a fresh list from its forge), then written in one transaction, so a failed check saves nothing. */
+  async editProject(id: string, edit: ProjectEdit, restart: boolean): Promise<ProjectEditResult> {
+    this.project(id);
+    // Listing waits on the forge CLI, so it runs before the edit joins the operation queue.
+    const repository = sameRepository(edit.repository, this.repositories.get(id) ?? null) ? edit.repository : await listedRepository(edit.repository);
+    return this.operation(async () => {
+      const project = this.project(id);
+      const nameError = projectNameError(edit.name);
+      if (nameError) throw new Error(nameError);
+      const directory = await this.inspectDirectory(edit.directory);
+      if (!directory.valid) throw new Error(message('projectDirectoryInvalid'));
+      if (directory.existingProjectId && directory.existingProjectId !== id) throw new Error(message('projectDuplicate', { name: directory.existingProjectName! }));
+      const next = { ...project, name: edit.name.trim(), directory: directory.directory! };
+      const changedDirectory = project.directory !== next.directory;
+      const bound = this.repositories.get(id) ?? null;
+      if (!changedDirectory && project.name === next.name && sameRepository(repository, bound)) return { project: structuredClone(project), launches: [] };
+      await this.store.edit(next, repository);
+      Object.assign(project, next);
+      if (repository) this.repositories.set(id, repository); else this.repositories.delete(id);
+      this.changed();
+      const result: ProjectEditResult = { project: structuredClone(project), launches: [] };
+      if (changedDirectory && restart && this.visited.has(id)) {
+        // Tray panels keep running in the directory they started in.
+        const failures = await this.supervision.stopPanels(project.panels);
+        if (failures.length) result.error = message('projectRestartFailed', { reasons: failures.map(detail) });
+        else for (const panel of project.panels) result.launches.push(await this.startPanel(project, panel));
+      }
+      return result;
+    });
+  }
   deleteProject(id: string) { return this.operation(async () => {
     const project = this.project(id);
     const panels = this.panels(project);
@@ -136,12 +152,18 @@ export class Workbench {
     this.state.projects = this.state.projects.filter(item => item.id !== id);
     this.supervision.release(panels.map(panel => panel.id));
     this.trays.delete(id);
+    this.repositories.delete(id);
     this.visited.delete(id);
     const activateNext = this.state.activeProjectId === id;
     this.state.activeProjectId = nextActive;
     this.changed();
     if (activateNext && nextActive) await this.startProject(this.project(nextActive));
   }); }
+  /** The repositories the project can bind, with the one that `origin` of `directory` (the directory as the user is editing it) points at. */
+  async repositoryChoices(projectId: string, directory: string): Promise<RepositoryChoices> {
+    this.project(projectId);
+    return repositoryChoices(this.repositories.get(projectId) ?? null, directory);
+  }
   private startPanel(project: Project, panel: Panel) { return this.supervision.start(project, panel, this.state.settings.agents[panel.agent]); }
   private async startProject(project: Project): Promise<LaunchResult[]> {
     if (this.visited.has(project.id)) return [];

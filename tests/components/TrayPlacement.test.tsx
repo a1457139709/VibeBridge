@@ -37,7 +37,7 @@ function renderWorkbench(resident = false) {
     projects: [{ id: 'project', name: 'Placement', directory: '/work/placement',
       layout: resident ? { panel: 'resident' } : null,
       panels: resident ? [{ id: 'resident', agent: 'claude', run: { id: 'run-resident', panelId: 'resident', projectId: 'project', state: 'starting', title: 'Session resident' } }] : [],
-      tray: [{ id: 'ephemeral', agent: 'codex', run: { id: 'run-ephemeral', panelId: 'ephemeral', projectId: 'project', state: 'starting', title: 'Session ephemeral' } }] }],
+      tray: [{ id: 'ephemeral', agent: 'codex', run: { id: 'run-ephemeral', panelId: 'ephemeral', projectId: 'project', state: 'starting', title: 'Session ephemeral' } }], repository: null }],
   };
   provideWorkbench({ snapshot: async () => structuredClone(snapshot),
     subscribe: listener => { listeners.add(listener); return () => { listeners.delete(listener); }; }, ready: async () => {},

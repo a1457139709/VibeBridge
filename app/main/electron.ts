@@ -1,10 +1,11 @@
-import { app, BrowserWindow, dialog, ipcMain, Menu, nativeTheme } from 'electron';
+import { app, BrowserWindow, dialog, ipcMain, Menu, nativeTheme, shell } from 'electron';
 import { join } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { Workbench, WorkbenchOpenError } from './workbench';
 import type { Language } from '../shared/model';
 import { localize } from '../shared/localization';
 import { message } from '../shared/messages';
+import { commandEnvironment } from '../terminal/environment';
 
 app.setName('VibeBridge');
 // Also permits isolated local acceptance runs without touching the user's projects.
@@ -14,6 +15,12 @@ let workbench: Promise<Workbench>;
 let exiting = false;
 let confirming = false;
 let language: Language = 'en';
+// An app opened from the Finder inherits a minimal PATH. Forge CLIs such as gh are looked up on the
+// inherited PATH first, then on the login shell's, where the Agents find them too.
+const loginPath = commandEnvironment().then(environment => {
+  const entries = [...(process.env.PATH ?? '').split(':'), ...(environment.PATH ?? '').split(':')].filter(Boolean);
+  process.env.PATH = [...new Set(entries)].join(':');
+}).catch(() => {});
 
 function updateNativeLanguage(next: Language) {
   language = next;
@@ -50,7 +57,10 @@ void app.whenReady().then(async () => {
     backgroundColor: nativeTheme.shouldUseDarkColors ? '#141414' : '#f5f5f5',
     webPreferences: { preload: join(__dirname, 'preload.cjs'), contextIsolation: true, nodeIntegration: false, sandbox: true } });
   window.on('close', event => { if (!exiting) { event.preventDefault(); void requestQuit(); } });
-  window.webContents.setWindowOpenHandler(() => ({ action: 'deny' }));
+  window.webContents.setWindowOpenHandler(({ url }) => {
+    if (/^https:\/\//.test(url)) void shell.openExternal(url);
+    return { action: 'deny' };
+  });
   window.webContents.on('will-navigate', event => event.preventDefault());
   updateNativeLanguage(language);
   workbench = Workbench.open(app.getPath('userData'), nativeTheme.shouldUseDarkColors);
@@ -79,9 +89,10 @@ void app.whenReady().then(async () => {
   };
   handle('snapshot', service => service.snapshot());
   handle('create', (service, draft) => service.createProject(draft));
-  handle('edit-project', (service, id, edit, restart) => service.editProject(id, edit, restart));
+  handle('edit-project', async (service, id, edit, restart) => { await loginPath; return service.editProject(id, edit, restart); });
   handle('delete-project', (service, id) => service.deleteProject(id));
   handle('directory', (service, directory) => service.inspectDirectory(directory));
+  handle('repository-choices', async (service, id, directory) => { await loginPath; return service.repositoryChoices(id, directory); });
   handle('activate', (service, id) => service.activateProject(id));
   handle('add', (service, project, agent) => service.addPanel(project, agent));
   handle('close', (service, project, panel) => service.closePanel(project, panel));

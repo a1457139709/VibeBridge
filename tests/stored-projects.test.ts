@@ -85,3 +85,22 @@ for (const [behavior, stored] of [
     await assertRejected(directory, file, /navigationDataInvalid/, ['navigation']);
   });
 }
+
+for (const [behavior, forge, path, field] of [
+  ['names a forge without an adapter', 'gitlab', 'group/sub/repo', 'repository_bindings.forge'],
+  ['has an empty repository path', 'github', '', 'repository_bindings.path'],
+]) {
+  test(`a stored Repository Binding that ${behavior} keeps the workbench closed and the database unchanged`, async context => {
+    const { directory, file } = await storedWorkbench(context, 'stored-invalid-binding', database =>
+      database.prepare('INSERT INTO repository_bindings VALUES (?,?,?)').run(project.id, forge, path));
+    await assertRejected(directory, file, /projectDataInvalid/, [field, project.id, project.name]);
+  });
+}
+
+test('a stored Repository Binding with a nested repository path reopens as stored', async context => {
+  const { directory } = await storedWorkbench(context, 'stored-binding', database =>
+    database.prepare('INSERT INTO repository_bindings VALUES (?,?,?)').run(project.id, 'github', 'group/sub/repo'));
+  const workbench = await Workbench.open(directory);
+  try { assert.deepEqual(workbench.snapshot().projects[0].repository, { forge: 'github', path: 'group/sub/repo' }); }
+  finally { await workbench.quit(); }
+});

@@ -3,6 +3,7 @@ import { Worker } from 'node:worker_threads';
 import { mkdir } from 'node:fs/promises';
 import { join } from 'node:path';
 import type { NavigationPreferences, Project } from '../shared/model';
+import type { RepositoryReference } from '../shared/forge';
 
 export class ProjectStore {
   private worker: Worker;
@@ -30,8 +31,10 @@ export class ProjectStore {
       const id = ++this.sequence; this.pending.set(id, { resolve, reject }); this.worker.postMessage({ id, operation, value });
     });
   }
-  load() { return this.request<{ projects: Project[]; activeProjectId: string | null; navigation: NavigationPreferences }>('load'); }
+  load() { return this.request<{ projects: Project[]; repositories: Record<string, RepositoryReference>; activeProjectId: string | null; navigation: NavigationPreferences }>('load'); }
   save(project: Project) { return this.request<void>('save', project); }
+  /** Saves an edited project and its Repository Binding (null for none) in one transaction. */
+  edit(project: Project, repository: RepositoryReference | null) { return this.request<void>('edit', { project, repository }); }
   navigation(value: NavigationPreferences) { return this.request<void>('navigation', value); }
   delete(id: string, activeProjectId: string | null) { return this.request<void>('delete', { id, activeProjectId }); }
   active(id: string) { return this.request<void>('active', id); }

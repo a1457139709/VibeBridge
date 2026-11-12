@@ -23,7 +23,7 @@ function fixture() {
     settingsConflicts: [], startupTheme: 'light', resolvedTheme: 'light', errors: [],
     projects: [{ id: 'project', name: 'Project title stays out of the bar', directory: '/project', layout: null,
       panels: ([['first', 'done'], ['third', 'needs-input']] as const).map(([id, status]) => panel(id, status)),
-      tray: ([['second', 'done'], ['fresh', 'ready']] as const).map(([id, status]) => panel(id, status)) }],
+      tray: ([['second', 'done'], ['fresh', 'ready']] as const).map(([id, status]) => panel(id, status)), repository: null }],
   };
   const listeners = new Set<(event: WorkbenchEvent) => void>();
   const located: string[] = [];

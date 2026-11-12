@@ -16,7 +16,7 @@ test('directory restart restarts resident panels while tray panels keep their ru
     const added = await f.workbench.addPanel(project.id, 'codex');
     const tray = added.launch.run;
     await until(() => f.output(tray.id).includes('READY:'));
-    const result = await f.workbench.editProject(project.id, { name: 'Mixed moved', directory: target }, true);
+    const result = await f.workbench.editProject(project.id, { name: 'Mixed moved', directory: target, repository: null }, true);
     assert.equal(result.error, undefined);
     assert.deepEqual(result.launches.map(launch => launch.run.panelId), [project.panels[0].id]);
     assert.notEqual(result.launches[0].run.id, resident.id);
