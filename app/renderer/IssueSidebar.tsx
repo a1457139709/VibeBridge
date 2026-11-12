@@ -1,5 +1,6 @@
 import { useLocalization } from './Localization';
 import { useLayoutEffect, useRef, useState } from 'react';
+import { displayShortcut } from '../shared/shortcuts';
 import type { DesktopAPI } from '../shared/api';
 import { defaultIssueSidebar, issueSidebarWidth, type ProjectView, type Snapshot } from '../shared/model';
 import { useSidebarPreferences } from './sidebar-preferences';
@@ -29,36 +30,38 @@ export function useIssueSidebar(host: Host, api: Pick<DesktopAPI, 'saveIssueSide
     width: issueSidebarWidth, edge: -1, report: host.report });
   const element = useRef<HTMLElement>(null);
   const focusOnOpen = useRef(false);
-  const [binding, setBinding] = useState(false);
+  const [editingRepository, setEditingRepository] = useState(false);
   const shown = preferences.visible && !!project;
   useLayoutEffect(() => {
     if (shown && focusOnOpen.current) element.current!.focus();
     focusOnOpen.current = false;
   }, [shown]);
   // The intent is set first: the snapshot of the save may already draw the open sidebar.
+  // Without a current project there is no sidebar to show, so there is nothing to toggle.
   function toggle() {
-    if (!snapshot) return;
+    if (!project) return;
     focusOnOpen.current = !preferences.visible;
     if (!togglePreferences()) focusOnOpen.current = false;
   }
   // The toggle names the current project's forge; without a project it names the sidebar by what it shows.
   const label = project ? t(preferences.visible ? 'closeIssueSidebar' : 'openIssueSidebar', { forge: project.forge.name }) : t('toggleIssueSidebar');
+  const binding = snapshot?.settings.shortcuts.toggleIssueSidebar;
   const overlay = snapshot?.settings.sidebarCoexistence === 'overlay';
   return {
     toggle,
     shown, overlay, width: preferences.width,
-    button: <button className="issue-sidebar-toggle" aria-label={label}
-      aria-expanded={preferences.visible} disabled={!snapshot} onClick={toggle}><SidebarIcon open={preferences.visible} /></button>,
+    button: <button className="issue-sidebar-toggle" aria-label={label} data-hint={binding ? `${label} (${displayShortcut(binding)})` : label}
+      aria-expanded={shown} disabled={!project} onClick={toggle}><SidebarIcon open={shown} /></button>,
     sidebar: shown && project && <aside ref={element} tabIndex={-1} className={`issue-sidebar ${overlay ? 'overlay' : ''}`} aria-label={project.forge.name}
       style={{ width: preferences.width }}>
       <div className="issue-sidebar-resize" role="separator" aria-orientation="vertical" aria-label={t('resizeIssueSidebar', { forge: project.forge.name })} onPointerDown={resize} />
       <header className="issue-sidebar-head"><span className="issue-sidebar-repository">{project.repository?.path ?? t('noRepositoryBound')}</span></header>
       {!project.repository && <div className="issue-sidebar-state">
         <p>{t('projectUnbound', { forge: project.forge.name })}</p>
-        <button className="primary" onClick={() => setBinding(true)}>{t('bindRepository')}</button>
+        <button className="primary" onClick={() => setEditingRepository(true)}>{t('bindRepository')}</button>
       </div>}
-      {binding && <ProjectEditor project={project} focus="repository" close={() => setBinding(false)}
-        openProject={id => { setBinding(false); host.openProject(id); }} />}
+      {editingRepository && <ProjectEditor project={project} focusRepository close={() => setEditingRepository(false)}
+        openProject={id => { setEditingRepository(false); host.openProject(id); }} />}
     </aside>,
   };
 }

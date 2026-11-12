@@ -31,15 +31,13 @@ export interface ProjectCreation { project: Project; launches: LaunchResult[] }
 export interface ProjectEdit { name: string; directory: string; repository: RepositoryReference | null }
 export interface ProjectEditResult { project: Project; launches: LaunchResult[]; error?: string }
 export interface PanelCreation { panel: Panel; launch: LaunchResult }
-export interface NavigationPreferences { visible: boolean; width: number }
-export const defaultNavigation: NavigationPreferences = { visible: true, width: 212 };
-// Width bounds belong to the interaction that sets them (navigationWidth), not to the stored format.
-export const navigationSchema = z.strictObject({ visible: z.boolean(), width: z.number() });
+/** A sidebar's open state and width: the project navigation's, and the issue sidebar's, each one for the whole app.
+ * Width bounds belong to the interaction that sets them (navigationWidth, issueSidebarWidth), not to the stored format. */
+export interface SidebarPreferences { visible: boolean; width: number }
+export const sidebarPreferencesSchema = z.strictObject({ visible: z.boolean(), width: z.number() });
+export const defaultNavigation: SidebarPreferences = { visible: true, width: 212 };
 export const navigationWidth = (width: number) => Math.max(168, Math.min(420, width));
-/** The issue sidebar's open state and width, one for the whole app. Stored like NavigationPreferences. */
-export interface IssueSidebarPreferences { visible: boolean; width: number }
-export const defaultIssueSidebar: IssueSidebarPreferences = { visible: false, width: 380 };
-export const issueSidebarSchema = z.strictObject({ visible: z.boolean(), width: z.number() });
+export const defaultIssueSidebar: SidebarPreferences = { visible: false, width: 380 };
 export const issueSidebarWidth = (width: number) => Math.max(300, Math.min(560, width));
 /** A panel with its current run, whatever that run's state, and the processing state it displays. */
 export type PanelView = Panel & { run?: Run; status?: ProcessingState };
@@ -49,7 +47,7 @@ export type PanelView = Panel & { run?: Run; status?: ProcessingState };
  * `repository` is its Repository Binding, stored apart from the project, or null when unbound; `forge` is the
  * Forge its issue sidebar shows: the bound one, else the one an unbound project binds from. */
 export type ProjectView = Omit<Project, 'panels'> & { panels: PanelView[]; tray: PanelView[]; repository: RepositoryReference | null; forge: ForgePresentation };
-export interface Snapshot { navigation: NavigationPreferences; issueSidebar: IssueSidebarPreferences; projects: ProjectView[]; activeProjectId: string | null; settings: Settings; settingsConflicts: SettingsIssue[]; startupTheme: Settings['theme']; resolvedTheme: 'dark' | 'light'; errors: string[] }
+export interface Snapshot { navigation: SidebarPreferences; issueSidebar: SidebarPreferences; projects: ProjectView[]; activeProjectId: string | null; settings: Settings; settingsConflicts: SettingsIssue[]; startupTheme: Settings['theme']; resolvedTheme: 'dark' | 'light'; errors: string[] }
 export type TerminalEvent = { kind: 'title'; runId: string; title: string } | { kind: 'output'; runId: string; data: string } | { kind: 'started'; run: Run } | { kind: 'stopping'; runId: string } | { kind: 'exit'; runId: string };
 export type WorkbenchEvent = Extract<TerminalEvent, { kind: 'started' | 'output' | 'exit' }> | { kind: 'snapshot'; snapshot: Snapshot } | { kind: 'error'; message: string };
 export interface DirectoryResult { valid: boolean; directory?: string; name?: string; existingProjectId?: string; existingProjectName?: string }

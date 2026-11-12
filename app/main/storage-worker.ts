@@ -1,7 +1,7 @@
 import { message } from '../shared/messages';
 import { parentPort, workerData } from 'node:worker_threads';
 import { DatabaseSync } from 'node:sqlite';
-import { agentTypeSchema, defaultIssueSidebar, defaultNavigation, issueSidebarSchema, navigationSchema, parseLayout, type IssueSidebarPreferences, type NavigationPreferences, type Panel, type Project } from '../shared/model';
+import { agentTypeSchema, defaultIssueSidebar, defaultNavigation, sidebarPreferencesSchema, parseLayout, type SidebarPreferences, type Panel, type Project } from '../shared/model';
 import { forgeIdSchema, type RepositoryReference } from '../shared/forge';
 
 const file: string = workerData.file;
@@ -42,17 +42,11 @@ function readBindings(projects: Project[]): Record<string, RepositoryReference> 
   return bindings;
 }
 
-function readNavigation(stored: unknown): NavigationPreferences {
-  if (stored === null || stored === undefined) return defaultNavigation;
-  try { return navigationSchema.parse(JSON.parse(stored as string)); }
-  catch { throw new Error(message('navigationDataInvalid', { file, field: 'navigation' })); }
-}
-
-function readIssueSidebar(): IssueSidebarPreferences {
-  const stored = db.prepare('SELECT preferences FROM issue_sidebar WHERE id=1').get();
-  if (!stored) return defaultIssueSidebar;
-  try { return issueSidebarSchema.parse(JSON.parse(stored.preferences as string)); }
-  catch { throw new Error(message('issueSidebarDataInvalid', { file, field: 'issue_sidebar' })); }
+/** Stored sidebar preferences, or the defaults when none are stored. */
+function readSidebar(stored: unknown, defaults: SidebarPreferences, field: string): SidebarPreferences {
+  if (stored === null || stored === undefined) return defaults;
+  try { return sidebarPreferencesSchema.parse(JSON.parse(stored as string)); }
+  catch { throw new Error(message('sidebarDataInvalid', { file, field })); }
 }
 
 function transaction(write: () => void) {
@@ -77,8 +71,8 @@ parentPort!.on('message', ({ id, operation, value }) => {
       result = {
         projects,
         repositories: readBindings(projects),
-        navigation: readNavigation(workspace?.navigation),
-        issueSidebar: readIssueSidebar(),
+        navigation: readSidebar(workspace?.navigation, defaultNavigation, 'navigation'),
+        issueSidebar: readSidebar(db.prepare('SELECT preferences FROM issue_sidebar WHERE id=1').get()?.preferences, defaultIssueSidebar, 'issue_sidebar'),
         activeProjectId: workspace?.active_project ?? null,
       };
     } else if (operation === 'save') transaction(() => saveProject(value as Project));

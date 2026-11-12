@@ -1,9 +1,7 @@
 import { useLayoutEffect, useRef, useState, type PointerEvent } from 'react';
 import type { DesktopAPI } from '../shared/api';
-import type { Snapshot } from '../shared/model';
+import type { SidebarPreferences, Snapshot } from '../shared/model';
 import { capturePointer } from './pointer-capture';
-
-export interface SidebarPreferences { visible: boolean; width: number }
 
 interface Options<T extends SidebarPreferences> {
   snapshot?: Snapshot;

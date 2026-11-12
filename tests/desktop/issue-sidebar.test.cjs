@@ -27,10 +27,11 @@ module.exports = {
     await click('Show the GitHub sidebar');
     await until(async () => (await rect(evaluate, '.issue-sidebar'))?.width === 380, 'overlaying sidebar drawn 380px wide');
     const sidebar = await rect(evaluate, '.issue-sidebar');
-    assert.deepEqual(await rect(evaluate, '.canvas'), canvas, 'the layout area keeps its size under the overlay');
     assert.ok(sidebar.left < canvas.right, 'the sidebar covers the layout area');
     assert.ok((await rect(evaluate, '.workspace-toolbar > button')).right <= sidebar.left, 'the toolbar makes room for the sidebar');
-    assert.deepEqual(await reportedSize(context, run.id), initial, 'overlaying the layout area leaves the PTY size unchanged');
+    // Settled state: the layout area and the PTY both have the size they had before the sidebar opened.
+    await until(async () => JSON.stringify(await rect(evaluate, '.canvas')) === JSON.stringify(canvas)
+      && JSON.stringify(await reportedSize(context, run.id)) === JSON.stringify(initial), 'under the overlay the layout area and PTY keep their size');
     await click('Hide the GitHub sidebar');
     await until(async () => !(await rect(evaluate, '.issue-sidebar')), 'sidebar closed');
 
@@ -40,8 +41,14 @@ module.exports = {
     await until(async () => (await rect(evaluate, '.canvas'))?.width < canvas.width, 'squeezing sidebar narrows the layout area');
     await until(async () => (await reportedSize(context, run.id)).cols < initial.cols, 'squeezing the layout area resizes the PTY to fewer columns');
 
-    await evaluate('window.workbench.saveIssueSidebar({ visible: true, width: 450 })');
-    await until(async () => (await rect(evaluate, '.issue-sidebar'))?.width === 450, 'sidebar drawn at its saved 450px width');
+    // Dragging the left edge 70px to the left widens the sidebar from 380px to 450px and saves it.
+    const { center } = require('./support/dragging.cjs')(context);
+    const edge = center(await evaluate(`(() => { const r = document.querySelector('.issue-sidebar-resize').getBoundingClientRect(); return { left: r.left, top: r.top, width: r.width, height: r.height }; })()`));
+    context.window.webContents.sendInputEvent({ type: 'mouseDown', ...edge, button: 'left', modifiers: ['leftbuttondown'], clickCount: 1 });
+    context.window.webContents.sendInputEvent({ type: 'mouseMove', x: edge.x - 70, y: edge.y, button: 'left', modifiers: ['leftbuttondown'] });
+    context.window.webContents.sendInputEvent({ type: 'mouseUp', x: edge.x - 70, y: edge.y, button: 'left', clickCount: 1 });
+    await until(async () => (await evaluate('window.workbench.snapshot()')).issueSidebar.width === 450, 'dragging the left edge saved a 450px width');
+    await until(async () => (await rect(evaluate, '.issue-sidebar'))?.width === 450, 'sidebar drawn at its dragged 450px width');
     console.log('Overlay kept the layout area and PTY size while the toolbar made room; squeeze narrowed the layout area and resized the PTY.');
   },
   async reopen({ evaluate, until }) {

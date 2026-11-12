@@ -103,14 +103,14 @@ function RepositoryList({ field, disabled }: { field: RepositoryFieldState; disa
 function RepositoryField({ field, disabled, focus }: { field: RepositoryFieldState; disabled: boolean; focus: boolean }) {
   const { t } = useLocalization();
   const element = useRef<HTMLDivElement>(null);
-  const focused = useRef(!focus);
+  const focusPending = useRef(focus);
   // Opened for the repository: focus goes to the field's first control once it is drawn, i.e. the search
   // box (or Retry) of the list, or Change for a bound project.
   useEffect(() => {
-    if (focused.current) return;
+    if (!focusPending.current) return;
     const target = element.current!.querySelector<HTMLElement>(field.bound
       ? '.repository-current-actions button' : '.repository-picker input, .repository-error button');
-    if (target) { target.focus(); focused.current = true; }
+    if (target) { target.focus(); focusPending.current = false; }
   });
   const { bound, repository } = field;
   const changed = !sameRepository(repository, bound);
@@ -132,8 +132,8 @@ function RepositoryField({ field, disabled, focus }: { field: RepositoryFieldSta
   </div>;
 }
 
-/** The edit-project dialog. `focus: 'repository'` opens it with focus on the repository field instead of the name. */
-export function ProjectEditor({ project, close, openProject, focus }: { project: ProjectView; close(): void; openProject(id: string): void; focus?: 'repository' }) {
+/** The edit-project dialog. `focusRepository` opens it with focus on the repository field instead of the name. */
+export function ProjectEditor({ project, close, openProject, focusRepository = false }: { project: ProjectView; close(): void; openProject(id: string): void; focusRepository?: boolean }) {
   const { t, text } = useLocalization();
   const dialog = useRef<HTMLDialogElement>(null);
   const [original] = useState(project);
@@ -188,14 +188,14 @@ export function ProjectEditor({ project, close, openProject, focus }: { project:
         <LaunchResults launches={result.outcome.launches} /></>}
       <div className="project-dialog-actions"><button className="primary" onClick={close}>{t('finish')}</button></div>
     </> : <form onSubmit={event => { event.preventDefault(); if (!changedDirectory && edited) void save(false); }}>
-      <label htmlFor="edit-project-name">{t('projectName')}</label><input id="edit-project-name" autoFocus={focus !== 'repository'} autoComplete="off" value={name} disabled={busy} aria-invalid={!!nameError} aria-describedby="edit-project-name-status" onChange={event => { setNameInputError(''); setName(event.target.value); }} onPaste={event => {
+      <label htmlFor="edit-project-name">{t('projectName')}</label><input id="edit-project-name" autoFocus={!focusRepository} autoComplete="off" value={name} disabled={busy} aria-invalid={!!nameError} aria-describedby="edit-project-name-status" onChange={event => { setNameInputError(''); setName(event.target.value); }} onPaste={event => {
         if (projectNameHasControls(event.clipboardData.getData('text'))) { event.preventDefault(); setNameInputError(message('nameControls')); }
         else setNameInputError('');
       }} />
       {nameError && <div id="edit-project-name-status" className="field-status error-text">{nameError}</div>}
       <label htmlFor="edit-project-directory">{t('localDirectory')}</label><div className="directory-input"><input id="edit-project-directory" autoComplete="off" value={path} disabled={busy} aria-invalid={!!directoryError} aria-describedby="edit-project-directory-status" onChange={event => setPath(event.target.value)} /><button type="button" disabled={busy || choosing} aria-label={t('chooseNewDirectory')} onClick={async () => { setChoosing(true); try { const selected = await window.workbench.chooseDirectory(); if (selected !== null) setPath(selected); } catch (error) { setError((error as Error).message); } finally { setChoosing(false); } }}>{t('browse')}</button></div>
       {(checking || directoryError) && <div id="edit-project-directory-status" className="field-status" aria-live="polite">{checking ? t('checkingDirectory') : <span className="error-text">{directoryError}</span>}{duplicate && <button type="button" className="open-existing-project" onClick={() => openProject(directory!.existingProjectId!)}>{t('openExisting')}</button>}</div>}
-      <RepositoryField field={field} disabled={busy} focus={focus === 'repository'} />
+      <RepositoryField field={field} disabled={busy} focus={focusRepository} />
       {/* Every consequence of saving is listed here, above the buttons that save; this is the confirmation. */}
       {impact && <section className="save-impact" aria-label={t('afterSave')}><b>{t('afterSave')}</b><dl>
         {changedDirectory && <><dt>{t('directory')}</dt><dd><span className="project-path">{original.directory} → {directory!.directory}</span>

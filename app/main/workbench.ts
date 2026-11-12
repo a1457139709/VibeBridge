@@ -4,7 +4,7 @@ import type { Language, ProjectEdit, ProjectEditResult } from '../shared/model';
 import { randomUUID } from 'node:crypto';
 import { realpath, stat } from 'node:fs/promises';
 import { basename } from 'node:path';
-import { defaultIssueSidebar, issueSidebarSchema, issueSidebarWidth, type IssueSidebarPreferences, defaultNavigation, navigationSchema, navigationWidth, type NavigationPreferences, assignedAgents, arrange, validateDraft, removeFromLayout, parseLayout, layoutStructure, layoutPanelIds, panelPosition, projectPanels, panelLimitReached, agentTypes, type AgentType, type DirectoryResult, type LaunchResult, type Layout, type Panel, type Project, type ProjectCreation, type ProjectDraft, type PanelCreation, type Settings, type Snapshot, type WorkbenchEvent } from '../shared/model';
+import { defaultIssueSidebar, issueSidebarWidth, defaultNavigation, navigationWidth, sidebarPreferencesSchema, type SidebarPreferences, assignedAgents, arrange, validateDraft, removeFromLayout, parseLayout, layoutStructure, layoutPanelIds, panelPosition, projectPanels, panelLimitReached, agentTypes, type AgentType, type DirectoryResult, type LaunchResult, type Layout, type Panel, type Project, type ProjectCreation, type ProjectDraft, type PanelCreation, type Settings, type Snapshot, type WorkbenchEvent } from '../shared/model';
 import { ProjectStore } from './storage';
 import { SettingsFile, defaultSettings } from './settings';
 import { settingsConflicts, type SettingsSaveResult } from '../shared/settings';
@@ -264,20 +264,22 @@ export class Workbench {
     project.layout = parseLayout(layout, project.panels); this.changed();
     await this.store.save(project);
   }); }
-  saveNavigation(preferences: NavigationPreferences) { return this.operation(async () => {
-    const parsed = navigationSchema.safeParse(preferences);
-    if (!parsed.success) throw new Error(message('navigationInvalid'));
-    const navigation = { ...parsed.data, width: navigationWidth(parsed.data.width) };
-    await this.store.navigation(navigation);
-    this.state.navigation = navigation; this.changed();
-  }); }
-  saveIssueSidebar(preferences: IssueSidebarPreferences) { return this.operation(async () => {
-    const parsed = issueSidebarSchema.safeParse(preferences);
-    if (!parsed.success) throw new Error(message('issueSidebarInvalid'));
-    const issueSidebar = { ...parsed.data, width: issueSidebarWidth(parsed.data.width) };
-    await this.store.issueSidebar(issueSidebar);
-    this.state.issueSidebar = issueSidebar; this.changed();
-  }); }
+  saveNavigation(preferences: SidebarPreferences) {
+    return this.saveSidebar('navigation', preferences, navigationWidth, value => this.store.navigation(value));
+  }
+  saveIssueSidebar(preferences: SidebarPreferences) {
+    return this.saveSidebar('issueSidebar', preferences, issueSidebarWidth, value => this.store.issueSidebar(value));
+  }
+  /** Saves a sidebar's preferences with its width within the bounds the sidebar allows. */
+  private saveSidebar(key: 'navigation' | 'issueSidebar', preferences: SidebarPreferences, width: (width: number) => number, store: (value: SidebarPreferences) => Promise<void>) {
+    return this.operation(async () => {
+      const parsed = sidebarPreferencesSchema.safeParse(preferences);
+      if (!parsed.success) throw new Error(message(key === 'navigation' ? 'navigationInvalid' : 'issueSidebarInvalid'));
+      const value = { ...parsed.data, width: width(parsed.data.width) };
+      await store(value);
+      this.state[key] = value; this.changed();
+    });
+  }
   sendInput(runId: string, data: string) { return this.supervision.input(runId, data); }
   resizeRun(runId: string, cols: number, rows: number) { return this.supervision.resize(runId, cols, rows); }
   acknowledgeOutput(runId: string, characters: number) { this.supervision.acknowledgeOutput(runId, characters); }
