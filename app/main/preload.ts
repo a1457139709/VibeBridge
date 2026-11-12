@@ -9,7 +9,6 @@ const api: DesktopAPI = {
   deleteProject: id => ipcRenderer.invoke('workbench:delete-project', id),
   inspectDirectory: directory => ipcRenderer.invoke('workbench:directory', directory),
   repositoryChoices: (id, directory) => ipcRenderer.invoke('workbench:repository-choices', id, directory),
-  bindRepository: (id, repository) => ipcRenderer.invoke('workbench:bind-repository', id, repository),
   chooseDirectory: () => ipcRenderer.invoke('workbench:choose-directory'),
   activateProject: id => ipcRenderer.invoke('workbench:activate', id),
   addPanel: (project, agent) => ipcRenderer.invoke('workbench:add', project, agent),

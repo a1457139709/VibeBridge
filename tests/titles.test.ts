@@ -76,7 +76,7 @@ test('titles stay with their running instance, reset on directory restart and ne
     assert.deepEqual(runsOf(f.workbench.snapshot()).map(run => run.title), ['First', 'Second']);
     await f.workbench.sendInput(first.id, JSON.stringify({ id: 'termination', onTerminate: 'Old run late title' }) + '\n');
     await until(() => f.output(first.id).includes('DONE:termination'));
-    const result = await f.workbench.editProject(project.id, { name: project.name, directory: target }, true);
+    const result = await f.workbench.editProject(project.id, { name: project.name, directory: target, repository: null }, true);
     const current = result.launches.map(launch => launch.run);
     await until(() => current.every(run => f.output(run.id).includes('READY:')));
     assert.ok(f.output(first.id).includes('Old run late title'), 'old CLI emitted during controlled cleanup');

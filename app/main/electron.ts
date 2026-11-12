@@ -89,11 +89,10 @@ void app.whenReady().then(async () => {
   };
   handle('snapshot', service => service.snapshot());
   handle('create', (service, draft) => service.createProject(draft));
-  handle('edit-project', (service, id, edit, restart) => service.editProject(id, edit, restart));
+  handle('edit-project', async (service, id, edit, restart) => { await loginPath; return service.editProject(id, edit, restart); });
   handle('delete-project', (service, id) => service.deleteProject(id));
   handle('directory', (service, directory) => service.inspectDirectory(directory));
   handle('repository-choices', async (service, id, directory) => { await loginPath; return service.repositoryChoices(id, directory); });
-  handle('bind-repository', async (service, id, repository) => { await loginPath; return service.bindRepository(id, repository); });
   handle('activate', (service, id) => service.activateProject(id));
   handle('add', (service, project, agent) => service.addPanel(project, agent));
   handle('close', (service, project, panel) => service.closePanel(project, panel));

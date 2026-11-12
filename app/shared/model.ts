@@ -25,7 +25,8 @@ export interface Run { id: string; projectId: string; panelId: string; state: 'r
 export type LaunchResult = { outcome: 'started'; run: Run; agent: AgentType } | { outcome: 'failed'; run: Run; agent: AgentType }
   | { outcome: 'unconfirmed'; run: Run; agent: AgentType; reason: string };
 export interface ProjectCreation { project: Project; launches: LaunchResult[] }
-export interface ProjectEdit { name: string; directory: string }
+/** Everything the edit-project form saves: `repository` is the Repository Binding the project has afterwards, null for none. */
+export interface ProjectEdit { name: string; directory: string; repository: RepositoryReference | null }
 export interface ProjectEditResult { project: Project; launches: LaunchResult[]; error?: string }
 export interface PanelCreation { panel: Panel; launch: LaunchResult }
 export interface NavigationPreferences { visible: boolean; width: number }

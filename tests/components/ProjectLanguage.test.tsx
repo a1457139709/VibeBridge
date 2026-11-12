@@ -30,10 +30,10 @@ for (const language of ['en', 'zh-CN'] as const) {
     await user.click(screen.getByRole('menuitem', { name: en ? 'Edit project' : '编辑项目' }));
     const path = screen.getByRole('textbox', { name: en ? 'Local directory' : '本地目录' });
     await user.clear(path); await user.type(path, '/原样/new');
-    await screen.findByText(en ? 'Previous directory' : '原目录');
+    await screen.findByRole('region', { name: en ? 'After saving' : '保存后' });
     assert.ok(screen.getByText(en ? 'Could not find gh; install it to bind a repository.' : '没有找到 gh，安装后才能绑定。'));
     await user.click(screen.getByRole('button', { name: en ? 'Change and restart' : '更改并重启' }));
-    assert.deepEqual(calls, [['project', { name: project.name, directory: '/原样/new' }, true]]);
+    assert.deepEqual(calls, [['project', { name: project.name, directory: '/原样/new', repository: null }, true]]);
     assert.ok(screen.getByText(en ? 'Saved project name and directory: Untitled task 原样' : '已保存项目名称和目录：Untitled task 原样'));
     assert.ok(screen.getByText(en ? 'Panel 1 · pi: Agent could not start' : '面板 1 · pi：Agent 无法启动'));
     await user.click(screen.getByRole('button', { name: en ? 'Done' : '完成' }));

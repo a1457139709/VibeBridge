@@ -9,10 +9,8 @@ import { ProjectStore } from './storage';
 import { SettingsFile, defaultSettings } from './settings';
 import { settingsConflicts, type SettingsSaveResult } from '../shared/settings';
 import { RunSupervision } from './run-supervision';
-import { codeHostingPlatformIdSchema, type RepositoryChoices, type RepositoryReference } from '../shared/code-hosting';
-import { codeHostingPlatforms, defaultPlatform } from './code-hosting/platforms';
-import { CodeHostingError } from './code-hosting/platform';
-import { originUrl } from './code-hosting/origin';
+import { sameRepository, type RepositoryChoices, type RepositoryReference } from '../shared/code-hosting';
+import { listedRepository, repositoryChoices } from './code-hosting/repositories';
 
 export class WorkbenchOpenError extends Error {
   constructor(error: unknown, readonly language: Language) {
@@ -109,27 +107,37 @@ export class Workbench {
     await this.withdrawPanels(project, launches.filter(launch => launch.outcome === 'failed').map(launch => launch.run.panelId));
     return { project: structuredClone(project), launches };
   }); }
-  editProject(id: string, edit: ProjectEdit, restart: boolean): Promise<ProjectEditResult> { return this.operation(async () => {
-    const project = this.project(id);
-    const nameError = projectNameError(edit.name);
-    if (nameError) throw new Error(nameError);
-    const directory = await this.inspectDirectory(edit.directory);
-    if (!directory.valid) throw new Error(message('projectDirectoryInvalid'));
-    if (directory.existingProjectId && directory.existingProjectId !== id) throw new Error(message('projectDuplicate', { name: directory.existingProjectName! }));
-    const next = { ...project, name: edit.name.trim(), directory: directory.directory! };
-    const changedDirectory = project.directory !== next.directory;
-    if (!changedDirectory && project.name === next.name) return { project: structuredClone(project), launches: [] };
-    await this.store.save(next);
-    Object.assign(project, next); this.changed();
-    const result: ProjectEditResult = { project: structuredClone(project), launches: [] };
-    if (changedDirectory && restart && this.visited.has(id)) {
-      // Tray panels keep running in the directory they started in.
-      const failures = await this.supervision.stopPanels(project.panels);
-      if (failures.length) result.error = message('projectRestartFailed', { reasons: failures.map(detail) });
-      else for (const panel of project.panels) result.launches.push(await this.startPanel(project, panel));
-    }
-    return result;
-  }); }
+  /** Saves name, directory and Repository Binding together. Everything is checked first (a new repository against
+   * a fresh list from its platform), then written in one transaction, so a failed check saves nothing. */
+  async editProject(id: string, edit: ProjectEdit, restart: boolean): Promise<ProjectEditResult> {
+    this.project(id);
+    // Listing waits on the platform CLI, so it runs before the edit joins the operation queue.
+    const repository = sameRepository(edit.repository, this.repositories.get(id) ?? null) ? edit.repository : await listedRepository(edit.repository);
+    return this.operation(async () => {
+      const project = this.project(id);
+      const nameError = projectNameError(edit.name);
+      if (nameError) throw new Error(nameError);
+      const directory = await this.inspectDirectory(edit.directory);
+      if (!directory.valid) throw new Error(message('projectDirectoryInvalid'));
+      if (directory.existingProjectId && directory.existingProjectId !== id) throw new Error(message('projectDuplicate', { name: directory.existingProjectName! }));
+      const next = { ...project, name: edit.name.trim(), directory: directory.directory! };
+      const changedDirectory = project.directory !== next.directory;
+      const bound = this.repositories.get(id) ?? null;
+      if (!changedDirectory && project.name === next.name && sameRepository(repository, bound)) return { project: structuredClone(project), launches: [] };
+      await this.store.edit(next, repository);
+      Object.assign(project, next);
+      if (repository) this.repositories.set(id, repository); else this.repositories.delete(id);
+      this.changed();
+      const result: ProjectEditResult = { project: structuredClone(project), launches: [] };
+      if (changedDirectory && restart && this.visited.has(id)) {
+        // Tray panels keep running in the directory they started in.
+        const failures = await this.supervision.stopPanels(project.panels);
+        if (failures.length) result.error = message('projectRestartFailed', { reasons: failures.map(detail) });
+        else for (const panel of project.panels) result.launches.push(await this.startPanel(project, panel));
+      }
+      return result;
+    });
+  }
   deleteProject(id: string) { return this.operation(async () => {
     const project = this.project(id);
     const panels = this.panels(project);
@@ -151,51 +159,10 @@ export class Workbench {
     this.changed();
     if (activateNext && nextActive) await this.startProject(this.project(nextActive));
   }); }
-  /** The repositories the project can bind, from its bound platform, or the default one when unbound, with the
-   * one that `origin` of `directory` (the project directory as the user is editing it) points at. */
+  /** The repositories the project can bind, with the one that `origin` of `directory` (the directory as the user is editing it) points at. */
   async repositoryChoices(projectId: string, directory: string): Promise<RepositoryChoices> {
     this.project(projectId);
-    const bound = this.repositories.get(projectId);
-    const platform = codeHostingPlatforms[bound?.platform ?? defaultPlatform];
-    try {
-      const [account, listed, origin] = await Promise.all([platform.account(), platform.repositories(), originUrl(directory)]);
-      // The bound repository keeps its stored spelling wherever the platform lists the same repository.
-      const repositories = bound ? listed.map(path => platform.find(bound.path, [path]) ? bound.path : path) : listed;
-      const originPath = origin === null ? null : platform.remotePath(origin);
-      const offered = originPath === null ? null : platform.find(originPath, repositories);
-      return { ok: true, platform: platform.presentation, account,
-        repositories: repositories.map(path => ({ platform: platform.id, path })),
-        origin: offered === null ? null : { platform: platform.id, path: offered } };
-    } catch (error) {
-      if (error instanceof CodeHostingError) return { ok: false, failure: { kind: error.kind, detail: error.detail, platform: platform.presentation } };
-      throw error;
-    }
-  }
-  /** Binds the project to a repository its platform currently lists, replacing any binding; null unbinds it. */
-  async bindRepository(projectId: string, repository: RepositoryReference | null) {
-    this.project(projectId);
-    let binding: RepositoryReference | null = null;
-    if (repository !== null) {
-      const id = codeHostingPlatformIdSchema.safeParse(repository.platform);
-      if (!id.success || typeof repository.path !== 'string') throw new Error(message('repositoryNotListed'));
-      const platform = codeHostingPlatforms[id.data];
-      let listed: string[];
-      try { listed = await platform.repositories(); }
-      catch (error) {
-        if (error instanceof CodeHostingError) throw new Error(message('repositoryListFailed', { reason: detail(error.detail
-          || message('codeHostingNotInstalled', { cli: platform.presentation.cli })) }));
-        throw error;
-      }
-      const path = platform.find(repository.path, listed);
-      if (path === null) throw new Error(message('repositoryNotListed'));
-      binding = { platform: id.data, path };
-    }
-    return this.operation(async () => {
-      this.project(projectId);
-      await this.store.bind(projectId, binding);
-      if (binding) this.repositories.set(projectId, binding); else this.repositories.delete(projectId);
-      this.changed();
-    });
+    return repositoryChoices(this.repositories.get(projectId) ?? null, directory);
   }
   private startPanel(project: Project, panel: Panel) { return this.supervision.start(project, panel, this.state.settings.agents[panel.agent]); }
   private async startProject(project: Project): Promise<LaunchResult[]> {

@@ -47,6 +47,19 @@ function readNavigation(stored: unknown): NavigationPreferences {
   catch { throw new Error(message('navigationDataInvalid', { file, field: 'navigation' })); }
 }
 
+function transaction(write: () => void) {
+  db.exec('BEGIN IMMEDIATE');
+  try { write(); db.exec('COMMIT'); } catch (error) { db.exec('ROLLBACK'); throw error; }
+}
+
+function saveProject(project: Project) {
+  db.prepare('INSERT INTO projects VALUES (?,?,?,?) ON CONFLICT(id) DO UPDATE SET name=excluded.name, directory=excluded.directory, layout=excluded.layout')
+    .run(project.id, project.name, project.directory, JSON.stringify(project.layout));
+  db.prepare('DELETE FROM panels WHERE project_id=?').run(project.id);
+  const insert = db.prepare('INSERT INTO panels VALUES (?,?,?,?)');
+  project.panels.forEach((panel, position) => insert.run(panel.id, project.id, panel.agent, position));
+}
+
 parentPort!.on('message', ({ id, operation, value }) => {
   try {
     let result: unknown;
@@ -59,33 +72,23 @@ parentPort!.on('message', ({ id, operation, value }) => {
         navigation: readNavigation(workspace?.navigation),
         activeProjectId: workspace?.active_project ?? null,
       };
-    } else if (operation === 'save') {
-      const project = value as Project;
-      db.exec('BEGIN IMMEDIATE');
-      try {
-        db.prepare('INSERT INTO projects VALUES (?,?,?,?) ON CONFLICT(id) DO UPDATE SET name=excluded.name, directory=excluded.directory, layout=excluded.layout')
-          .run(project.id, project.name, project.directory, JSON.stringify(project.layout));
-        db.prepare('DELETE FROM panels WHERE project_id=?').run(project.id);
-        const insert = db.prepare('INSERT INTO panels VALUES (?,?,?,?)');
-        project.panels.forEach((panel, position) => insert.run(panel.id, project.id, panel.agent, position));
-        db.exec('COMMIT');
-      } catch (error) { db.exec('ROLLBACK'); throw error; }
-    } else if (operation === 'delete') {
-      db.exec('BEGIN IMMEDIATE');
-      try {
-        db.prepare('DELETE FROM panels WHERE project_id=?').run(value.id);
-        db.prepare('DELETE FROM repository_bindings WHERE project_id=?').run(value.id);
-        db.prepare('DELETE FROM projects WHERE id=?').run(value.id);
-        db.prepare('INSERT INTO workspace (id, active_project) VALUES (1,?) ON CONFLICT(id) DO UPDATE SET active_project=excluded.active_project').run(value.activeProjectId);
-        db.exec('COMMIT');
-      } catch (error) { db.exec('ROLLBACK'); throw error; }
-    } else if (operation === 'active') {
+    } else if (operation === 'save') transaction(() => saveProject(value as Project));
+    else if (operation === 'edit') {
+      const { project, repository } = value as { project: Project; repository: RepositoryReference | null };
+      transaction(() => {
+        saveProject(project);
+        if (repository) db.prepare('INSERT INTO repository_bindings VALUES (?,?,?) ON CONFLICT(project_id) DO UPDATE SET platform=excluded.platform, path=excluded.path')
+          .run(project.id, repository.platform, repository.path);
+        else db.prepare('DELETE FROM repository_bindings WHERE project_id=?').run(project.id);
+      });
+    } else if (operation === 'delete') transaction(() => {
+      db.prepare('DELETE FROM panels WHERE project_id=?').run(value.id);
+      db.prepare('DELETE FROM repository_bindings WHERE project_id=?').run(value.id);
+      db.prepare('DELETE FROM projects WHERE id=?').run(value.id);
+      db.prepare('INSERT INTO workspace (id, active_project) VALUES (1,?) ON CONFLICT(id) DO UPDATE SET active_project=excluded.active_project').run(value.activeProjectId);
+    });
+    else if (operation === 'active') {
       db.prepare('INSERT INTO workspace (id, active_project) VALUES (1,?) ON CONFLICT(id) DO UPDATE SET active_project=excluded.active_project').run(value);
-    } else if (operation === 'bind') {
-      const { projectId, repository } = value as { projectId: string; repository: RepositoryReference | null };
-      if (repository) db.prepare('INSERT INTO repository_bindings VALUES (?,?,?) ON CONFLICT(project_id) DO UPDATE SET platform=excluded.platform, path=excluded.path')
-        .run(projectId, repository.platform, repository.path);
-      else db.prepare('DELETE FROM repository_bindings WHERE project_id=?').run(projectId);
     } else if (operation === 'navigation') {
       db.prepare('INSERT INTO workspace (id, navigation) VALUES (1,?) ON CONFLICT(id) DO UPDATE SET navigation=excluded.navigation').run(JSON.stringify(value));
     } else if (operation === 'close') db.close();
