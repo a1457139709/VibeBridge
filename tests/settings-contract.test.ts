@@ -29,7 +29,7 @@ test('missing and invalid settings values fall back to their defaults field by f
       shortcuts: {
         previousProject: 'Command+Shift+[', nextProject: 'Command+Shift+]', previousPanel: 'Command+[', nextPanel: 'Command+K',
         maximizePanel: 'Command+Enter', addPanel: 'Command+N', closePanel: 'Command+Shift+W', settings: 'Command+,',
-        toggleIssueSidebar: 'Command+Alt+B',
+        toggleForgeSidebar: 'Command+Alt+B',
       },
     });
   } finally { await workbench.quit(); }

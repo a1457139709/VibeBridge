@@ -141,9 +141,9 @@ textarea, select { width: 100%; background: var(--surface); border: 1px solid va
 textarea { resize: vertical; }
 .command-result { font-size: 11px; overflow-wrap: anywhere; }
 .command-result:not(:empty), .agent-settings > .error-text:not(:empty) { margin-top: 7px; }
-.theme-options { display: grid; gap: 10px; margin: 22px 0; }
-.theme-options label { display: flex; align-items: center; gap: 10px; margin: 0; min-height: 36px; }
-.theme-options input { width: 16px; height: 16px; accent-color: var(--accent); }
+.radio-options { display: grid; gap: 10px; margin: 22px 0; }
+.radio-options label { display: flex; align-items: center; gap: 10px; margin: 0; min-height: 36px; }
+.radio-options input { width: 16px; height: 16px; accent-color: var(--accent); }
 .restart-notice { border-left: 2px solid var(--accent); padding: 8px 12px; background: var(--hover); }
 .shortcut-search { display: flex; gap: 8px; margin-top: 22px; }
 .shortcut-search button { flex-shrink: 0; }

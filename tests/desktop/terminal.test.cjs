@@ -4,7 +4,7 @@ const { runsOf } = require('./support/panel-views.cjs');
 module.exports = {
   async run(suite) {
     const context = await require('./support/terminal-waits.cjs')(suite);
-    const { window, evaluate, until, click } = context;
+    const { window, evaluate, until, click, reportedSize } = context;
     const before = await require('./support/project.cjs')(context);
     const [run] = runsOf(before);
     assert.equal(run.state, 'running'); assert.ok(run.pid);
@@ -73,11 +73,7 @@ module.exports = {
     // Back in view the screen fits its shorter size. The run is asked for its size until it
     // answers with the rows the screen shows, so later input lands after the resize is settled.
     await until(async () => (await rows()) < rowsInView, 'terminal fitted its shorter size back in view');
-    await until(async () => {
-      await evaluate(`window.output = ''; window.workbench.sendInput(${JSON.stringify(run.id)}, 'size')`);
-      await until(() => evaluate('/SIZE:\\d+x\\d+\\r/.test(window.output)'), 'run answered the size query');
-      return Number(await evaluate('window.output.match(/SIZE:\\d+x(\\d+)/)[1]')) === await rows();
-    }, 'run reports the rows the terminal shows');
+    await until(async () => (await reportedSize(run.id)).rows === await rows(), 'run reports the rows the terminal shows');
     await evaluate(`window.workbench.sendInput(${JSON.stringify(run.id)}, 'after-hidden-resize')`);
     await until(() => evaluate('document.querySelector(".xterm-rows").textContent.includes("INPUT:after-hidden-resize")'), 'terminal resized off screen still follows output (INPUT:after-hidden-resize drawn)');
     await evaluate(`document.querySelector('.terminal-container').style.cssText = ''`);

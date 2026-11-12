@@ -1,7 +1,7 @@
 import { useLocalization } from './Localization';
 import { useEffect, useState, type CSSProperties } from 'react';
 import type { DesktopAPI } from '../shared/api';
-import { defaultNavigation, navigationWidth, projectPanels, type PanelView, type ProjectView, type Snapshot } from '../shared/model';
+import { projectPanels, type PanelView, type ProjectView, type Snapshot } from '../shared/model';
 import type { ProcessingState } from '../shared/processing-status';
 import { agentIcons } from './agent-icons';
 import type { PanelLocation } from './panel-location';
@@ -26,11 +26,10 @@ interface Host {
 // Keep this hook in the main window's lifetime. The two presentation entries
 // share navigation interaction state; page permission and panel location stay
 // with the host callbacks and the read-only view supplied by panel-location.
-export function useProjectNavigation(host: Host, api: Pick<DesktopAPI, 'saveNavigation' | 'subscribe'> = window.workbench) {
+export function useProjectNavigation(host: Host, api: Pick<DesktopAPI, 'saveSidebar' | 'subscribe'> = window.workbench) {
   const { t } = useLocalization();
   const { snapshot, page } = host;
-  const { preferences, toggle, resize } = useSidebarPreferences({ snapshot, read: value => value.navigation, save: preferences => api.saveNavigation(preferences),
-    subscribe: api.subscribe, defaults: defaultNavigation, width: navigationWidth, edge: 1, report: host.report });
+  const { preferences, toggle, resize } = useSidebarPreferences({ sidebar: 'navigation', snapshot, api, edge: 1, report: host.report });
   const [expandedProjects, setExpandedProjects] = useState<Record<string, boolean>>({});
   // Ephemeral groups start collapsed and their expansion lives only in this interface.
   const [expandedTrays, setExpandedTrays] = useState<Record<string, boolean>>({});

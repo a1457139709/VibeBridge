@@ -1,24 +1,21 @@
 import './support/dom';
 import assert from 'node:assert/strict';
 import test, { afterEach, before } from 'node:test';
-import { act, cleanup, render, screen, waitFor, within } from '@testing-library/react';
+import { cleanup, render, screen, waitFor, within } from '@testing-library/react';
 import { userEvent } from '@testing-library/user-event';
 import { App } from '../../app/renderer/Workbench';
 import { defaultSettings } from '../../app/shared/settings';
 import type { SidebarPreferences, ProjectView, Snapshot, WorkbenchEvent } from '../../app/shared/model';
 import type { RepositoryChoices } from '../../app/shared/forge';
+import { stubLayoutApis } from './support/no-layout';
 import { provideWorkbench } from './support/workbench';
 import { githubForge } from './support/forge';
 
 afterEach(cleanup);
 before(() => {
-  // jsdom has no layout, frames or media queries; the shell and its terminals only need these to exist.
-  for (const name of ['ResizeObserver', 'IntersectionObserver'] as const) {
-    Object.defineProperty(globalThis, name, { configurable: true, value: class { observe() {} unobserve() {} disconnect() {} } });
-  }
-  const matchMedia = () => ({ matches: false, addEventListener() {}, removeEventListener() {}, addListener() {}, removeListener() {} });
+  stubLayoutApis();
   // Switching projects disconnects the workspace from the panel locator, which checks its animation's effect.
-  for (const target of [globalThis, window]) Object.assign(target, { matchMedia, requestAnimationFrame: () => 0, cancelAnimationFrame: () => {}, KeyframeEffect: class {} });
+  for (const target of [globalThis, window]) Object.assign(target, { KeyframeEffect: class {} });
   window.HTMLElement.prototype.checkVisibility = () => true;
 });
 
@@ -27,9 +24,9 @@ const project = (id: string, name: string, repository: ProjectView['repository']
   panels: [{ id: `${id}-panel`, agent: 'codex', run: { id: `${id}-run`, panelId: `${id}-panel`, projectId: id, state: 'running', title: `${name} session` } }],
 });
 
-function renderWorkbench(issueSidebar: SidebarPreferences = { visible: false, width: 380 }) {
+function renderWorkbench(forgeSidebar: SidebarPreferences = { visible: false, width: 380 }) {
   const snapshot: Snapshot = {
-    navigation: { visible: true, width: 212 }, issueSidebar, activeProjectId: 'bound', settings: defaultSettings(),
+    navigation: { visible: true, width: 212 }, forgeSidebar, activeProjectId: 'bound', settings: defaultSettings(),
     settingsConflicts: [], startupTheme: 'light', resolvedTheme: 'light', errors: [],
     projects: [project('bound', 'Bound project', { forge: 'github', path: 'octo/bound' }), project('unbound', 'Unbound project', null)],
   };
@@ -40,9 +37,9 @@ function renderWorkbench(issueSidebar: SidebarPreferences = { visible: false, wi
   provideWorkbench({
     snapshot: async () => structuredClone(snapshot), ready: async () => {},
     subscribe: listener => { listeners.add(listener); return () => { listeners.delete(listener); }; },
-    saveIssueSidebar: async preferences => { saved.push(preferences); snapshot.issueSidebar = preferences; publish(); },
+    saveSidebar: async (sidebar, preferences) => { if (sidebar === 'forgeSidebar') saved.push(preferences); snapshot[sidebar] = preferences; publish(); },
     activateProject: async id => { snapshot.activeProjectId = id; publish(); },
-    saveNavigation: async () => {}, saveLayout: async () => {},
+    saveLayout: async () => {},
     inspectDirectory: async directory => ({ valid: true, directory }),
     repositoryChoices: async () => choices,
   });
@@ -71,7 +68,7 @@ test('the button at the right end of the system bar opens the sidebar for the cu
 });
 
 test('Command+Alt+B opens the sidebar with focus inside wherever focus is, and closes it when open', async () => {
-  const { user } = renderWorkbench();
+  const { user, saved } = renderWorkbench();
   await screen.findByRole('button', { name: 'Show the GitHub sidebar' });
   document.querySelector<HTMLElement>('.xterm-helper-textarea')!.focus();
   await user.keyboard('{Meta>}{Alt>}b{/Alt}{/Meta}');
@@ -79,6 +76,7 @@ test('Command+Alt+B opens the sidebar with focus inside wherever focus is, and c
   document.querySelector<HTMLElement>('.xterm-helper-textarea')!.focus();
   await user.keyboard('{Meta>}{Alt>}b{/Alt}{/Meta}');
   assert.equal(sidebar(), null);
+  await waitFor(() => assert.deepEqual(saved, [{ visible: true, width: 380 }, { visible: false, width: 380 }]));
 });
 
 test('the sidebar follows the current project and stays on the settings page', async () => {
@@ -102,5 +100,6 @@ test('an unbound project shows the empty state, and Bind repository opens Edit p
   const dialog = await screen.findByRole('dialog', { name: 'Edit project' });
   const search = await within(dialog).findByRole('searchbox', { name: 'Search repositories' });
   await waitFor(() => assert.equal(document.activeElement, search));
-  await act(async () => {});
+  // The list the repository field loaded is drawn, so nothing is left to settle after the test.
+  assert.ok(await within(dialog).findByText('octo/unbound'));
 });

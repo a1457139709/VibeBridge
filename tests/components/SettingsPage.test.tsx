@@ -29,7 +29,7 @@ test('category drafts survive switching, and ordinary save submits only the curr
   await click(user, 'Appearance');
   await user.click(screen.getByRole('radio', { name: 'Dark' }));
   await user.selectOptions(screen.getByRole('combobox', { name: 'Default layout' }), 'column');
-  assert.equal(screen.getByRole<HTMLInputElement>('radio', { name: /^Push/ }).checked, true, 'the sidebar squeezes by default');
+  assert.equal(screen.getByRole<HTMLInputElement>('radio', { name: /^Squeeze/ }).checked, true, 'the sidebar squeezes by default');
   await user.click(screen.getByRole('radio', { name: /^Overlay/ }));
   await click(user, 'Agent');
   assert.equal(command().value, '/draft-codex');
@@ -44,6 +44,19 @@ test('category drafts survive switching, and ordinary save submits only the curr
   await click(user, 'Discard changes');
   assert.equal(screen.getByRole<HTMLInputElement>('radio', { name: 'Dark' }).checked, true);
   assert.equal(saveSettings.mock.callCount(), 1);
+});
+
+test('Keyboard shortcuts lists toggling the forge sidebar at Command+Alt+B, and a new binding for it is saved', async () => {
+  const saved = defaultSettings();
+  const saveSettings = mock.fn(async (patch: Partial<Settings>) => ({ ok: true as const, settings: { ...saved, ...patch } }));
+  provideWorkbench({ saveSettings });
+  const { user } = renderSettings(saved);
+  await click(user, 'Keyboard shortcuts');
+  const binding = screen.getByRole<HTMLInputElement>('textbox', { name: 'Toggle the forge sidebar' });
+  assert.equal(binding.value, '⌘ ⌥ B');
+  fireEvent.keyDown(binding, { key: 'g', code: 'KeyG', metaKey: true, altKey: true });
+  await click(user, 'Save');
+  assert.equal(saveSettings.mock.calls[0].arguments[0].shortcuts?.toggleForgeSidebar, 'Command+Alt+G');
 });
 
 test('save and leave submits all changed categories together and allows leaving only after success', async () => {

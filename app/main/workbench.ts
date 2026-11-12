@@ -4,7 +4,7 @@ import type { Language, ProjectEdit, ProjectEditResult } from '../shared/model';
 import { randomUUID } from 'node:crypto';
 import { realpath, stat } from 'node:fs/promises';
 import { basename } from 'node:path';
-import { defaultIssueSidebar, issueSidebarWidth, defaultNavigation, navigationWidth, sidebarPreferencesSchema, type SidebarPreferences, assignedAgents, arrange, validateDraft, removeFromLayout, parseLayout, layoutStructure, layoutPanelIds, panelPosition, projectPanels, panelLimitReached, agentTypes, type AgentType, type DirectoryResult, type LaunchResult, type Layout, type Panel, type Project, type ProjectCreation, type ProjectDraft, type PanelCreation, type Settings, type Snapshot, type WorkbenchEvent } from '../shared/model';
+import { sidebars, sidebarPreferencesSchema, type Sidebar, type SidebarPreferences, assignedAgents, arrange, validateDraft, removeFromLayout, parseLayout, layoutStructure, layoutPanelIds, panelPosition, projectPanels, panelLimitReached, agentTypes, type AgentType, type DirectoryResult, type LaunchResult, type Layout, type Panel, type Project, type ProjectCreation, type ProjectDraft, type PanelCreation, type Settings, type Snapshot, type WorkbenchEvent } from '../shared/model';
 import { ProjectStore } from './storage';
 import { SettingsFile, defaultSettings } from './settings';
 import { settingsConflicts, type SettingsSaveResult } from '../shared/settings';
@@ -20,7 +20,7 @@ export class WorkbenchOpenError extends Error {
 }
 
 export class Workbench {
-  private state: Omit<Snapshot, 'projects'> & { projects: Project[] } = { navigation: { ...defaultNavigation }, issueSidebar: { ...defaultIssueSidebar }, projects: [], activeProjectId: null, settings: defaultSettings(), settingsConflicts: [], startupTheme: 'system', resolvedTheme: 'light', errors: [] };
+  private state: Omit<Snapshot, 'projects'> & { projects: Project[] } = { navigation: { ...sidebars.navigation.defaults }, forgeSidebar: { ...sidebars.forgeSidebar.defaults }, projects: [], activeProjectId: null, settings: defaultSettings(), settingsConflicts: [], startupTheme: 'system', resolvedTheme: 'light', errors: [] };
   private supervision: RunSupervision;
   private listeners = new Set<(event: WorkbenchEvent) => void>();
   private operations: Promise<unknown> = Promise.resolve();
@@ -264,22 +264,15 @@ export class Workbench {
     project.layout = parseLayout(layout, project.panels); this.changed();
     await this.store.save(project);
   }); }
-  saveNavigation(preferences: SidebarPreferences) {
-    return this.saveSidebar('navigation', preferences, navigationWidth, value => this.store.navigation(value));
-  }
-  saveIssueSidebar(preferences: SidebarPreferences) {
-    return this.saveSidebar('issueSidebar', preferences, issueSidebarWidth, value => this.store.issueSidebar(value));
-  }
   /** Saves a sidebar's preferences with its width within the bounds the sidebar allows. */
-  private saveSidebar(key: 'navigation' | 'issueSidebar', preferences: SidebarPreferences, width: (width: number) => number, store: (value: SidebarPreferences) => Promise<void>) {
-    return this.operation(async () => {
-      const parsed = sidebarPreferencesSchema.safeParse(preferences);
-      if (!parsed.success) throw new Error(message(key === 'navigation' ? 'navigationInvalid' : 'issueSidebarInvalid'));
-      const value = { ...parsed.data, width: width(parsed.data.width) };
-      await store(value);
-      this.state[key] = value; this.changed();
-    });
-  }
+  saveSidebar(sidebar: Sidebar, preferences: SidebarPreferences) { return this.operation(async () => {
+    const { width, invalid } = sidebars[sidebar];
+    const parsed = sidebarPreferencesSchema.safeParse(preferences);
+    if (!parsed.success) throw new Error(message(invalid));
+    const value = { ...parsed.data, width: width(parsed.data.width) };
+    await this.store.sidebar(sidebar, value);
+    this.state[sidebar] = value; this.changed();
+  }); }
   sendInput(runId: string, data: string) { return this.supervision.input(runId, data); }
   resizeRun(runId: string, cols: number, rows: number) { return this.supervision.resize(runId, cols, rows); }
   acknowledgeOutput(runId: string, characters: number) { this.supervision.acknowledgeOutput(runId, characters); }

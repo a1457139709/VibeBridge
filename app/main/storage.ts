@@ -2,7 +2,7 @@ import { message, detail } from '../shared/messages';
 import { Worker } from 'node:worker_threads';
 import { mkdir } from 'node:fs/promises';
 import { join } from 'node:path';
-import type { SidebarPreferences, Project } from '../shared/model';
+import type { Sidebar, SidebarPreferences, Project } from '../shared/model';
 import type { RepositoryReference } from '../shared/forge';
 
 export class ProjectStore {
@@ -31,12 +31,11 @@ export class ProjectStore {
       const id = ++this.sequence; this.pending.set(id, { resolve, reject }); this.worker.postMessage({ id, operation, value });
     });
   }
-  load() { return this.request<{ projects: Project[]; repositories: Record<string, RepositoryReference>; activeProjectId: string | null; navigation: SidebarPreferences; issueSidebar: SidebarPreferences }>('load'); }
+  load() { return this.request<{ projects: Project[]; repositories: Record<string, RepositoryReference>; activeProjectId: string | null; } & Record<Sidebar, SidebarPreferences>>('load'); }
   save(project: Project) { return this.request<void>('save', project); }
   /** Saves an edited project and its Repository Binding (null for none) in one transaction. */
   edit(project: Project, repository: RepositoryReference | null) { return this.request<void>('edit', { project, repository }); }
-  navigation(value: SidebarPreferences) { return this.request<void>('navigation', value); }
-  issueSidebar(value: SidebarPreferences) { return this.request<void>('issueSidebar', value); }
+  sidebar(sidebar: Sidebar, preferences: SidebarPreferences) { return this.request<void>('sidebar', { sidebar, preferences }); }
   delete(id: string, activeProjectId: string | null) { return this.request<void>('delete', { id, activeProjectId }); }
   active(id: string) { return this.request<void>('active', id); }
   async close() { try { await this.request('close'); } finally { await this.worker.terminate(); } }

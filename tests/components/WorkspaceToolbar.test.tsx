@@ -7,18 +7,13 @@ import { App } from '../../app/renderer/Workbench';
 import { defaultSettings } from '../../app/shared/settings';
 import type { PanelView, ProjectView, Snapshot } from '../../app/shared/model';
 import type { ProcessingState } from '../../app/shared/processing-status';
+import { stubLayoutApis } from './support/no-layout';
 import { provideWorkbench } from './support/workbench';
 import { githubForge } from './support/forge';
 
 afterEach(cleanup);
 before(() => {
-  // jsdom has no layout, frames or media queries. The shell and its terminals only need these to exist;
-  // frames never run, so these tests cannot verify focus or animation.
-  for (const name of ['ResizeObserver', 'IntersectionObserver'] as const) {
-    Object.defineProperty(globalThis, name, { configurable: true, value: class { observe() {} unobserve() {} disconnect() {} } });
-  }
-  const matchMedia = () => ({ matches: false, addEventListener() {}, removeEventListener() {}, addListener() {}, removeListener() {} });
-  for (const target of [globalThis, window]) Object.assign(target, { matchMedia, requestAnimationFrame: () => 0, cancelAnimationFrame: () => {} });
+  stubLayoutApis();
   window.HTMLElement.prototype.checkVisibility = () => true;
 });
 
@@ -34,12 +29,12 @@ const project = (): ProjectView => ({
 
 function renderWorkbench(change: (snapshot: Snapshot) => void = () => {}) {
   const snapshot: Snapshot = {
-    navigation: { visible: true, width: 212 }, issueSidebar: { visible: false, width: 380 }, activeProjectId: 'project', settings: defaultSettings(),
+    navigation: { visible: true, width: 212 }, forgeSidebar: { visible: false, width: 380 }, activeProjectId: 'project', settings: defaultSettings(),
     settingsConflicts: [], startupTheme: 'light', resolvedTheme: 'light', errors: [], projects: [project()],
   };
   change(snapshot);
   provideWorkbench({ snapshot: async () => structuredClone(snapshot), subscribe: () => () => {}, ready: async () => {},
-    activateProject: async () => {}, saveNavigation: async () => {}, saveLayout: async () => {} });
+    activateProject: async () => {}, saveSidebar: async () => {}, saveLayout: async () => {} });
   render(<App />);
   return userEvent.setup();
 }

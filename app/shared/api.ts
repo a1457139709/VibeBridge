@@ -1,4 +1,4 @@
-import type { SidebarPreferences, AgentType, CommandCheck, DirectoryResult, Layout, ProjectCreation, PanelCreation, ProjectDraft, ProjectEdit, ProjectEditResult, Settings, Snapshot, WorkbenchEvent } from './model';
+import type { Sidebar, SidebarPreferences, AgentType, CommandCheck, DirectoryResult, Layout, ProjectCreation, PanelCreation, ProjectDraft, ProjectEdit, ProjectEditResult, Settings, Snapshot, WorkbenchEvent } from './model';
 import type { SettingsSaveResult } from './settings';
 import type { RepositoryChoices } from './forge';
 
@@ -20,9 +20,8 @@ export interface DesktopAPI {
   /** Makes a resident panel ephemeral; the other resident panels fill its space. */
   moveToTray(projectId: string, panelId: string): Promise<void>;
   saveLayout(projectId: string, layout: Layout | null): Promise<void>;
-  saveNavigation(preferences: SidebarPreferences): Promise<void>;
-  /** Saves the issue sidebar's open state and width, shared by the whole app. */
-  saveIssueSidebar(preferences: SidebarPreferences): Promise<void>;
+  /** Saves a sidebar's open state and width, shared by the whole app. */
+  saveSidebar(sidebar: Sidebar, preferences: SidebarPreferences): Promise<void>;
   saveSettings(settings: Partial<Settings>): Promise<SettingsSaveResult>;
   checkCommand(command: string): Promise<CommandCheck>;
   sendInput(runId: string, data: string): Promise<void>;

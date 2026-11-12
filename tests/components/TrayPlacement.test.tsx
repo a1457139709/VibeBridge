@@ -9,16 +9,14 @@ import type { Layout, Snapshot } from '../../app/shared/model';
 import type { WorkbenchEvent } from '../../app/shared/model';
 import { deferred, provideWorkbench } from './support/workbench';
 import { githubForge } from './support/forge';
+import { stubLayoutApis } from './support/no-layout';
+
 
 afterEach(cleanup);
 before(() => {
   // jsdom has no layout, frames, media queries or pointer capture. Every element reports one fixed area,
   // so these tests cover what a drop does, not where the pointer has to be.
-  for (const name of ['ResizeObserver', 'IntersectionObserver'] as const) {
-    Object.defineProperty(globalThis, name, { configurable: true, value: class { observe() {} unobserve() {} disconnect() {} } });
-  }
-  const matchMedia = () => ({ matches: false, addEventListener() {}, removeEventListener() {}, addListener() {}, removeListener() {} });
-  for (const target of [globalThis, window]) Object.assign(target, { matchMedia, requestAnimationFrame: () => 0, cancelAnimationFrame: () => {} });
+  stubLayoutApis();
   Object.assign(globalThis, { getComputedStyle: window.getComputedStyle.bind(window) });
   const area = new window.DOMRect(0, 0, 800, 600);
   Object.assign(window.HTMLElement.prototype, {
@@ -33,7 +31,7 @@ function renderWorkbench(resident = false) {
   const moved: [string, string][] = [];
   const listeners = new Set<(event: WorkbenchEvent) => void>();
   const snapshot: Snapshot = {
-    navigation: { visible: true, width: 212 }, issueSidebar: { visible: false, width: 380 }, activeProjectId: 'project', settings: defaultSettings(),
+    navigation: { visible: true, width: 212 }, forgeSidebar: { visible: false, width: 380 }, activeProjectId: 'project', settings: defaultSettings(),
     settingsConflicts: [], startupTheme: 'light', resolvedTheme: 'light', errors: [],
     projects: [{ id: 'project', name: 'Placement', directory: '/work/placement',
       layout: resident ? { panel: 'resident' } : null,
@@ -42,7 +40,7 @@ function renderWorkbench(resident = false) {
   };
   provideWorkbench({ snapshot: async () => structuredClone(snapshot),
     subscribe: listener => { listeners.add(listener); return () => { listeners.delete(listener); }; }, ready: async () => {},
-    activateProject: async () => {}, saveNavigation: async () => {}, saveLayout: async () => {},
+    activateProject: async () => {}, saveSidebar: async () => {}, saveLayout: async () => {},
     placeInLayout: (...request) => { requests.push(request); return placed.promise; },
     moveToTray: async (...request) => {
       // The main process moves the panel from the layout to the tray's end; `publish` delivers that snapshot.

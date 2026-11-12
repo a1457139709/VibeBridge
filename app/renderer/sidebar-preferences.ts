@@ -1,17 +1,12 @@
 import { useLayoutEffect, useRef, useState, type PointerEvent } from 'react';
 import type { DesktopAPI } from '../shared/api';
-import type { SidebarPreferences, Snapshot } from '../shared/model';
+import { sidebars, type Sidebar, type SidebarPreferences, type Snapshot } from '../shared/model';
 import { capturePointer } from './pointer-capture';
 
-interface Options<T extends SidebarPreferences> {
+interface Options {
+  sidebar: Sidebar;
   snapshot?: Snapshot;
-  /** The stored preferences in a snapshot. */
-  read(snapshot: Snapshot): T;
-  save(preferences: T): Promise<void>;
-  subscribe: DesktopAPI['subscribe'];
-  defaults: T;
-  /** The width an interaction may set. */
-  width(width: number): number;
+  api: Pick<DesktopAPI, 'saveSidebar' | 'subscribe'>;
   /** Which way dragging the resize edge to the right changes the width: 1 for an edge on the right, -1 for one on the left. */
   edge: 1 | -1;
   report(message: string): void;
@@ -20,20 +15,21 @@ interface Options<T extends SidebarPreferences> {
 /** A sidebar's open state and width as the stored preferences hold them. Toggling and resizing show at once
  * and are saved; a failed save returns to the stored preferences. A newer operation replaces a pending one,
  * and snapshots never replace the preview of a pending operation. Keep it in the main window's lifetime. */
-export function useSidebarPreferences<T extends SidebarPreferences>(options: Options<T>) {
-  const { snapshot, read, defaults, subscribe } = options;
+export function useSidebarPreferences(options: Options) {
+  const { sidebar, snapshot, api: { subscribe } } = options;
+  const { defaults } = sidebars[sidebar];
   const latest = useRef(options);
   latest.current = options;
-  const [preferences, setPreferences] = useState(defaults);
-  const confirmed = useRef(defaults);
-  const knownSaved = useRef(defaults);
+  const [preferences, setPreferences] = useState<SidebarPreferences>(defaults);
+  const confirmed = useRef<SidebarPreferences>(defaults);
+  const knownSaved = useRef<SidebarPreferences>(defaults);
   const initialized = useRef(false);
   const pending = useRef<object | undefined>(undefined);
   const cancelResize = useRef<(() => void) | undefined>(undefined);
   useLayoutEffect(() => {
     if (snapshot && !initialized.current) {
       initialized.current = true;
-      confirmed.current = knownSaved.current = read(snapshot);
+      confirmed.current = knownSaved.current = snapshot[sidebar];
       setPreferences(confirmed.current);
     }
   }, [snapshot]);
@@ -43,7 +39,7 @@ export function useSidebarPreferences<T extends SidebarPreferences>(options: Opt
     const unsubscribe = subscribe(event => {
       if (event.kind !== 'snapshot') return;
       initialized.current = true;
-      knownSaved.current = latest.current.read(event.snapshot);
+      knownSaved.current = event.snapshot[latest.current.sidebar];
       if (!pending.current) {
         confirmed.current = knownSaved.current;
         setPreferences(confirmed.current);
@@ -58,8 +54,8 @@ export function useSidebarPreferences<T extends SidebarPreferences>(options: Opt
     cancelResize.current?.();
     return operation;
   }
-  function save(operation: object, next: T) {
-    void latest.current.save(next).then(() => {
+  function save(operation: object, next: SidebarPreferences) {
+    void latest.current.api.saveSidebar(latest.current.sidebar, next).then(() => {
       if (pending.current !== operation) return;
       pending.current = undefined;
       confirmed.current = knownSaved.current = next;
@@ -84,7 +80,8 @@ export function useSidebarPreferences<T extends SidebarPreferences>(options: Opt
   function resize(event: PointerEvent<HTMLElement>) {
     if (!latest.current.snapshot || event.button !== 0) return;
     event.preventDefault();
-    const { width: bounded, edge } = latest.current;
+    const { sidebar: current, edge } = latest.current;
+    const bounded = sidebars[current].width;
     const operation = replaceOperation();
     const base = confirmed.current;
     const element = event.currentTarget, start = event.clientX;

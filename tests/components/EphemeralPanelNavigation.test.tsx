@@ -17,7 +17,7 @@ const panel = (projectId: string, id: string, status?: ProcessingState): PanelVi
   ({ id, agent: 'codex', run: { id: `run-${id}`, panelId: id, projectId, state: 'running', title: `Session ${id}` }, status });
 
 const snapshot = (): Snapshot => ({
-  navigation: { visible: true, width: 212 }, issueSidebar: { visible: false, width: 380 }, activeProjectId: 'current', settings: defaultSettings(),
+  navigation: { visible: true, width: 212 }, forgeSidebar: { visible: false, width: 380 }, activeProjectId: 'current', settings: defaultSettings(),
   settingsConflicts: [], startupTheme: 'light', resolvedTheme: 'light', errors: [],
   projects: [
     { id: 'current', name: 'Current', directory: '/current', layout: null, panels: [panel('current', 'resident', 'ready')],
@@ -31,7 +31,7 @@ const snapshot = (): Snapshot => ({
 function renderNavigation(language: 'en' | 'zh-CN', state = snapshot()) {
   const located: string[] = [];
   const saved: unknown[] = [];
-  provideWorkbench({ subscribe: () => () => {}, saveNavigation: async navigation => { saved.push(navigation); } });
+  provideWorkbench({ subscribe: () => () => {}, saveSidebar: async (sidebar, preferences) => { if (sidebar === 'navigation') saved.push(preferences); } });
   function Navigation() {
     const navigation = useProjectNavigation({ snapshot: state, page: 'workbench', view: () => ({ selected: 'resident', maximized: 'finished' }),
       openProject: () => {}, locatePanel: (project, panelId) => located.push(`${project}/${panelId}`),

@@ -1,7 +1,7 @@
 import { message } from '../shared/messages';
 import { parentPort, workerData } from 'node:worker_threads';
 import { DatabaseSync } from 'node:sqlite';
-import { agentTypeSchema, defaultIssueSidebar, defaultNavigation, sidebarPreferencesSchema, parseLayout, type SidebarPreferences, type Panel, type Project } from '../shared/model';
+import { agentTypeSchema, sidebars, sidebarPreferencesSchema, parseLayout, type Sidebar, type SidebarPreferences, type Panel, type Project } from '../shared/model';
 import { forgeIdSchema, type RepositoryReference } from '../shared/forge';
 
 const file: string = workerData.file;
@@ -11,7 +11,7 @@ db.exec(`PRAGMA journal_mode=WAL; PRAGMA foreign_keys=ON;
   CREATE TABLE IF NOT EXISTS panels (id TEXT PRIMARY KEY, project_id TEXT NOT NULL REFERENCES projects(id), agent TEXT NOT NULL, position INTEGER NOT NULL);
   CREATE TABLE IF NOT EXISTS workspace (id INTEGER PRIMARY KEY CHECK(id=1), active_project TEXT, navigation TEXT);
   CREATE TABLE IF NOT EXISTS repository_bindings (project_id TEXT PRIMARY KEY REFERENCES projects(id), forge TEXT NOT NULL, path TEXT NOT NULL);
-  CREATE TABLE IF NOT EXISTS issue_sidebar (id INTEGER PRIMARY KEY CHECK(id=1), preferences TEXT NOT NULL);
+  CREATE TABLE IF NOT EXISTS forge_sidebar (id INTEGER PRIMARY KEY CHECK(id=1), preferences TEXT NOT NULL);
 `);
 
 // Stored content is read in its current format only: anything else fails the whole load and leaves the file untouched.
@@ -42,9 +42,19 @@ function readBindings(projects: Project[]): Record<string, RepositoryReference> 
   return bindings;
 }
 
-/** Stored sidebar preferences, or the defaults when none are stored. */
-function readSidebar(stored: unknown, defaults: SidebarPreferences, field: string): SidebarPreferences {
-  if (stored === null || stored === undefined) return defaults;
+/** Where each sidebar's preferences are stored; `field` names that place when what is stored there is invalid. */
+const sidebarStorage: Record<Sidebar, { read: string; write: string; field: string }> = {
+  navigation: { field: 'navigation', read: 'SELECT navigation AS preferences FROM workspace WHERE id=1',
+    write: 'INSERT INTO workspace (id, navigation) VALUES (1,?) ON CONFLICT(id) DO UPDATE SET navigation=excluded.navigation' },
+  forgeSidebar: { field: 'forge_sidebar', read: 'SELECT preferences FROM forge_sidebar WHERE id=1',
+    write: 'INSERT INTO forge_sidebar VALUES (1,?) ON CONFLICT(id) DO UPDATE SET preferences=excluded.preferences' },
+};
+
+/** A sidebar's stored preferences, or its defaults when none are stored. */
+function readSidebar(sidebar: Sidebar): SidebarPreferences {
+  const { read, field } = sidebarStorage[sidebar];
+  const stored = db.prepare(read).get()?.preferences;
+  if (stored === null || stored === undefined) return sidebars[sidebar].defaults;
   try { return sidebarPreferencesSchema.parse(JSON.parse(stored as string)); }
   catch { throw new Error(message('sidebarDataInvalid', { file, field })); }
 }
@@ -66,13 +76,13 @@ parentPort!.on('message', ({ id, operation, value }) => {
   try {
     let result: unknown;
     if (operation === 'load') {
-      const workspace = db.prepare('SELECT navigation, active_project FROM workspace WHERE id=1').get();
+      const workspace = db.prepare('SELECT active_project FROM workspace WHERE id=1').get();
       const projects = db.prepare('SELECT * FROM projects ORDER BY rowid').all().map(readProject);
       result = {
         projects,
         repositories: readBindings(projects),
-        navigation: readSidebar(workspace?.navigation, defaultNavigation, 'navigation'),
-        issueSidebar: readSidebar(db.prepare('SELECT preferences FROM issue_sidebar WHERE id=1').get()?.preferences, defaultIssueSidebar, 'issue_sidebar'),
+        navigation: readSidebar('navigation'),
+        forgeSidebar: readSidebar('forgeSidebar'),
         activeProjectId: workspace?.active_project ?? null,
       };
     } else if (operation === 'save') transaction(() => saveProject(value as Project));
@@ -92,10 +102,9 @@ parentPort!.on('message', ({ id, operation, value }) => {
     });
     else if (operation === 'active') {
       db.prepare('INSERT INTO workspace (id, active_project) VALUES (1,?) ON CONFLICT(id) DO UPDATE SET active_project=excluded.active_project').run(value);
-    } else if (operation === 'navigation') {
-      db.prepare('INSERT INTO workspace (id, navigation) VALUES (1,?) ON CONFLICT(id) DO UPDATE SET navigation=excluded.navigation').run(JSON.stringify(value));
-    } else if (operation === 'issueSidebar') {
-      db.prepare('INSERT INTO issue_sidebar VALUES (1,?) ON CONFLICT(id) DO UPDATE SET preferences=excluded.preferences').run(JSON.stringify(value));
+    } else if (operation === 'sidebar') {
+      const { sidebar, preferences } = value as { sidebar: Sidebar; preferences: SidebarPreferences };
+      db.prepare(sidebarStorage[sidebar].write).run(JSON.stringify(preferences));
     } else if (operation === 'close') db.close();
     else throw new Error(message('storageOperationUnknown'));
     parentPort!.postMessage({ id, result });

@@ -1,0 +1,18 @@
+/* The forge sidebar sits at the right of the app body. Squeeze: it takes its width from the main area.
+   Overlay: it covers the right of the main area; the workspace toolbar, tray and settings page make room, so only the layout area is covered. */
+.app-body { position: relative; }
+.forge-sidebar { position: relative; flex-shrink: 0; max-width: max(0px, calc(100vw - 160px)); display: flex; flex-direction: column; min-height: 0; border-left: 1px solid var(--line); background: var(--canvas); font-size: 12px; z-index: 7; }
+.forge-sidebar:focus { outline: none; }
+/* Above the toolbar and every panel, including a maximized one. */
+.forge-sidebar.overlay { position: absolute; right: 0; top: 0; bottom: 0; z-index: 20; box-shadow: -12px 0 32px #0004; }
+.forge-sidebar-resize { position: absolute; left: -4px; top: 0; bottom: 0; width: 8px; cursor: col-resize; z-index: 3; touch-action: none; }
+.forge-sidebar-resize:hover { background: color-mix(in srgb, var(--focus) 30%, transparent); }
+.forge-sidebar-head { height: 32px; flex-shrink: 0; display: flex; align-items: center; padding: 0 4px 0 12px; border-bottom: 1px solid var(--line); background: var(--navigation, var(--canvas)); }
+.forge-sidebar-repository { font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.forge-sidebar-state { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 10px; padding: 24px; text-align: center; color: var(--muted); }
+.forge-sidebar-state button { font-size: 12px; min-height: 28px; }
+.app-body.forge-sidebar-yield .workspace-toolbar, .app-body.forge-sidebar-yield .panel-tray { padding-right: calc(var(--forge-sidebar-width) + 6px); }
+.app-body.forge-sidebar-yield .settings-page { padding-right: var(--forge-sidebar-width); }
+.system-bar .forge-sidebar-toggle { display: grid; place-items: center; width: 28px; height: 28px; min-height: 0; margin: 0 12px 0 auto; border-radius: 6px; color: var(--muted); }
+.system-bar .forge-sidebar-toggle:hover:not(:disabled) { background: var(--hover); color: inherit; }
+.system-bar .forge-sidebar-toggle[aria-expanded='true'] { background: var(--hover); color: var(--accent); }

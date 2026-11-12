@@ -5,7 +5,7 @@ import { flushSync } from 'react-dom';
 import type {} from '../shared/api';
 import { newDraft, type Snapshot } from '../shared/model';
 import { useProjectNavigation } from './ProjectNavigation';
-import { useIssueSidebar } from './IssueSidebar';
+import { useForgeSidebar } from './ForgeSidebar';
 import { Setup } from './Setup';
 import { Workspace, type WorkspaceActions } from './Workspace';
 import { usePanelLocation } from './panel-location';
@@ -82,8 +82,8 @@ function WorkbenchView({ state, setState }: { state?: Snapshot; setState(snapsho
   const navigation = useProjectNavigation({ snapshot: state, page: settingsOpen ? 'settings' : setup ? 'setup' : 'workbench',
     view: location.view, openProject: activate, locatePanel, createProject: create, toggleSettings, report });
   const active = state?.projects.find(project => project.id === state.activeProjectId);
-  // The issue sidebar shows the current project, on the workbench and on the settings page.
-  const issueSidebar = useIssueSidebar({ snapshot: state, project: setup ? undefined : active, openProject: activate, report });
+  // The forge sidebar shows the current project, on the workbench and on the settings page.
+  const forgeSidebar = useForgeSidebar({ snapshot: state, project: setup ? undefined : active, openProject: activate, report });
   const conflictCategory = state?.settingsConflicts[0]?.category;
   useEffect(() => {
     const keydown = (event: KeyboardEvent) => {
@@ -93,7 +93,7 @@ function WorkbenchView({ state, setState }: { state?: Snapshot; setState(snapsho
       if (!action) return;
       let handled = false;
       if (action === 'settings') { toggleSettings(); handled = true; }
-      else if (action === 'toggleIssueSidebar') { issueSidebar.toggle(); handled = true; }
+      else if (action === 'toggleForgeSidebar') handled = forgeSidebar.toggle();
       else if (!settingsOpen && (action === 'nextProject' || action === 'previousProject') && state.projects.length) {
         const index = state.projects.findIndex(project => project.id === state.activeProjectId);
         const next = (index + (action === 'nextProject' ? 1 : -1) + state.projects.length) % state.projects.length;
@@ -105,13 +105,13 @@ function WorkbenchView({ state, setState }: { state?: Snapshot; setState(snapsho
     return () => window.removeEventListener('keydown', keydown, true);
   });
   return <div className="app">
-    <header className="system-bar"><div className="system-brand">{navigation.toggle}<span className="wordmark">VibeBridge</span></div>{issueSidebar.button}</header>
-    <div className={`app-body ${issueSidebar.shown && issueSidebar.overlay ? 'issue-sidebar-yield' : ''}`} style={{ '--issue-sidebar-width': `${issueSidebar.width}px` } as CSSProperties}>{navigation.sidebar}<main>
+    <header className="system-bar"><div className="system-brand">{navigation.toggle}<span className="wordmark">VibeBridge</span></div>{forgeSidebar.button}</header>
+    <div className={`app-body ${forgeSidebar.shown && forgeSidebar.overlay ? 'forge-sidebar-yield' : ''}`} style={{ '--forge-sidebar-width': `${forgeSidebar.width}px` } as CSSProperties}>{navigation.sidebar}<main>
       <div className={`workbench-page ${location.locating ? 'locating-panel' : ''}`} hidden={settingsOpen} inert={settingsOpen}>
         {!state ? <div className="empty">{t('opening')}</div> : setup ? <Setup defaultLayout={state.settings.defaultLayout} draft={draft} change={setDraft} cancel={() => setSetup(false)} created={id => { setDraft(newDraft()); activate(id); }} openProject={activate} report={report} openAgentSettings={openAgentSettings} /> : active ? <Workspace ref={workspace} visible={!settingsOpen} key={active.id} project={active} report={report} openAgentSettings={openAgentSettings} location={location} /> : <div className="empty"><p>{t('welcome')}</p><button className="primary" onClick={create}>{t('createProject')}</button></div>}
       </div>
       {state && settingsOpen && <SettingsPage ref={settingsPage} settings={state.settings} startupTheme={state.startupTheme} initialCategory={initialSettingsCategory} report={report} back={() => void leaveSettings()} />}
-    </main>{issueSidebar.sidebar}</div>
+    </main>{forgeSidebar.sidebar}</div>
     <Notices notices={notices} dismiss={dismiss} />
     <HoverHints />
     {conflictCategory && !settingsOpen && <SettingsConflictDialog category={conflictCategory} openSettings={() => openSettings(conflictCategory)} />}
