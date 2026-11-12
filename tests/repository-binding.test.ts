@@ -7,12 +7,12 @@ import { Workbench } from '../app/main/workbench';
 import { ghDouble } from './support/gh-double';
 import { interactiveWorkbench } from './support/interactive-workbench';
 
-const github = (path: string) => ({ platform: 'github' as const, path });
-const account = { account: 'octo', repositories: ['octo/tools', 'Octo/VibeBridge', 'acme/platform'] };
+const github = (path: string) => ({ forge: 'github' as const, path });
+const account = { account: 'octo', repositories: ['octo/tools', 'Octo/VibeBridge', 'acme/forge'] };
 
 type Fixture = Awaited<ReturnType<typeof interactiveWorkbench>>;
 /** Saves the edit-project form with the project's current name and directory and the given binding. */
-function saveBinding(f: Fixture, id: string, repository: { platform: 'github'; path: string } | null, name?: string) {
+function saveBinding(f: Fixture, id: string, repository: { forge: 'github'; path: string } | null, name?: string) {
   const project = f.workbench.snapshot().projects.find(item => item.id === id)!;
   return f.workbench.editProject(id, { name: name ?? project.name, directory: project.directory, repository }, false);
 }
@@ -41,15 +41,15 @@ test('the repository origin points at is offered by default, and only a saved, l
 
     await saveBinding(f, project.id, github('Octo/VibeBridge'));
     assert.deepEqual(f.workbench.snapshot().projects[0].repository, github('Octo/VibeBridge'));
-    await saveBinding(f, project.id, github('acme/platform'));
+    await saveBinding(f, project.id, github('acme/forge'));
     await f.workbench.quit();
     const reopened = await Workbench.open(f.directory);
-    try { assert.deepEqual(reopened.snapshot().projects[0].repository, github('acme/platform')); }
+    try { assert.deepEqual(reopened.snapshot().projects[0].repository, github('acme/forge')); }
     finally { await reopened.quit(); }
   } finally { await f.close(); }
 });
 
-test('platform failures are classified into the four kinds and carry the platform text unchanged', async context => {
+test('forge failures are classified into the four kinds and carry the forge text unchanged', async context => {
   const double = await ghDouble(context, account);
   const f = await interactiveWorkbench('repository-failures');
   try {
@@ -64,7 +64,7 @@ test('platform failures are classified into the four kinds and carry the platfor
     ] as const) {
       await double.set({ ...account, failure });
       const choices = await f.workbench.repositoryChoices(project.id, f.directory);
-      assert.deepEqual(choices, { ok: false, failure: { kind, detail, platform: { name: 'GitHub', cli: 'gh', installUrl: 'https://cli.github.com', loginCommand: 'gh auth login' } } }, detail);
+      assert.deepEqual(choices, { ok: false, failure: { kind, detail, forge: { name: 'GitHub', cli: 'gh', installUrl: 'https://cli.github.com', loginCommand: 'gh auth login' } } }, detail);
       await assert.rejects(saveBinding(f, project.id, github('octo/tools')), /projectEditListFailed/);
     }
     double.uninstall();
@@ -77,7 +77,7 @@ test('platform failures are classified into the four kinds and carry the platfor
   } finally { await f.close(); }
 });
 
-test('an unbound project, or one whose directory has no origin on the platform, offers no default', async context => {
+test('an unbound project, or one whose directory has no origin on the forge, offers no default', async context => {
   await ghDouble(context, account);
   const f = await interactiveWorkbench('repository-no-origin');
   try {
@@ -92,7 +92,7 @@ test('an unbound project, or one whose directory has no origin on the platform, 
   } finally { await f.close(); }
 });
 
-test('unbinding keeps the project, needs no platform, and saves with the name; deleting a bound project removes it for good', async context => {
+test('unbinding keeps the project, needs no forge, and saves with the name; deleting a bound project removes it for good', async context => {
   const double = await ghDouble(context, account);
   const f = await interactiveWorkbench('repository-unbind');
   try {
@@ -119,10 +119,10 @@ test('the default comes from the origin of the directory the dialog shows, not o
   try {
     const { project } = await f.create('Moving');
     const moved = await mkdtemp(join(f.directory, 'moved-'));
-    setOrigin(moved, 'https://github.com/acme/platform.git');
+    setOrigin(moved, 'https://github.com/acme/forge.git');
     const choices = await f.workbench.repositoryChoices(project.id, moved);
     assert.ok(choices.ok);
-    assert.deepEqual(choices.origin, github('acme/platform'));
+    assert.deepEqual(choices.origin, github('acme/forge'));
   } finally { await f.close(); }
 });
 
@@ -133,9 +133,9 @@ test('a repository path differing only in case is the same GitHub repository: li
     const { project } = await f.create('Cased');
     await saveBinding(f, project.id, github('OCTO/TOOLS'));
     assert.deepEqual(f.workbench.snapshot().projects[0].repository, github('octo/tools'));
-    await double.set({ ...account, repositories: ['Octo/Tools', 'acme/platform'] });
+    await double.set({ ...account, repositories: ['Octo/Tools', 'acme/forge'] });
     const choices = await f.workbench.repositoryChoices(project.id, f.directory);
     assert.ok(choices.ok);
-    assert.deepEqual(choices.repositories, ['octo/tools', 'acme/platform'].map(github), 'the bound spelling stands for the listed one');
+    assert.deepEqual(choices.repositories, ['octo/tools', 'acme/forge'].map(github), 'the bound spelling stands for the listed one');
   } finally { await f.close(); }
 });

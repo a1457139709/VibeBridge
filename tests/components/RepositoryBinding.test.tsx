@@ -7,16 +7,16 @@ import { ProjectNavigationItem } from '../../app/renderer/ProjectManagement';
 import { Localization } from '../../app/renderer/Localization';
 import type { ProjectEdit, ProjectView } from '../../app/shared/model';
 import { detail, message } from '../../app/shared/messages';
-import type { CodeHostingFailureKind, RepositoryChoices, RepositoryReference } from '../../app/shared/code-hosting';
+import type { ForgeFailureKind, RepositoryChoices, RepositoryReference } from '../../app/shared/forge';
 import { provideWorkbench } from './support/workbench';
 
 afterEach(cleanup);
 
-const github = (path: string): RepositoryReference => ({ platform: 'github', path });
-const platform = { name: 'GitHub', cli: 'gh', installUrl: 'https://cli.github.com', loginCommand: 'gh auth login' };
-const listed: RepositoryChoices = { ok: true, platform, account: 'octo', origin: github('octo/vibebridge'),
-  repositories: ['octo/tools', 'octo/vibebridge', 'acme/group/platform'].map(github) };
-const failed = (kind: CodeHostingFailureKind, detail = ''): RepositoryChoices => ({ ok: false, failure: { kind, detail, platform } });
+const github = (path: string): RepositoryReference => ({ forge: 'github', path });
+const forge = { name: 'GitHub', cli: 'gh', installUrl: 'https://cli.github.com', loginCommand: 'gh auth login' };
+const listed: RepositoryChoices = { ok: true, forge, account: 'octo', origin: github('octo/vibebridge'),
+  repositories: ['octo/tools', 'octo/vibebridge', 'acme/group/forge'].map(github) };
+const failed = (kind: ForgeFailureKind, detail = ''): RepositoryChoices => ({ ok: false, failure: { kind, detail, forge } });
 
 function editor(repository: RepositoryReference | null, choices: (directory: string) => Promise<RepositoryChoices>,
   save: (edit: ProjectEdit) => Promise<void> = async () => {}) {
@@ -58,8 +58,8 @@ test('an unbound project offers its origin repository, and Save changes binds th
   assert.equal(saveButton().disabled, true, 'nothing to save');
 
   await user.type(screen.getByRole('searchbox', { name: 'Search repositories' }), 'GROUP');
-  assert.deepEqual(screen.getAllByRole('option').map(item => item.dataset.path), ['acme/group/platform']);
-  await user.click(option('acme/group/platform'));
+  assert.deepEqual(screen.getAllByRole('option').map(item => item.dataset.path), ['acme/group/forge']);
+  await user.click(option('acme/group/forge'));
   await user.clear(screen.getByRole('searchbox', { name: 'Search repositories' }));
   await user.type(screen.getByRole('searchbox', { name: 'Search repositories' }), 'https://github.com/someone/else');
   assert.ok(screen.getByText('No matching repositories'));
@@ -67,7 +67,7 @@ test('an unbound project offers its origin repository, and Save changes binds th
 
   await user.click(saveButton());
   await closed();
-  assert.deepEqual(edits, [{ edit: { name: 'Bound', directory: '/work/bound', repository: github('acme/group/platform') }, restart: false }]);
+  assert.deepEqual(edits, [{ edit: { name: 'Bound', directory: '/work/bound', repository: github('acme/group/forge') }, restart: false }]);
 });
 
 test('a bound project shows its repository with Change and Unbind, and the list only after Change', async () => {
@@ -139,7 +139,7 @@ for (const [kind, text] of [
   ['loggedOut', 'gh is logged out. Run gh auth login, then retry.'],
   ['transient', 'Could not read the repository list: HTTP 502 原样'],
 ] as const) {
-  test(`a ${kind} platform shows its state with Retry in place of the list and binds nothing`, async () => {
+  test(`a ${kind} forge shows its state with Retry in place of the list and binds nothing`, async () => {
     let answer = failed(kind, kind === 'transient' ? 'HTTP 502 原样' : 'gh auth login');
     const { edits } = editor(null, async () => answer);
     const user = userEvent.setup();
@@ -163,7 +163,7 @@ for (const [kind, text] of [
   });
 }
 
-test('a bound project can be unbound while its platform is unavailable', async () => {
+test('a bound project can be unbound while its forge is unavailable', async () => {
   const { edits } = editor(github('octo/tools'), async () => failed('loggedOut', 'gh auth login'));
   const user = userEvent.setup();
   await openEditor(user);
@@ -178,14 +178,14 @@ test('a bound project can be unbound while its platform is unavailable', async (
 });
 
 test('the default follows the origin of the directory being edited until a repository is picked', async () => {
-  const { edits } = editor(null, async directory => ({ ...listed, origin: directory === '/work/moved' ? github('acme/group/platform') : listed.origin }));
+  const { edits } = editor(null, async directory => ({ ...listed, origin: directory === '/work/moved' ? github('acme/group/forge') : listed.origin }));
   const user = userEvent.setup();
   await openEditor(user);
   await screen.findByRole('listbox', { name: 'Repository' });
   assert.deepEqual(selected(), ['octo/vibebridge']);
   const path = screen.getByRole('textbox', { name: 'Local directory' });
   await user.clear(path); await user.type(path, '/work/moved');
-  await waitFor(() => assert.deepEqual(selected(), ['acme/group/platform']));
+  await waitFor(() => assert.deepEqual(selected(), ['acme/group/forge']));
   await user.click(option('octo/tools'));
   await user.clear(path); await user.type(path, '/work/bound');
   await waitFor(() => assert.equal(saveButton().disabled, false));

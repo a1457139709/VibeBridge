@@ -15,7 +15,7 @@ let workbench: Promise<Workbench>;
 let exiting = false;
 let confirming = false;
 let language: Language = 'en';
-// An app opened from the Finder inherits a minimal PATH. Platform CLIs such as gh are looked up on the
+// An app opened from the Finder inherits a minimal PATH. Forge CLIs such as gh are looked up on the
 // inherited PATH first, then on the login shell's, where the Agents find them too.
 const loginPath = commandEnvironment().then(environment => {
   const entries = [...(process.env.PATH ?? '').split(':'), ...(environment.PATH ?? '').split(':')].filter(Boolean);

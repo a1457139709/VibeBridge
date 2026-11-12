@@ -2,7 +2,7 @@ import { useLocalization } from './Localization';
 import { detail, message } from '../shared/messages';
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { type DirectoryResult, type Project, type ProjectEditResult, type ProjectView } from '../shared/model';
-import { sameRepository, type RepositoryChoices, type RepositoryReference } from '../shared/code-hosting';
+import { sameRepository, type RepositoryChoices, type RepositoryReference } from '../shared/forge';
 import { projectNameError, projectNameHasControls } from '../shared/project-name';
 import { LaunchResults } from './LaunchResults';
 import './project-management.css';
@@ -74,10 +74,10 @@ function RepositoryList({ field, disabled }: { field: RepositoryFieldState; disa
   if (!choices) return <span className="muted">{t('loadingRepositories')}</span>;
   if (!choices.ok && 'error' in choices) return <div className="repository-error"><span>{t('repositoryListFailed', { reason: detail(choices.error) })}</span>{retry}</div>;
   if (!choices.ok) {
-    const { kind, detail: reason, platform } = choices.failure;
+    const { kind, detail: reason, forge } = choices.failure;
     return <div className="repository-error">
-      {kind === 'notInstalled' ? <><span>{t('codeHostingNotInstalled', { cli: platform.cli })}</span><a href={platform.installUrl} target="_blank" rel="noreferrer">{t('installInstructions')}</a></>
-        : kind === 'loggedOut' ? <span>{t('codeHostingLoggedOut', { cli: platform.cli, command: platform.loginCommand })}</span>
+      {kind === 'notInstalled' ? <><span>{t('forgeNotInstalled', { cli: forge.cli })}</span><a href={forge.installUrl} target="_blank" rel="noreferrer">{t('installInstructions')}</a></>
+        : kind === 'loggedOut' ? <span>{t('forgeLoggedOut', { cli: forge.cli, command: forge.loginCommand })}</span>
         : <span>{t('repositoryListFailed', { reason: reason ? detail(reason) : kind })}</span>}
       {retry}</div>;
   }
@@ -95,7 +95,7 @@ function RepositoryList({ field, disabled }: { field: RepositoryFieldState; disa
       </button>)}
       {!shown.length && <span className="muted repository-empty">{t('noRepositories')}</span>}
     </div>
-    <span className="muted repository-source">{t('repositoryListSource', { cli: choices.platform.cli })}</span>
+    <span className="muted repository-source">{t('repositoryListSource', { cli: choices.forge.cli })}</span>
   </div>;
 }
 

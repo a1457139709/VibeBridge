@@ -4,7 +4,7 @@ import type { Shortcuts } from './shortcuts';
 import { projectNameError } from './project-name';
 import type { ProcessingState } from './processing-status';
 import type { SettingsIssue } from './settings';
-import type { RepositoryReference } from './code-hosting';
+import type { RepositoryReference } from './forge';
 
 export const agentTypes = ['codex', 'claude', 'pi'] as const;
 export type AgentType = typeof agentTypes[number];

@@ -1,6 +1,6 @@
 import type { NavigationPreferences, AgentType, CommandCheck, DirectoryResult, Layout, ProjectCreation, PanelCreation, ProjectDraft, ProjectEdit, ProjectEditResult, Settings, Snapshot, WorkbenchEvent } from './model';
 import type { SettingsSaveResult } from './settings';
-import type { RepositoryChoices } from './code-hosting';
+import type { RepositoryChoices } from './forge';
 
 export interface DesktopAPI {
   snapshot(): Promise<Snapshot>;
@@ -9,7 +9,7 @@ export interface DesktopAPI {
   editProject(id: string, edit: ProjectEdit, restart: boolean): Promise<ProjectEditResult>;
   deleteProject(id: string): Promise<void>;
   inspectDirectory(directory: string): Promise<DirectoryResult>;
-  /** The repositories the project can bind, with the one the origin of `directory` points at; or a platform failure. */
+  /** The repositories the project can bind, with the one the origin of `directory` points at; or a forge failure. */
   repositoryChoices(projectId: string, directory: string): Promise<RepositoryChoices>;
   chooseDirectory(): Promise<string | null>;
   activateProject(id: string): Promise<void>;

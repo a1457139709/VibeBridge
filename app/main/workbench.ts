@@ -9,8 +9,8 @@ import { ProjectStore } from './storage';
 import { SettingsFile, defaultSettings } from './settings';
 import { settingsConflicts, type SettingsSaveResult } from '../shared/settings';
 import { RunSupervision } from './run-supervision';
-import { sameRepository, type RepositoryChoices, type RepositoryReference } from '../shared/code-hosting';
-import { listedRepository, repositoryChoices } from './code-hosting/repositories';
+import { sameRepository, type RepositoryChoices, type RepositoryReference } from '../shared/forge';
+import { listedRepository, repositoryChoices } from './forge/repositories';
 
 export class WorkbenchOpenError extends Error {
   constructor(error: unknown, readonly language: Language) {
@@ -108,10 +108,10 @@ export class Workbench {
     return { project: structuredClone(project), launches };
   }); }
   /** Saves name, directory and Repository Binding together. Everything is checked first (a new repository against
-   * a fresh list from its platform), then written in one transaction, so a failed check saves nothing. */
+   * a fresh list from its forge), then written in one transaction, so a failed check saves nothing. */
   async editProject(id: string, edit: ProjectEdit, restart: boolean): Promise<ProjectEditResult> {
     this.project(id);
-    // Listing waits on the platform CLI, so it runs before the edit joins the operation queue.
+    // Listing waits on the forge CLI, so it runs before the edit joins the operation queue.
     const repository = sameRepository(edit.repository, this.repositories.get(id) ?? null) ? edit.repository : await listedRepository(edit.repository);
     return this.operation(async () => {
       const project = this.project(id);

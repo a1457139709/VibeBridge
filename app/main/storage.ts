@@ -3,7 +3,7 @@ import { Worker } from 'node:worker_threads';
 import { mkdir } from 'node:fs/promises';
 import { join } from 'node:path';
 import type { NavigationPreferences, Project } from '../shared/model';
-import type { RepositoryReference } from '../shared/code-hosting';
+import type { RepositoryReference } from '../shared/forge';
 
 export class ProjectStore {
   private worker: Worker;

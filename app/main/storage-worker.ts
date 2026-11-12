@@ -2,7 +2,7 @@ import { message } from '../shared/messages';
 import { parentPort, workerData } from 'node:worker_threads';
 import { DatabaseSync } from 'node:sqlite';
 import { agentTypeSchema, defaultNavigation, navigationSchema, parseLayout, type NavigationPreferences, type Panel, type Project } from '../shared/model';
-import { codeHostingPlatformIdSchema, type RepositoryReference } from '../shared/code-hosting';
+import { forgeIdSchema, type RepositoryReference } from '../shared/forge';
 
 const file: string = workerData.file;
 const db = new DatabaseSync(file);
@@ -10,7 +10,7 @@ db.exec(`PRAGMA journal_mode=WAL; PRAGMA foreign_keys=ON;
   CREATE TABLE IF NOT EXISTS projects (id TEXT PRIMARY KEY, name TEXT NOT NULL, directory TEXT NOT NULL UNIQUE, layout TEXT);
   CREATE TABLE IF NOT EXISTS panels (id TEXT PRIMARY KEY, project_id TEXT NOT NULL REFERENCES projects(id), agent TEXT NOT NULL, position INTEGER NOT NULL);
   CREATE TABLE IF NOT EXISTS workspace (id INTEGER PRIMARY KEY CHECK(id=1), active_project TEXT, navigation TEXT);
-  CREATE TABLE IF NOT EXISTS repository_bindings (project_id TEXT PRIMARY KEY REFERENCES projects(id), platform TEXT NOT NULL, path TEXT NOT NULL);
+  CREATE TABLE IF NOT EXISTS repository_bindings (project_id TEXT PRIMARY KEY REFERENCES projects(id), forge TEXT NOT NULL, path TEXT NOT NULL);
 `);
 
 // Stored content is read in its current format only: anything else fails the whole load and leaves the file untouched.
@@ -28,15 +28,15 @@ function readProject(row: Record<string, unknown>): Project {
   return { id, name, directory, layout, panels };
 }
 
-/** Each project's Repository Binding: the platform must be one the Workbench has an adapter for. */
+/** Each project's Repository Binding: the forge must be one the Workbench has an adapter for. */
 function readBindings(projects: Project[]): Record<string, RepositoryReference> {
   const bindings: Record<string, RepositoryReference> = {};
-  for (const row of db.prepare('SELECT project_id, platform, path FROM repository_bindings').all()) {
+  for (const row of db.prepare('SELECT project_id, forge, path FROM repository_bindings').all()) {
     const project = projects.find(project => project.id === row.project_id)!;
-    const platform = codeHostingPlatformIdSchema.safeParse(row.platform);
-    if (!platform.success) throw new Error(message('projectDataInvalid', { file, field: 'repository_bindings.platform', id: project.id, name: project.name }));
+    const forge = forgeIdSchema.safeParse(row.forge);
+    if (!forge.success) throw new Error(message('projectDataInvalid', { file, field: 'repository_bindings.forge', id: project.id, name: project.name }));
     if (!row.path) throw new Error(message('projectDataInvalid', { file, field: 'repository_bindings.path', id: project.id, name: project.name }));
-    bindings[project.id] = { platform: platform.data, path: row.path as string };
+    bindings[project.id] = { forge: forge.data, path: row.path as string };
   }
   return bindings;
 }
@@ -77,8 +77,8 @@ parentPort!.on('message', ({ id, operation, value }) => {
       const { project, repository } = value as { project: Project; repository: RepositoryReference | null };
       transaction(() => {
         saveProject(project);
-        if (repository) db.prepare('INSERT INTO repository_bindings VALUES (?,?,?) ON CONFLICT(project_id) DO UPDATE SET platform=excluded.platform, path=excluded.path')
-          .run(project.id, repository.platform, repository.path);
+        if (repository) db.prepare('INSERT INTO repository_bindings VALUES (?,?,?) ON CONFLICT(project_id) DO UPDATE SET forge=excluded.forge, path=excluded.path')
+          .run(project.id, repository.forge, repository.path);
         else db.prepare('DELETE FROM repository_bindings WHERE project_id=?').run(project.id);
       });
     } else if (operation === 'delete') transaction(() => {
