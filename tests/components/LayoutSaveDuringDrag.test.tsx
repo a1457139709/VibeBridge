@@ -61,10 +61,12 @@ async function renderWorkbench() {
   const canvas = document.querySelector<HTMLElement>('.canvas')!;
   return {
     canvas, saves, otherChanges,
-    // The main process saves a layout and reports the project as it now is.
-    saved: (change: (project: Snapshot['projects'][number]) => void) => act(() => {
-      change(snapshot.projects[0]);
-      listener({ kind: 'snapshot', snapshot: structuredClone(snapshot) });
+    // The main process saves layouts and reports the project as it is after each one, all in one task.
+    saved: (...changes: ((project: Snapshot['projects'][number]) => void)[]) => act(() => {
+      for (const change of changes) {
+        change(snapshot.projects[0]);
+        listener({ kind: 'snapshot', snapshot: structuredClone(snapshot) });
+      }
     }),
   };
 }
@@ -154,4 +156,14 @@ test('Esc cancels a drag over a valid drop, and the later release changes nothin
   }
   assert.deepEqual(saves, []);
   assert.deepEqual(otherChanges, []);
+});
+
+test('a saved layout returning to the one before a drop is drawn when both saves arrive together', async () => {
+  const { saves, saved } = await renderWorkbench();
+  press('codex', right).release();
+  assert.deepEqual(saves, [sideBySide('claude', 'codex')]);
+  // The drop's save and another save restoring the earlier layout arrive before the renderer draws again.
+  await saved(project => { project.layout = sideBySide('claude', 'codex'); }, project => { project.layout = sideBySide('codex', 'claude'); });
+  const codex = document.querySelector<HTMLElement>('[data-panel-id="codex"]')!;
+  assert.equal(codex.style.left, '0%');
 });
