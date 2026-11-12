@@ -22,23 +22,23 @@ module.exports = {
     await until(async () => (initial = await reportedSize(context, run.id)).rows === await drawnRows(), 'run reports the rows the terminal shows');
     const canvas = await rect(evaluate, '.canvas');
 
-    // Overlay: the sidebar covers the layout area, which keeps its size; the toolbar and tray make room.
+    // Overlay: the sidebar lies over the layout area, which still reaches the window's right edge; the toolbar and tray make room.
+    // That the PTY then keeps its size is a "does not happen" claim the desktop suite cannot prove (ADR 0005): the PTY follows the
+    // terminal's box, and this geometry leaves that box where it was.
     assert.ok((await evaluate('window.workbench.saveSettings({ sidebarCoexistence: "overlay" })')).ok);
     await click('Show the GitHub sidebar');
     await until(async () => (await rect(evaluate, '.issue-sidebar'))?.width === 380, 'overlaying sidebar drawn 380px wide');
     const sidebar = await rect(evaluate, '.issue-sidebar');
+    assert.equal((await rect(evaluate, '.app-body > main')).right, (await rect(evaluate, '.app-body')).right, 'the layout area reaches under the sidebar to the window edge');
     assert.ok(sidebar.left < canvas.right, 'the sidebar covers the layout area');
     assert.ok((await rect(evaluate, '.workspace-toolbar > button')).right <= sidebar.left, 'the toolbar makes room for the sidebar');
-    // Settled state: the layout area and the PTY both have the size they had before the sidebar opened.
-    await until(async () => JSON.stringify(await rect(evaluate, '.canvas')) === JSON.stringify(canvas)
-      && JSON.stringify(await reportedSize(context, run.id)) === JSON.stringify(initial), 'under the overlay the layout area and PTY keep their size');
     await click('Hide the GitHub sidebar');
     await until(async () => !(await rect(evaluate, '.issue-sidebar')), 'sidebar closed');
 
-    // Squeeze: the layout area narrows and the terminal and its PTY follow.
+    // Squeeze: the layout area ends where the sidebar begins, and the terminal and its PTY follow.
     assert.ok((await evaluate('window.workbench.saveSettings({ sidebarCoexistence: "squeeze" })')).ok);
     await click('Show the GitHub sidebar');
-    await until(async () => (await rect(evaluate, '.canvas'))?.width < canvas.width, 'squeezing sidebar narrows the layout area');
+    await until(async () => (await rect(evaluate, '.app-body > main'))?.right === (await rect(evaluate, '.issue-sidebar'))?.left, 'squeezing sidebar ends the layout area at its left edge');
     await until(async () => (await reportedSize(context, run.id)).cols < initial.cols, 'squeezing the layout area resizes the PTY to fewer columns');
 
     // Dragging the left edge 70px to the left widens the sidebar from 380px to 450px and saves it.
@@ -49,7 +49,7 @@ module.exports = {
     context.window.webContents.sendInputEvent({ type: 'mouseUp', x: edge.x - 70, y: edge.y, button: 'left', clickCount: 1 });
     await until(async () => (await evaluate('window.workbench.snapshot()')).issueSidebar.width === 450, 'dragging the left edge saved a 450px width');
     await until(async () => (await rect(evaluate, '.issue-sidebar'))?.width === 450, 'sidebar drawn at its dragged 450px width');
-    console.log('Overlay kept the layout area and PTY size while the toolbar made room; squeeze narrowed the layout area and resized the PTY.');
+    console.log('Overlay lay over the layout area while the toolbar made room; squeeze ended the layout area at the sidebar and resized the PTY.');
   },
   async reopen({ evaluate, until }) {
     await until(async () => (await evaluate(`document.querySelector('.issue-sidebar')?.getBoundingClientRect().width`)) === 450, 'reopened sidebar drawn open at 450px');

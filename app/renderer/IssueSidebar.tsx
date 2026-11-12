@@ -1,5 +1,6 @@
 import { useLocalization } from './Localization';
 import { useLayoutEffect, useRef, useState } from 'react';
+import { SidebarCollapseIcon, SidebarExpandIcon } from '@primer/octicons-react';
 import { displayShortcut } from '../shared/shortcuts';
 import type { DesktopAPI } from '../shared/api';
 import { defaultIssueSidebar, issueSidebarWidth, type ProjectView, type Snapshot } from '../shared/model';
@@ -14,11 +15,6 @@ interface Host {
   openProject(id: string): void;
   report(message: string): void;
 }
-
-const SidebarIcon = ({ open }: { open: boolean }) => <svg viewBox="0 0 16 16" width="16" height="16" aria-hidden="true" focusable="false">
-  <rect x="1.75" y="2.75" width="12.5" height="10.5" rx="1.5" fill="none" stroke="currentColor" strokeWidth="1.5" />
-  <rect x={open ? 9 : 10} y="3.5" width={open ? 4.5 : 0.75} height="9" fill="currentColor" />
-</svg>;
 
 // Keep this hook in the main window's lifetime. The issue sidebar's open state and width are one for the
 // whole app; what it shows is the current project's. Opening it moves focus inside; closing leaves focus alone.
@@ -51,7 +47,7 @@ export function useIssueSidebar(host: Host, api: Pick<DesktopAPI, 'saveIssueSide
     toggle,
     shown, overlay, width: preferences.width,
     button: <button className="issue-sidebar-toggle" aria-label={label} data-hint={binding ? `${label} (${displayShortcut(binding)})` : label}
-      aria-expanded={shown} disabled={!project} onClick={toggle}><SidebarIcon open={shown} /></button>,
+      aria-expanded={shown} disabled={!project} onClick={toggle}>{shown ? <SidebarCollapseIcon size={16} /> : <SidebarExpandIcon size={16} />}</button>,
     sidebar: shown && project && <aside ref={element} tabIndex={-1} className={`issue-sidebar ${overlay ? 'overlay' : ''}`} aria-label={project.forge.name}
       style={{ width: preferences.width }}>
       <div className="issue-sidebar-resize" role="separator" aria-orientation="vertical" aria-label={t('resizeIssueSidebar', { forge: project.forge.name })} onPointerDown={resize} />
