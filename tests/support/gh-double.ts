@@ -3,9 +3,18 @@ import { join, resolve } from 'node:path';
 import type { TestContext } from 'node:test';
 import { testDirectory } from './directory';
 
+/** An issue as GitHub's GraphQL API names its fields. */
+export interface GhIssue {
+  number: number; title: string; state: 'OPEN' | 'CLOSED'; stateReason?: 'COMPLETED' | 'NOT_PLANNED' | 'DUPLICATE' | 'REOPENED';
+  createdAt: string; labels: { name: string; color: string }[];
+}
+
 export interface GhState {
   account: string;
   repositories: string[];
+  /** The issues of every listed repository, and the labels each repository defines. */
+  issues?: GhIssue[];
+  labels?: { name: string; color: string }[];
   /** `gh` fails every command with this exit code and output. */
   failure?: { code: number; stdout?: string; stderr?: string };
 }

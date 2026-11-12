@@ -93,6 +93,7 @@ void app.whenReady().then(async () => {
   handle('delete-project', (service, id) => service.deleteProject(id));
   handle('directory', (service, directory) => service.inspectDirectory(directory));
   handle('repository-choices', async (service, id, directory) => { await loginPath; return service.repositoryChoices(id, directory); });
+  handle('issue-page', async (service, id, query) => { await loginPath; return service.issuePage(id, query); });
   handle('activate', (service, id) => service.activateProject(id));
   handle('add', (service, project, agent) => service.addPanel(project, agent));
   handle('close', (service, project, panel) => service.closePanel(project, panel));

@@ -1,5 +1,7 @@
 import { execFile } from 'node:child_process';
+import { z } from 'zod';
 import { executable } from '../../terminal/environment';
+import type { IssueListFilter } from '../../shared/forge';
 import { ForgeError, type Forge } from './forge';
 
 /** Runs `gh`, found on PATH, with the account it has active. The Workbench never reads or stores a token. */
@@ -25,6 +27,50 @@ function classifyFailure(code: number | null, stdout: string, stderr: string) {
   return new ForgeError('transient', detail);
 }
 
+/** Runs a GraphQL query and reads its data with `schema`; output gh did not fail on but that does not fit is a transient failure. */
+async function graphql<T>(query: string, variables: Record<string, string>, schema: z.ZodType<T>): Promise<T> {
+  const output = await gh(['api', 'graphql', '-f', `query=${query}`, ...Object.entries(variables).flatMap(([key, value]) => ['-f', `${key}=${value}`])]);
+  let json: unknown;
+  try { json = JSON.parse(output); } catch { throw new ForgeError('transient', output.trim()); }
+  const parsed = z.object({ data: schema }).safeParse(json);
+  if (!parsed.success) throw new ForgeError('transient', output.trim());
+  return parsed.data.data;
+}
+
+const pageSize = 25;
+const labelSchema = z.object({ name: z.string(), color: z.string() });
+const issuePageSchema = z.object({
+  repository: z.object({ labels: z.object({ nodes: z.array(labelSchema) }) }),
+  open: z.object({ issueCount: z.number() }),
+  closed: z.object({ issueCount: z.number() }),
+  search: z.object({
+    pageInfo: z.object({ hasNextPage: z.boolean(), endCursor: z.string().nullable() }),
+    nodes: z.array(z.object({
+      number: z.number(), title: z.string(), state: z.enum(['OPEN', 'CLOSED']),
+      stateReason: z.enum(['COMPLETED', 'NOT_PLANNED', 'DUPLICATE', 'REOPENED']).nullable(), createdAt: z.string(),
+      labels: z.object({ nodes: z.array(labelSchema) }),
+    })),
+  }),
+});
+const issuePageQuery = `query($owner: String!, $name: String!, $search: String!, $openSearch: String!, $closedSearch: String!, $after: String) {
+  repository(owner: $owner, name: $name) { labels(first: 100, orderBy: { field: NAME, direction: ASC }) { nodes { name color } } }
+  open: search(query: $openSearch, type: ISSUE, first: 0) { issueCount }
+  closed: search(query: $closedSearch, type: ISSUE, first: 0) { issueCount }
+  search(query: $search, type: ISSUE, first: ${pageSize}, after: $after) {
+    pageInfo { hasNextPage endCursor }
+    nodes { ... on Issue { number title state stateReason createdAt labels(first: 20) { nodes { name color } } } }
+  }
+}`;
+const closedAs = { COMPLETED: 'completed', NOT_PLANNED: 'notPlanned', DUPLICATE: 'duplicate', REOPENED: null } as const;
+
+/** GitHub search text for the filter. A number (with or without #) matches the issue number; other words match the title. */
+function issueSearch(path: string, { search, state, labels }: IssueListFilter) {
+  const quote = (text: string) => `"${text.replace(/"/g, '')}"`;
+  const term = search.trim();
+  const words = /^#?\d+$/.test(term) ? [term.replace('#', '')] : term ? [...term.split(/\s+/).map(quote), 'in:title'] : [];
+  return [`repo:${path}`, 'is:issue', `is:${state}`, 'sort:created-desc', ...labels.map(label => `label:${quote(label)}`), ...words].join(' ');
+}
+
 const outputLines = (text: string) => text.split('\n').map(line => line.trim()).filter(Boolean);
 
 export const github: Forge = {
@@ -43,5 +89,17 @@ export const github: Forge = {
   find(path, repositories) {
     // GitHub repository paths are case-insensitive.
     return repositories.find(repository => repository.toLowerCase() === path.toLowerCase()) ?? null;
+  },
+  async issues(path, { filter, cursor }) {
+    const [owner, name] = path.split('/');
+    const data = await graphql(issuePageQuery, { owner, name, search: issueSearch(path, filter),
+      openSearch: issueSearch(path, { ...filter, state: 'open' }), closedSearch: issueSearch(path, { ...filter, state: 'closed' }), ...cursor === null ? {} : { after: cursor } }, issuePageSchema);
+    return {
+      issues: data.search.nodes.map(issue => ({ number: issue.number, title: issue.title, state: issue.state === 'OPEN' ? 'open' : 'closed',
+        closedAs: issue.state === 'OPEN' || !issue.stateReason ? null : closedAs[issue.stateReason], createdAt: issue.createdAt, labels: issue.labels.nodes })),
+      cursor: data.search.pageInfo.hasNextPage ? data.search.pageInfo.endCursor : null,
+      labels: data.repository.labels.nodes,
+      counts: { open: data.open.issueCount, closed: data.closed.issueCount },
+    };
   },
 };

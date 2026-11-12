@@ -30,3 +30,38 @@ export interface ForgeFailure { kind: ForgeFailureKind; detail: string; forge: F
 export type RepositoryChoices =
   | { ok: true; forge: ForgePresentation; account: string; repositories: RepositoryReference[]; origin: RepositoryReference | null }
   | { ok: false; failure: ForgeFailure };
+
+/** A label as the forge shows it; `color` is a hex colour without `#`. */
+export interface ForgeLabel { name: string; color: string }
+
+/** An issue as a list row shows it. A closed issue says how it was closed when the forge tells. */
+export const issueStates = ['open', 'closed'] as const;
+export type IssueState = typeof issueStates[number];
+/** How many issues are open and closed. */
+export type IssueCounts = Record<IssueState, number>;
+
+export interface IssueSummary {
+  number: number;
+  title: string;
+  state: IssueState;
+  closedAs: 'completed' | 'notPlanned' | 'duplicate' | null;
+  /** ISO 8601. */
+  createdAt: string;
+  labels: ForgeLabel[];
+}
+
+/** What a list asks for. The forge filters on its side: the search matches a title or a number, and every label must be present. */
+export const issueListQuerySchema = z.object({
+  filter: z.object({ search: z.string(), state: z.enum(issueStates), labels: z.array(z.string()) }),
+  /** Opaque, from the previous page; null asks for the first page. */
+  cursor: z.string().nullable(),
+});
+export type IssueListQuery = z.infer<typeof issueListQuerySchema>;
+export type IssueListFilter = IssueListQuery['filter'];
+
+/** One page of a repository's issues, newest created first, with the next page's cursor (null on the last page),
+ * the labels the repository defines, and how many open and closed issues the filter's search and labels match. */
+export interface IssueListPage { issues: IssueSummary[]; cursor: string | null; labels: ForgeLabel[]; counts: IssueCounts }
+/** A page of the bound repository's issues, or the forge failure. A failure that the repository is inaccessible
+ * names the active account when the forge can still tell it. */
+export type IssuePage = ({ ok: true } & IssueListPage) | { ok: false; failure: ForgeFailure; account: string | null };

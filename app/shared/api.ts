@@ -1,6 +1,6 @@
 import type { Sidebar, SidebarPreferences, AgentType, CommandCheck, DirectoryResult, Layout, ProjectCreation, PanelCreation, ProjectDraft, ProjectEdit, ProjectEditResult, Settings, Snapshot, WorkbenchEvent } from './model';
 import type { SettingsSaveResult } from './settings';
-import type { RepositoryChoices } from './forge';
+import type { IssueListQuery, IssuePage, RepositoryChoices } from './forge';
 
 export interface DesktopAPI {
   snapshot(): Promise<Snapshot>;
@@ -11,6 +11,8 @@ export interface DesktopAPI {
   inspectDirectory(directory: string): Promise<DirectoryResult>;
   /** The repositories the project can bind, with the one the origin of `directory` points at; or a forge failure. */
   repositoryChoices(projectId: string, directory: string): Promise<RepositoryChoices>;
+  /** One page of the issues of the project's bound repository, filtered by the forge; or a forge failure. */
+  issuePage(projectId: string, query: IssueListQuery): Promise<IssuePage>;
   chooseDirectory(): Promise<string | null>;
   activateProject(id: string): Promise<void>;
   addPanel(projectId: string, agent: AgentType): Promise<PanelCreation>;

@@ -1,0 +1,87 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import { ghDouble, type GhIssue } from './support/gh-double';
+import { interactiveWorkbench } from './support/interactive-workbench';
+import type { IssueListFilter } from '../app/shared/forge';
+
+const openNoFilter: IssueListFilter = { search: '', state: 'open', labels: [] };
+const day = (n: number) => new Date(Date.UTC(2026, 0, 1 + n)).toISOString();
+/** 30 open issues, #1 the oldest, created a day apart. */
+const thirtyIssues: GhIssue[] = Array.from({ length: 30 }, (_, index) => ({
+  number: index + 1, title: `Issue ${index + 1}`, state: 'OPEN', createdAt: day(index), labels: [],
+}));
+const account = { account: 'octo', repositories: ['octo/tools'] };
+
+async function boundWorkbench(scope: string) {
+  const f = await interactiveWorkbench(scope);
+  const { project } = await f.create('Bound');
+  await f.workbench.editProject(project.id, { name: 'Bound', directory: f.directory, repository: { forge: 'github', path: 'octo/tools' } }, false);
+  return { ...f, projectId: project.id };
+}
+
+test('a refresh returns one page of 25 issues, newest first, and the cursor loads the rest', async context => {
+  await ghDouble(context, { ...account, issues: thirtyIssues });
+  const f = await boundWorkbench('issue-page');
+  try {
+    const first = await f.workbench.issuePage(f.projectId, { filter: openNoFilter, cursor: null });
+    assert.ok(first.ok);
+    assert.deepEqual(first.issues.map(issue => issue.number), Array.from({ length: 25 }, (_, index) => 30 - index));
+    assert.deepEqual(first.issues[0], { number: 30, title: 'Issue 30', state: 'open', closedAs: null, createdAt: day(29), labels: [] });
+    assert.ok(first.cursor);
+    const rest = await f.workbench.issuePage(f.projectId, { filter: openNoFilter, cursor: first.cursor });
+    assert.ok(rest.ok);
+    assert.deepEqual(rest.issues.map(issue => issue.number), [5, 4, 3, 2, 1]);
+    assert.equal(rest.cursor, null, 'the last page has no cursor');
+  } finally { await f.close(); }
+});
+
+test('the search, open or closed state and labels all narrow the page, and a closed issue says how it was closed', async context => {
+  const bug = { name: 'bug', color: 'd73a4a' }, ui = { name: 'good first issue', color: '7057ff' };
+  await ghDouble(context, { ...account, labels: [bug, ui], issues: [
+    { number: 1, title: 'Sidebar refresh spins forever', state: 'OPEN', createdAt: day(1), labels: [bug, ui] },
+    { number: 2, title: 'Sidebar width', state: 'OPEN', createdAt: day(2), labels: [bug] },
+    { number: 3, title: 'Dispatch menu', state: 'CLOSED', stateReason: 'NOT_PLANNED', createdAt: day(3), labels: [ui] },
+    { number: 12, title: 'Tray order', state: 'OPEN', createdAt: day(4), labels: [] },
+  ] });
+  const f = await boundWorkbench('issue-filters');
+  try {
+    const numbers = async (filter: Partial<IssueListFilter>) => {
+      const page = await f.workbench.issuePage(f.projectId, { filter: { ...openNoFilter, ...filter }, cursor: null });
+      assert.ok(page.ok);
+      return page.issues.map(issue => issue.number);
+    };
+    assert.deepEqual(await numbers({}), [12, 2, 1]);
+    assert.deepEqual(await numbers({ search: 'sidebar' }), [2, 1], 'words match titles');
+    assert.deepEqual(await numbers({ search: '#12' }), [12], 'a number matches the issue number');
+    assert.deepEqual(await numbers({ search: '12' }), [12]);
+    assert.deepEqual(await numbers({ labels: ['bug', 'good first issue'] }), [1], 'every chosen label must be present');
+    assert.deepEqual(await numbers({ state: 'closed' }), [3]);
+    const closed = await f.workbench.issuePage(f.projectId, { filter: { ...openNoFilter, state: 'closed' }, cursor: null });
+    assert.ok(closed.ok);
+    assert.deepEqual(closed.issues[0], { number: 3, title: 'Dispatch menu', state: 'closed', closedAs: 'notPlanned', createdAt: day(3), labels: [ui] });
+    assert.deepEqual(closed.labels, [bug, ui], 'the page carries the labels the repository defines');
+    assert.deepEqual(closed.counts, { open: 3, closed: 1 });
+    const labelled = await f.workbench.issuePage(f.projectId, { filter: { ...openNoFilter, labels: ['good first issue'] }, cursor: null });
+    assert.ok(labelled.ok);
+    assert.deepEqual(labelled.counts, { open: 1, closed: 1 }, 'the counts follow the search and labels, not the state');
+    assert.equal(closed.cursor, null);
+  } finally { await f.close(); }
+});
+
+test('list failures fall into the four kinds with the forge text, and an inaccessible repository names the account', async context => {
+  const double = await ghDouble(context, { ...account, issues: thirtyIssues });
+  const f = await boundWorkbench('issue-failures');
+  const forge = { name: 'GitHub', cli: 'gh', installUrl: 'https://cli.github.com', loginCommand: 'gh auth login' };
+  const page = () => f.workbench.issuePage(f.projectId, { filter: openNoFilter, cursor: null });
+  try {
+    await double.set({ account: 'octo', repositories: [] });
+    assert.deepEqual(await page(), { ok: false, account: 'octo', failure: { kind: 'inaccessible', forge,
+      detail: "GraphQL: Could not resolve to a Repository with the name 'octo/tools'. (repository)" } });
+    await double.set({ ...account, failure: { code: 4, stderr: 'To get started with GitHub CLI, please run:  gh auth login\n' } });
+    assert.deepEqual(await page(), { ok: false, account: null, failure: { kind: 'loggedOut', forge, detail: 'To get started with GitHub CLI, please run:  gh auth login' } });
+    await double.set({ ...account, failure: { code: 1, stderr: 'HTTP 502: Bad Gateway (https://api.github.com/graphql)\n' } });
+    assert.deepEqual(await page(), { ok: false, account: null, failure: { kind: 'transient', forge, detail: 'HTTP 502: Bad Gateway (https://api.github.com/graphql)' } });
+    double.uninstall();
+    assert.deepEqual(await page(), { ok: false, account: null, failure: { kind: 'notInstalled', forge, detail: '' } });
+  } finally { await f.close(); }
+});
