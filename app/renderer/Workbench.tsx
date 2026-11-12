@@ -1,6 +1,7 @@
 import { HoverHints } from './HoverHints';
 import { Localization, useLocalization } from './Localization';
 import { useEffect, useRef, useState } from 'react';
+import { flushSync } from 'react-dom';
 import type {} from '../shared/api';
 import { newDraft, type Snapshot } from '../shared/model';
 import { useProjectNavigation } from './ProjectNavigation';
@@ -47,7 +48,9 @@ function WorkbenchView({ state, setState }: { state?: Snapshot; setState(snapsho
       snapshot.errors.forEach(message => report(message));
       reconcileTerminals(snapshot.projects);
       unsubscribe = window.workbench.subscribe(event => {
-        if (event.kind === 'snapshot') { reconcileTerminals(event.snapshot.projects); setState(event.snapshot); }
+        // Each snapshot is drawn as it arrives: the layout area compares consecutive saved layouts, so batching
+        // two snapshots into one render could hide a save that returns to the layout before the last one.
+        if (event.kind === 'snapshot') { reconcileTerminals(event.snapshot.projects); flushSync(() => setState(event.snapshot)); }
         else if (event.kind === 'error') report(event.message);
         terminalEvent(event);
       });
