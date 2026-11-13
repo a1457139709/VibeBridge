@@ -104,6 +104,7 @@ const issueDetailQuery = `query($owner: String!, $name: String!, $number: Int!) 
   } }
 }`;
 const checks = { SUCCESS: 'passed', FAILURE: 'failed', ERROR: 'failed', PENDING: 'pending', EXPECTED: 'pending' } as const;
+const pullRequestStates = { OPEN: 'open', MERGED: 'merged', CLOSED: 'closed' } as const;
 const issueReference = (issue: z.infer<typeof issueReferenceSchema>) => ({ number: issue.number, title: issue.title, ...issueState(issue), url: issue.url });
 
 /** GitHub search text for the filter. A number (with or without #) matches the issue number; other words match the title. */
@@ -162,7 +163,7 @@ export const github: Forge = {
       closingPullRequests: issue.closedByPullRequestsReferences.nodes.map(pull => {
         const rollup = pull.commits.nodes[0]?.commit.statusCheckRollup;
         return { number: pull.number, title: pull.title, url: pull.url,
-          state: pull.state === 'OPEN' ? pull.isDraft ? 'draft' as const : 'open' as const : pull.state === 'MERGED' ? 'merged' as const : 'closed' as const,
+          state: pull.state === 'OPEN' && pull.isDraft ? 'draft' as const : pullRequestStates[pull.state],
           checks: rollup ? checks[rollup.state] : 'none' as const };
       }),
       issueLinks: `${repository.url}/issues/`,

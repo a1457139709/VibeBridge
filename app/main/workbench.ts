@@ -171,17 +171,17 @@ export class Workbench {
   }
   /** One page of the issues of the project's bound repository, as `query` asks. */
   async issuePage(projectId: string, query: IssueListQuery): Promise<IssuePage> {
-    this.project(projectId);
-    const repository = this.repositories.get(projectId);
-    if (!repository) throw new Error(message('noRepositoryBound'));
-    return issuePage(repository, issueListQuerySchema.parse(query));
+    return issuePage(this.boundRepository(projectId), issueListQuerySchema.parse(query));
   }
   /** One issue of the project's bound repository, with its rendered body, comments and relations. */
   async issueDetail(projectId: string, number: number): Promise<IssueDetailResult> {
+    return issueDetail(this.boundRepository(projectId), issueNumberSchema.parse(number));
+  }
+  private boundRepository(projectId: string) {
     this.project(projectId);
     const repository = this.repositories.get(projectId);
     if (!repository) throw new Error(message('noRepositoryBound'));
-    return issueDetail(repository, issueNumberSchema.parse(number));
+    return repository;
   }
   private startPanel(project: Project, panel: Panel) { return this.supervision.start(project, panel, this.state.settings.agents[panel.agent]); }
   private async startProject(project: Project): Promise<LaunchResult[]> {

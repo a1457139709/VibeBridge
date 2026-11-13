@@ -333,7 +333,7 @@ export const english = {
   "oneComment": "1 comment",
   "commentCount": "{count} comments",
   "assigneeList": "Assignees: {names}",
-  "deletedAccount": "ghost",
+  "deletedAccount": "Deleted user",
   "noDescription": "No description.",
   "moreComments": "View all {count} comments on {forge} ↗",
   "relations": "Relations",

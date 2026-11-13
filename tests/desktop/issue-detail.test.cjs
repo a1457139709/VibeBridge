@@ -34,7 +34,7 @@ module.exports = {
 
     // Overlay (the default): the detail covers the layout area between the toolbar and the tray, and the layout area keeps
     // its box. That the PTY then keeps its size is a "does not happen" claim the desktop suite cannot prove (ADR 0005):
-    // the PTY follows the terminal's box, and this geometry leaves that box where it was.
+    // the PTY follows the terminal's box, and tests/components/IssueDetail.test.tsx shows the layout area left as it was.
     const between = async () => { const box = await rect(evaluate, '.forge-detail'); return box?.top === toolbar.bottom && box.bottom === tray.top; };
     await until(between, 'the detail sits between the workspace toolbar and the tray');
     const detail = await rect(evaluate, '.forge-detail');

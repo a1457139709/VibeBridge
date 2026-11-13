@@ -49,11 +49,13 @@ function filterChildren(parent: ParentNode) {
   }
 }
 
-/** A link to an image or video's file, named by its alt text; nothing when the file is not on the web. */
+/** A link to an image or video's file, named by its alt text; only the alt text when the file is not on the web.
+ * Inside a link (the forge links an image to its file) it becomes the name, so links never nest. */
 function mediaLink(element: Element): Node {
   const source = element.getAttribute('src');
   const name = element.getAttribute('alt')?.trim() || source?.split('/').pop() || '';
   if (!safeUrl(source)) return document.createTextNode(element.getAttribute('alt') ?? '');
+  if (element.parentElement?.closest('a')) return document.createTextNode(`${name} ↗`);
   const link = document.createElement('a');
   link.setAttribute('href', source!);
   link.setAttribute('target', '_blank');

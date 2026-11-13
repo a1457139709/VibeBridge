@@ -58,7 +58,8 @@ void app.whenReady().then(async () => {
     webPreferences: { preload: join(__dirname, 'preload.cjs'), contextIsolation: true, nodeIntegration: false, sandbox: true } });
   window.on('close', event => { if (!exiting) { event.preventDefault(); void requestQuit(); } });
   window.webContents.setWindowOpenHandler(({ url }) => {
-    if (/^https:\/\//.test(url)) void shell.openExternal(url);
+    // The links forge HTML keeps (http, https and mailto) open in the system's own apps.
+    if (/^(https?:\/\/|mailto:)/i.test(url)) void shell.openExternal(url);
     return { action: 'deny' };
   });
   window.webContents.on('will-navigate', event => event.preventDefault());

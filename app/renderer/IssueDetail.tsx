@@ -5,7 +5,7 @@ import { detail as reason } from '../shared/messages';
 import { filterForgeHtml } from '../shared/forge-html';
 import type { IssueDetail, IssueDetailResult, IssueReference, PullRequestReference, RepositoryReference, SubIssueProgress } from '../shared/forge';
 import type { ProjectView } from '../shared/model';
-import { IssueIcon, issueState, issueStates, Label, RelativeTime } from './ForgeLists';
+import { IssueIcon, issueState, issueStates, Label, RelativeTime } from './ForgeDisplay';
 
 interface Props {
   project: ProjectView & { repository: RepositoryReference };
@@ -67,7 +67,8 @@ function IssueDocument({ project, issue, open }: { project: Props['project']; is
   const { capabilities } = project.forge;
   /** The issue number a link to `url` names when it is an issue of the bound repository, else null. */
   const ownIssue = (url: string) => {
-    if (!url.startsWith(issue.issueLinks)) return null;
+    // Repository paths in a forge's URLs may differ in case from the bound one.
+    if (!url.toLowerCase().startsWith(issue.issueLinks.toLowerCase())) return null;
     const match = /^(\d+)(?:[?#].*)?$/.exec(url.slice(issue.issueLinks.length));
     return match ? Number(match[1]) : null;
   };
@@ -84,7 +85,7 @@ function IssueDocument({ project, issue, open }: { project: Props['project']; is
     event.preventDefault();
     open(number);
   };
-  const openBlockers = capabilities.blocking && issue.state === 'open' ? issue.blockedBy.filter(blocker => blocker.state === 'open') : [];
+  const openBlockers = issue.blockedBy.filter(blocker => blocker.state === 'open');
   const subIssues = capabilities.subIssues ? issue.subIssues : [];
   const parent = capabilities.subIssues ? issue.parent : null;
   return <div className="forge-doc" onClick={followLink}>
@@ -97,14 +98,14 @@ function IssueDocument({ project, issue, open }: { project: Props['project']; is
       <StatePill issue={issue} />
       {issue.labels.map(label => <Label key={label.name} label={label} />)}
       <span className="forge-spacer" />
-      {!!openBlockers.length && <BlockedMark by={openBlockers} />}
+      {capabilities.blocking && issue.state === 'open' && !!openBlockers.length && <BlockedMark by={openBlockers} />}
     </div>
     <div className="forge-doc-meta">
       <b>{issue.author ?? t('deletedAccount')}</b> {t('issueOpened')} <RelativeTime iso={issue.createdAt} />
       {' · '}{issue.commentCount === 1 ? t('oneComment') : t('commentCount', { count: issue.commentCount })}
       {!!issue.assignees.length && <>{' · '}{t('assigneeList', { names: issue.assignees.join(', ') })}</>}
     </div>
-    {capabilities.blocking && <RelationGraph issue={issue} follow={follow} />}
+    {capabilities.blocking && <RelationGraph issue={issue} blockers={openBlockers} follow={follow} />}
     {!!issue.closingPullRequests.length && <ClosingPullRequests pulls={issue.closingPullRequests} />}
     <div className="forge-doc-main">
       <Post author={issue.author} createdAt={issue.createdAt} html={issue.body} />
@@ -150,10 +151,9 @@ function Progress({ closed, total }: SubIssueProgress) {
     <span className="forge-progress-bar"><span style={{ width: `${closed / total * 100}%` }} /></span>{closed}/{total}</span>;
 }
 
-/** The small graph at the top of the detail, only of issues and only of live blocking: open blockers on the left, the issue
+/** The small graph at the top of the detail, only of issues and only of live blocking: the open blockers on the left, the issue
  * in the middle, and on the right the open issues it still blocks while it is open. Nothing to draw, no graph. */
-function RelationGraph({ issue, follow }: { issue: IssueDetail; follow(reference: IssueReference): void }) {
-  const left = issue.blockedBy.filter(blocker => blocker.state === 'open');
+function RelationGraph({ issue, blockers: left, follow }: { issue: IssueDetail; blockers: IssueReference[]; follow(reference: IssueReference): void }) {
   const right = issue.state === 'open' ? issue.blocking.filter(blocked => blocked.state === 'open') : [];
   if (!left.length && !right.length) return null;
   return <Graph issue={issue} left={left} right={right} follow={follow} />;
@@ -169,8 +169,9 @@ function Graph({ issue, left, right, follow }: { issue: IssueDetail; left: Issue
     observer.observe(host.current!);
     return () => observer.disconnect();
   }, []);
-  const columns = [{ name: 'blockedBy', head: t('blockedByColumn'), nodes: left }, { name: 'self', head: t('thisIssue'), nodes: [issue] },
-    { name: 'blocking', head: t('blockingColumn'), nodes: right }] as const;
+  const columns: { name: 'blockedBy' | 'self' | 'blocking'; head: string; nodes: IssueReference[] }[] = [
+    { name: 'blockedBy', head: t('blockedByColumn'), nodes: left }, { name: 'self', head: t('thisIssue'), nodes: [issue] },
+    { name: 'blocking', head: t('blockingColumn'), nodes: right }];
   const columnWidth = (width - padding * 2 - gap * 2) / 3;
   const rows = Math.max(left.length, right.length, 1);
   // Shorter columns are centred against the tallest.
@@ -196,34 +197,44 @@ function Graph({ issue, left, right, follow }: { issue: IssueDetail; left: Issue
       return column.name === 'self'
         ? <div key={node.number} className="forge-node self" data-column={column.name} style={style}>{content}</div>
         : <button key={node.number} className="forge-node" data-column={column.name} style={style} data-hint={`#${node.number} ${node.title}`}
-          onClick={() => follow(node as IssueReference)}>{content}</button>;
+          onClick={() => follow(node)}>{content}</button>;
     }))}
   </div>;
 }
+
+/** Each checks conclusion's mark, name and colour. */
+const conclusions = {
+  passed: { mark: '✓', name: 'checksPassed', tone: 'open' },
+  failed: { mark: '✗', name: 'checksFailed', tone: 'failed' },
+  pending: { mark: '●', name: 'checksPending', tone: 'pending' },
+} as const;
 
 /** The pull requests that close the issue on merge, closed ones included, apart from the issue graph and drawn as pull
  * requests. An open or draft one shows its checks conclusion. Each opens in the browser. */
 function ClosingPullRequests({ pulls }: { pulls: PullRequestReference[] }) {
   const { t } = useLocalization();
-  const conclusion = { passed: ['✓', t('checksPassed'), 'open'], failed: ['✗', t('checksFailed'), 'failed'], pending: ['●', t('checksPending'), 'pending'] } as const;
   return <section className="forge-closing-pulls" aria-label={t('closingPullRequests')}>
     <header>{t('closingPullRequests')}</header>
     <ul>{pulls.map(pull => {
-      const checks = (pull.state === 'open' || pull.state === 'draft') && pull.checks !== 'none' ? conclusion[pull.checks] : null;
+      const checks = (pull.state === 'open' || pull.state === 'draft') && pull.checks !== 'none' ? conclusions[pull.checks] : null;
       return <li key={pull.number}><a className="forge-closing-pull" href={pull.url} target="_blank" rel="noreferrer" data-hint={pull.title}>
         <PullRequestIcon pull={pull} /><span className="forge-row-number">#{pull.number}</span><span className="forge-ellipsis">{pull.title}</span>
-        {checks && <span className={`forge-checks forge-${checks[2]}`}>{checks[0]} {checks[1]}</span>}
+        {checks && <span className={`forge-checks forge-${checks.tone}`}>{checks.mark} {t(checks.name)}</span>}
       </a></li>;
     })}</ul>
   </section>;
 }
 
 /** The forge's pull request octicons and colours: open green, draft grey, merged purple, closed red. */
+const pullRequestStates = {
+  open: { Icon: GitPullRequestIcon, tone: 'open', name: 'pullRequestOpen' },
+  draft: { Icon: GitPullRequestDraftIcon, tone: 'skipped', name: 'pullRequestDraft' },
+  merged: { Icon: GitMergeIcon, tone: 'done', name: 'pullRequestMerged' },
+  closed: { Icon: GitPullRequestClosedIcon, tone: 'failed', name: 'pullRequestClosed' },
+} as const;
+
 function PullRequestIcon({ pull }: { pull: PullRequestReference }) {
   const { t } = useLocalization();
-  const icons = { open: GitPullRequestIcon, draft: GitPullRequestDraftIcon, merged: GitMergeIcon, closed: GitPullRequestClosedIcon };
-  const tones = { open: 'open', draft: 'skipped', merged: 'done', closed: 'failed' };
-  const names = { open: t('pullRequestOpen'), draft: t('pullRequestDraft'), merged: t('pullRequestMerged'), closed: t('pullRequestClosed') };
-  const [Icon, tone, name] = [icons[pull.state], tones[pull.state], names[pull.state]];
-  return <span className={`forge-icon forge-${tone}`} role="img" aria-label={name}><Icon size={14} /></span>;
+  const { Icon, tone, name } = pullRequestStates[pull.state];
+  return <span className={`forge-icon forge-${tone}`} role="img" aria-label={t(name)}><Icon size={14} /></span>;
 }

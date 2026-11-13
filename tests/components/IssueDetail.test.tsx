@@ -5,7 +5,7 @@ import { cleanup, render, screen, waitFor, within } from '@testing-library/react
 import { userEvent } from '@testing-library/user-event';
 import { App } from '../../app/renderer/Workbench';
 import { defaultSettings } from '../../app/shared/settings';
-import type { ProjectView, Snapshot, WorkbenchEvent } from '../../app/shared/model';
+import type { ProjectView, Settings, Snapshot, WorkbenchEvent } from '../../app/shared/model';
 import type { ForgePresentation, IssueDetail, IssueDetailResult, IssueReference, IssueSummary } from '../../app/shared/forge';
 import { stubLayoutApis } from './support/no-layout';
 import { deferred, provideWorkbench } from './support/workbench';
@@ -35,13 +35,13 @@ const detail = (number: number, extra: Partial<IssueDetail> = {}): IssueDetail =
 interface Request { number: number; answer(result: IssueDetailResult): void; fail(error: Error): void }
 
 /** The Workbench with a bound project, its sidebar open on one page of issues. Every detail request waits until the test answers it. */
-function renderWorkbench(issues: IssueSummary[], forge: ForgePresentation = githubForge) {
+function renderWorkbench(issues: IssueSummary[], forge: ForgePresentation = githubForge, settings: Partial<Settings> = {}) {
   const project: ProjectView = {
     id: 'alpha', name: 'Alpha', directory: '/work/alpha', layout: { panel: 'panel' }, tray: [], repository: { forge: 'github', path: 'octo/alpha' }, forge,
     panels: [{ id: 'panel', agent: 'codex', run: { id: 'run', panelId: 'panel', projectId: 'alpha', state: 'running', title: 'Alpha session' } }],
   };
   const snapshot: Snapshot = {
-    navigation: { visible: true, width: 212 }, forgeSidebar: { visible: true, width: 380 }, activeProjectId: 'alpha', settings: defaultSettings(),
+    navigation: { visible: true, width: 212 }, forgeSidebar: { visible: true, width: 380 }, activeProjectId: 'alpha', settings: { ...defaultSettings(), ...settings },
     settingsConflicts: [], startupTheme: 'light', resolvedTheme: 'light', errors: [], projects: [project],
   };
   const listeners = new Set<(event: WorkbenchEvent) => void>();
@@ -81,7 +81,7 @@ test('clicking a row opens its detail beside the list, with the author, comment 
   assert.match(meta.textContent!, /mona opened 3h ago · 2 comments · Assignees: octo, hubot/);
   assert.ok(within(pane()).getByText('The body.'));
   assert.ok(within(pane()).getByText('Resolution: overlay.'));
-  assert.ok(within(pane()).getByText('ghost'), 'a comment from a deleted account names no one');
+  assert.ok(within(pane()).getByText('Deleted user'), 'a comment from a deleted account names no one');
   assert.equal(within(pane()).getByRole('link', { name: 'Open on GitHub ↗' }).getAttribute('href'), `${repositoryUrl}/issues/7`);
   assert.equal(within(sidebar()).getAllByRole('listitem').length, 2, 'the list stays visible');
   await user.click(within(pane()).getByRole('button', { name: 'Close' }));
@@ -92,9 +92,9 @@ test('the body and comments pass the HTML filter, same-repository issue links op
   const { user, request } = renderWorkbench([summary(7)]);
   await user.click(await row('Issue 7'));
   (await request(1)).answer({ ok: true, issue: detail(7, {
-    body: `<p onclick="steal()">See <a class="issue-link" href="${repositoryUrl}/issues/3">#3</a>, <a href="https://example.com/doc">the doc</a>
+    body: `<p onclick="steal()">See <a class="issue-link" href="https://github.com/Octo/Alpha/issues/3">#3</a>, <a href="https://example.com/doc">the doc</a>
       and <a href="javascript:steal()">this</a>.</p><script>steal()</script><style>p { display: none }</style>
-      <img src="https://user-images.githubusercontent.com/shot.png" alt="Screenshot"><iframe src="https://example.com"></iframe>
+      <img src="https://user-images.githubusercontent.com/shot.png" alt="Screenshot"><a href="https://user-images.githubusercontent.com/linked.png"><img src="https://user-images.githubusercontent.com/linked.png" alt="Linked"></a><iframe src="https://example.com"></iframe>
       <ul><li><input type="checkbox" checked> done</li></ul><g-emoji alias="tada">🎉</g-emoji><form><button>Submit</button></form>`,
     comments: [{ author: 'hubot', createdAt: hoursAgo(1), html: '<p>Merged in <a href="https://github.com/other/repo/issues/3">other/repo#3</a>.</p><img src="x" onerror="steal()">' }],
   }) });
@@ -108,6 +108,8 @@ test('the body and comments pass the HTML filter, same-repository issue links op
   const external = within(pane()).getByRole('link', { name: 'the doc' });
   assert.deepEqual([external.getAttribute('target'), external.getAttribute('rel')], ['_blank', 'noreferrer']);
   assert.equal(within(pane()).getByRole('link', { name: 'Screenshot ↗' }).getAttribute('href'), 'https://user-images.githubusercontent.com/shot.png', 'an image becomes a link to it');
+  assert.equal(within(pane()).getByRole('link', { name: 'Linked ↗' }).getAttribute('href'), 'https://user-images.githubusercontent.com/linked.png');
+  assert.equal(pane().querySelector('a a'), null, 'an image the forge already links becomes that link\'s text');
   const checkbox = within(pane()).getByRole<HTMLInputElement>('checkbox');
   assert.ok(checkbox.checked && checkbox.disabled, 'a task list item stays read-only');
   assert.ok(within(pane()).getByText('🎉'));
@@ -115,7 +117,7 @@ test('the body and comments pass the HTML filter, same-repository issue links op
 
   await user.click(within(pane()).getByRole('link', { name: '#3' }));
   const linked = await request(2);
-  assert.equal(linked.number, 3, 'a same-repository issue link opens in the sidebar');
+  assert.equal(linked.number, 3, 'a same-repository issue link opens in the sidebar, whatever the case of its path');
   linked.answer({ ok: true, issue: detail(3, { title: 'Linked issue' }) });
   await within(pane()).findByRole('heading', { name: 'Linked issue #3' });
   await user.click(within(pane()).getByRole('button', { name: 'Back' }));
@@ -183,11 +185,29 @@ test('the pull requests that close the issue on merge sit in their own block, cl
     '#40Passing✓ Checks passed', '#41Running● Checks running', '#42Failing✗ Checks failed', '#43Merged', '#44Abandoned', '#45Unchecked',
   ]);
   assert.deepEqual(items.map(item => within(item).getByRole('link').getAttribute('href')), [40, 41, 42, 43, 44, 45].map(n => `${repositoryUrl}/pull/${n}`),
-    'each opens in the browser until the pull request detail joins the sidebar');
+    'each opens in the browser');
   assert.deepEqual(items.map(item => within(item).getByRole('link').getAttribute('target')), Array(6).fill('_blank'));
   assert.deepEqual(items.map(item => within(item).getByRole('img').getAttribute('aria-label')),
     ['Open pull request', 'Draft pull request', 'Open pull request', 'Merged pull request', 'Closed pull request', 'Open pull request']);
   assert.equal(within(pane()).queryByRole('group', { name: 'Relations' }), null, 'pull requests stay out of the issue graph');
+});
+
+// The PTY follows the terminal's box, and the terminal fills the layout area: a detail that leaves the layout area's
+// classes and styles as they were leaves the PTY its size. The desktop suite shows the squeezing detail resizing it.
+test('an overlaying detail leaves the layout area as it was, and a squeezing one narrows it until it closes', async () => {
+  for (const detailCoexistence of ['overlay', 'squeeze'] as const) {
+    const { user, request } = renderWorkbench([summary(7)], githubForge, { detailCoexistence });
+    const layoutArea = () => document.querySelector('.app-body')!;
+    const before = [layoutArea().className, layoutArea().getAttribute('style')];
+    await user.click(await row('Issue 7'));
+    (await request(1)).answer({ ok: true, issue: detail(7) });
+    await within(pane()).findByRole('heading', { name: 'Issue 7 #7' });
+    if (detailCoexistence === 'overlay') assert.deepEqual([layoutArea().className, layoutArea().getAttribute('style')], before, 'overlay changes nothing the layout area lays out by');
+    else assert.ok(layoutArea().classList.contains('forge-detail-squeeze'), 'squeeze narrows the layout area');
+    await user.click(within(pane()).getByRole('button', { name: 'Close' }));
+    await waitFor(() => assert.deepEqual([layoutArea().className, layoutArea().getAttribute('style')], before, 'closing the detail restores the layout area'));
+    cleanup();
+  }
 });
 
 test('a detail that fails to load says why and Retry asks again', async () => {

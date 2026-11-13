@@ -293,7 +293,7 @@ export const chinese: Record<keyof typeof english, string> = {
   "oneComment": "1 条评论",
   "commentCount": "{count} 条评论",
   "assigneeList": "认领人：{names}",
-  "deletedAccount": "ghost",
+  "deletedAccount": "已删除的用户",
   "noDescription": "没有描述。",
   "moreComments": "在 {forge} 查看全部 {count} 条评论 ↗",
   "relations": "关系",
