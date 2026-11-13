@@ -173,20 +173,16 @@ _Avoid_：任务成功、主 Agent 停止回复、面板关闭、进程退出
 ### 仓库与派发
 
 **Forge**：
-托管仓库及其 issue 与 pull request 的服务，例如 GitHub；工作台通过与具体 Forge 无关的接口使用它，每个 Forge 一个适配器，身份取自该 Forge 的 CLI 当前激活的账号。
-_Avoid_：代码托管平台、issue tracker（只管 issue，没有仓库与 pull request）、GitHub 网关、Git 远程、项目目录
+托管仓库及其 issue 与合并请求的服务，例如 GitHub；工作台通过与具体 Forge 无关的接口使用它，每个 Forge 一个适配器，身份取自该 Forge 的 CLI 当前激活的账号。
+_Avoid_：代码托管平台、issue tracker（只管 issue，没有仓库与合并请求）、GitHub 网关、Git 远程、项目目录
 
 **仓库绑定（Repository Binding）**：
-用户在项目建好之后，从 Forge 的 CLI 当前账号自己、协作或所在组织的仓库中为项目选定的一个仓库，记为 Forge 与仓库路径；每个项目至多绑定一个，未绑定的项目没有 issue 与 pull request 视图。项目目录的 `origin` 指向的仓库只决定默认选中哪一个，用户保存后才算绑定。
+用户在项目建好之后，从 Forge 的 CLI 当前账号自己、协作或所在组织的仓库中为项目选定的一个仓库，记为 Forge 与仓库路径；每个项目至多绑定一个，未绑定的项目没有 issue 与合并请求视图。项目目录的 `origin` 指向的仓库只决定默认选中哪一个，用户保存后才算绑定。
 _Avoid_：从项目目录推断的仓库、任意粘贴的仓库地址、项目目录、多仓库项目
 
 **Forge 侧边栏（Forge Sidebar）**：
-主窗口右侧显示当前项目所绑定仓库的 issue 与 pull request、并从中派发的区域，标题按所绑定的 Forge 显示；未绑定的项目只显示空状态与绑定入口。开关状态与宽度全应用共用一份，打开时按设置挤压或覆盖布局区域，在设置页时仍然显示。
-_Avoid_：Issue 侧边栏（它也显示 pull request）、GitHub 侧边栏（Forge 不止 GitHub）、项目导航、详情
-
-**Pull request**：
-仓库中请求把一个分支合入另一个分支的提议，连同它的评审与检查结论；不论绑定的是哪个 Forge，都沿用 GitHub 的这个名字。
-_Avoid_：合并请求、merge request、MR
+主窗口右侧显示当前项目所绑定仓库的 issue 与合并请求、并从中派发的区域，标题按所绑定的 Forge 显示；未绑定的项目只显示空状态与绑定入口。开关状态与宽度全应用共用一份，打开时按设置挤压或覆盖布局区域，在设置页时仍然显示。
+_Avoid_：Issue 侧边栏（它也显示合并请求）、GitHub 侧边栏（Forge 不止 GitHub）、项目导航、详情
 
 **派发（Dispatch）**：
 用户手动把某个 issue 连同自己选定的一段预设指令交给某个 Agent 面板的操作：指令进入面板的输入，按指令约定直接提交或只填入，不顾及面板当时在做什么；每次派发在接手的会话确定后留下一条派发记录。
