@@ -14,10 +14,9 @@ import { githubForge, githubView } from './support/forge';
 afterEach(cleanup);
 
 const github = (path: string): RepositoryReference => ({ forge: 'github', path });
-const forge = githubForge;
-const listed: RepositoryChoices = { ok: true, forge, account: 'octo', origin: github('octo/vibebridge'),
+const listed: RepositoryChoices = { ok: true, forge: githubForge, account: 'octo', origin: github('octo/vibebridge'),
   repositories: ['octo/tools', 'octo/vibebridge', 'acme/group/forge'].map(github) };
-const failed = (kind: ForgeFailureKind, detail = ''): RepositoryChoices => ({ ok: false, failure: { kind, detail, forge } });
+const failed = (kind: ForgeFailureKind, detail = ''): RepositoryChoices => ({ ok: false, failure: { kind, detail, forge: githubForge } });
 
 function editor(repository: RepositoryReference | null, choices: (directory: string) => Promise<RepositoryChoices>,
   save: (edit: ProjectEdit) => Promise<void> = async () => {}) {

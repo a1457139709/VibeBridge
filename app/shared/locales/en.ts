@@ -317,4 +317,5 @@ export const english = {
   "closedSubIssues": "{count} closed",
   "hideClosedSubIssues": "Hide closed",
   "blockedBy": "Blocked by {issues}",
+  "moreBlockers": "+{count} more",
 } as const;

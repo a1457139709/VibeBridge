@@ -58,6 +58,8 @@ export interface IssueSummary {
   labels: ForgeLabel[];
   /** The open issues blocking it, from the forge's native dependencies only; empty when the forge has no blocking. */
   blockedBy: IssueReference[];
+  /** How many more open issues block it than `blockedBy` lists, when the forge lists only some of its blockers. */
+  unlistedBlockers: number;
 }
 
 /** An issue another one refers to. `path` names its repository when it is not the listed one, else it is null. */

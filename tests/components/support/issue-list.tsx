@@ -7,6 +7,7 @@ import type { ProjectView, Snapshot, WorkbenchEvent } from '../../../app/shared/
 import type { ForgeCapabilities, IssueListQuery, IssuePage, IssueSummary, ListedIssue, ForgeFailure } from '../../../app/shared/forge';
 import { deferred, provideWorkbench } from './workbench';
 import { githubCapabilities, githubForge, githubView } from './forge';
+import { stubLayoutApis } from './no-layout';
 
 const project = (id: string, name: string, capabilities: ForgeCapabilities): ProjectView => ({
   id, name, directory: `/work/${id}`, layout: { panel: `${id}-panel` }, tray: [], repository: { forge: 'github', path: `octo/${id}` }, ...githubView, capabilities,
@@ -14,13 +15,20 @@ const project = (id: string, name: string, capabilities: ForgeCapabilities): Pro
 });
 export const bug = { name: 'bug', color: 'd73a4a' }, docs = { name: 'docs', color: '0075ca' };
 export const summary = (number: number, extra: Partial<IssueSummary> = {}): IssueSummary => ({
-  number, title: `Issue ${number}`, state: 'open', closedAs: null, createdAt: new Date(Date.now() - 3 * 3600e3).toISOString(), labels: [], blockedBy: [], ...extra,
+  number, title: `Issue ${number}`, state: 'open', closedAs: null, createdAt: new Date(Date.now() - 3 * 3600e3).toISOString(), labels: [], blockedBy: [], unlistedBlockers: 0, ...extra,
 });
 export const issue = (number: number, extra: Partial<ListedIssue> = {}): ListedIssue => ({
   ...summary(number), parent: null, subIssues: { closed: 0, total: 0, issues: [] }, ...extra,
 });
 export const page = (issues: ListedIssue[], cursor: string | null = null): IssuePage => ({ ok: true, issues, cursor, labels: [bug, docs], counts: { open: 7, closed: 2 } });
 export const failed = (kind: ForgeFailure['kind'], detail = '', account: string | null = null): IssuePage => ({ ok: false, failure: { kind, detail, forge: githubForge }, account });
+
+/** The browser APIs the Workbench needs that the test DOM lacks. */
+export function stubSidebarApis() {
+  stubLayoutApis();
+  for (const target of [globalThis, window]) Object.assign(target, { KeyframeEffect: class {} });
+  window.HTMLElement.prototype.checkVisibility = () => true;
+}
 
 interface Request { projectId: string; query: IssueListQuery; answer(page: IssuePage): void; fail(error: Error): void }
 

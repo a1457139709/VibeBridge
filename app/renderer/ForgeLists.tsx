@@ -2,7 +2,7 @@ import { useEffect, useRef, useState, type CSSProperties } from 'react';
 import { BlockedIcon, IssueClosedIcon, IssueOpenedIcon, SkipIcon, SyncIcon } from '@primer/octicons-react';
 import { useLocalization } from './Localization';
 import { detail } from '../shared/messages';
-import type { ForgeCapabilities, ForgeLabel, IssueCounts, IssueListFilter, IssueListPage, IssuePage, IssueState, IssueSummary, ListedIssue, RepositoryReference } from '../shared/forge';
+import type { ForgeCapabilities, ForgeLabel, IssueCounts, IssueListFilter, IssueListPage, IssuePage, IssueReference, IssueState, IssueSummary, ListedIssue, RepositoryReference } from '../shared/forge';
 import type { ProjectView } from '../shared/model';
 
 type Tab = 'issues' | 'pullRequests';
@@ -148,7 +148,8 @@ function FilterBar({ tab, filter, setFilter, labels, counts }: {
 
 /** The loaded issues as a tree, when the forge has sub-issues: an issue sits under its parent when the parent is
  * loaded, else at the top level. Parents start collapsed; their progress button expands them without fetching.
- * An expanded parent shows the sub-issues in the listed state; listing open ones, it folds the closed ones. */
+ * An expanded parent shows the sub-issues in the listed state; listing open ones, it folds the closed ones after them.
+ * A parent shows the button only when it has sub-issues to show, as the list holds them. */
 function IssueTree({ issues, state, capabilities, addLabel }: {
   issues: ListedIssue[]; state: IssueState; capabilities: ForgeCapabilities; addLabel(name: string): void;
 }) {
@@ -157,23 +158,26 @@ function IssueTree({ issues, state, capabilities, addLabel }: {
   const [showingClosed, setShowingClosed] = useState<ReadonlySet<number>>(new Set());
   const flip = (set: ReadonlySet<number>, number: number) => { const next = new Set(set); if (!next.delete(number)) next.add(number); return next; };
   const loaded = new Map(issues.map(issue => [issue.number, issue]));
+  const loadedChildren = new Map<number, ListedIssue[]>();
+  for (const issue of issues) if (issue.parent !== null) loadedChildren.set(issue.parent, [...loadedChildren.get(issue.parent) ?? [], issue]);
   const top = capabilities.subIssues ? issues.filter(issue => issue.parent === null || !loaded.has(issue.parent)) : issues;
   /** The forge's sub-issues of a parent with any loaded issue that names it, by number. A loaded one keeps its own sub-issues. */
   const childrenOf = (parent: ListedIssue) => {
     const children = new Map<number, IssueSummary>(parent.subIssues.issues.map(child => [child.number, loaded.get(child.number) ?? child]));
-    for (const issue of issues) if (issue.parent === parent.number) children.set(issue.number, issue);
+    for (const issue of loadedChildren.get(parent.number) ?? []) children.set(issue.number, issue);
     return [...children.values()].sort((a, b) => a.number - b.number);
   };
 
   const row = (issue: IssueSummary): React.ReactNode => {
     // Only a loaded issue carries its own sub-issues; a sub-issue the forge listed for its parent shows none.
     const loadedIssue = capabilities.subIssues ? loaded.get(issue.number) : undefined;
-    const withSubIssues = loadedIssue && loadedIssue.subIssues.total > 0 ? loadedIssue : null;
-    const open = !!withSubIssues && expanded.has(issue.number);
-    const children = open ? childrenOf(withSubIssues) : [];
+    const children = loadedIssue ? childrenOf(loadedIssue) : [];
+    const listed = children.filter(child => child.state === state);
     const folded = state === 'open' ? children.filter(child => child.state === 'closed') : [];
+    const withSubIssues = loadedIssue && (listed.length || folded.length) ? loadedIssue : null;
+    const open = !!withSubIssues && expanded.has(issue.number);
     const showClosed = showingClosed.has(issue.number);
-    const shown = children.filter(child => child.state === state || (showClosed && folded.includes(child)));
+    const shown = showClosed ? [...listed, ...folded] : listed;
     return <li key={issue.number}>
       <IssueRow issue={issue} addLabel={addLabel} blocking={capabilities.blocking}
         progress={withSubIssues && <button className={`forge-progress-toggle ${open ? 'on' : ''}`} aria-expanded={open}
@@ -200,28 +204,30 @@ function IssueRow({ issue, addLabel, blocking, progress }: { issue: IssueSummary
       <div className="forge-row-meta">
         <span className="forge-row-number">#{issue.number}</span><RelativeTime iso={issue.createdAt} />
         {progress}
-        {blocking && !!issue.blockedBy.length && <Blocked by={issue.blockedBy} />}
+        {blocking && !!(issue.blockedBy.length || issue.unlistedBlockers) && <Blocked by={issue.blockedBy} unlisted={issue.unlistedBlockers} />}
         {issue.labels.map(label => <Label key={label.name} label={label} onClick={() => addLabel(label.name)} />)}
       </div>
     </div>
-    {/* The row's action area, kept for dispatch. */}
-    <div className="forge-row-action" />
+    {/* The row's action area, kept for dispatching an open issue. */}
+    {issue.state === 'open' && <div className="forge-row-action" />}
   </div>;
 }
 
 function Progress({ closed, total }: { closed: number; total: number }) {
   const { t } = useLocalization();
   return <span className="forge-progress" data-hint={t('subIssueProgress', { closed, total })}>
-    <span className="forge-progress-bar"><span style={{ width: `${closed / total * 100}%` }} /></span>{closed}/{total}</span>;
+    <span className="forge-progress-bar"><span style={{ width: `${total ? closed / total * 100 : 0}%` }} /></span>{closed}/{total}</span>;
 }
 
-/** The blocked mark as the forge shows it: the blocked icon and the blockers' numbers; hovering names them. */
-function Blocked({ by }: { by: IssueSummary['blockedBy'] }) {
+/** The blocked mark as the forge shows it: the blocked icon and the blockers' numbers, with how many more the forge
+ * did not list; hovering names them. */
+function Blocked({ by, unlisted }: { by: IssueReference[]; unlisted: number }) {
   const { t } = useLocalization();
-  const reference = (issue: IssueSummary['blockedBy'][number]) => `${issue.path ?? ''}#${issue.number}`;
-  const numbers = by.map(reference).join(', ');
+  const reference = (issue: IssueReference) => `${issue.path ?? ''}#${issue.number}`;
+  const more = unlisted ? t('moreBlockers', { count: unlisted }) : null;
+  const numbers = [...by.map(reference), ...more ? [more] : []].join(', ');
   return <span className="forge-blocked" aria-label={t('blockedBy', { issues: numbers })}
-    data-hint={by.map(issue => `${reference(issue)} ${issue.title}`).join('\n')}><BlockedIcon size={12} />{numbers}</span>;
+    data-hint={[...by.map(issue => `${reference(issue)} ${issue.title}`), ...more ? [more] : []].join('\n')}><BlockedIcon size={12} />{numbers}</span>;
 }
 
 /** GitHub's own state octicons and colours: open green, completed purple, not planned or duplicate grey. */

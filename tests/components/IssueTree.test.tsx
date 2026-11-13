@@ -2,21 +2,16 @@ import './support/dom';
 import assert from 'node:assert/strict';
 import test, { afterEach, before } from 'node:test';
 import { cleanup, waitFor, within } from '@testing-library/react';
-import { stubLayoutApis } from './support/no-layout';
-import { bug, issue, page, renderWorkbench, rows, sidebar, summary } from './support/issue-list';
+import { bug, issue, page, renderWorkbench, rows, sidebar, stubSidebarApis, summary } from './support/issue-list';
 
 afterEach(cleanup);
-before(() => {
-  stubLayoutApis();
-  for (const target of [globalThis, window]) Object.assign(target, { KeyframeEffect: class {} });
-  window.HTMLElement.prototype.checkVisibility = () => true;
-});
+before(stubSidebarApis);
 
-/** #10 has sub-issues #11, #12 and the closed #13; #12 is also on the page, and #14's parent is not. */
+/** #10 has the closed sub-issue #11 and the open #12 and #13; #12 is also on the page, and #14's parent is not. */
 const tree = () => page([
   issue(14, { parent: 50 }),
   issue(12, { parent: 10 }),
-  issue(10, { subIssues: { closed: 1, total: 3, issues: [summary(12), summary(13, { state: 'closed', closedAs: 'completed' }), summary(11, { labels: [bug] })] } }),
+  issue(10, { subIssues: { closed: 1, total: 3, issues: [summary(12), summary(11, { state: 'closed', closedAs: 'completed' }), summary(13, { labels: [bug] })] } }),
 ]);
 
 test('parents start collapsed behind a progress button that expands their sub-issues in number order, with closed ones folded', async () => {
@@ -27,14 +22,15 @@ test('parents start collapsed behind a progress button that expands their sub-is
   assert.equal(expand.getAttribute('aria-expanded'), 'false');
   assert.match(expand.textContent!, /▸.*1\/3/);
   await user.click(expand);
-  assert.deepEqual(rows(), ['Issue 14', 'Issue 10', 'Issue 11', 'Issue 12']);
+  assert.deepEqual(rows(), ['Issue 14', 'Issue 10', 'Issue 12', 'Issue 13']);
   const children = within(sidebar()).getByRole('group', { name: 'Sub-issues of #10' });
   assert.ok(within(children).getByText('bug'), 'a sub-issue keeps its whole row');
   assert.equal(within(children).getAllByRole('listitem').filter(row => row.querySelector('.forge-row-action')).length, 2);
   await user.click(within(children).getByRole('button', { name: '1 closed' }));
-  assert.deepEqual(rows(), ['Issue 14', 'Issue 10', 'Issue 11', 'Issue 12', 'Issue 13']);
+  assert.deepEqual(rows(), ['Issue 14', 'Issue 10', 'Issue 12', 'Issue 13', 'Issue 11'], 'shown closed sub-issues follow the open ones');
+  assert.equal(within(children).getAllByRole('listitem').filter(row => row.querySelector('.forge-row-action')).length, 2, 'a closed issue has no action area');
   await user.click(within(children).getByRole('button', { name: 'Hide closed' }));
-  assert.deepEqual(rows(), ['Issue 14', 'Issue 10', 'Issue 11', 'Issue 12']);
+  assert.deepEqual(rows(), ['Issue 14', 'Issue 10', 'Issue 12', 'Issue 13']);
   const collapse = within(sidebar()).getByRole('button', { name: 'Hide sub-issues' });
   assert.equal(collapse.getAttribute('aria-expanded'), 'true');
   assert.match(collapse.textContent!, /▾/);
@@ -53,6 +49,29 @@ test('a blocked issue shows the blockers\' numbers, names them on hover, and kee
   assert.ok(blocked.contains(mark));
   assert.ok(blocked.querySelector('.forge-row-action'), 'a blocked issue can still be dispatched');
   assert.equal(within(free).queryByLabelText(/^Blocked by/), null);
+});
+
+test('an issue blocked by more open issues than the forge listed counts the rest', async () => {
+  const { request } = renderWorkbench();
+  (await request(1)).answer(page([issue(9, { blockedBy: [{ path: null, number: 143, title: 'Sidebar shell' }], unlistedBlockers: 2 }),
+    issue(8, { unlistedBlockers: 1 })]));
+  const mark = await within(sidebar()).findByLabelText('Blocked by #143, +2 more');
+  assert.equal(mark.getAttribute('data-hint'), '#143 Sidebar shell\n+2 more');
+  assert.ok(within(sidebar()).getByLabelText('Blocked by +1 more'), 'an issue none of whose open blockers is listed is still marked');
+});
+
+test('a parent shows the progress button only when the list holds sub-issues to show', async () => {
+  const { user, request } = renderWorkbench();
+  (await request(1)).answer(page([
+    issue(30, { subIssues: { closed: 0, total: 4, issues: [] } }),
+    issue(21, { parent: 20 }),
+    issue(20, { subIssues: { closed: 0, total: 0, issues: [] } }),
+  ]));
+  await waitFor(() => assert.deepEqual(rows(), ['Issue 30', 'Issue 20']));
+  const buttons = within(sidebar()).getAllByRole('button', { name: 'Show sub-issues' });
+  assert.equal(buttons.length, 1, 'a parent whose sub-issues are all outside the list has no button');
+  await user.click(buttons[0]);
+  assert.deepEqual(rows(), ['Issue 30', 'Issue 20', 'Issue 21'], 'a loaded sub-issue stays reachable under its parent');
 });
 
 for (const capabilities of [{ subIssues: false, blocking: false }, { subIssues: true, blocking: false }, { subIssues: false, blocking: true }]) {

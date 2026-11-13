@@ -47,6 +47,7 @@ const issueSchema = z.object({
   labels: z.object({ nodes: z.array(labelSchema) }),
   repository: repositorySchema,
   blockedBy: z.object({ nodes: z.array(z.object({ number: z.number(), title: z.string(), state: issueState, repository: repositorySchema })) }),
+  issueDependenciesSummary: z.object({ blockedBy: z.number() }),
 });
 const issuePageSchema = z.object({
   repository: z.object({ labels: z.object({ nodes: z.array(labelSchema) }) }),
@@ -62,8 +63,9 @@ const issuePageSchema = z.object({
   }),
 });
 // Sub-issues and blockers come from their own fields (`parent`, `subIssues`, `blockedBy`), not search qualifiers.
+// `blockedBy` lists open and closed blockers alike; `issueDependenciesSummary.blockedBy` counts the open ones, also those past the listed window.
 const issueFields = `number title state stateReason createdAt labels(first: 20) { nodes { name color } } repository { nameWithOwner }
-      blockedBy(first: 20) { nodes { number title state repository { nameWithOwner } } }`;
+      blockedBy(first: 20) { nodes { number title state repository { nameWithOwner } } } issueDependenciesSummary { blockedBy }`;
 const issuePageQuery = `query($owner: String!, $name: String!, $search: String!, $openSearch: String!, $closedSearch: String!, $after: String) {
   repository(owner: $owner, name: $name) { labels(first: 100, orderBy: { field: NAME, direction: ASC }) { nodes { name color } } }
   open: search(query: $openSearch, type: ISSUE, first: 0) { issueCount }
@@ -83,10 +85,11 @@ const samePath = (a: string, b: string) => a.toLowerCase() === b.toLowerCase();
 
 /** An issue's own fields, and the open issues blocking it; a blocker in another repository names it. */
 function issueSummary(issue: z.infer<typeof issueSchema>, path: string): IssueSummary {
+  const blockedBy = issue.blockedBy.nodes.filter(blocker => blocker.state === 'OPEN').map(blocker =>
+    ({ path: samePath(blocker.repository.nameWithOwner, path) ? null : blocker.repository.nameWithOwner, number: blocker.number, title: blocker.title }));
   return { number: issue.number, title: issue.title, state: issue.state === 'OPEN' ? 'open' : 'closed',
     closedAs: issue.state === 'OPEN' || !issue.stateReason ? null : closedAs[issue.stateReason], createdAt: issue.createdAt, labels: issue.labels.nodes,
-    blockedBy: issue.blockedBy.nodes.filter(blocker => blocker.state === 'OPEN').map(blocker =>
-      ({ path: samePath(blocker.repository.nameWithOwner, path) ? null : blocker.repository.nameWithOwner, number: blocker.number, title: blocker.title })) };
+    blockedBy, unlistedBlockers: Math.max(0, issue.issueDependenciesSummary.blockedBy - blockedBy.length) };
 }
 
 /** GitHub search text for the filter. A number (with or without #) matches the issue number; other words match the title. */

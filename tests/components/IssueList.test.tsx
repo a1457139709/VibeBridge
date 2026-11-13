@@ -2,15 +2,10 @@ import './support/dom';
 import assert from 'node:assert/strict';
 import test, { afterEach, before } from 'node:test';
 import { cleanup, screen, waitFor, within } from '@testing-library/react';
-import { stubLayoutApis } from './support/no-layout';
-import { bug, failed, issue, openNoFilter, page, refresh, renderWorkbench, rows, sidebar } from './support/issue-list';
+import { bug, failed, issue, openNoFilter, page, refresh, renderWorkbench, rows, sidebar, stubSidebarApis } from './support/issue-list';
 
 afterEach(cleanup);
-before(() => {
-  stubLayoutApis();
-  for (const target of [globalThis, window]) Object.assign(target, { KeyframeEffect: class {} });
-  window.HTMLElement.prototype.checkVisibility = () => true;
-});
+before(stubSidebarApis);
 
 test('the issue list shows one page of rows with their state, number, age and labels, and Load more appends the next page', async () => {
   const { user, request } = renderWorkbench();
