@@ -101,8 +101,8 @@ const outputLines = (text: string) => text.split('\n').map(line => line.trim()).
 
 export const github: Forge = {
   id: 'github',
-  presentation: { name: 'GitHub', cli: 'gh', installUrl: 'https://cli.github.com', loginCommand: 'gh auth login',
-    capabilities: { subIssues: true, blocking: true } },
+  presentation: { name: 'GitHub', cli: 'gh', installUrl: 'https://cli.github.com', loginCommand: 'gh auth login' },
+  capabilities: { subIssues: true, blocking: true },
   async account() { return (await gh(['api', 'user', '--jq', '.login'])).trim(); },
   async repositories() {
     return outputLines(await gh(['api', '--paginate', 'user/repos?affiliation=owner,collaborator,organization_member&per_page=100', '--jq', '.[].full_name']));

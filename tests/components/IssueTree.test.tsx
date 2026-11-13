@@ -3,7 +3,6 @@ import assert from 'node:assert/strict';
 import test, { afterEach, before } from 'node:test';
 import { cleanup, waitFor, within } from '@testing-library/react';
 import { stubLayoutApis } from './support/no-layout';
-import { githubForge } from './support/forge';
 import { bug, issue, page, renderWorkbench, rows, sidebar, summary } from './support/issue-list';
 
 afterEach(cleanup);
@@ -58,7 +57,7 @@ test('a blocked issue shows the blockers\' numbers, names them on hover, and kee
 
 for (const capabilities of [{ subIssues: false, blocking: false }, { subIssues: true, blocking: false }, { subIssues: false, blocking: true }]) {
   test(`a forge declaring sub-issues ${capabilities.subIssues} and blocking ${capabilities.blocking} shows only what it declares`, async () => {
-    const { request } = renderWorkbench({ ...githubForge, capabilities });
+    const { request } = renderWorkbench(capabilities);
     const answer = tree();
     assert.ok(answer.ok);
     answer.issues[0].blockedBy = [{ path: null, number: 1, title: 'Blocker' }];

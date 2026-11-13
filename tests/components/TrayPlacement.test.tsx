@@ -8,7 +8,7 @@ import { defaultSettings } from '../../app/shared/settings';
 import type { Layout, Snapshot } from '../../app/shared/model';
 import type { WorkbenchEvent } from '../../app/shared/model';
 import { deferred, provideWorkbench } from './support/workbench';
-import { githubForge } from './support/forge';
+import { githubView } from './support/forge';
 import { stubLayoutApis } from './support/no-layout';
 
 
@@ -36,7 +36,7 @@ function renderWorkbench(resident = false) {
     projects: [{ id: 'project', name: 'Placement', directory: '/work/placement',
       layout: resident ? { panel: 'resident' } : null,
       panels: resident ? [{ id: 'resident', agent: 'claude', run: { id: 'run-resident', panelId: 'resident', projectId: 'project', state: 'starting', title: 'Session resident' } }] : [],
-      tray: [{ id: 'ephemeral', agent: 'codex', run: { id: 'run-ephemeral', panelId: 'ephemeral', projectId: 'project', state: 'starting', title: 'Session ephemeral' } }], repository: null, forge: githubForge }],
+      tray: [{ id: 'ephemeral', agent: 'codex', run: { id: 'run-ephemeral', panelId: 'ephemeral', projectId: 'project', state: 'starting', title: 'Session ephemeral' } }], repository: null, ...githubView }],
   };
   provideWorkbench({ snapshot: async () => structuredClone(snapshot),
     subscribe: listener => { listeners.add(listener); return () => { listeners.delete(listener); }; }, ready: async () => {},

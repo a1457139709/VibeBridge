@@ -9,7 +9,7 @@ import type { ProjectEdit, ProjectView } from '../../app/shared/model';
 import { detail, message } from '../../app/shared/messages';
 import type { ForgeFailureKind, RepositoryChoices, RepositoryReference } from '../../app/shared/forge';
 import { provideWorkbench } from './support/workbench';
-import { githubForge } from './support/forge';
+import { githubForge, githubView } from './support/forge';
 
 afterEach(cleanup);
 
@@ -21,7 +21,7 @@ const failed = (kind: ForgeFailureKind, detail = ''): RepositoryChoices => ({ ok
 
 function editor(repository: RepositoryReference | null, choices: (directory: string) => Promise<RepositoryChoices>,
   save: (edit: ProjectEdit) => Promise<void> = async () => {}) {
-  const project: ProjectView = { id: 'project', name: 'Bound', directory: '/work/bound', panels: [], tray: [], layout: null, repository, forge };
+  const project: ProjectView = { id: 'project', name: 'Bound', directory: '/work/bound', panels: [], tray: [], layout: null, repository, ...githubView };
   const edits: { edit: ProjectEdit; restart: boolean }[] = [];
   provideWorkbench({
     inspectDirectory: async directory => ({ valid: true, directory }),

@@ -27,7 +27,6 @@ export interface ForgePresentation {
   cli: string;
   installUrl: string;
   loginCommand: string;
-  capabilities: ForgeCapabilities;
 }
 
 /** Every forge failure falls into one of these kinds. `detail` is the forge's own text, unchanged. */

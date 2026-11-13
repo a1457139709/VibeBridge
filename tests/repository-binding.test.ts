@@ -64,7 +64,7 @@ test('forge failures are classified into the four kinds and carry the forge text
     ] as const) {
       await double.set({ ...account, failure });
       const choices = await f.workbench.repositoryChoices(project.id, f.directory);
-      assert.deepEqual(choices, { ok: false, failure: { kind, detail, forge: { name: 'GitHub', cli: 'gh', installUrl: 'https://cli.github.com', loginCommand: 'gh auth login', capabilities: { subIssues: true, blocking: true } } } }, detail);
+      assert.deepEqual(choices, { ok: false, failure: { kind, detail, forge: { name: 'GitHub', cli: 'gh', installUrl: 'https://cli.github.com', loginCommand: 'gh auth login' } } }, detail);
       await assert.rejects(saveBinding(f, project.id, github('octo/tools')), /projectEditListFailed/);
     }
     double.uninstall();

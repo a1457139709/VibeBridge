@@ -81,6 +81,8 @@ test('a page carries each issue\'s parent, its sub-issues with their progress, a
   ] });
   const f = await boundWorkbench('issue-tree');
   try {
+    assert.deepEqual(f.workbench.snapshot().projects.find(project => project.id === f.projectId)?.capabilities,
+      { subIssues: true, blocking: true }, 'the project declares the sub-issues and blocking GitHub has');
     const page = await f.workbench.issuePage(f.projectId, { filter: openNoFilter, cursor: null });
     assert.ok(page.ok);
     const blockers = [{ path: null, number: 4, title: 'Blocker' }, { path: 'octo/other', number: 7, title: 'Upstream fix' }];
@@ -97,7 +99,7 @@ test('a page carries each issue\'s parent, its sub-issues with their progress, a
 test('list failures fall into the four kinds with the forge text, and an inaccessible repository names the account', async context => {
   const double = await ghDouble(context, { ...account, issues: thirtyIssues });
   const f = await boundWorkbench('issue-failures');
-  const forge = { name: 'GitHub', cli: 'gh', installUrl: 'https://cli.github.com', loginCommand: 'gh auth login', capabilities: { subIssues: true, blocking: true } };
+  const forge = { name: 'GitHub', cli: 'gh', installUrl: 'https://cli.github.com', loginCommand: 'gh auth login' };
   const page = () => f.workbench.issuePage(f.projectId, { filter: openNoFilter, cursor: null });
   try {
     await double.set({ account: 'octo', repositories: [] });

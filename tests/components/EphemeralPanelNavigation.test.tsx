@@ -9,7 +9,7 @@ import { defaultSettings } from '../../app/main/settings';
 import type { PanelView, Snapshot } from '../../app/shared/model';
 import type { ProcessingState } from '../../app/shared/processing-status';
 import { provideWorkbench } from './support/workbench';
-import { githubForge } from './support/forge';
+import { githubView } from './support/forge';
 
 afterEach(cleanup);
 
@@ -21,10 +21,10 @@ const snapshot = (): Snapshot => ({
   settingsConflicts: [], startupTheme: 'light', resolvedTheme: 'light', errors: [],
   projects: [
     { id: 'current', name: 'Current', directory: '/current', layout: null, panels: [panel('current', 'resident', 'ready')],
-      tray: [panel('current', 'waiting', 'needs-input'), panel('current', 'working', 'busy'), panel('current', 'finished', 'done')], repository: null, forge: githubForge },
+      tray: [panel('current', 'waiting', 'needs-input'), panel('current', 'working', 'busy'), panel('current', 'finished', 'done')], repository: null, ...githubView },
     { id: 'other', name: 'Other', directory: '/other', layout: null, panels: [panel('other', 'other-resident', 'ready')],
-      tray: [panel('other', 'failed', 'error'), panel('other', 'idle', 'ready')], repository: null, forge: githubForge },
-    { id: 'quiet', name: 'Quiet', directory: '/quiet', layout: null, panels: [panel('quiet', 'quiet-resident', 'ready')], tray: [], repository: null, forge: githubForge },
+      tray: [panel('other', 'failed', 'error'), panel('other', 'idle', 'ready')], repository: null, ...githubView },
+    { id: 'quiet', name: 'Quiet', directory: '/quiet', layout: null, panels: [panel('quiet', 'quiet-resident', 'ready')], tray: [], repository: null, ...githubView },
   ],
 });
 

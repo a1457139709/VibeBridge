@@ -98,7 +98,7 @@ export function ForgeLists({ project, editBinding }: Props) {
     <FilterBar key={tab} tab={tab} filter={filter} setFilter={setFilter} labels={loaded?.labels ?? []}
       counts={tab === 'issues' && loaded ? loaded.counts : null} />
     {tab === 'issues' && <div className="forge-scroll">
-      {loaded && <IssueTree issues={loaded.issues} state={loaded.filter.state} capabilities={forge.capabilities}
+      {loaded && <IssueTree issues={loaded.issues} state={loaded.filter.state} capabilities={project.capabilities}
         addLabel={name => setFilter(f => f.labels.includes(name) ? f : { ...f, labels: [...f.labels, name] })} />}
       {loaded && !loaded.issues.length && <p className="forge-empty">{t('noMatchingIssues')}</p>}
       {!loaded && <p className="forge-empty">{t('loadingIssues')}</p>}

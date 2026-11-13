@@ -4,12 +4,12 @@ import { userEvent } from '@testing-library/user-event';
 import { App } from '../../../app/renderer/Workbench';
 import { defaultSettings } from '../../../app/shared/settings';
 import type { ProjectView, Snapshot, WorkbenchEvent } from '../../../app/shared/model';
-import type { ForgePresentation, IssueListQuery, IssuePage, IssueSummary, ListedIssue, ForgeFailure } from '../../../app/shared/forge';
+import type { ForgeCapabilities, IssueListQuery, IssuePage, IssueSummary, ListedIssue, ForgeFailure } from '../../../app/shared/forge';
 import { deferred, provideWorkbench } from './workbench';
-import { githubForge } from './forge';
+import { githubCapabilities, githubForge, githubView } from './forge';
 
-const project = (id: string, name: string, forge: ForgePresentation): ProjectView => ({
-  id, name, directory: `/work/${id}`, layout: { panel: `${id}-panel` }, tray: [], repository: { forge: 'github', path: `octo/${id}` }, forge,
+const project = (id: string, name: string, capabilities: ForgeCapabilities): ProjectView => ({
+  id, name, directory: `/work/${id}`, layout: { panel: `${id}-panel` }, tray: [], repository: { forge: 'github', path: `octo/${id}` }, ...githubView, capabilities,
   panels: [{ id: `${id}-panel`, agent: 'codex', run: { id: `${id}-run`, panelId: `${id}-panel`, projectId: id, state: 'running', title: `${name} session` } }],
 });
 export const bug = { name: 'bug', color: 'd73a4a' }, docs = { name: 'docs', color: '0075ca' };
@@ -25,11 +25,11 @@ export const failed = (kind: ForgeFailure['kind'], detail = '', account: string 
 interface Request { projectId: string; query: IssueListQuery; answer(page: IssuePage): void; fail(error: Error): void }
 
 /** The Workbench with two bound projects and the sidebar open. Every issue page request waits until the test answers it. */
-export function renderWorkbench(forge = githubForge) {
+export function renderWorkbench(capabilities = githubCapabilities) {
   const snapshot: Snapshot = {
     navigation: { visible: true, width: 212 }, forgeSidebar: { visible: true, width: 380 }, activeProjectId: 'alpha', settings: defaultSettings(),
     settingsConflicts: [], startupTheme: 'light', resolvedTheme: 'light', errors: [],
-    projects: [project('alpha', 'Alpha', forge), project('beta', 'Beta', forge)],
+    projects: [project('alpha', 'Alpha', capabilities), project('beta', 'Beta', capabilities)],
   };
   const listeners = new Set<(event: WorkbenchEvent) => void>();
   const publish = () => { for (const listener of listeners) listener({ kind: 'snapshot', snapshot: structuredClone(snapshot) }); };
