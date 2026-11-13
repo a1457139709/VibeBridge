@@ -6,6 +6,7 @@ import type { DesktopAPI } from '../shared/api';
 import type { ProjectView, Snapshot } from '../shared/model';
 import { useSidebarPreferences } from './sidebar-preferences';
 import { ProjectEditor } from './ProjectManagement';
+import { ForgeLists, SidebarHead } from './ForgeLists';
 import './forge-sidebar.css';
 
 interface Host {
@@ -50,11 +51,17 @@ export function useForgeSidebar(host: Host, api: Pick<DesktopAPI, 'saveSidebar' 
     sidebar: shown && project && <aside ref={element} tabIndex={-1} className={`forge-sidebar ${overlay ? 'overlay' : ''}`} aria-label={project.forge.name}
       style={{ width: preferences.width }}>
       <div className="forge-sidebar-resize" role="separator" aria-orientation="vertical" aria-label={t('resizeForgeSidebar', { forge: project.forge.name })} onPointerDown={resize} />
-      <header className="forge-sidebar-head"><span className="forge-sidebar-repository">{project.repository?.path ?? t('noRepositoryBound')}</span></header>
-      {!project.repository && <div className="forge-sidebar-state">
-        <p>{t('projectUnbound', { forge: project.forge.name })}</p>
-        <button className="primary" onClick={() => setEditingRepository(true)}>{t('bindRepository')}</button>
-      </div>}
+      {project.repository
+        // Mounted per project and repository: returning to a project or rebinding starts the lists afresh.
+        ? <ForgeLists key={`${project.id} ${project.repository.forge} ${project.repository.path}`} project={{ ...project, repository: project.repository }}
+          editBinding={() => setEditingRepository(true)} />
+        : <>
+          <SidebarHead title={t('noRepositoryBound')} />
+          <div className="forge-sidebar-state">
+            <p>{t('projectUnbound', { forge: project.forge.name })}</p>
+            <button className="primary" onClick={() => setEditingRepository(true)}>{t('bindRepository')}</button>
+          </div>
+        </>}
       {editingRepository && <ProjectEditor project={project} focusRepository close={() => setEditingRepository(false)}
         openProject={id => { setEditingRepository(false); host.openProject(id); }} />}
     </aside>,

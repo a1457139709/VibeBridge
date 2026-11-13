@@ -1,6 +1,6 @@
 import { useLocalization } from './Localization';
 import { detail, message } from '../shared/messages';
-import { useEffect, useRef, useState, type ReactNode } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from 'react';
 import { type DirectoryResult, type Project, type ProjectEditResult, type ProjectView } from '../shared/model';
 import { sameRepository, type RepositoryChoices, type RepositoryReference } from '../shared/forge';
 import { projectNameError, projectNameHasControls } from '../shared/project-name';
@@ -156,7 +156,8 @@ export function ProjectEditor({ project, close, openProject, focusRepository = f
   const changedDirectory = !!directory?.valid && !duplicate && directory.directory !== original.directory;
   const edited = name.trim() !== original.name || path !== original.directory || bindingChanged;
   const canSave = !busy && !choosing && !checking && !nameError && !directoryError;
-  useEffect(() => { const element = dialog.current!; element.showModal(); return () => element.close(); }, []);
+  // Open before the fields' effects run: a field can take focus only inside an open dialog.
+  useLayoutEffect(() => { const element = dialog.current!; element.showModal(); return () => element.close(); }, []);
   useEffect(() => {
     let live = true;
     if (!path) return;

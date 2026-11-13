@@ -18,7 +18,7 @@ export async function repositoryChoices(bound: RepositoryReference | null, direc
       repositories: repositories.map(path => ({ forge: forge.id, path })),
       origin: offered === null ? null : { forge: forge.id, path: offered } };
   } catch (error) {
-    if (error instanceof ForgeError) return { ok: false, failure: { kind: error.kind, detail: error.detail, forge: forge.presentation } };
+    if (error instanceof ForgeError) return { ok: false, failure: error.failure(forge) };
     throw error;
   }
 }

@@ -1,4 +1,4 @@
-import type { ForgeFailureKind, ForgeId, ForgePresentation } from '../../shared/forge';
+import type { ForgeFailure, ForgeFailureKind, ForgeId, ForgePresentation, IssueListPage, IssueListQuery } from '../../shared/forge';
 
 /** Features that differ between forges. The UI shows a feature only when the bound forge declares it;
  * entries join this shape with the features that need them. */
@@ -7,6 +7,8 @@ export interface ForgeCapabilities {}
 /** A failure of a forge call, in one of the forge-neutral kinds, with the forge's own text. */
 export class ForgeError extends Error {
   constructor(readonly kind: ForgeFailureKind, readonly detail: string) { super(detail || kind); }
+  /** The failure as the UI receives it, with how `forge` presents itself. */
+  failure(forge: Forge): ForgeFailure { return { kind: this.kind, detail: this.detail, forge: forge.presentation }; }
 }
 
 /** One Forge behind the Workbench. The adapter is the only code that talks to the forge or its
@@ -24,4 +26,6 @@ export interface Forge {
   remotePath(originUrl: string): string | null;
   /** The entry of `repositories` that names the same repository as `path`, in its listed spelling, or null. */
   find(path: string, repositories: string[]): string | null;
+  /** One page of the repository's issues, newest created first, filtered on the forge's side. */
+  issues(path: string, query: IssueListQuery): Promise<IssueListPage>;
 }
