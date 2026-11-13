@@ -29,7 +29,7 @@ const reference = (number: number, extra: Partial<IssueReference> = {}): IssueRe
 const detail = (number: number, extra: Partial<IssueDetail> = {}): IssueDetail => ({
   ...summary(number), url: `${repositoryUrl}/issues/${number}`, author: 'mona', assignees: [], body: '', comments: [], commentCount: 0,
   parent: null, subIssues: [], blockedBy: [], blocking: [], closingPullRequests: [],
-  links: { issues: `${repositoryUrl}/issues/`, pullRequests: `${repositoryUrl}/pull/` }, ...extra,
+  issueLinks: `${repositoryUrl}/issues/`, ...extra,
 });
 
 interface Request { number: number; answer(result: IssueDetailResult): void; fail(error: Error): void }
@@ -128,7 +128,7 @@ test('the relation graph draws open blockers and the open issues this one blocks
   const { user, request } = renderWorkbench([summary(5)]);
   await user.click(await row('Issue 5'));
   (await request(1)).answer({ ok: true, issue: detail(5, { title: 'Detail',
-    parent: reference(1, { title: 'Spec' }),
+    parent: { ...reference(1, { title: 'Spec' }), progress: { closed: 1, total: 3 } },
     blockedBy: [reference(2, { title: 'Open blocker' }), reference(3, { title: 'Closed blocker', state: 'closed', closedAs: 'completed' })],
     blocking: [reference(8, { title: 'Waits on detail' })],
     subIssues: [reference(6, { title: 'First part', state: 'closed', closedAs: 'completed' }), reference(9, { title: 'Second part' })],
@@ -139,7 +139,7 @@ test('the relation graph draws open blockers and the open issues this one blocks
   assert.deepEqual(column('self'), ['#5Detail']);
   assert.deepEqual(column('blocking'), ['#8Waits on detail']);
   assert.deepEqual([...graph.querySelectorAll('path.forge-edge')].length, 2, 'one edge per blocking relation');
-  assert.match(within(pane()).getByRole('button', { name: /Spec/ }).textContent!, /Spec#1/);
+  assert.equal(within(pane()).getByRole('button', { name: /Spec/ }).textContent, 'Spec#11/3', 'the parent shows above, with its sub-issue progress');
   assert.ok(within(pane()).getByLabelText(/Blocked by #2/), 'the head shows the open blockers');
   const subIssues = within(pane()).getByRole('region', { name: 'Sub-issues' });
   assert.ok(within(subIssues).getByText('1/2'), 'the sub-issue progress counts closed ones');
@@ -161,7 +161,7 @@ test('a closed issue draws no issues it blocks, and an issue with no live relati
 test('relations a forge does not declare are not shown', async () => {
   const { user, request } = renderWorkbench([summary(5)], { ...githubForge, capabilities: { subIssues: false, blocking: false } });
   await user.click(await row('Issue 5'));
-  (await request(1)).answer({ ok: true, issue: detail(5, { parent: reference(1, { title: 'Spec' }), blockedBy: [reference(2)], subIssues: [reference(6)] }) });
+  (await request(1)).answer({ ok: true, issue: detail(5, { parent: { ...reference(1, { title: 'Spec' }), progress: { closed: 0, total: 1 } }, blockedBy: [reference(2)], subIssues: [reference(6)] }) });
   await within(pane()).findByRole('heading', { name: 'Issue 5 #5' });
   assert.equal(within(pane()).queryByRole('group', { name: 'Relations' }), null);
   assert.equal(within(pane()).queryByRole('region', { name: 'Sub-issues' }), null);
@@ -182,6 +182,9 @@ test('the pull requests that close the issue on merge sit in their own block, cl
   assert.deepEqual(items.map(item => item.textContent), [
     '#40Passing✓ Checks passed', '#41Running● Checks running', '#42Failing✗ Checks failed', '#43Merged', '#44Abandoned', '#45Unchecked',
   ]);
+  assert.deepEqual(items.map(item => within(item).getByRole('link').getAttribute('href')), [40, 41, 42, 43, 44, 45].map(n => `${repositoryUrl}/pull/${n}`),
+    'each opens in the browser until the pull request detail joins the sidebar');
+  assert.deepEqual(items.map(item => within(item).getByRole('link').getAttribute('target')), Array(6).fill('_blank'));
   assert.deepEqual(items.map(item => within(item).getByRole('img').getAttribute('aria-label')),
     ['Open pull request', 'Draft pull request', 'Open pull request', 'Merged pull request', 'Closed pull request', 'Open pull request']);
   assert.equal(within(pane()).queryByRole('group', { name: 'Relations' }), null, 'pull requests stay out of the issue graph');

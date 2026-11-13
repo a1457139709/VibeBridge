@@ -82,6 +82,8 @@ export type PullRequestState = 'open' | 'draft' | 'merged' | 'closed';
 /** The combined conclusion of a pull request's checks: `none` when it has none. */
 export type ChecksConclusion = 'passed' | 'failed' | 'pending' | 'none';
 export interface PullRequestReference { number: number; title: string; state: PullRequestState; checks: ChecksConclusion; url: string }
+/** How many of an issue's sub-issues are closed. */
+export interface SubIssueProgress { closed: number; total: number }
 /** A comment as the forge rendered it. `html` is the forge's own HTML, unfiltered: filter it before it joins a page. */
 export interface ForgeComment { author: string | null; createdAt: string; html: string }
 
@@ -95,14 +97,15 @@ export interface IssueDetail extends IssueSummary {
   body: string;
   comments: ForgeComment[];
   commentCount: number;
-  parent: IssueReference | null;
+  /** The parent, with how many of its sub-issues are closed. */
+  parent: (IssueReference & { progress: SubIssueProgress }) | null;
   subIssues: IssueReference[];
   blockedBy: IssueReference[];
   blocking: IssueReference[];
   /** Pull requests that close this issue when merged, closed ones included. */
   closingPullRequests: PullRequestReference[];
-  /** URL prefixes of the bound repository's issues and pull requests: a link to `<prefix><number>` opens in the sidebar. */
-  links: { issues: string; pullRequests: string };
+  /** The URL prefix of the bound repository's issues: a link to `<prefix><number>` opens in the sidebar. */
+  issueLinks: string;
 }
 export const issueNumberSchema = z.number().int().positive();
 /** An issue of the bound repository, or the forge failure. */

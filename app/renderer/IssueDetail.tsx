@@ -3,9 +3,9 @@ import { BlockedIcon, GitMergeIcon, GitPullRequestClosedIcon, GitPullRequestDraf
 import { useLocalization } from './Localization';
 import { detail as reason } from '../shared/messages';
 import { filterForgeHtml } from '../shared/forge-html';
-import type { IssueDetail, IssueDetailResult, IssueReference, PullRequestReference, RepositoryReference } from '../shared/forge';
+import type { IssueDetail, IssueDetailResult, IssueReference, PullRequestReference, RepositoryReference, SubIssueProgress } from '../shared/forge';
 import type { ProjectView } from '../shared/model';
-import { IssueIcon, Label, RelativeTime } from './ForgeLists';
+import { IssueIcon, issueState, issueStates, Label, RelativeTime } from './ForgeLists';
 
 interface Props {
   project: ProjectView & { repository: RepositoryReference };
@@ -67,8 +67,8 @@ function IssueDocument({ project, issue, open }: { project: Props['project']; is
   const { capabilities } = project.forge;
   /** The issue number a link to `url` names when it is an issue of the bound repository, else null. */
   const ownIssue = (url: string) => {
-    if (!url.startsWith(issue.links.issues)) return null;
-    const match = /^(\d+)(?:[?#].*)?$/.exec(url.slice(issue.links.issues.length));
+    if (!url.startsWith(issue.issueLinks)) return null;
+    const match = /^(\d+)(?:[?#].*)?$/.exec(url.slice(issue.issueLinks.length));
     return match ? Number(match[1]) : null;
   };
   const follow = (reference: IssueReference) => {
@@ -90,6 +90,7 @@ function IssueDocument({ project, issue, open }: { project: Props['project']; is
   return <div className="forge-doc" onClick={followLink}>
     {parent && <button className="forge-parent" onClick={() => follow(parent)}>
       <IssueIcon issue={parent} size={12} /><span className="forge-ellipsis">{parent.title}</span><span className="forge-row-number">#{parent.number}</span>
+      {!!parent.progress.total && <Progress {...parent.progress} />}
     </button>}
     <h2>{issue.title} <span className="forge-row-number">#{issue.number}</span></h2>
     <div className="forge-doc-head">
@@ -131,10 +132,8 @@ function Post({ author, createdAt, html }: { author: string | null; createdAt: s
 
 function StatePill({ issue }: { issue: IssueDetail }) {
   const { t } = useLocalization();
-  const name = issue.state === 'open' ? t('stateOpen') : issue.closedAs === 'notPlanned' ? t('stateNotPlanned')
-    : issue.closedAs === 'duplicate' ? t('stateDuplicate') : t('stateCompleted');
-  const tone = issue.state === 'open' ? 'open' : issue.closedAs === 'notPlanned' || issue.closedAs === 'duplicate' ? 'skipped' : 'done';
-  return <span className={`forge-pill forge-bg-${tone}`}><IssueIcon issue={issue} decorative />{name}</span>;
+  const { tone, short } = issueStates[issueState(issue)];
+  return <span className={`forge-pill forge-bg-${tone}`}><IssueIcon issue={issue} decorative />{t(short)}</span>;
 }
 
 /** The forge's blocking mark: its icon and the blockers' numbers; the hint names their titles. */
@@ -145,7 +144,7 @@ function BlockedMark({ by }: { by: IssueReference[] }) {
     data-hint={by.map(blocker => `#${blocker.number} ${blocker.title}`).join('\n')}><BlockedIcon size={12} />{numbers}</span>;
 }
 
-function Progress({ closed, total }: { closed: number; total: number }) {
+function Progress({ closed, total }: SubIssueProgress) {
   const { t } = useLocalization();
   return <span className="forge-progress" data-hint={t('subIssueProgress', { closed, total })}>
     <span className="forge-progress-bar"><span style={{ width: `${closed / total * 100}%` }} /></span>{closed}/{total}</span>;
@@ -203,7 +202,7 @@ function Graph({ issue, left, right, follow }: { issue: IssueDetail; left: Issue
 }
 
 /** The pull requests that close the issue on merge, closed ones included, apart from the issue graph and drawn as pull
- * requests. An open or draft one shows its checks conclusion. */
+ * requests. An open or draft one shows its checks conclusion. Each opens in the browser. */
 function ClosingPullRequests({ pulls }: { pulls: PullRequestReference[] }) {
   const { t } = useLocalization();
   const conclusion = { passed: ['✓', t('checksPassed'), 'open'], failed: ['✗', t('checksFailed'), 'failed'], pending: ['●', t('checksPending'), 'pending'] } as const;
@@ -211,10 +210,10 @@ function ClosingPullRequests({ pulls }: { pulls: PullRequestReference[] }) {
     <header>{t('closingPullRequests')}</header>
     <ul>{pulls.map(pull => {
       const checks = (pull.state === 'open' || pull.state === 'draft') && pull.checks !== 'none' ? conclusion[pull.checks] : null;
-      return <li key={pull.number} className="forge-closing-pull" data-hint={pull.title}>
+      return <li key={pull.number}><a className="forge-closing-pull" href={pull.url} target="_blank" rel="noreferrer" data-hint={pull.title}>
         <PullRequestIcon pull={pull} /><span className="forge-row-number">#{pull.number}</span><span className="forge-ellipsis">{pull.title}</span>
         {checks && <span className={`forge-checks forge-${checks[2]}`}>{checks[0]} {checks[1]}</span>}
-      </li>;
+      </a></li>;
     })}</ul>
   </section>;
 }

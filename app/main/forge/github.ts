@@ -76,7 +76,7 @@ const issueDetailSchema = z.object({ repository: z.object({ url: z.string(), iss
   assignees: z.object({ nodes: z.array(z.object({ login: z.string() })) }),
   labels: z.object({ nodes: z.array(labelSchema) }),
   comments: z.object({ totalCount: z.number(), nodes: z.array(z.object({ author: loginSchema, createdAt: z.string(), bodyHTML: z.string() })) }),
-  parent: issueReferenceSchema.nullable(),
+  parent: issueReferenceSchema.extend({ subIssuesSummary: z.object({ total: z.number(), completed: z.number() }) }).nullable(),
   subIssues: z.object({ nodes: z.array(issueReferenceSchema) }),
   blockedBy: z.object({ nodes: z.array(issueReferenceSchema) }),
   blocking: z.object({ nodes: z.array(issueReferenceSchema) }),
@@ -94,7 +94,7 @@ const issueDetailQuery = `query($owner: String!, $name: String!, $number: Int!) 
     assignees(first: 20) { nodes { login } }
     labels(first: 20) { nodes { name color } }
     comments(first: 100) { totalCount nodes { author { login } createdAt bodyHTML } }
-    parent { ${issueReferenceFields} }
+    parent { ${issueReferenceFields} subIssuesSummary { total completed } }
     subIssues(first: ${relatedLimit}) { nodes { ${issueReferenceFields} } }
     blockedBy(first: ${relatedLimit}) { nodes { ${issueReferenceFields} } }
     blocking(first: ${relatedLimit}) { nodes { ${issueReferenceFields} } }
@@ -154,7 +154,8 @@ export const github: Forge = {
       body: issue.bodyHTML,
       comments: issue.comments.nodes.map(comment => ({ author: comment.author?.login ?? null, createdAt: comment.createdAt, html: comment.bodyHTML })),
       commentCount: issue.comments.totalCount,
-      parent: issue.parent && issueReference(issue.parent),
+      parent: issue.parent && { ...issueReference(issue.parent),
+        progress: { closed: issue.parent.subIssuesSummary.completed, total: issue.parent.subIssuesSummary.total } },
       subIssues: issue.subIssues.nodes.map(issueReference).sort((a, b) => a.number - b.number),
       blockedBy: issue.blockedBy.nodes.map(issueReference),
       blocking: issue.blocking.nodes.map(issueReference),
@@ -164,7 +165,7 @@ export const github: Forge = {
           state: pull.state === 'OPEN' ? pull.isDraft ? 'draft' as const : 'open' as const : pull.state === 'MERGED' ? 'merged' as const : 'closed' as const,
           checks: rollup ? checks[rollup.state] : 'none' as const };
       }),
-      links: { issues: `${repository.url}/issues/`, pullRequests: `${repository.url}/pull/` },
+      issueLinks: `${repository.url}/issues/`,
     };
   },
 };

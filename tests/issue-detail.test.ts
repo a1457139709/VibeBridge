@@ -39,7 +39,7 @@ test('an issue detail carries the forge-rendered body and comments with their au
         { author: null, createdAt: day(9), html: '<p>From a deleted account.</p>' },
       ],
       commentCount: 2,
-      links: { issues: 'https://github.com/octo/tools/issues/', pullRequests: 'https://github.com/octo/tools/pull/' },
+      issueLinks: 'https://github.com/octo/tools/issues/',
       parent: undefined, subIssues: undefined, blockedBy: undefined, blocking: undefined, closingPullRequests: undefined,
     });
   } finally { await f.close(); }
@@ -68,7 +68,7 @@ test('an issue detail names its parent, its sub-issues in number order, its bloc
     assert.ok(result.ok);
     const ref = (number: number, title: string, closedAs: 'notPlanned' | null = null) =>
       ({ number, title, state: closedAs ? 'closed' : 'open', closedAs, url: issueUrl(number) });
-    assert.deepEqual(result.issue.parent, ref(1, 'Spec'));
+    assert.deepEqual(result.issue.parent, { ...ref(1, 'Spec'), progress: { closed: 0, total: 1 } }, 'the parent carries its own sub-issue progress');
     assert.deepEqual(result.issue.subIssues, [ref(6, 'Earlier sub-issue'), ref(9, 'Later sub-issue')]);
     assert.deepEqual(result.issue.blockedBy, [ref(2, 'Blocker'), ref(3, 'Closed blocker', 'notPlanned')]);
     assert.deepEqual(result.issue.blocking, [ref(6, 'Earlier sub-issue')]);

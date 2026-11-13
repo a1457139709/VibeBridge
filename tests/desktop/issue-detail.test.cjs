@@ -35,9 +35,9 @@ module.exports = {
     // Overlay (the default): the detail covers the layout area between the toolbar and the tray, and the layout area keeps
     // its box. That the PTY then keeps its size is a "does not happen" claim the desktop suite cannot prove (ADR 0005):
     // the PTY follows the terminal's box, and this geometry leaves that box where it was.
-    let detail = await rect(evaluate, '.forge-detail');
-    assert.equal(detail.top, toolbar.bottom, 'the detail starts below the workspace toolbar');
-    assert.equal(detail.bottom, tray.top, 'the detail ends above the tray');
+    const between = async () => { const box = await rect(evaluate, '.forge-detail'); return box?.top === toolbar.bottom && box.bottom === tray.top; };
+    await until(between, 'the detail sits between the workspace toolbar and the tray');
+    const detail = await rect(evaluate, '.forge-detail');
     assert.ok(detail.left < canvas.right, 'the detail covers the layout area');
     assert.deepEqual(await rect(evaluate, '.canvas'), canvas, 'the layout area keeps its box');
     assert.equal(await evaluate('document.querySelectorAll(".forge-row").length'), 1, 'the list stays visible');
@@ -48,9 +48,7 @@ module.exports = {
     assert.ok((await evaluate('window.workbench.saveSettings({ detailCoexistence: "squeeze" })')).ok);
     await click('Desktop issue');
     await until(async () => (await rect(evaluate, '.canvas'))?.right <= (await rect(evaluate, '.forge-detail'))?.left, 'squeezing detail ends the layout area at its left edge');
-    detail = await rect(evaluate, '.forge-detail');
-    assert.equal(detail.top, toolbar.bottom);
-    assert.equal(detail.bottom, tray.top);
+    await until(between, 'the squeezing detail also sits between the workspace toolbar and the tray');
     await until(async () => (await reportedSize(run.id)).cols < initial.cols, 'squeezing the layout area resizes the PTY to fewer columns');
     await closeDetail();
     await until(async () => (await reportedSize(run.id)).cols === initial.cols, 'closing the squeezing detail gives the PTY its columns back');

@@ -156,7 +156,9 @@
 .forge-closing-pulls { margin: 0 0 14px; border: 1px solid color-mix(in srgb, var(--forge-done) 40%, var(--line)); border-left: 3px solid var(--forge-done); border-radius: 6px; background: color-mix(in srgb, var(--forge-done) 6%, transparent); }
 .forge-closing-pulls > header { padding: 6px 10px 2px; color: var(--muted); font-weight: 600; }
 .forge-closing-pulls ul { margin: 0; padding: 0 0 4px; list-style: none; }
-.forge-closing-pull { display: flex; align-items: center; gap: 6px; padding: 5px 10px; }
+.forge-closing-pull { display: flex; align-items: center; gap: 6px; padding: 5px 10px; color: inherit; text-decoration: none; }
+.forge-closing-pull:hover { background: var(--forge-row-hover); }
+.forge-closing-pull:hover .forge-ellipsis { color: var(--forge-link); text-decoration: underline; }
 .forge-closing-pull .forge-icon { margin-top: 0; }
 .forge-checks { margin-left: auto; font-weight: 600; font-size: 11px; white-space: nowrap; }
 .forge-failed { color: var(--forge-failed); } .forge-pending { color: var(--forge-pending); }

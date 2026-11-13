@@ -183,16 +183,23 @@ function IssueRow({ issue, selected, open, addLabel }: { issue: IssueSummary; se
   </li>;
 }
 
-/** GitHub's own state octicons and colours: open green, completed purple, not planned or duplicate grey.
- * A decorative icon sits next to text that already names the state. */
+/** How an issue stands: open, or closed as completed, not planned or a duplicate (completed when the forge does not tell). */
+export const issueState = (issue: Pick<IssueSummary, 'state' | 'closedAs'>) => issue.state === 'open' ? 'open' as const : issue.closedAs ?? 'completed';
+/** Each state's octicon and colour, as the forge shows them (open green, completed purple, not planned or duplicate grey),
+ * with the name an icon gives it and the shorter one a state pill shows. */
+export const issueStates = {
+  open: { Icon: IssueOpenedIcon, tone: 'open', name: 'issueOpen', short: 'stateOpen' },
+  completed: { Icon: IssueClosedIcon, tone: 'done', name: 'issueCompleted', short: 'stateCompleted' },
+  notPlanned: { Icon: SkipIcon, tone: 'skipped', name: 'issueNotPlanned', short: 'stateNotPlanned' },
+  duplicate: { Icon: SkipIcon, tone: 'skipped', name: 'issueDuplicate', short: 'stateDuplicate' },
+} as const;
+
+/** An issue's state octicon in the forge's colour. A decorative icon sits next to text that already names the state. */
 export function IssueIcon({ issue, size = 16, decorative = false }: { issue: Pick<IssueSummary, 'state' | 'closedAs'>; size?: number; decorative?: boolean }) {
   const { t } = useLocalization();
-  const [Icon, tone, name] = issue.state === 'open' ? [IssueOpenedIcon, 'open', t('issueOpen')]
-    : issue.closedAs === 'notPlanned' ? [SkipIcon, 'skipped', t('issueNotPlanned')]
-    : issue.closedAs === 'duplicate' ? [SkipIcon, 'skipped', t('issueDuplicate')]
-    : [IssueClosedIcon, 'done', t('issueCompleted')];
+  const { Icon, tone, name } = issueStates[issueState(issue)];
   return decorative ? <span className={`forge-icon forge-${tone}`}><Icon size={size} /></span>
-    : <span className={`forge-icon forge-${tone}`} role="img" aria-label={name} data-hint={name}><Icon size={size} /></span>;
+    : <span className={`forge-icon forge-${tone}`} role="img" aria-label={t(name)} data-hint={t(name)}><Icon size={size} /></span>;
 }
 
 /** A label in the forge's colour; with `onClick` it is a button. */

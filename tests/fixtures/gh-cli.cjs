@@ -72,6 +72,8 @@ function issueDetail(path, number) {
     return { number: item.number, title: item.title, state: item.state, isDraft: !!item.isDraft, url: `${url}/pull/${item.number}`,
       commits: { nodes: [{ commit: { statusCheckRollup: item.checks ? { state: item.checks } : null } }] } };
   };
+  const subIssuesSummary = n => { const children = issues.filter(item => item.parent === n);
+    return { total: children.length, completed: children.filter(item => item.state === 'CLOSED').length }; };
   const comments = issue.comments ?? [];
   process.stdout.write(JSON.stringify({ data: { repository: { url, issue: {
     number: issue.number, title: issue.title, state: issue.state, stateReason: issue.stateReason ?? null, createdAt: issue.createdAt,
@@ -80,7 +82,7 @@ function issueDetail(path, number) {
     assignees: { nodes: (issue.assignees ?? []).map(login => ({ login })) },
     labels: { nodes: issue.labels },
     comments: { totalCount: comments.length, nodes: comments.map(comment => ({ author: comment.author === null ? null : { login: comment.author }, createdAt: comment.createdAt, bodyHTML: comment.bodyHTML })) },
-    parent: issue.parent ? reference(byNumber([issue.parent])[0]) : null,
+    parent: issue.parent ? { ...reference(byNumber([issue.parent])[0]), subIssuesSummary: subIssuesSummary(issue.parent) } : null,
     // GitHub lists sub-issues in the order they were added, not by number.
     subIssues: { nodes: issues.filter(item => item.parent === issue.number).reverse().map(reference) },
     blockedBy: { nodes: byNumber(issue.blockedBy).map(reference) },
