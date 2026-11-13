@@ -9,8 +9,8 @@ import { ProjectStore } from './storage';
 import { SettingsFile, defaultSettings } from './settings';
 import { settingsConflicts, type SettingsSaveResult } from '../shared/settings';
 import { RunSupervision } from './run-supervision';
-import { issueListQuerySchema, sameRepository, type IssueListQuery, type IssuePage, type RepositoryChoices, type RepositoryReference } from '../shared/forge';
-import { issuePage } from './forge/issues';
+import { issueListQuerySchema, issueNumberSchema, sameRepository, type IssueDetailResult, type IssueListQuery, type IssuePage, type RepositoryChoices, type RepositoryReference } from '../shared/forge';
+import { issueDetail, issuePage } from './forge/issues';
 import { listedRepository, repositoryChoices } from './forge/repositories';
 import { defaultForge, forges } from './forge/forges';
 
@@ -175,6 +175,13 @@ export class Workbench {
     const repository = this.repositories.get(projectId);
     if (!repository) throw new Error(message('noRepositoryBound'));
     return issuePage(repository, issueListQuerySchema.parse(query));
+  }
+  /** One issue of the project's bound repository, with its rendered body, comments and relations. */
+  async issueDetail(projectId: string, number: number): Promise<IssueDetailResult> {
+    this.project(projectId);
+    const repository = this.repositories.get(projectId);
+    if (!repository) throw new Error(message('noRepositoryBound'));
+    return issueDetail(repository, issueNumberSchema.parse(number));
   }
   private startPanel(project: Project, panel: Panel) { return this.supervision.start(project, panel, this.state.settings.agents[panel.agent]); }
   private async startProject(project: Project): Promise<LaunchResult[]> {

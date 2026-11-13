@@ -3,10 +3,22 @@ import { join, resolve } from 'node:path';
 import type { TestContext } from 'node:test';
 import { testDirectory } from './directory';
 
-/** An issue as GitHub's GraphQL API names its fields. */
+/** An issue as GitHub's GraphQL API names its fields. HTML is what GitHub renders from the Markdown. Relations name
+ * issue and pull request numbers of the same repository; what an issue blocks follows from the others' `blockedBy`. */
 export interface GhIssue {
   number: number; title: string; state: 'OPEN' | 'CLOSED'; stateReason?: 'COMPLETED' | 'NOT_PLANNED' | 'DUPLICATE' | 'REOPENED';
   createdAt: string; labels: { name: string; color: string }[];
+  author?: string | null; assignees?: string[]; bodyHTML?: string;
+  comments?: { author: string | null; createdAt: string; bodyHTML: string }[];
+  parent?: number; blockedBy?: number[];
+  /** Pull requests that close this issue when merged. */
+  closedBy?: number[];
+}
+
+/** A pull request: its state, whether it is a draft, and its latest commit's combined check state (null without checks). */
+export interface GhPullRequest {
+  number: number; title: string; state: 'OPEN' | 'CLOSED' | 'MERGED'; isDraft?: boolean;
+  checks: 'SUCCESS' | 'FAILURE' | 'ERROR' | 'PENDING' | 'EXPECTED' | null;
 }
 
 export interface GhState {
@@ -14,6 +26,7 @@ export interface GhState {
   repositories: string[];
   /** The issues of every listed repository, and the labels each repository defines. */
   issues?: GhIssue[];
+  pullRequests?: GhPullRequest[];
   labels?: { name: string; color: string }[];
   /** `gh` fails every command with this exit code and output. */
   failure?: { code: number; stdout?: string; stderr?: string };

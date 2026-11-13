@@ -18,8 +18,8 @@
 .system-bar .forge-sidebar-toggle[aria-expanded='true'] { background: var(--hover); color: var(--accent); }
 
 /* State colours match the forge's own (GitHub's octicon colours). */
-:root { --forge-open: #1a7f37; --forge-done: #8250df; --forge-skipped: #6e7781; --forge-pending: #9a6700; --forge-link: #0969da; --forge-row-hover: #0000000a; }
-:root[data-theme='dark'] { --forge-open: #3fb950; --forge-done: #a371f7; --forge-skipped: #8b949e; --forge-pending: #d29922; --forge-link: #4493f8; --forge-row-hover: #ffffff08; }
+:root { --forge-open: #1a7f37; --forge-done: #8250df; --forge-skipped: #6e7781; --forge-failed: #cf222e; --forge-pending: #9a6700; --forge-card-head: #f6f8fa; --forge-link: #0969da; --forge-row-hover: #0000000a; }
+:root[data-theme='dark'] { --forge-open: #3fb950; --forge-done: #a371f7; --forge-skipped: #8b949e; --forge-failed: #f85149; --forge-pending: #d29922; --forge-card-head: #ffffff08; --forge-link: #4493f8; --forge-row-hover: #ffffff08; }
 .forge-sidebar button { min-height: 0; }
 .forge-sidebar-head .forge-sidebar-repository { flex: 1; min-width: 0; }
 .forge-refresh { display: grid; place-items: center; width: 26px; height: 24px; padding: 0; border: 0; background: none; color: var(--muted); }
@@ -61,10 +61,102 @@
 .forge-icon svg { fill: currentColor; display: block; }
 .forge-open { color: var(--forge-open); } .forge-done { color: var(--forge-done); } .forge-skipped { color: var(--forge-skipped); }
 .forge-row-main { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 4px; }
-.forge-row-title { font-size: 13px; font-weight: 600; line-height: 1.35; overflow-wrap: anywhere; }
+.forge-row { cursor: pointer; }
+.forge-row.selected { background: var(--hover); box-shadow: var(--selection-marker, inset 2px 0 var(--focus)); }
+.forge-sidebar .forge-row-title { display: block; padding: 0; border: 0; border-radius: 0; background: none; text-align: left; color: inherit;
+  font-size: 13px; font-weight: 600; line-height: 1.35; overflow-wrap: anywhere; }
 .forge-row-meta { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 8px; font-size: 11px; color: var(--muted); }
 .forge-row-number { font-variant-numeric: tabular-nums; }
 .forge-row-action { flex-shrink: 0; display: flex; flex-direction: column; align-items: flex-end; gap: 4px; }
 .forge-empty { padding: 28px 16px; margin: 0; color: var(--muted); text-align: center; }
 .forge-more { display: block; width: 100%; border: 0; border-radius: 0; background: none; padding: 8px 0; font-size: 12px; color: var(--forge-link); }
 .forge-more:hover:not(:disabled) { background: var(--forge-row-hover); }
+
+/* The issue detail opens leftwards from the sidebar's edge. On the workspace it sits only between the toolbar (32px) and
+   the tray (41px; an empty tray lies over the layout area, so then it reaches the bottom). Overlay: it covers the layout area.
+   Squeeze: the layout area also gives up the detail's width. Its width never leaves the window less than 160px. */
+.app-body { --forge-detail-extent: min(var(--forge-detail-width), max(0px, calc(100vw - var(--forge-sidebar-width) - 160px))); }
+.app-body.forge-detail-squeeze .canvas { margin-right: calc(var(--forge-detail-extent) + 4px); }
+.app-body.forge-sidebar-yield.forge-detail-squeeze .canvas { margin-right: calc(var(--forge-sidebar-width) + var(--forge-detail-extent) + 4px); }
+/* Above every panel, including a maximized one. */
+.forge-sidebar:has(.forge-detail) { z-index: 20; }
+.forge-detail { position: absolute; right: 100%; top: 0; bottom: 0; z-index: 30; max-width: var(--forge-detail-extent); display: flex; flex-direction: column;
+  background: var(--canvas); border-left: 1px solid var(--line); box-shadow: -18px 0 40px #0005; animation: forge-slide 160ms ease-out; }
+.app-body:has(.workbench-page:not([hidden]) .workspace) .forge-detail { top: 32px; bottom: 41px; border-top: 1px solid var(--line); border-bottom: 1px solid var(--line); }
+.app-body:has(.workbench-page:not([hidden]) .panel-tray.empty) .forge-detail { bottom: 0; border-bottom: 0; }
+@keyframes forge-slide { from { opacity: 0; transform: translateX(16px); } }
+.forge-detail-resize { position: absolute; left: -4px; top: 0; bottom: 0; width: 8px; cursor: col-resize; z-index: 2; touch-action: none; }
+.forge-detail-resize:hover { background: color-mix(in srgb, var(--focus) 30%, transparent); }
+.forge-detail-bar { height: 32px; flex-shrink: 0; display: flex; align-items: center; gap: 6px; padding: 0 6px; border-bottom: 1px solid var(--line); background: var(--navigation, var(--canvas)); }
+.forge-detail-bar button { border: 0; background: none; width: 26px; height: 24px; padding: 0; font-size: 16px; color: var(--muted); }
+.forge-detail-bar button:disabled { opacity: .4; }
+.forge-detail-bar a { color: var(--muted); font-size: 11px; }
+.forge-detail-crumb { color: var(--muted); }
+.forge-detail-scroll { flex: 1; min-height: 0; overflow: auto; }
+.forge-detail-scroll:focus { outline: none; }
+.forge-doc { padding: 16px 20px 32px; }
+.forge-doc h2 { margin: 0 0 8px; font-size: 20px; font-weight: 600; line-height: 1.3; overflow-wrap: anywhere; }
+.forge-parent { display: flex; align-items: center; gap: 6px; max-width: 100%; border: 0; background: none; padding: 0; margin-bottom: 6px; font-size: 12px; color: var(--muted); }
+.forge-parent:hover .forge-ellipsis { color: var(--forge-link); text-decoration: underline; }
+.forge-doc-head { display: flex; align-items: center; flex-wrap: wrap; gap: 6px 8px; padding-bottom: 10px; }
+.forge-doc-meta { padding-bottom: 12px; margin-bottom: 12px; border-bottom: 1px solid var(--line); color: var(--muted); }
+.forge-doc-meta b { color: var(--accent); font-weight: 600; }
+.forge-pill { display: inline-flex; align-items: center; gap: 4px; height: 26px; padding: 0 12px 0 9px; border-radius: 999px; color: #fff; font-size: 12px; font-weight: 600; }
+.forge-pill .forge-icon { color: #fff; margin-top: 0; }
+.forge-bg-open { background: var(--forge-open); } .forge-bg-done { background: var(--forge-done); } .forge-bg-skipped { background: var(--forge-skipped); }
+.forge-blocked { display: inline-flex; align-items: center; gap: 3px; color: var(--forge-failed); font-size: 12px; white-space: nowrap; }
+.forge-blocked svg { fill: currentColor; }
+.forge-doc-main { display: flex; flex-direction: column; gap: 14px; min-width: 0; }
+.forge-card, .forge-box { border: 1px solid var(--line); border-radius: 6px; overflow: hidden; background: var(--surface); }
+.forge-card > header, .forge-box > header { display: flex; align-items: center; gap: 8px; padding: 7px 12px; background: var(--forge-card-head); border-bottom: 1px solid var(--line); color: var(--muted); }
+.forge-card > header b { color: var(--accent); }
+.forge-box > header { font-weight: 600; color: inherit; }
+.forge-ref { display: flex; align-items: center; gap: 6px; width: 100%; border: 0; border-radius: 0; background: none; padding: 6px 12px; border-bottom: 1px solid var(--line); text-align: left; font-size: 12px; }
+.forge-ref:last-child { border-bottom: 0; }
+.forge-ref:hover .forge-ellipsis { color: var(--forge-link); text-decoration: underline; }
+.forge-ref.closed .forge-ellipsis { color: var(--muted); }
+.forge-progress { display: inline-flex; align-items: center; gap: 5px; font-size: 11px; font-weight: 400; color: var(--muted); }
+.forge-progress-bar { width: 40px; height: 6px; border-radius: 3px; overflow: hidden; background: var(--line); }
+.forge-progress-bar > span { display: block; height: 100%; background: var(--forge-done); }
+.forge-more-comments { color: var(--forge-link); font-size: 12px; }
+
+/* The forge's rendered Markdown, after the filter. */
+.forge-markdown { padding: 12px 16px; font-size: 13px; line-height: 1.6; overflow-wrap: anywhere; }
+.forge-markdown > :first-child { margin-top: 0; } .forge-markdown > :last-child { margin-bottom: 0; }
+.forge-markdown h1, .forge-markdown h2 { font-size: 1.25em; padding-bottom: .3em; border-bottom: 1px solid var(--line); margin: 1.2em 0 .6em; }
+.forge-markdown h3 { font-size: 1.1em; margin: 1.1em 0 .5em; } .forge-markdown h4, .forge-markdown h5, .forge-markdown h6 { font-size: 1em; margin: 1em 0 .4em; }
+.forge-markdown p, .forge-markdown ul, .forge-markdown ol, .forge-markdown table, .forge-markdown pre, .forge-markdown blockquote, .forge-markdown details { margin: 0 0 .9em; }
+.forge-markdown ul, .forge-markdown ol { padding-left: 1.8em; }
+.forge-markdown li + li { margin-top: .2em; }
+.forge-markdown li:has(> input[type='checkbox']) { list-style: none; margin-left: -1.4em; }
+.forge-markdown input[type='checkbox'] { width: auto; height: auto; margin: 0 .4em 0 0; vertical-align: middle; }
+.forge-markdown a { color: var(--forge-link); text-decoration: none; } .forge-markdown a:hover { text-decoration: underline; }
+.forge-markdown code { font: 85% Menlo, monospace; padding: .15em .35em; border-radius: 5px; background: color-mix(in srgb, var(--muted) 18%, transparent); }
+.forge-markdown pre { padding: 12px; border-radius: 6px; background: color-mix(in srgb, var(--muted) 12%, transparent); overflow: auto; }
+.forge-markdown pre code { padding: 0; background: none; font-size: 12px; }
+.forge-markdown blockquote { padding: 0 1em; color: var(--muted); border-left: .25em solid var(--line); }
+.forge-markdown table { border-collapse: collapse; display: block; overflow: auto; }
+.forge-markdown th, .forge-markdown td { border: 1px solid var(--line); padding: 4px 10px; }
+.forge-markdown hr { border: 0; border-top: 1px solid var(--line); margin: 1.2em 0; }
+.forge-markdown-empty { margin: 0; padding: 12px 16px; color: var(--muted); font-style: italic; }
+
+/* The relation graph: open blockers, this issue, what it blocks. */
+.forge-graph { position: relative; margin-bottom: 14px; }
+.forge-graph > svg { position: absolute; inset: 0; pointer-events: none; overflow: visible; }
+.forge-graph-head { position: absolute; top: 0; font-size: 10px; font-weight: 600; color: var(--muted); }
+.forge-node { position: absolute; display: flex; align-items: center; gap: 5px; height: 22px; padding: 0 8px; border: 1px solid var(--line); border-radius: 6px; background: var(--surface); font-size: 11px; text-align: left; z-index: 1; }
+.forge-node:hover { border-color: var(--forge-link); }
+.forge-node.self { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent); font-weight: 600; }
+.forge-node .forge-icon { margin-top: 0; }
+.forge-node .forge-row-number { flex-shrink: 0; }
+.forge-edge { fill: none; stroke-width: 1.4; stroke: var(--forge-pending); }
+.forge-graph marker path { fill: var(--forge-pending); }
+
+/* The pull requests that close the issue on merge: drawn as pull requests, apart from the issue graph. */
+.forge-closing-pulls { margin: 0 0 14px; border: 1px solid color-mix(in srgb, var(--forge-done) 40%, var(--line)); border-left: 3px solid var(--forge-done); border-radius: 6px; background: color-mix(in srgb, var(--forge-done) 6%, transparent); }
+.forge-closing-pulls > header { padding: 6px 10px 2px; color: var(--muted); font-weight: 600; }
+.forge-closing-pulls ul { margin: 0; padding: 0 0 4px; list-style: none; }
+.forge-closing-pull { display: flex; align-items: center; gap: 6px; padding: 5px 10px; }
+.forge-closing-pull .forge-icon { margin-top: 0; }
+.forge-checks { margin-left: auto; font-weight: 600; font-size: 11px; white-space: nowrap; }
+.forge-failed { color: var(--forge-failed); } .forge-pending { color: var(--forge-pending); }

@@ -71,7 +71,7 @@ test('the search, open or closed state and labels all narrow the page, and a clo
 test('list failures fall into the four kinds with the forge text, and an inaccessible repository names the account', async context => {
   const double = await ghDouble(context, { ...account, issues: thirtyIssues });
   const f = await boundWorkbench('issue-failures');
-  const forge = { name: 'GitHub', cli: 'gh', installUrl: 'https://cli.github.com', loginCommand: 'gh auth login' };
+  const forge = { name: 'GitHub', cli: 'gh', installUrl: 'https://cli.github.com', loginCommand: 'gh auth login', capabilities: { subIssues: true, blocking: true } };
   const page = () => f.workbench.issuePage(f.projectId, { filter: openNoFilter, cursor: null });
   try {
     await double.set({ account: 'octo', repositories: [] });

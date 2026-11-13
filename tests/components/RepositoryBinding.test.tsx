@@ -13,7 +13,7 @@ import { provideWorkbench } from './support/workbench';
 afterEach(cleanup);
 
 const github = (path: string): RepositoryReference => ({ forge: 'github', path });
-const forge = { name: 'GitHub', cli: 'gh', installUrl: 'https://cli.github.com', loginCommand: 'gh auth login' };
+const forge = { name: 'GitHub', cli: 'gh', installUrl: 'https://cli.github.com', loginCommand: 'gh auth login', capabilities: { subIssues: true, blocking: true } };
 const listed: RepositoryChoices = { ok: true, forge, account: 'octo', origin: github('octo/vibebridge'),
   repositories: ['octo/tools', 'octo/vibebridge', 'acme/group/forge'].map(github) };
 const failed = (kind: ForgeFailureKind, detail = ''): RepositoryChoices => ({ ok: false, failure: { kind, detail, forge } });

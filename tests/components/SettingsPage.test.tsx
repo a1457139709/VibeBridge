@@ -2,7 +2,7 @@ import './support/dom';
 import assert from 'node:assert/strict';
 import test, { afterEach, mock } from 'node:test';
 import { createRef } from 'react';
-import { act, cleanup, fireEvent, render, screen } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, screen, within } from '@testing-library/react';
 import { userEvent } from '@testing-library/user-event';
 import { SettingsPage, type SettingsPageActions } from '../../app/renderer/SettingsPage';
 import { defaultSettings, type SettingsSaveResult } from '../../app/shared/settings';
@@ -29,12 +29,16 @@ test('category drafts survive switching, and ordinary save submits only the curr
   await click(user, 'Appearance');
   await user.click(screen.getByRole('radio', { name: 'Dark' }));
   await user.selectOptions(screen.getByRole('combobox', { name: 'Default layout' }), 'column');
-  assert.equal(screen.getByRole<HTMLInputElement>('radio', { name: /^Squeeze/ }).checked, true, 'the sidebar squeezes by default');
-  await user.click(screen.getByRole('radio', { name: /^Overlay/ }));
+  const sidebar = within(screen.getByRole('radiogroup', { name: 'When the forge sidebar opens' }));
+  const detail = within(screen.getByRole('radiogroup', { name: 'When an issue or pull request detail opens' }));
+  assert.equal(sidebar.getByRole<HTMLInputElement>('radio', { name: /^Squeeze/ }).checked, true, 'the sidebar squeezes by default');
+  assert.equal(detail.getByRole<HTMLInputElement>('radio', { name: /^Overlay/ }).checked, true, 'a detail overlays by default');
+  await user.click(sidebar.getByRole('radio', { name: /^Overlay/ }));
+  await user.click(detail.getByRole('radio', { name: /^Squeeze/ }));
   await click(user, 'Agent');
   assert.equal(command().value, '/draft-codex');
   await click(user, 'Appearance'); await click(user, 'Save');
-  assert.deepEqual(saveSettings.mock.calls.map(call => call.arguments), [[{ theme: 'dark', defaultLayout: 'column', sidebarCoexistence: 'overlay' }]]);
+  assert.deepEqual(saveSettings.mock.calls.map(call => call.arguments), [[{ theme: 'dark', defaultLayout: 'column', sidebarCoexistence: 'overlay', detailCoexistence: 'squeeze' }]]);
   await click(user, 'Agent');
   assert.equal(command().value, '/draft-codex');
   await click(user, 'Discard changes');
@@ -74,7 +78,7 @@ test('save and leave submits all changed categories together and allows leaving 
   assert.match(screen.getByRole('dialog').textContent!, /Agent, Appearance, Keyboard shortcuts/);
   await click(user, 'Save and return');
   const patch = { agents: { ...saved.agents, codex: { command: '/new-codex', args: [] } }, theme: 'dark' as const,
-    defaultLayout: 'auto' as const, sidebarCoexistence: 'squeeze' as const, shortcuts: { ...saved.shortcuts, nextPanel: 'Command+K' } };
+    defaultLayout: 'auto' as const, sidebarCoexistence: 'squeeze' as const, detailCoexistence: 'overlay' as const, shortcuts: { ...saved.shortcuts, nextPanel: 'Command+K' } };
   assert.deepEqual(saveSettings.mock.calls.map(call => call.arguments), [[patch]]);
   assert.equal(await ref.current!.requestLeave(), false);
   assert.equal(screen.getByRole<HTMLButtonElement>('button', { name: '‹ Back' }).disabled, true);

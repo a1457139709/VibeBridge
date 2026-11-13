@@ -11,6 +11,15 @@ export interface RepositoryReference { forge: ForgeId; path: string }
 export const sameRepository = (a: RepositoryReference | null, b: RepositoryReference | null) =>
   a === b || (!!a && !!b && a.forge === b.forge && a.path === b.path);
 
+/** Features that differ between forges. The UI shows a feature only when the forge declares it;
+ * entries join this shape with the features that need them. */
+export interface ForgeCapabilities {
+  /** Issues have a parent and sub-issues. */
+  subIssues: boolean;
+  /** Issues are blocked by other issues natively, not by text in their bodies. */
+  blocking: boolean;
+}
+
 /** What the UI shows for a forge; each adapter provides its own. */
 export interface ForgePresentation {
   /** Display name, e.g. GitHub. */
@@ -19,6 +28,7 @@ export interface ForgePresentation {
   cli: string;
   installUrl: string;
   loginCommand: string;
+  capabilities: ForgeCapabilities;
 }
 
 /** Every forge failure falls into one of these kinds. `detail` is the forge's own text, unchanged. */
@@ -65,3 +75,35 @@ export interface IssueListPage { issues: IssueSummary[]; cursor: string | null; 
 /** A page of the bound repository's issues, or the forge failure. A failure that the repository is inaccessible
  * names the active account when the forge can still tell it. */
 export type IssuePage = ({ ok: true } & IssueListPage) | { ok: false; failure: ForgeFailure; account: string | null };
+
+/** Another issue as a detail names it. `url` is its page on the forge: one outside the bound repository opens in the browser. */
+export interface IssueReference { number: number; title: string; state: IssueState; closedAs: IssueSummary['closedAs']; url: string }
+export type PullRequestState = 'open' | 'draft' | 'merged' | 'closed';
+/** The combined conclusion of a pull request's checks: `none` when it has none. */
+export type ChecksConclusion = 'passed' | 'failed' | 'pending' | 'none';
+export interface PullRequestReference { number: number; title: string; state: PullRequestState; checks: ChecksConclusion; url: string }
+/** A comment as the forge rendered it. `html` is the forge's own HTML, unfiltered: filter it before it joins a page. */
+export interface ForgeComment { author: string | null; createdAt: string; html: string }
+
+/** An issue as its read-only detail shows it. `body` and the comments are the forge's rendered HTML, unfiltered.
+ * `commentCount` counts every comment, also those beyond the ones listed. Relations the forge does not declare
+ * (ForgeCapabilities) are empty. Sub-issues are in number order. */
+export interface IssueDetail extends IssueSummary {
+  url: string;
+  author: string | null;
+  assignees: string[];
+  body: string;
+  comments: ForgeComment[];
+  commentCount: number;
+  parent: IssueReference | null;
+  subIssues: IssueReference[];
+  blockedBy: IssueReference[];
+  blocking: IssueReference[];
+  /** Pull requests that close this issue when merged, closed ones included. */
+  closingPullRequests: PullRequestReference[];
+  /** URL prefixes of the bound repository's issues and pull requests: a link to `<prefix><number>` opens in the sidebar. */
+  links: { issues: string; pullRequests: string };
+}
+export const issueNumberSchema = z.number().int().positive();
+/** An issue of the bound repository, or the forge failure. */
+export type IssueDetailResult = { ok: true; issue: IssueDetail } | { ok: false; failure: ForgeFailure };

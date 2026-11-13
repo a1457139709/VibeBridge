@@ -1,4 +1,4 @@
-import type { IssueListQuery, IssuePage, RepositoryReference } from '../../shared/forge';
+import type { IssueDetailResult, IssueListQuery, IssuePage, RepositoryReference } from '../../shared/forge';
 import { forges } from './forges';
 import { ForgeError } from './forge';
 
@@ -11,5 +11,15 @@ export async function issuePage(repository: RepositoryReference, query: IssueLis
     if (!(error instanceof ForgeError)) throw error;
     const account = error.kind === 'inaccessible' ? await forge.account().catch(() => null) : null;
     return { ok: false, failure: error.failure(forge), account };
+  }
+}
+
+/** One issue of the repository from its forge, with its rendered body, comments and relations; or the forge failure. */
+export async function issueDetail(repository: RepositoryReference, number: number): Promise<IssueDetailResult> {
+  const forge = forges[repository.forge];
+  try { return { ok: true, issue: await forge.issue(repository.path, number) }; }
+  catch (error) {
+    if (!(error instanceof ForgeError)) throw error;
+    return { ok: false, failure: error.failure(forge) };
   }
 }

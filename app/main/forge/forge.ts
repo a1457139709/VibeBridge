@@ -1,8 +1,4 @@
-import type { ForgeFailure, ForgeFailureKind, ForgeId, ForgePresentation, IssueListPage, IssueListQuery } from '../../shared/forge';
-
-/** Features that differ between forges. The UI shows a feature only when the bound forge declares it;
- * entries join this shape with the features that need them. */
-export interface ForgeCapabilities {}
+import type { ForgeFailure, ForgeFailureKind, ForgeId, ForgePresentation, IssueDetail, IssueListPage, IssueListQuery } from '../../shared/forge';
 
 /** A failure of a forge call, in one of the forge-neutral kinds, with the forge's own text. */
 export class ForgeError extends Error {
@@ -16,8 +12,8 @@ export class ForgeError extends Error {
  * Its identity is the forge CLI's active account (docs/adr/0004-identity-comes-from-the-forge-cli.md). */
 export interface Forge {
   id: ForgeId;
+  /** How the UI shows this forge, with the features it declares. */
   presentation: ForgePresentation;
-  capabilities: ForgeCapabilities;
   /** The active account's name. */
   account(): Promise<string>;
   /** Paths of every repository the active account can bind. */
@@ -28,4 +24,6 @@ export interface Forge {
   find(path: string, repositories: string[]): string | null;
   /** One page of the repository's issues, newest created first, filtered on the forge's side. */
   issues(path: string, query: IssueListQuery): Promise<IssueListPage>;
+  /** One issue of the repository with its rendered body, comments and relations. */
+  issue(path: string, number: number): Promise<IssueDetail>;
 }

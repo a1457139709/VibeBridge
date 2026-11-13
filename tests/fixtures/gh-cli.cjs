@@ -1,10 +1,12 @@
 const { readFileSync } = require('node:fs');
 
 // A `gh` CLI double. The test writes the account's state to the JSON file named by VIBEBRIDGE_GH_DOUBLE:
-// { account, repositories: ["owner/repo", …], labels?: [{ name, color }], issues?: [{ number, title, state, stateReason?, createdAt, labels }],
-//   failure?: { code, stdout?, stderr? } }.
+// { account, repositories: ["owner/repo", …], labels?: [{ name, color }], issues?: [{ number, title, state, stateReason?, createdAt, labels,
+//   author?, assignees?, bodyHTML?, comments?, parent?, blockedBy?, closedBy? }], pullRequests?: [{ number, title, state, isDraft?, checks }],
+//   failure?: { code, stdout?, stderr? } } (tests/support/gh-double.ts describes each field).
 // A failure answers every command the way `gh` fails, with that exit code and output. `gh api graphql` answers
-// like GitHub: a repository the account does not list is NOT_FOUND, and the issue search reads the qualifiers it is given.
+// like GitHub: a repository the account does not list is NOT_FOUND, the issue search reads the qualifiers it is given,
+// and `repository.issue` answers one issue with its relations, or NOT_FOUND.
 const state = JSON.parse(readFileSync(process.env.VIBEBRIDGE_GH_DOUBLE, 'utf8'));
 const args = process.argv.slice(2);
 if (state.failure) {
@@ -28,8 +30,8 @@ function fields(list) {
 }
 function unsupported() { process.stderr.write(`gh double: unsupported command ${args.join(' ')}\n`); process.exit(1); }
 
-function graphql({ query, owner, name, search, openSearch, closedSearch, after }) {
-  if (!query || !/search\(/.test(query)) unsupported();
+function graphql({ query, owner, name, search, openSearch, closedSearch, after, number }) {
+  if (!query) unsupported();
   const path = `${owner}/${name}`;
   if (!state.repositories.some(listed => listed.toLowerCase() === path.toLowerCase())) {
     const message = `Could not resolve to a Repository with the name '${path}'.`;
@@ -37,6 +39,8 @@ function graphql({ query, owner, name, search, openSearch, closedSearch, after }
     process.stderr.write(`GraphQL: ${message} (repository)\n`);
     process.exit(1);
   }
+  if (/issue\(number:/.test(query)) return issueDetail(path, Number(number));
+  if (!/search\(/.test(query)) unsupported();
   const found = searchIssues(search);
   const offset = after ? Number(Buffer.from(after, 'base64').toString().replace('cursor:', '')) : 0;
   const page = found.slice(offset, offset + 25);
@@ -48,6 +52,41 @@ function graphql({ query, owner, name, search, openSearch, closedSearch, after }
       nodes: page.map(issue => ({ number: issue.number, title: issue.title, state: issue.state, stateReason: issue.stateReason ?? null,
         createdAt: issue.createdAt, labels: { nodes: issue.labels } })) },
   } }));
+}
+
+/** One issue with its comments and relations, as GitHub's `repository.issue` answers; NOT_FOUND for a number with no issue. */
+function issueDetail(path, number) {
+  const issues = state.issues ?? [], pulls = state.pullRequests ?? [];
+  const url = `https://github.com/${path}`;
+  const issue = issues.find(item => item.number === number);
+  if (!issue) {
+    const message = `Could not resolve to an Issue with the number of ${number}.`;
+    process.stdout.write(JSON.stringify({ data: { repository: { url, issue: null } }, errors: [{ type: 'NOT_FOUND', path: ['repository', 'issue'], message }] }));
+    process.stderr.write(`GraphQL: ${message} (repository.issue)\n`);
+    process.exit(1);
+  }
+  const reference = item => ({ number: item.number, title: item.title, state: item.state, stateReason: item.stateReason ?? null, url: `${url}/issues/${item.number}` });
+  const byNumber = numbers => (numbers ?? []).map(n => issues.find(item => item.number === n)).filter(Boolean);
+  const pull = n => {
+    const item = pulls.find(candidate => candidate.number === n);
+    return { number: item.number, title: item.title, state: item.state, isDraft: !!item.isDraft, url: `${url}/pull/${item.number}`,
+      commits: { nodes: [{ commit: { statusCheckRollup: item.checks ? { state: item.checks } : null } }] } };
+  };
+  const comments = issue.comments ?? [];
+  process.stdout.write(JSON.stringify({ data: { repository: { url, issue: {
+    number: issue.number, title: issue.title, state: issue.state, stateReason: issue.stateReason ?? null, createdAt: issue.createdAt,
+    url: `${url}/issues/${issue.number}`, bodyHTML: issue.bodyHTML ?? '',
+    author: issue.author === null ? null : { login: issue.author ?? state.account },
+    assignees: { nodes: (issue.assignees ?? []).map(login => ({ login })) },
+    labels: { nodes: issue.labels },
+    comments: { totalCount: comments.length, nodes: comments.map(comment => ({ author: comment.author === null ? null : { login: comment.author }, createdAt: comment.createdAt, bodyHTML: comment.bodyHTML })) },
+    parent: issue.parent ? reference(byNumber([issue.parent])[0]) : null,
+    // GitHub lists sub-issues in the order they were added, not by number.
+    subIssues: { nodes: issues.filter(item => item.parent === issue.number).reverse().map(reference) },
+    blockedBy: { nodes: byNumber(issue.blockedBy).map(reference) },
+    blocking: { nodes: issues.filter(item => item.blockedBy?.includes(issue.number)).map(reference) },
+    closedByPullRequestsReferences: { nodes: (issue.closedBy ?? []).map(pull) },
+  } } } }));
 }
 
 /** The issues a GitHub search finds, newest first. Qualifiers: repo:, is:issue, is:open|closed, label:"…",

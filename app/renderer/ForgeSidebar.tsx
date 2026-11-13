@@ -1,12 +1,13 @@
 import { useLocalization } from './Localization';
-import { useLayoutEffect, useRef, useState } from 'react';
+import { useLayoutEffect, useRef, useState, type PointerEvent as ReactPointerEvent } from 'react';
 import { SidebarCollapseIcon, SidebarExpandIcon } from '@primer/octicons-react';
 import { displayShortcut } from '../shared/shortcuts';
 import type { DesktopAPI } from '../shared/api';
 import type { ProjectView, Snapshot } from '../shared/model';
 import { useSidebarPreferences } from './sidebar-preferences';
 import { ProjectEditor } from './ProjectManagement';
-import { ForgeLists, SidebarHead } from './ForgeLists';
+import { ForgeLists, SidebarHead, type DetailHost } from './ForgeLists';
+import { capturePointer } from './pointer-capture';
 import './forge-sidebar.css';
 
 interface Host {
@@ -17,8 +18,12 @@ interface Host {
   report(message: string): void;
 }
 
+/** The detail's width while the app runs: dragging its left edge sets it within these bounds. */
+const detailWidth = { initial: 640, min: 420, max: 1100 };
+
 // Keep this hook in the main window's lifetime. The forge sidebar's open state and width are one for the
 // whole app; what it shows is the current project's. Opening it moves focus inside; closing leaves focus alone.
+// An issue detail opens leftwards from the sidebar; with squeeze coexistence the layout area gives up its width too.
 export function useForgeSidebar(host: Host, api: Pick<DesktopAPI, 'saveSidebar' | 'subscribe'> = window.workbench) {
   const { t } = useLocalization();
   const { snapshot, project } = host;
@@ -26,6 +31,18 @@ export function useForgeSidebar(host: Host, api: Pick<DesktopAPI, 'saveSidebar' 
   const element = useRef<HTMLElement>(null);
   const focusOnOpen = useRef(false);
   const [editingRepository, setEditingRepository] = useState(false);
+  const [detailOpen, setDetailOpen] = useState(false);
+  const [width, setWidth] = useState(detailWidth.initial);
+  const detail: DetailHost = { width, shown: setDetailOpen, resize(event: ReactPointerEvent<HTMLDivElement>) {
+    if (event.button !== 0) return;
+    event.preventDefault();
+    // The detail's right edge is the sidebar's left edge: dragging its left edge leftwards widens it.
+    const start = event.clientX, from = event.currentTarget.parentElement!.getBoundingClientRect().width;
+    capturePointer(event.currentTarget, event.pointerId, {
+      move: pointer => setWidth(Math.round(Math.max(detailWidth.min, Math.min(detailWidth.max, from - (pointer.clientX - start))))),
+      finish: () => {},
+    });
+  } };
   const shown = preferences.visible && !!project;
   useLayoutEffect(() => {
     if (shown && focusOnOpen.current) element.current!.focus();
@@ -46,6 +63,8 @@ export function useForgeSidebar(host: Host, api: Pick<DesktopAPI, 'saveSidebar' 
   return {
     toggle,
     shown, overlay, width: preferences.width,
+    /** Whether an open detail squeezes the layout area, and its width. */
+    detail: { squeeze: shown && detailOpen && snapshot?.settings.detailCoexistence === 'squeeze', width },
     button: <button className="forge-sidebar-toggle" aria-label={label} data-hint={binding ? `${label} (${displayShortcut(binding)})` : label}
       aria-expanded={shown} disabled={!project} onClick={toggle}>{shown ? <SidebarCollapseIcon size={16} /> : <SidebarExpandIcon size={16} />}</button>,
     sidebar: shown && project && <aside ref={element} tabIndex={-1} className={`forge-sidebar ${overlay ? 'overlay' : ''}`} aria-label={project.forge.name}
@@ -54,7 +73,7 @@ export function useForgeSidebar(host: Host, api: Pick<DesktopAPI, 'saveSidebar' 
       {project.repository
         // Mounted per project and repository: returning to a project or rebinding starts the lists afresh.
         ? <ForgeLists key={`${project.id} ${project.repository.forge} ${project.repository.path}`} project={{ ...project, repository: project.repository }}
-          editBinding={() => setEditingRepository(true)} />
+          editBinding={() => setEditingRepository(true)} detailHost={detail} />
         : <>
           <SidebarHead title={t('noRepositoryBound')} />
           <div className="forge-sidebar-state">

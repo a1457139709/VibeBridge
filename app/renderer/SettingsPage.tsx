@@ -154,6 +154,10 @@ function SettingsEditor({ settings, startupTheme, initialCategory = settingsCate
             <hr /><h2 id="sidebar-coexistence">{t('sidebarCoexistence')}</h2>
             <div className="radio-options" role="radiogroup" aria-labelledby="sidebar-coexistence" data-settings-field="sidebarCoexistence" tabIndex={-1} aria-invalid={!!fieldError('sidebarCoexistence') || undefined} aria-describedby={fieldError('sidebarCoexistence') ? 'sidebar-coexistence-error' : undefined}>{(['squeeze', 'overlay'] as const).map(option => <label key={option}><input type="radio" name="sidebarCoexistence" value={option} checked={draft.sidebarCoexistence === option} onChange={() => changeDraft({ sidebarCoexistence: option })} /><span><b>{t(option === 'squeeze' ? 'sidebarSqueeze' : 'sidebarOverlay')}</b>{t(option === 'squeeze' ? 'sidebarSqueezeHelp' : 'sidebarOverlayHelp')}</span></label>)}</div>
             {fieldError('sidebarCoexistence') && <p id="sidebar-coexistence-error" className="error-text" role="alert">{fieldError('sidebarCoexistence')}</p>}
+            <hr /><h2 id="detail-coexistence">{t('detailCoexistence')}</h2>
+            <div className="radio-options" role="radiogroup" aria-labelledby="detail-coexistence" data-settings-field="detailCoexistence" tabIndex={-1} aria-invalid={!!fieldError('detailCoexistence') || undefined} aria-describedby={fieldError('detailCoexistence') ? 'detail-coexistence-error' : undefined}>{(['overlay', 'squeeze'] as const).map(option => <label key={option}><input type="radio" name="detailCoexistence" value={option} checked={draft.detailCoexistence === option} onChange={() => changeDraft({ detailCoexistence: option })} /><span><b>{t(option === 'overlay' ? 'detailOverlay' : 'detailSqueeze')}</b>{t(option === 'overlay' ? 'detailOverlayHelp' : 'detailSqueezeHelp')}</span></label>)}</div>
+            {fieldError('detailCoexistence') && <p id="detail-coexistence-error" className="error-text" role="alert">{fieldError('detailCoexistence')}</p>}
+            <p className="muted">{t('detailCoexistenceNote')}</p>
           </form>}
           {section === 'shortcuts' && <>
             <p className="muted">{t('shortcutHelp')}</p>
