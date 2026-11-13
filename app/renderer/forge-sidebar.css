@@ -74,8 +74,8 @@
 
 /* The issue detail opens leftwards from the sidebar's edge. On the workspace it sits only between the toolbar (32px) and
    the tray (41px; an empty tray lies over the layout area, so then it reaches the bottom). Overlay: it covers the layout area.
-   Squeeze: the layout area also gives up the detail's width. Its width never leaves the window less than 160px. */
-.app-body { --forge-detail-extent: min(var(--forge-detail-width), max(0px, calc(100vw - var(--forge-sidebar-width) - 160px))); }
+   Squeeze: the layout area also gives up the detail's width. Its width always leaves the layout area at least 160px beside the navigation, so a squeeze can give it up. */
+.app-body { --forge-detail-extent: min(var(--forge-detail-width), max(0px, calc(100vw - var(--navigation-extent, 0px) - var(--forge-sidebar-width) - 160px))); }
 .app-body.forge-detail-squeeze .canvas { margin-right: calc(var(--forge-detail-extent) + 4px); }
 .app-body.forge-sidebar-yield.forge-detail-squeeze .canvas { margin-right: calc(var(--forge-sidebar-width) + var(--forge-detail-extent) + 4px); }
 /* Above every panel, including a maximized one. */

@@ -107,7 +107,7 @@ function WorkbenchView({ state, setState }: { state?: Snapshot; setState(snapsho
   return <div className="app">
     <header className="system-bar"><div className="system-brand">{navigation.toggle}<span className="wordmark">VibeBridge</span></div>{forgeSidebar.button}</header>
     <div className={`app-body ${forgeSidebar.shown && forgeSidebar.overlay ? 'forge-sidebar-yield' : ''} ${forgeSidebar.detail.squeeze ? 'forge-detail-squeeze' : ''}`}
-      style={{ '--forge-sidebar-width': `${forgeSidebar.width}px`, '--forge-detail-width': `${forgeSidebar.detail.width}px` } as CSSProperties}>{navigation.sidebar}<main>
+      style={{ '--navigation-extent': `${navigation.extent}px`, '--forge-sidebar-width': `${forgeSidebar.width}px`, '--forge-detail-width': `${forgeSidebar.detail.width}px` } as CSSProperties}>{navigation.sidebar}<main>
       <div className={`workbench-page ${location.locating ? 'locating-panel' : ''}`} hidden={settingsOpen} inert={settingsOpen}>
         {!state ? <div className="empty">{t('opening')}</div> : setup ? <Setup defaultLayout={state.settings.defaultLayout} draft={draft} change={setDraft} cancel={() => setSetup(false)} created={id => { setDraft(newDraft()); activate(id); }} openProject={activate} report={report} openAgentSettings={openAgentSettings} /> : active ? <Workspace ref={workspace} visible={!settingsOpen} key={active.id} project={active} report={report} openAgentSettings={openAgentSettings} location={location} /> : <div className="empty"><p>{t('welcome')}</p><button className="primary" onClick={create}>{t('createProject')}</button></div>}
       </div>
