@@ -10,7 +10,7 @@ const storedSettings = async (directory: string) => JSON.parse(await readFile(`$
 test('missing and invalid settings values fall back to their defaults field by field', async context => {
   const directory = await testDirectory(context, 'settings-contract-fallback');
   await writeFile(`${directory}/settings.json`, JSON.stringify({
-    language: 'fr', theme: 'dark', defaultLayout: 42, sidebarCoexistence: 'float',
+    language: 'fr', theme: 'dark', defaultLayout: 42, sidebarCoexistence: 'float', detailCoexistence: 'beside',
     agents: {
       codex: { command: '  ', args: ['--yes'] },
       claude: { command: ' custom-claude ', args: ['--a', 7] },
@@ -24,7 +24,7 @@ test('missing and invalid settings values fall back to their defaults field by f
     assert.deepEqual(errors, []);
     assert.deepEqual(settingsConflicts, []);
     assert.deepEqual(settings, {
-      language: 'en', theme: 'dark', defaultLayout: 'auto', sidebarCoexistence: 'squeeze',
+      language: 'en', theme: 'dark', defaultLayout: 'auto', sidebarCoexistence: 'squeeze', detailCoexistence: 'overlay',
       agents: { codex: { command: 'codex', args: ['--yes'] }, claude: { command: ' custom-claude ', args: [] }, pi: { command: 'pi', args: [] } },
       shortcuts: {
         previousProject: 'Command+Shift+[', nextProject: 'Command+Shift+]', previousPanel: 'Command+[', nextPanel: 'Command+K',
@@ -90,17 +90,23 @@ test('a settings file that is not a JSON object fails to read and is never overw
   }
 });
 
-test('the sidebar coexistence chosen in Appearance is saved and read back', async context => {
+test('the sidebar and detail coexistence chosen in Appearance are saved and read back', async context => {
   const directory = await testDirectory(context, 'settings-contract-sidebar-coexistence');
   let workbench = await Workbench.open(directory);
   try {
     assert.equal(workbench.snapshot().settings.sidebarCoexistence, 'squeeze');
-    assert.ok((await workbench.saveSettings({ sidebarCoexistence: 'overlay' })).ok);
+    assert.equal(workbench.snapshot().settings.detailCoexistence, 'overlay', 'a detail overlays by default, so opening it resizes no terminal');
+    assert.ok((await workbench.saveSettings({ sidebarCoexistence: 'overlay', detailCoexistence: 'squeeze' })).ok);
     await workbench.quit();
-    assert.equal((await storedSettings(directory)).sidebarCoexistence, 'overlay');
+    const stored = await storedSettings(directory);
+    assert.equal(stored.sidebarCoexistence, 'overlay');
+    assert.equal(stored.detailCoexistence, 'squeeze');
     workbench = await Workbench.open(directory);
     assert.equal(workbench.snapshot().settings.sidebarCoexistence, 'overlay');
+    assert.equal(workbench.snapshot().settings.detailCoexistence, 'squeeze');
     const invalid = await workbench.saveSettings({ sidebarCoexistence: 'float' as never });
     assert.equal(invalid.ok, false);
+    const invalidDetail = await workbench.saveSettings({ detailCoexistence: 'beside' as never });
+    assert.equal(invalidDetail.ok, false);
   } finally { await workbench.quit(); }
 });

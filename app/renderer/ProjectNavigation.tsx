@@ -39,6 +39,8 @@ export function useProjectNavigation(host: Host, api: Pick<DesktopAPI, 'saveSide
   }, [snapshot?.activeProjectId]);
   const collapsed = !preferences.visible;
   return {
+    /** The width the navigation takes from the window: none while collapsed. */
+    extent: collapsed ? 0 : preferences.width,
     toggle: <button aria-label={collapsed ? t('expandNavigation') : t('collapseNavigation')} aria-expanded={!collapsed} disabled={!snapshot} onClick={toggle}>☷</button>,
     sidebar: <nav className={`navigation ${collapsed ? 'collapsed' : ''}`} aria-label={t('projectNavigation')} style={{ '--navigation-width': `${preferences.width}px` } as CSSProperties}>
       <div className="navigation-projects"><div className="nav-heading">{t('projects')}</div>

@@ -27,9 +27,11 @@ function classifyFailure(code: number | null, stdout: string, stderr: string) {
   return new ForgeError('transient', detail);
 }
 
-/** Runs a GraphQL query and reads its data with `schema`; output gh did not fail on but that does not fit is a transient failure. */
-async function graphql<T>(query: string, variables: Record<string, string>, schema: z.ZodType<T>): Promise<T> {
-  const output = await gh(['api', 'graphql', '-f', `query=${query}`, ...Object.entries(variables).flatMap(([key, value]) => ['-f', `${key}=${value}`])]);
+/** Runs a GraphQL query and reads its data with `schema`; output gh did not fail on but that does not fit is a transient failure.
+ * A number variable is sent as a GraphQL Int (`-F`), a string as a String (`-f`). */
+async function graphql<T>(query: string, variables: Record<string, string | number>, schema: z.ZodType<T>): Promise<T> {
+  const output = await gh(['api', 'graphql', '-f', `query=${query}`,
+    ...Object.entries(variables).flatMap(([key, value]) => [typeof value === 'number' ? '-F' : '-f', `${key}=${value}`])]);
   let json: unknown;
   try { json = JSON.parse(output); } catch { throw new ForgeError('transient', output.trim()); }
   const parsed = z.object({ data: schema }).safeParse(json);
@@ -39,14 +41,17 @@ async function graphql<T>(query: string, variables: Record<string, string>, sche
 
 const pageSize = 25;
 const labelSchema = z.object({ name: z.string(), color: z.string() });
-const issueState = z.enum(['OPEN', 'CLOSED']);
+const closedAs = { COMPLETED: 'completed', NOT_PLANNED: 'notPlanned', DUPLICATE: 'duplicate', REOPENED: null } as const;
+const issueStateFields = { state: z.enum(['OPEN', 'CLOSED']), stateReason: z.enum(['COMPLETED', 'NOT_PLANNED', 'DUPLICATE', 'REOPENED']).nullable() };
+/** An issue's state, and for a closed issue how it was closed when GitHub tells. */
+const issueState = (issue: z.infer<z.ZodObject<typeof issueStateFields>>) => ({ state: issue.state === 'OPEN' ? 'open' as const : 'closed' as const,
+  closedAs: issue.state === 'OPEN' || !issue.stateReason ? null : closedAs[issue.stateReason] });
 const repositorySchema = z.object({ nameWithOwner: z.string() });
 const issueSchema = z.object({
-  number: z.number(), title: z.string(), state: issueState,
-  stateReason: z.enum(['COMPLETED', 'NOT_PLANNED', 'DUPLICATE', 'REOPENED']).nullable(), createdAt: z.string(),
+  number: z.number(), title: z.string(), ...issueStateFields, createdAt: z.string(),
   labels: z.object({ nodes: z.array(labelSchema) }),
   repository: repositorySchema,
-  blockedBy: z.object({ nodes: z.array(z.object({ number: z.number(), title: z.string(), state: issueState, repository: repositorySchema })) }),
+  blockedBy: z.object({ nodes: z.array(z.object({ number: z.number(), title: z.string(), state: issueStateFields.state, repository: repositorySchema })) }),
   issueDependenciesSummary: z.object({ blockedBy: z.number() }),
 });
 const issuePageSchema = z.object({
@@ -78,7 +83,45 @@ const issuePageQuery = `query($owner: String!, $name: String!, $search: String!,
       subIssues(first: 50) { nodes { ${issueFields} } } } }
   }
 }`;
-const closedAs = { COMPLETED: 'completed', NOT_PLANNED: 'notPlanned', DUPLICATE: 'duplicate', REOPENED: null } as const;
+
+const relatedLimit = 50;
+const issueReferenceSchema = z.object({ number: z.number(), title: z.string(), url: z.string(), ...issueStateFields });
+const loginSchema = z.object({ login: z.string() }).nullable();
+const issueDetailSchema = z.object({ repository: z.object({ url: z.string(), issue: z.object({
+  number: z.number(), title: z.string(), ...issueStateFields, createdAt: z.string(), url: z.string(), bodyHTML: z.string(), author: loginSchema,
+  assignees: z.object({ nodes: z.array(z.object({ login: z.string() })) }),
+  labels: z.object({ nodes: z.array(labelSchema) }),
+  comments: z.object({ totalCount: z.number(), nodes: z.array(z.object({ author: loginSchema, createdAt: z.string(), bodyHTML: z.string() })) }),
+  parent: issueReferenceSchema.extend({ subIssuesSummary: z.object({ total: z.number(), completed: z.number() }) }).nullable(),
+  subIssues: z.object({ nodes: z.array(issueReferenceSchema) }),
+  blockedBy: z.object({ nodes: z.array(issueReferenceSchema) }),
+  blocking: z.object({ nodes: z.array(issueReferenceSchema) }),
+  closedByPullRequestsReferences: z.object({ nodes: z.array(z.object({
+    number: z.number(), title: z.string(), url: z.string(), state: z.enum(['OPEN', 'CLOSED', 'MERGED']), isDraft: z.boolean(),
+    commits: z.object({ nodes: z.array(z.object({ commit: z.object({ statusCheckRollup: z.object({
+      state: z.enum(['SUCCESS', 'FAILURE', 'ERROR', 'PENDING', 'EXPECTED']) }).nullable() }) })) }),
+  })) }),
+}) }) });
+const issueReferenceFields = 'number title state stateReason url';
+// The first 100 comments are listed; `totalCount` counts them all.
+const issueDetailQuery = `query($owner: String!, $name: String!, $number: Int!) {
+  repository(owner: $owner, name: $name) { url issue(number: $number) {
+    number title state stateReason createdAt url bodyHTML author { login }
+    assignees(first: 20) { nodes { login } }
+    labels(first: 20) { nodes { name color } }
+    comments(first: 100) { totalCount nodes { author { login } createdAt bodyHTML } }
+    parent { ${issueReferenceFields} subIssuesSummary { total completed } }
+    subIssues(first: ${relatedLimit}) { nodes { ${issueReferenceFields} } }
+    blockedBy(first: ${relatedLimit}) { nodes { ${issueReferenceFields} } }
+    blocking(first: ${relatedLimit}) { nodes { ${issueReferenceFields} } }
+    closedByPullRequestsReferences(first: ${relatedLimit}, includeClosedPrs: true) {
+      nodes { number title url state isDraft commits(last: 1) { nodes { commit { statusCheckRollup { state } } } } }
+    }
+  } }
+}`;
+const checks = { SUCCESS: 'passed', FAILURE: 'failed', ERROR: 'failed', PENDING: 'pending', EXPECTED: 'pending' } as const;
+const pullRequestStates = { OPEN: 'open', MERGED: 'merged', CLOSED: 'closed' } as const;
+const issueReference = (issue: z.infer<typeof issueReferenceSchema>) => ({ number: issue.number, title: issue.title, ...issueState(issue), url: issue.url });
 
 /** GitHub repository paths are case-insensitive. */
 const samePath = (a: string, b: string) => a.toLowerCase() === b.toLowerCase();
@@ -87,8 +130,7 @@ const samePath = (a: string, b: string) => a.toLowerCase() === b.toLowerCase();
 function issueSummary(issue: z.infer<typeof issueSchema>, path: string): IssueSummary {
   const blockedBy = issue.blockedBy.nodes.filter(blocker => blocker.state === 'OPEN').map(blocker =>
     ({ path: samePath(blocker.repository.nameWithOwner, path) ? null : blocker.repository.nameWithOwner, number: blocker.number, title: blocker.title }));
-  return { number: issue.number, title: issue.title, state: issue.state === 'OPEN' ? 'open' : 'closed',
-    closedAs: issue.state === 'OPEN' || !issue.stateReason ? null : closedAs[issue.stateReason], createdAt: issue.createdAt, labels: issue.labels.nodes,
+  return { number: issue.number, title: issue.title, ...issueState(issue), createdAt: issue.createdAt, labels: issue.labels.nodes,
     blockedBy, unlistedBlockers: Math.max(0, issue.issueDependenciesSummary.blockedBy - blockedBy.length) };
 }
 
@@ -130,6 +172,30 @@ export const github: Forge = {
       cursor: data.search.pageInfo.hasNextPage ? data.search.pageInfo.endCursor : null,
       labels: data.repository.labels.nodes,
       counts: { open: data.open.issueCount, closed: data.closed.issueCount },
+    };
+  },
+  async issue(path, number) {
+    const [owner, name] = path.split('/');
+    const { repository } = await graphql(issueDetailQuery, { owner, name, number }, issueDetailSchema);
+    const { issue } = repository;
+    return {
+      number: issue.number, title: issue.title, ...issueState(issue), createdAt: issue.createdAt, labels: issue.labels.nodes,
+      url: issue.url, author: issue.author?.login ?? null, assignees: issue.assignees.nodes.map(assignee => assignee.login),
+      body: issue.bodyHTML,
+      comments: issue.comments.nodes.map(comment => ({ author: comment.author?.login ?? null, createdAt: comment.createdAt, html: comment.bodyHTML })),
+      commentCount: issue.comments.totalCount,
+      parent: issue.parent && { ...issueReference(issue.parent),
+        progress: { closed: issue.parent.subIssuesSummary.completed, total: issue.parent.subIssuesSummary.total } },
+      subIssues: issue.subIssues.nodes.map(issueReference).sort((a, b) => a.number - b.number),
+      blockedBy: issue.blockedBy.nodes.map(issueReference),
+      blocking: issue.blocking.nodes.map(issueReference),
+      closingPullRequests: issue.closedByPullRequestsReferences.nodes.map(pull => {
+        const rollup = pull.commits.nodes[0]?.commit.statusCheckRollup;
+        return { number: pull.number, title: pull.title, url: pull.url,
+          state: pull.state === 'OPEN' && pull.isDraft ? 'draft' as const : pullRequestStates[pull.state],
+          checks: rollup ? checks[rollup.state] : 'none' as const };
+      }),
+      issueLinks: `${repository.url}/issues/`,
     };
   },
 };

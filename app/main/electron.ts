@@ -58,7 +58,8 @@ void app.whenReady().then(async () => {
     webPreferences: { preload: join(__dirname, 'preload.cjs'), contextIsolation: true, nodeIntegration: false, sandbox: true } });
   window.on('close', event => { if (!exiting) { event.preventDefault(); void requestQuit(); } });
   window.webContents.setWindowOpenHandler(({ url }) => {
-    if (/^https:\/\//.test(url)) void shell.openExternal(url);
+    // The links forge HTML keeps (http, https and mailto) open in the system's own apps.
+    if (/^(https?:\/\/|mailto:)/i.test(url)) void shell.openExternal(url);
     return { action: 'deny' };
   });
   window.webContents.on('will-navigate', event => event.preventDefault());
@@ -94,6 +95,7 @@ void app.whenReady().then(async () => {
   handle('directory', (service, directory) => service.inspectDirectory(directory));
   handle('repository-choices', async (service, id, directory) => { await loginPath; return service.repositoryChoices(id, directory); });
   handle('issue-page', async (service, id, query) => { await loginPath; return service.issuePage(id, query); });
+  handle('issue-detail', async (service, id, number) => { await loginPath; return service.issueDetail(id, number); });
   handle('activate', (service, id) => service.activateProject(id));
   handle('add', (service, project, agent) => service.addPanel(project, agent));
   handle('close', (service, project, panel) => service.closePanel(project, panel));

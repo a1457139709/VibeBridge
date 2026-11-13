@@ -1,9 +1,11 @@
-import { useEffect, useRef, useState, type CSSProperties } from 'react';
-import { BlockedIcon, IssueClosedIcon, IssueOpenedIcon, SkipIcon, SyncIcon } from '@primer/octicons-react';
+import { useEffect, useRef, useState, type PointerEvent as ReactPointerEvent } from 'react';
+import { SyncIcon } from '@primer/octicons-react';
 import { useLocalization } from './Localization';
 import { detail } from '../shared/messages';
-import type { ForgeCapabilities, ForgeLabel, IssueCounts, IssueListFilter, IssueListPage, IssuePage, IssueReference, IssueState, IssueSummary, ListedIssue, RepositoryReference } from '../shared/forge';
+import type { ForgeCapabilities, ForgeLabel, IssueCounts, IssueListFilter, IssueListPage, IssuePage, IssueState, IssueSummary, ListedIssue, RepositoryReference } from '../shared/forge';
 import type { ProjectView } from '../shared/model';
+import { IssueDetailPane } from './IssueDetail';
+import { BlockedMark, IssueIcon, Label, Progress, RelativeTime } from './ForgeDisplay';
 
 type Tab = 'issues' | 'pullRequests';
 const openNoFilter: IssueListFilter = { search: '', state: 'open', labels: [] };
@@ -21,17 +23,26 @@ export function SidebarHead({ title, refresh, loading = false }: { title: string
   </header>;
 }
 
+/** The detail's width and resize edge, owned by the sidebar, and where it reports whether a detail is open. */
+export interface DetailHost {
+  width: number;
+  resize(event: ReactPointerEvent<HTMLDivElement>): void;
+  shown(open: boolean): void;
+}
+
 interface Props {
   project: ProjectView & { repository: RepositoryReference };
   /** Opens Edit project with focus on the repository field. */
   editBinding(): void;
+  detailHost: DetailHost;
 }
 
 /** The bound repository's lists: a persistent Refresh, the Issues and Pull requests tabs, each with its own
  * search and filters, and the forge failure states. It holds its own state, so the owner mounts it per project
  * and repository: opening the sidebar or returning to a project starts from open with no filter, and refreshes.
- * Only the current tab is fetched. There is no timed refresh. */
-export function ForgeLists({ project, editBinding }: Props) {
+ * Only the current tab is fetched. There is no timed refresh. Clicking a row opens its detail beside the list; links
+ * followed inside the detail stack up, so Back returns to the issue before. */
+export function ForgeLists({ project, editBinding, detailHost }: Props) {
   const { t, text } = useLocalization();
   const [tab, setTab] = useState<Tab>('issues');
   const [filters, setFilters] = useState<Record<Tab, IssueListFilter>>({ issues: openNoFilter, pullRequests: openNoFilter });
@@ -41,6 +52,12 @@ export function ForgeLists({ project, editBinding }: Props) {
   // Only the latest request may settle the list; an older answer is for a filter no longer shown.
   const latest = useRef(0);
   const requested = useRef<IssueListFilter | null>(null);
+  /** The issues opened in the detail, the shown one last; empty when the detail is closed. */
+  const [opened, setOpened] = useState<number[]>([]);
+  const shownIssue = opened.at(-1);
+  const detailOpen = shownIssue !== undefined;
+  useEffect(() => { detailHost.shown(detailOpen); return () => detailHost.shown(false); }, [detailOpen]);
+  const openIssue = (number: number) => setOpened(stack => stack.at(-1) === number ? stack : [...stack, number]);
 
   async function load(filter: IssueListFilter, cursor: string | null) {
     const request = ++latest.current;
@@ -99,11 +116,14 @@ export function ForgeLists({ project, editBinding }: Props) {
       counts={tab === 'issues' && loaded ? loaded.counts : null} />
     {tab === 'issues' && <div className="forge-scroll">
       {loaded && <IssueTree issues={loaded.issues} state={loaded.filter.state} capabilities={project.capabilities}
+        selected={shownIssue} open={number => setOpened([number])}
         addLabel={name => setFilter(f => f.labels.includes(name) ? f : { ...f, labels: [...f.labels, name] })} />}
       {loaded && !loaded.issues.length && <p className="forge-empty">{t('noMatchingIssues')}</p>}
       {!loaded && <p className="forge-empty">{t('loadingIssues')}</p>}
       {loaded?.cursor && <button className="forge-more" disabled={loading} onClick={() => void load(loaded.filter, loaded.cursor)}>{t('loadMore')}</button>}
     </div>}
+    {shownIssue !== undefined && <IssueDetailPane project={project} number={shownIssue} width={detailHost.width} resize={detailHost.resize}
+      canBack={opened.length > 1} back={() => setOpened(stack => stack.slice(0, -1))} close={() => setOpened([])} open={openIssue} />}
   </>;
 }
 
@@ -150,8 +170,11 @@ function FilterBar({ tab, filter, setFilter, labels, counts }: {
  * loaded, else at the top level. Parents start collapsed; their progress button expands them without fetching.
  * An expanded parent shows the sub-issues in the listed state; listing open ones, it folds the closed ones after them.
  * A parent shows the button only when it has sub-issues to show, as the list holds them. */
-function IssueTree({ issues, state, capabilities, addLabel }: {
-  issues: ListedIssue[]; state: IssueState; capabilities: ForgeCapabilities; addLabel(name: string): void;
+function IssueTree({ issues, state, capabilities, selected, open: openIssue, addLabel }: {
+  issues: ListedIssue[]; state: IssueState; capabilities: ForgeCapabilities;
+  /** The issue the detail shows, if any. */
+  selected: number | undefined;
+  open(number: number): void; addLabel(name: string): void;
 }) {
   const { t } = useLocalization();
   const [expanded, setExpanded] = useState<ReadonlySet<number>>(new Set());
@@ -179,7 +202,7 @@ function IssueTree({ issues, state, capabilities, addLabel }: {
     const showClosed = showingClosed.has(issue.number);
     const shown = showClosed ? [...listed, ...folded] : listed;
     return <li key={issue.number}>
-      <IssueRow issue={issue} addLabel={addLabel} blocking={capabilities.blocking}
+      <IssueRow issue={issue} selected={issue.number === selected} open={() => openIssue(issue.number)} addLabel={addLabel} blocking={capabilities.blocking}
         progress={withSubIssues && <button className={`forge-progress-toggle ${open ? 'on' : ''}`} aria-expanded={open}
           aria-label={t(open ? 'hideSubIssues' : 'showSubIssues')} data-hint={t(open ? 'hideSubIssues' : 'showSubIssues')}
           onClick={event => { event.stopPropagation(); setExpanded(set => flip(set, issue.number)); }}>
@@ -195,64 +218,23 @@ function IssueTree({ issues, state, capabilities, addLabel }: {
 }
 
 /** A list row: state, title, number, age, the sub-issue progress, the blocked mark and the labels, and the action area,
- * which stays the same whether or not the issue is blocked. */
-function IssueRow({ issue, addLabel, blocking, progress }: { issue: IssueSummary; addLabel(name: string): void; blocking: boolean; progress: React.ReactNode }) {
-  return <div className="forge-row">
+ * which stays the same whether or not the issue is blocked. The row opens its issue's detail wherever it is clicked;
+ * its title is the button that does so from the keyboard. */
+function IssueRow({ issue, selected, open, addLabel, blocking, progress }: {
+  issue: IssueSummary; selected: boolean; open(): void; addLabel(name: string): void; blocking: boolean; progress: React.ReactNode;
+}) {
+  return <div className={`forge-row ${selected ? 'selected' : ''}`} onClick={open}>
     <IssueIcon issue={issue} />
     <div className="forge-row-main">
-      <div className="forge-row-title">{issue.title}</div>
+      <button className="forge-row-title" aria-current={selected || undefined}>{issue.title}</button>
       <div className="forge-row-meta">
         <span className="forge-row-number">#{issue.number}</span><RelativeTime iso={issue.createdAt} />
         {progress}
-        {blocking && !!(issue.blockedBy.length || issue.unlistedBlockers) && <Blocked by={issue.blockedBy} unlisted={issue.unlistedBlockers} />}
+        {blocking && !!(issue.blockedBy.length || issue.unlistedBlockers) && <BlockedMark by={issue.blockedBy.map(blocker => ({ reference: `${blocker.path ?? ''}#${blocker.number}`, title: blocker.title }))} unlisted={issue.unlistedBlockers} />}
         {issue.labels.map(label => <Label key={label.name} label={label} onClick={() => addLabel(label.name)} />)}
       </div>
     </div>
     {/* The row's action area, kept for dispatching an open issue. */}
     {issue.state === 'open' && <div className="forge-row-action" />}
   </div>;
-}
-
-function Progress({ closed, total }: { closed: number; total: number }) {
-  const { t } = useLocalization();
-  return <span className="forge-progress" data-hint={t('subIssueProgress', { closed, total })}>
-    <span className="forge-progress-bar"><span style={{ width: `${total ? closed / total * 100 : 0}%` }} /></span>{closed}/{total}</span>;
-}
-
-/** The blocked mark as the forge shows it: the blocked icon and the blockers' numbers, with how many more the forge
- * did not list; hovering names them. */
-function Blocked({ by, unlisted }: { by: IssueReference[]; unlisted: number }) {
-  const { t } = useLocalization();
-  const reference = (issue: IssueReference) => `${issue.path ?? ''}#${issue.number}`;
-  const more = unlisted ? t('moreBlockers', { count: unlisted }) : null;
-  const numbers = [...by.map(reference), ...more ? [more] : []].join(', ');
-  return <span className="forge-blocked" aria-label={t('blockedBy', { issues: numbers })}
-    data-hint={[...by.map(issue => `${reference(issue)} ${issue.title}`), ...more ? [more] : []].join('\n')}><BlockedIcon size={12} />{numbers}</span>;
-}
-
-/** GitHub's own state octicons and colours: open green, completed purple, not planned or duplicate grey. */
-function IssueIcon({ issue }: { issue: IssueSummary }) {
-  const { t } = useLocalization();
-  const [Icon, tone, name] = issue.state === 'open' ? [IssueOpenedIcon, 'open', t('issueOpen')]
-    : issue.closedAs === 'notPlanned' ? [SkipIcon, 'skipped', t('issueNotPlanned')]
-    : issue.closedAs === 'duplicate' ? [SkipIcon, 'skipped', t('issueDuplicate')]
-    : [IssueClosedIcon, 'done', t('issueCompleted')];
-  return <span className={`forge-icon forge-${tone}`} role="img" aria-label={name} data-hint={name}><Icon size={16} /></span>;
-}
-
-function Label({ label, onClick }: { label: ForgeLabel; onClick(): void }) {
-  return <button className="forge-label" style={{ '--label': `#${label.color}` } as CSSProperties}
-    onClick={event => { event.stopPropagation(); onClick(); }}>{label.name}</button>;
-}
-
-function RelativeTime({ iso }: { iso: string }) {
-  const { t, language } = useLocalization();
-  const date = new Date(iso);
-  const seconds = (Date.now() - date.getTime()) / 1000;
-  const text = seconds < 60 ? t('justNow')
-    : seconds < 3600 ? t('minutesAgo', { count: Math.floor(seconds / 60) })
-    : seconds < 86400 ? t('hoursAgo', { count: Math.floor(seconds / 3600) })
-    : seconds < 86400 * 30 ? t('daysAgo', { count: Math.floor(seconds / 86400) })
-    : date.toLocaleDateString(language);
-  return <time dateTime={iso} data-hint={date.toLocaleString(language)}>{text}</time>;
 }
