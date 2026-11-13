@@ -310,4 +310,12 @@ export const english = {
   "changeBinding": "Change binding",
   "issuesLoadFailed": "Could not load issues: {reason}",
   "dataMayBeStale": "Data may be stale",
+  "showSubIssues": "Show sub-issues",
+  "hideSubIssues": "Hide sub-issues",
+  "subIssuesOf": "Sub-issues of #{number}",
+  "subIssueProgress": "Sub-issues: {closed} of {total} closed",
+  "closedSubIssues": "{count} closed",
+  "hideClosedSubIssues": "Hide closed",
+  "blockedBy": "Blocked by {issues}",
+  "moreBlockers": "+{count} more",
 } as const;

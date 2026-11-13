@@ -7,7 +7,7 @@ import { defaultSettings } from '../../app/shared/settings';
 import type { Layout, PanelView, Snapshot, WorkbenchEvent } from '../../app/shared/model';
 import { stubLayoutApis } from './support/no-layout';
 import { provideWorkbench } from './support/workbench';
-import { githubForge } from './support/forge';
+import { githubView } from './support/forge';
 
 afterEach(cleanup);
 before(() => {
@@ -42,7 +42,7 @@ async function renderWorkbench() {
     navigation: { visible: true, width: 212 }, forgeSidebar: { visible: false, width: 380 }, activeProjectId: 'project', settings: defaultSettings(),
     settingsConflicts: [], startupTheme: 'light', resolvedTheme: 'light', errors: [],
     projects: [{ id: 'project', name: 'Drops', directory: '/work/drops', layout: sideBySide('codex', 'claude'),
-      panels: [panel('codex', 'codex'), panel('claude', 'claude')], tray: [panel('pi', 'pi')], repository: null, forge: githubForge }],
+      panels: [panel('codex', 'codex'), panel('claude', 'claude')], tray: [panel('pi', 'pi')], repository: null, ...githubView }],
   };
   const saves: Layout[] = [];
   // Placing a tray panel or moving a resident panel to the tray are the other changes a release can request.

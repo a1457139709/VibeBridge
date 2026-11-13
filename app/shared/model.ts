@@ -4,7 +4,7 @@ import type { Shortcuts } from './shortcuts';
 import { projectNameError } from './project-name';
 import type { ProcessingState } from './processing-status';
 import type { SettingsIssue } from './settings';
-import type { ForgePresentation, RepositoryReference } from './forge';
+import type { ForgeCapabilities, ForgePresentation, RepositoryReference } from './forge';
 
 export const agentTypes = ['codex', 'claude', 'pi'] as const;
 export type AgentType = typeof agentTypes[number];
@@ -49,8 +49,9 @@ export type PanelView = Panel & { run?: Run; status?: ProcessingState };
  * `tray` holds its ephemeral panels in the order they joined. The stored Project keeps only
  * the resident panels' configuration and layout; the tray lives in memory for one app run.
  * `repository` is its Repository Binding, stored apart from the project, or null when unbound; `forge` is the
- * Forge its forge sidebar shows: the bound one, else the one an unbound project binds from. */
-export type ProjectView = Omit<Project, 'panels'> & { panels: PanelView[]; tray: PanelView[]; repository: RepositoryReference | null; forge: ForgePresentation };
+ * Forge its forge sidebar shows: the bound one, else the one an unbound project binds from; `capabilities` are
+ * the features that Forge declares, and the sidebar shows only those. */
+export type ProjectView = Omit<Project, 'panels'> & { panels: PanelView[]; tray: PanelView[]; repository: RepositoryReference | null; forge: ForgePresentation; capabilities: ForgeCapabilities };
 export interface Snapshot extends Record<Sidebar, SidebarPreferences> { projects: ProjectView[]; activeProjectId: string | null; settings: Settings; settingsConflicts: SettingsIssue[]; startupTheme: Settings['theme']; resolvedTheme: 'dark' | 'light'; errors: string[] }
 export type TerminalEvent = { kind: 'title'; runId: string; title: string } | { kind: 'output'; runId: string; data: string } | { kind: 'started'; run: Run } | { kind: 'stopping'; runId: string } | { kind: 'exit'; runId: string };
 export type WorkbenchEvent = Extract<TerminalEvent, { kind: 'started' | 'output' | 'exit' }> | { kind: 'snapshot'; snapshot: Snapshot } | { kind: 'error'; message: string };

@@ -270,4 +270,12 @@ export const chinese: Record<keyof typeof english, string> = {
   "changeBinding": "修改绑定",
   "issuesLoadFailed": "无法读取 issue：{reason}",
   "dataMayBeStale": "数据可能已过期",
+  "showSubIssues": "展开子 issue",
+  "hideSubIssues": "收起子 issue",
+  "subIssuesOf": "#{number} 的子 issue",
+  "subIssueProgress": "子 issue：{closed} / {total} 已关闭",
+  "closedSubIssues": "已关闭 {count} 个",
+  "hideClosedSubIssues": "收起已关闭",
+  "blockedBy": "被 {issues} 阻塞",
+  "moreBlockers": "另 {count} 个",
 };

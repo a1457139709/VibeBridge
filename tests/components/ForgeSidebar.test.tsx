@@ -9,7 +9,7 @@ import type { SidebarPreferences, ProjectView, Snapshot, WorkbenchEvent } from '
 import type { RepositoryChoices } from '../../app/shared/forge';
 import { stubLayoutApis } from './support/no-layout';
 import { provideWorkbench } from './support/workbench';
-import { githubForge } from './support/forge';
+import { githubForge, githubView } from './support/forge';
 
 afterEach(cleanup);
 before(() => {
@@ -20,7 +20,7 @@ before(() => {
 });
 
 const project = (id: string, name: string, repository: ProjectView['repository']): ProjectView => ({
-  id, name, directory: `/work/${id}`, layout: { panel: `${id}-panel` }, tray: [], repository, forge: githubForge,
+  id, name, directory: `/work/${id}`, layout: { panel: `${id}-panel` }, tray: [], repository, ...githubView,
   panels: [{ id: `${id}-panel`, agent: 'codex', run: { id: `${id}-run`, panelId: `${id}-panel`, projectId: id, state: 'running', title: `${name} session` } }],
 });
 

@@ -186,7 +186,7 @@ textarea { resize: vertical; }
 .panel-swap-preview { position: fixed; inset: 0; z-index: 30; pointer-events: none; }
 .panel-drop-preview { position: fixed; z-index: 30; pointer-events: none; box-sizing: border-box; border: 2px dashed var(--brand); border-radius: 8px; background: color-mix(in srgb, var(--brand) 18%, transparent); }
 /* Hover hints follow the pointer's element, never take the pointer, and sit above every drag figure. */
-.hover-hint { position: fixed; z-index: 40; max-width: min(360px, calc(100vw - 16px)); padding: 4px 8px; border: 1px solid var(--line); border-radius: 6px; background: var(--surface); color: inherit; box-shadow: 0 4px 14px #0002; font-size: 11px; line-height: 1.4; overflow-wrap: anywhere; pointer-events: none; }
+.hover-hint { position: fixed; z-index: 40; max-width: min(360px, calc(100vw - 16px)); padding: 4px 8px; border: 1px solid var(--line); border-radius: 6px; background: var(--surface); color: inherit; box-shadow: 0 4px 14px #0002; font-size: 11px; line-height: 1.4; overflow-wrap: anywhere; white-space: pre-line; pointer-events: none; }
 .panel-swap-preview .agent-panel,.panel-drag-image .agent-panel { transition: none; }
 .dragging, .dragging .panel-header { cursor: grabbing; }
 /* Placing a tray panel shows the resident layout even while a tray panel is open over it. */

@@ -10,7 +10,7 @@ import { defaultSettings } from '../../app/shared/settings';
 import type { PanelView, Snapshot, WorkbenchEvent } from '../../app/shared/model';
 import type { ProcessingState } from '../../app/shared/processing-status';
 import { provideWorkbench } from './support/workbench';
-import { githubForge } from './support/forge';
+import { githubView } from './support/forge';
 
 afterEach(cleanup);
 
@@ -24,7 +24,7 @@ function fixture() {
     settingsConflicts: [], startupTheme: 'light', resolvedTheme: 'light', errors: [],
     projects: [{ id: 'project', name: 'Project title stays out of the bar', directory: '/project', layout: null,
       panels: ([['first', 'done'], ['third', 'needs-input']] as const).map(([id, status]) => panel(id, status)),
-      tray: ([['second', 'done'], ['fresh', 'ready']] as const).map(([id, status]) => panel(id, status)), repository: null, forge: githubForge }],
+      tray: ([['second', 'done'], ['fresh', 'ready']] as const).map(([id, status]) => panel(id, status)), repository: null, ...githubView }],
   };
   const listeners = new Set<(event: WorkbenchEvent) => void>();
   const located: string[] = [];

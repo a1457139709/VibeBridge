@@ -7,7 +7,7 @@ import { App } from '../../app/renderer/Workbench';
 import { defaultSettings } from '../../app/shared/settings';
 import type { PanelView, Snapshot, WorkbenchEvent } from '../../app/shared/model';
 import { provideWorkbench } from './support/workbench';
-import { githubForge } from './support/forge';
+import { githubView } from './support/forge';
 
 // Frames run only when the test runs them, so every frame a pending location could use has run before an assertion.
 const frames = new Map<number, FrameRequestCallback>();
@@ -55,7 +55,7 @@ async function renderWorkbench() {
     settingsConflicts: [], startupTheme: 'light', resolvedTheme: 'light', errors: [],
     projects: [{ id: 'project', name: 'Locating', directory: '/work/locating',
       layout: { axis: 'row', ratio: .5, first: { panel: 'first' }, second: { panel: 'second' } },
-      panels: [panel('first'), panel('second')], tray: [], repository: null, forge: githubForge }],
+      panels: [panel('first'), panel('second')], tray: [], repository: null, ...githubView }],
   };
   let listener: (event: WorkbenchEvent) => void = () => {};
   provideWorkbench({ snapshot: async () => structuredClone(snapshot), ready: async () => {},
