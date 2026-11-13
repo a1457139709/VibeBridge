@@ -3,10 +3,13 @@ import { join, resolve } from 'node:path';
 import type { TestContext } from 'node:test';
 import { testDirectory } from './directory';
 
-/** An issue as GitHub's GraphQL API names its fields. */
+/** An issue as GitHub's GraphQL API names its fields. `parent` is the number of its parent issue in the same repository;
+ * `blockedBy` lists its blockers by number in the same repository, or as an issue of another repository. */
 export interface GhIssue {
   number: number; title: string; state: 'OPEN' | 'CLOSED'; stateReason?: 'COMPLETED' | 'NOT_PLANNED' | 'DUPLICATE' | 'REOPENED';
   createdAt: string; labels: { name: string; color: string }[];
+  parent?: number;
+  blockedBy?: (number | { path: string; number: number; title: string; state: 'OPEN' | 'CLOSED' })[];
 }
 
 export interface GhState {

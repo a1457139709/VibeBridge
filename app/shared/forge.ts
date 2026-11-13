@@ -11,6 +11,14 @@ export interface RepositoryReference { forge: ForgeId; path: string }
 export const sameRepository = (a: RepositoryReference | null, b: RepositoryReference | null) =>
   a === b || (!!a && !!b && a.forge === b.forge && a.path === b.path);
 
+/** Features that differ between forges. The UI shows a feature only when the bound forge declares it. */
+export interface ForgeCapabilities {
+  /** Issues nest under a parent issue, and a parent reports its sub-issues' progress. */
+  subIssues: boolean;
+  /** The forge records natively which issues block an issue. */
+  blocking: boolean;
+}
+
 /** What the UI shows for a forge; each adapter provides its own. */
 export interface ForgePresentation {
   /** Display name, e.g. GitHub. */
@@ -19,6 +27,7 @@ export interface ForgePresentation {
   cli: string;
   installUrl: string;
   loginCommand: string;
+  capabilities: ForgeCapabilities;
 }
 
 /** Every forge failure falls into one of these kinds. `detail` is the forge's own text, unchanged. */
@@ -48,6 +57,19 @@ export interface IssueSummary {
   /** ISO 8601. */
   createdAt: string;
   labels: ForgeLabel[];
+  /** The open issues blocking it, from the forge's native dependencies only; empty when the forge has no blocking. */
+  blockedBy: IssueReference[];
+}
+
+/** An issue another one refers to. `path` names its repository when it is not the listed one, else it is null. */
+export interface IssueReference { path: string | null; number: number; title: string }
+
+/** An issue as the list holds it, with its place in the issue tree. Empty of tree data when the forge has no sub-issues. */
+export interface ListedIssue extends IssueSummary {
+  /** The parent issue's number when the parent is in the same repository, else null. */
+  parent: number | null;
+  /** How many sub-issues it has and how many of them are closed, and those in the same repository. */
+  subIssues: { closed: number; total: number; issues: IssueSummary[] };
 }
 
 /** What a list asks for. The forge filters on its side: the search matches a title or a number, and every label must be present. */
@@ -61,7 +83,7 @@ export type IssueListFilter = IssueListQuery['filter'];
 
 /** One page of a repository's issues, newest created first, with the next page's cursor (null on the last page),
  * the labels the repository defines, and how many open and closed issues the filter's search and labels match. */
-export interface IssueListPage { issues: IssueSummary[]; cursor: string | null; labels: ForgeLabel[]; counts: IssueCounts }
+export interface IssueListPage { issues: ListedIssue[]; cursor: string | null; labels: ForgeLabel[]; counts: IssueCounts }
 /** A page of the bound repository's issues, or the forge failure. A failure that the repository is inaccessible
  * names the active account when the forge can still tell it. */
 export type IssuePage = ({ ok: true } & IssueListPage) | { ok: false; failure: ForgeFailure; account: string | null };

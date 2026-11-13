@@ -18,8 +18,8 @@
 .system-bar .forge-sidebar-toggle[aria-expanded='true'] { background: var(--hover); color: var(--accent); }
 
 /* State colours match the forge's own (GitHub's octicon colours). */
-:root { --forge-open: #1a7f37; --forge-done: #8250df; --forge-skipped: #6e7781; --forge-pending: #9a6700; --forge-link: #0969da; --forge-row-hover: #0000000a; }
-:root[data-theme='dark'] { --forge-open: #3fb950; --forge-done: #a371f7; --forge-skipped: #8b949e; --forge-pending: #d29922; --forge-link: #4493f8; --forge-row-hover: #ffffff08; }
+:root { --forge-open: #1a7f37; --forge-done: #8250df; --forge-skipped: #6e7781; --forge-pending: #9a6700; --forge-failed: #d1242f; --forge-link: #0969da; --forge-row-hover: #0000000a; }
+:root[data-theme='dark'] { --forge-open: #3fb950; --forge-done: #a371f7; --forge-skipped: #8b949e; --forge-pending: #d29922; --forge-failed: #f85149; --forge-link: #4493f8; --forge-row-hover: #ffffff08; }
 .forge-sidebar button { min-height: 0; }
 .forge-sidebar-head .forge-sidebar-repository { flex: 1; min-width: 0; }
 .forge-refresh { display: grid; place-items: center; width: 26px; height: 24px; padding: 0; border: 0; background: none; color: var(--muted); }
@@ -64,6 +64,19 @@
 .forge-row-title { font-size: 13px; font-weight: 600; line-height: 1.35; overflow-wrap: anywhere; }
 .forge-row-meta { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 8px; font-size: 11px; color: var(--muted); }
 .forge-row-number { font-variant-numeric: tabular-nums; }
+.forge-progress-toggle { display: inline-flex; align-items: center; gap: 5px; height: 22px; padding: 0 8px 0 6px; border: 1px solid var(--line); border-radius: 999px; background: color-mix(in srgb, var(--muted) 8%, transparent); font-size: 11px; color: var(--muted); }
+.forge-progress-toggle:hover { background: var(--forge-row-hover); color: inherit; border-color: color-mix(in srgb, var(--forge-link) 50%, var(--line)); }
+.forge-progress-toggle.on { color: inherit; border-color: color-mix(in srgb, var(--forge-link) 50%, var(--line)); }
+.forge-progress-caret { width: 12px; font-size: 12px; }
+.forge-progress { display: inline-flex; align-items: center; gap: 4px; font-variant-numeric: tabular-nums; }
+.forge-progress-bar { width: 36px; height: 6px; border-radius: 3px; background: var(--line); overflow: hidden; display: inline-block; }
+.forge-progress-bar span { display: block; height: 100%; background: var(--forge-done); }
+.forge-blocked { display: inline-flex; align-items: center; gap: 3px; color: var(--forge-failed); font-weight: 600; font-size: 11px; white-space: nowrap; }
+.forge-blocked svg { fill: currentColor; }
+/* Expanded sub-issues keep whole rows, indented one step behind a line down their left edge. */
+.forge-sub-issues { margin-left: 18px; border-left: 2px solid color-mix(in srgb, var(--forge-link) 35%, var(--line)); }
+.forge-fold { display: block; width: 100%; text-align: left; border: 0; border-radius: 0; border-bottom: 1px solid var(--line); background: none; font-size: 11px; color: var(--muted); padding: 5px 0 5px 32px; }
+.forge-fold:hover { color: inherit; background: var(--forge-row-hover); }
 .forge-row-action { flex-shrink: 0; display: flex; flex-direction: column; align-items: flex-end; gap: 4px; }
 .forge-empty { padding: 28px 16px; margin: 0; color: var(--muted); text-align: center; }
 .forge-more { display: block; width: 100%; border: 0; border-radius: 0; background: none; padding: 8px 0; font-size: 12px; color: var(--forge-link); }

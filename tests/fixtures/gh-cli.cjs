@@ -1,7 +1,8 @@
 const { readFileSync } = require('node:fs');
 
 // A `gh` CLI double. The test writes the account's state to the JSON file named by VIBEBRIDGE_GH_DOUBLE:
-// { account, repositories: ["owner/repo", …], labels?: [{ name, color }], issues?: [{ number, title, state, stateReason?, createdAt, labels }],
+// { account, repositories: ["owner/repo", …], labels?: [{ name, color }],
+//   issues?: [{ number, title, state, stateReason?, createdAt, labels, parent?: number, blockedBy?: [number | { path, number, title, state }] }],
 //   failure?: { code, stdout?, stderr? } }.
 // A failure answers every command the way `gh` fails, with that exit code and output. `gh api graphql` answers
 // like GitHub: a repository the account does not list is NOT_FOUND, and the issue search reads the qualifiers it is given.
@@ -45,9 +46,24 @@ function graphql({ query, owner, name, search, openSearch, closedSearch, after }
     repository: { labels: { nodes: state.labels ?? [] } },
     open: { issueCount: searchIssues(openSearch).length }, closed: { issueCount: searchIssues(closedSearch).length },
     search: { pageInfo: { hasNextPage: end < found.length, endCursor: page.length ? Buffer.from(`cursor:${end}`).toString('base64') : null },
-      nodes: page.map(issue => ({ number: issue.number, title: issue.title, state: issue.state, stateReason: issue.stateReason ?? null,
-        createdAt: issue.createdAt, labels: { nodes: issue.labels } })) },
+      nodes: page.map(issue => {
+        const children = (state.issues ?? []).filter(child => child.parent === issue.number).sort((a, b) => a.number - b.number);
+        return { ...node(issue, path),
+          parent: issue.parent === undefined ? null : { number: issue.parent, repository: { nameWithOwner: path } },
+          subIssuesSummary: { total: children.length, completed: children.filter(child => child.state === 'CLOSED').length },
+          subIssues: { nodes: children.map(child => node(child, path)) } };
+      }) },
   } }));
+}
+
+/** An issue's own fields and its blockers, as GitHub's GraphQL API names them. */
+function node(issue, path) {
+  const own = other => ({ number: other.number, title: other.title, state: other.state });
+  const blocker = entry => typeof entry === 'number'
+    ? { ...own((state.issues ?? []).find(other => other.number === entry)), repository: { nameWithOwner: path } }
+    : { ...own(entry), repository: { nameWithOwner: entry.path } };
+  return { number: issue.number, title: issue.title, state: issue.state, stateReason: issue.stateReason ?? null, createdAt: issue.createdAt,
+    labels: { nodes: issue.labels }, repository: { nameWithOwner: path }, blockedBy: { nodes: (issue.blockedBy ?? []).map(blocker) } };
 }
 
 /** The issues a GitHub search finds, newest first. Qualifiers: repo:, is:issue, is:open|closed, label:"…",

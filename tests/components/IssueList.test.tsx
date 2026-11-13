@@ -1,15 +1,9 @@
 import './support/dom';
 import assert from 'node:assert/strict';
 import test, { afterEach, before } from 'node:test';
-import { cleanup, render, screen, waitFor, within } from '@testing-library/react';
-import { userEvent } from '@testing-library/user-event';
-import { App } from '../../app/renderer/Workbench';
-import { defaultSettings } from '../../app/shared/settings';
-import type { ProjectView, Snapshot, WorkbenchEvent } from '../../app/shared/model';
-import type { IssueListQuery, IssuePage, IssueSummary, ForgeFailure } from '../../app/shared/forge';
+import { cleanup, screen, waitFor, within } from '@testing-library/react';
 import { stubLayoutApis } from './support/no-layout';
-import { deferred, provideWorkbench } from './support/workbench';
-import { githubForge } from './support/forge';
+import { bug, failed, issue, openNoFilter, page, refresh, renderWorkbench, rows, sidebar } from './support/issue-list';
 
 afterEach(cleanup);
 before(() => {
@@ -17,54 +11,6 @@ before(() => {
   for (const target of [globalThis, window]) Object.assign(target, { KeyframeEffect: class {} });
   window.HTMLElement.prototype.checkVisibility = () => true;
 });
-
-const project = (id: string, name: string): ProjectView => ({
-  id, name, directory: `/work/${id}`, layout: { panel: `${id}-panel` }, tray: [], repository: { forge: 'github', path: `octo/${id}` }, forge: githubForge,
-  panels: [{ id: `${id}-panel`, agent: 'codex', run: { id: `${id}-run`, panelId: `${id}-panel`, projectId: id, state: 'running', title: `${name} session` } }],
-});
-const bug = { name: 'bug', color: 'd73a4a' }, docs = { name: 'docs', color: '0075ca' };
-const issue = (number: number, extra: Partial<IssueSummary> = {}): IssueSummary => ({
-  number, title: `Issue ${number}`, state: 'open', closedAs: null, createdAt: new Date(Date.now() - 3 * 3600e3).toISOString(), labels: [], ...extra,
-});
-const page = (issues: IssueSummary[], cursor: string | null = null): IssuePage => ({ ok: true, issues, cursor, labels: [bug, docs], counts: { open: 7, closed: 2 } });
-const failed = (kind: ForgeFailure['kind'], detail = '', account: string | null = null): IssuePage => ({ ok: false, failure: { kind, detail, forge: githubForge }, account });
-
-interface Request { projectId: string; query: IssueListQuery; answer(page: IssuePage): void; fail(error: Error): void }
-
-/** The Workbench with two bound projects and the sidebar open. Every issue page request waits until the test answers it. */
-function renderWorkbench() {
-  const snapshot: Snapshot = {
-    navigation: { visible: true, width: 212 }, forgeSidebar: { visible: true, width: 380 }, activeProjectId: 'alpha', settings: defaultSettings(),
-    settingsConflicts: [], startupTheme: 'light', resolvedTheme: 'light', errors: [],
-    projects: [project('alpha', 'Alpha'), project('beta', 'Beta')],
-  };
-  const listeners = new Set<(event: WorkbenchEvent) => void>();
-  const publish = () => { for (const listener of listeners) listener({ kind: 'snapshot', snapshot: structuredClone(snapshot) }); };
-  const requests: Request[] = [];
-  provideWorkbench({
-    snapshot: async () => structuredClone(snapshot), ready: async () => {},
-    subscribe: listener => { listeners.add(listener); return () => { listeners.delete(listener); }; },
-    saveSidebar: async (sidebar, preferences) => { snapshot[sidebar] = preferences; publish(); },
-    activateProject: async id => { snapshot.activeProjectId = id; publish(); },
-    saveLayout: async () => {},
-    inspectDirectory: async directory => ({ valid: true, directory }),
-    repositoryChoices: async () => ({ ok: true, forge: githubForge, account: 'octo', origin: null, repositories: [{ forge: 'github', path: 'octo/alpha' }] }),
-    issuePage: (projectId, query) => {
-      const answer = deferred<IssuePage>();
-      requests.push({ projectId, query: structuredClone(query), answer: answer.resolve, fail: answer.reject });
-      return answer.promise;
-    },
-  });
-  render(<App />);
-  /** The latest request, once it is made. */
-  const request = (count: number) => waitFor(() => { assert.equal(requests.length, count, 'requests made'); return requests[count - 1]; });
-  return { user: userEvent.setup(), requests, request };
-}
-
-const sidebar = () => screen.getByRole('complementary', { name: 'GitHub' });
-const refresh = () => within(sidebar()).getByRole('button', { name: 'Refresh' });
-const rows = () => within(sidebar()).queryAllByRole('listitem').map(row => row.querySelector('.forge-row-title')!.textContent);
-const openNoFilter = { search: '', state: 'open', labels: [] };
 
 test('the issue list shows one page of rows with their state, number, age and labels, and Load more appends the next page', async () => {
   const { user, request } = renderWorkbench();
