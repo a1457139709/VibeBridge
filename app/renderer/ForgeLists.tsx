@@ -5,7 +5,7 @@ import { detail } from '../shared/messages';
 import type { ForgeLabel, IssueCounts, IssueListFilter, IssueListPage, IssuePage, IssueSummary, RepositoryReference } from '../shared/forge';
 import type { ProjectView } from '../shared/model';
 
-type Tab = 'issues' | 'mergeRequests';
+type Tab = 'issues' | 'pullRequests';
 const openNoFilter: IssueListFilter = { search: '', state: 'open', labels: [] };
 type FailedPage = Extract<IssuePage, { ok: false }>;
 /** The rows shown, with the filter that produced them: Load more continues that filter. */
@@ -34,7 +34,7 @@ interface Props {
 export function ForgeLists({ project, editBinding }: Props) {
   const { t, text } = useLocalization();
   const [tab, setTab] = useState<Tab>('issues');
-  const [filters, setFilters] = useState<Record<Tab, IssueListFilter>>({ issues: openNoFilter, mergeRequests: openNoFilter });
+  const [filters, setFilters] = useState<Record<Tab, IssueListFilter>>({ issues: openNoFilter, pullRequests: openNoFilter });
   const [loaded, setLoaded] = useState<Loaded | null>(null);
   const [failed, setFailed] = useState<FailedPage | null>(null);
   const [loading, setLoading] = useState(false);
@@ -92,8 +92,8 @@ export function ForgeLists({ project, editBinding }: Props) {
     {head}
     {failed && tab === 'issues' && <div className="forge-stale" title={failed.failure.detail}><span>{t('dataMayBeStale')}</span>{retry}</div>}
     <nav className="forge-tabs" role="tablist" aria-label={t('sidebarTabs')}>
-      {(['issues', 'mergeRequests'] as const).map(item => <button key={item} role="tab" aria-selected={tab === item} className={tab === item ? 'on' : ''}
-        onClick={() => setTab(item)}>{t(item === 'issues' ? 'issuesTab' : 'mergeRequestsTab')}</button>)}
+      {(['issues', 'pullRequests'] as const).map(item => <button key={item} role="tab" aria-selected={tab === item} className={tab === item ? 'on' : ''}
+        onClick={() => setTab(item)}>{t(item === 'issues' ? 'issuesTab' : 'pullRequestsTab')}</button>)}
     </nav>
     <FilterBar key={tab} tab={tab} filter={filter} setFilter={setFilter} labels={loaded?.labels ?? []}
       counts={tab === 'issues' && loaded ? loaded.counts : null} />
@@ -126,7 +126,7 @@ function FilterBar({ tab, filter, setFilter, labels, counts }: {
   const toggle = (name: string) => setFilter(f => ({ ...f, labels: f.labels.includes(name) ? f.labels.filter(label => label !== name) : [...f.labels, name] }));
   const colors = new Map(labels.map(label => [label.name, label.color]));
   return <div className="forge-filters">
-    <input type="search" className="forge-search" aria-label={t(tab === 'issues' ? 'searchIssues' : 'searchMergeRequests')} placeholder={t('searchListPlaceholder')}
+    <input type="search" className="forge-search" aria-label={t(tab === 'issues' ? 'searchIssues' : 'searchPullRequests')} placeholder={t('searchListPlaceholder')}
       autoComplete="off" value={filter.search} onChange={event => { const search = event.target.value; setFilter(f => ({ ...f, search })); }} />
     <div className="forge-filter-row">
       {(['open', 'closed'] as const).map(state => <button key={state} className={`forge-state ${filter.state === state ? 'on' : ''}`} aria-pressed={filter.state === state}
