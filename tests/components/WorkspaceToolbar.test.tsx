@@ -9,7 +9,7 @@ import type { PanelView, ProjectView, Snapshot } from '../../app/shared/model';
 import type { ProcessingState } from '../../app/shared/processing-status';
 import { stubLayoutApis } from './support/no-layout';
 import { provideWorkbench } from './support/workbench';
-import { githubForge } from './support/forge';
+import { githubView } from './support/forge';
 
 afterEach(cleanup);
 before(() => {
@@ -24,7 +24,7 @@ const project = (): ProjectView => ({
   id: 'project', name: 'Toolbar project', directory: '/work/toolbar-directory',
   layout: { panel: 'resident' }, panels: [panel('resident', 'done')],
   tray: [panel('first-ephemeral', 'needs-input'), panel('second-ephemeral', 'done')],
-  repository: null, forge: githubForge,
+  repository: null, ...githubView,
 });
 
 function renderWorkbench(change: (snapshot: Snapshot) => void = () => {}) {

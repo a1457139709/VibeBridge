@@ -1,7 +1,7 @@
 import { execFile } from 'node:child_process';
 import { z } from 'zod';
 import { executable } from '../../terminal/environment';
-import type { IssueListFilter } from '../../shared/forge';
+import type { IssueListFilter, IssueSummary } from '../../shared/forge';
 import { ForgeError, type Forge } from './forge';
 
 /** Runs `gh`, found on PATH, with the account it has active. The Workbench never reads or stores a token. */
@@ -46,25 +46,41 @@ const issueStateFields = { state: z.enum(['OPEN', 'CLOSED']), stateReason: z.enu
 /** An issue's state, and for a closed issue how it was closed when GitHub tells. */
 const issueState = (issue: z.infer<z.ZodObject<typeof issueStateFields>>) => ({ state: issue.state === 'OPEN' ? 'open' as const : 'closed' as const,
   closedAs: issue.state === 'OPEN' || !issue.stateReason ? null : closedAs[issue.stateReason] });
+const repositorySchema = z.object({ nameWithOwner: z.string() });
+const issueSchema = z.object({
+  number: z.number(), title: z.string(), ...issueStateFields, createdAt: z.string(),
+  labels: z.object({ nodes: z.array(labelSchema) }),
+  repository: repositorySchema,
+  blockedBy: z.object({ nodes: z.array(z.object({ number: z.number(), title: z.string(), state: issueStateFields.state, repository: repositorySchema })) }),
+  issueDependenciesSummary: z.object({ blockedBy: z.number() }),
+});
 const issuePageSchema = z.object({
   repository: z.object({ labels: z.object({ nodes: z.array(labelSchema) }) }),
   open: z.object({ issueCount: z.number() }),
   closed: z.object({ issueCount: z.number() }),
   search: z.object({
     pageInfo: z.object({ hasNextPage: z.boolean(), endCursor: z.string().nullable() }),
-    nodes: z.array(z.object({
-      number: z.number(), title: z.string(), ...issueStateFields, createdAt: z.string(),
-      labels: z.object({ nodes: z.array(labelSchema) }),
+    nodes: z.array(issueSchema.extend({
+      parent: z.object({ number: z.number(), repository: repositorySchema }).nullable(),
+      subIssuesSummary: z.object({ total: z.number(), completed: z.number() }),
+      subIssues: z.object({ nodes: z.array(issueSchema) }),
     })),
   }),
 });
+// Sub-issues and blockers come from their own fields (`parent`, `subIssues`, `blockedBy`), not search qualifiers.
+// `blockedBy` lists open and closed blockers alike; `issueDependenciesSummary.blockedBy` counts the open ones, also those past the listed window.
+const issueFields = `number title state stateReason createdAt labels(first: 20) { nodes { name color } } repository { nameWithOwner }
+      blockedBy(first: 20) { nodes { number title state repository { nameWithOwner } } } issueDependenciesSummary { blockedBy }`;
 const issuePageQuery = `query($owner: String!, $name: String!, $search: String!, $openSearch: String!, $closedSearch: String!, $after: String) {
   repository(owner: $owner, name: $name) { labels(first: 100, orderBy: { field: NAME, direction: ASC }) { nodes { name color } } }
   open: search(query: $openSearch, type: ISSUE, first: 0) { issueCount }
   closed: search(query: $closedSearch, type: ISSUE, first: 0) { issueCount }
   search(query: $search, type: ISSUE, first: ${pageSize}, after: $after) {
     pageInfo { hasNextPage endCursor }
-    nodes { ... on Issue { number title state stateReason createdAt labels(first: 20) { nodes { name color } } } }
+    nodes { ... on Issue { ${issueFields}
+      parent { number repository { nameWithOwner } }
+      subIssuesSummary { total completed }
+      subIssues(first: 50) { nodes { ${issueFields} } } } }
   }
 }`;
 
@@ -107,6 +123,17 @@ const checks = { SUCCESS: 'passed', FAILURE: 'failed', ERROR: 'failed', PENDING:
 const pullRequestStates = { OPEN: 'open', MERGED: 'merged', CLOSED: 'closed' } as const;
 const issueReference = (issue: z.infer<typeof issueReferenceSchema>) => ({ number: issue.number, title: issue.title, ...issueState(issue), url: issue.url });
 
+/** GitHub repository paths are case-insensitive. */
+const samePath = (a: string, b: string) => a.toLowerCase() === b.toLowerCase();
+
+/** An issue's own fields, and the open issues blocking it; a blocker in another repository names it. */
+function issueSummary(issue: z.infer<typeof issueSchema>, path: string): IssueSummary {
+  const blockedBy = issue.blockedBy.nodes.filter(blocker => blocker.state === 'OPEN').map(blocker =>
+    ({ path: samePath(blocker.repository.nameWithOwner, path) ? null : blocker.repository.nameWithOwner, number: blocker.number, title: blocker.title }));
+  return { number: issue.number, title: issue.title, ...issueState(issue), createdAt: issue.createdAt, labels: issue.labels.nodes,
+    blockedBy, unlistedBlockers: Math.max(0, issue.issueDependenciesSummary.blockedBy - blockedBy.length) };
+}
+
 /** GitHub search text for the filter. A number (with or without #) matches the issue number; other words match the title. */
 function issueSearch(path: string, { search, state, labels }: IssueListFilter) {
   const quote = (text: string) => `"${text.replace(/"/g, '')}"`;
@@ -119,8 +146,8 @@ const outputLines = (text: string) => text.split('\n').map(line => line.trim()).
 
 export const github: Forge = {
   id: 'github',
-  presentation: { name: 'GitHub', cli: 'gh', installUrl: 'https://cli.github.com', loginCommand: 'gh auth login',
-    capabilities: { subIssues: true, blocking: true } },
+  presentation: { name: 'GitHub', cli: 'gh', installUrl: 'https://cli.github.com', loginCommand: 'gh auth login' },
+  capabilities: { subIssues: true, blocking: true },
   async account() { return (await gh(['api', 'user', '--jq', '.login'])).trim(); },
   async repositories() {
     return outputLines(await gh(['api', '--paginate', 'user/repos?affiliation=owner,collaborator,organization_member&per_page=100', '--jq', '.[].full_name']));
@@ -131,15 +158,17 @@ export const github: Forge = {
     return match?.[1] ?? null;
   },
   find(path, repositories) {
-    // GitHub repository paths are case-insensitive.
-    return repositories.find(repository => repository.toLowerCase() === path.toLowerCase()) ?? null;
+    return repositories.find(repository => samePath(repository, path)) ?? null;
   },
   async issues(path, { filter, cursor }) {
     const [owner, name] = path.split('/');
     const data = await graphql(issuePageQuery, { owner, name, search: issueSearch(path, filter),
       openSearch: issueSearch(path, { ...filter, state: 'open' }), closedSearch: issueSearch(path, { ...filter, state: 'closed' }), ...cursor === null ? {} : { after: cursor } }, issuePageSchema);
     return {
-      issues: data.search.nodes.map(issue => ({ number: issue.number, title: issue.title, ...issueState(issue), createdAt: issue.createdAt, labels: issue.labels.nodes })),
+      issues: data.search.nodes.map(issue => ({ ...issueSummary(issue, path),
+        parent: issue.parent && samePath(issue.parent.repository.nameWithOwner, path) ? issue.parent.number : null,
+        subIssues: { closed: issue.subIssuesSummary.completed, total: issue.subIssuesSummary.total,
+          issues: issue.subIssues.nodes.filter(child => samePath(child.repository.nameWithOwner, path)).map(child => issueSummary(child, path)) } })),
       cursor: data.search.pageInfo.hasNextPage ? data.search.pageInfo.endCursor : null,
       labels: data.repository.labels.nodes,
       counts: { open: data.open.issueCount, closed: data.closed.issueCount },

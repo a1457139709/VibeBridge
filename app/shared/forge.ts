@@ -11,12 +11,11 @@ export interface RepositoryReference { forge: ForgeId; path: string }
 export const sameRepository = (a: RepositoryReference | null, b: RepositoryReference | null) =>
   a === b || (!!a && !!b && a.forge === b.forge && a.path === b.path);
 
-/** Features that differ between forges. The UI shows a feature only when the forge declares it;
- * entries join this shape with the features that need them. */
+/** Features that differ between forges. The UI shows a feature only when the bound forge declares it. */
 export interface ForgeCapabilities {
-  /** Issues have a parent and sub-issues. */
+  /** Issues nest under a parent issue, and a parent reports its sub-issues' progress. */
   subIssues: boolean;
-  /** Issues are blocked by other issues natively, not by text in their bodies. */
+  /** The forge records natively which issues block an issue. */
   blocking: boolean;
 }
 
@@ -28,7 +27,6 @@ export interface ForgePresentation {
   cli: string;
   installUrl: string;
   loginCommand: string;
-  capabilities: ForgeCapabilities;
 }
 
 /** Every forge failure falls into one of these kinds. `detail` is the forge's own text, unchanged. */
@@ -58,6 +56,21 @@ export interface IssueSummary {
   /** ISO 8601. */
   createdAt: string;
   labels: ForgeLabel[];
+  /** The open issues blocking it, from the forge's native dependencies only; empty when the forge has no blocking. */
+  blockedBy: BlockerReference[];
+  /** How many more open issues block it than `blockedBy` lists, when the forge lists only some of its blockers. */
+  unlistedBlockers: number;
+}
+
+/** An issue blocking a listed one. `path` names its repository when it is not the listed one, else it is null. */
+export interface BlockerReference { path: string | null; number: number; title: string }
+
+/** An issue as the list holds it, with its place in the issue tree. Empty of tree data when the forge has no sub-issues. */
+export interface ListedIssue extends IssueSummary {
+  /** The parent issue's number when the parent is in the same repository, else null. */
+  parent: number | null;
+  /** How many sub-issues it has and how many of them are closed, and those in the same repository. */
+  subIssues: { closed: number; total: number; issues: IssueSummary[] };
 }
 
 /** What a list asks for. The forge filters on its side: the search matches a title or a number, and every label must be present. */
@@ -71,7 +84,7 @@ export type IssueListFilter = IssueListQuery['filter'];
 
 /** One page of a repository's issues, newest created first, with the next page's cursor (null on the last page),
  * the labels the repository defines, and how many open and closed issues the filter's search and labels match. */
-export interface IssueListPage { issues: IssueSummary[]; cursor: string | null; labels: ForgeLabel[]; counts: IssueCounts }
+export interface IssueListPage { issues: ListedIssue[]; cursor: string | null; labels: ForgeLabel[]; counts: IssueCounts }
 /** A page of the bound repository's issues, or the forge failure. A failure that the repository is inaccessible
  * names the active account when the forge can still tell it. */
 export type IssuePage = ({ ok: true } & IssueListPage) | { ok: false; failure: ForgeFailure; account: string | null };
@@ -90,7 +103,7 @@ export interface ForgeComment { author: string | null; createdAt: string; html: 
 /** An issue as its read-only detail shows it. `body` and the comments are the forge's rendered HTML, unfiltered.
  * `commentCount` counts every comment, also those beyond the ones listed. Relations the forge does not declare
  * (ForgeCapabilities) are empty. Sub-issues are in number order. */
-export interface IssueDetail extends IssueSummary {
+export interface IssueDetail extends Omit<IssueSummary, 'blockedBy' | 'unlistedBlockers'> {
   url: string;
   author: string | null;
   assignees: string[];

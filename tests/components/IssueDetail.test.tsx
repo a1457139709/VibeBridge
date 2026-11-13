@@ -6,10 +6,11 @@ import { userEvent } from '@testing-library/user-event';
 import { App } from '../../app/renderer/Workbench';
 import { defaultSettings } from '../../app/shared/settings';
 import type { ProjectView, Settings, Snapshot, WorkbenchEvent } from '../../app/shared/model';
-import type { ForgePresentation, IssueDetail, IssueDetailResult, IssueReference, IssueSummary } from '../../app/shared/forge';
+import type { ForgeCapabilities, IssueDetail, IssueDetailResult, IssueReference, ListedIssue } from '../../app/shared/forge';
 import { stubLayoutApis } from './support/no-layout';
 import { deferred, provideWorkbench } from './support/workbench';
-import { githubForge } from './support/forge';
+import { githubCapabilities, githubForge, githubView } from './support/forge';
+import { issue as listedIssue } from './support/issue-list';
 
 afterEach(cleanup);
 before(() => {
@@ -20,9 +21,7 @@ before(() => {
 
 const repositoryUrl = 'https://github.com/octo/alpha';
 const hoursAgo = (hours: number) => new Date(Date.now() - hours * 3600e3).toISOString();
-const summary = (number: number, extra: Partial<IssueSummary> = {}): IssueSummary => ({
-  number, title: `Issue ${number}`, state: 'open', closedAs: null, createdAt: hoursAgo(3), labels: [], ...extra,
-});
+const summary = (number: number, extra: Partial<ListedIssue> = {}): ListedIssue => listedIssue(number, { createdAt: hoursAgo(3), ...extra });
 const reference = (number: number, extra: Partial<IssueReference> = {}): IssueReference => ({
   number, title: `Issue ${number}`, state: 'open', closedAs: null, url: `${repositoryUrl}/issues/${number}`, ...extra,
 });
@@ -35,9 +34,9 @@ const detail = (number: number, extra: Partial<IssueDetail> = {}): IssueDetail =
 interface Request { number: number; answer(result: IssueDetailResult): void; fail(error: Error): void }
 
 /** The Workbench with a bound project, its sidebar open on one page of issues. Every detail request waits until the test answers it. */
-function renderWorkbench(issues: IssueSummary[], forge: ForgePresentation = githubForge, settings: Partial<Settings> = {}) {
+function renderWorkbench(issues: ListedIssue[], capabilities: ForgeCapabilities = githubCapabilities, settings: Partial<Settings> = {}) {
   const project: ProjectView = {
-    id: 'alpha', name: 'Alpha', directory: '/work/alpha', layout: { panel: 'panel' }, tray: [], repository: { forge: 'github', path: 'octo/alpha' }, forge,
+    id: 'alpha', name: 'Alpha', directory: '/work/alpha', layout: { panel: 'panel' }, tray: [], repository: { forge: 'github', path: 'octo/alpha' }, ...githubView, capabilities,
     panels: [{ id: 'panel', agent: 'codex', run: { id: 'run', panelId: 'panel', projectId: 'alpha', state: 'running', title: 'Alpha session' } }],
   };
   const snapshot: Snapshot = {
@@ -161,7 +160,7 @@ test('a closed issue draws no issues it blocks, and an issue with no live relati
 });
 
 test('relations a forge does not declare are not shown', async () => {
-  const { user, request } = renderWorkbench([summary(5)], { ...githubForge, capabilities: { subIssues: false, blocking: false } });
+  const { user, request } = renderWorkbench([summary(5)], { subIssues: false, blocking: false });
   await user.click(await row('Issue 5'));
   (await request(1)).answer({ ok: true, issue: detail(5, { parent: { ...reference(1, { title: 'Spec' }), progress: { closed: 0, total: 1 } }, blockedBy: [reference(2)], subIssues: [reference(6)] }) });
   await within(pane()).findByRole('heading', { name: 'Issue 5 #5' });
@@ -196,7 +195,7 @@ test('the pull requests that close the issue on merge sit in their own block, cl
 // classes and styles as they were leaves the PTY its size. The desktop suite shows the squeezing detail resizing it.
 test('an overlaying detail leaves the layout area as it was, and a squeezing one narrows it until it closes', async () => {
   for (const detailCoexistence of ['overlay', 'squeeze'] as const) {
-    const { user, request } = renderWorkbench([summary(7)], githubForge, { detailCoexistence });
+    const { user, request } = renderWorkbench([summary(7)], githubCapabilities, { detailCoexistence });
     const layoutArea = () => document.querySelector('.app-body')!;
     const before = [layoutArea().className, layoutArea().getAttribute('style')];
     await user.click(await row('Issue 7'));

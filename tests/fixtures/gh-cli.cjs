@@ -33,6 +33,7 @@ function unsupported() { process.stderr.write(`gh double: unsupported command ${
 function graphql({ query, owner, name, search, openSearch, closedSearch, after, number }) {
   if (!query) unsupported();
   const path = `${owner}/${name}`;
+  const blockerWindow = Number(/blockedBy\(first: (\d+)\)/.exec(query)?.[1]);
   if (!state.repositories.some(listed => listed.toLowerCase() === path.toLowerCase())) {
     const message = `Could not resolve to a Repository with the name '${path}'.`;
     process.stdout.write(JSON.stringify({ data: { repository: null }, errors: [{ type: 'NOT_FOUND', path: ['repository'], message }] }));
@@ -49,8 +50,13 @@ function graphql({ query, owner, name, search, openSearch, closedSearch, after, 
     repository: { labels: { nodes: state.labels ?? [] } },
     open: { issueCount: searchIssues(openSearch).length }, closed: { issueCount: searchIssues(closedSearch).length },
     search: { pageInfo: { hasNextPage: end < found.length, endCursor: page.length ? Buffer.from(`cursor:${end}`).toString('base64') : null },
-      nodes: page.map(issue => ({ number: issue.number, title: issue.title, state: issue.state, stateReason: issue.stateReason ?? null,
-        createdAt: issue.createdAt, labels: { nodes: issue.labels } })) },
+      nodes: page.map(issue => {
+        const children = (state.issues ?? []).filter(child => child.parent === issue.number).sort((a, b) => a.number - b.number);
+        return { ...node(issue, path, blockerWindow),
+          parent: issue.parent === undefined ? null : { number: issue.parent, repository: { nameWithOwner: path } },
+          subIssuesSummary: { total: children.length, completed: children.filter(child => child.state === 'CLOSED').length },
+          subIssues: { nodes: children.map(child => node(child, path, blockerWindow)) } };
+      }) },
   } }));
 }
 
@@ -67,6 +73,9 @@ function issueDetail(path, number) {
   }
   const reference = item => ({ number: item.number, title: item.title, state: item.state, stateReason: item.stateReason ?? null, url: `${url}/issues/${item.number}` });
   const byNumber = numbers => (numbers ?? []).map(n => issues.find(item => item.number === n)).filter(Boolean);
+  // A blocker in another repository is named in full; one in this repository by its number.
+  const blocker = entry => typeof entry === 'number' ? reference(byNumber([entry])[0])
+    : { number: entry.number, title: entry.title, state: entry.state, stateReason: null, url: `https://github.com/${entry.path}/issues/${entry.number}` };
   const pull = n => {
     const item = pulls.find(candidate => candidate.number === n);
     return { number: item.number, title: item.title, state: item.state, isDraft: !!item.isDraft, url: `${url}/pull/${item.number}`,
@@ -85,10 +94,23 @@ function issueDetail(path, number) {
     parent: issue.parent ? { ...reference(byNumber([issue.parent])[0]), subIssuesSummary: subIssuesSummary(issue.parent) } : null,
     // GitHub lists sub-issues in the order they were added, not by number.
     subIssues: { nodes: issues.filter(item => item.parent === issue.number).reverse().map(reference) },
-    blockedBy: { nodes: byNumber(issue.blockedBy).map(reference) },
+    blockedBy: { nodes: (issue.blockedBy ?? []).map(blocker) },
     blocking: { nodes: issues.filter(item => item.blockedBy?.includes(issue.number)).map(reference) },
     closedByPullRequestsReferences: { nodes: (issue.closedBy ?? []).map(pull) },
   } } } }));
+}
+
+/** An issue's own fields and its blockers, as GitHub's GraphQL API names them. */
+function node(issue, path, blockerWindow) {
+  const own = other => ({ number: other.number, title: other.title, state: other.state });
+  const blocker = entry => typeof entry === 'number'
+    ? { ...own((state.issues ?? []).find(other => other.number === entry)), repository: { nameWithOwner: path } }
+    : { ...own(entry), repository: { nameWithOwner: entry.path } };
+  const blockers = (issue.blockedBy ?? []).map(blocker);
+  return { number: issue.number, title: issue.title, state: issue.state, stateReason: issue.stateReason ?? null, createdAt: issue.createdAt,
+    labels: { nodes: issue.labels }, repository: { nameWithOwner: path },
+    // Like GitHub, the listed blockers stop at the query's window, open and closed alike; the summary counts every open one.
+    blockedBy: { nodes: blockers.slice(0, blockerWindow) }, issueDependenciesSummary: { blockedBy: blockers.filter(other => other.state === 'OPEN').length } };
 }
 
 /** The issues a GitHub search finds, newest first. Qualifiers: repo:, is:issue, is:open|closed, label:"…",

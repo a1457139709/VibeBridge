@@ -9,18 +9,18 @@ import type { ProjectEdit, ProjectView } from '../../app/shared/model';
 import { detail, message } from '../../app/shared/messages';
 import type { ForgeFailureKind, RepositoryChoices, RepositoryReference } from '../../app/shared/forge';
 import { provideWorkbench } from './support/workbench';
+import { githubForge, githubView } from './support/forge';
 
 afterEach(cleanup);
 
 const github = (path: string): RepositoryReference => ({ forge: 'github', path });
-const forge = { name: 'GitHub', cli: 'gh', installUrl: 'https://cli.github.com', loginCommand: 'gh auth login', capabilities: { subIssues: true, blocking: true } };
-const listed: RepositoryChoices = { ok: true, forge, account: 'octo', origin: github('octo/vibebridge'),
+const listed: RepositoryChoices = { ok: true, forge: githubForge, account: 'octo', origin: github('octo/vibebridge'),
   repositories: ['octo/tools', 'octo/vibebridge', 'acme/group/forge'].map(github) };
-const failed = (kind: ForgeFailureKind, detail = ''): RepositoryChoices => ({ ok: false, failure: { kind, detail, forge } });
+const failed = (kind: ForgeFailureKind, detail = ''): RepositoryChoices => ({ ok: false, failure: { kind, detail, forge: githubForge } });
 
 function editor(repository: RepositoryReference | null, choices: (directory: string) => Promise<RepositoryChoices>,
   save: (edit: ProjectEdit) => Promise<void> = async () => {}) {
-  const project: ProjectView = { id: 'project', name: 'Bound', directory: '/work/bound', panels: [], tray: [], layout: null, repository, forge };
+  const project: ProjectView = { id: 'project', name: 'Bound', directory: '/work/bound', panels: [], tray: [], layout: null, repository, ...githubView };
   const edits: { edit: ProjectEdit; restart: boolean }[] = [];
   provideWorkbench({
     inspectDirectory: async directory => ({ valid: true, directory }),

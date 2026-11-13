@@ -1,11 +1,11 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState, type MouseEvent, type PointerEvent as ReactPointerEvent } from 'react';
-import { BlockedIcon, GitMergeIcon, GitPullRequestClosedIcon, GitPullRequestDraftIcon, GitPullRequestIcon } from '@primer/octicons-react';
+import { GitMergeIcon, GitPullRequestClosedIcon, GitPullRequestDraftIcon, GitPullRequestIcon } from '@primer/octicons-react';
 import { useLocalization } from './Localization';
 import { detail as reason } from '../shared/messages';
 import { filterForgeHtml } from '../shared/forge-html';
-import type { IssueDetail, IssueDetailResult, IssueReference, PullRequestReference, RepositoryReference, SubIssueProgress } from '../shared/forge';
+import type { IssueDetail, IssueDetailResult, IssueReference, PullRequestReference, RepositoryReference } from '../shared/forge';
 import type { ProjectView } from '../shared/model';
-import { IssueIcon, issueState, issueStates, Label, RelativeTime } from './ForgeDisplay';
+import { BlockedMark, IssueIcon, issueState, issueStates, Label, Progress, RelativeTime } from './ForgeDisplay';
 
 interface Props {
   project: ProjectView & { repository: RepositoryReference };
@@ -64,7 +64,7 @@ export function IssueDetailPane({ project, number, width, resize, canBack, back,
 
 function IssueDocument({ project, issue, open }: { project: Props['project']; issue: IssueDetail; open(number: number): void }) {
   const { t } = useLocalization();
-  const { capabilities } = project.forge;
+  const { capabilities } = project;
   /** The issue number a link to `url` names when it is an issue of the bound repository, else null. */
   const ownIssue = (url: string) => {
     // Repository paths in a forge's URLs may differ in case from the bound one.
@@ -98,7 +98,7 @@ function IssueDocument({ project, issue, open }: { project: Props['project']; is
       <StatePill issue={issue} />
       {issue.labels.map(label => <Label key={label.name} label={label} />)}
       <span className="forge-spacer" />
-      {capabilities.blocking && issue.state === 'open' && !!openBlockers.length && <BlockedMark by={openBlockers} />}
+      {capabilities.blocking && issue.state === 'open' && !!openBlockers.length && <BlockedMark by={openBlockers.map(blocker => ({ reference: `#${blocker.number}`, title: blocker.title }))} />}
     </div>
     <div className="forge-doc-meta">
       <b>{issue.author ?? t('deletedAccount')}</b> {t('issueOpened')} <RelativeTime iso={issue.createdAt} />
@@ -135,20 +135,6 @@ function StatePill({ issue }: { issue: IssueDetail }) {
   const { t } = useLocalization();
   const { tone, short } = issueStates[issueState(issue)];
   return <span className={`forge-pill forge-bg-${tone}`}><IssueIcon issue={issue} decorative />{t(short)}</span>;
-}
-
-/** The forge's blocking mark: its icon and the blockers' numbers; the hint names their titles. */
-function BlockedMark({ by }: { by: IssueReference[] }) {
-  const { t } = useLocalization();
-  const numbers = by.map(blocker => `#${blocker.number}`).join(', ');
-  return <span className="forge-blocked" role="img" aria-label={t('blockedByIssues', { numbers })}
-    data-hint={by.map(blocker => `#${blocker.number} ${blocker.title}`).join('\n')}><BlockedIcon size={12} />{numbers}</span>;
-}
-
-function Progress({ closed, total }: SubIssueProgress) {
-  const { t } = useLocalization();
-  return <span className="forge-progress" data-hint={t('subIssueProgress', { closed, total })}>
-    <span className="forge-progress-bar"><span style={{ width: `${closed / total * 100}%` }} /></span>{closed}/{total}</span>;
 }
 
 /** The small graph at the top of the detail, only of issues and only of live blocking: the open blockers on the left, the issue

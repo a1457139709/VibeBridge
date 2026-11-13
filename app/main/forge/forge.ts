@@ -1,4 +1,4 @@
-import type { ForgeFailure, ForgeFailureKind, ForgeId, ForgePresentation, IssueDetail, IssueListPage, IssueListQuery } from '../../shared/forge';
+import type { ForgeCapabilities, ForgeFailure, ForgeFailureKind, ForgeId, ForgePresentation, IssueDetail, IssueListPage, IssueListQuery } from '../../shared/forge';
 
 /** A failure of a forge call, in one of the forge-neutral kinds, with the forge's own text. */
 export class ForgeError extends Error {
@@ -8,12 +8,12 @@ export class ForgeError extends Error {
 }
 
 /** One Forge behind the Workbench. The adapter is the only code that talks to the forge or its
- * CLI. It returns domain shapes with forge-neutral names and throws ForgeError on every forge failure.
+ * CLI. It declares the features it has in `capabilities`. It returns domain shapes with forge-neutral names and throws ForgeError on every forge failure.
  * Its identity is the forge CLI's active account (docs/adr/0004-identity-comes-from-the-forge-cli.md). */
 export interface Forge {
   id: ForgeId;
-  /** How the UI shows this forge, with the features it declares. */
   presentation: ForgePresentation;
+  capabilities: ForgeCapabilities;
   /** The active account's name. */
   account(): Promise<string>;
   /** Paths of every repository the active account can bind. */

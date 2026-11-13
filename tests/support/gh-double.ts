@@ -4,13 +4,15 @@ import type { TestContext } from 'node:test';
 import { testDirectory } from './directory';
 
 /** An issue as GitHub's GraphQL API names its fields. HTML is what GitHub renders from the Markdown. Relations name
- * issue and pull request numbers of the same repository; what an issue blocks follows from the others' `blockedBy`. */
+ * issue and pull request numbers of the same repository, and a blocker may instead be an issue of another repository;
+ * what an issue blocks follows from the others' `blockedBy`. */
 export interface GhIssue {
   number: number; title: string; state: 'OPEN' | 'CLOSED'; stateReason?: 'COMPLETED' | 'NOT_PLANNED' | 'DUPLICATE' | 'REOPENED';
   createdAt: string; labels: { name: string; color: string }[];
   author?: string | null; assignees?: string[]; bodyHTML?: string;
   comments?: { author: string | null; createdAt: string; bodyHTML: string }[];
-  parent?: number; blockedBy?: number[];
+  parent?: number;
+  blockedBy?: (number | { path: string; number: number; title: string; state: 'OPEN' | 'CLOSED' })[];
   /** Pull requests that close this issue when merged. */
   closedBy?: number[];
 }

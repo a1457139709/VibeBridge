@@ -66,8 +66,9 @@ export class Workbench {
     const view = (panel: Panel) => this.supervision.panelView(panel);
     const projects = this.state.projects.map(project => {
       const repository = this.repositories.get(project.id) ?? null;
+      const forge = forges[repository?.forge ?? defaultForge];
       return { ...project, panels: project.panels.map(view), tray: this.tray(project.id).map(view),
-        repository, forge: forges[repository?.forge ?? defaultForge].presentation };
+        repository, forge: forge.presentation, capabilities: forge.capabilities };
     });
     return structuredClone({ ...this.state, projects });
   }
