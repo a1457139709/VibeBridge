@@ -36,7 +36,7 @@ export const workflowCommand = (workflowId: string, commandId: string) => {
   return workflow && command && { workflow, command: command as WorkflowCommand };
 };
 
-/** A command's delivery, flipped: an inverted dispatch uses the other one for that dispatch only. */
+/** The other delivery: an inverted dispatch uses the other one for that dispatch only. */
 export const invertedDelivery = (delivery: Delivery): Delivery => delivery === 'submit' ? 'fill' : 'submit';
 /** How a command is delivered as set in the settings: submit when the settings do not say. */
 export const commandDelivery = (settings: Record<WorkflowId, WorkflowSettings>, workflowId: string, commandId: string): Delivery =>

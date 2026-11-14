@@ -14,7 +14,7 @@ import './dispatch.css';
 export interface DispatchHost {
   workflows: Settings['workflows'];
   /** The binding that opens the dispatch menu from the sidebar. */
-  shortcut: string;
+  dispatchBinding: string;
   /** The target each command was last dispatched to while the app runs, by {@link commandKey}. */
   lastTargets: ReadonlyMap<string, DispatchTarget>;
   /** Remembers the target a command was dispatched to. */
@@ -43,7 +43,7 @@ const step = (count: number, by: number) => (index: number) => Math.max(0, Math.
  * then, leftwards, the targets: new panels of each Agent type, and the project's panels that have a run, whatever
  * they are doing. The open menu holds focus, so no key reaches a terminal: ↑/↓ move, ← enters the targets (Space does
  * the same on a command), → goes back, Space dispatches, Esc closes the whole menu and Enter does nothing. Holding ⌥
- * while dispatching, by Space or by click, flips the command's delivery for that dispatch only. The targets mark the one
+ * while dispatching, by Space or by click, inverts the command's delivery for that dispatch only. The targets mark the one
  * the command last went to, and the cursor starts there, without dispatching. Submitting returns focus here, so a new
  * panel stays a card in the tray; filling locates the target panel, which opens a new one as its temporary maximize.
  * The owner holds whether the menu is open, so a shortcut can open it. */
@@ -55,7 +55,7 @@ export function DispatchButton({ project, issue, host, open, setOpen }: {
   const [level, setLevel] = useState<'commands' | 'targets'>('commands');
   const [commandIndex, setCommandIndex] = useState(0);
   const [targetIndex, setTargetIndex] = useState(0);
-  /** Whether ⌥ is held: the deliveries shown are flipped. */
+  /** Whether ⌥ is held: the deliveries shown are inverted. */
   const [alt, setAlt] = useState(false);
   /** A filled panel to locate once the snapshot has it: a new panel can be answered before the snapshot adding it arrives. */
   const [filled, setFilled] = useState<string>();
@@ -87,10 +87,10 @@ export function DispatchButton({ project, issue, host, open, setOpen }: {
   const commands: MenuCommand[] = workflows.filter(workflow => host.workflows[workflow.id]?.enabled)
     .flatMap(workflow => workflow.commands.map(command => ({ workflowId: workflow.id, command })));
   const sections = new Set(commands.map(command => command.workflowId)).size;
-  /** A command's delivery as shown and as a dispatch now would use it: flipped while ⌥ is held. */
-  const delivery = ({ workflowId, command }: MenuCommand, flipped = alt) => {
+  /** A command's delivery as shown: inverted while ⌥ is held. */
+  const delivery = ({ workflowId, command }: MenuCommand) => {
     const configured = commandDelivery(host.workflows, workflowId, command.id);
-    return flipped ? invertedDelivery(configured) : configured;
+    return alt ? invertedDelivery(configured) : configured;
   };
   const panels = projectPanels(project).filter(panel => liveRun(panel.run));
   const resident = (panel: PanelView) => project.panels.includes(panel);
@@ -139,7 +139,7 @@ export function DispatchButton({ project, issue, host, open, setOpen }: {
 
   const commandId = (index: number) => `${id}-command-${index}`, targetId = (index: number) => `${id}-target-${index}`;
   const pointed = expanded && targets[targetIndex];
-  const shortcut = displayShortcut(host.shortcut);
+  const shortcut = displayShortcut(host.dispatchBinding);
   return <div className="dispatch" ref={root} onClick={event => event.stopPropagation()}>
     <button ref={button} className="dispatch-button" aria-haspopup="menu" aria-expanded={open} data-hint={`${t('dispatchHint')} (${shortcut})`}
       onClick={() => setOpen(!open)}>{t('dispatch')}<span aria-hidden="true"> ▾</span></button>

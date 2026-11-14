@@ -1,6 +1,8 @@
 import { message, detail } from './messages';
 export const shortcutActions = ['previousProject', 'nextProject', 'previousPanel', 'nextPanel', 'maximizePanel', 'addPanel', 'closePanel', 'settings', 'toggleForgeSidebar', 'dispatch', 'locateDispatch'] as const;
 export type ShortcutAction = typeof shortcutActions[number];
+/** The actions on the issue focus is on in the forge sidebar; elsewhere their keys go on to the terminal. */
+export type IssueShortcut = Extract<ShortcutAction, 'dispatch' | 'locateDispatch'>;
 export type Shortcuts = Record<ShortcutAction, string>;
 export const shortcutNames: Record<ShortcutAction, string> = {
   previousProject: message('previousProject'), nextProject: message('nextProject'), previousPanel: message('previousPanel'), nextPanel: message('nextPanel'),

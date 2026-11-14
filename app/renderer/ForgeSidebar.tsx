@@ -1,7 +1,7 @@
 import { useLocalization } from './Localization';
 import { useLayoutEffect, useRef, useState, type PointerEvent as ReactPointerEvent } from 'react';
 import { SidebarCollapseIcon, SidebarExpandIcon } from '@primer/octicons-react';
-import { displayShortcut } from '../shared/shortcuts';
+import { displayShortcut, type IssueShortcut } from '../shared/shortcuts';
 import type { DesktopAPI } from '../shared/api';
 import type { ProjectView, Snapshot } from '../shared/model';
 import { useSidebarPreferences } from './sidebar-preferences';
@@ -63,7 +63,7 @@ export function useForgeSidebar(host: Host, api: Pick<DesktopAPI, 'saveSidebar' 
     return true;
   }
   /** The issue shortcuts act only while focus is in the sidebar; elsewhere their keys go on, to a terminal. */
-  const shortcut = (action: 'dispatch' | 'locateDispatch') =>
+  const shortcut = (action: IssueShortcut) =>
     !!element.current?.contains(document.activeElement) && (lists.current?.shortcut(action) ?? false);
   // The toggle names the current project's forge; without a project it names the sidebar by what it shows.
   const label = project ? t(preferences.visible ? 'closeForgeSidebar' : 'openForgeSidebar', { forge: project.forge.name }) : t('toggleForgeSidebar');
@@ -83,7 +83,7 @@ export function useForgeSidebar(host: Host, api: Pick<DesktopAPI, 'saveSidebar' 
         // Mounted per project and repository: returning to a project or rebinding starts the lists afresh.
         ? <ForgeLists ref={lists} key={`${project.id} ${project.repository.forge} ${project.repository.path}`} project={{ ...project, repository: project.repository }}
           editBinding={() => setEditingRepository(true)} detailHost={detail}
-          dispatchHost={{ workflows: snapshot!.settings.workflows, shortcut: snapshot!.settings.shortcuts.dispatch, lastTargets, locate: host.locatePanel, report: host.report,
+          dispatchHost={{ workflows: snapshot!.settings.workflows, dispatchBinding: snapshot!.settings.shortcuts.dispatch, lastTargets, locate: host.locatePanel, report: host.report,
             remember: (command, target) => setLastTargets(targets => new Map(targets).set(command, target)) }} />
         : <>
           <SidebarHead title={t('noRepositoryBound')} />

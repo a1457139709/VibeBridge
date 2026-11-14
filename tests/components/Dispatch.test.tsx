@@ -173,6 +173,8 @@ test('a grey latest dispatch locates the latest earlier dispatch a panel is on, 
 
 /** The open dispatch menu, and the item its keyboard cursor is on. */
 const menu = (number = 9) => screen.getByRole('menu', { name: `Dispatch #${number}` });
+/** The implement command's item, whichever delivery it shows. */
+const implement = { name: /^implement\s?(Submit|Fill only)$/ };
 const cursor = () => document.getElementById(menu().getAttribute('aria-activedescendant') ?? '')?.textContent?.replace(/^‹/, '');
 
 test('in the menu ↑/↓ move without wrapping, ← or Space enters the targets, → goes back, Space dispatches, and Enter does nothing', async () => {
@@ -214,19 +216,19 @@ test('holding ⌥ shows the flipped deliveries, and ⌥+Space or ⌥+click flips
   await f.user.click(dispatchButton(9));
   await f.user.keyboard('{ArrowDown}{ArrowDown}{ArrowDown}{ArrowLeft}{Alt>}');
   assert.equal(cursor(), '✳New · Claude CodeEphemeral');
-  assert.equal(within(menu()).getByRole('menuitem', { name: /^implement\s?(Submit|Fill only)$/ }).textContent, '‹implementFill only');
+  assert.equal(within(menu()).getByRole('menuitem', implement).textContent, '‹implementFill only');
   assert.ok(within(menu()).getByText('Fill only (⌥ flips)'));
   await f.user.keyboard(' {/Alt}');
   await waitFor(() => assert.deepEqual(f.dispatches.map(([, request]) => [request.target, request.invert]), [[{ kind: 'new', agent: 'claude' }, true]]));
   await f.user.click(dispatchButton(9));
-  await f.user.hover(within(menu()).getByRole('menuitem', { name: /^implement\s?(Submit|Fill only)$/ }));
-  assert.equal(within(menu()).getByRole('menuitem', { name: /^implement\s?(Submit|Fill only)$/ }).textContent, '‹implementSubmit', 'releasing ⌥ shows the deliveries as set');
+  await f.user.hover(within(menu()).getByRole('menuitem', implement));
+  assert.equal(within(menu()).getByRole('menuitem', implement).textContent, '‹implementSubmit', 'releasing ⌥ shows the deliveries as set');
   await f.user.keyboard('{Alt>}');
   await f.user.click(within(screen.getByRole('menu', { name: 'Targets for implement' })).getByRole('menuitem', { name: /Fix it/ }));
   await f.user.keyboard('{/Alt}');
   await waitFor(() => assert.deepEqual(f.dispatches.map(([, request]) => request.invert), [true, true]));
   await f.user.click(dispatchButton(9));
-  await f.user.hover(within(menu()).getByRole('menuitem', { name: /^implement\s?(Submit|Fill only)$/ }));
+  await f.user.hover(within(menu()).getByRole('menuitem', implement));
   await f.user.click(within(screen.getByRole('menu', { name: 'Targets for implement' })).getByRole('menuitem', { name: /Fix it/ }));
   await waitFor(() => assert.deepEqual(f.dispatches.map(([, request]) => request.invert), [true, true, false]));
 });
@@ -234,7 +236,7 @@ test('holding ⌥ shows the flipped deliveries, and ⌥+Space or ⌥+click flips
 test('the targets mark the one a command last went to and start the cursor there, without dispatching', async () => {
   const f = await listed();
   await f.user.click(dispatchButton(9));
-  await f.user.hover(within(menu()).getByRole('menuitem', { name: /^implement\s?(Submit|Fill only)$/ }));
+  await f.user.hover(within(menu()).getByRole('menuitem', implement));
   await f.user.click(within(screen.getByRole('menu', { name: 'Targets for implement' })).getByRole('menuitem', { name: /Fix it/ }));
   await waitFor(() => assert.equal(f.dispatches.length, 1));
   await f.user.click(dispatchButton(9));
@@ -268,6 +270,15 @@ test('⌘D opens the dispatch menu of the issue focused in the list or shown in 
   screen.getByRole('button', { name: 'Add Agent' }).focus();
   assert.equal(command('KeyD'), true, 'outside the sidebar the key goes to the terminal');
   assert.equal(screen.queryByRole('menu'), null);
+});
+
+test('⌘D is left alone when the detail shows an issue whose list row is not showing', async () => {
+  const f = await listed();
+  await f.user.click(within(row(9)).getByRole('button', { name: 'Issue 9' }));
+  const detail = await waitFor(() => document.querySelector<HTMLElement>('.forge-detail')!);
+  await f.user.click(within(sidebar()).getByRole('tab', { name: 'Pull requests' }));
+  within(detail).getByRole('button', { name: 'Close' }).focus();
+  assert.equal(command('KeyD'), true);
 });
 
 test('⌘L locates the panel of the focused issue\'s latest dispatch a panel is on', async () => {
