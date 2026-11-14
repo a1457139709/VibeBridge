@@ -10,7 +10,7 @@ import type { ForgeCapabilities, IssueDetail, IssueDetailResult, IssueReference,
 import { stubLayoutApis } from './support/no-layout';
 import { deferred, provideWorkbench } from './support/workbench';
 import { githubCapabilities, githubForge, githubView } from './support/forge';
-import { issue as listedIssue } from './support/issue-list';
+import { issue as listedIssue } from './support/forge-lists';
 
 afterEach(cleanup);
 before(() => {
@@ -28,7 +28,7 @@ const reference = (number: number, extra: Partial<IssueReference> = {}): IssueRe
 const detail = (number: number, extra: Partial<IssueDetail> = {}): IssueDetail => ({
   ...summary(number), url: `${repositoryUrl}/issues/${number}`, author: 'mona', assignees: [], body: '', comments: [], commentCount: 0,
   parent: null, subIssues: [], blockedBy: [], blocking: [], closingPullRequests: [],
-  issueLinks: `${repositoryUrl}/issues/`, ...extra,
+  links: { issues: `${repositoryUrl}/issues/`, pullRequests: `${repositoryUrl}/pull/` }, ...extra,
 });
 
 interface Request { number: number; answer(result: IssueDetailResult): void; fail(error: Error): void }
@@ -160,7 +160,7 @@ test('a closed issue draws no issues it blocks, and an issue with no live relati
 });
 
 test('relations a forge does not declare are not shown', async () => {
-  const { user, request } = renderWorkbench([summary(5)], { subIssues: false, blocking: false });
+  const { user, request } = renderWorkbench([summary(5)], { ...githubCapabilities, subIssues: false, blocking: false });
   await user.click(await row('Issue 5'));
   (await request(1)).answer({ ok: true, issue: detail(5, { parent: { ...reference(1, { title: 'Spec' }), progress: { closed: 0, total: 1 } }, blockedBy: [reference(2)], subIssues: [reference(6)] }) });
   await within(pane()).findByRole('heading', { name: 'Issue 5 #5' });
@@ -183,9 +183,7 @@ test('the pull requests that close the issue on merge sit in their own block, cl
   assert.deepEqual(items.map(item => item.textContent), [
     '#40Passing✓ Checks passed', '#41Running● Checks running', '#42Failing✗ Checks failed', '#43Merged', '#44Abandoned', '#45Unchecked',
   ]);
-  assert.deepEqual(items.map(item => within(item).getByRole('link').getAttribute('href')), [40, 41, 42, 43, 44, 45].map(n => `${repositoryUrl}/pull/${n}`),
-    'each opens in the browser');
-  assert.deepEqual(items.map(item => within(item).getByRole('link').getAttribute('target')), Array(6).fill('_blank'));
+  assert.equal(items.filter(item => within(item).queryByRole('button')).length, 6, 'each, of the bound repository, opens in the sidebar');
   assert.deepEqual(items.map(item => within(item).getByRole('img').getAttribute('aria-label')),
     ['Open pull request', 'Draft pull request', 'Open pull request', 'Merged pull request', 'Closed pull request', 'Open pull request']);
   assert.equal(within(pane()).queryByRole('group', { name: 'Relations' }), null, 'pull requests stay out of the issue graph');

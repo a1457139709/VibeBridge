@@ -9,8 +9,8 @@ import { ProjectStore } from './storage';
 import { SettingsFile, defaultSettings } from './settings';
 import { settingsConflicts, type SettingsSaveResult } from '../shared/settings';
 import { RunSupervision } from './run-supervision';
-import { listQuerySchema, issueNumberSchema, sameRepository, type IssueDetailResult, type ListQuery, type IssuePage, type PullRequestPage, type RepositoryChoices, type RepositoryReference } from '../shared/forge';
-import { issueDetail, issuePage, pullRequestPage } from './forge/issues';
+import { listQuerySchema, itemNumberSchema, sameRepository, type IssueDetailResult, type PullRequestDetailResult, type ListQuery, type IssuePage, type PullRequestPage, type RepositoryChoices, type RepositoryReference } from '../shared/forge';
+import { issueDetail, issuePage, pullRequestDetail, pullRequestPage } from './forge/results';
 import { listedRepository, repositoryChoices } from './forge/repositories';
 import { defaultForge, forges } from './forge/forges';
 
@@ -180,7 +180,11 @@ export class Workbench {
   }
   /** One issue of the project's bound repository, with its rendered body, comments and relations. */
   async issueDetail(projectId: string, number: number): Promise<IssueDetailResult> {
-    return issueDetail(this.boundRepository(projectId), issueNumberSchema.parse(number));
+    return issueDetail(this.boundRepository(projectId), itemNumberSchema.parse(number));
+  }
+
+  async pullRequestDetail(projectId: string, number: number): Promise<PullRequestDetailResult> {
+    return pullRequestDetail(this.boundRepository(projectId), itemNumberSchema.parse(number));
   }
   private boundRepository(projectId: string) {
     this.project(projectId);

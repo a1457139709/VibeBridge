@@ -1,4 +1,5 @@
-import type { ForgeFailure, IssueDetailResult, IssuePage, ListQuery, PullRequestPage, RepositoryReference } from '../../shared/forge';
+/** A repository's issues and pull requests read from its forge: the data, or the forge failure. */
+import type { ForgeFailure, IssueDetailResult, IssuePage, ListQuery, PullRequestDetailResult, PullRequestPage, RepositoryReference } from '../../shared/forge';
 import { forges } from './forges';
 import { ForgeError, type Forge } from './forge';
 
@@ -30,4 +31,9 @@ export function pullRequestPage(repository: RepositoryReference, query: ListQuer
 /** One issue of the repository from its forge, with its rendered body, comments and relations; or the forge failure. */
 export function issueDetail(repository: RepositoryReference, number: number): Promise<IssueDetailResult> {
   return fromForge(repository, async forge => ({ issue: await forge.issue(repository.path, number) }), async () => ({}));
+}
+
+/** One pull request of the repository from its forge, with its rendered body and what stands between it and a merge; or the forge failure. */
+export function pullRequestDetail(repository: RepositoryReference, number: number): Promise<PullRequestDetailResult> {
+  return fromForge(repository, async forge => ({ pullRequest: await forge.pullRequest(repository.path, number) }), async () => ({}));
 }

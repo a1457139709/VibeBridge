@@ -1,10 +1,51 @@
-import type { CSSProperties } from 'react';
+import { useMemo, type CSSProperties, type ReactNode } from 'react';
 import { BlockedIcon, GitMergeIcon, GitPullRequestClosedIcon, GitPullRequestDraftIcon, GitPullRequestIcon, IssueClosedIcon, IssueOpenedIcon, SkipIcon } from '@primer/octicons-react';
 import { useLocalization } from './Localization';
-import type { ChecksConclusion, ForgeLabel, IssueSummary, PullRequestState, SubIssueProgress } from '../shared/forge';
+import { filterForgeHtml } from '../shared/forge-html';
+import type { ChecksConclusion, ForgeLabel, ForgeLinks, IssueSummary, PullRequestState, SubIssueProgress } from '../shared/forge';
 
 // How the forge sidebar's lists and details show an issue's state, labels, age, sub-issue progress and blockers,
-// and a pull request's state and checks.
+// a pull request's state and checks, and the posts and links of a detail.
+
+/** An issue or pull request of the bound repository, as the detail opens it. */
+export interface DetailItem { kind: 'issue' | 'pullRequest'; number: number }
+/** The item a link to `url` names when it is an issue or pull request of the bound repository, else null. */
+export function linkedItem(url: string, links: ForgeLinks): DetailItem | null {
+  for (const kind of ['issue', 'pullRequest'] as const) {
+    const prefix = kind === 'issue' ? links.issues : links.pullRequests;
+    // Repository paths in a forge's URLs may differ in case from the bound one.
+    if (!url.toLowerCase().startsWith(prefix.toLowerCase())) continue;
+    const match = /^(\d+)(?:[?#].*)?$/.exec(url.slice(prefix.length));
+    if (match) return { kind, number: Number(match[1]) };
+  }
+  return null;
+}
+
+/** A reference to an issue or pull request of `kind`: one of the bound repository opens in the detail, any other in the browser. */
+export function ItemReference({ kind, url, links, open, className, hint, children }: {
+  kind: DetailItem['kind']; url: string; links: ForgeLinks; open(item: DetailItem): void; className: string; hint: string; children: ReactNode;
+}) {
+  const item = linkedItem(url, links);
+  return item?.kind === kind
+    ? <button className={className} data-hint={hint} onClick={() => open(item)}>{children}</button>
+    : <a className={className} href={url} target="_blank" rel="noreferrer" data-hint={hint}>{children}</a>;
+}
+
+/** A message whose values are elements: `format` receives a marker per slot, and each marker in its text becomes that slot's element. */
+export function withElements(format: (markers: Record<string, string>) => string, slots: Record<string, ReactNode>): ReactNode[] {
+  const markers = Object.fromEntries(Object.keys(slots).map(key => [key, `\u0000${key}\u0000`]));
+  return format(markers).split('\u0000').map((part, index) => index % 2 ? <span key={index}>{slots[part]}</span> : part);
+}
+
+/** A body, comment or review summary: who wrote it, the review's verdict if any, and when; then the forge's HTML through the filter. */
+export function Post({ author, createdAt, html, verdict }: { author: string | null; createdAt: string; html: string; verdict?: ReactNode }) {
+  const { t } = useLocalization();
+  const filtered = useMemo(() => filterForgeHtml(html), [html]);
+  return <article className="forge-card">
+    <header><b>{author ?? t('deletedAccount')}</b> {verdict && <>{verdict} </>}<RelativeTime iso={createdAt} /></header>
+    {filtered.trim() ? <div className="forge-markdown" dangerouslySetInnerHTML={{ __html: filtered }} /> : <p className="forge-markdown-empty">{t('noDescription')}</p>}
+  </article>;
+}
 
 /** How an issue stands: open, or closed as completed, not planned or a duplicate (completed when the forge does not tell). */
 export const issueState = (issue: Pick<IssueSummary, 'state' | 'closedAs'>) => issue.state === 'open' ? 'open' as const : issue.closedAs ?? 'completed';
@@ -61,12 +102,13 @@ export function BlockedMark({ by, unlisted = 0 }: { by: { reference: string; tit
     data-hint={[...by.map(blocker => `${blocker.reference} ${blocker.title}`), ...more].join('\n')}><BlockedIcon size={12} />{names}</span>;
 }
 
-/** The forge's pull request octicons and colours: open green, draft grey, merged purple, closed red. */
+/** The forge's pull request octicons and colours: open green, draft grey, merged purple, closed red; with the name an
+ * icon gives the state and the shorter one a state pill shows. */
 const pullRequestStates = {
-  open: { Icon: GitPullRequestIcon, tone: 'open', name: 'pullRequestOpen' },
-  draft: { Icon: GitPullRequestDraftIcon, tone: 'skipped', name: 'pullRequestDraft' },
-  merged: { Icon: GitMergeIcon, tone: 'done', name: 'pullRequestMerged' },
-  closed: { Icon: GitPullRequestClosedIcon, tone: 'failed', name: 'pullRequestClosed' },
+  open: { Icon: GitPullRequestIcon, tone: 'open', name: 'pullRequestOpen', short: 'stateOpen' },
+  draft: { Icon: GitPullRequestDraftIcon, tone: 'skipped', name: 'pullRequestDraft', short: 'stateDraft' },
+  merged: { Icon: GitMergeIcon, tone: 'done', name: 'pullRequestMerged', short: 'stateMerged' },
+  closed: { Icon: GitPullRequestClosedIcon, tone: 'failed', name: 'pullRequestClosed', short: 'stateClosed' },
 } as const;
 
 /** A pull request's state octicon in the forge's colour; inside an element with its own hint, it gives none. */
@@ -74,6 +116,13 @@ export function PullRequestIcon({ state, size = 16, hint = true }: { state: Pull
   const { t } = useLocalization();
   const { Icon, tone, name } = pullRequestStates[state];
   return <span className={`forge-icon forge-${tone}`} role="img" aria-label={t(name)} data-hint={hint ? t(name) : undefined}><Icon size={size} /></span>;
+}
+
+/** A pull request's state as a pill: its icon and name on the state's colour. */
+export function PullRequestPill({ state }: { state: PullRequestState }) {
+  const { t } = useLocalization();
+  const { tone, short } = pullRequestStates[state];
+  return <span className={`forge-pill forge-bg-${tone}`}><PullRequestIcon state={state} hint={false} />{t(short)}</span>;
 }
 
 /** Each checks conclusion's mark, name and colour. */

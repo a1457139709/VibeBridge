@@ -1,26 +1,17 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { ghDouble, type GhIssue } from './support/gh-double';
-import { interactiveWorkbench } from './support/interactive-workbench';
 import type { ListFilter } from '../app/shared/forge';
+import { boundWorkbench, day, forgeAccount, openNoFilter } from './support/bound-workbench';
 
-const openNoFilter: ListFilter = { search: '', state: 'open', labels: [] };
-const day = (n: number) => new Date(Date.UTC(2026, 0, 1 + n)).toISOString();
 /** 30 open issues, #1 the oldest, created a day apart. */
 const thirtyIssues: GhIssue[] = Array.from({ length: 30 }, (_, index) => ({
   number: index + 1, title: `Issue ${index + 1}`, state: 'OPEN', createdAt: day(index), labels: [],
 }));
-const account = { account: 'octo', repositories: ['octo/tools'] };
 
-async function boundWorkbench(scope: string) {
-  const f = await interactiveWorkbench(scope);
-  const { project } = await f.create('Bound');
-  await f.workbench.editProject(project.id, { name: 'Bound', directory: f.directory, repository: { forge: 'github', path: 'octo/tools' } }, false);
-  return { ...f, projectId: project.id };
-}
 
 test('a refresh returns one page of 25 issues, newest first, and the cursor loads the rest', async context => {
-  await ghDouble(context, { ...account, issues: thirtyIssues });
+  await ghDouble(context, { ...forgeAccount, issues: thirtyIssues });
   const f = await boundWorkbench('issue-page');
   try {
     const first = await f.workbench.issuePage(f.projectId, { filter: openNoFilter, cursor: null });
@@ -38,7 +29,7 @@ test('a refresh returns one page of 25 issues, newest first, and the cursor load
 
 test('the search, open or closed state and labels all narrow the page, and a closed issue says how it was closed', async context => {
   const bug = { name: 'bug', color: 'd73a4a' }, ui = { name: 'good first issue', color: '7057ff' };
-  await ghDouble(context, { ...account, labels: [bug, ui], issues: [
+  await ghDouble(context, { ...forgeAccount, labels: [bug, ui], issues: [
     { number: 1, title: 'Sidebar refresh spins forever', state: 'OPEN', createdAt: day(1), labels: [bug, ui] },
     { number: 2, title: 'Sidebar width', state: 'OPEN', createdAt: day(2), labels: [bug] },
     { number: 3, title: 'Dispatch menu', state: 'CLOSED', stateReason: 'NOT_PLANNED', createdAt: day(3), labels: [ui] },
@@ -72,7 +63,7 @@ test('the search, open or closed state and labels all narrow the page, and a clo
 
 test('a page carries each issue\'s parent, its sub-issues with their progress, and only the open issues blocking it', async context => {
   const bug = { name: 'bug', color: 'd73a4a' };
-  await ghDouble(context, { ...account, issues: [
+  await ghDouble(context, { ...forgeAccount, issues: [
     { number: 1, title: 'Map', state: 'OPEN', createdAt: day(1), labels: [] },
     { number: 2, title: 'Done ticket', state: 'CLOSED', stateReason: 'COMPLETED', createdAt: day(2), labels: [], parent: 1 },
     { number: 3, title: 'Blocked ticket', state: 'OPEN', createdAt: day(3), labels: [bug], parent: 1,
@@ -82,7 +73,8 @@ test('a page carries each issue\'s parent, its sub-issues with their progress, a
   const f = await boundWorkbench('issue-tree');
   try {
     assert.deepEqual(f.workbench.snapshot().projects.find(project => project.id === f.projectId)?.capabilities,
-      { subIssues: true, blocking: true }, 'the project declares the sub-issues and blocking GitHub has');
+      { subIssues: true, blocking: true, requiredChecks: true, mergeQueue: true, mergeMethods: ['merge', 'squash', 'rebase'] },
+      'the project declares the features GitHub has');
     const page = await f.workbench.issuePage(f.projectId, { filter: openNoFilter, cursor: null });
     assert.ok(page.ok);
     const blockers = [{ path: null, number: 4, title: 'Blocker' }, { path: 'octo/other', number: 7, title: 'Upstream fix' }];
@@ -98,7 +90,7 @@ test('a page carries each issue\'s parent, its sub-issues with their progress, a
 
 test('an issue blocked by more issues than GitHub lists counts the open blockers it did not list', async context => {
   const closedBlockers = Array.from({ length: 20 }, (_, index) => ({ path: 'octo/other', number: index + 1, title: `Old ${index + 1}`, state: 'CLOSED' as const }));
-  await ghDouble(context, { ...account, issues: [
+  await ghDouble(context, { ...forgeAccount, issues: [
     { number: 1, title: 'Long wait', state: 'OPEN', createdAt: day(1), labels: [],
       blockedBy: [...closedBlockers, { path: 'octo/other', number: 30, title: 'Still open', state: 'OPEN' }, { path: 'octo/other', number: 31, title: 'Also open', state: 'OPEN' }] },
   ] });
@@ -111,7 +103,7 @@ test('an issue blocked by more issues than GitHub lists counts the open blockers
 });
 
 test('list failures fall into the four kinds with the forge text, and an inaccessible repository names the account', async context => {
-  const double = await ghDouble(context, { ...account, issues: thirtyIssues });
+  const double = await ghDouble(context, { ...forgeAccount, issues: thirtyIssues });
   const f = await boundWorkbench('issue-failures');
   const forge = { name: 'GitHub', cli: 'gh', installUrl: 'https://cli.github.com', loginCommand: 'gh auth login' };
   const page = () => f.workbench.issuePage(f.projectId, { filter: openNoFilter, cursor: null });
@@ -119,9 +111,9 @@ test('list failures fall into the four kinds with the forge text, and an inacces
     await double.set({ account: 'octo', repositories: [] });
     assert.deepEqual(await page(), { ok: false, account: 'octo', failure: { kind: 'inaccessible', forge,
       detail: "GraphQL: Could not resolve to a Repository with the name 'octo/tools'. (repository)" } });
-    await double.set({ ...account, failure: { code: 4, stderr: 'To get started with GitHub CLI, please run:  gh auth login\n' } });
+    await double.set({ ...forgeAccount, failure: { code: 4, stderr: 'To get started with GitHub CLI, please run:  gh auth login\n' } });
     assert.deepEqual(await page(), { ok: false, account: null, failure: { kind: 'loggedOut', forge, detail: 'To get started with GitHub CLI, please run:  gh auth login' } });
-    await double.set({ ...account, failure: { code: 1, stderr: 'HTTP 502: Bad Gateway (https://api.github.com/graphql)\n' } });
+    await double.set({ ...forgeAccount, failure: { code: 1, stderr: 'HTTP 502: Bad Gateway (https://api.github.com/graphql)\n' } });
     assert.deepEqual(await page(), { ok: false, account: null, failure: { kind: 'transient', forge, detail: 'HTTP 502: Bad Gateway (https://api.github.com/graphql)' } });
     double.uninstall();
     assert.deepEqual(await page(), { ok: false, account: null, failure: { kind: 'notInstalled', forge, detail: '' } });

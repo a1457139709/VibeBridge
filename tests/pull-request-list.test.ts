@@ -1,25 +1,16 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { ghDouble, type GhPullRequest } from './support/gh-double';
-import { interactiveWorkbench } from './support/interactive-workbench';
 import type { ListFilter } from '../app/shared/forge';
+import { boundWorkbench, day, forgeAccount, openNoFilter } from './support/bound-workbench';
 
-const openNoFilter: ListFilter = { search: '', state: 'open', labels: [] };
-const day = (n: number) => new Date(Date.UTC(2026, 0, 1 + n)).toISOString();
-const account = { account: 'octo', repositories: ['octo/tools'] };
 
-async function boundWorkbench(scope: string) {
-  const f = await interactiveWorkbench(scope);
-  const { project } = await f.create('Bound');
-  await f.workbench.editProject(project.id, { name: 'Bound', directory: f.directory, repository: { forge: 'github', path: 'octo/tools' } }, false);
-  return { ...f, projectId: project.id };
-}
 
 test('a refresh returns one page of 25 pull requests, newest first, and the cursor loads the rest', async context => {
   const thirty: GhPullRequest[] = Array.from({ length: 30 }, (_, index) => ({
     number: index + 1, title: `Change ${index + 1}`, state: 'OPEN', createdAt: day(index), author: 'octo', labels: [],
   }));
-  await ghDouble(context, { ...account, pullRequests: thirty, issues: [{ number: 31, title: 'Not a change', state: 'OPEN', createdAt: day(40), labels: [] }] });
+  await ghDouble(context, { ...forgeAccount, pullRequests: thirty, issues: [{ number: 31, title: 'Not a change', state: 'OPEN', createdAt: day(40), labels: [] }] });
   const f = await boundWorkbench('pull-request-page');
   try {
     const first = await f.workbench.pullRequestPage(f.projectId, { filter: openNoFilter, cursor: null });
@@ -36,7 +27,7 @@ test('a refresh returns one page of 25 pull requests, newest first, and the curs
 
 test('a pull request is open, draft, merged or closed with its checks conclusion, and Closed lists merged ones too', async context => {
   const bug = { name: 'bug', color: 'd73a4a' }, docs = { name: 'docs', color: '0075ca' };
-  await ghDouble(context, { ...account, labels: [bug, docs], pullRequests: [
+  await ghDouble(context, { ...forgeAccount, labels: [bug, docs], pullRequests: [
     { number: 1, title: 'Fix sidebar refresh', state: 'OPEN', createdAt: day(1), author: 'octo', labels: [bug], checks: 'SUCCESS' },
     { number: 2, title: 'Draft tray order', state: 'OPEN', isDraft: true, createdAt: day(2), author: 'mona', labels: [], checks: 'PENDING' },
     { number: 3, title: 'Sidebar width', state: 'MERGED', createdAt: day(3), author: 'octo', labels: [bug, docs], checks: 'FAILURE' },
@@ -72,7 +63,7 @@ test('a pull request is open, draft, merged or closed with its checks conclusion
 });
 
 test('pull request list failures are reported like the issue list\'s', async context => {
-  const double = await ghDouble(context, account);
+  const double = await ghDouble(context, forgeAccount);
   const f = await boundWorkbench('pull-request-failures');
   const forge = { name: 'GitHub', cli: 'gh', installUrl: 'https://cli.github.com', loginCommand: 'gh auth login' };
   try {
