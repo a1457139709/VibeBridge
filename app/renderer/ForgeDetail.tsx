@@ -72,7 +72,7 @@ export function ForgeDetailPane({ project, item, width, resize, canBack, back, c
     // On success the action stays running until the refreshed detail arrives.
     if (result.ok) refresh();
     else if (result.failure.kind === 'notInstalled' || result.failure.kind === 'loggedOut') forgeFailed(result.failure);
-    else setActionState({ running: null, failed: { action, detail: result.failure.detail || result.failure.kind } });
+    else setActionState({ running: null, failed: { action, detail: result.failure.detail } });
   };
   const actions: Actions = { ...actionState, run: action => void run(action), dismiss: () => setActionState(state => ({ ...state, failed: null })) };
   // Links in the forge's HTML: an issue or pull request of the bound repository opens here; the filter sends the rest to the browser.

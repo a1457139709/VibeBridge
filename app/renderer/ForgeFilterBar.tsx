@@ -1,7 +1,7 @@
-import { useEffect, useRef, useState } from 'react';
 import { useLocalization } from './Localization';
 import type { ForgeLabel, ListCounts, ListFilter } from '../shared/forge';
 import { Label } from './ForgeDisplay';
+import { usePopover } from './popover';
 
 /** A list's search, its open and closed switch with their counts, and the label filter: every chosen label must be present. */
 export function FilterBar({ searchLabel, filter, setFilter, labels, counts }: {
@@ -10,16 +10,7 @@ export function FilterBar({ searchLabel, filter, setFilter, labels, counts }: {
   labels: ForgeLabel[]; counts: ListCounts | null;
 }) {
   const { t } = useLocalization();
-  const [choosing, setChoosing] = useState(false);
-  const root = useRef<HTMLDivElement>(null);
-  useEffect(() => {
-    if (!choosing) return;
-    const outside = (event: PointerEvent) => { if (!root.current?.contains(event.target as Node)) setChoosing(false); };
-    const escape = (event: KeyboardEvent) => { if (event.key === 'Escape') { event.stopPropagation(); setChoosing(false); } };
-    document.addEventListener('pointerdown', outside);
-    document.addEventListener('keydown', escape, true);
-    return () => { document.removeEventListener('pointerdown', outside); document.removeEventListener('keydown', escape, true); };
-  }, [choosing]);
+  const { open: choosing, setOpen: setChoosing, root } = usePopover<HTMLDivElement>();
   const toggle = (name: string) => setFilter(f => ({ ...f, labels: f.labels.includes(name) ? f.labels.filter(label => label !== name) : [...f.labels, name] }));
   const colors = new Map(labels.map(label => [label.name, label.color]));
   return <div className="forge-filters">

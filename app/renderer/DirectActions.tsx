@@ -1,5 +1,6 @@
-import { useEffect, useRef, useState } from 'react';
+import { useState } from 'react';
 import { useLocalization } from './Localization';
+import { usePopover } from './popover';
 import './direct-actions.css';
 import type { DirectAction, ForgeCapabilities, IssueDetail, MergeMethod, PullRequestDetail } from '../shared/forge';
 
@@ -20,23 +21,16 @@ const methodNames = {
   squash: { name: 'mergeMethodSquash', confirm: 'confirmMergeSquash' },
   rebase: { name: 'mergeMethodRebase', confirm: 'confirmMergeRebase' },
 } as const;
+/** The text naming each direct action: its button's or its menu item's. */
+const actionName = (action: DirectAction) => ({
+  closeIssue: action.kind === 'closeIssue' && action.reason === 'notPlanned' ? 'closeAsNotPlanned' : 'closeAsCompleted',
+  reopenIssue: 'reopenIssue',
+  merge: action.kind === 'merge' ? methodNames[action.method].name : 'mergeButton',
+  closePullRequest: 'closePullRequest',
+  reopenPullRequest: 'reopenPullRequest',
+} as const)[action.kind];
 /** The merge method last chosen, remembered while the app runs and never saved. */
 let lastMergeMethod: MergeMethod | null = null;
-
-/** A popover menu that closes on a click outside it or on Esc. */
-function useMenu() {
-  const [open, setOpen] = useState(false);
-  const root = useRef<HTMLSpanElement>(null);
-  useEffect(() => {
-    if (!open) return;
-    const outside = (event: PointerEvent) => { if (!root.current?.contains(event.target as Node)) setOpen(false); };
-    const escape = (event: KeyboardEvent) => { if (event.key === 'Escape') { event.stopPropagation(); setOpen(false); } };
-    document.addEventListener('pointerdown', outside);
-    document.addEventListener('keydown', escape, true);
-    return () => { document.removeEventListener('pointerdown', outside); document.removeEventListener('keydown', escape, true); };
-  }, [open]);
-  return { open, setOpen, root };
-}
 
 /** The failed action's name and the forge's reason, unchanged, under the buttons, with Retry and Dismiss. */
 export function ActionFailure({ actions }: { actions: Actions }) {
@@ -44,11 +38,8 @@ export function ActionFailure({ actions }: { actions: Actions }) {
   const { failed } = actions;
   if (!failed) return null;
   const { action } = failed;
-  const name = action.kind === 'closeIssue' ? t(action.reason === 'completed' ? 'closeAsCompleted' : 'closeAsNotPlanned')
-    : action.kind === 'reopenIssue' ? t('reopenIssue') : action.kind === 'merge' ? t(methodNames[action.method].name)
-    : action.kind === 'closePullRequest' ? t('closePullRequest') : t('reopenPullRequest');
   return <div className="forge-action-error" role="alert">
-    <span>{t('actionFailed', { action: name, reason: failed.detail })}</span>
+    <span>{t('actionFailed', { action: t(actionName(action)), reason: failed.detail })}</span>
     <button className="forge-text-button" onClick={() => actions.run(action)}>{t('retry')}</button>
     <button className="forge-text-button" aria-label={t('dismissFailure')} data-hint={t('dismissFailure')} onClick={actions.dismiss}>×</button>
   </div>;
@@ -58,7 +49,7 @@ export function ActionFailure({ actions }: { actions: Actions }) {
  * with closing as not planned in its menu; a closed issue reopens. */
 export function IssueActions({ issue, actions }: { issue: IssueDetail; actions: Actions }) {
   const { t } = useLocalization();
-  const menu = useMenu();
+  const menu = usePopover<HTMLSpanElement>();
   if (!issue.canWrite) return null;
   const busy = actions.running !== null;
   const close = (reason: 'completed' | 'notPlanned') => { menu.setOpen(false); actions.run({ kind: 'closeIssue', number: issue.number, reason }); };
@@ -88,7 +79,7 @@ export function ReopenPullRequest({ pullRequest: pull, actions }: { pullRequest:
 }
 
 /** What keeps an open pull request from merging, as the forge reports it: a draft, conflicts, required checks, the review. */
-function mergeBlocks(pull: PullRequestDetail, capabilities: ForgeCapabilities, t: ReturnType<typeof useLocalization>['t']) {
+function mergeBlockedReasons(pull: PullRequestDetail, capabilities: ForgeCapabilities, t: ReturnType<typeof useLocalization>['t']) {
   const required = pull.checks.filter(check => capabilities.requiredChecks && check.required);
   const { state: review, requiredApprovals } = pull.review;
   return [
@@ -108,15 +99,15 @@ export function PullRequestActions({ pullRequest: pull, capabilities, forge, act
   pullRequest: PullRequestDetail; capabilities: ForgeCapabilities; forge: string; actions: Actions;
 }) {
   const { t } = useLocalization();
-  const menu = useMenu();
+  const menu = usePopover<HTMLSpanElement>();
   const [confirming, setConfirming] = useState(false);
   const [chosen, setChosen] = useState(lastMergeMethod);
   if (!pull.canWrite) return null;
   const busy = actions.running !== null;
   const methods = pull.merge.methods.filter(method => capabilities.mergeMethods.includes(method));
   const method = chosen && methods.includes(chosen) ? chosen : methods[0] ?? null;
-  const blocks = mergeBlocks(pull, capabilities, t);
-  const blocked = !!blocks.length || !method;
+  const reasons = mergeBlockedReasons(pull, capabilities, t);
+  const blocked = !!reasons.length || !method;
   const choose = (next: MergeMethod) => { lastMergeMethod = next; setChosen(next); setConfirming(false); menu.setOpen(false); };
   const merge = () => {
     if (!method) return;
@@ -141,7 +132,7 @@ export function PullRequestActions({ pullRequest: pull, capabilities, forge, act
                 {t(methodNames[item].name)}</button>)}
             </div>}
           </span>
-          {!!blocks.length && <span className="forge-muted">{t('cannotMerge', { reasons: blocks })}</span>}
+          {!!reasons.length && <span className="forge-muted">{t('cannotMerge', { reasons })}</span>}
         </span>}
       <span className="forge-spacer" />
       <button className="forge-btn" disabled={busy} onClick={() => actions.run({ kind: 'closePullRequest', number: pull.number })}>
