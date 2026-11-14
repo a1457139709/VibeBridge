@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { ghDouble } from './support/gh-double';
 import { day, forgeAccount } from './support/bound-workbench';
-import { fixture } from './support/cli-double';
+import { fixture, until } from './support/cli-double';
 import { Workbench } from '../app/main/workbench';
 
 const issue = (number: number) => ({ number, title: `Issue ${number}`, state: 'OPEN' as const, createdAt: day(number), labels: [] });
@@ -27,21 +27,13 @@ async function dispatching(context: test.TestContext) {
   return { ...f, gh, projectId: project.id, run, session, typed, records, dispatch };
 }
 
-async function until(check: () => boolean) {
-  const deadline = Date.now() + 8000;
-  while (!check()) {
-    if (Date.now() > deadline) throw new Error('Timed out waiting for the Workbench');
-    await new Promise(resolve => setTimeout(resolve, 20));
-  }
-}
-
 test('submitting to an existing panel pastes the command for its Agent type, then presses Enter, and records the dispatch on its session', async context => {
   const f = await dispatching(context);
   try {
-    await f.workbench.dispatch(f.projectId, { issue: { number: 7, title: 'Issue 7' }, workflowId: 'matt', commandId: 'implement',
-      target: { kind: 'panel', panelId: f.run.panelId }, invert: false });
+    await f.dispatch(7);
     const text = '/implement https://github.com/octo/tools/issues/7';
     assert.equal(await f.typed(), `${paste(text)}\r`);
+    await until(() => f.records().length === 1);
     const [record] = f.records();
     assert.deepEqual({ ...record, dispatchedAt: undefined }, { issue: 7, agent: 'claude', text, dispatchedAt: undefined,
       location: { projectId: f.projectId, panelId: f.run.panelId, status: 'ready' } });
@@ -60,6 +52,7 @@ test('a fill-only command is pasted after what the input holds without pressing 
     await f.workbench.dispatch(f.projectId, { issue: { number: 8, title: 'Issue 8' }, workflowId: 'matt', commandId: 'triage',
       target: { kind: 'panel', panelId: f.run.panelId }, invert: false });
     assert.equal(await f.typed(), `${paste('/to-spec https://github.com/octo/tools/issues/7')}${paste('/triage look at https://github.com/octo/tools/issues/8')}\r`);
+    await until(() => f.records().length === 2);
     assert.deepEqual(f.records().map(record => [record.issue, record.text]),
       [[7, '/to-spec https://github.com/octo/tools/issues/7'], [8, '/triage look at https://github.com/octo/tools/issues/8']]);
   } finally { await f.close(); }
@@ -68,9 +61,8 @@ test('a fill-only command is pasted after what the input holds without pressing 
 test('a record locates no panel once the panel switches session, and the panel again when it resumes that session', async context => {
   const f = await dispatching(context);
   try {
-    await f.workbench.dispatch(f.projectId, { issue: { number: 7, title: 'Issue 7' }, workflowId: 'matt', commandId: 'implement',
-      target: { kind: 'panel', panelId: f.run.panelId }, invert: false });
-    await until(() => f.records()[0]?.location !== null);
+    await f.dispatch(7);
+    await until(() => f.records()[0]?.location?.panelId === f.run.panelId);
     await f.send(f.run.id, { hook_event_name: 'SessionStart', source: 'clear', session_id: 'cleared' });
     await until(() => f.records()[0].location === null);
     await f.send(f.run.id, { hook_event_name: 'SessionStart', source: 'resume', session_id: f.session });
@@ -87,8 +79,10 @@ test('records stay after their panel closes and after the app reopens, where no 
   try {
     await f.dispatch(7);
     await f.dispatch(8);
+    await until(() => located(f.workbench).length === 2);
     assert.deepEqual(located(f.workbench), [[7, f.run.panelId], [8, f.run.panelId]]);
     await f.workbench.closePanel(f.projectId, f.run.panelId);
+    await until(() => located(f.workbench).every(([, panel]) => panel === null));
     assert.deepEqual(located(f.workbench), [[7, null], [8, null]]);
     await f.workbench.quit();
     reopened = await Workbench.open(f.directory);
@@ -102,6 +96,7 @@ test('rebinding shows only the records of the bound repository and keeps the oth
   let reopened: Workbench | undefined;
   try {
     await f.dispatch(7);
+    await until(() => located(f.workbench).length === 1);
     await bind('octo/other');
     assert.deepEqual(located(f.workbench), []);
     await bind('octo/tools');

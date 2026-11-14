@@ -95,11 +95,13 @@ test('filling a panel closes the detail and keeps the sidebar open', async () =>
   assert.ok(sidebar());
 });
 
+/** A record's time as the hint shows it. */
+const when = (record: DispatchRecordView) => new Date(record.dispatchedAt).toLocaleString('en');
 const record = (issue: number, location: DispatchRecordView['location'], extra: Partial<DispatchRecordView> = {}): DispatchRecordView =>
   ({ issue, dispatchedAt: new Date(Date.now() - 3 * 3600e3).toISOString(), agent: 'codex', text: `/implement ${issue}`, location, ...extra });
 
 test('an issue row shows its latest dispatch: the panel\'s state and session title with ×N, or grey when no panel is on its session', async () => {
-  await listed(undefined, snapshot => {
+  const f = await listed(undefined, snapshot => {
     snapshot.projects[0].dispatches = [
       record(9, null), record(9, { projectId: 'alpha', panelId: 'tray', status: 'busy', title: 'Fix it' }, { text: '/implement 9 again' }),
       record(8, { projectId: 'alpha', panelId: 'tray', status: 'busy', title: 'Fix it' }),
@@ -107,7 +109,7 @@ test('an issue row shows its latest dispatch: the panel\'s state and session tit
   });
   const status = within(row(9)).getByRole('button', { name: 'Busy · Fix it' });
   assert.equal(status.textContent, 'Fix it ×2');
-  assert.equal(status.getAttribute('data-hint'), 'Busy · /implement 9 again → Fix it (click to locate the panel)');
+  assert.equal(status.getAttribute('data-hint'), `Busy · Codex · ${when(f.snapshot.projects[0].dispatches[1])} · /implement 9 again → Fix it (click to locate the panel)`);
   assert.equal(within(row(8)).queryByText('Fix it'), null, 'a closed issue shows no dispatch');
 });
 
@@ -121,5 +123,17 @@ test('a dispatch whose session no panel is on shows grey with its age, and click
   const activated: string[] = [];
   window.workbench.activateProject = async id => { activated.push(id); f.snapshot.activeProjectId = id; f.publish(); };
   await f.user.click(await waitFor(() => within(row(9)).getByRole('button', { name: 'Ready · Untitled task' })));
+  await waitFor(() => assert.deepEqual(activated, ['beta']));
+});
+
+test('a grey latest dispatch locates the latest earlier dispatch a panel is on, and its hint gives the record in full', async () => {
+  const f = await listed(undefined, snapshot => {
+    snapshot.projects[0].dispatches = [record(9, { projectId: 'beta', panelId: 'beta-panel', status: 'ready' }), record(9, null, { agent: 'claude' })];
+  });
+  const activated: string[] = [];
+  window.workbench.activateProject = async id => { activated.push(id); f.snapshot.activeProjectId = id; f.publish(); };
+  const status = await waitFor(() => within(row(9)).getByRole('button', { name: /^Dispatched ·/ }));
+  assert.equal(status.getAttribute('data-hint'), `Claude Code · ${when(f.snapshot.projects[0].dispatches[1])} · /implement 9 → its session is not in any open panel (click to locate the latest dispatch a panel is on)`);
+  await f.user.click(status);
   await waitFor(() => assert.deepEqual(activated, ['beta']));
 });

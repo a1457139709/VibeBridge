@@ -104,21 +104,28 @@ export function DispatchButton({ project, issue, host }: { project: ProjectView;
 }
 
 /** Where an issue's latest dispatch is now: the processing state of the panel on its session and that session's title,
- * with ×N for several dispatches; clicking locates the latest dispatch a panel is on now. Grey with its age when no panel
- * is on the latest one's session. */
+ * with ×N for several dispatches. Grey with its age when no panel is on the latest one's session. Clicking locates the
+ * latest dispatch a panel is on now, which may be an earlier one; with none, the status is not clickable. The hint gives
+ * the latest record in full: its Agent type, when, and the text sent. */
 export function DispatchStatus({ records, locate }: { records: DispatchRecordView[]; locate(projectId: string, panelId: string): void }) {
-  const { t } = useLocalization();
+  const { t, language } = useLocalization();
   const latest = records.at(-1);
   if (!latest) return null;
   const times = records.length > 1 ? <span className="dispatch-times"> ×{records.length}</span> : null;
-  if (!latest.location) return <span className="dispatch-status gone" data-hint={t('dispatchedGone')}>
-    {t('dispatched')} <RelativeTime iso={latest.dispatchedAt} />{times}</span>;
+  const record = { agent: agentNames[latest.agent], when: new Date(latest.dispatchedAt).toLocaleString(language), text: latest.text };
+  const target = latestLocatable(records)?.location;
+  const onClick = (event: React.MouseEvent) => { event.stopPropagation(); if (target) locate(target.projectId, target.panelId); };
+  if (!latest.location) {
+    const content = <>{t('dispatched')} <RelativeTime iso={latest.dispatchedAt} />{times}</>;
+    return target
+      ? <button className="dispatch-status gone" data-hint={t('dispatchedGoneLocatable', record)} onClick={onClick}>{content}</button>
+      : <span className="dispatch-status gone" data-hint={t('dispatchedGone', record)}>{content}</span>;
+  }
   const { status } = latest.location;
   const title = latest.location.title ?? t('untitled');
   const state = status ? t(status) : '';
   return <button className={`dispatch-status ${status ? `status-${status}` : ''}`} aria-label={[state, title].filter(Boolean).join(' · ')}
-    data-hint={t('dispatchStatusHint', { status: state, text: latest.text, title })}
-    onClick={event => { event.stopPropagation(); const target = latestLocatable(records)?.location; if (target) locate(target.projectId, target.panelId); }}>
+    data-hint={t('dispatchStatusHint', { status: state, title, ...record })} onClick={onClick}>
     <ProcessingStatusIcon state={status} /><span className="dispatch-session">{title}</span>{times}
   </button>;
 }

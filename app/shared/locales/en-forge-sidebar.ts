@@ -156,6 +156,7 @@ export const englishForgeSidebar = {
   "dispatchCommandUnavailable": "This command is not in an enabled workflow",
   "dispatchTargetUnavailable": "The target panel has no running Agent",
   "dispatched": "Dispatched ·",
-  "dispatchedGone": "The session dispatched to is not in any open panel",
-  "dispatchStatusHint": "{status} · {text} → {title} (click to locate the panel)",
+  "dispatchedGone": "{agent} · {when} · {text} → its session is not in any open panel",
+  "dispatchedGoneLocatable": "{agent} · {when} · {text} → its session is not in any open panel (click to locate the latest dispatch a panel is on)",
+  "dispatchStatusHint": "{status} · {agent} · {when} · {text} → {title} (click to locate the panel)",
 } as const;

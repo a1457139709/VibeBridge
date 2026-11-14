@@ -158,6 +158,7 @@ export const chineseForgeSidebar: Record<keyof typeof englishForgeSidebar, strin
   "dispatchCommandUnavailable": "这条指令不在已开启的工作流中",
   "dispatchTargetUnavailable": "目标面板没有运行中的 Agent",
   "dispatched": "已派发 ·",
-  "dispatchedGone": "派发去的会话已不在任何打开的面板上",
-  "dispatchStatusHint": "{status} · {text} → {title}（点击定位面板）",
+  "dispatchedGone": "{agent} · {when} · {text} → 派发去的会话已不在任何打开的面板上",
+  "dispatchedGoneLocatable": "{agent} · {when} · {text} → 派发去的会话已不在任何打开的面板上（点击定位最近一次仍在面板上的派发）",
+  "dispatchStatusHint": "{status} · {agent} · {when} · {text} → {title}（点击定位面板）",
 };
