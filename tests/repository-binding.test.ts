@@ -1,4 +1,4 @@
-import test from 'node:test';
+import test, { after, before } from 'node:test';
 import assert from 'node:assert/strict';
 import { execFileSync } from 'node:child_process';
 import { mkdtemp } from 'node:fs/promises';
@@ -7,8 +7,11 @@ import { Workbench } from '../app/main/workbench';
 import { ghDouble } from './support/gh-double';
 import { interactiveWorkbench } from './support/interactive-workbench';
 
-// The projects' directories are repositories of their own: git run from a hook names this checkout in GIT_* variables.
-for (const key of Object.keys(process.env)) if (key.startsWith('GIT_')) delete process.env[key];
+// The projects' directories are repositories of their own: git run from a hook names this checkout in GIT_* variables,
+// so they are set aside while these tests run.
+const hookGitVariables = Object.entries(process.env).filter(([key]) => key.startsWith('GIT_'));
+before(() => { for (const [key] of hookGitVariables) delete process.env[key]; });
+after(() => { for (const [key, value] of hookGitVariables) process.env[key] = value; });
 
 const github = (path: string) => ({ forge: 'github' as const, path });
 const account = { account: 'octo', repositories: ['octo/tools', 'Octo/VibeBridge', 'acme/forge'] };

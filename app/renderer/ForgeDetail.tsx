@@ -7,6 +7,7 @@ import { linkedItem, type DetailItem } from './ForgeDisplay';
 import { idleActions, type Actions, type ActionState } from './DirectActions';
 import { IssueDocument, type IssueDispatch } from './IssueDetail';
 import { PullRequestDocument } from './PullRequestDetail';
+import { withoutCommandModifier } from '../shared/shortcuts';
 
 interface Props {
   project: ProjectView & { repository: RepositoryReference };
@@ -16,7 +17,7 @@ interface Props {
   resize(event: ReactPointerEvent<HTMLDivElement>): void;
   canBack: boolean;
   back(): void;
-  /** Closes the detail, with focus back on the list row of its item. */
+  /** Closes the detail, with focus back on the list row of its item, or on the list when no such row shows. */
   close(): void;
   /** Opens an issue or pull request of the bound repository in this detail. */
   open(item: DetailItem): void;
@@ -66,7 +67,7 @@ export function ForgeDetailPane({ project, item, width, resize, canBack, back, c
   /** → or Esc close the detail, back to the list row. A key a field or menu inside answers goes no further. */
   const keydown = (event: React.KeyboardEvent) => {
     if (event.defaultPrevented || (event.target as HTMLElement).closest('input, textarea, [role="menu"]')) return;
-    if (event.key === 'Escape' || (event.key === 'ArrowRight' && !event.metaKey && !event.ctrlKey && !event.altKey)) { event.preventDefault(); close(); }
+    if (event.key === 'Escape' || (event.key === 'ArrowRight' && withoutCommandModifier(event))) { event.preventDefault(); close(); }
   };
   const result = loaded?.item.kind === kind && loaded.item.number === number ? loaded.result : null;
   const shown = result?.ok ? 'issue' in result ? result.issue : result.pullRequest : null;

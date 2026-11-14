@@ -1,22 +1,36 @@
 import { useState } from 'react';
 import { useLocalization } from './Localization';
 import type { ForgeCapabilities, IssueSummary, ListState, ListedIssue, PullRequestSummary } from '../shared/forge';
-import { BlockedMark, IssueIcon, Label, OpenChecks, Progress, PullRequestIcon, RelativeTime } from './ForgeDisplay';
+import { BlockedMark, IssueIcon, Label, OpenChecks, Progress, PullRequestIcon, RelativeTime, type DetailItem } from './ForgeDisplay';
+import { withoutCommandModifier } from '../shared/shortcuts';
+
+/** A list row's title is the button that opens its item; the row names its item in an attribute. */
+const rowTitleClass = 'forge-row-title', rowTitleSelector = `.${rowTitleClass}`;
+const rowAttribute = { issue: 'data-issue', pullRequest: 'data-pull-request' } as const;
+/** The title of the first list row within `scope`, a row or a list, if any. */
+export const rowTitleIn = (scope: Element | null | undefined) => scope?.querySelector<HTMLElement>(rowTitleSelector);
+/** The title of `item`'s list row within `scope`, while that row shows. */
+export const rowTitleOf = (scope: Element | null | undefined, item: DetailItem) =>
+  rowTitleIn(scope?.querySelector(`[${rowAttribute[item.kind]}="${item.number}"]`));
+/** The issue list row `element` is in, if any, with its issue's number. */
+export function issueRowOf(element: Element | null | undefined) {
+  const row = element?.closest<HTMLElement>(`[${rowAttribute.issue}]`);
+  return row ? { row, number: Number(row.dataset.issue) } : undefined;
+}
 
 /** The row title a key was pressed on without a modifier, if any: a list's keys act only from a row. */
-const keyedRow = (event: React.KeyboardEvent) => {
+const keyedRowTitle = (event: React.KeyboardEvent) => {
   const target = event.target as HTMLElement;
-  return target.matches('.forge-row-title') && !event.metaKey && !event.ctrlKey && !event.altKey ? target : null;
+  return target.matches(rowTitleSelector) && withoutCommandModifier(event) ? target : null;
 };
-const titleOf = (row: Element | null | undefined) => row?.querySelector<HTMLElement>('.forge-row-title');
 
 /** The keys of a list of rows, answered from the row focus is on: ↑/↓ move to the row above or below, without
  * wrapping; Space or Enter open the row's detail. Esc does nothing. */
-export function moveBetweenRows(event: React.KeyboardEvent<HTMLElement>) {
-  const title = keyedRow(event);
+export function moveOrOpenRow(event: React.KeyboardEvent<HTMLElement>) {
+  const title = keyedRowTitle(event);
   if (!title) return;
   if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
-    const titles = [...event.currentTarget.querySelectorAll<HTMLElement>('.forge-row-title')];
+    const titles = [...event.currentTarget.querySelectorAll<HTMLElement>(rowTitleSelector)];
     titles[titles.indexOf(title) + (event.key === 'ArrowDown' ? 1 : -1)]?.focus();
   } else if (event.key === ' ' || event.key === 'Enter') title.click();
   else return;
@@ -76,18 +90,18 @@ export function IssueTree({ issues, state, capabilities, selected, open: openIss
   // Sub-issues open leftwards in the tree: ← expands a parent and then enters its first sub-issue; → collapses it
   // and, from a collapsed one, goes to its parent.
   const keydown = (event: React.KeyboardEvent) => {
-    const title = keyedRow(event);
+    const title = keyedRowTitle(event);
     if (!title || (event.key !== 'ArrowLeft' && event.key !== 'ArrowRight')) return;
     event.preventDefault();
     const item = title.closest('li')!;
-    const number = Number(title.closest<HTMLElement>('[data-issue]')!.dataset.issue);
+    const { number } = issueRowOf(title)!;
     const parent = !!item.querySelector(':scope > .forge-row .forge-progress-toggle');
     const open = parent && expanded.has(number);
     if (event.key === 'ArrowLeft') {
-      if (open) titleOf(item.querySelector(':scope > .forge-sub-issues .forge-row'))?.focus();
+      if (open) rowTitleIn(item.querySelector(':scope > .forge-sub-issues .forge-row'))?.focus();
       else if (parent) setExpanded(set => flip(set, number));
     } else if (open) setExpanded(set => flip(set, number));
-    else titleOf(item.parentElement!.closest('li')?.querySelector(':scope > .forge-row'))?.focus();
+    else rowTitleIn(item.parentElement!.closest('li')?.querySelector(':scope > .forge-row'))?.focus();
   };
   return <ul className="forge-rows" aria-label={t('issuesTab')} onKeyDown={keydown}>{top.map(row)}</ul>;
 }
@@ -99,10 +113,10 @@ function IssueRow({ issue, selected, open, addLabel, blocking, progress, action 
   issue: IssueSummary; selected: boolean; open(): void; addLabel(name: string): void; blocking: boolean; progress: React.ReactNode;
   action(issue: IssueSummary): React.ReactNode;
 }) {
-  return <div className={`forge-row ${selected ? 'selected' : ''}`} data-issue={issue.number} onClick={open}>
+  return <div className={`forge-row ${selected ? 'selected' : ''}`} {...{ [rowAttribute.issue]: issue.number }} onClick={open}>
     <IssueIcon issue={issue} />
     <div className="forge-row-main">
-      <button className="forge-row-title" aria-current={selected || undefined}>{issue.title}</button>
+      <button className={rowTitleClass} aria-current={selected || undefined}>{issue.title}</button>
       <div className="forge-row-meta">
         <span className="forge-row-number">#{issue.number}</span><RelativeTime iso={issue.createdAt} />
         {progress}
@@ -118,10 +132,10 @@ function IssueRow({ issue, selected, open, addLabel, blocking, progress, action 
 /** A pull request row: state, title, number, age, author, the checks conclusion while it is open, and the labels.
  * It has no action area: pull requests are not dispatched. Like an issue row, it opens its detail wherever it is clicked. */
 export function PullRequestRow({ pullRequest, selected, open, addLabel }: { pullRequest: PullRequestSummary; selected: boolean; open(): void; addLabel(name: string): void }) {
-  return <div className={`forge-row ${selected ? 'selected' : ''}`} data-pull-request={pullRequest.number} onClick={open}>
+  return <div className={`forge-row ${selected ? 'selected' : ''}`} {...{ [rowAttribute.pullRequest]: pullRequest.number }} onClick={open}>
     <PullRequestIcon state={pullRequest.state} />
     <div className="forge-row-main">
-      <button className="forge-row-title" aria-current={selected || undefined}>{pullRequest.title}</button>
+      <button className={rowTitleClass} aria-current={selected || undefined}>{pullRequest.title}</button>
       <div className="forge-row-meta">
         <span className="forge-row-number">#{pullRequest.number}</span><RelativeTime iso={pullRequest.createdAt} />
         {pullRequest.author && <span className="forge-author">{pullRequest.author}</span>}

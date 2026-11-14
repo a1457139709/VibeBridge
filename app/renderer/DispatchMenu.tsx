@@ -1,11 +1,11 @@
-import { Fragment, useEffect, useId, useLayoutEffect, useRef, useState } from 'react';
+import { Fragment, useEffect, useId, useLayoutEffect, useRef, useState, type ReactNode } from 'react';
 import { useLocalization } from './Localization';
 import { ProcessingStatusIcon } from './ProcessingStatusIcon';
 import { RelativeTime } from './ForgeDisplay';
 import { agentIcons } from './agent-icons';
 import { agentNames, liveRun, projectPanels, type AgentType, type PanelView, type ProjectView, type Settings } from '../shared/model';
 import { commandDelivery, commandText, invertedDelivery, workflows, type Delivery, type WorkflowCommand } from '../shared/workflows';
-import { latestLocatable, type DispatchRecordView, type DispatchRequest, type DispatchTarget } from '../shared/dispatch';
+import { latestLocatable, type DispatchLocation, type DispatchRecordView, type DispatchRequest, type DispatchTarget } from '../shared/dispatch';
 import { displayShortcut } from '../shared/shortcuts';
 import type { IssueSummary } from '../shared/forge';
 import './dispatch.css';
@@ -25,6 +25,10 @@ export interface DispatchHost {
   dispatched(delivery: Delivery): void;
   report(message: string): void;
 }
+
+const dispatchClass = 'dispatch';
+/** Whether `scope` holds an issue's Dispatch: only an open issue has one. */
+export const holdsDispatch = (scope: Element) => !!scope.querySelector(`.${dispatchClass}`);
 
 /** A command of an enabled workflow, as the menu lists it. */
 interface MenuCommand { workflowId: string; command: WorkflowCommand }
@@ -142,7 +146,7 @@ export function DispatchButton({ project, issue, host, open, setOpen }: {
   const commandElementId = (index: number) => `${menuId}-command-${index}`, targetElementId = (index: number) => `${menuId}-target-${index}`;
   const cursorTarget = expanded && targets[targetIndex];
   const openMenuShortcut = displayShortcut(host.openMenuBinding);
-  return <div className="dispatch" ref={root} onClick={event => event.stopPropagation()}>
+  return <div className={dispatchClass} ref={root} onClick={event => event.stopPropagation()}>
     <button ref={button} className="dispatch-button" aria-haspopup="menu" aria-expanded={open} data-hint={`${t('dispatchHint')} (${openMenuShortcut})`}
       onClick={() => setOpen(!open)}>{t('dispatch')}<span aria-hidden="true"> ▾</span></button>
     {/* Pressing an item keeps focus on the menu, where its keys are answered. */}
@@ -201,26 +205,38 @@ export function DispatchStatus({ records, locate }: { records: DispatchRecordVie
   if (!latest) return null;
   const times = records.length > 1 ? <span className="dispatch-times"> ×{records.length}</span> : null;
   const details = { agent: agentNames[latest.agent], when: new Date(latest.dispatchedAt).toLocaleString(language), text: latest.text };
-  const target = latestLocatable(records)?.location;
-  const onClick = (event: React.MouseEvent) => { event.stopPropagation(); if (target) locate(target.projectId, target.panelId); };
   if (!latest.location) {
+    const target = latestLocatable(records)?.location;
     const content = <>{t('dispatched')} <RelativeTime iso={latest.dispatchedAt} />{times}</>;
     return target
-      ? <button className="dispatch-status gone" data-hint={t('dispatchedGoneLocatable', details)} onClick={onClick}>{content}</button>
+      ? <button className="dispatch-status gone" data-hint={t('dispatchedGoneLocatable', details)}
+        onClick={event => { event.stopPropagation(); locate(target.projectId, target.panelId); }}>{content}</button>
       : <span className="dispatch-status gone" data-hint={t('dispatchedGone', details)}>{content}</span>;
   }
-  const { status } = latest.location;
-  const title = latest.location.title ?? t('untitled');
-  const state = status ? t(status) : '';
-  return <button className={`dispatch-status ${status ? `status-${status}` : ''}`} aria-label={[state, title].filter(Boolean).join(' · ')}
-    data-hint={t('dispatchStatusHint', { status: state, title, ...details })} onClick={onClick}>
-    <ProcessingStatusIcon state={status} /><span className="dispatch-session">{title}</span>{times}
-  </button>;
+  return <SessionStatus location={latest.location} locate={locate} hint={names => t('dispatchStatusHint', { ...names, ...details })}>
+    {({ title }) => <><span className="dispatch-session">{title}</span>{times}</>}
+  </SessionStatus>;
 }
 
+/** The panel on a dispatch's session: its processing state as an icon, then what `children` add from the state's and
+ * the session title's names, as a button that locates that panel. Its name is the state and the session title. */
+function SessionStatus({ location, locate, hint, children }: {
+  location: DispatchLocation; locate(projectId: string, panelId: string): void;
+  hint(names: SessionNames): string; children?(names: SessionNames): ReactNode;
+}) {
+  const { t } = useLocalization();
+  const { status } = location;
+  const names = { status: status ? t(status) : '', title: location.title ?? t('untitled') };
+  return <button className={`dispatch-status ${status ? `status-${status}` : ''}`} aria-label={[names.status, names.title].filter(Boolean).join(' · ')}
+    data-hint={hint(names)} onClick={event => { event.stopPropagation(); locate(location.projectId, location.panelId); }}>
+    <ProcessingStatusIcon state={status} />{children?.(names)}
+  </button>;
+}
+interface SessionNames { status: string; title: string }
+
 /** An issue's Dispatch Records in its detail, newest first: when, the Agent type, the title of the session that took it,
- * which locates the panel on that session when there is one, and the text sent, folded until shown. A closed issue's
- * records start folded as a whole, to their count. */
+ * which locates the panel on that session when there is one, then that panel's status, and the text sent, folded until
+ * shown. A closed issue's records start folded as a whole, to their count. */
 export function DispatchRecords({ records, folded, locate }: { records: DispatchRecordView[]; folded: boolean; locate(projectId: string, panelId: string): void }) {
   const { t } = useLocalization();
   const [open, setOpen] = useState(!folded);
@@ -236,16 +252,14 @@ export function DispatchRecords({ records, folded, locate }: { records: Dispatch
     <header><button className="dispatch-records-toggle" aria-expanded={open} onClick={() => setOpen(!open)}>{open ? '▾' : '▸'} {heading}</button></header>
     {open && <ul>{records.map((record, index) => ({ record, index })).reverse().map(({ record, index }) => {
       const { location } = record;
-      const title = location?.title ?? t('untitled');
-      const state = location?.status ? t(location.status) : '';
       return <li key={index} className="dispatch-record">
         <span className="dispatch-record-when"><RelativeTime iso={record.dispatchedAt} /></span>
         <span className="dispatch-agent" role="img" aria-label={agentNames[record.agent]}>{agentIcons[record.agent]}</span>
-        {location
-          ? <button className="dispatch-status" aria-label={[state, title].filter(Boolean).join(' · ')} data-hint={t('locateSessionPanel')}
-            onClick={() => locate(location.projectId, location.panelId)}>
-            <ProcessingStatusIcon state={location.status} /><span className="dispatch-session">{title}</span></button>
-          : <span className="dispatch-record-gone">{t('noPanelOnSession')}</span>}
+        {location ? <>
+          <button className="dispatch-record-session" data-hint={t('locateSessionPanel')}
+            onClick={() => locate(location.projectId, location.panelId)}>{location.title ?? t('untitled')}</button>
+          <SessionStatus location={location} locate={locate} hint={() => t('locateSessionPanel')} />
+        </> : <span className="dispatch-record-gone">{t('noPanelOnSession')}</span>}
         {/* Folded, the text is named by how it invokes the skill: its first word. */}
         <button className="dispatch-record-toggle" aria-expanded={unfolded.has(index)} onClick={() => toggleText(index)}>
           {unfolded.has(index) ? t('hideCommand') : `${record.text.split(/\s/, 1)[0]} ▸`}</button>
