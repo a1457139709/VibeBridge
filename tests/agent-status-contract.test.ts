@@ -58,7 +58,7 @@ const contracts: Record<AgentType, Contract> = {
   },
   pi: {
     adapter: pi, configured: ['--extension', './mine.mjs'], unsafe: null,
-    ready: [fact('session_start', { isIdle: true })],
+    ready: [fact('session_start', { isIdle: true, sessionId: 'session' })],
     busy: [fact('agent_start')],
     waiting: [fact('agent_start'), fact('ui_prompt_start')],
     done: [fact('agent_start'), fact('message_end', { message: { role: 'assistant', stopReason: 'stop' } }), fact('agent_settled', { isIdle: true })],
@@ -122,6 +122,15 @@ for (const [agent, contract] of Object.entries(contracts)) {
       retired.interpreter.discardEvidence();
       assert.equal(retired.accept(contract.retired.stale), 'discard');
     }
+  });
+
+  test(`${agent}: the ready sample reports its session ID, which discarding evidence keeps`, () => {
+    const run = observe(contract.adapter);
+    assert.equal(run.interpreter.session(), undefined);
+    run.feed(contract.ready);
+    assert.equal(run.interpreter.session(), 'session');
+    run.interpreter.discardEvidence();
+    assert.equal(run.interpreter.session(), 'session');
   });
 
   test(`${agent}: interpreters of two runs are independent`, () => {

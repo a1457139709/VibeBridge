@@ -26,6 +26,10 @@ export interface StatusInterpreter {
   accept(payload: Payload): Outcome;
   /** Called after every Error: discard outcome evidence, keep session identity and duplicate records. */
   discardEvidence(): void;
+  /** The ID of the session the run is on now, as its accepted facts establish it; undefined
+   * before the first session and after the current one ends. Errors keep it.
+   */
+  session(): string | undefined;
 }
 
 const quote = (value: string) => `'${value.replaceAll("'", "'\\''")}'`;

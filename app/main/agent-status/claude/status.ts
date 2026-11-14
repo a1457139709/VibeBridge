@@ -51,7 +51,7 @@ async function prepare({ command, directory, resourceDirectory }: Launch): Promi
 }
 
 class ClaudeInterpreter implements StatusInterpreter {
-  private session?: string;
+  private currentSession?: string;
   private sessionStartPromptId?: string;
   private retired = new Set<string>();
   private promptId?: string;
@@ -73,6 +73,8 @@ class ClaudeInterpreter implements StatusInterpreter {
 
   discardEvidence() { this.clearWaits(); this.activeTools.clear(); }
 
+  session() { return this.currentSession; }
+
   private clearWaits() { this.questions.clear(); this.permissions.clear(); this.elicitations.clear(); }
 
   /** Native identity checks run after capability authentication. Independent hook
@@ -82,9 +84,9 @@ class ClaudeInterpreter implements StatusInterpreter {
     const name = event.hook_event_name;
     if (name === 'SessionStart') {
       if (this.retired.has(session) && event.source !== 'resume') return;
-      if (this.session !== session) {
-        if (this.session) this.retired.add(this.session);
-        this.session = session;
+      if (this.currentSession !== session) {
+        if (this.currentSession) this.retired.add(this.currentSession);
+        this.currentSession = session;
         this.retired.delete(session);
         this.promptId = undefined;
         this.oldPromptIds.clear();
@@ -95,15 +97,15 @@ class ClaudeInterpreter implements StatusInterpreter {
       if (event.source !== 'compact') this.sessionStartPromptId = typeof event.prompt_id === 'string' ? event.prompt_id : undefined;
       return event;
     }
-    if (this.retired.has(session) || (this.session && this.session !== session)) return;
-    this.session ??= session;
+    if (this.retired.has(session) || (this.currentSession && this.currentSession !== session)) return;
+    this.currentSession ??= session;
     if (name === 'SessionEnd') {
       // Resuming reports the old segment's SessionEnd and the new SessionStart under one
       // prompt_id. A SessionEnd processed after its paired start belongs to the segment
       // before it and keeps the session.
       if (this.sessionStartPromptId !== undefined && event.prompt_id === this.sessionStartPromptId) return event;
       this.retired.add(session);
-      this.session = undefined;
+      this.currentSession = undefined;
       this.sessionStartPromptId = undefined;
       return event;
     }

@@ -10,6 +10,12 @@ The host's stopping fact revokes report acceptance. Exit removes observations an
 
 Every accepted visible transition publishes through the existing Workbench snapshot subscription. Each panel in `snapshot.projects[].panels` (resident panels) and `snapshot.projects[].tray` (tray panels) is a panel view carrying its current run and, while that run is running, its `status`: the observed state, or Error without a reliable observation. Panels without a running run have no `status`. Frontends read status from the same panel views everywhere, including background projects; the project summary in the workspace toolbar groups the current project's resident panels, then its tray panels, by `status` into Ready, Needs input, Done and Error in that order (Busy is never summarized), so counts and members come from one projection. Frontends do not deduplicate by session or interpret events.
 
+## Current session
+
+Each interpreter also reports the ID of the session its run is on now, following `/clear`, `/resume` and forks; it is undefined before the first session and after the current one ends, and Errors keep it. `ProcessingStatus` keeps it with the run's observation, so it disappears when the observation is released. A session change of a running run publishes a snapshot.
+
+Run Supervision answers one query from it, locating a session: the project and panel whose current run is on that session now, or none. Dispatch records store only session IDs and use this query to find a panel ([ADR 0003](adr/0003-dispatch-records-point-to-sessions.md)). A run can also hold pending dispatches: each is handed the run's session ID at once if the run is on a session, otherwise on the first report of one, and is dropped unpersisted if the run ends first. Session IDs only locate panels; they are never used to resume a session.
+
 ## Reports
 
 Each Agent Type's Status Reporter runs inside the CLI process and sends reports to a listener on loopback in the main process. The launch environment carries `VIBEBRIDGE_STATUS_CONTEXT`, a JSON object with `url`, `runId`, `agent` and a random per-launch `token`. The token is a launch-local capability: it is never persisted or exposed through DesktopAPI. Launch environments drop every inherited `VIBEBRIDGE_` variable, so a Workbench started inside another Workbench's terminal never hands that Workbench's context to its own runs; a launch that cannot be safely extended carries no context at all.
@@ -27,7 +33,7 @@ A report is one POST of a JSON object of at most 64 KiB:
 
 A report whose run, token or agent does not match an accepting launch is rejected with 403; a payload that is not an object is rejected with 400. Status Reporters treat only 204 as delivered. An accepted payload goes to the run's interpreter.
 
-The payload format belongs to each Agent Type: its Status Reporter and interpreter live together in `app/main/agent-status/<agent>/` and ship in the same build. The one shared payload is `{ "observation": "lost" }` or `{ "observation": "unavailable" }`, sent when a Status Reporter cannot forward a fact or its CLI shuts down. Both project Error; the next reliable fact establishes a state again.
+The payload format belongs to each Agent Type: its Status Reporter and interpreter live together in `app/main/agent-status/<agent>/` and ship in the same build. The one shared payload is `{ "observation": "lost" }`, sent when a Status Reporter cannot forward a fact. It projects Error; the next reliable fact establishes a state again.
 
 ## Agent Type adapters
 

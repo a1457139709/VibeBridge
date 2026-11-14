@@ -12,8 +12,11 @@ interface Evidence {
  */
 class PiInterpreter implements StatusInterpreter {
   private evidence: Evidence = {};
+  private currentSession?: string;
 
   accept(event: Payload): Outcome {
+    // The reporter samples the session manager with each fact; pi replaces sessions in order.
+    if (typeof event.sessionId === 'string' && event.sessionId) this.currentSession = event.sessionId;
     switch (event.type) {
       case 'session_start': case 'session_switch': case 'session_fork': case 'session_tree':
         delete this.evidence.stopReason;
@@ -68,14 +71,17 @@ class PiInterpreter implements StatusInterpreter {
       case 'agent_end':
         if ('finalStopReason' in event) this.evidence.stopReason = typeof event.finalStopReason === 'string' ? event.finalStopReason : undefined;
         return 'keep';
-      case 'turn_start': case 'turn_end': case 'message_start': case 'message_update':
-      case 'session_shutdown': return 'keep';
+      case 'turn_start': case 'turn_end': case 'message_start': case 'message_update': return 'keep';
+      // Quit, reload and session replacement unload the reporter: nothing is observed until it loads again.
+      case 'session_shutdown': this.currentSession = undefined; return 'error';
       default: return 'error';
     }
     return this.evidence.waiting ? 'needs-input' : this.evidence.state ?? 'error';
   }
 
   discardEvidence() { this.evidence = {}; }
+
+  session() { return this.currentSession; }
 }
 
 export const pi: StatusAdapter = {

@@ -1,7 +1,7 @@
 import { report, reportingContext } from '../reporter';
 
 type Payload = Record<string, unknown>;
-interface Context { isIdle(): boolean; hasPendingMessages(): boolean }
+interface Context { isIdle(): boolean; hasPendingMessages(): boolean; sessionManager: { getSessionId(): string } }
 interface ExtensionAPI { on(name: string, handler: (event: Payload, context: Context) => Promise<void>): void }
 interface Delivery { pending: Promise<void>; lost: boolean }
 const key = Symbol.for('vibebridge.pi.status.delivery');
@@ -42,8 +42,11 @@ export default function install(pi: ExtensionAPI) {
       if (name.startsWith('session_') && name.includes('compact')) {
         payload.reason = event.reason; payload.willRetry = event.willRetry; payload.aborted = event.aborted;
       }
-      if (name === 'session_shutdown') payload = { observation: 'unavailable' };
     } catch { payload = { observation: 'lost' }; }
+    if (!('observation' in payload) && name !== 'session_shutdown') {
+      // The session ID only locates the run's panel; a context that cannot name it still reports status.
+      try { payload.sessionId = ctx.sessionManager.getSessionId(); } catch {}
+    }
     // UI lifecycle callbacks are not awaited by Pi. Enqueue synchronously so
     // their delivery cannot overtake agent/tool callbacks from this instance.
     source.pending = source.pending.then(async () => {

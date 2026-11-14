@@ -40,7 +40,7 @@ function launch(command: AgentCommand): AgentCommand {
 }
 
 class CodexInterpreter implements StatusInterpreter {
-  private session?: string;
+  private currentSession?: string;
   private retired = new Set<string>();
   private turn?: string;
   private oldTurns = new Set<string>();
@@ -59,6 +59,8 @@ class CodexInterpreter implements StatusInterpreter {
 
   discardEvidence() { this.waits.clear(); this.unansweredAsyncQuestion = false; }
 
+  session() { return this.currentSession; }
+
   /** Interpret identity only after the outer run capability was authenticated.
    * Only identifiable retired sessions, turns and repeated source boundaries
    * are excluded.
@@ -66,9 +68,9 @@ class CodexInterpreter implements StatusInterpreter {
   private identify(event: Payload, session: string): Payload | undefined {
     const name = event.hook_event_name;
     if (name === 'SessionStart') {
-      if (this.session !== session) {
-        if (this.session) this.retired.add(this.session);
-        this.session = session;
+      if (this.currentSession !== session) {
+        if (this.currentSession) this.retired.add(this.currentSession);
+        this.currentSession = session;
         this.retired.delete(session);
         this.turn = undefined;
         this.oldTurns.clear();
@@ -76,13 +78,13 @@ class CodexInterpreter implements StatusInterpreter {
       }
       return event;
     }
-    if (this.retired.has(session) || (this.session && this.session !== session)) return;
+    if (this.retired.has(session) || (this.currentSession && this.currentSession !== session)) return;
     // A user may trust hooks after startup. A fresh main event can establish the
     // association; directory, session ID and parent ID never authorize a run.
-    this.session ??= session;
+    this.currentSession ??= session;
     if (name === 'SessionEnd') {
       this.retired.add(session);
-      this.session = undefined;
+      this.currentSession = undefined;
       this.turn = undefined;
       return event;
     }
