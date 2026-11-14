@@ -10,7 +10,7 @@ import { ForgeDetailPane } from './ForgeDetail';
 import { FilterBar } from './ForgeFilterBar';
 import { DispatchButton, DispatchStatus, type DispatchHost } from './DispatchMenu';
 import type { DetailItem } from './ForgeDisplay';
-import { IssueTree, PullRequestRow } from './ForgeRows';
+import { IssueTree, moveBetweenRows, PullRequestRow } from './ForgeRows';
 
 /** The sidebar's lists, each a tab. */
 interface Items { issues: ListedIssue; pullRequests: PullRequestSummary }
@@ -29,6 +29,8 @@ type Loaded<T extends Tab> = ListPage<Items[T]> & { filter: ListFilter };
 interface TabList<T extends Tab> { loaded: Loaded<T> | null; failed: FailedPage | null }
 type Lists = { [T in Tab]: TabList<T> };
 const empty = { loaded: null, failed: null };
+/** The attribute that names each kind of item on its list row. */
+const rowAttribute = { issue: 'data-issue', pullRequest: 'data-pull-request' } as const;
 const pageOf: { [T in Tab]: (projectId: string, query: { filter: ListFilter; cursor: string | null }) => Promise<Page<Items[T]>> } = {
   issues: (projectId, query) => window.workbench.issuePage(projectId, query),
   pullRequests: (projectId, query) => window.workbench.pullRequestPage(projectId, query),
@@ -140,6 +142,21 @@ export function ForgeLists({ project, editBinding, detailHost, dispatchHost, ref
     setOpenMenuIssue(issueNumber);
     return true;
   } }));
+  // Opening the sidebar puts focus in it before the list arrives; the first rows to arrive take it on to the first row.
+  const awaitingFirstRows = useRef(true);
+  const firstRowsLoaded = !!lists[tab].loaded?.items.length;
+  useEffect(() => {
+    if (!firstRowsLoaded || !awaitingFirstRows.current) return;
+    awaitingFirstRows.current = false;
+    if (document.activeElement === scrollArea.current?.closest('.forge-sidebar')) scrollArea.current.querySelector<HTMLElement>('.forge-row-title')?.focus();
+  }, [firstRowsLoaded]);
+  /** Closes the detail and returns focus to the list row of the item it shows, or else of the one it opened from. */
+  const closeDetail = () => {
+    const rowTitle = (item: DetailItem) => scrollArea.current?.querySelector<HTMLElement>(`[${rowAttribute[item.kind]}="${item.number}"] .forge-row-title`);
+    const title = opened.toReversed().map(rowTitle).find(Boolean);
+    setOpened([]);
+    title?.focus();
+  };
   const forgeFailed = (failure: ForgeFailure) => setLists(all => ({ ...all, [tab]: { ...all[tab], failed: { ok: false, failure, account: null } } }));
 
   // The current tab fetches when it shows and whenever its filter changes; typing in the search settles first.
@@ -181,7 +198,7 @@ export function ForgeLists({ project, editBinding, detailHost, dispatchHost, ref
         onClick={() => setTab(item)}>{t(tabText[item].name)}</button>)}
     </nav>
     <FilterBar key={tab} searchLabel={t(texts.search)} filter={filter} setFilter={setFilter} labels={loaded?.labels ?? []} counts={loaded?.counts ?? null} />
-    <div className="forge-scroll" ref={scrollArea}>
+    <div className="forge-scroll" ref={scrollArea} onKeyDown={moveBetweenRows}>
       {lists.issues.loaded && tab === 'issues' && <IssueTree issues={lists.issues.loaded.items} state={lists.issues.loaded.filter.state}
         capabilities={project.capabilities} selected={selected('issue')} open={number => setOpened([{ kind: 'issue', number }])} addLabel={addLabel} action={issueAction} />}
       {lists.pullRequests.loaded && tab === 'pullRequests' && <ul className="forge-rows" aria-label={t(texts.name)}>
@@ -192,7 +209,7 @@ export function ForgeLists({ project, editBinding, detailHost, dispatchHost, ref
       {loaded?.cursor && <button className="forge-more" disabled={loading} onClick={() => void load(tab, loaded.filter, loaded.cursor)}>{t('loadMore')}</button>}
     </div>
     {shown && <ForgeDetailPane project={project} item={shown} width={detailHost.width} resize={detailHost.resize}
-      canBack={opened.length > 1} back={() => setOpened(stack => stack.slice(0, -1))} close={() => setOpened([])} open={openItem}
+      canBack={opened.length > 1} back={() => setOpened(stack => stack.slice(0, -1))} close={closeDetail} open={openItem}
       generation={generation} refresh={refresh} forgeFailed={forgeFailed} />}
   </>;
 }

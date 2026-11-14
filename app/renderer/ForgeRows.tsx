@@ -3,6 +3,26 @@ import { useLocalization } from './Localization';
 import type { ForgeCapabilities, IssueSummary, ListState, ListedIssue, PullRequestSummary } from '../shared/forge';
 import { BlockedMark, IssueIcon, Label, OpenChecks, Progress, PullRequestIcon, RelativeTime } from './ForgeDisplay';
 
+/** The row title a key was pressed on without a modifier, if any: a list's keys act only from a row. */
+const keyedRow = (event: React.KeyboardEvent) => {
+  const target = event.target as HTMLElement;
+  return target.matches('.forge-row-title') && !event.metaKey && !event.ctrlKey && !event.altKey ? target : null;
+};
+const titleOf = (row: Element | null | undefined) => row?.querySelector<HTMLElement>('.forge-row-title');
+
+/** The keys of a list of rows, answered from the row focus is on: ↑/↓ move to the row above or below, without
+ * wrapping; Space or Enter open the row's detail. Esc does nothing. */
+export function moveBetweenRows(event: React.KeyboardEvent<HTMLElement>) {
+  const title = keyedRow(event);
+  if (!title) return;
+  if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
+    const titles = [...event.currentTarget.querySelectorAll<HTMLElement>('.forge-row-title')];
+    titles[titles.indexOf(title) + (event.key === 'ArrowDown' ? 1 : -1)]?.focus();
+  } else if (event.key === ' ' || event.key === 'Enter') title.click();
+  else return;
+  event.preventDefault();
+}
+
 /** The loaded issues as a tree, when the forge has sub-issues: an issue sits under its parent when the parent is
  * loaded, else at the top level. Parents start collapsed; their progress button expands them without fetching.
  * An expanded parent shows the sub-issues in the listed state; listing open ones, it folds the closed ones after them.
@@ -53,7 +73,23 @@ export function IssueTree({ issues, state, capabilities, selected, open: openIss
       </div>}
     </li>;
   };
-  return <ul className="forge-rows" aria-label={t('issuesTab')}>{top.map(row)}</ul>;
+  // Sub-issues open leftwards in the tree: ← expands a parent and then enters its first sub-issue; → collapses it
+  // and, from a collapsed one, goes to its parent.
+  const keydown = (event: React.KeyboardEvent) => {
+    const title = keyedRow(event);
+    if (!title || (event.key !== 'ArrowLeft' && event.key !== 'ArrowRight')) return;
+    event.preventDefault();
+    const item = title.closest('li')!;
+    const number = Number(title.closest<HTMLElement>('[data-issue]')!.dataset.issue);
+    const parent = !!item.querySelector(':scope > .forge-row .forge-progress-toggle');
+    const open = parent && expanded.has(number);
+    if (event.key === 'ArrowLeft') {
+      if (open) titleOf(item.querySelector(':scope > .forge-sub-issues .forge-row'))?.focus();
+      else if (parent) setExpanded(set => flip(set, number));
+    } else if (open) setExpanded(set => flip(set, number));
+    else titleOf(item.parentElement!.closest('li')?.querySelector(':scope > .forge-row'))?.focus();
+  };
+  return <ul className="forge-rows" aria-label={t('issuesTab')} onKeyDown={keydown}>{top.map(row)}</ul>;
 }
 
 /** A list row: state, title, number, age, the sub-issue progress, the blocked mark and the labels, and the action area
@@ -82,7 +118,7 @@ function IssueRow({ issue, selected, open, addLabel, blocking, progress, action 
 /** A pull request row: state, title, number, age, author, the checks conclusion while it is open, and the labels.
  * It has no action area: pull requests are not dispatched. Like an issue row, it opens its detail wherever it is clicked. */
 export function PullRequestRow({ pullRequest, selected, open, addLabel }: { pullRequest: PullRequestSummary; selected: boolean; open(): void; addLabel(name: string): void }) {
-  return <div className={`forge-row ${selected ? 'selected' : ''}`} onClick={open}>
+  return <div className={`forge-row ${selected ? 'selected' : ''}`} data-pull-request={pullRequest.number} onClick={open}>
     <PullRequestIcon state={pullRequest.state} />
     <div className="forge-row-main">
       <button className="forge-row-title" aria-current={selected || undefined}>{pullRequest.title}</button>

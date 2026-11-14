@@ -16,6 +16,7 @@ interface Props {
   resize(event: ReactPointerEvent<HTMLDivElement>): void;
   canBack: boolean;
   back(): void;
+  /** Closes the detail, with focus back on the list row of its item. */
   close(): void;
   /** Opens an issue or pull request of the bound repository in this detail. */
   open(item: DetailItem): void;
@@ -58,7 +59,13 @@ export function ForgeDetailPane({ project, item, width, resize, canBack, back, c
       .then(result => { if (current) { setLoaded({ item, result }); setActionState(idleActions); } });
     return () => { current = false; };
   }, [project.id, kind, number, attempt, generation]);
-  useLayoutEffect(() => { scroller.current?.scrollTo?.({ top: 0 }); }, [kind, number]);
+  // Focus moves into each item the detail opens, on its body: ↑/↓ scroll it there, and Tab walks its links and buttons.
+  useLayoutEffect(() => { scroller.current?.focus({ preventScroll: true }); scroller.current?.scrollTo?.({ top: 0 }); }, [kind, number]);
+  /** → or Esc close the detail, back to the list row. A key a field or menu inside answers goes no further. */
+  const keydown = (event: React.KeyboardEvent) => {
+    if (event.defaultPrevented || (event.target as HTMLElement).closest('input, textarea, [role="menu"]')) return;
+    if (event.key === 'Escape' || (event.key === 'ArrowRight' && !event.metaKey && !event.ctrlKey && !event.altKey)) { event.preventDefault(); close(); }
+  };
   const result = loaded?.item.kind === kind && loaded.item.number === number ? loaded.result : null;
   const shown = result?.ok ? 'issue' in result ? result.issue : result.pullRequest : null;
   const retry = () => { setLoaded(null); setAttempt(count => count + 1); };
@@ -84,7 +91,7 @@ export function ForgeDetailPane({ project, item, width, resize, canBack, back, c
     open(linked);
   };
 
-  return <section className="forge-detail" aria-label={t(kindText[kind].region)} style={{ width }}>
+  return <section className="forge-detail" aria-label={t(kindText[kind].region)} style={{ width }} onKeyDown={keydown}>
     <div className="forge-detail-resize" role="separator" aria-orientation="vertical" aria-label={t('resizeDetail')} onPointerDown={resize} />
     <header className="forge-detail-bar">
       <button aria-label={t('detailBack')} data-hint={t('detailBack')} disabled={!canBack} onClick={back}>‹</button>
