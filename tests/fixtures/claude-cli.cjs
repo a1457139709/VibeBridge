@@ -29,9 +29,34 @@ async function emit(payload, malformed) {
     })));
 }
 let pending = emit({ hook_event_name: 'SessionStart', source: 'startup' }).then(() => console.log('CLI-DOUBLE-READY'));
-readline.createInterface({ input: process.stdin }).on('line', line => {
+// With --raw-input the double reads the terminal byte by byte, as an interactive CLI does: bracketed pastes and
+// Enter (\r) are typed input, kept apart from the test's own messages, which end in \n.
+let typed = '';
+function lines(onLine) {
+  if (!args.includes('--raw-input')) { readline.createInterface({ input: process.stdin }).on('line', onLine); return; }
+  process.stdin.setRawMode(true);
+  let buffer = '', line = '';
+  process.stdin.on('data', data => {
+    buffer += data.toString();
+    for (;;) {
+      if (buffer.startsWith('\x1b[200~')) {
+        const end = buffer.indexOf('\x1b[201~');
+        if (end < 0) return;
+        typed += buffer.slice(0, end + 6); buffer = buffer.slice(end + 6);
+      } else if ('\x1b[200~'.startsWith(buffer)) return; // empty, or a paste start split across reads
+      else {
+        const next = buffer[0]; buffer = buffer.slice(1);
+        if (next === '\r') typed += next;
+        else if (next === '\n') { onLine(line); line = ''; }
+        else line += next;
+      }
+    }
+  });
+}
+lines(line => {
   pending = pending.then(async () => {
     const message = JSON.parse(line);
+    if (message.typed) console.log(`TYPED:${JSON.stringify(typed)}`);
     if (message.context) console.log(`CONTEXT:${process.env.VIBEBRIDGE_STATUS_CONTEXT}`);
     if (message.settings) console.log(`SETTINGS:${JSON.stringify(settings)}`);
     if (message.arguments) console.log(`ARGUMENTS:${JSON.stringify(args)}`);

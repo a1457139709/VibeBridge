@@ -3,6 +3,7 @@ import { parentPort, workerData } from 'node:worker_threads';
 import { DatabaseSync } from 'node:sqlite';
 import { agentTypeSchema, sidebars, sidebarPreferencesSchema, parseLayout, type Sidebar, type SidebarPreferences, type Panel, type Project } from '../shared/model';
 import { forgeIdSchema, type RepositoryReference } from '../shared/forge';
+import type { DispatchRecord } from './dispatch';
 
 const file: string = workerData.file;
 const db = new DatabaseSync(file);
@@ -12,6 +13,8 @@ db.exec(`PRAGMA journal_mode=WAL; PRAGMA foreign_keys=ON;
   CREATE TABLE IF NOT EXISTS workspace (id INTEGER PRIMARY KEY CHECK(id=1), active_project TEXT, navigation TEXT);
   CREATE TABLE IF NOT EXISTS repository_bindings (project_id TEXT PRIMARY KEY REFERENCES projects(id), forge TEXT NOT NULL, path TEXT NOT NULL);
   CREATE TABLE IF NOT EXISTS forge_sidebar (id INTEGER PRIMARY KEY CHECK(id=1), preferences TEXT NOT NULL);
+  CREATE TABLE IF NOT EXISTS dispatch_records (project_id TEXT NOT NULL REFERENCES projects(id), forge TEXT NOT NULL, path TEXT NOT NULL,
+    issue INTEGER NOT NULL, dispatched_at TEXT NOT NULL, agent TEXT NOT NULL, text TEXT NOT NULL, session_id TEXT NOT NULL);
 `);
 
 // Stored content is read in its current format only: anything else fails the whole load and leaves the file untouched.
@@ -40,6 +43,20 @@ function readBindings(projects: Project[]): Record<string, RepositoryReference> 
     bindings[project.id] = { forge: forge.data, path: row.path as string };
   }
   return bindings;
+}
+
+/** Every Dispatch Record, oldest first. The forge and Agent type must be ones the Workbench knows. */
+function readDispatchRecords(projects: Project[]): DispatchRecord[] {
+  return db.prepare('SELECT * FROM dispatch_records ORDER BY rowid').all().map(row => {
+    const project = projects.find(project => project.id === row.project_id)!;
+    const invalid = (field: string) => new Error(message('projectDataInvalid', { file, field: `dispatch_records.${field}`, id: project.id, name: project.name }));
+    const forge = forgeIdSchema.safeParse(row.forge);
+    if (!forge.success) throw invalid('forge');
+    const agent = agentTypeSchema.safeParse(row.agent);
+    if (!agent.success) throw invalid('agent');
+    return { projectId: project.id, repository: { forge: forge.data, path: row.path as string }, issue: row.issue as number,
+      dispatchedAt: row.dispatched_at as string, agent: agent.data, text: row.text as string, sessionId: row.session_id as string };
+  });
 }
 
 /** Where each sidebar's preferences are stored; `field` names that place when what is stored there is invalid. */
@@ -81,6 +98,7 @@ parentPort!.on('message', ({ id, operation, value }) => {
       result = {
         projects,
         repositories: readBindings(projects),
+        dispatches: readDispatchRecords(projects),
         navigation: readSidebar('navigation'),
         forgeSidebar: readSidebar('forgeSidebar'),
         activeProjectId: workspace?.active_project ?? null,
@@ -94,8 +112,13 @@ parentPort!.on('message', ({ id, operation, value }) => {
           .run(project.id, repository.forge, repository.path);
         else db.prepare('DELETE FROM repository_bindings WHERE project_id=?').run(project.id);
       });
+    } else if (operation === 'dispatch') {
+      const record = value as DispatchRecord;
+      db.prepare('INSERT INTO dispatch_records VALUES (?,?,?,?,?,?,?,?)').run(record.projectId, record.repository.forge, record.repository.path,
+        record.issue, record.dispatchedAt, record.agent, record.text, record.sessionId);
     } else if (operation === 'delete') transaction(() => {
       db.prepare('DELETE FROM panels WHERE project_id=?').run(value.id);
+      db.prepare('DELETE FROM dispatch_records WHERE project_id=?').run(value.id);
       db.prepare('DELETE FROM repository_bindings WHERE project_id=?').run(value.id);
       db.prepare('DELETE FROM projects WHERE id=?').run(value.id);
       db.prepare('INSERT INTO workspace (id, active_project) VALUES (1,?) ON CONFLICT(id) DO UPDATE SET active_project=excluded.active_project').run(value.activeProjectId);

@@ -8,10 +8,11 @@ import { SettingsFile, defaultSettings } from './settings';
 import { settingsConflicts, type SettingsSaveResult } from '../shared/settings';
 import { RunSupervision } from './run-supervision';
 import { inspectDirectory } from './project-directory';
-import { type DirectAction, type DirectActionResult, sameRepository, type IssueDetailResult, type PullRequestDetailResult, type ListQuery, type IssuePage, type PullRequestPage, type RepositoryChoices, type RepositoryReference } from '../shared/forge';
-import { directAction, issueDetail, issuePage, pullRequestDetail, pullRequestPage } from './forge/results';
-import { listedRepository, repositoryChoices } from './forge/repositories';
-import { defaultForge, forges } from './forge/forges';
+import { type DirectAction, sameRepository, type ListQuery, type RepositoryReference } from '../shared/forge';
+import { listedRepository } from './forge/repositories';
+import { BoundRepositories } from './forge/bound-repositories';
+import { Dispatches, type DispatchRecord } from './dispatch';
+import type { DispatchRequest } from '../shared/dispatch';
 
 export class WorkbenchOpenError extends Error {
   constructor(error: unknown, readonly language: Language) {
@@ -27,11 +28,13 @@ export class Workbench {
   private visited = new Set<string>();
   // Each project's tray: its ephemeral panels in the order they joined. Never stored.
   private trays = new Map<string, Panel[]>();
-  // Each project's Repository Binding, as stored.
-  private repositories = new Map<string, RepositoryReference>();
+  private repositories: BoundRepositories;
+  private dispatches: Dispatches;
   private quitting = false;
   private quitPromise?: Promise<void>;
-  private constructor(directory: string, private store: ProjectStore, private settingsFile: SettingsFile) {
+  private constructor(directory: string, private store: ProjectStore, private settingsFile: SettingsFile,
+    stored: { repositories: Record<string, RepositoryReference>; dispatches: DispatchRecord[] }) {
+    this.repositories = new BoundRepositories(stored.repositories, id => this.project(id));
     this.supervision = new RunSupervision(directory, { changed: () => this.changed(), emit: event => this.emit(event), report: message => this.report(message),
       onRunExited: run => {
         if (!this.quitting) void this.operation(async () => {
@@ -39,6 +42,7 @@ export class Workbench {
           await this.removePanel(run.projectId, run.panelId);
         }).catch(error => this.report(error.message));
       } });
+    this.dispatches = new Dispatches(stored.dispatches, store, this.supervision, () => this.changed(), message => this.report(message));
   }
   static async open(directory: string, systemDark = false) {
     const settingsFile = new SettingsFile(directory);
@@ -49,10 +53,9 @@ export class Workbench {
     let store: ProjectStore | undefined;
     try {
       store = await ProjectStore.open(directory);
-      const { repositories, ...projects } = await store.load();
-      const workbench = new Workbench(directory, store, settingsFile);
+      const { repositories, dispatches, ...projects } = await store.load();
+      const workbench = new Workbench(directory, store, settingsFile, { repositories, dispatches });
       Object.assign(workbench.state, projects, { settings, settingsConflicts: settingsConflicts(settings), errors });
-      workbench.repositories = new Map(Object.entries(repositories));
       workbench.state.startupTheme = settings.theme;
       workbench.state.resolvedTheme = workbench.state.startupTheme === 'system' ? (systemDark ? 'dark' : 'light') : workbench.state.startupTheme;
       return workbench;
@@ -63,13 +66,9 @@ export class Workbench {
   }
   snapshot(): Snapshot {
     const view = (panel: Panel) => this.supervision.panelView(panel);
-    const projects = this.state.projects.map(project => {
-      const repository = this.repositories.get(project.id) ?? null;
-      const forge = forges[repository?.forge ?? defaultForge];
-      return { ...project, panels: project.panels.map(view), tray: this.tray(project.id).map(view),
-        repository, forge: forge.presentation, capabilities: forge.capabilities };
-    });
-    return structuredClone({ ...this.state, projects });
+    const views = this.state.projects.map(project =>
+      ({ ...project, panels: project.panels.map(view), tray: this.tray(project.id).map(view), ...this.repositories.view(project.id) }));
+    return structuredClone({ ...this.state, projects: this.dispatches.withViews(views) });
   }
   subscribe(listener: (event: WorkbenchEvent) => void) { this.listeners.add(listener); return () => { this.listeners.delete(listener); }; }
   private emit(event: WorkbenchEvent) { for (const listener of this.listeners) listener(event); }
@@ -110,7 +109,7 @@ export class Workbench {
   async editProject(id: string, edit: ProjectEdit, restart: boolean): Promise<ProjectEditResult> {
     this.project(id);
     // Listing waits on the forge CLI, so it runs before the edit joins the operation queue.
-    const repository = sameRepository(edit.repository, this.repositories.get(id) ?? null) ? edit.repository : await listedRepository(edit.repository);
+    const repository = sameRepository(edit.repository, this.repositories.get(id)) ? edit.repository : await listedRepository(edit.repository);
     return this.operation(async () => {
       const project = this.project(id);
       const nameError = projectNameError(edit.name);
@@ -120,11 +119,11 @@ export class Workbench {
       if (directory.existingProjectId && directory.existingProjectId !== id) throw new Error(message('projectDuplicate', { name: directory.existingProjectName! }));
       const next = { ...project, name: edit.name.trim(), directory: directory.directory! };
       const changedDirectory = project.directory !== next.directory;
-      const bound = this.repositories.get(id) ?? null;
+      const bound = this.repositories.get(id);
       if (!changedDirectory && project.name === next.name && sameRepository(repository, bound)) return { project: structuredClone(project), launches: [] };
       await this.store.edit(next, repository);
       Object.assign(project, next);
-      if (repository) this.repositories.set(id, repository); else this.repositories.delete(id);
+      this.repositories.set(id, repository);
       this.changed();
       const result: ProjectEditResult = { project: structuredClone(project), launches: [] };
       if (changedDirectory && restart && this.visited.has(id)) {
@@ -150,44 +149,29 @@ export class Workbench {
     this.state.projects = this.state.projects.filter(item => item.id !== id);
     this.supervision.release(panels.map(panel => panel.id));
     this.trays.delete(id);
-    this.repositories.delete(id);
+    this.repositories.set(id, null);
+    this.dispatches.forget(id);
     this.visited.delete(id);
     const activateNext = this.state.activeProjectId === id;
     this.state.activeProjectId = nextActive;
     this.changed();
     if (activateNext && nextActive) await this.startProject(this.project(nextActive));
   }); }
-  /** The repositories the project can bind, with the one that `origin` of `directory` (the directory as the user is editing it) points at. */
-  async repositoryChoices(projectId: string, directory: string): Promise<RepositoryChoices> {
-    this.project(projectId);
-    return repositoryChoices(this.repositories.get(projectId) ?? null, directory);
-  }
-  /** One page of the issues of the project's bound repository, as `query` asks. */
-  async issuePage(projectId: string, query: ListQuery): Promise<IssuePage> {
-    return issuePage(this.boundRepository(projectId), query);
-  }
-  /** One page of the pull requests of the project's bound repository, as `query` asks. */
-  async pullRequestPage(projectId: string, query: ListQuery): Promise<PullRequestPage> {
-    return pullRequestPage(this.boundRepository(projectId), query);
-  }
-  /** One issue of the project's bound repository, with its rendered body, comments and relations. */
-  async issueDetail(projectId: string, number: number): Promise<IssueDetailResult> {
-    return issueDetail(this.boundRepository(projectId), number);
-  }
-
-  async pullRequestDetail(projectId: string, number: number): Promise<PullRequestDetailResult> {
-    return pullRequestDetail(this.boundRepository(projectId), number);
-  }
-  /** Carries out a direct action on an issue or pull request of the project's bound repository; the forge's text comes back either way. */
-  async directAction(projectId: string, action: DirectAction): Promise<DirectActionResult> {
-    return directAction(this.boundRepository(projectId), action);
-  }
-  private boundRepository(projectId: string) {
-    this.project(projectId);
-    const repository = this.repositories.get(projectId);
-    if (!repository) throw new Error(message('noRepositoryBound'));
-    return repository;
-  }
+  // Reads from and direct actions on the project's bound repository; DesktopAPI documents each.
+  repositoryChoices(projectId: string, directory: string) { return this.repositories.choices(projectId, directory); }
+  issuePage(projectId: string, query: ListQuery) { return this.repositories.issuePage(projectId, query); }
+  pullRequestPage(projectId: string, query: ListQuery) { return this.repositories.pullRequestPage(projectId, query); }
+  issueDetail(projectId: string, number: number) { return this.repositories.issueDetail(projectId, number); }
+  pullRequestDetail(projectId: string, number: number) { return this.repositories.pullRequestDetail(projectId, number); }
+  directAction(projectId: string, action: DirectAction) { return this.repositories.directAction(projectId, action); }
+  /** Dispatches an issue of the project's bound repository with a command of an enabled workflow to one of its panels
+   * that has a run, and records the dispatch on that run's session. */
+  dispatch(projectId: string, request: DispatchRequest) { return this.operation(async () => {
+    const repository = this.repositories.bound(projectId);
+    const panel = this.panels(this.project(projectId)).find(panel => panel.id === request.target?.panelId);
+    if (!panel) throw new Error(message('panelMissing'));
+    return this.dispatches.toPanel(projectId, repository, this.supervision.panelView(panel), request, this.state.settings.workflows);
+  }); }
   private startPanel(project: Project, panel: Panel) { return this.supervision.start(project, panel, this.state.settings.agents[panel.agent]); }
   private async startProject(project: Project): Promise<LaunchResult[]> {
     if (this.visited.has(project.id)) return [];

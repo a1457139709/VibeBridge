@@ -29,6 +29,17 @@ export const defaultWorkflowSettings = (): Record<WorkflowId, WorkflowSettings> 
   commands: Object.fromEntries(workflow.commands.map(command => [command.id, { delivery: defaultDelivery }])),
 }])) as Record<WorkflowId, WorkflowSettings>;
 
+/** A command of a built-in workflow, or undefined when the catalog has no such workflow or command. */
+export const workflowCommand = (workflowId: string, commandId: string) => {
+  const workflow = workflows.find(workflow => workflow.id === workflowId);
+  const command = workflow?.commands.find(command => command.id === commandId);
+  return workflow && command && { workflow, command: command as WorkflowCommand };
+};
+
+/** How a command is delivered as set in the settings: submit when the settings do not say. */
+export const commandDelivery = (settings: Record<WorkflowId, WorkflowSettings>, workflowId: string, commandId: string): Delivery =>
+  settings[workflowId as WorkflowId]?.commands[commandId]?.delivery ?? defaultDelivery;
+
 /** How each Agent type calls a skill from its input; a new Agent type adds its entry here. */
 export const skillInvocations: Record<AgentType, (skill: string, args: string) => string> = {
   claude: (skill, args) => `/${skill} ${args}`,

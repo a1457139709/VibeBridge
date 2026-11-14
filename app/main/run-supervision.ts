@@ -1,14 +1,12 @@
 import { randomUUID } from 'node:crypto';
 import { message, detail } from '../shared/messages';
-import type { AgentCommand, AgentType, LaunchResult, Panel, PanelView, Project, Run, TerminalEvent, WorkbenchEvent } from '../shared/model';
+import { liveRun as live, type AgentCommand, type AgentType, type LaunchResult, type Panel, type PanelView, type Project, type Run, type TerminalEvent, type WorkbenchEvent } from '../shared/model';
 import { ProcessingStatus, type HandOver } from './processing-status';
 import { sessionTitle } from './session-title';
 import { TerminalClient } from './terminal-client';
 
 export type Terminal = Pick<TerminalClient, 'start' | 'checkCommand' | 'input' | 'resize' | 'stop' | 'acknowledgeOutput' | 'shutdown'>;
 export type TerminalFactory = (onEvent: (event: TerminalEvent) => void, onFailure: (message: string, stopped?: boolean) => void) => Terminal;
-
-const live = (run: Run) => run.state === 'running' || run.state === 'starting';
 
 /** Where a panel is: its project and its own ID. */
 export interface PanelLocation { projectId: string; panelId: string }

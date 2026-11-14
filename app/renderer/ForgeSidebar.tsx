@@ -15,6 +15,8 @@ interface Host {
   /** The project whose data the sidebar shows, or none (no project, or project setup). */
   project?: ProjectView;
   openProject(id: string): void;
+  /** Locates a panel; an ephemeral one opens as its temporary maximize. */
+  locatePanel(projectId: string, panelId: string): void;
   report(message: string): void;
 }
 
@@ -73,7 +75,8 @@ export function useForgeSidebar(host: Host, api: Pick<DesktopAPI, 'saveSidebar' 
       {project.repository
         // Mounted per project and repository: returning to a project or rebinding starts the lists afresh.
         ? <ForgeLists key={`${project.id} ${project.repository.forge} ${project.repository.path}`} project={{ ...project, repository: project.repository }}
-          editBinding={() => setEditingRepository(true)} detailHost={detail} />
+          editBinding={() => setEditingRepository(true)} detailHost={detail}
+          dispatchHost={{ workflows: snapshot!.settings.workflows, locate: host.locatePanel, report: host.report }} />
         : <>
           <SidebarHead title={t('noRepositoryBound')} />
           <div className="forge-sidebar-state">
