@@ -162,4 +162,8 @@ export const englishForgeSidebar = {
   "dispatchedGone": "{agent} · {when} · {text} → its session is not in any open panel",
   "dispatchedGoneLocatable": "{agent} · {when} · {text} → its session is not in any open panel (click to locate the latest dispatch a panel is on)",
   "dispatchStatusHint": "{status} · {agent} · {when} · {text} → {title} (click to locate the panel)",
+  "dispatchRecords": "Dispatch records ({count})",
+  "noPanelOnSession": "No panel is on this session",
+  "locateSessionPanel": "Locate the panel on this session",
+  "hideCommand": "Hide command",
 } as const;

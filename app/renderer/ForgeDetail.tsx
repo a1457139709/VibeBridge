@@ -5,7 +5,7 @@ import type { DirectAction, DirectActionResult, ForgeFailure, ForgeLinks, IssueD
 import type { ProjectView } from '../shared/model';
 import { linkedItem, type DetailItem } from './ForgeDisplay';
 import { idleActions, type Actions, type ActionState } from './DirectActions';
-import { IssueDocument } from './IssueDetail';
+import { IssueDocument, type IssueDispatch } from './IssueDetail';
 import { PullRequestDocument } from './PullRequestDetail';
 
 interface Props {
@@ -26,6 +26,8 @@ interface Props {
   refresh(): void;
   /** Puts the sidebar in the failure state of a forge CLI found missing or logged out. */
   forgeFailed(failure: ForgeFailure): void;
+  /** An issue's Dispatch and Dispatch Records, as its detail shows them. */
+  issueDispatch(issue: IssueDetail): IssueDispatch;
 }
 
 type Loaded = { ok: true; issue: IssueDetail } | { ok: true; pullRequest: PullRequestDetail } | { ok: false; failure: ForgeFailure };
@@ -41,7 +43,7 @@ const kindText = {
  * in one column like the forge. Issue and pull request links of the bound repository open here; every other link opens
  * in the browser. A direct action that succeeds refreshes the sidebar, and what the forge then holds shows; there is no
  * optimistic update. Each reload clears the actions' state, so a failure stays until dismissed or the next refresh. */
-export function ForgeDetailPane({ project, item, width, resize, canBack, back, close, open, generation, refresh, forgeFailed }: Props) {
+export function ForgeDetailPane({ project, item, width, resize, canBack, back, close, open, generation, refresh, forgeFailed, issueDispatch }: Props) {
   const { t, text } = useLocalization();
   const [loaded, setLoaded] = useState<{ item: DetailItem; result: Loaded } | null>(null);
   const [attempt, setAttempt] = useState(0);
@@ -106,7 +108,8 @@ export function ForgeDetailPane({ project, item, width, resize, canBack, back, c
           <p>{t('detailLoadFailed', { number, reason: reason(result.failure.detail || result.failure.kind) })}</p>
           <button onClick={retry}>{t('retry')}</button>
         </div>
-        : 'issue' in result ? <IssueDocument project={project} issue={result.issue} open={open} followLink={followLink(result.issue.links)} actions={actions} />
+        : 'issue' in result ? <IssueDocument project={project} issue={result.issue} open={open} followLink={followLink(result.issue.links)} actions={actions}
+          dispatch={issueDispatch(result.issue)} />
         : <PullRequestDocument project={project} pullRequest={result.pullRequest} open={open} followLink={followLink(result.pullRequest.links)} actions={actions} />}
     </div>
   </section>;

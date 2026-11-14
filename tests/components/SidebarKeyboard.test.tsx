@@ -110,6 +110,32 @@ test('opening the sidebar puts focus on the first row of its list once the list 
   assert.equal(focusedRow(), 'Issue 10');
 });
 
+test('in an issue\'s detail Tab reaches its Dispatch and dispatch records, and Esc in its dispatch menu closes only the menu', async () => {
+  const f = await listed(undefined, snapshot => {
+    snapshot.projects[0].dispatches = [record(9, { projectId: 'alpha', panelId: 'alpha-panel', status: 'ready' })];
+  });
+  window.workbench.issueDetail = async () => ({ ok: true, issue: {
+    ...summary(9), url: 'https://github.com/octo/alpha/issues/9', author: 'mona', assignees: [], body: '', comments: [], commentCount: 0,
+    parent: null, subIssues: [], blockedBy: [], blocking: [], closingPullRequests: [],
+    links: { issues: 'https://github.com/octo/alpha/issues/', pullRequests: 'https://github.com/octo/alpha/pull/' }, canWrite: true } });
+  titleButton('Issue 9').focus();
+  await f.user.keyboard('{Enter}');
+  const pane = await waitFor(() => within(sidebar()).getByRole('region', { name: 'Issue detail' }));
+  await within(pane).findByRole('heading', { name: 'Issue 9 #9' });
+  assert.ok(pane.contains(document.activeElement));
+  const reached: string[] = [];
+  for (let step = 0; step < 12 && pane.contains(document.activeElement); step++) {
+    await f.user.tab();
+    reached.push(document.activeElement?.getAttribute('aria-label') ?? document.activeElement?.textContent ?? '');
+  }
+  assert.ok(reached.includes('Dispatch ▾'), `Dispatch is reached: ${reached.join(' | ')}`);
+  assert.ok(reached.includes('Ready · Untitled task'), `the record's locate is reached: ${reached.join(' | ')}`);
+  await f.user.click(within(pane.querySelector<HTMLElement>('.forge-doc-head')!).getByRole('button', { name: 'Dispatch' }));
+  await f.user.keyboard('{Escape}');
+  assert.equal(screen.queryByRole('menu'), null);
+  assert.ok(detail(), 'the detail stays open');
+});
+
 test('locating a panel from the sidebar on the settings page goes back to the workspace', async () => {
   const f = await listed(undefined, snapshot => {
     snapshot.projects[0].dispatches = [record(9, { projectId: 'alpha', panelId: 'alpha-panel', status: 'ready' })];
