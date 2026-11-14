@@ -83,7 +83,7 @@ function WorkbenchView({ state, setState }: { state?: Snapshot; setState(snapsho
     view: location.view, openProject: activate, locatePanel, createProject: create, toggleSettings, report });
   const active = state?.projects.find(project => project.id === state.activeProjectId);
   // The forge sidebar shows the current project, on the workbench and on the settings page.
-  const forgeSidebar = useForgeSidebar({ snapshot: state, project: setup ? undefined : active, openProject: activate, report });
+  const forgeSidebar = useForgeSidebar({ snapshot: state, project: setup ? undefined : active, openProject: activate, locatePanel, report });
   const conflictCategory = state?.settingsConflicts[0]?.category;
   useEffect(() => {
     const keydown = (event: KeyboardEvent) => {

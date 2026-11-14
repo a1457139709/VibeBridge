@@ -43,7 +43,7 @@ npm run package
 默认位于 `~/Library/Application Support/VibeBridge/`：
 
 - `settings.json`：唯一的用户配置文件，退出后可手动修改，下次启动生效；文件不是合法 JSON 对象时明确报错，不会覆盖原文件。
-- `projects.sqlite`：项目、面板、实际布局与上次项目；不保存终端输出或 CLI 会话。
+- `projects.sqlite`：项目、面板、实际布局、上次项目、仓库绑定、侧边栏状态与派发记录；不保存终端输出或 CLI 会话。派发记录里的会话 ID 只用来找到正处在该会话上的面板，不用来恢复会话。
 - `last-failure.json`：最近一次主进程／终端管理进程故障的时间与原因。
 
 `VIBEBRIDGE_DATA_DIR` 可指定隔离的数据目录（供验收使用）；不要在多个应用实例间共用同一数据目录。

@@ -96,6 +96,7 @@ void app.whenReady().then(async () => {
   handle('repository-choices', async (service, id, directory) => { await loginPath; return service.repositoryChoices(id, directory); });
   handle('issue-page', async (service, id, query) => { await loginPath; return service.issuePage(id, query); });
   handle('issue-detail', async (service, id, number) => { await loginPath; return service.issueDetail(id, number); });
+  handle('dispatch', (service, id, request) => service.dispatch(id, request));
   handle('pull-request-detail', async (service, id, number) => { await loginPath; return service.pullRequestDetail(id, number); });
   handle('direct-action', async (service, id, action) => { await loginPath; return service.directAction(id, action); });
   handle('pull-request-page', async (service, id, query) => { await loginPath; return service.pullRequestPage(id, query); });

@@ -160,6 +160,7 @@ export const github: Forge = {
     const match = url.trim().match(/^(?:(?:https?|ssh|git):\/\/(?:[^@/]+@)?github\.com(?::\d+)?\/|[^@/\s]+@github\.com:)([^/\s]+\/[^/\s]+?)(?:\.git)?\/?$/i);
     return match?.[1] ?? null;
   },
+  issueUrl(path, number) { return `https://github.com/${path}/issues/${number}`; },
   find(path, repositories) {
     return repositories.find(repository => samePath(repository, path)) ?? null;
   },

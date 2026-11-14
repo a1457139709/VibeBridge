@@ -1,5 +1,7 @@
 import type { Sidebar, SidebarPreferences, AgentType, CommandCheck, DirectoryResult, Layout, ProjectCreation, PanelCreation, ProjectDraft, ProjectEdit, ProjectEditResult, Settings, Snapshot, WorkbenchEvent } from './model';
 import type { SettingsSaveResult } from './settings';
+import type { DispatchRequest } from './dispatch';
+import type { Delivery } from './workflows';
 import type { DirectAction, DirectActionResult, IssueDetailResult, PullRequestDetailResult, IssuePage, ListQuery, PullRequestPage, RepositoryChoices } from './forge';
 
 export interface DesktopAPI {
@@ -20,6 +22,9 @@ export interface DesktopAPI {
   pullRequestDetail(projectId: string, number: number): Promise<PullRequestDetailResult>;
   /** Closes, reopens or merges an issue or pull request of the project's bound repository; the forge's text comes back either way. */
   directAction(projectId: string, action: DirectAction): Promise<DirectActionResult>;
+  /** Dispatches an issue of the project's bound repository to a panel with a run: the command is written into its terminal
+   * and a Dispatch Record joins the snapshot once the run is on a session. Resolves with the delivery used. */
+  dispatch(projectId: string, request: DispatchRequest): Promise<{ delivery: Delivery }>;
   chooseDirectory(): Promise<string | null>;
   activateProject(id: string): Promise<void>;
   addPanel(projectId: string, agent: AgentType): Promise<PanelCreation>;

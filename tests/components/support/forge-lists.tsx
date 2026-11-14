@@ -4,6 +4,7 @@ import { userEvent } from '@testing-library/user-event';
 import { App } from '../../../app/renderer/Workbench';
 import { defaultSettings } from '../../../app/shared/settings';
 import type { ProjectView, Snapshot, WorkbenchEvent } from '../../../app/shared/model';
+import type { DesktopAPI } from '../../../app/shared/api';
 import type { ForgeCapabilities, ListQuery, IssuePage, IssueSummary, ListedIssue, ForgeFailure, PullRequestSummary, Page } from '../../../app/shared/forge';
 import { deferred, provideWorkbench } from './workbench';
 import { githubCapabilities, githubForge, githubView } from './forge';
@@ -39,8 +40,9 @@ interface Request {
   answer(page: IssuePage | Page<PullRequestSummary>): void; fail(error: Error): void;
 }
 
-/** The Workbench with two bound projects and the sidebar open. Every list page request waits until the test answers it. */
-export function renderWorkbench(capabilities = githubCapabilities) {
+/** The Workbench with two bound projects and the sidebar open. Every list page request waits until the test answers it.
+ * `api` adds or replaces Workbench calls; `publish` sends the snapshot as the test changed it. */
+export function renderWorkbench(capabilities = githubCapabilities, api: Partial<DesktopAPI> = {}) {
   const snapshot: Snapshot = {
     navigation: { visible: true, width: 212 }, forgeSidebar: { visible: true, width: 380 }, activeProjectId: 'alpha', settings: defaultSettings(),
     settingsConflicts: [], startupTheme: 'light', resolvedTheme: 'light', errors: [],
@@ -64,11 +66,12 @@ export function renderWorkbench(capabilities = githubCapabilities) {
     repositoryChoices: async () => ({ ok: true, forge: githubForge, account: 'octo', origin: null, repositories: [{ forge: 'github', path: 'octo/alpha' }] }),
     issuePage: (projectId, query) => listRequest('issues', projectId, query) as Promise<IssuePage>,
     pullRequestPage: (projectId, query) => listRequest('pullRequests', projectId, query) as Promise<Page<PullRequestSummary>>,
+    ...api,
   });
   render(<App />);
   /** The latest request, once it is made. */
   const request = (count: number) => waitFor(() => { assert.equal(requests.length, count, 'requests made'); return requests[count - 1]; });
-  return { user: userEvent.setup(), requests, request };
+  return { user: userEvent.setup(), requests, request, snapshot, publish };
 }
 
 export const sidebar = () => screen.getByRole('complementary', { name: 'GitHub' });

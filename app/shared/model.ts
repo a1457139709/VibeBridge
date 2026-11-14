@@ -6,6 +6,7 @@ import type { ProcessingState } from './processing-status';
 import type { SettingsIssue } from './settings';
 import type { WorkflowId, WorkflowSettings } from './workflows';
 import type { ForgeCapabilities, ForgePresentation, RepositoryReference } from './forge';
+import type { DispatchRecordView } from './dispatch';
 
 export const agentTypes = ['codex', 'claude', 'pi'] as const;
 export type AgentType = typeof agentTypes[number];
@@ -26,6 +27,8 @@ export type DetailCoexistence = 'overlay' | 'squeeze';
 export interface Settings { language: Language; theme: 'system' | 'dark' | 'light'; defaultLayout: DefaultLayout; sidebarCoexistence: SidebarCoexistence; detailCoexistence: DetailCoexistence; agents: Record<AgentType, AgentCommand>; shortcuts: Shortcuts; workflows: Record<WorkflowId, WorkflowSettings> }
 export type CommandCheck = { available: true; path: string } | { available: false; message: string };
 export interface Run { id: string; projectId: string; panelId: string; state: 'running' | 'starting' | 'failed' | 'stopped'; pid?: number; title?: string }
+/** A run that is starting or running; it has not failed or stopped. */
+export const liveRun = (run?: Run) => run?.state === 'running' || run?.state === 'starting';
 // An unconfirmed launch may still be running; only a failed one is known not to have started.
 export type LaunchResult = { outcome: 'started'; run: Run; agent: AgentType } | { outcome: 'failed'; run: Run; agent: AgentType }
   | { outcome: 'unconfirmed'; run: Run; agent: AgentType; reason: string };
@@ -53,8 +56,9 @@ export type PanelView = Panel & { run?: Run; status?: ProcessingState };
  * the resident panels' configuration and layout; the tray lives in memory for one app run.
  * `repository` is its Repository Binding, stored apart from the project, or null when unbound; `forge` is the
  * Forge its forge sidebar shows: the bound one, else the one an unbound project binds from; `capabilities` are
- * the features that Forge declares, and the sidebar shows only those. */
-export type ProjectView = Omit<Project, 'panels'> & { panels: PanelView[]; tray: PanelView[]; repository: RepositoryReference | null; forge: ForgePresentation; capabilities: ForgeCapabilities };
+ * the features that Forge declares, and the sidebar shows only those. `dispatches` are its Dispatch Records for the bound
+ * repository, oldest first; records for other repositories stay stored but are not shown. */
+export type ProjectView = Omit<Project, 'panels'> & { panels: PanelView[]; tray: PanelView[]; repository: RepositoryReference | null; forge: ForgePresentation; capabilities: ForgeCapabilities; dispatches: DispatchRecordView[] };
 export interface Snapshot extends Record<Sidebar, SidebarPreferences> { projects: ProjectView[]; activeProjectId: string | null; settings: Settings; settingsConflicts: SettingsIssue[]; startupTheme: Settings['theme']; resolvedTheme: 'dark' | 'light'; errors: string[] }
 export type TerminalEvent = { kind: 'title'; runId: string; title: string } | { kind: 'output'; runId: string; data: string } | { kind: 'started'; run: Run } | { kind: 'stopping'; runId: string } | { kind: 'exit'; runId: string };
 export type WorkbenchEvent = Extract<TerminalEvent, { kind: 'started' | 'output' | 'exit' }> | { kind: 'snapshot'; snapshot: Snapshot } | { kind: 'error'; message: string };

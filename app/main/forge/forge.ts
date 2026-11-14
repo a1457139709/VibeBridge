@@ -22,6 +22,8 @@ export interface Forge {
   remotePath(originUrl: string): string | null;
   /** The entry of `repositories` that names the same repository as `path`, in its listed spelling, or null. */
   find(path: string, repositories: string[]): string | null;
+  /** The page of an issue of the repository on the forge. */
+  issueUrl(path: string, number: number): string;
   /** One page of the repository's issues, newest created first, filtered on the forge's side. */
   issues(path: string, query: ListQuery): Promise<ListPage<ListedIssue>>;
   /** One page of the repository's pull requests, newest created first, filtered on the forge's side. */

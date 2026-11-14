@@ -6,6 +6,7 @@ import type { ForgeCapabilities, ForgeFailure, IssueSummary, ListFilter, ListPag
 import type { ProjectView } from '../shared/model';
 import { ForgeDetailPane } from './ForgeDetail';
 import { FilterBar } from './ForgeFilterBar';
+import { DispatchButton, DispatchStatus, type DispatchHost } from './DispatchMenu';
 import { BlockedMark, IssueIcon, Label, OpenChecks, Progress, PullRequestIcon, RelativeTime, type DetailItem } from './ForgeDisplay';
 
 /** The sidebar's lists, each a tab. */
@@ -52,6 +53,8 @@ interface Props {
   /** Opens Edit project with focus on the repository field. */
   editBinding(): void;
   detailHost: DetailHost;
+  /** Dispatching from an issue row; the lists add what happens once a dispatch went through. */
+  dispatchHost: Omit<DispatchHost, 'dispatched'>;
 }
 
 /** The bound repository's lists: a persistent Refresh, the Issues and Pull requests tabs, each with its own
@@ -59,7 +62,7 @@ interface Props {
  * project and repository: opening the sidebar or returning to a project starts from open with no filter, and refreshes.
  * Only the current tab is fetched, each time it shows. There is no timed refresh. Clicking a row opens its detail
  * beside the list; links followed inside the detail stack up, so Back returns to the item before. */
-export function ForgeLists({ project, editBinding, detailHost }: Props) {
+export function ForgeLists({ project, editBinding, detailHost, dispatchHost }: Props) {
   const { t, text } = useLocalization();
   const [tab, setTab] = useState<Tab>('issues');
   const [filters, setFilters] = useState<Record<Tab, ListFilter>>({ issues: openNoFilter, pullRequests: openNoFilter });
@@ -97,6 +100,14 @@ export function ForgeLists({ project, editBinding, detailHost }: Props) {
   }
   /** The sidebar's one refresh: the current tab's first page and the open detail. */
   const refresh = () => { void load(tab, filters[tab], null); setGeneration(count => count + 1); };
+  // A dispatch refreshes the sidebar once; filling a panel also closes the detail, as focus moves into that panel.
+  const rowDispatchHost: DispatchHost = { ...dispatchHost, dispatched(delivery) { if (delivery === 'fill') setOpened([]); refresh(); } };
+  /** An open issue's dispatch action and where its latest dispatch is now. */
+  const issueAction = (issue: IssueSummary) => {
+    const records = project.dispatches.filter(record => record.issue === issue.number);
+    return <><DispatchButton project={project} issue={issue} host={rowDispatchHost} />
+      <DispatchStatus records={records} locate={dispatchHost.locate} /></>;
+  };
   const forgeFailed = (failure: ForgeFailure) => setLists(all => ({ ...all, [tab]: { ...all[tab], failed: { ok: false, failure, account: null } } }));
 
   // The current tab fetches when it shows and whenever its filter changes; typing in the search settles first.
@@ -140,7 +151,7 @@ export function ForgeLists({ project, editBinding, detailHost }: Props) {
     <FilterBar key={tab} searchLabel={t(texts.search)} filter={filter} setFilter={setFilter} labels={loaded?.labels ?? []} counts={loaded?.counts ?? null} />
     <div className="forge-scroll">
       {lists.issues.loaded && tab === 'issues' && <IssueTree issues={lists.issues.loaded.items} state={lists.issues.loaded.filter.state}
-        capabilities={project.capabilities} selected={selected('issue')} open={number => setOpened([{ kind: 'issue', number }])} addLabel={addLabel} />}
+        capabilities={project.capabilities} selected={selected('issue')} open={number => setOpened([{ kind: 'issue', number }])} addLabel={addLabel} action={issueAction} />}
       {lists.pullRequests.loaded && tab === 'pullRequests' && <ul className="forge-rows" aria-label={t(texts.name)}>
         {lists.pullRequests.loaded.items.map(item => <li key={item.number}><PullRequestRow pullRequest={item} selected={item.number === selected('pullRequest')}
           open={() => setOpened([{ kind: 'pullRequest', number: item.number }])} addLabel={addLabel} /></li>)}</ul>}
@@ -158,8 +169,10 @@ export function ForgeLists({ project, editBinding, detailHost }: Props) {
  * loaded, else at the top level. Parents start collapsed; their progress button expands them without fetching.
  * An expanded parent shows the sub-issues in the listed state; listing open ones, it folds the closed ones after them.
  * A parent shows the button only when it has sub-issues to show, as the list holds them. */
-function IssueTree({ issues, state, capabilities, selected, open: openIssue, addLabel }: {
+function IssueTree({ issues, state, capabilities, selected, open: openIssue, addLabel, action }: {
   issues: ListedIssue[]; state: ListState; capabilities: ForgeCapabilities;
+  /** The action area of an open issue's row. */
+  action(issue: IssueSummary): React.ReactNode;
   /** The issue the detail shows, if any. */
   selected: number | undefined;
   open(number: number): void; addLabel(name: string): void;
@@ -190,7 +203,7 @@ function IssueTree({ issues, state, capabilities, selected, open: openIssue, add
     const showClosed = showingClosed.has(issue.number);
     const shown = showClosed ? [...listed, ...folded] : listed;
     return <li key={issue.number}>
-      <IssueRow issue={issue} selected={issue.number === selected} open={() => openIssue(issue.number)} addLabel={addLabel} blocking={capabilities.blocking}
+      <IssueRow issue={issue} selected={issue.number === selected} open={() => openIssue(issue.number)} addLabel={addLabel} blocking={capabilities.blocking} action={action}
         progress={withSubIssues && <button className={`forge-progress-toggle ${open ? 'on' : ''}`} aria-expanded={open}
           aria-label={t(open ? 'hideSubIssues' : 'showSubIssues')} data-hint={t(open ? 'hideSubIssues' : 'showSubIssues')}
           onClick={event => { event.stopPropagation(); setExpanded(set => flip(set, issue.number)); }}>
@@ -205,11 +218,12 @@ function IssueTree({ issues, state, capabilities, selected, open: openIssue, add
   return <ul className="forge-rows" aria-label={t('issuesTab')}>{top.map(row)}</ul>;
 }
 
-/** A list row: state, title, number, age, the sub-issue progress, the blocked mark and the labels, and the action area,
- * which stays the same whether or not the issue is blocked. The row opens its issue's detail wherever it is clicked;
+/** A list row: state, title, number, age, the sub-issue progress, the blocked mark and the labels, and the action area
+ * (Dispatch and the latest dispatch's status), which stays the same whether or not the issue is blocked. The row opens its issue's detail wherever it is clicked;
  * its title is the button that does so from the keyboard. */
-function IssueRow({ issue, selected, open, addLabel, blocking, progress }: {
+function IssueRow({ issue, selected, open, addLabel, blocking, progress, action }: {
   issue: IssueSummary; selected: boolean; open(): void; addLabel(name: string): void; blocking: boolean; progress: React.ReactNode;
+  action(issue: IssueSummary): React.ReactNode;
 }) {
   return <div className={`forge-row ${selected ? 'selected' : ''}`} onClick={open}>
     <IssueIcon issue={issue} />
@@ -222,8 +236,8 @@ function IssueRow({ issue, selected, open, addLabel, blocking, progress }: {
         {issue.labels.map(label => <Label key={label.name} label={label} onClick={() => addLabel(label.name)} />)}
       </div>
     </div>
-    {/* The row's action area, kept for dispatching an open issue. */}
-    {issue.state === 'open' && <div className="forge-row-action" />}
+    {/* An open issue is dispatched from here; a closed one shows no dispatch. */}
+    {issue.state === 'open' && <div className="forge-row-action">{action(issue)}</div>}
   </div>;
 }
 

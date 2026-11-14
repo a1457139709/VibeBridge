@@ -4,6 +4,7 @@ import { mkdir } from 'node:fs/promises';
 import { join } from 'node:path';
 import type { Sidebar, SidebarPreferences, Project } from '../shared/model';
 import type { RepositoryReference } from '../shared/forge';
+import type { DispatchRecord } from './dispatch';
 
 export class ProjectStore {
   private worker: Worker;
@@ -31,10 +32,12 @@ export class ProjectStore {
       const id = ++this.sequence; this.pending.set(id, { resolve, reject }); this.worker.postMessage({ id, operation, value });
     });
   }
-  load() { return this.request<{ projects: Project[]; repositories: Record<string, RepositoryReference>; activeProjectId: string | null; } & Record<Sidebar, SidebarPreferences>>('load'); }
+  load() { return this.request<{ projects: Project[]; repositories: Record<string, RepositoryReference>; dispatches: DispatchRecord[]; activeProjectId: string | null; } & Record<Sidebar, SidebarPreferences>>('load'); }
   save(project: Project) { return this.request<void>('save', project); }
   /** Saves an edited project and its Repository Binding (null for none) in one transaction. */
   edit(project: Project, repository: RepositoryReference | null) { return this.request<void>('edit', { project, repository }); }
+  /** Appends a Dispatch Record. */
+  dispatch(record: DispatchRecord) { return this.request<void>('dispatch', record); }
   sidebar(sidebar: Sidebar, preferences: SidebarPreferences) { return this.request<void>('sidebar', { sidebar, preferences }); }
   delete(id: string, activeProjectId: string | null) { return this.request<void>('delete', { id, activeProjectId }); }
   active(id: string) { return this.request<void>('active', id); }
