@@ -2,7 +2,7 @@ import './support/dom';
 import assert from 'node:assert/strict';
 import test, { afterEach, before } from 'node:test';
 import { cleanup, screen, waitFor, within } from '@testing-library/react';
-import { bug, failed, issue, openNoFilter, page, refresh, renderWorkbench, rows, sidebar, stubSidebarApis } from './support/issue-list';
+import { bug, failed, issue, openNoFilter, page, refresh, renderWorkbench, rows, sidebar, stubSidebarApis } from './support/forge-lists';
 
 afterEach(cleanup);
 before(stubSidebarApis);

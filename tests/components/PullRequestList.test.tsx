@@ -2,17 +2,12 @@ import './support/dom';
 import assert from 'node:assert/strict';
 import test, { afterEach, before } from 'node:test';
 import { cleanup, waitFor, within } from '@testing-library/react';
-import { stubLayoutApis } from './support/no-layout';
-import { bug, failed, issue, pullRequest, openNoFilter, page, refresh, renderWorkbench, rows, sidebar } from './support/issue-list';
+import { bug, failed, issue, pullRequest, openNoFilter, page, refresh, renderWorkbench, rows, sidebar, stubSidebarApis } from './support/forge-lists';
 
 afterEach(cleanup);
-before(() => {
-  stubLayoutApis();
-  for (const target of [globalThis, window]) Object.assign(target, { KeyframeEffect: class {} });
-  window.HTMLElement.prototype.checkVisibility = () => true;
-});
+before(stubSidebarApis);
 
-/** The sidebar on the Pull requests tab, after the Issues tab has shown its first page. Returns the request count so far. */
+/** The sidebar on the Pull requests tab, after the Issues tab has shown its first page. Returns the rendered Workbench. */
 async function onPullRequests() {
   const workbench = renderWorkbench();
   (await workbench.request(1)).answer(page([issue(1)]));

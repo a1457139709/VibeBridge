@@ -2,7 +2,8 @@ import './support/dom';
 import assert from 'node:assert/strict';
 import test, { afterEach, before } from 'node:test';
 import { cleanup, waitFor, within } from '@testing-library/react';
-import { bug, issue, page, renderWorkbench, rows, sidebar, stubSidebarApis, summary } from './support/issue-list';
+import { bug, issue, page, renderWorkbench, rows, sidebar, stubSidebarApis, summary } from './support/forge-lists';
+import { githubCapabilities } from './support/forge';
 
 afterEach(cleanup);
 before(stubSidebarApis);
@@ -76,7 +77,7 @@ test('a parent shows the progress button only when the list holds sub-issues to 
 
 for (const capabilities of [{ subIssues: false, blocking: false }, { subIssues: true, blocking: false }, { subIssues: false, blocking: true }]) {
   test(`a forge declaring sub-issues ${capabilities.subIssues} and blocking ${capabilities.blocking} shows only what it declares`, async () => {
-    const { request } = renderWorkbench(capabilities);
+    const { request } = renderWorkbench({ ...githubCapabilities, ...capabilities });
     const answer = tree();
     assert.ok(answer.ok);
     answer.items[0].blockedBy = [{ path: null, number: 1, title: 'Blocker' }];

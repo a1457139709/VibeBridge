@@ -1,88 +1,27 @@
-import { useEffect, useLayoutEffect, useMemo, useRef, useState, type MouseEvent, type PointerEvent as ReactPointerEvent } from 'react';
+import { useEffect, useRef, useState, type MouseEvent } from 'react';
 import { useLocalization } from './Localization';
-import { detail as reason } from '../shared/messages';
-import { filterForgeHtml } from '../shared/forge-html';
-import type { IssueDetail, IssueDetailResult, IssueReference, PullRequestReference, RepositoryReference } from '../shared/forge';
+import type { IssueDetail, IssueReference, ForgeLinks, PullRequestReference, RepositoryReference } from '../shared/forge';
 import type { ProjectView } from '../shared/model';
-import { BlockedMark, IssueIcon, issueState, issueStates, Label, OpenChecks, Progress, PullRequestIcon, RelativeTime } from './ForgeDisplay';
+import { BlockedMark, IssueIcon, issueState, issueStates, ItemReference, Label, linkedItem, OpenChecks, Post, Progress, PullRequestIcon, RelativeTime, type DetailItem } from './ForgeDisplay';
 
-interface Props {
+interface DocumentProps {
   project: ProjectView & { repository: RepositoryReference };
-  number: number;
-  width: number;
-  /** Starts dragging the detail's left edge. */
-  resize(event: ReactPointerEvent<HTMLDivElement>): void;
-  canBack: boolean;
-  back(): void;
-  close(): void;
-  /** Opens an issue of the bound repository in this detail. */
-  open(number: number): void;
+  issue: IssueDetail;
+  /** Opens an issue or pull request of the bound repository in the detail. */
+  open(item: DetailItem): void;
+  /** Opens a clicked link of the bound repository in the detail. */
+  followLink(event: MouseEvent): void;
 }
 
-/** The read-only detail of one issue of the bound repository, opening leftwards from the sidebar's edge. One column,
- * like the forge: the parent, title, state and labels, the relation graph, the pull requests that close it, then the
- * body, sub-issues and comments in the forge's own rendering, filtered. Issue links of the bound repository open here;
- * every other link opens in the browser. */
-export function IssueDetailPane({ project, number, width, resize, canBack, back, close, open }: Props) {
-  const { t, text } = useLocalization();
-  const [loaded, setLoaded] = useState<{ number: number; result: IssueDetailResult } | null>(null);
-  const [attempt, setAttempt] = useState(0);
-  const scroller = useRef<HTMLDivElement>(null);
-  useEffect(() => {
-    let current = true;
-    // A failure outside the forge (the request itself) is shown like a transient one, with its reason and Retry.
-    window.workbench.issueDetail(project.id, number)
-      .catch((error: Error): IssueDetailResult => ({ ok: false, failure: { kind: 'transient', detail: text(error.message), forge: project.forge } }))
-      .then(result => { if (current) setLoaded({ number, result }); });
-    return () => { current = false; };
-  }, [project.id, number, attempt]);
-  useLayoutEffect(() => { scroller.current?.scrollTo?.({ top: 0 }); }, [number]);
-  const result = loaded?.number === number ? loaded.result : null;
-  const issue = result?.ok ? result.issue : null;
-  const retry = () => { setLoaded(null); setAttempt(count => count + 1); };
-
-  return <section className="forge-detail" aria-label={t('issueDetail')} style={{ width }}>
-    <div className="forge-detail-resize" role="separator" aria-orientation="vertical" aria-label={t('resizeDetail')} onPointerDown={resize} />
-    <header className="forge-detail-bar">
-      <button aria-label={t('detailBack')} data-hint={t('detailBack')} disabled={!canBack} onClick={back}>‹</button>
-      <span className="forge-detail-crumb">{t('issueCrumb', { number })}</span>
-      <span className="forge-spacer" />
-      {issue && <a href={issue.url} target="_blank" rel="noreferrer">{t('openOnForge', { forge: project.forge.name })}</a>}
-      <button aria-label={t('closeDetail')} data-hint={t('closeDetail')} onClick={close}>×</button>
-    </header>
-    <div className="forge-detail-scroll" ref={scroller} tabIndex={-1}>
-      {!result ? <p className="forge-empty">{t('loadingIssue', { number })}</p>
-        : !result.ok ? <div className="forge-sidebar-state">
-          <p>{t('issueLoadFailed', { number, reason: reason(result.failure.detail || result.failure.kind) })}</p>
-          <button onClick={retry}>{t('retry')}</button>
-        </div>
-        : <IssueDocument project={project} issue={result.issue} open={open} />}
-    </div>
-  </section>;
-}
-
-function IssueDocument({ project, issue, open }: { project: Props['project']; issue: IssueDetail; open(number: number): void }) {
+/** One issue as its read-only detail shows it: the parent, title, state and labels, the relation graph, the pull requests
+ * that close it, then the body, sub-issues and comments in the forge's own rendering, filtered. */
+export function IssueDocument({ project, issue, open, followLink }: DocumentProps) {
   const { t } = useLocalization();
   const { capabilities } = project;
-  /** The issue number a link to `url` names when it is an issue of the bound repository, else null. */
-  const ownIssue = (url: string) => {
-    // Repository paths in a forge's URLs may differ in case from the bound one.
-    if (!url.toLowerCase().startsWith(issue.issueLinks.toLowerCase())) return null;
-    const match = /^(\d+)(?:[?#].*)?$/.exec(url.slice(issue.issueLinks.length));
-    return match ? Number(match[1]) : null;
-  };
   const follow = (reference: IssueReference) => {
-    const number = ownIssue(reference.url);
-    if (number === null) window.open(reference.url, '_blank');
-    else open(number);
-  };
-  // Links in the forge's HTML: an issue of the bound repository opens here; the filter sends the rest to the browser.
-  const followLink = (event: MouseEvent) => {
-    const link = (event.target as Element).closest('a');
-    const number = link?.getAttribute('href') ? ownIssue(link.getAttribute('href')!) : null;
-    if (number === null) return;
-    event.preventDefault();
-    open(number);
+    const item = linkedItem(reference.url, issue.links);
+    if (item) open(item);
+    else window.open(reference.url, '_blank');
   };
   const openBlockers = issue.blockedBy.filter(blocker => blocker.state === 'open');
   const subIssues = capabilities.subIssues ? issue.subIssues : [];
@@ -105,7 +44,7 @@ function IssueDocument({ project, issue, open }: { project: Props['project']; is
       {!!issue.assignees.length && <>{' · '}{t('assigneeList', { names: issue.assignees.join(', ') })}</>}
     </div>
     {capabilities.blocking && <RelationGraph issue={issue} blockers={openBlockers} follow={follow} />}
-    {!!issue.closingPullRequests.length && <ClosingPullRequests pulls={issue.closingPullRequests} />}
+    {!!issue.closingPullRequests.length && <ClosingPullRequests pulls={issue.closingPullRequests} links={issue.links} open={open} />}
     <div className="forge-doc-main">
       <Post author={issue.author} createdAt={issue.createdAt} html={issue.body} />
       {!!subIssues.length && <section className="forge-box" aria-label={t('subIssues')}>
@@ -118,16 +57,6 @@ function IssueDocument({ project, issue, open }: { project: Props['project']; is
         {t('moreComments', { count: issue.commentCount, forge: project.forge.name })}</a>}
     </div>
   </div>;
-}
-
-/** A body or comment: who wrote it and when, then the forge's HTML through the filter. */
-function Post({ author, createdAt, html }: { author: string | null; createdAt: string; html: string }) {
-  const { t } = useLocalization();
-  const filtered = useMemo(() => filterForgeHtml(html), [html]);
-  return <article className="forge-card">
-    <header><b>{author ?? t('deletedAccount')}</b> <RelativeTime iso={createdAt} /></header>
-    {filtered.trim() ? <div className="forge-markdown" dangerouslySetInnerHTML={{ __html: filtered }} /> : <p className="forge-markdown-empty">{t('noDescription')}</p>}
-  </article>;
 }
 
 function StatePill({ issue }: { issue: IssueDetail }) {
@@ -188,15 +117,17 @@ function Graph({ issue, left, right, follow }: { issue: IssueDetail; left: Issue
 }
 
 /** The pull requests that close the issue on merge, closed ones included, apart from the issue graph and drawn as pull
- * requests. An open or draft one shows its checks conclusion. Each opens in the browser. */
-function ClosingPullRequests({ pulls }: { pulls: PullRequestReference[] }) {
+ * requests. An open or draft one shows its checks conclusion. One of the bound repository opens in the detail; another
+ * repository's opens in the browser. */
+function ClosingPullRequests({ pulls, links, open }: { pulls: PullRequestReference[]; links: ForgeLinks; open(item: DetailItem): void }) {
   const { t } = useLocalization();
   return <section className="forge-closing-pulls" aria-label={t('closingPullRequests')}>
     <header>{t('closingPullRequests')}</header>
-    <ul>{pulls.map(pull => <li key={pull.number}><a className="forge-closing-pull" href={pull.url} target="_blank" rel="noreferrer" data-hint={pull.title}>
-      <PullRequestIcon state={pull.state} size={14} hint={false} /><span className="forge-row-number">#{pull.number}</span><span className="forge-ellipsis">{pull.title}</span>
-      <OpenChecks state={pull.state} checks={pull.checks} />
-    </a></li>)}</ul>
+    <ul>{pulls.map(pull => <li key={pull.url}>
+      <ItemReference kind="pullRequest" url={pull.url} links={links} open={open} className="forge-closing-pull" hint={pull.title}>
+        <PullRequestIcon state={pull.state} size={14} hint={false} /><span className="forge-row-number">#{pull.number}</span>
+        <span className="forge-ellipsis">{pull.title}</span><OpenChecks state={pull.state} checks={pull.checks} />
+      </ItemReference></li>)}</ul>
   </section>;
 }
 

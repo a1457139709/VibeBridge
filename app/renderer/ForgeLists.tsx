@@ -4,8 +4,8 @@ import { useLocalization } from './Localization';
 import { detail } from '../shared/messages';
 import type { ForgeCapabilities, ForgeLabel, IssueSummary, ListCounts, ListFilter, ListPage, ListState, ListedIssue, Page, PullRequestSummary, RepositoryReference } from '../shared/forge';
 import type { ProjectView } from '../shared/model';
-import { IssueDetailPane } from './IssueDetail';
-import { BlockedMark, IssueIcon, Label, OpenChecks, Progress, PullRequestIcon, RelativeTime } from './ForgeDisplay';
+import { ForgeDetailPane } from './ForgeDetail';
+import { BlockedMark, IssueIcon, Label, OpenChecks, Progress, PullRequestIcon, RelativeTime, type DetailItem } from './ForgeDisplay';
 
 /** The sidebar's lists, each a tab. */
 interface Items { issues: ListedIssue; pullRequests: PullRequestSummary }
@@ -56,8 +56,8 @@ interface Props {
 /** The bound repository's lists: a persistent Refresh, the Issues and Pull requests tabs, each with its own
  * search, filters, rows and failure, and the forge failure states. It holds its own state, so the owner mounts it per
  * project and repository: opening the sidebar or returning to a project starts from open with no filter, and refreshes.
- * Only the current tab is fetched, each time it shows. There is no timed refresh. Clicking an issue row opens its detail
- * beside the list; links followed inside the detail stack up, so Back returns to the issue before. */
+ * Only the current tab is fetched, each time it shows. There is no timed refresh. Clicking a row opens its detail
+ * beside the list; links followed inside the detail stack up, so Back returns to the item before. */
 export function ForgeLists({ project, editBinding, detailHost }: Props) {
   const { t, text } = useLocalization();
   const [tab, setTab] = useState<Tab>('issues');
@@ -67,12 +67,14 @@ export function ForgeLists({ project, editBinding, detailHost }: Props) {
   // Only the latest request may settle a list; an older answer is for a filter or tab no longer shown.
   const latest = useRef(0);
   const requested = useRef<Record<Tab, ListFilter | null>>({ issues: null, pullRequests: null });
-  /** The issues opened in the detail, the shown one last; empty when the detail is closed. */
-  const [opened, setOpened] = useState<number[]>([]);
-  const shownIssue = opened.at(-1);
-  const detailOpen = shownIssue !== undefined;
+  /** The items opened in the detail, the shown one last; empty when the detail is closed. */
+  const [opened, setOpened] = useState<DetailItem[]>([]);
+  const shown = opened.at(-1);
+  const detailOpen = shown !== undefined;
   useEffect(() => { detailHost.shown(detailOpen); return () => detailHost.shown(false); }, [detailOpen]);
-  const openIssue = (number: number) => setOpened(stack => stack.at(-1) === number ? stack : [...stack, number]);
+  const openItem = (item: DetailItem) => setOpened(stack => stack.at(-1)?.kind === item.kind && stack.at(-1)?.number === item.number ? stack : [...stack, item]);
+  /** The number of the item of `kind` the detail shows, if any. */
+  const selected = (kind: DetailItem['kind']) => shown?.kind === kind ? shown.number : undefined;
 
   async function load<T extends Tab>(list: T, filter: ListFilter, cursor: string | null) {
     const request = ++latest.current;
@@ -133,15 +135,16 @@ export function ForgeLists({ project, editBinding, detailHost }: Props) {
     <FilterBar key={tab} tab={tab} filter={filter} setFilter={setFilter} labels={loaded?.labels ?? []} counts={loaded?.counts ?? null} />
     <div className="forge-scroll">
       {lists.issues.loaded && tab === 'issues' && <IssueTree issues={lists.issues.loaded.items} state={lists.issues.loaded.filter.state}
-        capabilities={project.capabilities} selected={shownIssue} open={number => setOpened([number])} addLabel={addLabel} />}
+        capabilities={project.capabilities} selected={selected('issue')} open={number => setOpened([{ kind: 'issue', number }])} addLabel={addLabel} />}
       {lists.pullRequests.loaded && tab === 'pullRequests' && <ul className="forge-rows" aria-label={t(texts.name)}>
-        {lists.pullRequests.loaded.items.map(item => <li key={item.number}><PullRequestRow pullRequest={item} addLabel={addLabel} /></li>)}</ul>}
+        {lists.pullRequests.loaded.items.map(item => <li key={item.number}><PullRequestRow pullRequest={item} selected={item.number === selected('pullRequest')}
+          open={() => setOpened([{ kind: 'pullRequest', number: item.number }])} addLabel={addLabel} /></li>)}</ul>}
       {loaded && !loaded.items.length && <p className="forge-empty">{t(texts.noMatches)}</p>}
       {!loaded && <p className="forge-empty">{t(texts.loading)}</p>}
       {loaded?.cursor && <button className="forge-more" disabled={loading} onClick={() => void load(tab, loaded.filter, loaded.cursor)}>{t('loadMore')}</button>}
     </div>
-    {shownIssue !== undefined && <IssueDetailPane project={project} number={shownIssue} width={detailHost.width} resize={detailHost.resize}
-      canBack={opened.length > 1} back={() => setOpened(stack => stack.slice(0, -1))} close={() => setOpened([])} open={openIssue} />}
+    {shown && <ForgeDetailPane project={project} item={shown} width={detailHost.width} resize={detailHost.resize}
+      canBack={opened.length > 1} back={() => setOpened(stack => stack.slice(0, -1))} close={() => setOpened([])} open={openItem} />}
   </>;
 }
 
@@ -258,12 +261,12 @@ function IssueRow({ issue, selected, open, addLabel, blocking, progress }: {
 }
 
 /** A pull request row: state, title, number, age, author, the checks conclusion while it is open, and the labels.
- * It has no action area: pull requests are not dispatched. */
-function PullRequestRow({ pullRequest, addLabel }: { pullRequest: PullRequestSummary; addLabel(name: string): void }) {
-  return <div className="forge-row static">
+ * It has no action area: pull requests are not dispatched. Like an issue row, it opens its detail wherever it is clicked. */
+function PullRequestRow({ pullRequest, selected, open, addLabel }: { pullRequest: PullRequestSummary; selected: boolean; open(): void; addLabel(name: string): void }) {
+  return <div className={`forge-row ${selected ? 'selected' : ''}`} onClick={open}>
     <PullRequestIcon state={pullRequest.state} />
     <div className="forge-row-main">
-      <div className="forge-row-title">{pullRequest.title}</div>
+      <button className="forge-row-title" aria-current={selected || undefined}>{pullRequest.title}</button>
       <div className="forge-row-meta">
         <span className="forge-row-number">#{pullRequest.number}</span><RelativeTime iso={pullRequest.createdAt} />
         {pullRequest.author && <span className="forge-author">{pullRequest.author}</span>}

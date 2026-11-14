@@ -1,51 +1,12 @@
-import { execFile } from 'node:child_process';
 import { z } from 'zod';
-import { executable } from '../../terminal/environment';
-import type { ChecksConclusion, ForgeLabel, ListFilter, IssueSummary, PullRequestState } from '../../shared/forge';
-import { ForgeError, type Forge } from './forge';
+import type { ChecksConclusion, ForgeLabel, ListFilter, IssueSummary } from '../../shared/forge';
+import type { Forge } from './forge';
+import { gh, graphql } from './github-cli';
+import { checksState, issueReference, issueReferenceFields, issueReferenceSchema, issueState, issueStateFields, labelSchema, loginSchema, pullRequestState, relatedLimit, repositoryLinks } from './github-fields';
+import { pullRequestDetail } from './github-pull-request';
 
-/** Runs `gh`, found on PATH, with the account it has active. The Workbench never reads or stores a token. */
-async function gh(args: string[]): Promise<string> {
-  let program: string;
-  try { program = await executable('gh', process.env as Record<string, string>); }
-  catch { throw new ForgeError('notInstalled', ''); }
-  return new Promise((resolve, reject) => {
-    execFile(program, args, { env: { ...process.env, GH_PROMPT_DISABLED: '1', GH_NO_UPDATE_NOTIFIER: '1' }, timeout: 30_000, maxBuffer: 64 * 1024 * 1024 },
-      (error, stdout, stderr) => {
-        if (!error) return resolve(stdout);
-        const code = (error as { code?: unknown }).code;
-        reject(code === 'ENOENT' ? new ForgeError('notInstalled', '') : classifyFailure(typeof code === 'number' ? code : null, stdout, stderr || error.message));
-      });
-  });
-}
-
-/** Exit code 4 is gh's "authentication required"; 401 and 404 come from the REST API, NOT_FOUND from GraphQL. */
-function classifyFailure(code: number | null, stdout: string, stderr: string) {
-  const detail = stderr.trim() || stdout.trim();
-  if (code === 4 || /\bHTTP 401\b/.test(stderr)) return new ForgeError('loggedOut', detail);
-  if (/\bHTTP 404\b/.test(stderr) || /"type"\s*:\s*"NOT_FOUND"/.test(stdout + stderr)) return new ForgeError('inaccessible', detail);
-  return new ForgeError('transient', detail);
-}
-
-/** Runs a GraphQL query and reads its data with `schema`; output gh did not fail on but that does not fit is a transient failure.
- * A number variable is sent as a GraphQL Int (`-F`), a string as a String (`-f`). */
-async function graphql<T>(query: string, variables: Record<string, string | number>, schema: z.ZodType<T>): Promise<T> {
-  const output = await gh(['api', 'graphql', '-f', `query=${query}`,
-    ...Object.entries(variables).flatMap(([key, value]) => [typeof value === 'number' ? '-F' : '-f', `${key}=${value}`])]);
-  let json: unknown;
-  try { json = JSON.parse(output); } catch { throw new ForgeError('transient', output.trim()); }
-  const parsed = z.object({ data: schema }).safeParse(json);
-  if (!parsed.success) throw new ForgeError('transient', output.trim());
-  return parsed.data.data;
-}
 
 const pageSize = 25;
-const labelSchema = z.object({ name: z.string(), color: z.string() });
-const closedAs = { COMPLETED: 'completed', NOT_PLANNED: 'notPlanned', DUPLICATE: 'duplicate', REOPENED: null } as const;
-const issueStateFields = { state: z.enum(['OPEN', 'CLOSED']), stateReason: z.enum(['COMPLETED', 'NOT_PLANNED', 'DUPLICATE', 'REOPENED']).nullable() };
-/** An issue's state, and for a closed issue how it was closed when GitHub tells. */
-const issueState = (issue: z.infer<z.ZodObject<typeof issueStateFields>>) => ({ state: issue.state === 'OPEN' ? 'open' as const : 'closed' as const,
-  closedAs: issue.state === 'OPEN' || !issue.stateReason ? null : closedAs[issue.stateReason] });
 const repositorySchema = z.object({ nameWithOwner: z.string() });
 const issueSchema = z.object({
   number: z.number(), title: z.string(), ...issueStateFields, createdAt: z.string(),
@@ -69,7 +30,6 @@ const issuePageSchema = listPageSchema(issueSchema.extend({
   subIssuesSummary: z.object({ total: z.number(), completed: z.number() }),
   subIssues: z.object({ nodes: z.array(issueSchema) }),
 }));
-const checksState = z.enum(['SUCCESS', 'FAILURE', 'ERROR', 'PENDING', 'EXPECTED']);
 const pullRequestPageSchema = listPageSchema(z.object({
   number: z.number(), title: z.string(), state: z.enum(['OPEN', 'MERGED', 'CLOSED']), isDraft: z.boolean(), createdAt: z.string(),
   author: z.object({ login: z.string() }).nullable(),
@@ -99,9 +59,6 @@ const pullRequestPageQuery = listPageQuery(`... on PullRequest { number title st
       labels(first: 20) { nodes { name color } }
       commits(last: 1) { nodes { commit { statusCheckRollup { state } } } } }`);
 
-const relatedLimit = 50;
-const issueReferenceSchema = z.object({ number: z.number(), title: z.string(), url: z.string(), ...issueStateFields });
-const loginSchema = z.object({ login: z.string() }).nullable();
 const issueDetailSchema = z.object({ repository: z.object({ url: z.string(), issue: z.object({
   number: z.number(), title: z.string(), ...issueStateFields, createdAt: z.string(), url: z.string(), bodyHTML: z.string(), author: loginSchema,
   assignees: z.object({ nodes: z.array(z.object({ login: z.string() })) }),
@@ -116,7 +73,6 @@ const issueDetailSchema = z.object({ repository: z.object({ url: z.string(), iss
     commits: z.object({ nodes: z.array(z.object({ commit: z.object({ statusCheckRollup: z.object({ state: checksState }).nullable() }) })) }),
   })) }),
 }) }) });
-const issueReferenceFields = 'number title state stateReason url';
 // The first 100 comments are listed; `totalCount` counts them all.
 const issueDetailQuery = `query($owner: String!, $name: String!, $number: Int!) {
   repository(owner: $owner, name: $name) { url issue(number: $number) {
@@ -133,7 +89,6 @@ const issueDetailQuery = `query($owner: String!, $name: String!, $number: Int!) 
     }
   } }
 }`;
-const issueReference = (issue: z.infer<typeof issueReferenceSchema>) => ({ number: issue.number, title: issue.title, ...issueState(issue), url: issue.url });
 
 /** GitHub repository paths are case-insensitive. */
 const samePath = (a: string, b: string) => a.toLowerCase() === b.toLowerCase();
@@ -175,15 +130,14 @@ const latestChecks = (commits: { nodes: { commit: { statusCheckRollup: { state: 
   const rollup = commits.nodes[0]?.commit.statusCheckRollup;
   return rollup ? checksConclusion[rollup.state] : 'none';
 };
-const pullRequestState = (state: 'OPEN' | 'MERGED' | 'CLOSED', draft: boolean): PullRequestState =>
-  state === 'MERGED' ? 'merged' : state === 'CLOSED' ? 'closed' : draft ? 'draft' : 'open';
+
 
 const outputLines = (text: string) => text.split('\n').map(line => line.trim()).filter(Boolean);
 
 export const github: Forge = {
   id: 'github',
   presentation: { name: 'GitHub', cli: 'gh', installUrl: 'https://cli.github.com', loginCommand: 'gh auth login' },
-  capabilities: { subIssues: true, blocking: true },
+  capabilities: { subIssues: true, blocking: true, requiredChecks: true, mergeQueue: true, mergeMethods: ['merge', 'squash', 'rebase'] },
   async account() { return (await gh(['api', 'user', '--jq', '.login'])).trim(); },
   async repositories() {
     return outputLines(await gh(['api', '--paginate', 'user/repos?affiliation=owner,collaborator,organization_member&per_page=100', '--jq', '.[].full_name']));
@@ -231,7 +185,8 @@ export const github: Forge = {
       blocking: issue.blocking.nodes.map(issueReference),
       closingPullRequests: issue.closedByPullRequestsReferences.nodes.map(pull =>
         ({ number: pull.number, title: pull.title, url: pull.url, state: pullRequestState(pull.state, pull.isDraft), checks: latestChecks(pull.commits) })),
-      issueLinks: `${repository.url}/issues/`,
+      links: repositoryLinks(repository.url),
     };
   },
+  pullRequest: pullRequestDetail,
 };

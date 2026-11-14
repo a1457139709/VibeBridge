@@ -17,7 +17,16 @@ export interface ForgeCapabilities {
   subIssues: boolean;
   /** The forge records natively which issues block an issue. */
   blocking: boolean;
+  /** The repository can require checks to pass before a merge, and says which. */
+  requiredChecks: boolean;
+  /** The repository can require merging through a merge queue. */
+  mergeQueue: boolean;
+  /** The ways the forge can merge a pull request; a repository allows some of them. */
+  mergeMethods: readonly MergeMethod[];
 }
+
+/** How a pull request's changes join its base branch: a merge commit, one squashed commit, or rebased commits. */
+export type MergeMethod = 'merge' | 'squash' | 'rebase';
 
 /** What the UI shows for a forge; each adapter provides its own. */
 export interface ForgePresentation {
@@ -47,12 +56,14 @@ export const listStates = ['open', 'closed'] as const;
 export type ListState = typeof listStates[number];
 /** How many items are open and closed. */
 export type ListCounts = Record<ListState, number>;
+/** An issue is open or closed. */
+export type IssueState = 'open' | 'closed';
 
 /** An issue as a list row shows it. A closed issue says how it was closed when the forge tells. */
 export interface IssueSummary {
   number: number;
   title: string;
-  state: ListState;
+  state: IssueState;
   closedAs: 'completed' | 'notPlanned' | 'duplicate' | null;
   /** ISO 8601. */
   createdAt: string;
@@ -110,10 +121,12 @@ export type IssuePage = Page<ListedIssue>;
 export type PullRequestPage = Page<PullRequestSummary>;
 
 /** Another issue as a detail names it. `url` is its page on the forge: one outside the bound repository opens in the browser. */
-export interface IssueReference { number: number; title: string; state: ListState; closedAs: IssueSummary['closedAs']; url: string }
+export interface IssueReference { number: number; title: string; state: IssueState; closedAs: IssueSummary['closedAs']; url: string }
 export interface PullRequestReference { number: number; title: string; state: PullRequestState; checks: ChecksConclusion; url: string }
 /** How many of an issue's sub-issues are closed. */
 export interface SubIssueProgress { closed: number; total: number }
+/** URL prefixes of the bound repository's issues and pull requests: a link to `<prefix><number>` opens in the sidebar. */
+export interface ForgeLinks { issues: string; pullRequests: string }
 /** A comment as the forge rendered it. `html` is the forge's own HTML, unfiltered: filter it before it joins a page. */
 export interface ForgeComment { author: string | null; createdAt: string; html: string }
 
@@ -134,9 +147,49 @@ export interface IssueDetail extends Omit<IssueSummary, 'blockedBy' | 'unlistedB
   blocking: IssueReference[];
   /** Pull requests that close this issue when merged, closed ones included. */
   closingPullRequests: PullRequestReference[];
-  /** The URL prefix of the bound repository's issues: a link to `<prefix><number>` opens in the sidebar. */
-  issueLinks: string;
+  links: ForgeLinks;
 }
-export const issueNumberSchema = z.number().int().positive();
+/** The number of an issue or pull request. */
+export const itemNumberSchema = z.number().int().positive();
 /** An issue of the bound repository, or the forge failure. */
 export type IssueDetailResult = { ok: true; issue: IssueDetail } | { ok: false; failure: ForgeFailure };
+
+/** How a review left a pull request. */
+export type ReviewVerdict = 'approved' | 'changesRequested' | 'commented' | 'dismissed';
+/** A comment, or a review's summary with its verdict. */
+export interface TimelineEntry extends ForgeComment { verdict: ReviewVerdict | null }
+
+/** Where a pull request's review stands: approved, changes requested, or still waiting for a required review; or no
+ * review is required. `requiredApprovals` is how many approvals the base branch requires; null when the forge does not tell or none are required. */
+export interface ReviewStatus { state: 'approved' | 'changesRequested' | 'required' | 'notRequired'; requiredApprovals: number | null }
+/** A check on the latest commit. A skipped check does not hold up a merge. `url` opens its log on the forge, or where it ran. */
+export interface Check { name: string; result: 'passed' | 'failed' | 'pending' | 'skipped'; required: boolean; url: string | null }
+/** Whether the pull request conflicts with its base branch; `unknown` while the forge has not worked it out yet. */
+export type Conflicts = 'none' | 'conflicting' | 'unknown';
+
+/** A pull request as its read-only detail shows it. `body` is the forge's rendered HTML, unfiltered. `changesUrl` is where the
+ * forge shows its changes. */
+export interface PullRequestDetail extends Omit<PullRequestSummary, 'checks'> {
+  url: string;
+  changesUrl: string;
+  /** The branch it merges, and the branch it merges into. */
+  head: string;
+  base: string;
+  body: string;
+  /** Comments and review summaries, oldest first. Code comments are only counted. */
+  timeline: TimelineEntry[];
+  /** Every comment, also those beyond the ones listed. */
+  commentCount: number;
+  codeComments: number;
+  /** Issues the forge closes when it is merged. */
+  closingIssues: IssueReference[];
+  links: ForgeLinks;
+  review: ReviewStatus;
+  /** Checks on the latest commit; `required` only when the forge declares required checks (ForgeCapabilities). */
+  checks: Check[];
+  conflicts: Conflicts;
+  /** The merge methods the repository allows, and whether it merges through a merge queue; the UI uses them as far as the forge declares them (ForgeCapabilities). */
+  merge: { methods: MergeMethod[]; queue: boolean };
+}
+/** A pull request of the bound repository, or the forge failure. */
+export type PullRequestDetailResult = { ok: true; pullRequest: PullRequestDetail } | { ok: false; failure: ForgeFailure };

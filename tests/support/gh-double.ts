@@ -18,11 +18,23 @@ export interface GhIssue {
 }
 
 /** A pull request as GitHub's GraphQL API names its fields. `checks` is the head commit's status check rollup; none when
- * absent or null. Without `author` the account wrote it; without `createdAt` it was created on 2026-01-01. */
+ * absent or null. Without `author` the account wrote it; without `createdAt` it was created on 2026-01-01. Its detail
+ * merges `head` (default feature) into `base` (default main) and closes the issues numbered in `closes`. */
 export interface GhPullRequest {
   number: number; title: string; state: 'OPEN' | 'MERGED' | 'CLOSED'; isDraft?: boolean;
   createdAt?: string; author?: string | null; labels?: { name: string; color: string }[];
   checks?: 'SUCCESS' | 'FAILURE' | 'ERROR' | 'PENDING' | 'EXPECTED' | null;
+  head?: string; base?: string; bodyHTML?: string; closes?: number[];
+  comments?: { author: string | null; createdAt: string; bodyHTML: string }[];
+  /** `codeComments` counts the review's comments on lines of code. */
+  reviews?: { author: string | null; state: 'PENDING' | 'COMMENTED' | 'APPROVED' | 'CHANGES_REQUESTED' | 'DISMISSED'; submittedAt: string | null; bodyHTML: string; codeComments?: number }[];
+  /** The review decision (null when no review is required) and the approvals the base branch requires (none without). */
+  reviewDecision?: 'APPROVED' | 'CHANGES_REQUESTED' | 'REVIEW_REQUIRED' | null; requiredApprovals?: number | null;
+  /** Default MERGEABLE. */
+  mergeable?: 'MERGEABLE' | 'CONFLICTING' | 'UNKNOWN'; mergeQueue?: boolean;
+  /** The latest commit's check runs and commit statuses; a required one is required for this pull request. */
+  checkRuns?: ({ name: string; status: string; conclusion: string | null; required?: boolean }
+    | { context: string; state: 'SUCCESS' | 'FAILURE' | 'ERROR' | 'PENDING' | 'EXPECTED'; targetUrl: string | null; required?: boolean })[];
 }
 
 export interface GhState {
@@ -32,6 +44,8 @@ export interface GhState {
   issues?: GhIssue[];
   pullRequests?: GhPullRequest[];
   labels?: { name: string; color: string }[];
+  /** The merge methods every repository allows; each defaults to allowed. */
+  mergeMethods?: { merge?: boolean; squash?: boolean; rebase?: boolean };
   /** `gh` fails every command with this exit code and output. */
   failure?: { code: number; stdout?: string; stderr?: string };
 }

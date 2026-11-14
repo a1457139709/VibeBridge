@@ -1,23 +1,15 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { ghDouble, type GhIssue } from './support/gh-double';
-import { interactiveWorkbench } from './support/interactive-workbench';
+import { boundWorkbench, day, forgeAccount } from './support/bound-workbench';
 
-const day = (n: number) => new Date(Date.UTC(2026, 0, 1 + n)).toISOString();
-const account = { account: 'octo', repositories: ['octo/tools'] };
 const issueUrl = (n: number) => `https://github.com/octo/tools/issues/${n}`;
 const bug = { name: 'bug', color: 'd73a4a' };
 const plain = (number: number, extra: Partial<GhIssue> = {}): GhIssue => ({ number, title: `Issue ${number}`, state: 'OPEN', createdAt: day(number), labels: [], ...extra });
 
-async function boundWorkbench(scope: string) {
-  const f = await interactiveWorkbench(scope);
-  const { project } = await f.create('Bound');
-  await f.workbench.editProject(project.id, { name: 'Bound', directory: f.directory, repository: { forge: 'github', path: 'octo/tools' } }, false);
-  return { ...f, projectId: project.id };
-}
 
 test('an issue detail carries the forge-rendered body and comments with their authors, and the assignees and comment count', async context => {
-  await ghDouble(context, { ...account, issues: [plain(7, {
+  await ghDouble(context, { ...forgeAccount, issues: [plain(7, {
     title: 'Issue detail', state: 'CLOSED', stateReason: 'COMPLETED', labels: [bug], author: 'mona', assignees: ['octo', 'hubot'],
     bodyHTML: '<p>Read <a href="https://github.com/octo/tools/issues/3">#3</a> first.</p>',
     comments: [
@@ -39,14 +31,14 @@ test('an issue detail carries the forge-rendered body and comments with their au
         { author: null, createdAt: day(9), html: '<p>From a deleted account.</p>' },
       ],
       commentCount: 2,
-      issueLinks: 'https://github.com/octo/tools/issues/',
+      links: { issues: 'https://github.com/octo/tools/issues/', pullRequests: 'https://github.com/octo/tools/pull/' },
       parent: undefined, subIssues: undefined, blockedBy: undefined, blocking: undefined, closingPullRequests: undefined,
     });
   } finally { await f.close(); }
 });
 
 test('an issue detail names its parent, its sub-issues in number order, its blockers, what it blocks, and the pull requests that close it', async context => {
-  await ghDouble(context, { ...account,
+  await ghDouble(context, { ...forgeAccount,
     issues: [
       plain(1, { title: 'Spec' }),
       plain(2, { title: 'Blocker', blockedBy: [] }),
@@ -87,14 +79,14 @@ test('an issue detail names its parent, its sub-issues in number order, its bloc
 });
 
 test('a missing issue and forge CLI failures come back as forge failures with the forge text', async context => {
-  const double = await ghDouble(context, { ...account, issues: [plain(1)] });
+  const double = await ghDouble(context, { ...forgeAccount, issues: [plain(1)] });
   const f = await boundWorkbench('issue-detail-failures');
   const detail = (number: number) => f.workbench.issueDetail(f.projectId, number);
   try {
     const missing = await detail(99);
     assert.ok(!missing.ok);
     assert.deepEqual([missing.failure.kind, missing.failure.detail], ['inaccessible', 'GraphQL: Could not resolve to an Issue with the number of 99. (repository.issue)']);
-    await double.set({ ...account, failure: { code: 4, stderr: 'To get started with GitHub CLI, please run:  gh auth login\n' } });
+    await double.set({ ...forgeAccount, failure: { code: 4, stderr: 'To get started with GitHub CLI, please run:  gh auth login\n' } });
     const loggedOut = await detail(1);
     assert.ok(!loggedOut.ok);
     assert.equal(loggedOut.failure.kind, 'loggedOut');
