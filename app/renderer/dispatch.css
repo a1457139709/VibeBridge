@@ -32,3 +32,16 @@
 button.dispatch-status:hover .dispatch-session { color: inherit; text-decoration: underline; }
 .dispatch-times { color: var(--muted); font-size: 10px; flex-shrink: 0; white-space: pre; }
 .dispatch-status.gone { color: var(--muted); font-size: 10px; white-space: nowrap; }
+.dispatch-records { margin-bottom: 14px; }
+.dispatch-records > header { padding: 4px 12px; }
+.dispatch-records-toggle, .dispatch-record-toggle { border: 0; background: none; padding: 0; min-height: 0; height: auto; font-size: 12px; color: var(--muted); }
+.dispatch-records-toggle:hover, .dispatch-record-toggle:hover { color: inherit; }
+.dispatch-records ul { margin: 0; padding: 0; list-style: none; }
+.dispatch-record { display: flex; align-items: center; flex-wrap: wrap; gap: 6px; padding: 6px 12px; border-top: 1px solid var(--line); font-size: 11px; }
+.dispatch-records ul .dispatch-record:first-child { border-top: 0; }
+.dispatch-record-when, .dispatch-record-gone { color: var(--muted); }
+.dispatch-record-gone { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.dispatch-record .dispatch-status { max-width: 60%; }
+.dispatch-record .dispatch-session { max-width: none; }
+.dispatch-record > .dispatch-record-toggle { margin-left: auto; font-size: 11px; }
+.dispatch-record-text { flex-basis: 100%; font-size: 11px; padding: 4px 6px; border-radius: 4px; background: color-mix(in srgb, var(--muted) 12%, transparent); white-space: pre-wrap; word-break: break-all; }

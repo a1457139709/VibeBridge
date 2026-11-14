@@ -48,7 +48,7 @@ const step = (count: number, by: number) => (index: number) => Math.max(0, Math.
  * panel stays a card in the tray; filling locates the target panel, which opens a new one as its temporary maximize.
  * The owner holds whether the menu is open, so a shortcut can open it. */
 export function DispatchButton({ project, issue, host, open, setOpen }: {
-  project: ProjectView; issue: IssueSummary; host: DispatchHost; open: boolean; setOpen(open: boolean): void;
+  project: ProjectView; issue: Pick<IssueSummary, 'number' | 'title'>; host: DispatchHost; open: boolean; setOpen(open: boolean): void;
 }) {
   const { t } = useLocalization();
   /** Whether the targets show, the command under the cursor, and the target under the cursor while they show. */
@@ -216,4 +216,41 @@ export function DispatchStatus({ records, locate }: { records: DispatchRecordVie
     data-hint={t('dispatchStatusHint', { status: state, title, ...details })} onClick={onClick}>
     <ProcessingStatusIcon state={status} /><span className="dispatch-session">{title}</span>{times}
   </button>;
+}
+
+/** An issue's Dispatch Records in its detail, newest first: when, the Agent type, the title of the session that took it,
+ * which locates the panel on that session when there is one, and the text sent, folded until shown. A closed issue's
+ * records start folded as a whole, to their count. */
+export function DispatchRecords({ records, folded, locate }: { records: DispatchRecordView[]; folded: boolean; locate(projectId: string, panelId: string): void }) {
+  const { t } = useLocalization();
+  const [open, setOpen] = useState(!folded);
+  /** The records whose text shows, by their place oldest first. */
+  const [unfolded, setUnfolded] = useState<ReadonlySet<number>>(new Set());
+  const heading = t('dispatchRecords', { count: records.length });
+  const toggleText = (index: number) => setUnfolded(shown => {
+    const next = new Set(shown);
+    if (!next.delete(index)) next.add(index);
+    return next;
+  });
+  return <section className="forge-box dispatch-records" aria-label={heading}>
+    <header><button className="dispatch-records-toggle" aria-expanded={open} onClick={() => setOpen(!open)}>{open ? '▾' : '▸'} {heading}</button></header>
+    {open && <ul>{records.map((record, index) => ({ record, index })).reverse().map(({ record, index }) => {
+      const { location } = record;
+      const title = location?.title ?? t('untitled');
+      const state = location?.status ? t(location.status) : '';
+      return <li key={index} className="dispatch-record">
+        <span className="dispatch-record-when"><RelativeTime iso={record.dispatchedAt} /></span>
+        <span className="dispatch-agent" role="img" aria-label={agentNames[record.agent]}>{agentIcons[record.agent]}</span>
+        {location
+          ? <button className="dispatch-status" aria-label={[state, title].filter(Boolean).join(' · ')} data-hint={t('locateSessionPanel')}
+            onClick={() => locate(location.projectId, location.panelId)}>
+            <ProcessingStatusIcon state={location.status} /><span className="dispatch-session">{title}</span></button>
+          : <span className="dispatch-record-gone">{t('noPanelOnSession')}</span>}
+        {/* Folded, the text is named by how it invokes the skill: its first word. */}
+        <button className="dispatch-record-toggle" aria-expanded={unfolded.has(index)} onClick={() => toggleText(index)}>
+          {unfolded.has(index) ? t('hideCommand') : `${record.text.split(/\s/, 1)[0]} ▸`}</button>
+        {unfolded.has(index) && <code className="dispatch-record-text">{record.text}</code>}
+      </li>;
+    })}</ul>}
+  </section>;
 }
