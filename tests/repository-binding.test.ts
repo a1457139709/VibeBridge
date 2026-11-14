@@ -7,6 +7,9 @@ import { Workbench } from '../app/main/workbench';
 import { ghDouble } from './support/gh-double';
 import { interactiveWorkbench } from './support/interactive-workbench';
 
+// The projects' directories are repositories of their own: git run from a hook names this checkout in GIT_* variables.
+for (const key of Object.keys(process.env)) if (key.startsWith('GIT_')) delete process.env[key];
+
 const github = (path: string) => ({ forge: 'github' as const, path });
 const account = { account: 'octo', repositories: ['octo/tools', 'Octo/VibeBridge', 'acme/forge'] };
 
