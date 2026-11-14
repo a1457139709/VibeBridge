@@ -5,10 +5,10 @@ import { repositoryChoices } from './repositories';
 import { defaultForge, forges } from './forges';
 
 /** Each project's Repository Binding as stored, and what the Workbench reads from and does on a project's bound
- * repository. `exists` throws when the project is missing. */
+ * repository. `requireProject` throws when the project is missing. */
 export class BoundRepositories {
   private bindings: Map<string, RepositoryReference>;
-  constructor(stored: Record<string, RepositoryReference>, private exists: (projectId: string) => void) {
+  constructor(stored: Record<string, RepositoryReference>, private requireProject: (projectId: string) => void) {
     this.bindings = new Map(Object.entries(stored));
   }
   /** The project's Repository Binding, or null when it has none. */
@@ -24,14 +24,14 @@ export class BoundRepositories {
   }
   /** The project's bound repository; it is an error to ask for a project without one. */
   bound(projectId: string) {
-    this.exists(projectId);
+    this.requireProject(projectId);
     const repository = this.bindings.get(projectId);
     if (!repository) throw new Error(message('noRepositoryBound'));
     return repository;
   }
   /** The repositories the project can bind, with the one that `origin` of `directory` (the directory as the user is editing it) points at. */
   async choices(projectId: string, directory: string): Promise<RepositoryChoices> {
-    this.exists(projectId);
+    this.requireProject(projectId);
     return repositoryChoices(this.get(projectId), directory);
   }
   /** One page of the issues of the project's bound repository, as `query` asks. */

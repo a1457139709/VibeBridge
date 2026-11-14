@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import { message, detail } from '../shared/messages';
-import { liveRun as live, type AgentCommand, type AgentType, type LaunchResult, type Panel, type PanelView, type Project, type Run, type TerminalEvent, type WorkbenchEvent } from '../shared/model';
+import { liveRun, type AgentCommand, type AgentType, type LaunchResult, type Panel, type PanelView, type Project, type Run, type TerminalEvent, type WorkbenchEvent } from '../shared/model';
 import { ProcessingStatus, type HandOver } from './processing-status';
 import { sessionTitle } from './session-title';
 import { TerminalClient } from './terminal-client';
@@ -44,7 +44,7 @@ export class RunSupervision {
     this.terminal = terminal(event => this.terminalEvent(event), (message, stopped) => {
       if (stopped) {
         this.terminalFailure = message;
-        for (const run of this.list) if (live(run)) { run.state = 'stopped'; this.processing.forget(run.id); }
+        for (const run of this.list) if (liveRun(run)) { run.state = 'stopped'; this.processing.forget(run.id); }
         callbacks.changed();
       }
       callbacks.report(message);
@@ -71,7 +71,7 @@ export class RunSupervision {
     return !!run && this.current(run) && this.processing.holdDispatch(runId, handOver);
   }
   /** A live run its panel still expects. */
-  private current(run: Run) { return live(run) && this.expects(run); }
+  private current(run: Run) { return liveRun(run) && this.expects(run); }
   /** Whether this run is still the one its panel expects. */
   expects(run: Run) { return this.expectedRuns.get(run.panelId)?.runId === run.id; }
   private terminalEvent(event: TerminalEvent) {
@@ -126,7 +126,7 @@ export class RunSupervision {
     const ids = panels.map(panel => panel.id);
     if (this.terminalFailure && this.list.some(run => ids.includes(run.panelId))) return [this.terminalFailure];
     const failures: string[] = [];
-    for (const run of this.list.filter(run => ids.includes(run.panelId) && live(run))) {
+    for (const run of this.list.filter(run => ids.includes(run.panelId) && liveRun(run))) {
       // Mark before requesting cleanup: its exit event can arrive before the response.
       this.controlledStops.add(run.id);
       try { await this.terminal.stop(run.id); }
@@ -137,7 +137,7 @@ export class RunSupervision {
   /** Stops the panel's live run as a controlled stop. If the stop fails, a later exit
    * counts as the run ending on its own again. */
   async stopPanel(panelId: string) {
-    const run = this.list.find(r => r.panelId === panelId && live(r));
+    const run = this.list.find(r => r.panelId === panelId && liveRun(r));
     if (!run) return;
     this.controlledStops.add(run.id);
     try { await this.terminal.stop(run.id); }

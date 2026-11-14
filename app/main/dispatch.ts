@@ -63,9 +63,9 @@ export class Dispatches {
     await this.supervision.input(run.id, bracketedPaste(text));
     if (delivery === 'submit') await this.supervision.input(run.id, '\r');
     const dispatchedAt = new Date().toISOString();
-    const record = (sessionId: string) => this.append({ projectId, repository, issue: issue.number, dispatchedAt, agent: panel.agent, text, sessionId });
-    if (session) await record(session);
-    else handOver = sessionId => void record(sessionId);
+    const writeRecord = (sessionId: string) => this.append({ projectId, repository, issue: issue.number, dispatchedAt, agent: panel.agent, text, sessionId });
+    if (session) await writeRecord(session);
+    else handOver = sessionId => void writeRecord(sessionId);
     return { delivery };
   }
 

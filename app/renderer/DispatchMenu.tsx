@@ -72,11 +72,11 @@ export function DispatchButton({ project, issue, host }: { project: ProjectView;
         {enabled.length > 1 && <h4 className="dispatch-workflow">{t(workflow.name)}</h4>}
         {workflow.commands.map(command => {
           const mode = delivery(workflow.id, command);
-          const on = expanded?.workflowId === workflow.id && expanded.command.id === command.id;
-          const expand = (event: React.MouseEvent<HTMLButtonElement>) => { if (!on) { setExpanded({ workflowId: workflow.id, command, top: event.currentTarget.offsetTop }); setPointed(undefined); } };
+          const isExpanded = expanded?.workflowId === workflow.id && expanded.command.id === command.id;
+          const expand = (event: React.MouseEvent<HTMLButtonElement>) => { if (!isExpanded) { setExpanded({ workflowId: workflow.id, command, top: event.currentTarget.offsetTop }); setPointed(undefined); } };
           return <Fragment key={command.id}>
             {'separatorBefore' in command && <hr />}
-            <button role="menuitem" className={on ? 'expanded' : ''} aria-haspopup="menu" aria-expanded={on}
+            <button role="menuitem" className={isExpanded ? 'expanded' : ''} aria-haspopup="menu" aria-expanded={isExpanded}
               onMouseEnter={expand} onClick={expand}>
               <span className="dispatch-caret" aria-hidden="true">‹</span><code>{command.skill}</code>
               <small className={`dispatch-delivery ${mode}`}>{t(deliveryText[mode])}</small>
@@ -112,20 +112,20 @@ export function DispatchStatus({ records, locate }: { records: DispatchRecordVie
   const latest = records.at(-1);
   if (!latest) return null;
   const times = records.length > 1 ? <span className="dispatch-times"> ×{records.length}</span> : null;
-  const record = { agent: agentNames[latest.agent], when: new Date(latest.dispatchedAt).toLocaleString(language), text: latest.text };
+  const details = { agent: agentNames[latest.agent], when: new Date(latest.dispatchedAt).toLocaleString(language), text: latest.text };
   const target = latestLocatable(records)?.location;
   const onClick = (event: React.MouseEvent) => { event.stopPropagation(); if (target) locate(target.projectId, target.panelId); };
   if (!latest.location) {
     const content = <>{t('dispatched')} <RelativeTime iso={latest.dispatchedAt} />{times}</>;
     return target
-      ? <button className="dispatch-status gone" data-hint={t('dispatchedGoneLocatable', record)} onClick={onClick}>{content}</button>
-      : <span className="dispatch-status gone" data-hint={t('dispatchedGone', record)}>{content}</span>;
+      ? <button className="dispatch-status gone" data-hint={t('dispatchedGoneLocatable', details)} onClick={onClick}>{content}</button>
+      : <span className="dispatch-status gone" data-hint={t('dispatchedGone', details)}>{content}</span>;
   }
   const { status } = latest.location;
   const title = latest.location.title ?? t('untitled');
   const state = status ? t(status) : '';
   return <button className={`dispatch-status ${status ? `status-${status}` : ''}`} aria-label={[state, title].filter(Boolean).join(' · ')}
-    data-hint={t('dispatchStatusHint', { status: state, title, ...record })} onClick={onClick}>
+    data-hint={t('dispatchStatusHint', { status: state, title, ...details })} onClick={onClick}>
     <ProcessingStatusIcon state={status} /><span className="dispatch-session">{title}</span>{times}
   </button>;
 }

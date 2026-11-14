@@ -101,11 +101,11 @@ export function ForgeLists({ project, editBinding, detailHost, dispatchHost }: P
   /** The sidebar's one refresh: the current tab's first page and the open detail. */
   const refresh = () => { void load(tab, filters[tab], null); setGeneration(count => count + 1); };
   // A dispatch refreshes the sidebar once; filling a panel also closes the detail, as focus moves into that panel.
-  const dispatching: DispatchHost = { ...dispatchHost, dispatched(delivery) { if (delivery === 'fill') setOpened([]); refresh(); } };
+  const rowDispatchHost: DispatchHost = { ...dispatchHost, dispatched(delivery) { if (delivery === 'fill') setOpened([]); refresh(); } };
   /** An open issue's dispatch action and where its latest dispatch is now. */
   const issueAction = (issue: IssueSummary) => {
     const records = project.dispatches.filter(record => record.issue === issue.number);
-    return <><DispatchButton project={project} issue={issue} host={dispatching} />
+    return <><DispatchButton project={project} issue={issue} host={rowDispatchHost} />
       <DispatchStatus records={records} locate={dispatchHost.locate} /></>;
   };
   const forgeFailed = (failure: ForgeFailure) => setLists(all => ({ ...all, [tab]: { ...all[tab], failed: { ok: false, failure, account: null } } }));
