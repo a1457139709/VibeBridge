@@ -1,0 +1,16 @@
+.workflow-settings { margin-top: 14px; border: 1px solid var(--line); border-radius: 8px; overflow: hidden; }
+.workflow-heading { display: flex; align-items: center; gap: 10px; padding: 12px 14px; }
+.workflow-text { flex: 1; display: flex; flex-direction: column; gap: 2px; }
+.workflow-text span { font-size: 11px; }
+.workflow-switch, .delivery-toggle label { position: relative; display: flex; align-items: center; gap: 8px; margin: 0; }
+.workflow-switch input { width: auto; height: auto; margin: 0; }
+.workflow-commands { border-top: 1px solid var(--line); padding: 6px 14px 10px 40px; }
+.workflow-commands.off { opacity: .45; }
+.workflow-commands hr { border: 0; border-top: 1px dashed var(--line); margin: 6px 0; }
+.workflow-command { display: flex; align-items: center; justify-content: space-between; padding: 4px 0; }
+.workflow-command code { font-size: 12px; }
+.delivery-toggle { display: inline-flex; border: 1px solid var(--line); border-radius: 6px; overflow: hidden; }
+.delivery-toggle input { position: absolute; opacity: 0; width: 1px; height: 1px; margin: 0; }
+.delivery-toggle span { display: inline-flex; align-items: center; height: 22px; padding: 0 9px; font-size: 11px; cursor: pointer; }
+.delivery-toggle input:checked + span { background: var(--hover); font-weight: 600; }
+.delivery-toggle input:focus-visible + span { outline: 2px solid var(--accent); outline-offset: -2px; }
