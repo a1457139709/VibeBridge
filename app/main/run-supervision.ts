@@ -64,11 +64,18 @@ export class RunSupervision {
   }
   /** Holds a pending dispatch on a current run until it reports its first session ID, then hands
    * that ID over; at once if the run is already on a session. The hold is dropped, unpersisted,
-   * when the run ends first. False when the run can no longer report a session.
+   * when the run ends first, and `dropped` is told. False when the run can no longer report a session.
    */
-  holdDispatch(runId: string, handOver: HandOver) {
+  holdDispatch(runId: string, handOver: HandOver, dropped?: () => void) {
     const run = this.list.find(run => run.id === runId);
-    return !!run && this.current(run) && this.processing.holdDispatch(runId, handOver);
+    return !!run && this.current(run) && this.processing.holdDispatch(runId, handOver, dropped);
+  }
+  /** Calls `ready` once a current run first reports it is ready, at once if it shows ready now; dropped,
+   * unpersisted, when the run ends first. False when the run can no longer report.
+   */
+  whenReady(runId: string, ready: () => void) {
+    const run = this.list.find(run => run.id === runId);
+    return !!run && this.current(run) && this.processing.whenReady(runId, ready);
   }
   /** A live run its panel still expects. */
   private current(run: Run) { return liveRun(run) && this.expects(run); }

@@ -22,9 +22,10 @@ export interface DesktopAPI {
   pullRequestDetail(projectId: string, number: number): Promise<PullRequestDetailResult>;
   /** Closes, reopens or merges an issue or pull request of the project's bound repository; the forge's text comes back either way. */
   directAction(projectId: string, action: DirectAction): Promise<DirectActionResult>;
-  /** Dispatches an issue of the project's bound repository to a panel with a run: the command is written into its terminal
-   * and a Dispatch Record joins the snapshot once the run is on a session. Resolves with the delivery used. */
-  dispatch(projectId: string, request: DispatchRequest): Promise<{ delivery: Delivery }>;
+  /** Dispatches an issue of the project's bound repository to a panel with a run, or to a new panel that joins the tray:
+   * the command goes into its terminal and a Dispatch Record joins the snapshot once the run is on a session. Resolves
+   * with the delivery used and the panel that took the dispatch. */
+  dispatch(projectId: string, request: DispatchRequest): Promise<{ delivery: Delivery; panelId: string }>;
   chooseDirectory(): Promise<string | null>;
   activateProject(id: string): Promise<void>;
   addPanel(projectId: string, agent: AgentType): Promise<PanelCreation>;
