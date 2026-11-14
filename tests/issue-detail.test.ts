@@ -22,7 +22,7 @@ test('an issue detail carries the forge-rendered body and comments with their au
     const result = await f.workbench.issueDetail(f.projectId, 7);
     assert.ok(result.ok);
     const { issue } = result;
-    assert.deepEqual({ ...issue, parent: undefined, subIssues: undefined, blockedBy: undefined, blocking: undefined, closingPullRequests: undefined }, {
+    assert.deepEqual({ ...issue, parent: undefined, subIssues: undefined, blockedBy: undefined, blocking: undefined, closingPullRequests: undefined, canWrite: undefined }, {
       number: 7, title: 'Issue detail', state: 'closed', closedAs: 'completed', createdAt: day(7), labels: [bug],
       url: issueUrl(7), author: 'mona', assignees: ['octo', 'hubot'],
       body: '<p>Read <a href="https://github.com/octo/tools/issues/3">#3</a> first.</p>',
@@ -32,7 +32,7 @@ test('an issue detail carries the forge-rendered body and comments with their au
       ],
       commentCount: 2,
       links: { issues: 'https://github.com/octo/tools/issues/', pullRequests: 'https://github.com/octo/tools/pull/' },
-      parent: undefined, subIssues: undefined, blockedBy: undefined, blocking: undefined, closingPullRequests: undefined,
+      parent: undefined, subIssues: undefined, blockedBy: undefined, blocking: undefined, closingPullRequests: undefined, canWrite: undefined,
     });
   } finally { await f.close(); }
 });

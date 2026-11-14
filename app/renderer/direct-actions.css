@@ -1,0 +1,21 @@
+/* The direct actions at the bottom of a detail: split buttons with their menus, and a failure's line under them.
+   Menus are forge popovers; their placement here is more specific than the popover's own. */
+.forge-muted { color: var(--muted); }
+.forge-btn { height: 28px; padding: 0 12px; border: 1px solid var(--line); border-radius: 6px; background: var(--surface); color: inherit; font-size: 12px; }
+.forge-btn:disabled, .forge-split button:disabled { opacity: .45; cursor: not-allowed; }
+.forge-split { position: relative; display: inline-flex; border: 1px solid var(--line); border-radius: 6px; background: var(--surface); }
+.forge-split > button { height: 28px; padding: 0 9px; border: 0; border-radius: 0; background: none; font-size: 12px; }
+.forge-split > button:hover:not(:disabled) { background: var(--hover); }
+.forge-split .forge-split-more { padding: 0 5px; border-left: 1px solid var(--line); color: var(--muted); }
+.forge-split:not(.weak) { border-color: color-mix(in srgb, var(--forge-open) 55%, var(--line)); }
+.forge-split:not(.weak) .forge-split-main { color: var(--forge-open); font-weight: 600; }
+.forge-split.weak { opacity: .6; }
+.forge-split.weak:hover { opacity: 1; }
+.forge-issue-actions { display: flex; flex-direction: column; align-items: flex-end; gap: 6px; padding-top: 6px; }
+.forge-popover.forge-close-menu { top: auto; bottom: calc(100% + 4px); }
+.forge-popover.forge-method-menu { left: 0; right: auto; }
+.forge-merge-actions { display: flex; flex-direction: column; gap: 6px; padding: 10px 12px; }
+.forge-merge-buttons { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 14px; }
+.forge-merge-why { display: inline-flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.forge-action-error { display: flex; align-items: baseline; gap: 8px; font-size: 12px; color: var(--forge-failed); overflow-wrap: anywhere; }
+.forge-action-error .forge-text-button { flex: none; }

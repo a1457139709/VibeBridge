@@ -28,7 +28,7 @@ const reference = (number: number, extra: Partial<IssueReference> = {}): IssueRe
 const detail = (number: number, extra: Partial<IssueDetail> = {}): IssueDetail => ({
   ...summary(number), url: `${repositoryUrl}/issues/${number}`, author: 'mona', assignees: [], body: '', comments: [], commentCount: 0,
   parent: null, subIssues: [], blockedBy: [], blocking: [], closingPullRequests: [],
-  links: { issues: `${repositoryUrl}/issues/`, pullRequests: `${repositoryUrl}/pull/` }, ...extra,
+  links: { issues: `${repositoryUrl}/issues/`, pullRequests: `${repositoryUrl}/pull/` }, canWrite: true, ...extra,
 });
 
 interface Request { number: number; answer(result: IssueDetailResult): void; fail(error: Error): void }

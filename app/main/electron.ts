@@ -97,6 +97,7 @@ void app.whenReady().then(async () => {
   handle('issue-page', async (service, id, query) => { await loginPath; return service.issuePage(id, query); });
   handle('issue-detail', async (service, id, number) => { await loginPath; return service.issueDetail(id, number); });
   handle('pull-request-detail', async (service, id, number) => { await loginPath; return service.pullRequestDetail(id, number); });
+  handle('direct-action', async (service, id, action) => { await loginPath; return service.directAction(id, action); });
   handle('pull-request-page', async (service, id, query) => { await loginPath; return service.pullRequestPage(id, query); });
   handle('activate', (service, id) => service.activateProject(id));
   handle('add', (service, project, agent) => service.addPanel(project, agent));

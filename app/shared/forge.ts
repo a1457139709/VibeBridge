@@ -26,7 +26,8 @@ export interface ForgeCapabilities {
 }
 
 /** How a pull request's changes join its base branch: a merge commit, one squashed commit, or rebased commits. */
-export type MergeMethod = 'merge' | 'squash' | 'rebase';
+export const mergeMethods = ['merge', 'squash', 'rebase'] as const;
+export type MergeMethod = typeof mergeMethods[number];
 
 /** What the UI shows for a forge; each adapter provides its own. */
 export interface ForgePresentation {
@@ -148,6 +149,8 @@ export interface IssueDetail extends Omit<IssueSummary, 'blockedBy' | 'unlistedB
   /** Pull requests that close this issue when merged, closed ones included. */
   closingPullRequests: PullRequestReference[];
   links: ForgeLinks;
+  /** Whether the active account may write to the repository, and so close and reopen it. */
+  canWrite: boolean;
 }
 /** The number of an issue or pull request. */
 export const itemNumberSchema = z.number().int().positive();
@@ -190,6 +193,20 @@ export interface PullRequestDetail extends Omit<PullRequestSummary, 'checks'> {
   conflicts: Conflicts;
   /** The merge methods the repository allows, and whether it merges through a merge queue; the UI uses them as far as the forge declares them (ForgeCapabilities). */
   merge: { methods: MergeMethod[]; queue: boolean };
+  /** Whether the active account may write to the repository, and so merge, close and reopen it. */
+  canWrite: boolean;
 }
 /** A pull request of the bound repository, or the forge failure. */
 export type PullRequestDetailResult = { ok: true; pullRequest: PullRequestDetail } | { ok: false; failure: ForgeFailure };
+
+/** A one-click change to an issue or pull request of the bound repository. A merge uses the forge's default commit message. */
+export const directActionSchema = z.discriminatedUnion('kind', [
+  z.object({ kind: z.literal('closeIssue'), number: itemNumberSchema, reason: z.enum(['completed', 'notPlanned']) }),
+  z.object({ kind: z.literal('reopenIssue'), number: itemNumberSchema }),
+  z.object({ kind: z.literal('merge'), number: itemNumberSchema, method: z.enum(mergeMethods) }),
+  z.object({ kind: z.literal('closePullRequest'), number: itemNumberSchema }),
+  z.object({ kind: z.literal('reopenPullRequest'), number: itemNumberSchema }),
+]);
+export type DirectAction = z.infer<typeof directActionSchema>;
+/** How a direct action ended. `detail` is what the forge said, unchanged, whether it succeeded or not. */
+export type DirectActionResult = { ok: true; detail: string } | { ok: false; failure: ForgeFailure };

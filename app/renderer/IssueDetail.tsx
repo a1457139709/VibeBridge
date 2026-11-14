@@ -2,6 +2,7 @@ import { useEffect, useRef, useState, type MouseEvent } from 'react';
 import { useLocalization } from './Localization';
 import type { IssueDetail, IssueReference, ForgeLinks, PullRequestReference, RepositoryReference } from '../shared/forge';
 import type { ProjectView } from '../shared/model';
+import { IssueActions, type Actions } from './DirectActions';
 import { BlockedMark, IssueIcon, issueState, issueStates, ItemReference, Label, linkedItem, OpenChecks, Post, Progress, PullRequestIcon, RelativeTime, type DetailItem } from './ForgeDisplay';
 
 interface DocumentProps {
@@ -11,11 +12,12 @@ interface DocumentProps {
   open(item: DetailItem): void;
   /** Opens a clicked link of the bound repository in the detail. */
   followLink(event: MouseEvent): void;
+  actions: Actions;
 }
 
-/** One issue as its read-only detail shows it: the parent, title, state and labels, the relation graph, the pull requests
- * that close it, then the body, sub-issues and comments in the forge's own rendering, filtered. */
-export function IssueDocument({ project, issue, open, followLink }: DocumentProps) {
+/** One issue as its detail shows it: the parent, title, state and labels, the relation graph, the pull requests
+ * that close it, then the body, sub-issues and comments in the forge's own rendering, filtered, and its direct actions last. */
+export function IssueDocument({ project, issue, open, followLink, actions }: DocumentProps) {
   const { t } = useLocalization();
   const { capabilities } = project;
   const follow = (reference: IssueReference) => {
@@ -55,6 +57,7 @@ export function IssueDocument({ project, issue, open, followLink }: DocumentProp
       {issue.comments.map((comment, index) => <Post key={index} {...comment} />)}
       {issue.commentCount > issue.comments.length && <a className="forge-more-comments" href={issue.url} target="_blank" rel="noreferrer">
         {t('moreComments', { count: issue.commentCount, forge: project.forge.name })}</a>}
+      <IssueActions issue={issue} actions={actions} />
     </div>
   </div>;
 }

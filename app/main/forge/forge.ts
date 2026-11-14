@@ -1,4 +1,4 @@
-import type { ForgeCapabilities, ForgeFailure, ForgeFailureKind, ForgeId, ForgePresentation, IssueDetail, ListPage, ListQuery, ListedIssue, PullRequestDetail, PullRequestSummary } from '../../shared/forge';
+import type { DirectAction, ForgeCapabilities, ForgeFailure, ForgeFailureKind, ForgeId, ForgePresentation, IssueDetail, ListPage, ListQuery, ListedIssue, PullRequestDetail, PullRequestSummary } from '../../shared/forge';
 
 /** A failure of a forge call, in one of the forge-neutral kinds, with the forge's own text. */
 export class ForgeError extends Error {
@@ -30,4 +30,6 @@ export interface Forge {
   issue(path: string, number: number): Promise<IssueDetail>;
   /** One pull request of the repository with its rendered body, timeline and merge requirements. */
   pullRequest(path: string, number: number): Promise<PullRequestDetail>;
+  /** Carries out a direct action and returns what the forge said, unchanged. */
+  act(path: string, action: DirectAction): Promise<string>;
 }

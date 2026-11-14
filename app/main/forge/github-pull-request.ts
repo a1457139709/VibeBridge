@@ -1,7 +1,7 @@
 import { z } from 'zod';
 import type { Check, PullRequestDetail } from '../../shared/forge';
 import { graphql } from './github-cli';
-import { checksState, issueReference, issueReferenceFields, issueReferenceSchema, labelSchema, loginSchema, pullRequestState, relatedLimit, repositoryLinks } from './github-fields';
+import { checksState, issueReference, issueReferenceFields, issueReferenceSchema, labelSchema, loginSchema, pullRequestState, relatedLimit, repositoryLinks, canWrite, viewerPermission } from './github-fields';
 
 // One pull request's read-only detail from GitHub: its timeline and what stands between it and a merge.
 
@@ -9,7 +9,7 @@ const checkContextSchema = z.discriminatedUnion('__typename', [
   z.object({ __typename: z.literal('CheckRun'), name: z.string(), status: z.string(), conclusion: z.string().nullable(), permalink: z.string(), isRequired: z.boolean() }),
   z.object({ __typename: z.literal('StatusContext'), context: z.string(), state: checksState, targetUrl: z.string().nullable(), isRequired: z.boolean() }),
 ]);
-const pullRequestDetailSchema = z.object({ repository: z.object({ url: z.string(),
+const pullRequestDetailSchema = z.object({ repository: z.object({ url: z.string(), viewerPermission,
   mergeCommitAllowed: z.boolean(), squashMergeAllowed: z.boolean(), rebaseMergeAllowed: z.boolean(), pullRequest: z.object({
   number: z.number(), title: z.string(), state: z.enum(['OPEN', 'MERGED', 'CLOSED']), isDraft: z.boolean(), createdAt: z.string(), url: z.string(),
   bodyHTML: z.string(), author: loginSchema, headRefName: z.string(), baseRefName: z.string(),
@@ -27,7 +27,7 @@ const pullRequestDetailSchema = z.object({ repository: z.object({ url: z.string(
 // Closing issues may be in other repositories; their URLs say where.
 // `refUpdateRule` is the base branch's protection as the viewer may read it; `isRequired` asks whether a check is required for this pull request.
 const pullRequestDetailQuery = `query($owner: String!, $name: String!, $number: Int!) {
-  repository(owner: $owner, name: $name) { url mergeCommitAllowed squashMergeAllowed rebaseMergeAllowed pullRequest(number: $number) {
+  repository(owner: $owner, name: $name) { url viewerPermission mergeCommitAllowed squashMergeAllowed rebaseMergeAllowed pullRequest(number: $number) {
     number title state isDraft createdAt url bodyHTML author { login } headRefName baseRefName
     labels(first: 20) { nodes { name color } }
     closingIssuesReferences(first: ${relatedLimit}) { nodes { ${issueReferenceFields} } }
@@ -76,5 +76,6 @@ export async function pullRequestDetail(path: string, number: number): Promise<P
     conflicts: conflicts[pull.mergeable],
     merge: { methods: ([['merge', repository.mergeCommitAllowed], ['squash', repository.squashMergeAllowed], ['rebase', repository.rebaseMergeAllowed]] as const)
       .filter(([, allowed]) => allowed).map(([method]) => method), queue: pull.isMergeQueueEnabled },
+    canWrite: canWrite(repository.viewerPermission),
   };
 }

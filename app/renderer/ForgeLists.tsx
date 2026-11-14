@@ -2,9 +2,10 @@ import { useEffect, useRef, useState, type PointerEvent as ReactPointerEvent } f
 import { SyncIcon } from '@primer/octicons-react';
 import { useLocalization } from './Localization';
 import { detail } from '../shared/messages';
-import type { ForgeCapabilities, ForgeLabel, IssueSummary, ListCounts, ListFilter, ListPage, ListState, ListedIssue, Page, PullRequestSummary, RepositoryReference } from '../shared/forge';
+import type { ForgeCapabilities, ForgeFailure, IssueSummary, ListFilter, ListPage, ListState, ListedIssue, Page, PullRequestSummary, RepositoryReference } from '../shared/forge';
 import type { ProjectView } from '../shared/model';
 import { ForgeDetailPane } from './ForgeDetail';
+import { FilterBar } from './ForgeFilterBar';
 import { BlockedMark, IssueIcon, Label, OpenChecks, Progress, PullRequestIcon, RelativeTime, type DetailItem } from './ForgeDisplay';
 
 /** The sidebar's lists, each a tab. */
@@ -64,6 +65,8 @@ export function ForgeLists({ project, editBinding, detailHost }: Props) {
   const [filters, setFilters] = useState<Record<Tab, ListFilter>>({ issues: openNoFilter, pullRequests: openNoFilter });
   const [lists, setLists] = useState<Lists>({ issues: empty, pullRequests: empty });
   const [loading, setLoading] = useState(false);
+  /** Counts refreshes; the detail reloads on each. */
+  const [generation, setGeneration] = useState(0);
   // Only the latest request may settle a list; an older answer is for a filter or tab no longer shown.
   const latest = useRef(0);
   const requested = useRef<Record<Tab, ListFilter | null>>({ issues: null, pullRequests: null });
@@ -92,7 +95,9 @@ export function ForgeLists({ project, editBinding, detailHost }: Props) {
     settle(({ loaded: previous }) => ({ failed: null,
       loaded: cursor !== null && previous ? { ...next, filter, items: [...previous.items, ...next.items] } : { ...next, filter } }));
   }
-  const refresh = () => void load(tab, filters[tab], null);
+  /** The sidebar's one refresh: the current tab's first page and the open detail. */
+  const refresh = () => { void load(tab, filters[tab], null); setGeneration(count => count + 1); };
+  const forgeFailed = (failure: ForgeFailure) => setLists(all => ({ ...all, [tab]: { ...all[tab], failed: { ok: false, failure, account: null } } }));
 
   // The current tab fetches when it shows and whenever its filter changes; typing in the search settles first.
   useEffect(() => {
@@ -132,7 +137,7 @@ export function ForgeLists({ project, editBinding, detailHost }: Props) {
       {tabs.map(item => <button key={item} role="tab" aria-selected={tab === item} className={tab === item ? 'on' : ''}
         onClick={() => setTab(item)}>{t(tabText[item].name)}</button>)}
     </nav>
-    <FilterBar key={tab} tab={tab} filter={filter} setFilter={setFilter} labels={loaded?.labels ?? []} counts={loaded?.counts ?? null} />
+    <FilterBar key={tab} searchLabel={t(texts.search)} filter={filter} setFilter={setFilter} labels={loaded?.labels ?? []} counts={loaded?.counts ?? null} />
     <div className="forge-scroll">
       {lists.issues.loaded && tab === 'issues' && <IssueTree issues={lists.issues.loaded.items} state={lists.issues.loaded.filter.state}
         capabilities={project.capabilities} selected={selected('issue')} open={number => setOpened([{ kind: 'issue', number }])} addLabel={addLabel} />}
@@ -144,47 +149,9 @@ export function ForgeLists({ project, editBinding, detailHost }: Props) {
       {loaded?.cursor && <button className="forge-more" disabled={loading} onClick={() => void load(tab, loaded.filter, loaded.cursor)}>{t('loadMore')}</button>}
     </div>
     {shown && <ForgeDetailPane project={project} item={shown} width={detailHost.width} resize={detailHost.resize}
-      canBack={opened.length > 1} back={() => setOpened(stack => stack.slice(0, -1))} close={() => setOpened([])} open={openItem} />}
+      canBack={opened.length > 1} back={() => setOpened(stack => stack.slice(0, -1))} close={() => setOpened([])} open={openItem}
+      generation={generation} refresh={refresh} forgeFailed={forgeFailed} />}
   </>;
-}
-
-function FilterBar({ tab, filter, setFilter, labels, counts }: {
-  tab: Tab; filter: ListFilter; setFilter(update: (filter: ListFilter) => ListFilter): void;
-  labels: ForgeLabel[]; counts: ListCounts | null;
-}) {
-  const { t } = useLocalization();
-  const [choosing, setChoosing] = useState(false);
-  const root = useRef<HTMLDivElement>(null);
-  useEffect(() => {
-    if (!choosing) return;
-    const outside = (event: PointerEvent) => { if (!root.current?.contains(event.target as Node)) setChoosing(false); };
-    const escape = (event: KeyboardEvent) => { if (event.key === 'Escape') { event.stopPropagation(); setChoosing(false); } };
-    document.addEventListener('pointerdown', outside);
-    document.addEventListener('keydown', escape, true);
-    return () => { document.removeEventListener('pointerdown', outside); document.removeEventListener('keydown', escape, true); };
-  }, [choosing]);
-  const toggle = (name: string) => setFilter(f => ({ ...f, labels: f.labels.includes(name) ? f.labels.filter(label => label !== name) : [...f.labels, name] }));
-  const colors = new Map(labels.map(label => [label.name, label.color]));
-  return <div className="forge-filters">
-    <input type="search" className="forge-search" aria-label={t(tabText[tab].search)} placeholder={t('searchListPlaceholder')}
-      autoComplete="off" value={filter.search} onChange={event => { const search = event.target.value; setFilter(f => ({ ...f, search })); }} />
-    <div className="forge-filter-row">
-      {(['open', 'closed'] as const).map(state => <button key={state} className={`forge-state ${filter.state === state ? 'on' : ''}`} aria-pressed={filter.state === state}
-        onClick={() => setFilter(f => ({ ...f, state }))}>{t(state === 'open' ? 'filterOpen' : 'filterClosed')}{counts && <> <span>{counts[state]}</span></>}</button>)}
-      <span className="forge-spacer" />
-      <div className="forge-popover-root" ref={root}>
-        <button className={`forge-text-button ${filter.labels.length ? 'on' : ''}`} aria-haspopup="menu" aria-expanded={choosing} onClick={() => setChoosing(open => !open)}>
-          {t('labelsFilter')}{filter.labels.length ? ` ${filter.labels.length}` : ''} ▾</button>
-        {choosing && <div className="forge-popover" role="menu" aria-label={t('labelsFilter')}>
-          {labels.map(label => <button key={label.name} role="menuitemcheckbox" aria-checked={filter.labels.includes(label.name)} onClick={() => toggle(label.name)}>
-            <span className="forge-swatch" style={{ background: `#${label.color}` }} /><span className="forge-ellipsis">{label.name}</span><b>{filter.labels.includes(label.name) ? '✓' : ''}</b></button>)}
-          {!!filter.labels.length && <button className="forge-popover-clear" role="menuitem" onClick={() => setFilter(f => ({ ...f, labels: [] }))}>{t('clearLabels')}</button>}
-        </div>}
-      </div>
-    </div>
-    {!!filter.labels.length && <div className="forge-active-labels">
-      {filter.labels.map(name => <Label key={name} label={{ name, color: colors.get(name) ?? '888888' }} onClick={() => toggle(name)} />)}<span>{t('removeLabelHint')}</span></div>}
-  </div>;
 }
 
 /** The loaded issues as a tree, when the forge has sub-issues: an issue sits under its parent when the parent is
