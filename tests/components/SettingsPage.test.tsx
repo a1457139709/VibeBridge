@@ -63,6 +63,18 @@ test('Keyboard shortcuts lists toggling the forge sidebar at Command+Alt+B, and 
   assert.equal(saveSettings.mock.calls[0].arguments[0].shortcuts?.toggleForgeSidebar, 'Command+Alt+G');
 });
 
+test('Keyboard shortcuts lists opening the dispatch menu at Command+D and locating the dispatched panel at Command+L, with conflict checks', async () => {
+  const saved = defaultSettings();
+  provideWorkbench({});
+  const { user } = renderSettings(saved);
+  await click(user, 'Keyboard shortcuts');
+  const dispatch = screen.getByRole<HTMLInputElement>('textbox', { name: 'Open the dispatch menu' });
+  assert.equal(dispatch.value, '⌘ D');
+  assert.equal(screen.getByRole<HTMLInputElement>('textbox', { name: 'Locate the dispatched panel' }).value, '⌘ L');
+  fireEvent.keyDown(dispatch, { key: 'l', code: 'KeyL', metaKey: true });
+  assert.ok(screen.getAllByText(/Locate the dispatched panel/).some(element => element.classList.contains('shortcut-conflict-message')));
+});
+
 test('save and leave submits all changed categories together and allows leaving only after success', async () => {
   const saved = defaultSettings(), pending = deferred<SettingsSaveResult>();
   const saveSettings = mock.fn((_patch: Partial<Settings>) => pending.promise);

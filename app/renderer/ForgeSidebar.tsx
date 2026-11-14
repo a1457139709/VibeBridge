@@ -1,12 +1,13 @@
 import { useLocalization } from './Localization';
 import { useLayoutEffect, useRef, useState, type PointerEvent as ReactPointerEvent } from 'react';
 import { SidebarCollapseIcon, SidebarExpandIcon } from '@primer/octicons-react';
-import { displayShortcut } from '../shared/shortcuts';
+import { displayShortcut, type IssueShortcut } from '../shared/shortcuts';
 import type { DesktopAPI } from '../shared/api';
 import type { ProjectView, Snapshot } from '../shared/model';
 import { useSidebarPreferences } from './sidebar-preferences';
 import { ProjectEditor } from './ProjectManagement';
-import { ForgeLists, SidebarHead, type DetailHost } from './ForgeLists';
+import { ForgeLists, SidebarHead, type DetailHost, type ForgeListsActions } from './ForgeLists';
+import type { DispatchTarget } from '../shared/dispatch';
 import { capturePointer } from './pointer-capture';
 import './forge-sidebar.css';
 
@@ -35,6 +36,9 @@ export function useForgeSidebar(host: Host, api: Pick<DesktopAPI, 'saveSidebar' 
   const [editingRepository, setEditingRepository] = useState(false);
   const [detailOpen, setDetailOpen] = useState(false);
   const [width, setWidth] = useState(detailWidth.initial);
+  /** The target each command last went to, kept only while the app runs. */
+  const [lastTargets, setLastTargets] = useState<ReadonlyMap<string, DispatchTarget>>(new Map());
+  const lists = useRef<ForgeListsActions>(null);
   const detail: DetailHost = { width, shown: setDetailOpen, resize(event: ReactPointerEvent<HTMLDivElement>) {
     if (event.button !== 0) return;
     event.preventDefault();
@@ -58,12 +62,15 @@ export function useForgeSidebar(host: Host, api: Pick<DesktopAPI, 'saveSidebar' 
     if (!togglePreferences()) focusOnOpen.current = false;
     return true;
   }
+  /** The issue shortcuts act only while focus is in the sidebar; elsewhere their keys go on, to a terminal. */
+  const shortcut = (action: IssueShortcut) =>
+    !!element.current?.contains(document.activeElement) && (lists.current?.shortcut(action) ?? false);
   // The toggle names the current project's forge; without a project it names the sidebar by what it shows.
   const label = project ? t(preferences.visible ? 'closeForgeSidebar' : 'openForgeSidebar', { forge: project.forge.name }) : t('toggleForgeSidebar');
   const binding = snapshot?.settings.shortcuts.toggleForgeSidebar;
   const overlay = snapshot?.settings.sidebarCoexistence === 'overlay';
   return {
-    toggle,
+    toggle, shortcut,
     shown, overlay, width: preferences.width,
     /** Whether an open detail squeezes the layout area, and its width. */
     detail: { squeeze: shown && detailOpen && snapshot?.settings.detailCoexistence === 'squeeze', width },
@@ -74,9 +81,10 @@ export function useForgeSidebar(host: Host, api: Pick<DesktopAPI, 'saveSidebar' 
       <div className="forge-sidebar-resize" role="separator" aria-orientation="vertical" aria-label={t('resizeForgeSidebar', { forge: project.forge.name })} onPointerDown={resize} />
       {project.repository
         // Mounted per project and repository: returning to a project or rebinding starts the lists afresh.
-        ? <ForgeLists key={`${project.id} ${project.repository.forge} ${project.repository.path}`} project={{ ...project, repository: project.repository }}
+        ? <ForgeLists ref={lists} key={`${project.id} ${project.repository.forge} ${project.repository.path}`} project={{ ...project, repository: project.repository }}
           editBinding={() => setEditingRepository(true)} detailHost={detail}
-          dispatchHost={{ workflows: snapshot!.settings.workflows, locate: host.locatePanel, report: host.report }} />
+          dispatchHost={{ workflows: snapshot!.settings.workflows, dispatchBinding: snapshot!.settings.shortcuts.dispatch, lastTargets, locate: host.locatePanel, report: host.report,
+            remember: (command, target) => setLastTargets(targets => new Map(targets).set(command, target)) }} />
         : <>
           <SidebarHead title={t('noRepositoryBound')} />
           <div className="forge-sidebar-state">

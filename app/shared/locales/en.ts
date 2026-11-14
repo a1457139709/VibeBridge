@@ -269,6 +269,8 @@ export const english = {
   "repositoryUnbound": "Unbound {repository}",
   "projectEditListFailed": "Could not read the repository list: {reason}. Name, directory and repository were not saved; try again, or undo the repository change to save only name and directory.",
   "toggleForgeSidebar": "Toggle the forge sidebar",
+  "openDispatchMenu": "Open the dispatch menu",
+  "locateDispatchedPanel": "Locate the dispatched panel",
   "openForgeSidebar": "Show the {forge} sidebar",
   "closeForgeSidebar": "Hide the {forge} sidebar",
   "resizeForgeSidebar": "Resize the {forge} sidebar",
