@@ -4,6 +4,7 @@ import type { Shortcuts } from './shortcuts';
 import { projectNameError } from './project-name';
 import type { ProcessingState } from './processing-status';
 import type { SettingsIssue } from './settings';
+import type { WorkflowId, WorkflowSettings } from './workflows';
 import type { ForgeCapabilities, ForgePresentation, RepositoryReference } from './forge';
 
 export const agentTypes = ['codex', 'claude', 'pi'] as const;
@@ -22,7 +23,7 @@ export type Language = 'en' | 'zh-CN';
 export type SidebarCoexistence = 'squeeze' | 'overlay';
 /** Whether an open issue or pull request detail overlays the layout area or squeezes it. */
 export type DetailCoexistence = 'overlay' | 'squeeze';
-export interface Settings { language: Language; theme: 'system' | 'dark' | 'light'; defaultLayout: DefaultLayout; sidebarCoexistence: SidebarCoexistence; detailCoexistence: DetailCoexistence; agents: Record<AgentType, AgentCommand>; shortcuts: Shortcuts }
+export interface Settings { language: Language; theme: 'system' | 'dark' | 'light'; defaultLayout: DefaultLayout; sidebarCoexistence: SidebarCoexistence; detailCoexistence: DetailCoexistence; agents: Record<AgentType, AgentCommand>; shortcuts: Shortcuts; workflows: Record<WorkflowId, WorkflowSettings> }
 export type CommandCheck = { available: true; path: string } | { available: false; message: string };
 export interface Run { id: string; projectId: string; panelId: string; state: 'running' | 'starting' | 'failed' | 'stopped'; pid?: number; title?: string }
 // An unconfirmed launch may still be running; only a failed one is known not to have started.

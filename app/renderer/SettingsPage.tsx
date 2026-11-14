@@ -6,6 +6,8 @@ import { agentNames, agentTypes, type AgentCommand, type CommandCheck, type Sett
 import { defaultShortcuts, displayShortcut, shortcutActions, shortcutFromEvent, shortcutConflicts, type ShortcutAction } from '../shared/shortcuts';
 import type { ReportNotice } from './Notices';
 import { agentIcons } from './agent-icons';
+import { workflows } from '../shared/workflows';
+import { WorkflowFields } from './WorkflowFields';
 import { defaultSettings, dirtySettingsCategories, settingsCategories, settingsConflicts, settingsIssues, settingsPatch, type SettingsCategory, type SettingsIssue } from '../shared/settings';
 
 function AgentFields({ type, value, change, error, argsError }: { error?: string; argsError?: string; type: typeof agentTypes[number]; value: AgentCommand; change(value: AgentCommand): void }) {
@@ -143,6 +145,10 @@ function SettingsEditor({ settings, startupTheme, initialCategory = settingsCate
             <p className="muted">{t('agentSettingsHelp')}</p>
             {agentTypes.map(type => <AgentFields key={`${type}-${agentRevision}`} type={type} value={agents[type]} error={fieldError(`agents.${type}.command`)} argsError={fieldError(`agents.${type}.args`)} change={value => changeDraft({ agents: { ...agents, [type]: value } })} />)}
           </form>}
+          {section === 'workflows' && <>
+            <p className="muted">{t('workflowsHelp')}</p>
+            {workflows.map(workflow => <WorkflowFields key={workflow.id} workflow={workflow} value={draft.workflows[workflow.id]} change={value => changeDraft({ workflows: { ...draft.workflows, [workflow.id]: value } })} />)}
+          </>}
           {section === 'appearance' && <form onSubmit={event => { event.preventDefault(); void save([section]); }}>
             <h2>{t('theme')}</h2><p className="muted">{t('themeHelp')}</p>
             <div className="radio-options" role="radiogroup" aria-label={t('theme')} data-settings-field="theme" tabIndex={-1} aria-invalid={!!fieldError('theme') || undefined} aria-describedby={fieldError('theme') ? 'theme-error' : undefined}>{(['system', 'dark', 'light'] as const).map(option => <label key={option}><input type="radio" name="theme" value={option} checked={theme === option} onChange={() => changeDraft({ theme: option })} />{t(({ system: 'themeSystem', dark: 'themeDark', light: 'themeLight' } as const)[option])}</label>)}</div>

@@ -227,3 +227,27 @@ test('save and return during a settings conflict submits the conflicting categor
   assert.equal(document.activeElement, screen.getByRole('textbox', { name: 'Next panel' }));
   assert.ok(screen.getByText('Settings conflicts prevent saving'));
 });
+
+test('Workflows sits between Agent and Appearance, and saves the workflow switch and each command delivery', async () => {
+  const saved = defaultSettings();
+  const saveSettings = mock.fn(async (patch: Partial<Settings>) => ({ ok: true as const, settings: { ...saved, ...patch } }));
+  provideWorkbench({ saveSettings });
+  const { user } = renderSettings(saved);
+  const categories = within(screen.getByRole('navigation', { name: 'Settings categories' })).getAllByRole('button');
+  assert.deepEqual(categories.map(button => button.textContent), ['General', 'Agent', 'Workflows', 'Appearance', 'Keyboard shortcuts']);
+  await click(user, 'Workflows');
+  const enabled = screen.getByRole<HTMLInputElement>('checkbox', { name: "Matt's workflow" });
+  assert.equal(enabled.checked, true, "Matt's workflow is on by default");
+  const commands = screen.getAllByRole('radiogroup').map(group => group.getAttribute('aria-label'));
+  assert.deepEqual(commands, ['grill-with-docs {url}', 'to-spec {url}', 'to-tickets {url}', 'implement {url}', 'implement-spec {url}',
+    'wayfinder {url}', 'triage look at {url}', 'diagnosing-bugs {url}', 'tdd {url}', 'prototype {url}', 'research {url}', 'grill-me {url}']);
+  assert.ok(screen.getAllByRole('radio', { name: 'Submit' }).every(radio => (radio as HTMLInputElement).checked), 'every command submits by default');
+  assert.equal(screen.queryByRole('textbox'), null, 'commands cannot be added or edited');
+  await user.click(within(screen.getByRole('radiogroup', { name: 'tdd {url}' })).getByRole('radio', { name: 'Fill only' }));
+  await user.click(enabled);
+  await user.click(screen.getByRole('button', { name: "Show the commands of Matt's workflow" }));
+  assert.equal(screen.queryAllByRole('radiogroup').length, 0, 'collapsing hides the commands');
+  await click(user, 'Save');
+  assert.deepEqual(saveSettings.mock.calls.map(call => call.arguments), [[{ workflows: { matt: { enabled: false,
+    commands: { ...saved.workflows.matt.commands, tdd: { delivery: 'fill' } } } } }]]);
+});

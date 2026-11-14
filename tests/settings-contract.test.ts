@@ -5,6 +5,9 @@ import { readFile, writeFile } from 'node:fs/promises';
 import { Workbench } from '../app/main/workbench';
 import { testDirectory } from './support/directory';
 
+const mattCommands = ['grill-with-docs', 'to-spec', 'to-tickets', 'implement', 'implement-spec', 'wayfinder', 'triage',
+  'diagnosing-bugs', 'tdd', 'prototype', 'research', 'grill-me'];
+const mattDeliveries = (delivery: 'submit' | 'fill') => Object.fromEntries(mattCommands.map(id => [id, { delivery }]));
 const storedSettings = async (directory: string) => JSON.parse(await readFile(`${directory}/settings.json`, 'utf8'));
 
 test('missing and invalid settings values fall back to their defaults field by field', async context => {
@@ -31,6 +34,7 @@ test('missing and invalid settings values fall back to their defaults field by f
         maximizePanel: 'Command+Enter', addPanel: 'Command+N', closePanel: 'Command+Shift+W', settings: 'Command+,',
         toggleForgeSidebar: 'Command+Alt+B',
       },
+      workflows: { matt: { enabled: true, commands: mattDeliveries('submit') } },
     });
   } finally { await workbench.quit(); }
 });
@@ -108,5 +112,57 @@ test('the sidebar and detail coexistence chosen in Appearance are saved and read
     assert.equal(invalid.ok, false);
     const invalidDetail = await workbench.saveSettings({ detailCoexistence: 'beside' as never });
     assert.equal(invalidDetail.ok, false);
+  } finally { await workbench.quit(); }
+});
+
+test('workflows turn Matt on with every command submitted, and invalid workflow values fall back value by value', async context => {
+  const directory = await testDirectory(context, 'settings-contract-workflow-fallback');
+  await writeFile(`${directory}/settings.json`, JSON.stringify({ workflows: { matt: { enabled: 'yes', commands: {
+    'to-spec': { delivery: 'fill' }, tdd: { delivery: 'paste' }, implement: 'fill', research: { delivery: 'fill' },
+  } } } }));
+  let workbench = await Workbench.open(directory);
+  try {
+    const { settings, errors } = workbench.snapshot();
+    assert.deepEqual(errors, []);
+    assert.deepEqual(settings.workflows, { matt: { enabled: true, commands: { ...mattDeliveries('submit'),
+      'to-spec': { delivery: 'fill' }, research: { delivery: 'fill' } } } });
+    await workbench.quit();
+    for (const workflows of [['matt'], { matt: 'off' }, { matt: { enabled: false, commands: 'fill' } }]) {
+      await writeFile(`${directory}/settings.json`, JSON.stringify({ workflows }));
+      workbench = await Workbench.open(directory);
+      assert.equal(workbench.snapshot().settings.workflows.matt.enabled, !('matt' in workflows && typeof workflows.matt === 'object'));
+      assert.deepEqual(workbench.snapshot().settings.workflows.matt.commands, mattDeliveries('submit'));
+      await workbench.quit();
+    }
+  } finally { await workbench.quit(); }
+});
+
+test('workflow choices are saved and read back, unknown workflows and commands stay, and invalid ones are refused', async context => {
+  const directory = await testDirectory(context, 'settings-contract-workflows');
+  await writeFile(`${directory}/settings.json`, JSON.stringify({ workflows: {
+    pstack: { enabled: true, commands: { poteto: { delivery: 'fill' } } },
+    matt: { enabled: true, note: 'mine', commands: { retro: { delivery: 'fill' }, tdd: { delivery: 'submit', pinned: true } } },
+  } }));
+  let workbench = await Workbench.open(directory);
+  try {
+    const { workflows } = workbench.snapshot().settings;
+    const saved = { ...workflows, matt: { ...workflows.matt, enabled: false,
+      commands: { ...workflows.matt.commands, wayfinder: { delivery: 'fill' as const } } } };
+    assert.ok((await workbench.saveSettings({ workflows: saved })).ok);
+    await workbench.quit();
+    const stored = (await storedSettings(directory)).workflows;
+    assert.deepEqual(stored.pstack, { enabled: true, commands: { poteto: { delivery: 'fill' } } });
+    assert.equal(stored.matt.note, 'mine');
+    assert.deepEqual(stored.matt.commands.retro, { delivery: 'fill' });
+    assert.deepEqual(stored.matt.commands.tdd, { delivery: 'submit', pinned: true });
+    workbench = await Workbench.open(directory);
+    assert.equal(workbench.snapshot().settings.workflows.matt.enabled, false);
+    assert.equal(workbench.snapshot().settings.workflows.matt.commands.wayfinder.delivery, 'fill');
+    assert.equal(workbench.snapshot().settings.workflows.matt.commands['to-spec'].delivery, 'submit');
+    const invalid = await workbench.saveSettings({ workflows: { ...saved, matt: { ...saved.matt,
+      commands: { ...saved.matt.commands, tdd: { delivery: 'paste' as never } } } } });
+    assert.ok(!invalid.ok && invalid.kind === 'validation');
+    assert.deepEqual(invalid.issues.map(issue => [issue.category, issue.field]), [['workflows', 'workflows.matt.commands.tdd.delivery']]);
+    assert.equal(workbench.snapshot().settings.workflows.matt.commands.tdd.delivery, 'submit');
   } finally { await workbench.quit(); }
 });
