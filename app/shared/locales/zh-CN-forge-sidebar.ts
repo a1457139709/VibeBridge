@@ -155,7 +155,7 @@ export const chineseForgeSidebar: Record<keyof typeof englishForgeSidebar, strin
   "dispatchNew": "新建 · {agent}",
   "lastTarget": "上次",
   "dispatchInverted": "（⌥ 反转）",
-  "dispatchKeys": "↑↓ 移动 · ← 进入 · → 退回 · Space 执行 · ⌥ 反转 · Esc 关闭",
+  "dispatchMenuKeys": "↑↓ 移动 · ← 进入 · → 退回 · Space 执行 · ⌥ 反转 · Esc 关闭",
   "residentPanel": "常驻",
   "ephemeralPanel": "临时",
   "dispatchCommandUnavailable": "这条指令不在已开启的工作流中",

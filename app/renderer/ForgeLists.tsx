@@ -5,7 +5,7 @@ import { detail } from '../shared/messages';
 import type { ForgeFailure, IssueSummary, ListFilter, ListPage, ListedIssue, Page, PullRequestSummary, RepositoryReference } from '../shared/forge';
 import type { ProjectView } from '../shared/model';
 import { latestLocatable } from '../shared/dispatch';
-import type { IssueShortcut } from '../shared/shortcuts';
+import type { IssueShortcutAction } from '../shared/shortcuts';
 import { ForgeDetailPane } from './ForgeDetail';
 import { FilterBar } from './ForgeFilterBar';
 import { DispatchButton, DispatchStatus, type DispatchHost } from './DispatchMenu';
@@ -63,9 +63,10 @@ interface Props {
 
 /** The issue shortcuts, answered while focus is in the sidebar. */
 export interface ForgeListsActions {
-  /** Opens the dispatch menu of, or locates the dispatched panel of, the open issue focus is on: its list row, or the
-   * detail showing it. Returns false, leaving the key to go on, when focus is on no such issue. */
-  shortcut(action: IssueShortcut): boolean;
+  /** Acts on the issue focus is on, its list row or the detail showing it: opens the dispatch menu of an open issue whose
+   * row shows, or locates the panel of its latest dispatch a panel is on. Returns false, leaving the key to go on, when
+   * there is no such issue. */
+  handleIssueShortcut(action: IssueShortcutAction): boolean;
 }
 
 /** The bound repository's lists: a persistent Refresh, the Issues and Pull requests tabs, each with its own
@@ -113,28 +114,30 @@ export function ForgeLists({ project, editBinding, detailHost, dispatchHost, ref
   const refresh = () => { void load(tab, filters[tab], null); setGeneration(count => count + 1); };
   // A dispatch refreshes the sidebar once; filling a panel also closes the detail, as focus moves into that panel.
   const rowDispatchHost: DispatchHost = { ...dispatchHost, dispatched(delivery) { if (delivery === 'fill') setOpened([]); refresh(); } };
-  /** The issue whose dispatch menu is open; one menu opens at a time. */
-  const [menu, setMenu] = useState<number>();
-  /** The rows, where a shortcut finds the issue it acts on. */
-  const list = useRef<HTMLDivElement>(null);
-  const records = (issue: number) => project.dispatches.filter(record => record.issue === issue);
+  /** The number of the issue whose dispatch menu is open; one menu opens at a time. */
+  const [openMenuIssue, setOpenMenuIssue] = useState<number>();
+  /** The rows, where opening the menu by shortcut finds the issue's Dispatch. */
+  const scrollArea = useRef<HTMLDivElement>(null);
+  const dispatchRecordsOf = (issueNumber: number) => project.dispatches.filter(record => record.issue === issueNumber);
   /** An open issue's dispatch action and where its latest dispatch is now. */
   const issueAction = (issue: IssueSummary) => <>
-    <DispatchButton project={project} issue={issue} host={rowDispatchHost} open={menu === issue.number}
-      setOpen={open => setMenu(current => open ? issue.number : current === issue.number ? undefined : current)} />
-    <DispatchStatus records={records(issue.number)} locate={dispatchHost.locate} /></>;
-  useImperativeHandle(ref, () => ({ shortcut(action) {
+    <DispatchButton project={project} issue={issue} host={rowDispatchHost} open={openMenuIssue === issue.number}
+      setOpen={open => setOpenMenuIssue(current => open ? issue.number : current === issue.number ? undefined : current)} />
+    <DispatchStatus records={dispatchRecordsOf(issue.number)} locate={dispatchHost.locate} /></>;
+  useImperativeHandle(ref, () => ({ handleIssueShortcut(action) {
     const focus = document.activeElement;
-    const detailIssue = focus?.closest('.forge-detail') && shown?.kind === 'issue' ? shown.number : undefined;
-    // The detail's issue acts through its list row, so only while the row shows. Only an open issue's row has Dispatch.
-    const row = focus?.closest<HTMLElement>('[data-issue]') ?? (detailIssue === undefined ? null : list.current?.querySelector<HTMLElement>(`[data-issue="${detailIssue}"]`));
-    if (!row?.querySelector('.dispatch')) return false;
-    const number = Number(row.dataset.issue);
-    if (action === 'dispatch') setMenu(number);
-    else {
-      const location = latestLocatable(records(number))?.location;
+    const focusedRow = focus?.closest<HTMLElement>('[data-issue]');
+    const issueNumber = focusedRow ? Number(focusedRow.dataset.issue)
+      : focus?.closest('.forge-detail') && shown?.kind === 'issue' ? shown.number : undefined;
+    if (issueNumber === undefined) return false;
+    if (action === 'locateDispatchedPanel') {
+      const location = latestLocatable(dispatchRecordsOf(issueNumber))?.location;
       if (location) dispatchHost.locate(location.projectId, location.panelId);
+      return true;
     }
+    // The menu opens on the issue's list row, so only while the row shows. Only an open issue's row has Dispatch.
+    if (!scrollArea.current?.querySelector(`[data-issue="${issueNumber}"] .dispatch`)) return false;
+    setOpenMenuIssue(issueNumber);
     return true;
   } }));
   const forgeFailed = (failure: ForgeFailure) => setLists(all => ({ ...all, [tab]: { ...all[tab], failed: { ok: false, failure, account: null } } }));
@@ -178,7 +181,7 @@ export function ForgeLists({ project, editBinding, detailHost, dispatchHost, ref
         onClick={() => setTab(item)}>{t(tabText[item].name)}</button>)}
     </nav>
     <FilterBar key={tab} searchLabel={t(texts.search)} filter={filter} setFilter={setFilter} labels={loaded?.labels ?? []} counts={loaded?.counts ?? null} />
-    <div className="forge-scroll" ref={list}>
+    <div className="forge-scroll" ref={scrollArea}>
       {lists.issues.loaded && tab === 'issues' && <IssueTree issues={lists.issues.loaded.items} state={lists.issues.loaded.filter.state}
         capabilities={project.capabilities} selected={selected('issue')} open={number => setOpened([{ kind: 'issue', number }])} addLabel={addLabel} action={issueAction} />}
       {lists.pullRequests.loaded && tab === 'pullRequests' && <ul className="forge-rows" aria-label={t(texts.name)}>

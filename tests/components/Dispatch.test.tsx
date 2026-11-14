@@ -1,45 +1,13 @@
 import './support/dom';
 import assert from 'node:assert/strict';
 import test, { afterEach, before } from 'node:test';
-import { cleanup, fireEvent, screen, waitFor, within } from '@testing-library/react';
-import type { DispatchRecordView, DispatchRequest } from '../../app/shared/dispatch';
-import type { Snapshot } from '../../app/shared/model';
-import { issue, page, renderWorkbench, sidebar, stubSidebarApis } from './support/forge-lists';
-import { githubCapabilities } from './support/forge';
+import { cleanup, screen, waitFor, within } from '@testing-library/react';
+import type { DispatchRecordView } from '../../app/shared/dispatch';
+import { sidebar, stubSidebarApis } from './support/forge-lists';
+import { dispatchButton, listed, menu, panelOf, record, row } from './support/dispatch';
 
 afterEach(cleanup);
 before(stubSidebarApis);
-
-/** Alpha's resident panel runs Codex on "Alpha session"; its tray panel runs Claude Code, Busy on "Fix it"; a second
- * resident panel has no run. Beta's panel belongs to another project. */
-function withPanels(snapshot: Snapshot) {
-  const alpha = snapshot.projects[0];
-  alpha.panels[0].status = 'ready';
-  alpha.panels.push({ id: 'idle', agent: 'pi' });
-  alpha.tray.push({ id: 'tray', agent: 'claude', status: 'busy', run: { id: 'tray-run', panelId: 'tray', projectId: 'alpha', state: 'running', title: 'Fix it' } });
-}
-
-/** The panel a dispatch goes to: the one it names, or a new one. */
-const panelOf = (request: DispatchRequest) => request.target.kind === 'panel' ? request.target.panelId : 'new-panel';
-
-/** The Workbench with Alpha's issues 9 and 8 listed; `dispatch` answers dispatches. */
-async function listed(dispatch: (projectId: string, request: DispatchRequest) => Promise<{ delivery: 'submit' | 'fill'; panelId: string }> = async (_, request) => ({ delivery: 'submit', panelId: panelOf(request) }),
-  change: (snapshot: Snapshot) => void = () => {}) {
-  const requests: [string, DispatchRequest][] = [];
-  const f = renderWorkbench(githubCapabilities, { dispatch: async (projectId, request) => { requests.push([projectId, request]); return dispatch(projectId, request); },
-    // The detail is only opened, never answered.
-    issueDetail: () => new Promise(() => {}) });
-  const first = await f.request(1);
-  // The app has subscribed once it asks for the list.
-  withPanels(f.snapshot);
-  change(f.snapshot);
-  f.publish();
-  first.answer(page([issue(9), issue(8, { state: 'closed', closedAs: 'completed' })]));
-  await waitFor(() => assert.ok(within(sidebar()).getAllByRole('listitem').length === 2));
-  return { ...f, dispatches: requests };
-}
-const row = (number: number) => within(sidebar()).getAllByRole('listitem').find(item => within(item).queryByText(`#${number}`))!;
-const dispatchButton = (number: number) => within(row(number)).getByRole('button', { name: 'Dispatch' });
 
 test('Dispatch opens the commands of the enabled workflow, each marked Submit or Fill only, without a workflow name', async () => {
   const f = await listed(undefined, snapshot => { snapshot.settings.workflows.matt.commands['to-spec'] = { delivery: 'fill' }; });
@@ -130,8 +98,6 @@ test('filling a new panel opens it as the temporary maximize once it joins the t
 
 /** A record's time as the hint shows it. */
 const when = (record: DispatchRecordView) => new Date(record.dispatchedAt).toLocaleString('en');
-const record = (issue: number, location: DispatchRecordView['location'], extra: Partial<DispatchRecordView> = {}): DispatchRecordView =>
-  ({ issue, dispatchedAt: new Date(Date.now() - 3 * 3600e3).toISOString(), agent: 'codex', text: `/implement ${issue}`, location, ...extra });
 
 test('an issue row shows its latest dispatch: the panel\'s state and session title with ×N, or grey when no panel is on its session', async () => {
   const f = await listed(undefined, snapshot => {
@@ -171,10 +137,9 @@ test('a grey latest dispatch locates the latest earlier dispatch a panel is on, 
   await waitFor(() => assert.deepEqual(activated, ['beta']));
 });
 
-/** The open dispatch menu, and the item its keyboard cursor is on. */
-const menu = (number = 9) => screen.getByRole('menu', { name: `Dispatch #${number}` });
 /** The implement command's item, whichever delivery it shows. */
 const implement = { name: /^implement\s?(Submit|Fill only)$/ };
+/** The item the open menu's keyboard cursor is on. */
 const cursor = () => document.getElementById(menu().getAttribute('aria-activedescendant') ?? '')?.textContent?.replace(/^‹/, '');
 
 test('in the menu ↑/↓ move without wrapping, ← or Space enters the targets, → goes back, Space dispatches, and Enter does nothing', async () => {
@@ -211,13 +176,13 @@ test('Esc closes the whole menu from its targets and returns focus to Dispatch',
   assert.equal(document.activeElement, dispatchButton(9));
 });
 
-test('holding ⌥ shows the flipped deliveries, and ⌥+Space or ⌥+click flips this dispatch only', async () => {
+test('holding ⌥ shows the inverted deliveries, and ⌥+Space or ⌥+click inverts this dispatch only', async () => {
   const f = await listed();
   await f.user.click(dispatchButton(9));
   await f.user.keyboard('{ArrowDown}{ArrowDown}{ArrowDown}{ArrowLeft}{Alt>}');
   assert.equal(cursor(), '✳New · Claude CodeEphemeral');
   assert.equal(within(menu()).getByRole('menuitem', implement).textContent, '‹implementFill only');
-  assert.ok(within(menu()).getByText('Fill only (⌥ flips)'));
+  assert.ok(within(menu()).getByText('Fill only (⌥ inverts)'));
   await f.user.keyboard(' {/Alt}');
   await waitFor(() => assert.deepEqual(f.dispatches.map(([, request]) => [request.target, request.invert]), [[{ kind: 'new', agent: 'claude' }, true]]));
   await f.user.click(dispatchButton(9));
@@ -248,48 +213,4 @@ test('the targets mark the one a command last went to and start the cursor there
   await f.user.keyboard('{ArrowRight}{ArrowUp}{ArrowLeft}');
   assert.equal(within(screen.getByRole('menu', { name: 'Targets for to-tickets' })).queryByText('last'), null, 'another command has no last target yet');
   assert.equal(cursor(), '✳New · Claude CodeEphemeral');
-});
-
-/** Presses a key with ⌘ where focus is; true when nothing took it, so it goes on to where focus is. */
-const command = (code: 'KeyD' | 'KeyL') => fireEvent.keyDown(document.activeElement!, { key: code.at(-1)!.toLowerCase(), code, metaKey: true });
-
-test('⌘D opens the dispatch menu of the issue focused in the list or shown in the detail, and is left alone elsewhere', async () => {
-  const f = await listed();
-  within(row(9)).getByRole('button', { name: 'Issue 9' }).focus();
-  assert.equal(command('KeyD'), false);
-  assert.equal(document.activeElement, menu());
-  await f.user.keyboard('{Escape}');
-  within(row(8)).getByRole('button', { name: 'Issue 8' }).focus();
-  assert.equal(command('KeyD'), true, 'a closed issue is not dispatched');
-  await f.user.click(within(row(9)).getByRole('button', { name: 'Issue 9' }));
-  const detail = await waitFor(() => document.querySelector<HTMLElement>('.forge-detail')!);
-  within(detail).getByRole('button', { name: 'Close' }).focus();
-  assert.equal(command('KeyD'), false);
-  assert.ok(menu());
-  await f.user.keyboard('{Escape}');
-  screen.getByRole('button', { name: 'Add Agent' }).focus();
-  assert.equal(command('KeyD'), true, 'outside the sidebar the key goes to the terminal');
-  assert.equal(screen.queryByRole('menu'), null);
-});
-
-test('⌘D is left alone when the detail shows an issue whose list row is not showing', async () => {
-  const f = await listed();
-  await f.user.click(within(row(9)).getByRole('button', { name: 'Issue 9' }));
-  const detail = await waitFor(() => document.querySelector<HTMLElement>('.forge-detail')!);
-  await f.user.click(within(sidebar()).getByRole('tab', { name: 'Pull requests' }));
-  within(detail).getByRole('button', { name: 'Close' }).focus();
-  assert.equal(command('KeyD'), true);
-});
-
-test('⌘L locates the panel of the focused issue\'s latest dispatch a panel is on', async () => {
-  const f = await listed(undefined, snapshot => {
-    snapshot.projects[0].dispatches = [record(9, { projectId: 'beta', panelId: 'beta-panel', status: 'ready' }), record(9, null)];
-  });
-  const activated: string[] = [];
-  window.workbench.activateProject = async id => { activated.push(id); f.snapshot.activeProjectId = id; f.publish(); };
-  screen.getByRole('button', { name: 'Add Agent' }).focus();
-  assert.equal(command('KeyL'), true, 'outside the sidebar the key goes to the terminal');
-  within(row(9)).getByRole('button', { name: 'Issue 9' }).focus();
-  assert.equal(command('KeyL'), false);
-  await waitFor(() => assert.deepEqual(activated, ['beta']));
 });

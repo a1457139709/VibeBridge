@@ -68,10 +68,10 @@ test('Keyboard shortcuts lists opening the dispatch menu at Command+D and locati
   provideWorkbench({});
   const { user } = renderSettings(saved);
   await click(user, 'Keyboard shortcuts');
-  const dispatch = screen.getByRole<HTMLInputElement>('textbox', { name: 'Open the dispatch menu' });
-  assert.equal(dispatch.value, '⌘ D');
+  const openDispatchMenu = screen.getByRole<HTMLInputElement>('textbox', { name: 'Open the dispatch menu' });
+  assert.equal(openDispatchMenu.value, '⌘ D');
   assert.equal(screen.getByRole<HTMLInputElement>('textbox', { name: 'Locate the dispatched panel' }).value, '⌘ L');
-  fireEvent.keyDown(dispatch, { key: 'l', code: 'KeyL', metaKey: true });
+  fireEvent.keyDown(openDispatchMenu, { key: 'l', code: 'KeyL', metaKey: true });
   assert.ok(screen.getAllByText(/Locate the dispatched panel/).some(element => element.classList.contains('shortcut-conflict-message')));
 });
 

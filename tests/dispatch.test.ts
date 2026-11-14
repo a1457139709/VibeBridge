@@ -70,7 +70,7 @@ test('a fill-only command is pasted after what the input holds without pressing 
   } finally { await f.close(); }
 });
 
-test('inverting a dispatch flips the command\'s delivery for that dispatch only', async context => {
+test('inverting a dispatch inverts the command\'s delivery for that dispatch only', async context => {
   const f = await dispatching(context);
   try {
     const { workflows } = f.workbench.snapshot().settings;

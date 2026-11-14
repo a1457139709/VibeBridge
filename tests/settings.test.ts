@@ -60,7 +60,7 @@ test('shortcut conflicts name the existing action and retain effective bindings 
     assert.equal(workbench.snapshot().settings.shortcuts.nextPanel, 'Command+K');
     for (const [patch, message] of [
       [{ maximizePanel: 'Command+K' }, /nextPanel/], [{ previousPanel: 'Command+K' }, /nextPanel/], [{ nextPanel: 'Command+C' }, /copy/],
-      [{ toggleForgeSidebar: 'Command+K' }, /nextPanel/], [{ dispatch: 'Command+K' }, /nextPanel/], [{ locateDispatch: 'Command+D' }, /openDispatchMenu/],
+      [{ toggleForgeSidebar: 'Command+K' }, /nextPanel/], [{ openDispatchMenu: 'Command+K' }, /nextPanel/], [{ locateDispatchedPanel: 'Command+D' }, /openDispatchMenu/],
     ] as const) {
       const result = await workbench.saveSettings({ shortcuts: { ...shortcuts, ...patch } });
       assert.ok(!result.ok && result.kind === 'validation');

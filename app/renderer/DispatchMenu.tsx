@@ -14,11 +14,11 @@ import './dispatch.css';
 export interface DispatchHost {
   workflows: Settings['workflows'];
   /** The binding that opens the dispatch menu from the sidebar. */
-  dispatchBinding: string;
+  openMenuBinding: string;
   /** The target each command was last dispatched to while the app runs, by {@link commandKey}. */
   lastTargets: ReadonlyMap<string, DispatchTarget>;
   /** Remembers the target a command was dispatched to. */
-  remember(commandKey: string, target: DispatchTarget): void;
+  rememberLastTarget(commandKey: string, target: DispatchTarget): void;
   /** Locates a panel; an ephemeral one opens as its temporary maximize. */
   locate(projectId: string, panelId: string): void;
   /** A dispatch went through: the sidebar refreshes once; `fill` also closes the detail. */
@@ -30,8 +30,8 @@ export interface DispatchHost {
 interface MenuCommand { workflowId: string; command: WorkflowCommand }
 /** Names a command of a workflow across the app's lifetime. */
 export const commandKey = ({ workflowId, command }: MenuCommand) => `${workflowId}/${command.id}`;
-const sameTarget = (a: DispatchTarget, b: DispatchTarget | undefined) =>
-  a.kind === 'new' ? b?.kind === 'new' && b.agent === a.agent : b?.kind === 'panel' && b.panelId === a.panelId;
+/** Names a target among a menu's targets. */
+const targetKey = (target: DispatchTarget) => target.kind === 'new' ? `new ${target.agent}` : `panel ${target.panelId}`;
 
 /** New-panel targets, in this order. */
 const newPanelAgents: AgentType[] = ['claude', 'codex', 'pi'];
@@ -56,10 +56,10 @@ export function DispatchButton({ project, issue, host, open, setOpen }: {
   const [commandIndex, setCommandIndex] = useState(0);
   const [targetIndex, setTargetIndex] = useState(0);
   /** Whether ⌥ is held: the deliveries shown are inverted. */
-  const [alt, setAlt] = useState(false);
+  const [inverting, setInverting] = useState(false);
   /** A filled panel to locate once the snapshot has it: a new panel can be answered before the snapshot adding it arrives. */
   const [filled, setFilled] = useState<string>();
-  const id = useId();
+  const menuId = useId();
   const root = useRef<HTMLDivElement>(null);
   const button = useRef<HTMLButtonElement>(null);
   const menu = useRef<HTMLDivElement>(null);
@@ -74,24 +74,25 @@ export function DispatchButton({ project, issue, host, open, setOpen }: {
     if (!open) return;
     setLevel('commands'); setCommandIndex(0); menu.current?.focus();
     const outside = (event: PointerEvent) => { if (!root.current?.contains(event.target as Node)) setOpen(false); };
-    const modifiers = (event: KeyboardEvent) => setAlt(event.altKey);
+    const trackAlt = (event: KeyboardEvent) => setInverting(event.altKey);
     document.addEventListener('pointerdown', outside);
-    window.addEventListener('keydown', modifiers, true); window.addEventListener('keyup', modifiers, true);
+    window.addEventListener('keydown', trackAlt, true); window.addEventListener('keyup', trackAlt, true);
     return () => {
       document.removeEventListener('pointerdown', outside);
-      window.removeEventListener('keydown', modifiers, true); window.removeEventListener('keyup', modifiers, true);
-      setAlt(false);
+      window.removeEventListener('keydown', trackAlt, true); window.removeEventListener('keyup', trackAlt, true);
+      setInverting(false);
     };
   }, [open]);
 
   const commands: MenuCommand[] = workflows.filter(workflow => host.workflows[workflow.id]?.enabled)
     .flatMap(workflow => workflow.commands.map(command => ({ workflowId: workflow.id, command })));
-  const sections = new Set(commands.map(command => command.workflowId)).size;
+  const workflowCount = new Set(commands.map(command => command.workflowId)).size;
   /** A command's delivery as shown: inverted while ⌥ is held. */
-  const delivery = ({ workflowId, command }: MenuCommand) => {
+  const shownDelivery = ({ workflowId, command }: MenuCommand) => {
     const configured = commandDelivery(host.workflows, workflowId, command.id);
-    return alt ? invertedDelivery(configured) : configured;
+    return inverting ? invertedDelivery(configured) : configured;
   };
+  const lastTargetOf = (command: MenuCommand) => host.lastTargets.get(commandKey(command));
   const panels = projectPanels(project).filter(panel => liveRun(panel.run));
   const resident = (panel: PanelView) => project.panels.includes(panel);
   const targets: { target: DispatchTarget; agent: AgentType; panel?: PanelView }[] = [
@@ -99,25 +100,26 @@ export function DispatchButton({ project, issue, host, open, setOpen }: {
     ...panels.map(panel => ({ target: { kind: 'panel', panelId: panel.id } as const, agent: panel.agent, panel })),
   ];
   const expanded = level === 'targets' ? commands[commandIndex] : undefined;
-  const last = expanded && host.lastTargets.get(commandKey(expanded));
+  const lastTarget = expanded && lastTargetOf(expanded);
+  const lastTargetKey = lastTarget && targetKey(lastTarget);
 
   /** Shows a command's targets, with the cursor on the one it last went to, else the first. */
-  function enter(index: number) {
-    const command = commands[index];
-    if (!command) return;
+  function showTargets(index: number) {
+    const menuCommand = commands[index];
+    if (!menuCommand) return;
     if (level === 'targets' && index === commandIndex) return;
-    const remembered = host.lastTargets.get(commandKey(command));
-    setCommandIndex(index); setTargetIndex(Math.max(0, targets.findIndex(({ target }) => sameTarget(target, remembered)))); setLevel('targets');
+    const last = lastTargetOf(menuCommand), key = last && targetKey(last);
+    setCommandIndex(index); setTargetIndex(Math.max(0, targets.findIndex(({ target }) => targetKey(target) === key))); setLevel('targets');
   }
   async function dispatch(index: number, invert: boolean) {
-    const command = expanded, target = targets[index]?.target;
-    if (!command || !target) return;
-    const request: DispatchRequest = { issue: { number: issue.number, title: issue.title }, workflowId: command.workflowId,
-      commandId: command.command.id, target, invert };
+    const menuCommand = expanded, target = targets[index]?.target;
+    if (!menuCommand || !target) return;
+    const request: DispatchRequest = { issue: { number: issue.number, title: issue.title }, workflowId: menuCommand.workflowId,
+      commandId: menuCommand.command.id, target, invert };
     setOpen(false);
     try {
       const { delivery, panelId } = await window.workbench.dispatch(project.id, request);
-      host.remember(commandKey(command), target);
+      host.rememberLastTarget(commandKey(menuCommand), target);
       if (delivery === 'fill') setFilled(panelId); else button.current?.focus();
       host.dispatched(delivery);
     } catch (error) { host.report((error as Error).message); button.current?.focus(); }
@@ -128,36 +130,36 @@ export function DispatchButton({ project, issue, host, open, setOpen }: {
     if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
       const by = event.key === 'ArrowDown' ? 1 : -1;
       if (level === 'commands') setCommandIndex(step(commands.length, by)); else setTargetIndex(step(targets.length, by));
-    } else if (event.key === 'ArrowLeft') { if (level === 'commands') enter(commandIndex); }
+    } else if (event.key === 'ArrowLeft') { if (level === 'commands') showTargets(commandIndex); }
     else if (event.key === 'ArrowRight') setLevel('commands');
     // ⌥+Space types another character on macOS: the key is the Space key whatever it types.
-    else if (event.code === 'Space') { if (level === 'commands') enter(commandIndex); else void dispatch(targetIndex, event.altKey); }
+    else if (event.code === 'Space') { if (level === 'commands') showTargets(commandIndex); else void dispatch(targetIndex, event.altKey); }
     else if (event.key === 'Escape') { setOpen(false); button.current?.focus(); }
     else if (event.key !== 'Enter') return;
     event.preventDefault();
   }
 
-  const commandId = (index: number) => `${id}-command-${index}`, targetId = (index: number) => `${id}-target-${index}`;
-  const pointed = expanded && targets[targetIndex];
-  const shortcut = displayShortcut(host.dispatchBinding);
+  const commandElementId = (index: number) => `${menuId}-command-${index}`, targetElementId = (index: number) => `${menuId}-target-${index}`;
+  const cursorTarget = expanded && targets[targetIndex];
+  const openMenuShortcut = displayShortcut(host.openMenuBinding);
   return <div className="dispatch" ref={root} onClick={event => event.stopPropagation()}>
-    <button ref={button} className="dispatch-button" aria-haspopup="menu" aria-expanded={open} data-hint={`${t('dispatchHint')} (${shortcut})`}
+    <button ref={button} className="dispatch-button" aria-haspopup="menu" aria-expanded={open} data-hint={`${t('dispatchHint')} (${openMenuShortcut})`}
       onClick={() => setOpen(!open)}>{t('dispatch')}<span aria-hidden="true"> ▾</span></button>
     {/* Pressing an item keeps focus on the menu, where its keys are answered. */}
     {open && <div ref={menu} className="dispatch-menu" role="menu" tabIndex={-1} aria-label={t('dispatchMenu', { number: issue.number })}
-      aria-activedescendant={commands.length ? expanded ? targetId(targetIndex) : commandId(commandIndex) : undefined}
+      aria-activedescendant={commands.length ? expanded ? targetElementId(targetIndex) : commandElementId(commandIndex) : undefined}
       onKeyDown={keydown} onMouseDown={event => event.preventDefault()}>
       {!commands.length && <p className="dispatch-empty">{t('noEnabledWorkflows')}</p>}
       {commands.map((item, index) => {
         const { workflowId, command } = item;
-        const mode = delivery(item);
-        const first = commands.findIndex(other => other.workflowId === workflowId) === index;
+        const mode = shownDelivery(item);
+        const startsWorkflow = commands.findIndex(other => other.workflowId === workflowId) === index;
         return <Fragment key={commandKey(item)}>
-          {sections > 1 && first && <h4 className="dispatch-workflow">{t(workflows.find(workflow => workflow.id === workflowId)!.name)}</h4>}
+          {workflowCount > 1 && startsWorkflow && <h4 className="dispatch-workflow">{t(workflows.find(workflow => workflow.id === workflowId)!.name)}</h4>}
           {command.separatorBefore && <hr />}
-          <button ref={row => { commandRows.current[index] = row; }} id={commandId(index)} role="menuitem" tabIndex={-1}
-            className={[index === commandIndex && 'on', expanded === item && 'expanded'].filter(Boolean).join(' ')}
-            aria-haspopup="menu" aria-expanded={expanded === item} onMouseEnter={() => enter(index)} onClick={() => enter(index)}>
+          <button ref={row => { commandRows.current[index] = row; }} id={commandElementId(index)} role="menuitem" tabIndex={-1}
+            className={[index === commandIndex && 'cursor', expanded === item && 'expanded'].filter(Boolean).join(' ')}
+            aria-haspopup="menu" aria-expanded={expanded === item} onMouseEnter={() => showTargets(index)} onClick={() => showTargets(index)}>
             <span className="dispatch-caret" aria-hidden="true">‹</span><code>{command.skill}</code>
             <small className={`dispatch-delivery ${mode}`}>{t(deliveryText[mode])}</small>
           </button>
@@ -165,9 +167,9 @@ export function DispatchButton({ project, issue, host, open, setOpen }: {
       })}
       {expanded && <div className="dispatch-targets" role="menu" aria-label={t('dispatchTargets', { command: expanded.command.skill })}
         style={{ top: Math.max(0, (commandRows.current[commandIndex]?.offsetTop ?? 0) - 4) }}>
-        {targets.map(({ target, agent, panel }, index) => <Fragment key={target.kind === 'new' ? `new ${target.agent}` : target.panelId}>
+        {targets.map(({ target, agent, panel }, index) => <Fragment key={targetKey(target)}>
           {index === newPanelAgents.length && <hr />}
-          <button id={targetId(index)} role="menuitem" tabIndex={-1} className={index === targetIndex ? 'on' : ''}
+          <button id={targetElementId(index)} role="menuitem" tabIndex={-1} className={index === targetIndex ? 'cursor' : ''}
             onMouseEnter={() => setTargetIndex(index)} onClick={event => void dispatch(index, event.altKey)}>
             {panel ? <>
               <span className="dispatch-agent" role="img" aria-label={agentNames[agent]}>{agentIcons[agent]}</span>
@@ -177,14 +179,14 @@ export function DispatchButton({ project, issue, host, open, setOpen }: {
             </> : <>
               <span className="dispatch-agent" aria-hidden="true">{agentIcons[agent]}</span>{t('dispatchNew', { agent: agentNames[agent] })}<small>{t('ephemeralPanel')}</small>
             </>}
-            {sameTarget(target, last) && <span className="dispatch-last">{t('lastTarget')}</span>}
+            {targetKey(target) === lastTargetKey && <span className="dispatch-last">{t('lastTarget')}</span>}
           </button>
         </Fragment>)}
         {/* The issue URL is the forge's; the preview elides it, as the text the target receives starts the same way. */}
-        {pointed && <div className="dispatch-preview"><code>{commandText(pointed.agent, expanded.command, { url: `…#${issue.number}`, number: issue.number, title: issue.title })}</code>
-          <span>{t(deliveryText[delivery(expanded)])}{alt && ` ${t('dispatchInverted')}`}</span></div>}
+        {cursorTarget && <div className="dispatch-preview"><code>{commandText(cursorTarget.agent, expanded.command, { url: `…#${issue.number}`, number: issue.number, title: issue.title })}</code>
+          <span>{t(deliveryText[shownDelivery(expanded)])}{inverting && ` ${t('dispatchInverted')}`}</span></div>}
       </div>}
-      <p className="dispatch-keys">{t('dispatchKeys')}</p>
+      <p className="dispatch-keys">{t('dispatchMenuKeys')}</p>
     </div>}
   </div>;
 }

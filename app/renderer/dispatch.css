@@ -6,7 +6,7 @@
 .dispatch-targets { position: absolute; right: calc(100% + 4px); width: 270px; }
 .dispatch-menu button { display: flex; align-items: center; gap: 6px; border: 0; border-radius: 0; background: none; text-align: left; font-size: 12px; height: 26px; min-height: 0; padding: 0 10px; color: inherit; font-weight: normal; }
 .dispatch-menu { outline: none; }
-.dispatch-menu button.on { background: var(--hover); }
+.dispatch-menu button.cursor { background: var(--hover); }
 .dispatch-menu button.expanded { background: color-mix(in srgb, var(--forge-link) 16%, transparent); }
 .dispatch-menu button:disabled { color: var(--muted); }
 .dispatch-menu hr { border: 0; border-top: 1px solid var(--line); margin: 4px 0; }

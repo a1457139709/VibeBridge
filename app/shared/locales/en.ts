@@ -289,7 +289,7 @@ export const english = {
   "detailCoexistenceInvalid": "Invalid detail coexistence",
   "workflows": "Workflows",
   "workflowsInvalid": "Invalid workflow settings",
-  "workflowsHelp": "Workflows are built into the workbench. The dispatch menu lists only commands of enabled workflows; hold ⌥ while dispatching to flip Submit / Fill only for that one time.",
+  "workflowsHelp": "Workflows are built into the workbench. The dispatch menu lists only commands of enabled workflows; hold ⌥ while dispatching to invert Submit / Fill only for that one time.",
   "workflowMatt": "Matt's workflow",
   "workflowSummary": "{count} commands · each takes the issue's {placeholder} as its argument",
   "workflowEnabled": "On",
