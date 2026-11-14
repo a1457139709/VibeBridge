@@ -2,16 +2,32 @@ import { useEffect, useRef, useState, type PointerEvent as ReactPointerEvent } f
 import { SyncIcon } from '@primer/octicons-react';
 import { useLocalization } from './Localization';
 import { detail } from '../shared/messages';
-import type { ForgeCapabilities, ForgeLabel, IssueCounts, IssueListFilter, IssueListPage, IssuePage, IssueState, IssueSummary, ListedIssue, RepositoryReference } from '../shared/forge';
+import type { ForgeCapabilities, ForgeLabel, IssueSummary, ListCounts, ListFilter, ListPage, ListState, ListedIssue, Page, PullRequestSummary, RepositoryReference } from '../shared/forge';
 import type { ProjectView } from '../shared/model';
 import { IssueDetailPane } from './IssueDetail';
-import { BlockedMark, IssueIcon, Label, Progress, RelativeTime } from './ForgeDisplay';
+import { BlockedMark, IssueIcon, Label, OpenChecks, Progress, PullRequestIcon, RelativeTime } from './ForgeDisplay';
 
-type Tab = 'issues' | 'pullRequests';
-const openNoFilter: IssueListFilter = { search: '', state: 'open', labels: [] };
-type FailedPage = Extract<IssuePage, { ok: false }>;
-/** The rows shown, with the filter that produced them: Load more continues that filter. */
-type Loaded = IssueListPage & { filter: IssueListFilter };
+/** The sidebar's lists, each a tab. */
+interface Items { issues: ListedIssue; pullRequests: PullRequestSummary }
+type Tab = keyof Items;
+const tabs: Tab[] = ['issues', 'pullRequests'];
+/** Each tab's own texts. */
+const tabText = {
+  issues: { name: 'issuesTab', search: 'searchIssues', loadFailed: 'issuesLoadFailed', noMatches: 'noMatchingIssues', loading: 'loadingIssues' },
+  pullRequests: { name: 'pullRequestsTab', search: 'searchPullRequests', loadFailed: 'pullRequestsLoadFailed', noMatches: 'noMatchingPullRequests', loading: 'loadingPullRequests' },
+} as const;
+const openNoFilter: ListFilter = { search: '', state: 'open', labels: [] };
+type FailedPage = Extract<Page<unknown>, { ok: false }>;
+/** A tab's rows, with the filter that produced them: Load more continues that filter. */
+type Loaded<T extends Tab> = ListPage<Items[T]> & { filter: ListFilter };
+/** What a tab last loaded, and its failure since then. */
+interface TabList<T extends Tab> { loaded: Loaded<T> | null; failed: FailedPage | null }
+type Lists = { [T in Tab]: TabList<T> };
+const empty = { loaded: null, failed: null };
+const pageOf: { [T in Tab]: (projectId: string, query: { filter: ListFilter; cursor: string | null }) => Promise<Page<Items[T]>> } = {
+  issues: (projectId, query) => window.workbench.issuePage(projectId, query),
+  pullRequests: (projectId, query) => window.workbench.pullRequestPage(projectId, query),
+};
 
 /** The sidebar's header: the repository, or that none is bound, and the persistent Refresh. */
 export function SidebarHead({ title, refresh, loading = false }: { title: string; refresh?(): void; loading?: boolean }) {
@@ -38,20 +54,19 @@ interface Props {
 }
 
 /** The bound repository's lists: a persistent Refresh, the Issues and Pull requests tabs, each with its own
- * search and filters, and the forge failure states. It holds its own state, so the owner mounts it per project
- * and repository: opening the sidebar or returning to a project starts from open with no filter, and refreshes.
- * Only the current tab is fetched. There is no timed refresh. Clicking a row opens its detail beside the list; links
- * followed inside the detail stack up, so Back returns to the issue before. */
+ * search, filters, rows and failure, and the forge failure states. It holds its own state, so the owner mounts it per
+ * project and repository: opening the sidebar or returning to a project starts from open with no filter, and refreshes.
+ * Only the current tab is fetched, each time it shows. There is no timed refresh. Clicking an issue row opens its detail
+ * beside the list; links followed inside the detail stack up, so Back returns to the issue before. */
 export function ForgeLists({ project, editBinding, detailHost }: Props) {
   const { t, text } = useLocalization();
   const [tab, setTab] = useState<Tab>('issues');
-  const [filters, setFilters] = useState<Record<Tab, IssueListFilter>>({ issues: openNoFilter, pullRequests: openNoFilter });
-  const [loaded, setLoaded] = useState<Loaded | null>(null);
-  const [failed, setFailed] = useState<FailedPage | null>(null);
+  const [filters, setFilters] = useState<Record<Tab, ListFilter>>({ issues: openNoFilter, pullRequests: openNoFilter });
+  const [lists, setLists] = useState<Lists>({ issues: empty, pullRequests: empty });
   const [loading, setLoading] = useState(false);
-  // Only the latest request may settle the list; an older answer is for a filter no longer shown.
+  // Only the latest request may settle a list; an older answer is for a filter or tab no longer shown.
   const latest = useRef(0);
-  const requested = useRef<IssueListFilter | null>(null);
+  const requested = useRef<Record<Tab, ListFilter | null>>({ issues: null, pullRequests: null });
   /** The issues opened in the detail, the shown one last; empty when the detail is closed. */
   const [opened, setOpened] = useState<number[]>([]);
   const shownIssue = opened.at(-1);
@@ -59,34 +74,35 @@ export function ForgeLists({ project, editBinding, detailHost }: Props) {
   useEffect(() => { detailHost.shown(detailOpen); return () => detailHost.shown(false); }, [detailOpen]);
   const openIssue = (number: number) => setOpened(stack => stack.at(-1) === number ? stack : [...stack, number]);
 
-  async function load(filter: IssueListFilter, cursor: string | null) {
+  async function load<T extends Tab>(list: T, filter: ListFilter, cursor: string | null) {
     const request = ++latest.current;
-    requested.current = filter;
+    requested.current[list] = filter;
     setLoading(true);
-    let page: IssuePage;
+    let page: Page<Items[T]>;
     // A failure outside the forge (the request itself) is shown like a transient one, with its reason and Retry.
-    try { page = await window.workbench.issuePage(project.id, { filter, cursor }); }
+    try { page = await pageOf[list](project.id, { filter, cursor }); }
     catch (error) { page = { ok: false, failure: { kind: 'transient', detail: text((error as Error).message), forge: project.forge }, account: null }; }
     if (request !== latest.current) return;
     setLoading(false);
-    if (!page.ok) return setFailed(page);
+    const settle = (update: (state: TabList<T>) => TabList<T>) => setLists(all => ({ ...all, [list]: update(all[list] as TabList<T>) }));
+    if (!page.ok) return settle(state => ({ ...state, failed: page }));
     const { ok: _, ...next } = page;
-    setFailed(null);
-    setLoaded(previous => cursor !== null && previous ? { ...next, filter, issues: [...previous.issues, ...next.issues] } : { ...next, filter });
+    settle(({ loaded: previous }) => ({ failed: null,
+      loaded: cursor !== null && previous ? { ...next, filter, items: [...previous.items, ...next.items] } : { ...next, filter } }));
   }
-  // Only the Issues tab has a list to refresh; the Pull requests list joins with its own loader.
-  const refresh = tab === 'issues' ? () => void load(filters.issues, null) : undefined;
+  const refresh = () => void load(tab, filters[tab], null);
 
-  // The issues tab fetches when it shows and whenever its filter changes; typing in the search settles first.
+  // The current tab fetches when it shows and whenever its filter changes; typing in the search settles first.
   useEffect(() => {
-    if (tab !== 'issues') return;
-    const typing = requested.current !== null && requested.current.search !== filters.issues.search;
-    const timer = setTimeout(() => void load(filters.issues, null), typing ? 300 : 0);
+    const filter = filters[tab], last = requested.current[tab];
+    const typing = last !== null && last.search !== filter.search;
+    const timer = setTimeout(() => void load(tab, filter, null), typing ? 300 : 0);
     return () => clearTimeout(timer);
-  }, [tab, filters.issues]);
+  }, [tab, filters[tab]]);
 
   const { forge } = project;
-  const retry = <button onClick={refresh} disabled={loading || !refresh}>{t('retry')}</button>;
+  const { loaded, failed } = lists[tab];
+  const retry = <button onClick={refresh} disabled={loading}>{t('retry')}</button>;
   const head = <SidebarHead title={project.repository.path} refresh={refresh} loading={loading} />;
   const fill = (body: React.ReactNode) => <>{head}<div className="forge-sidebar-state">{body}</div></>;
 
@@ -100,36 +116,38 @@ export function ForgeLists({ project, editBinding, detailHost }: Props) {
     <p>{failed.account === null ? t('repositoryInaccessibleNoAccount', { repository: project.repository.path, cli: forge.cli })
       : t('repositoryInaccessible', { repository: project.repository.path, cli: forge.cli, account: failed.account })}</p>
     {retry}<button onClick={editBinding}>{t('changeBinding')}</button></>);
+  const texts = tabText[tab];
   if (failed && !loaded) return fill(<>
-    <p>{t('issuesLoadFailed', { reason: detail(failed.failure.detail || failed.failure.kind) })}</p>{retry}</>);
+    <p>{t(texts.loadFailed, { reason: detail(failed.failure.detail || failed.failure.kind) })}</p>{retry}</>);
 
   const filter = filters[tab];
-  const setFilter = (update: (filter: IssueListFilter) => IssueListFilter) => setFilters(all => ({ ...all, [tab]: update(all[tab]) }));
+  const setFilter = (update: (filter: ListFilter) => ListFilter) => setFilters(all => ({ ...all, [tab]: update(all[tab]) }));
+  const addLabel = (name: string) => setFilter(f => f.labels.includes(name) ? f : { ...f, labels: [...f.labels, name] });
   return <>
     {head}
-    {failed && tab === 'issues' && <div className="forge-stale" title={failed.failure.detail}><span>{t('dataMayBeStale')}</span>{retry}</div>}
+    {failed && <div className="forge-stale" title={failed.failure.detail}><span>{t('dataMayBeStale')}</span>{retry}</div>}
     <nav className="forge-tabs" role="tablist" aria-label={t('sidebarTabs')}>
-      {(['issues', 'pullRequests'] as const).map(item => <button key={item} role="tab" aria-selected={tab === item} className={tab === item ? 'on' : ''}
-        onClick={() => setTab(item)}>{t(item === 'issues' ? 'issuesTab' : 'pullRequestsTab')}</button>)}
+      {tabs.map(item => <button key={item} role="tab" aria-selected={tab === item} className={tab === item ? 'on' : ''}
+        onClick={() => setTab(item)}>{t(tabText[item].name)}</button>)}
     </nav>
-    <FilterBar key={tab} tab={tab} filter={filter} setFilter={setFilter} labels={loaded?.labels ?? []}
-      counts={tab === 'issues' && loaded ? loaded.counts : null} />
-    {tab === 'issues' && <div className="forge-scroll">
-      {loaded && <IssueTree issues={loaded.issues} state={loaded.filter.state} capabilities={project.capabilities}
-        selected={shownIssue} open={number => setOpened([number])}
-        addLabel={name => setFilter(f => f.labels.includes(name) ? f : { ...f, labels: [...f.labels, name] })} />}
-      {loaded && !loaded.issues.length && <p className="forge-empty">{t('noMatchingIssues')}</p>}
-      {!loaded && <p className="forge-empty">{t('loadingIssues')}</p>}
-      {loaded?.cursor && <button className="forge-more" disabled={loading} onClick={() => void load(loaded.filter, loaded.cursor)}>{t('loadMore')}</button>}
-    </div>}
+    <FilterBar key={tab} tab={tab} filter={filter} setFilter={setFilter} labels={loaded?.labels ?? []} counts={loaded?.counts ?? null} />
+    <div className="forge-scroll">
+      {lists.issues.loaded && tab === 'issues' && <IssueTree issues={lists.issues.loaded.items} state={lists.issues.loaded.filter.state}
+        capabilities={project.capabilities} selected={shownIssue} open={number => setOpened([number])} addLabel={addLabel} />}
+      {lists.pullRequests.loaded && tab === 'pullRequests' && <ul className="forge-rows" aria-label={t(texts.name)}>
+        {lists.pullRequests.loaded.items.map(item => <li key={item.number}><PullRequestRow pullRequest={item} addLabel={addLabel} /></li>)}</ul>}
+      {loaded && !loaded.items.length && <p className="forge-empty">{t(texts.noMatches)}</p>}
+      {!loaded && <p className="forge-empty">{t(texts.loading)}</p>}
+      {loaded?.cursor && <button className="forge-more" disabled={loading} onClick={() => void load(tab, loaded.filter, loaded.cursor)}>{t('loadMore')}</button>}
+    </div>
     {shownIssue !== undefined && <IssueDetailPane project={project} number={shownIssue} width={detailHost.width} resize={detailHost.resize}
       canBack={opened.length > 1} back={() => setOpened(stack => stack.slice(0, -1))} close={() => setOpened([])} open={openIssue} />}
   </>;
 }
 
 function FilterBar({ tab, filter, setFilter, labels, counts }: {
-  tab: Tab; filter: IssueListFilter; setFilter(update: (filter: IssueListFilter) => IssueListFilter): void;
-  labels: ForgeLabel[]; counts: IssueCounts | null;
+  tab: Tab; filter: ListFilter; setFilter(update: (filter: ListFilter) => ListFilter): void;
+  labels: ForgeLabel[]; counts: ListCounts | null;
 }) {
   const { t } = useLocalization();
   const [choosing, setChoosing] = useState(false);
@@ -145,7 +163,7 @@ function FilterBar({ tab, filter, setFilter, labels, counts }: {
   const toggle = (name: string) => setFilter(f => ({ ...f, labels: f.labels.includes(name) ? f.labels.filter(label => label !== name) : [...f.labels, name] }));
   const colors = new Map(labels.map(label => [label.name, label.color]));
   return <div className="forge-filters">
-    <input type="search" className="forge-search" aria-label={t(tab === 'issues' ? 'searchIssues' : 'searchPullRequests')} placeholder={t('searchListPlaceholder')}
+    <input type="search" className="forge-search" aria-label={t(tabText[tab].search)} placeholder={t('searchListPlaceholder')}
       autoComplete="off" value={filter.search} onChange={event => { const search = event.target.value; setFilter(f => ({ ...f, search })); }} />
     <div className="forge-filter-row">
       {(['open', 'closed'] as const).map(state => <button key={state} className={`forge-state ${filter.state === state ? 'on' : ''}`} aria-pressed={filter.state === state}
@@ -171,7 +189,7 @@ function FilterBar({ tab, filter, setFilter, labels, counts }: {
  * An expanded parent shows the sub-issues in the listed state; listing open ones, it folds the closed ones after them.
  * A parent shows the button only when it has sub-issues to show, as the list holds them. */
 function IssueTree({ issues, state, capabilities, selected, open: openIssue, addLabel }: {
-  issues: ListedIssue[]; state: IssueState; capabilities: ForgeCapabilities;
+  issues: ListedIssue[]; state: ListState; capabilities: ForgeCapabilities;
   /** The issue the detail shows, if any. */
   selected: number | undefined;
   open(number: number): void; addLabel(name: string): void;
@@ -236,5 +254,22 @@ function IssueRow({ issue, selected, open, addLabel, blocking, progress }: {
     </div>
     {/* The row's action area, kept for dispatching an open issue. */}
     {issue.state === 'open' && <div className="forge-row-action" />}
+  </div>;
+}
+
+/** A pull request row: state, title, number, age, author, the checks conclusion while it is open, and the labels.
+ * It has no action area: pull requests are not dispatched. */
+function PullRequestRow({ pullRequest, addLabel }: { pullRequest: PullRequestSummary; addLabel(name: string): void }) {
+  return <div className="forge-row static">
+    <PullRequestIcon state={pullRequest.state} />
+    <div className="forge-row-main">
+      <div className="forge-row-title">{pullRequest.title}</div>
+      <div className="forge-row-meta">
+        <span className="forge-row-number">#{pullRequest.number}</span><RelativeTime iso={pullRequest.createdAt} />
+        {pullRequest.author && <span className="forge-author">{pullRequest.author}</span>}
+        <OpenChecks state={pullRequest.state} checks={pullRequest.checks} />
+        {pullRequest.labels.map(label => <Label key={label.name} label={label} onClick={() => addLabel(label.name)} />)}
+      </div>
+    </div>
   </div>;
 }

@@ -60,13 +60,16 @@
 .forge-icon { display: inline-flex; flex-shrink: 0; margin-top: 2px; }
 .forge-icon svg { fill: currentColor; display: block; }
 .forge-open { color: var(--forge-open); } .forge-done { color: var(--forge-done); } .forge-skipped { color: var(--forge-skipped); }
+.forge-failed { color: var(--forge-failed); } .forge-pending { color: var(--forge-pending); }
 .forge-row-main { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 4px; }
 .forge-row { cursor: pointer; }
+.forge-row.static { cursor: default; }
 .forge-row.selected { background: var(--hover); box-shadow: var(--selection-marker, inset 2px 0 var(--focus)); }
 .forge-sidebar .forge-row-title { display: block; padding: 0; border: 0; border-radius: 0; background: none; text-align: left; color: inherit;
   font-size: 13px; font-weight: 600; line-height: 1.35; overflow-wrap: anywhere; }
 .forge-row-meta { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 8px; font-size: 11px; color: var(--muted); }
 .forge-row-number { font-variant-numeric: tabular-nums; }
+.forge-checks { font-weight: 600; font-size: 11px; white-space: nowrap; }
 .forge-progress-toggle { display: inline-flex; align-items: center; gap: 5px; height: 22px; padding: 0 8px 0 6px; border: 1px solid var(--line); border-radius: 999px; background: color-mix(in srgb, var(--muted) 8%, transparent); font-size: 11px; color: var(--muted); }
 .forge-progress-toggle:hover { background: var(--forge-row-hover); color: inherit; border-color: color-mix(in srgb, var(--forge-link) 50%, var(--line)); }
 .forge-progress-toggle.on { color: inherit; border-color: color-mix(in srgb, var(--forge-link) 50%, var(--line)); }
@@ -171,5 +174,4 @@
 .forge-closing-pull:hover { background: var(--forge-row-hover); }
 .forge-closing-pull:hover .forge-ellipsis { color: var(--forge-link); text-decoration: underline; }
 .forge-closing-pull .forge-icon { margin-top: 0; }
-.forge-checks { margin-left: auto; font-weight: 600; font-size: 11px; white-space: nowrap; }
-.forge-failed { color: var(--forge-failed); } .forge-pending { color: var(--forge-pending); }
+.forge-closing-pull .forge-checks { margin-left: auto; }

@@ -4,7 +4,7 @@ import { userEvent } from '@testing-library/user-event';
 import { App } from '../../../app/renderer/Workbench';
 import { defaultSettings } from '../../../app/shared/settings';
 import type { ProjectView, Snapshot, WorkbenchEvent } from '../../../app/shared/model';
-import type { ForgeCapabilities, IssueListQuery, IssuePage, IssueSummary, ListedIssue, ForgeFailure } from '../../../app/shared/forge';
+import type { ForgeCapabilities, ListQuery, IssuePage, IssueSummary, ListedIssue, ForgeFailure, PullRequestSummary, Page } from '../../../app/shared/forge';
 import { deferred, provideWorkbench } from './workbench';
 import { githubCapabilities, githubForge, githubView } from './forge';
 import { stubLayoutApis } from './no-layout';
@@ -20,8 +20,11 @@ export const summary = (number: number, extra: Partial<IssueSummary> = {}): Issu
 export const issue = (number: number, extra: Partial<ListedIssue> = {}): ListedIssue => ({
   ...summary(number), parent: null, subIssues: { closed: 0, total: 0, issues: [] }, ...extra,
 });
-export const page = (issues: ListedIssue[], cursor: string | null = null): IssuePage => ({ ok: true, issues, cursor, labels: [bug, docs], counts: { open: 7, closed: 2 } });
-export const failed = (kind: ForgeFailure['kind'], detail = '', account: string | null = null): IssuePage => ({ ok: false, failure: { kind, detail, forge: githubForge }, account });
+export const pullRequest = (number: number, extra: Partial<PullRequestSummary> = {}): PullRequestSummary => ({
+  number, title: `Change ${number}`, state: 'open', createdAt: new Date(Date.now() - 2 * 86400e3).toISOString(), author: 'mona', checks: 'none', labels: [], ...extra,
+});
+export const page = <Item = ListedIssue,>(items: Item[], cursor: string | null = null): Page<Item> => ({ ok: true, items, cursor, labels: [bug, docs], counts: { open: 7, closed: 2 } });
+export const failed = (kind: ForgeFailure['kind'], detail = '', account: string | null = null): Page<never> => ({ ok: false, failure: { kind, detail, forge: githubForge }, account });
 
 /** The browser APIs the Workbench needs that the test DOM lacks. */
 export function stubSidebarApis() {
@@ -30,9 +33,13 @@ export function stubSidebarApis() {
   window.HTMLElement.prototype.checkVisibility = () => true;
 }
 
-interface Request { projectId: string; query: IssueListQuery; answer(page: IssuePage): void; fail(error: Error): void }
+/** A list page request; `list` names the list it is for. */
+interface Request {
+  list: 'issues' | 'pullRequests'; projectId: string; query: ListQuery;
+  answer(page: IssuePage | Page<PullRequestSummary>): void; fail(error: Error): void;
+}
 
-/** The Workbench with two bound projects and the sidebar open. Every issue page request waits until the test answers it. */
+/** The Workbench with two bound projects and the sidebar open. Every list page request waits until the test answers it. */
 export function renderWorkbench(capabilities = githubCapabilities) {
   const snapshot: Snapshot = {
     navigation: { visible: true, width: 212 }, forgeSidebar: { visible: true, width: 380 }, activeProjectId: 'alpha', settings: defaultSettings(),
@@ -42,6 +49,11 @@ export function renderWorkbench(capabilities = githubCapabilities) {
   const listeners = new Set<(event: WorkbenchEvent) => void>();
   const publish = () => { for (const listener of listeners) listener({ kind: 'snapshot', snapshot: structuredClone(snapshot) }); };
   const requests: Request[] = [];
+  const listRequest = (list: Request['list'], projectId: string, query: ListQuery) => {
+    const answer = deferred<IssuePage | Page<PullRequestSummary>>();
+    requests.push({ list, projectId, query: structuredClone(query), answer: answer.resolve, fail: answer.reject });
+    return answer.promise;
+  };
   provideWorkbench({
     snapshot: async () => structuredClone(snapshot), ready: async () => {},
     subscribe: listener => { listeners.add(listener); return () => { listeners.delete(listener); }; },
@@ -50,11 +62,8 @@ export function renderWorkbench(capabilities = githubCapabilities) {
     saveLayout: async () => {},
     inspectDirectory: async directory => ({ valid: true, directory }),
     repositoryChoices: async () => ({ ok: true, forge: githubForge, account: 'octo', origin: null, repositories: [{ forge: 'github', path: 'octo/alpha' }] }),
-    issuePage: (projectId, query) => {
-      const answer = deferred<IssuePage>();
-      requests.push({ projectId, query: structuredClone(query), answer: answer.resolve, fail: answer.reject });
-      return answer.promise;
-    },
+    issuePage: (projectId, query) => listRequest('issues', projectId, query) as Promise<IssuePage>,
+    pullRequestPage: (projectId, query) => listRequest('pullRequests', projectId, query) as Promise<Page<PullRequestSummary>>,
   });
   render(<App />);
   /** The latest request, once it is made. */

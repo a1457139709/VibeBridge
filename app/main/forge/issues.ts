@@ -1,4 +1,4 @@
-import type { ForgeFailure, IssueDetailResult, IssueListQuery, IssuePage, RepositoryReference } from '../../shared/forge';
+import type { ForgeFailure, IssueDetailResult, IssuePage, ListQuery, PullRequestPage, RepositoryReference } from '../../shared/forge';
 import { forges } from './forges';
 import { ForgeError, type Forge } from './forge';
 
@@ -13,11 +13,18 @@ async function fromForge<T, F extends object>(repository: RepositoryReference, c
   }
 }
 
-/** One page of the repository's issues from its forge, or the forge failure. An inaccessible repository is
- * reported with the active account, so the user can tell which account lacks access. */
-export function issuePage(repository: RepositoryReference, query: IssueListQuery): Promise<IssuePage> {
-  return fromForge(repository, forge => forge.issues(repository.path, query),
-    async (forge, error) => ({ account: error.kind === 'inaccessible' ? await forge.account().catch(() => null) : null }));
+/** An inaccessible repository is reported with the active account, so the user can tell which account lacks access. */
+const listFailure = async (forge: Forge, error: ForgeError) =>
+  ({ account: error.kind === 'inaccessible' ? await forge.account().catch(() => null) : null });
+
+/** One page of the repository's issues from its forge, or the forge failure. */
+export function issuePage(repository: RepositoryReference, query: ListQuery): Promise<IssuePage> {
+  return fromForge(repository, forge => forge.issues(repository.path, query), listFailure);
+}
+
+/** One page of the repository's pull requests from its forge, or the forge failure. */
+export function pullRequestPage(repository: RepositoryReference, query: ListQuery): Promise<PullRequestPage> {
+  return fromForge(repository, forge => forge.pullRequests(repository.path, query), listFailure);
 }
 
 /** One issue of the repository from its forge, with its rendered body, comments and relations; or the forge failure. */

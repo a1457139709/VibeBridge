@@ -17,16 +17,18 @@ export interface GhIssue {
   closedBy?: number[];
 }
 
-/** A pull request: its state, whether it is a draft, and its latest commit's combined check state (null without checks). */
+/** A pull request as GitHub's GraphQL API names its fields. `checks` is the head commit's status check rollup; none when
+ * absent or null. Without `author` the account wrote it; without `createdAt` it was created on 2026-01-01. */
 export interface GhPullRequest {
-  number: number; title: string; state: 'OPEN' | 'CLOSED' | 'MERGED'; isDraft?: boolean;
-  checks: 'SUCCESS' | 'FAILURE' | 'ERROR' | 'PENDING' | 'EXPECTED' | null;
+  number: number; title: string; state: 'OPEN' | 'MERGED' | 'CLOSED'; isDraft?: boolean;
+  createdAt?: string; author?: string | null; labels?: { name: string; color: string }[];
+  checks?: 'SUCCESS' | 'FAILURE' | 'ERROR' | 'PENDING' | 'EXPECTED' | null;
 }
 
 export interface GhState {
   account: string;
   repositories: string[];
-  /** The issues of every listed repository, and the labels each repository defines. */
+  /** The issues and pull requests of every listed repository, and the labels each repository defines. */
   issues?: GhIssue[];
   pullRequests?: GhPullRequest[];
   labels?: { name: string; color: string }[];

@@ -49,7 +49,7 @@ function renderWorkbench(issues: ListedIssue[], capabilities: ForgeCapabilities 
     snapshot: async () => structuredClone(snapshot), ready: async () => {},
     subscribe: listener => { listeners.add(listener); return () => { listeners.delete(listener); }; },
     saveSidebar: async () => {}, activateProject: async () => {}, saveLayout: async () => {},
-    issuePage: async () => ({ ok: true, issues, cursor: null, labels: [], counts: { open: issues.length, closed: 0 } }),
+    issuePage: async () => ({ ok: true, items: issues, cursor: null, labels: [], counts: { open: issues.length, closed: 0 } }),
     issueDetail: (projectId, number) => {
       assert.equal(projectId, 'alpha');
       const answer = deferred<IssueDetailResult>();

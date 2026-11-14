@@ -2,9 +2,9 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { ghDouble, type GhIssue } from './support/gh-double';
 import { interactiveWorkbench } from './support/interactive-workbench';
-import type { IssueListFilter } from '../app/shared/forge';
+import type { ListFilter } from '../app/shared/forge';
 
-const openNoFilter: IssueListFilter = { search: '', state: 'open', labels: [] };
+const openNoFilter: ListFilter = { search: '', state: 'open', labels: [] };
 const day = (n: number) => new Date(Date.UTC(2026, 0, 1 + n)).toISOString();
 /** 30 open issues, #1 the oldest, created a day apart. */
 const thirtyIssues: GhIssue[] = Array.from({ length: 30 }, (_, index) => ({
@@ -25,13 +25,13 @@ test('a refresh returns one page of 25 issues, newest first, and the cursor load
   try {
     const first = await f.workbench.issuePage(f.projectId, { filter: openNoFilter, cursor: null });
     assert.ok(first.ok);
-    assert.deepEqual(first.issues.map(issue => issue.number), Array.from({ length: 25 }, (_, index) => 30 - index));
-    assert.deepEqual(first.issues[0], { number: 30, title: 'Issue 30', state: 'open', closedAs: null, createdAt: day(29), labels: [],
+    assert.deepEqual(first.items.map(issue => issue.number), Array.from({ length: 25 }, (_, index) => 30 - index));
+    assert.deepEqual(first.items[0], { number: 30, title: 'Issue 30', state: 'open', closedAs: null, createdAt: day(29), labels: [],
       blockedBy: [], unlistedBlockers: 0, parent: null, subIssues: { closed: 0, total: 0, issues: [] } });
     assert.ok(first.cursor);
     const rest = await f.workbench.issuePage(f.projectId, { filter: openNoFilter, cursor: first.cursor });
     assert.ok(rest.ok);
-    assert.deepEqual(rest.issues.map(issue => issue.number), [5, 4, 3, 2, 1]);
+    assert.deepEqual(rest.items.map(issue => issue.number), [5, 4, 3, 2, 1]);
     assert.equal(rest.cursor, null, 'the last page has no cursor');
   } finally { await f.close(); }
 });
@@ -46,10 +46,10 @@ test('the search, open or closed state and labels all narrow the page, and a clo
   ] });
   const f = await boundWorkbench('issue-filters');
   try {
-    const numbers = async (filter: Partial<IssueListFilter>) => {
+    const numbers = async (filter: Partial<ListFilter>) => {
       const page = await f.workbench.issuePage(f.projectId, { filter: { ...openNoFilter, ...filter }, cursor: null });
       assert.ok(page.ok);
-      return page.issues.map(issue => issue.number);
+      return page.items.map(issue => issue.number);
     };
     assert.deepEqual(await numbers({}), [12, 2, 1]);
     assert.deepEqual(await numbers({ search: 'sidebar' }), [2, 1], 'words match titles');
@@ -59,7 +59,7 @@ test('the search, open or closed state and labels all narrow the page, and a clo
     assert.deepEqual(await numbers({ state: 'closed' }), [3]);
     const closed = await f.workbench.issuePage(f.projectId, { filter: { ...openNoFilter, state: 'closed' }, cursor: null });
     assert.ok(closed.ok);
-    assert.deepEqual(closed.issues[0], { number: 3, title: 'Dispatch menu', state: 'closed', closedAs: 'notPlanned', createdAt: day(3), labels: [ui],
+    assert.deepEqual(closed.items[0], { number: 3, title: 'Dispatch menu', state: 'closed', closedAs: 'notPlanned', createdAt: day(3), labels: [ui],
       blockedBy: [], unlistedBlockers: 0, parent: null, subIssues: { closed: 0, total: 0, issues: [] } });
     assert.deepEqual(closed.labels, [bug, ui], 'the page carries the labels the repository defines');
     assert.deepEqual(closed.counts, { open: 3, closed: 1 });
@@ -86,10 +86,10 @@ test('a page carries each issue\'s parent, its sub-issues with their progress, a
     const page = await f.workbench.issuePage(f.projectId, { filter: openNoFilter, cursor: null });
     assert.ok(page.ok);
     const blockers = [{ path: null, number: 4, title: 'Blocker' }, { path: 'octo/other', number: 7, title: 'Upstream fix' }];
-    assert.deepEqual(page.issues.map(issue => issue.number), [4, 3, 1], 'the page itself stays flat; the list builds the tree');
-    assert.deepEqual(page.issues[1], { number: 3, title: 'Blocked ticket', state: 'open', closedAs: null, createdAt: day(3), labels: [bug],
+    assert.deepEqual(page.items.map(issue => issue.number), [4, 3, 1], 'the page itself stays flat; the list builds the tree');
+    assert.deepEqual(page.items[1], { number: 3, title: 'Blocked ticket', state: 'open', closedAs: null, createdAt: day(3), labels: [bug],
       blockedBy: blockers, unlistedBlockers: 0, parent: 1, subIssues: { closed: 0, total: 0, issues: [] } });
-    assert.deepEqual(page.issues[2].subIssues, { closed: 1, total: 2, issues: [
+    assert.deepEqual(page.items[2].subIssues, { closed: 1, total: 2, issues: [
       { number: 2, title: 'Done ticket', state: 'closed', closedAs: 'completed', createdAt: day(2), labels: [], blockedBy: [], unlistedBlockers: 0 },
       { number: 3, title: 'Blocked ticket', state: 'open', closedAs: null, createdAt: day(3), labels: [bug], blockedBy: blockers, unlistedBlockers: 0 },
     ] });
@@ -106,7 +106,7 @@ test('an issue blocked by more issues than GitHub lists counts the open blockers
   try {
     const page = await f.workbench.issuePage(f.projectId, { filter: openNoFilter, cursor: null });
     assert.ok(page.ok);
-    assert.deepEqual([page.issues[0].blockedBy, page.issues[0].unlistedBlockers], [[], 2], 'closed blockers fill the listed window; the open ones are counted');
+    assert.deepEqual([page.items[0].blockedBy, page.items[0].unlistedBlockers], [[], 2], 'closed blockers fill the listed window; the open ones are counted');
   } finally { await f.close(); }
 });
 
