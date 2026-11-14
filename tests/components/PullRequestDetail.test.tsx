@@ -21,7 +21,7 @@ const detail = (number: number, extra: Partial<PullRequestDetail> = {}): PullReq
   const { checks: _, ...summary } = listedPullRequest(number, { createdAt: hoursAgo(50) });
   return { ...summary, url: `${repositoryUrl}/pull/${number}`, changesUrl: `${repositoryUrl}/pull/${number}/files`, head: 'feature', base: 'main', body: '',
     timeline: [], commentCount: 0, codeComments: 0, closingIssues: [], links, review: { state: 'notRequired', requiredApprovals: null }, checks: [],
-    conflicts: 'none', merge: { methods: ['merge', 'squash', 'rebase'], queue: false }, ...extra };
+    conflicts: 'none', merge: { methods: ['merge', 'squash', 'rebase'], queue: false }, canWrite: true, ...extra };
 };
 const check = (name: string, result: Check['result'], required = false): Check => ({ name, result, required, url: `${repositoryUrl}/runs/${name}` });
 
@@ -126,7 +126,6 @@ test('a blocked pull request lists its failing and running checks with their log
   assert.equal(listed().length, 2);
   assert.match(rowOf('Conflicts').textContent!, /Conflicts with main; resolve them first/);
   assert.match(rowOf('Draft').textContent!, /Can be merged once marked ready for review \(on GitHub\)/);
-  assert.ok(!within(mergeArea()).queryByRole('button', { name: /Merge|Close/ }), 'the read-only merge area has no buttons to merge or close');
 });
 
 test('a pull request ready to merge shows an approved review, passing checks and no conflicts', async () => {
@@ -151,8 +150,8 @@ for (const [review, text] of [
 }
 
 for (const [state, text] of [['merged', 'Merged'], ['closed', 'Closed without merging']] as const) {
-  test(`a ${state} pull request's merge area only says it is ${state}`, async () => {
-    await openPullRequest(detail(12, { state, conflicts: 'conflicting', checks: [check('lint', 'failed')] }));
+  test(`a ${state} pull request's merge area says only that it is ${state}, not what blocked a merge`, async () => {
+    await openPullRequest(detail(12, { state, conflicts: 'conflicting', checks: [check('lint', 'failed')], canWrite: false }));
     assert.equal(mergeArea().textContent, text);
   });
 }
@@ -168,7 +167,7 @@ test('a pull request that closes an issue opens in the sidebar from the issue de
   await user.click(await within(await screen.findByRole('complementary', { name: 'GitHub' })).findByRole('button', { name: 'Spec' }));
   const issue = await request(1);
   issue.answer({ ok: true, issue: { ...listedIssue(3, { title: 'Spec' }), url: `${repositoryUrl}/issues/3`, author: 'mona', assignees: [], body: '', comments: [],
-    commentCount: 0, parent: null, subIssues: [], blockedBy: [], blocking: [], closingPullRequests: [], links } });
+    commentCount: 0, parent: null, subIssues: [], blockedBy: [], blocking: [], closingPullRequests: [], links, canWrite: true } });
   const closing = await within(sidebar()).findByRole('region', { name: 'Pull requests that close this issue on merge' });
   assert.equal(within(closing).getByRole('link', { name: /Change 40/ }).getAttribute('href'), 'https://github.com/octo/other/pull/40');
   await user.click(within(closing).getByRole('button', { name: /Change 12/ }));

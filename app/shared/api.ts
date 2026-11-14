@@ -1,6 +1,6 @@
 import type { Sidebar, SidebarPreferences, AgentType, CommandCheck, DirectoryResult, Layout, ProjectCreation, PanelCreation, ProjectDraft, ProjectEdit, ProjectEditResult, Settings, Snapshot, WorkbenchEvent } from './model';
 import type { SettingsSaveResult } from './settings';
-import type { IssueDetailResult, PullRequestDetailResult, IssuePage, ListQuery, PullRequestPage, RepositoryChoices } from './forge';
+import type { DirectAction, DirectActionResult, IssueDetailResult, PullRequestDetailResult, IssuePage, ListQuery, PullRequestPage, RepositoryChoices } from './forge';
 
 export interface DesktopAPI {
   snapshot(): Promise<Snapshot>;
@@ -18,6 +18,8 @@ export interface DesktopAPI {
   /** One issue of the project's bound repository with its rendered body, comments and relations; or a forge failure. */
   issueDetail(projectId: string, number: number): Promise<IssueDetailResult>;
   pullRequestDetail(projectId: string, number: number): Promise<PullRequestDetailResult>;
+  /** Closes, reopens or merges an issue or pull request of the project's bound repository; the forge's text comes back either way. */
+  directAction(projectId: string, action: DirectAction): Promise<DirectActionResult>;
   chooseDirectory(): Promise<string | null>;
   activateProject(id: string): Promise<void>;
   addPanel(projectId: string, agent: AgentType): Promise<PanelCreation>;

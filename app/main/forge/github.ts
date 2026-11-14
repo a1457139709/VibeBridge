@@ -1,8 +1,8 @@
 import { z } from 'zod';
-import type { ChecksConclusion, ForgeLabel, ListFilter, IssueSummary } from '../../shared/forge';
+import type { ChecksConclusion, DirectAction, ForgeLabel, ListFilter, IssueSummary } from '../../shared/forge';
 import type { Forge } from './forge';
-import { gh, graphql } from './github-cli';
-import { checksState, issueReference, issueReferenceFields, issueReferenceSchema, issueState, issueStateFields, labelSchema, loginSchema, pullRequestState, relatedLimit, repositoryLinks } from './github-fields';
+import { gh, ghOutput, graphql } from './github-cli';
+import { checksState, issueReference, issueReferenceFields, issueReferenceSchema, issueState, issueStateFields, labelSchema, loginSchema, pullRequestState, relatedLimit, repositoryLinks, canWrite, viewerPermission } from './github-fields';
 import { pullRequestDetail } from './github-pull-request';
 
 
@@ -59,7 +59,7 @@ const pullRequestPageQuery = listPageQuery(`... on PullRequest { number title st
       labels(first: 20) { nodes { name color } }
       commits(last: 1) { nodes { commit { statusCheckRollup { state } } } } }`);
 
-const issueDetailSchema = z.object({ repository: z.object({ url: z.string(), issue: z.object({
+const issueDetailSchema = z.object({ repository: z.object({ url: z.string(), viewerPermission, issue: z.object({
   number: z.number(), title: z.string(), ...issueStateFields, createdAt: z.string(), url: z.string(), bodyHTML: z.string(), author: loginSchema,
   assignees: z.object({ nodes: z.array(z.object({ login: z.string() })) }),
   labels: z.object({ nodes: z.array(labelSchema) }),
@@ -75,7 +75,7 @@ const issueDetailSchema = z.object({ repository: z.object({ url: z.string(), iss
 }) }) });
 // The first 100 comments are listed; `totalCount` counts them all.
 const issueDetailQuery = `query($owner: String!, $name: String!, $number: Int!) {
-  repository(owner: $owner, name: $name) { url issue(number: $number) {
+  repository(owner: $owner, name: $name) { url viewerPermission issue(number: $number) {
     number title state stateReason createdAt url bodyHTML author { login }
     assignees(first: 20) { nodes { login } }
     labels(first: 20) { nodes { name color } }
@@ -132,6 +132,19 @@ const latestChecks = (commits: { nodes: { commit: { statusCheckRollup: { state: 
 };
 
 
+/** The `gh` subcommand for each direct action; writes go through `gh issue` and `gh pr`, not the API. With a method flag and
+ * no message, `gh pr merge` merges at once with GitHub's default commit message and keeps the branch. */
+const actionArgs = (action: DirectAction): string[] => {
+  const number = String(action.number);
+  switch (action.kind) {
+    case 'closeIssue': return ['issue', 'close', number, '--reason', action.reason === 'completed' ? 'completed' : 'not planned'];
+    case 'reopenIssue': return ['issue', 'reopen', number];
+    case 'merge': return ['pr', 'merge', number, `--${action.method}`];
+    case 'closePullRequest': return ['pr', 'close', number];
+    case 'reopenPullRequest': return ['pr', 'reopen', number];
+  }
+};
+
 const outputLines = (text: string) => text.split('\n').map(line => line.trim()).filter(Boolean);
 
 export const github: Forge = {
@@ -186,7 +199,12 @@ export const github: Forge = {
       closingPullRequests: issue.closedByPullRequestsReferences.nodes.map(pull =>
         ({ number: pull.number, title: pull.title, url: pull.url, state: pullRequestState(pull.state, pull.isDraft), checks: latestChecks(pull.commits) })),
       links: repositoryLinks(repository.url),
+      canWrite: canWrite(repository.viewerPermission),
     };
   },
   pullRequest: pullRequestDetail,
+  async act(path, action) {
+    const { stdout, stderr } = await ghOutput([...actionArgs(action), '--repo', path]);
+    return [stdout.trim(), stderr.trim()].filter(Boolean).join('\n');
+  },
 };

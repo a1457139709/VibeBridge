@@ -5,15 +5,20 @@ import { ForgeError } from './forge';
 
 // The GitHub adapter's only way to GitHub: the `gh` CLI, its failures sorted into the forge failure kinds.
 
-/** Runs `gh`, found on PATH, with the account it has active. The Workbench never reads or stores a token. */
+/** Runs `gh`, found on PATH, with the account it has active, and returns its standard output. The Workbench never reads or stores a token. */
 export async function gh(args: string[]): Promise<string> {
+  return (await ghOutput(args)).stdout;
+}
+
+/** Runs `gh` and returns what it printed: a write subcommand reports on standard error. */
+export async function ghOutput(args: string[]): Promise<{ stdout: string; stderr: string }> {
   let program: string;
   try { program = await executable('gh', process.env as Record<string, string>); }
   catch { throw new ForgeError('notInstalled', ''); }
   return new Promise((resolve, reject) => {
     execFile(program, args, { env: { ...process.env, GH_PROMPT_DISABLED: '1', GH_NO_UPDATE_NOTIFIER: '1' }, timeout: 30_000, maxBuffer: 64 * 1024 * 1024 },
       (error, stdout, stderr) => {
-        if (!error) return resolve(stdout);
+        if (!error) return resolve({ stdout, stderr });
         const code = (error as { code?: unknown }).code;
         reject(code === 'ENOENT' ? new ForgeError('notInstalled', '') : classifyFailure(typeof code === 'number' ? code : null, stdout, stderr || error.message));
       });

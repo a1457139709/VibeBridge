@@ -46,6 +46,8 @@ export interface GhState {
   labels?: { name: string; color: string }[];
   /** The merge methods every repository allows; each defaults to allowed. */
   mergeMethods?: { merge?: boolean; squash?: boolean; rebase?: boolean };
+  /** The account's permission on every repository; default WRITE. With READ or TRIAGE, GitHub refuses closing, reopening and merging. */
+  permission?: 'ADMIN' | 'MAINTAIN' | 'WRITE' | 'TRIAGE' | 'READ';
   /** `gh` fails every command with this exit code and output. */
   failure?: { code: number; stdout?: string; stderr?: string };
 }

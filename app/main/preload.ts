@@ -12,6 +12,7 @@ const api: DesktopAPI = {
   issuePage: (id, query) => ipcRenderer.invoke('workbench:issue-page', id, query),
   issueDetail: (id, number) => ipcRenderer.invoke('workbench:issue-detail', id, number),
   pullRequestDetail: (id, number) => ipcRenderer.invoke('workbench:pull-request-detail', id, number),
+  directAction: (id, action) => ipcRenderer.invoke('workbench:direct-action', id, action),
   pullRequestPage: (id, query) => ipcRenderer.invoke('workbench:pull-request-page', id, query),
   chooseDirectory: () => ipcRenderer.invoke('workbench:choose-directory'),
   activateProject: id => ipcRenderer.invoke('workbench:activate', id),

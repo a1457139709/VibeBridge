@@ -2,7 +2,9 @@ import { useState, type MouseEvent } from 'react';
 import { useLocalization } from './Localization';
 import type { Check, ForgeCapabilities, PullRequestDetail, RepositoryReference, ReviewVerdict } from '../shared/forge';
 import type { ProjectView } from '../shared/model';
+import { ActionFailure, PullRequestActions, ReopenPullRequest, type Actions } from './DirectActions';
 import { IssueIcon, ItemReference, Label, Post, PullRequestIcon, PullRequestPill, RelativeTime, withElements, type DetailItem } from './ForgeDisplay';
+import './pull-request-detail.css';
 
 interface Props {
   project: ProjectView & { repository: RepositoryReference };
@@ -11,6 +13,7 @@ interface Props {
   open(item: DetailItem): void;
   /** Opens a clicked link of the bound repository in the detail. */
   followLink(event: MouseEvent): void;
+  actions: Actions;
 }
 
 /** Each review verdict's name and colour, as a review summary's chip shows it. */
@@ -21,10 +24,10 @@ const verdicts: Record<ReviewVerdict, { name: 'verdictApproved' | 'verdictChange
   dismissed: { name: 'verdictDismissed', tone: 'skipped' },
 };
 
-/** One pull request as its read-only detail shows it, in the forge's order: the title, state, head into base, where its
+/** One pull request as its detail shows it, in the forge's order: the title, state, head into base, where its
  * changes are, labels and the issues it closes on merge; then the body, comments and review summaries in time order,
- * code comments only as a count, and the merge area last. No diff, size, reviewer list or approve button. */
-export function PullRequestDocument({ project, pullRequest: pull, open, followLink }: Props) {
+ * code comments only as a count, and the merge area with its direct actions last. No diff, size, reviewer list or approve button. */
+export function PullRequestDocument({ project, pullRequest: pull, open, followLink, actions }: Props) {
   const { t } = useLocalization();
   const forge = project.forge.name;
   const comments = pull.timeline.filter(entry => entry.verdict === null).length;
@@ -55,7 +58,7 @@ export function PullRequestDocument({ project, pullRequest: pull, open, followLi
       {!!pull.codeComments && <div className="forge-code-comments">
         {pull.codeComments === 1 ? t('oneCodeComment') : t('codeComments', { count: pull.codeComments })}{' '}
         <a href={pull.changesUrl} target="_blank" rel="noreferrer">{t('viewOnForge', { forge })}</a></div>}
-      <MergeArea pullRequest={pull} capabilities={project.capabilities} forge={forge} />
+      <MergeArea pullRequest={pull} capabilities={project.capabilities} forge={forge} actions={actions} />
     </div>
   </div>;
 }
@@ -68,15 +71,17 @@ const results: Record<Check['result'], { mark: string; name: 'checksPassed' | 'c
   skipped: { mark: '–', name: 'checkSkipped', tone: 'skipped' },
 };
 
-/** The merge area at the bottom, read-only, one requirement per row: the review, the checks (one summary line; failed and
+/** The merge area at the bottom, one requirement per row, then the direct actions: the review, the checks (one summary line; failed and
  * running checks listed, passed ones folded; required ones marked when the forge declares required checks; each opens its
- * log), conflicts, and the draft. A merged or closed pull request only says so. */
-function MergeArea({ pullRequest: pull, capabilities, forge }: { pullRequest: PullRequestDetail; capabilities: ForgeCapabilities; forge: string }) {
+ * log), conflicts, the draft, and merging or closing it. A merged or closed pull request only says so; a closed one reopens. */
+function MergeArea({ pullRequest: pull, capabilities, forge, actions }: { pullRequest: PullRequestDetail; capabilities: ForgeCapabilities; forge: string; actions: Actions }) {
   const { t } = useLocalization();
   const [showPassed, setShowPassed] = useState(false);
   const label = t('mergeRequirements');
   if (pull.state === 'merged' || pull.state === 'closed') return <section className="forge-merge" aria-label={label}>
-    <div className="forge-merge-row"><PullRequestIcon state={pull.state} hint={false} />{t(pull.state === 'merged' ? 'stateMerged' : 'closedWithoutMerging')}</div>
+    <div className="forge-merge-row"><PullRequestIcon state={pull.state} hint={false} />{t(pull.state === 'merged' ? 'stateMerged' : 'closedWithoutMerging')}
+      <span className="forge-spacer" /><ReopenPullRequest pullRequest={pull} actions={actions} /></div>
+    {actions.failed && <div className="forge-merge-actions"><ActionFailure actions={actions} /></div>}
   </section>;
 
   const failed = pull.checks.filter(check => check.result === 'failed'), pending = pull.checks.filter(check => check.result === 'pending');
@@ -119,5 +124,6 @@ function MergeArea({ pullRequest: pull, capabilities, forge }: { pullRequest: Pu
     </div>
     {row(conflicts.mark, conflicts.tone, t('conflictsRow'), conflicts.text)}
     {pull.state === 'draft' && row('●', 'skipped', t('draftRow'), t('draftNote', { forge }))}
+    <PullRequestActions pullRequest={pull} capabilities={capabilities} forge={forge} actions={actions} />
   </section>;
 }

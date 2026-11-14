@@ -1,13 +1,14 @@
-const { readFileSync } = require('node:fs');
+const { readFileSync, writeFileSync } = require('node:fs');
 
 // A `gh` CLI double. The test writes the account's state to the JSON file named by VIBEBRIDGE_GH_DOUBLE:
 // { account, repositories: ["owner/repo", …], labels?: [{ name, color }], issues?: [{ number, title, state, stateReason?, createdAt, labels,
 //   author?, assignees?, bodyHTML?, comments?, parent?, blockedBy?, closedBy? }],
 //   pullRequests?: [{ number, title, state: OPEN|MERGED|CLOSED, isDraft?, createdAt?, author?: login|null, labels?, checks?: rollup state }],
-//   failure?: { code, stdout?, stderr? } } (tests/support/gh-double.ts describes each field).
+//   permission?, failure?: { code, stdout?, stderr? } } (tests/support/gh-double.ts describes each field).
 // A failure answers every command the way `gh` fails, with that exit code and output. `gh api graphql` answers
 // like GitHub: a repository the account does not list is NOT_FOUND, the search reads the qualifiers it is given,
 // listing pull requests for is:pr and issues otherwise, and `repository.issue` answers one issue with its relations, or NOT_FOUND.
+// `gh issue close|reopen` and `gh pr merge|close|reopen` change the state file and answer with GitHub's text.
 const state = JSON.parse(readFileSync(process.env.VIBEBRIDGE_GH_DOUBLE, 'utf8'));
 const args = process.argv.slice(2);
 if (state.failure) {
@@ -16,6 +17,7 @@ if (state.failure) {
   process.exit(state.failure.code);
 }
 if (args[0] === 'api' && args[1] === 'graphql') graphql(fields(args.slice(2)));
+else if (args[0] === 'issue' || args[0] === 'pr') write(args[0], args[1], Number(args[2]), args.slice(3));
 else if (args[0] === 'api' && args.includes('user')) process.stdout.write(`${state.account}\n`);
 else if (args[0] === 'api' && args.some(arg => arg.startsWith('user/repos'))) process.stdout.write(state.repositories.map(path => `${path}\n`).join(''));
 else { process.stderr.write(`gh double: unsupported command ${args.join(' ')}\n`); process.exit(1); }
@@ -29,6 +31,50 @@ function fields(list) {
   }
   return values;
 }
+/** A write subcommand as gh runs it against GitHub: it changes the item, prints how it went, and fails with GitHub's text. */
+function write(noun, verb, number, options) {
+  const fail = message => { process.stderr.write(`${message}\n`); process.exit(1); };
+  const repoAt = options.indexOf('--repo');
+  if (repoAt < 0) unsupported();
+  const path = options[repoAt + 1];
+  if (!state.repositories.some(listed => listed.toLowerCase() === path.toLowerCase())) fail(`GraphQL: Could not resolve to a Repository with the name '${path}'. (repository)`);
+  const items = noun === 'issue' ? state.issues ?? [] : state.pullRequests ?? [];
+  const item = items.find(candidate => candidate.number === number);
+  if (!item) fail(`GraphQL: Could not resolve to an issue or pull request with the number of ${number}. (repository.issueOrPullRequest)`);
+  const mutation = { 'issue close': 'closeIssue', 'issue reopen': 'reopenIssue', 'pr merge': 'mergePullRequest', 'pr close': 'closePullRequest', 'pr reopen': 'reopenPullRequest' }[`${noun} ${verb}`];
+  if (!mutation) unsupported();
+  if (['READ', 'TRIAGE'].includes(state.permission)) fail(`GraphQL: ${state.account} does not have the correct permissions to execute \`${mutation[0].toUpperCase()}${mutation.slice(1)}\` (${mutation})`);
+  const name = `${path}#${number} (${item.title})`;
+  if (noun === 'issue' && verb === 'close') {
+    const reason = options[options.indexOf('--reason') + 1];
+    Object.assign(item, { state: 'CLOSED', stateReason: reason === 'not planned' ? 'NOT_PLANNED' : 'COMPLETED' });
+    done(`✓ Closed issue ${name}`);
+  } else if (noun === 'issue') {
+    Object.assign(item, { state: 'OPEN', stateReason: 'REOPENED' });
+    done(`✓ Reopened issue ${name}`);
+  } else if (verb === 'merge') {
+    const method = ['merge', 'squash', 'rebase'].find(flag => options.includes(`--${flag}`));
+    if (!method) unsupported();
+    if (item.state !== 'OPEN') fail(`X Pull request ${path}#${number} (${item.title}) can't be merged because it is ${item.state === 'MERGED' ? 'already merged' : 'closed'}`);
+    if (item.mergeable === 'CONFLICTING') fail(`X Pull request ${path}#${number} is not mergeable: the merge commit cannot be cleanly created.`);
+    if (state.mergeMethods?.[method] === false) fail(`GraphQL: ${{ merge: 'Merge commits', squash: 'Squash merges', rebase: 'Rebase merges' }[method]} are not allowed on this repository. (mergePullRequest)`);
+    item.state = 'MERGED';
+    done(`✓ ${{ merge: 'Merged', squash: 'Squashed and merged', rebase: 'Rebased and merged' }[method]} pull request ${name}`);
+  } else if (verb === 'close') {
+    item.state = 'CLOSED';
+    done(`✓ Closed pull request ${name}`);
+  } else {
+    if (item.state === 'MERGED') fail(`X Pull request ${name} can't be reopened because it was already merged`);
+    item.state = 'OPEN';
+    done(`✓ Reopened pull request ${name}`);
+  }
+}
+/** Saves the changed state and reports success the way gh does, on standard error. */
+function done(message) {
+  writeFileSync(process.env.VIBEBRIDGE_GH_DOUBLE, JSON.stringify(state));
+  process.stderr.write(`${message}\n`);
+}
+
 function unsupported() { process.stderr.write(`gh double: unsupported command ${args.join(' ')}\n`); process.exit(1); }
 
 function graphql({ query, owner, name, search, openSearch, closedSearch, after, number }) {
@@ -87,7 +133,7 @@ function issueDetail(path, number) {
   const subIssuesSummary = n => { const children = issues.filter(item => item.parent === n);
     return { total: children.length, completed: children.filter(item => item.state === 'CLOSED').length }; };
   const comments = issue.comments ?? [];
-  process.stdout.write(JSON.stringify({ data: { repository: { url, issue: {
+  process.stdout.write(JSON.stringify({ data: { repository: { url, viewerPermission: state.permission ?? 'WRITE', issue: {
     number: issue.number, title: issue.title, state: issue.state, stateReason: issue.stateReason ?? null, createdAt: issue.createdAt,
     url: `${url}/issues/${issue.number}`, bodyHTML: issue.bodyHTML ?? '',
     author: issue.author === null ? null : { login: issue.author ?? state.account },
@@ -122,7 +168,7 @@ function pullRequestDetail(path, number) {
   const contexts = (pull.checkRuns ?? []).map((check, index) => check.context === undefined
     ? { __typename: 'CheckRun', name: check.name, status: check.status, conclusion: check.conclusion, permalink: `${url}/runs/${index}`, isRequired: !!check.required }
     : { __typename: 'StatusContext', context: check.context, state: check.state, targetUrl: check.targetUrl, isRequired: !!check.required });
-  process.stdout.write(JSON.stringify({ data: { repository: { url,
+  process.stdout.write(JSON.stringify({ data: { repository: { url, viewerPermission: state.permission ?? 'WRITE',
     mergeCommitAllowed: allowed.merge, squashMergeAllowed: allowed.squash, rebaseMergeAllowed: allowed.rebase, pullRequest: {
     number: pull.number, title: pull.title, state: pull.state, isDraft: pull.isDraft ?? false, createdAt: pull.createdAt ?? '2026-01-01T00:00:00Z',
     url: `${url}/pull/${pull.number}`, bodyHTML: pull.bodyHTML ?? '', author: pull.author === null ? null : { login: pull.author ?? state.account },

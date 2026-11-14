@@ -17,4 +17,7 @@ export const issueReferenceFields = 'number title state stateReason url';
 export const issueReference = (issue: z.infer<typeof issueReferenceSchema>) => ({ number: issue.number, title: issue.title, ...issueState(issue), url: issue.url });
 export const pullRequestState = (state: 'OPEN' | 'MERGED' | 'CLOSED', draft: boolean): PullRequestState =>
   state === 'MERGED' ? 'merged' : state === 'CLOSED' ? 'closed' : draft ? 'draft' : 'open';
+/** The active account's permission on the repository; null when it has none it can tell. Closing, reopening and merging take write access. */
+export const viewerPermission = z.enum(['ADMIN', 'MAINTAIN', 'WRITE', 'TRIAGE', 'READ']).nullable();
+export const canWrite = (permission: z.infer<typeof viewerPermission>) => permission === 'ADMIN' || permission === 'MAINTAIN' || permission === 'WRITE';
 export const repositoryLinks = (url: string) => ({ issues: `${url}/issues/`, pullRequests: `${url}/pull/` });

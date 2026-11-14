@@ -1,0 +1,16 @@
+/* A pull request's detail: head into base, the issues it closes, code comments, and the merge area. */
+.forge-pull-branches { color: var(--muted); font-size: 12px; }
+.forge-pull-branches b { color: var(--accent); }
+.forge-doc-head > a, .forge-code-comments a, .forge-merge a { color: var(--forge-link); font-size: 12px; }
+.forge-branch { padding: 1px 5px; border-radius: 6px; background: color-mix(in srgb, var(--forge-link) 12%, transparent); color: var(--forge-link); font-size: 11px; }
+.forge-closes { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 8px; padding-bottom: 12px; font-size: 12px; color: var(--muted); }
+.forge-ref.inline { display: inline-flex; width: auto; max-width: 100%; padding: 2px 6px; border: 1px solid var(--line); border-radius: 6px; color: inherit; text-decoration: none; }
+.forge-code-comments { padding: 4px 2px; font-size: 12px; color: var(--muted); }
+.forge-merge { border: 1px solid var(--line); border-radius: 6px; font-size: 12px; background: var(--surface); }
+.forge-merge-row { display: flex; align-items: center; gap: 8px; padding: 9px 12px; border-bottom: 1px solid var(--line); }
+.forge-merge-row:last-child { border-bottom: 0; }
+.forge-merge-row.column { flex-direction: column; align-items: stretch; gap: 4px; }
+.forge-merge-row-head { display: flex; align-items: center; gap: 8px; }
+.forge-merge-check { display: flex; align-items: center; gap: 8px; padding: 2px 0 2px 20px; }
+.forge-merge-fold { align-self: flex-start; margin-left: 20px; }
+.forge-required { padding: 0 5px; border: 1px solid var(--line); border-radius: 8px; font-size: 10px; color: var(--muted); }

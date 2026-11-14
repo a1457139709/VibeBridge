@@ -2,15 +2,14 @@ import { message, detail } from '../shared/messages';
 import { projectNameError } from '../shared/project-name';
 import type { Language, ProjectEdit, ProjectEditResult } from '../shared/model';
 import { randomUUID } from 'node:crypto';
-import { realpath, stat } from 'node:fs/promises';
-import { basename } from 'node:path';
 import { sidebars, sidebarPreferencesSchema, type Sidebar, type SidebarPreferences, assignedAgents, arrange, validateDraft, removeFromLayout, parseLayout, layoutStructure, layoutPanelIds, panelPosition, projectPanels, panelLimitReached, agentTypes, type AgentType, type DirectoryResult, type LaunchResult, type Layout, type Panel, type Project, type ProjectCreation, type ProjectDraft, type PanelCreation, type Settings, type Snapshot, type WorkbenchEvent } from '../shared/model';
 import { ProjectStore } from './storage';
 import { SettingsFile, defaultSettings } from './settings';
 import { settingsConflicts, type SettingsSaveResult } from '../shared/settings';
 import { RunSupervision } from './run-supervision';
-import { listQuerySchema, itemNumberSchema, sameRepository, type IssueDetailResult, type PullRequestDetailResult, type ListQuery, type IssuePage, type PullRequestPage, type RepositoryChoices, type RepositoryReference } from '../shared/forge';
-import { issueDetail, issuePage, pullRequestDetail, pullRequestPage } from './forge/results';
+import { inspectDirectory } from './project-directory';
+import { type DirectAction, type DirectActionResult, sameRepository, type IssueDetailResult, type PullRequestDetailResult, type ListQuery, type IssuePage, type PullRequestPage, type RepositoryChoices, type RepositoryReference } from '../shared/forge';
+import { directAction, issueDetail, issuePage, pullRequestDetail, pullRequestPage } from './forge/results';
 import { listedRepository, repositoryChoices } from './forge/repositories';
 import { defaultForge, forges } from './forge/forges';
 
@@ -89,14 +88,7 @@ export class Workbench {
   }
   private tray(projectId: string) { return this.trays.get(projectId) ?? []; }
   private panels(project: Project) { return projectPanels({ panels: project.panels, tray: this.tray(project.id) }); }
-  async inspectDirectory(path: string): Promise<DirectoryResult> {
-    try {
-      const directory = await realpath(path);
-      if (!(await stat(directory)).isDirectory()) return { valid: false };
-      const existing = this.state.projects.find(project => project.directory === directory);
-      return { valid: true, directory, name: basename(directory), existingProjectId: existing?.id, existingProjectName: existing?.name };
-    } catch { return { valid: false }; }
-  }
+  inspectDirectory(path: string): Promise<DirectoryResult> { return inspectDirectory(path, this.state.projects); }
   createProject(draft: ProjectDraft): Promise<ProjectCreation> { return this.operation(async () => {
     validateDraft(draft);
     const directory = await this.inspectDirectory(draft.directory);
@@ -172,19 +164,23 @@ export class Workbench {
   }
   /** One page of the issues of the project's bound repository, as `query` asks. */
   async issuePage(projectId: string, query: ListQuery): Promise<IssuePage> {
-    return issuePage(this.boundRepository(projectId), listQuerySchema.parse(query));
+    return issuePage(this.boundRepository(projectId), query);
   }
   /** One page of the pull requests of the project's bound repository, as `query` asks. */
   async pullRequestPage(projectId: string, query: ListQuery): Promise<PullRequestPage> {
-    return pullRequestPage(this.boundRepository(projectId), listQuerySchema.parse(query));
+    return pullRequestPage(this.boundRepository(projectId), query);
   }
   /** One issue of the project's bound repository, with its rendered body, comments and relations. */
   async issueDetail(projectId: string, number: number): Promise<IssueDetailResult> {
-    return issueDetail(this.boundRepository(projectId), itemNumberSchema.parse(number));
+    return issueDetail(this.boundRepository(projectId), number);
   }
 
   async pullRequestDetail(projectId: string, number: number): Promise<PullRequestDetailResult> {
-    return pullRequestDetail(this.boundRepository(projectId), itemNumberSchema.parse(number));
+    return pullRequestDetail(this.boundRepository(projectId), number);
+  }
+  /** Carries out a direct action on an issue or pull request of the project's bound repository; the forge's text comes back either way. */
+  async directAction(projectId: string, action: DirectAction): Promise<DirectActionResult> {
+    return directAction(this.boundRepository(projectId), action);
   }
   private boundRepository(projectId: string) {
     this.project(projectId);
