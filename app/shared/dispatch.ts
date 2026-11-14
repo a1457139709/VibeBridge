@@ -1,10 +1,13 @@
 import { z } from 'zod';
 import { itemNumberSchema } from './forge';
-import type { AgentType } from './model';
+import { agentTypes, type AgentType } from './model';
 import type { ProcessingState } from './processing-status';
 
-/** Where a dispatch goes: a panel of the project that has a run. */
-export const dispatchTargetSchema = z.object({ kind: z.literal('panel'), panelId: z.string() });
+/** Where a dispatch goes: a panel of the project that has a run, or a new ephemeral panel of an Agent type. */
+export const dispatchTargetSchema = z.discriminatedUnion('kind', [
+  z.object({ kind: z.literal('panel'), panelId: z.string() }),
+  z.object({ kind: z.literal('new'), agent: z.enum(agentTypes) }),
+]);
 export type DispatchTarget = z.infer<typeof dispatchTargetSchema>;
 
 /** One dispatch: an issue of the bound repository, a command of an enabled workflow, and the target. `invert` swaps the

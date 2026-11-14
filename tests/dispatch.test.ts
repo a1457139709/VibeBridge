@@ -4,27 +4,39 @@ import { ghDouble } from './support/gh-double';
 import { day, forgeAccount } from './support/bound-workbench';
 import { fixture, until } from './support/cli-double';
 import { Workbench } from '../app/main/workbench';
+import { message } from '../app/shared/messages';
 
 const issue = (number: number) => ({ number, title: `Issue ${number}`, state: 'OPEN' as const, createdAt: day(number), labels: [] });
 const paste = (text: string) => `\x1b[200~${text}\x1b[201~`;
 
-/** A Workbench whose one project, bound to octo/tools, has a resident Claude panel running the Claude CLI double. */
-async function dispatching(context: test.TestContext) {
+/** A Workbench whose one project, bound to octo/tools, has a resident Claude panel running the Claude CLI double.
+ * With `lateSession`, every Claude CLI double reports its session, and so that it is ready, only when the test says. */
+async function dispatching(context: test.TestContext, { lateSession = false } = {}) {
   const gh = await ghDouble(context, { ...forgeAccount, repositories: [...forgeAccount.repositories, 'octo/other'], issues: [issue(7), issue(8)] });
-  const f = await fixture('claude', ['--raw-input']);
+  const f = await fixture('claude', ['--raw-input', ...lateSession ? ['--late-session'] : []]);
   const { project, launches: [{ run }] } = await f.create();
   await f.workbench.editProject(project.id, { name: project.name, directory: project.directory, repository: { forge: 'github', path: 'octo/tools' } }, false);
   const session = `session-${run.pid}`;
-  await until(() => f.workbench.snapshot().projects[0].panels[0].status === 'ready');
+  if (!lateSession) await until(() => f.workbench.snapshot().projects[0].panels[0].status === 'ready');
   /** What the CLI double has received as typed input, apart from the test's own messages. */
-  const typed = async () => {
-    await f.send(run.id, undefined, { typed: true });
-    return JSON.parse(f.output(run.id).match(/TYPED:([^\r\n]*)\r\n(?![\s\S]*TYPED:)/)![1]) as string;
+  const typed = async (runId = run.id) => {
+    await f.send(runId, undefined, { typed: true });
+    return JSON.parse(f.output(runId).match(/TYPED:([^\r\n]*)\r\n(?![\s\S]*TYPED:)/)![1]) as string;
   };
   const records = () => f.workbench.snapshot().projects[0].dispatches;
   const dispatch = (number: number) => f.workbench.dispatch(project.id, { issue: { number, title: `Issue ${number}` }, workflowId: 'matt',
     commandId: 'implement', target: { kind: 'panel', panelId: run.panelId }, invert: false });
-  return { ...f, gh, projectId: project.id, run, session, typed, records, dispatch };
+  /** Dispatches /implement for the issue to a new Claude panel; `invert` makes it fill only. Returns the new panel's run. */
+  const dispatchNew = async (number: number, invert = false) => {
+    const { panelId } = await f.workbench.dispatch(project.id, { issue: { number, title: `Issue ${number}` }, workflowId: 'matt',
+      commandId: 'implement', target: { kind: 'new', agent: 'claude' }, invert });
+    const panel = f.workbench.snapshot().projects[0].tray.find(panel => panel.id === panelId)!;
+    await until(() => f.output(panel.run!.id).includes('CLI-DOUBLE-READY'), () => f.output(panel.run!.id));
+    return panel.run!;
+  };
+  /** Reports that the run's CLI started on its session, and so is ready. */
+  const start = (runId: string) => f.send(runId, { hook_event_name: 'SessionStart', source: 'startup' });
+  return { ...f, gh, projectId: project.id, run, session, typed, records, dispatch, dispatchNew, start };
 }
 
 test('submitting to an existing panel pastes the command for its Agent type, then presses Enter, and records the dispatch on its session', async context => {
@@ -107,4 +119,72 @@ test('rebinding shows only the records of the bound repository and keeps the oth
     reopened = await Workbench.open(f.directory);
     assert.deepEqual(reopened.snapshot().projects, []);
   } finally { await reopened?.quit(); await f.close(); }
+});
+
+test('submitting to a new panel launches it in the tray with the command after the configured arguments, unopened', async context => {
+  const f = await dispatching(context, { lateSession: true });
+  try {
+    const run = await f.dispatchNew(7);
+    assert.deepEqual(f.workbench.snapshot().projects[0].tray.map(panel => panel.id), [run.panelId]);
+    await f.send(run.id, undefined, { arguments: true });
+    const args = JSON.parse(f.output(run.id).match(/ARGUMENTS:([^\r\n]+)/)![1]) as string[];
+    assert.deepEqual(args.slice(0, 3), ['--raw-input', '--late-session', '/implement https://github.com/octo/tools/issues/7']);
+  } finally { await f.close(); }
+});
+
+test('filling a new panel pastes the command once it reports ready, without pressing Enter', async context => {
+  const f = await dispatching(context, { lateSession: true });
+  try {
+    const run = await f.dispatchNew(7, true);
+    await f.send(run.id, undefined, { arguments: true });
+    const args = JSON.parse(f.output(run.id).match(/ARGUMENTS:([^\r\n]+)/)![1]) as string[];
+    assert.deepEqual(args.slice(0, 2), ['--raw-input', '--late-session'], 'the configured arguments only');
+    assert.ok(!args.some(arg => arg.includes('/implement')));
+    // The paste is sent to the terminal while the ready report is answered, so it is in before the double acknowledges.
+    await f.start(run.id);
+    assert.equal(await f.typed(run.id), `[SessionStart]${paste('/implement https://github.com/octo/tools/issues/7')}`);
+  } finally { await f.close(); }
+});
+
+test('a new panel\'s dispatch locates its panel at once, and is recorded on the first session it reports', async context => {
+  const f = await dispatching(context, { lateSession: true });
+  let reopened: Workbench | undefined;
+  try {
+    const run = await f.dispatchNew(7);
+    assert.deepEqual(located(f.workbench), [[7, run.panelId]], 'shown before the panel reports a session');
+    await f.start(run.id);
+    // Once recorded, the dispatch follows its session rather than the panel.
+    await f.send(run.id, { hook_event_name: 'SessionStart', source: 'clear', session_id: 'cleared' });
+    await until(() => located(f.workbench)[0]?.[1] === null);
+    await f.send(run.id, { hook_event_name: 'SessionStart', source: 'resume', session_id: `session-${run.pid}` });
+    await until(() => located(f.workbench)[0]?.[1] === run.panelId);
+    await f.workbench.quit();
+    reopened = await Workbench.open(f.directory);
+    assert.deepEqual(located(reopened), [[7, null]]);
+  } finally { await reopened?.quit(); await f.close(); }
+});
+
+test('a new panel that ends before reporting a session leaves no record', async context => {
+  const f = await dispatching(context, { lateSession: true });
+  let reopened: Workbench | undefined;
+  try {
+    const run = await f.dispatchNew(7);
+    await f.workbench.closePanel(f.projectId, run.panelId);
+    assert.deepEqual(located(f.workbench), []);
+    await f.workbench.quit();
+    reopened = await Workbench.open(f.directory);
+    assert.deepEqual(located(reopened), []);
+  } finally { await reopened?.quit(); await f.close(); }
+});
+
+test('a new panel whose Agent fails to launch is withdrawn, fails the dispatch and leaves no record', async context => {
+  const f = await dispatching(context);
+  try {
+    const { agents } = f.workbench.snapshot().settings;
+    await f.workbench.saveSettings({ agents: { ...agents, codex: { command: '/no-such-agent', args: [] } } });
+    await assert.rejects(f.workbench.dispatch(f.projectId, { issue: { number: 7, title: 'Issue 7' }, workflowId: 'matt', commandId: 'implement',
+      target: { kind: 'new', agent: 'codex' }, invert: false }), { message: message('launchFailed') });
+    assert.deepEqual(f.workbench.snapshot().projects[0].tray, []);
+    assert.deepEqual(located(f.workbench), []);
+  } finally { await f.close(); }
 });

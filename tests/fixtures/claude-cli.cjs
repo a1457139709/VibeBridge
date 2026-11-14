@@ -28,7 +28,10 @@ async function emit(payload, malformed) {
       child.stdin.end(malformed ? '{' : JSON.stringify(input));
     })));
 }
-let pending = emit({ hook_event_name: 'SessionStart', source: 'startup' }).then(() => console.log('CLI-DOUBLE-READY'));
+// With --late-session the double reports its session only when the test sends SessionStart, as a CLI still starting
+// up would, and its typed input marks when it did, so a test can read what was typed before and after.
+const lateSession = args.includes('--late-session');
+let pending = (lateSession ? Promise.resolve() : emit({ hook_event_name: 'SessionStart', source: 'startup' })).then(() => console.log('CLI-DOUBLE-READY'));
 // With --raw-input the double reads the terminal byte by byte, as an interactive CLI does: bracketed pastes and
 // Enter (\r) are typed input, kept apart from the test's own messages, which end in \n.
 let typed = '';
@@ -62,6 +65,8 @@ lines(line => {
     if (message.arguments) console.log(`ARGUMENTS:${JSON.stringify(args)}`);
     // Facts too large for one terminal input line arrive as a file.
     const payload = message.payloadFile ? JSON.parse(readFileSync(message.payloadFile, 'utf8')) : message.payload;
+    // Marked before the hooks run: the Workbench may answer the report while they are still running.
+    if (lateSession && payload?.hook_event_name === 'SessionStart') typed += '[SessionStart]';
     if (payload) await emit(payload, message.malformed);
     if (message.output) console.log(message.output);
     console.log(`ACK:${message.id}`);

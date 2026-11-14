@@ -165,14 +165,19 @@ export class Workbench {
   pullRequestDetail(projectId: string, number: number) { return this.repositories.pullRequestDetail(projectId, number); }
   directAction(projectId: string, action: DirectAction) { return this.repositories.directAction(projectId, action); }
   /** Dispatches an issue of the project's bound repository with a command of an enabled workflow to one of its panels
-   * that has a run, and records the dispatch on that run's session. */
+   * that has a run, or to a new panel that joins its tray, and records the dispatch on the session that takes it. */
   dispatch(projectId: string, request: DispatchRequest) { return this.operation(async () => {
     const repository = this.repositories.bound(projectId);
-    const panel = this.panels(this.project(projectId)).find(panel => panel.id === request.target?.panelId);
-    if (!panel) throw new Error(message('panelMissing'));
-    return this.dispatches.toPanel(projectId, repository, this.supervision.panelView(panel), request, this.state.settings.workflows);
+    const project = this.project(projectId);
+    return this.dispatches.dispatch(projectId, repository, request, this.state.settings.workflows, {
+      panel: id => { const panel = this.panels(project).find(panel => panel.id === id); return panel && this.supervision.panelView(panel); },
+      add: (agent, args) => this.addToTray(project, agent, args) });
   }); }
-  private startPanel(project: Project, panel: Panel) { return this.supervision.start(project, panel, this.state.settings.agents[panel.agent]); }
+  /** Starts the panel's Agent as the Agent settings give its type, with `args` after the configured ones. */
+  private startPanel(project: Project, panel: Panel, args: string[] = []) {
+    const command = this.state.settings.agents[panel.agent];
+    return this.supervision.start(project, panel, { ...command, args: [...command.args, ...args] });
+  }
   private async startProject(project: Project): Promise<LaunchResult[]> {
     if (this.visited.has(project.id)) return [];
     this.visited.add(project.id);
@@ -192,17 +197,17 @@ export class Workbench {
     await this.startProject(project);
   }); }
   /** Adds a panel to the end of the project's tray and starts its Agent. The layout is unchanged. */
-  addPanel(projectId: string, agent: AgentType): Promise<PanelCreation> { return this.operation(async () => {
-    const project = this.project(projectId);
+  addPanel(projectId: string, agent: AgentType): Promise<PanelCreation> { return this.operation(() => this.addToTray(this.project(projectId), agent)); }
+  private async addToTray(project: Project, agent: AgentType, args?: string[]): Promise<PanelCreation> {
     if (!agentTypes.includes(agent)) throw new Error(message('agentInvalid'));
-    const tray = this.tray(projectId);
+    const tray = this.tray(project.id);
     if (panelLimitReached({ panels: project.panels, tray })) throw new Error(message('panelLimit'));
     const panel = { id: randomUUID(), agent };
-    this.trays.set(projectId, [...tray, panel]); this.changed();
-    const launch = await this.startPanel(project, panel);
-    if (launch.outcome === 'failed') this.removeFromTray(projectId, panel.id);
+    this.trays.set(project.id, [...tray, panel]); this.changed();
+    const launch = await this.startPanel(project, panel, args);
+    if (launch.outcome === 'failed') this.removeFromTray(project.id, panel.id);
     return { panel: structuredClone(panel), launch };
-  }); }
+  }
   // Undoes the addition of panels whose Agent never started. Restored layouts keep
   // their failed panels; this is neither closing a panel nor a run exit.
   private async withdrawPanels(project: Project, panelIds: string[]) {

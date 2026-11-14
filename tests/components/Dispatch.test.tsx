@@ -19,8 +19,11 @@ function withPanels(snapshot: Snapshot) {
   alpha.tray.push({ id: 'tray', agent: 'claude', status: 'busy', run: { id: 'tray-run', panelId: 'tray', projectId: 'alpha', state: 'running', title: 'Fix it' } });
 }
 
+/** The panel a dispatch goes to: the one it names, or a new one. */
+const panelOf = (request: DispatchRequest) => request.target.kind === 'panel' ? request.target.panelId : 'new-panel';
+
 /** The Workbench with Alpha's issues 9 and 8 listed; `dispatch` answers dispatches. */
-async function listed(dispatch: (projectId: string, request: DispatchRequest) => Promise<{ delivery: 'submit' | 'fill' }> = async () => ({ delivery: 'submit' }),
+async function listed(dispatch: (projectId: string, request: DispatchRequest) => Promise<{ delivery: 'submit' | 'fill'; panelId: string }> = async (_, request) => ({ delivery: 'submit', panelId: panelOf(request) }),
   change: (snapshot: Snapshot) => void = () => {}) {
   const requests: [string, DispatchRequest][] = [];
   const f = renderWorkbench(githubCapabilities, { dispatch: async (projectId, request) => { requests.push([projectId, request]); return dispatch(projectId, request); },
@@ -85,12 +88,42 @@ test('submitting to a panel dispatches the issue, returns focus to Dispatch and 
 });
 
 test('filling a panel closes the detail and keeps the sidebar open', async () => {
-  const f = await listed(async () => ({ delivery: 'fill' }));
+  const f = await listed(async (_, request) => ({ delivery: 'fill', panelId: panelOf(request) }));
   await f.user.click(within(row(9)).getByRole('button', { name: 'Issue 9' }));
   await waitFor(() => assert.ok(document.querySelector('.forge-detail')));
   await f.user.click(dispatchButton(9));
   await f.user.hover(within(screen.getByRole('menu', { name: 'Dispatch #9' })).getByRole('menuitem', { name: /^implement\s?Submit$/ }));
   await f.user.click(within(screen.getByRole('menu', { name: 'Targets for implement' })).getByRole('menuitem', { name: /Alpha session/ }));
+  await waitFor(() => assert.equal(document.querySelector('.forge-detail'), null));
+  assert.ok(sidebar());
+});
+
+test('submitting to a new panel dispatches to its Agent type and returns focus to Dispatch', async () => {
+  const f = await listed();
+  await f.user.click(dispatchButton(9));
+  await f.user.hover(within(screen.getByRole('menu', { name: 'Dispatch #9' })).getByRole('menuitem', { name: /^implement\s?Submit$/ }));
+  const target = within(screen.getByRole('menu', { name: 'Targets for implement' })).getByRole('menuitem', { name: /New · Codex/ });
+  await f.user.hover(target);
+  assert.ok(screen.getByText('$implement …#9'), 'the preview shows the text in the new panel\'s Agent type');
+  await f.user.click(target);
+  await waitFor(() => assert.deepEqual(f.dispatches, [['alpha', { issue: { number: 9, title: 'Issue 9' }, workflowId: 'matt', commandId: 'implement',
+    target: { kind: 'new', agent: 'codex' }, invert: false }]]));
+  await waitFor(() => assert.equal(document.activeElement, dispatchButton(9)));
+});
+
+test('filling a new panel opens it as the temporary maximize once it joins the tray, closes the detail and keeps the sidebar open', async () => {
+  const f = await listed(async () => ({ delivery: 'fill', panelId: 'new-panel' }));
+  await f.user.click(within(row(9)).getByRole('button', { name: 'Issue 9' }));
+  await waitFor(() => assert.ok(document.querySelector('.forge-detail')));
+  await f.user.click(dispatchButton(9));
+  await f.user.hover(within(screen.getByRole('menu', { name: 'Dispatch #9' })).getByRole('menuitem', { name: /^implement\s?Submit$/ }));
+  await f.user.click(within(screen.getByRole('menu', { name: 'Targets for implement' })).getByRole('menuitem', { name: /New · pi/ }));
+  await waitFor(() => assert.deepEqual(f.dispatches.map(([, request]) => request.target), [{ kind: 'new', agent: 'pi' }]));
+  // The dispatch can answer before the snapshot with the new panel reaches the renderer.
+  f.snapshot.projects[0].tray.push({ id: 'new-panel', agent: 'pi', run: { id: 'new-run', panelId: 'new-panel', projectId: 'alpha', state: 'running', title: 'Fresh' } });
+  f.publish();
+  const card = await waitFor(() => within(screen.getByRole('region', { name: 'Ephemeral panel tray' })).getByRole('button', { name: /Fresh/ }));
+  await waitFor(() => assert.equal(card.getAttribute('aria-pressed'), 'true'));
   await waitFor(() => assert.equal(document.querySelector('.forge-detail'), null));
   assert.ok(sidebar());
 });

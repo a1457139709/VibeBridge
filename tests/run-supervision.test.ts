@@ -314,6 +314,51 @@ test('a terminal host failure drops pending dispatches', async context => {
   assert.deepEqual(handed, []);
 });
 
+test('what waits for a run\'s first ready report runs on it, once, or at once when the run has reported ready before', async context => {
+  const f = await fixture(context);
+  const { run } = await f.start();
+  const readied: string[] = [];
+  assert.equal(f.supervision.afterFirstReady(run.id, () => { readied.push('first'); }), true);
+  await f.report(run.id, { hook_event_name: 'UserPromptSubmit' });
+  assert.equal(readied.length, 0, 'a busy report is not ready');
+  await f.enter(run.id, 'session');
+  await f.enter(run.id, 'session');
+  assert.deepEqual(readied, ['first']);
+  assert.equal(f.supervision.afterFirstReady(run.id, () => { readied.push('now'); }), true);
+  await f.report(run.id, { hook_event_name: 'UserPromptSubmit' });
+  assert.equal(f.supervision.afterFirstReady(run.id, () => { readied.push('busy since'); }), true);
+  assert.deepEqual(readied, ['first', 'now', 'busy since']);
+});
+
+test('waiting for a run\'s first ready report is dropped when the run ends first, and refused for a run that cannot report', async context => {
+  const f = await fixture(context);
+  const readied: string[] = [];
+  const { run } = await f.start();
+  assert.equal(f.supervision.afterFirstReady(run.id, () => readied.push('ended')), true);
+  f.terminal.event({ kind: 'exit', runId: run.id });
+  assert.equal(f.supervision.afterFirstReady(run.id, () => readied.push('late')), false);
+  f.terminal.answer = 'failed';
+  const { run: failed } = await f.start();
+  assert.equal(f.supervision.afterFirstReady(failed.id, () => readied.push('failed')), false);
+  assert.deepEqual(readied, []);
+});
+
+test('a pending dispatch tells its holder when it is dropped', async context => {
+  const f = await fixture(context);
+  const events: string[] = [];
+  const { run: exiting } = await f.start(f.project.panels[0]);
+  f.supervision.holdDispatch(exiting.id, session => events.push(`handed:${session}`), () => events.push('exited'));
+  f.terminal.event({ kind: 'exit', runId: exiting.id });
+  const { run: released } = await f.start(f.project.panels[1]);
+  f.supervision.holdDispatch(released.id, session => events.push(`handed:${session}`), () => events.push('released'));
+  f.supervision.release([released.panelId]);
+  const { run: handed } = await f.start(f.project.panels[0]);
+  f.supervision.holdDispatch(handed.id, session => events.push(`handed:${session}`), () => events.push('dropped after hand-over'));
+  await f.enter(handed.id, 'first');
+  f.terminal.event({ kind: 'exit', runId: handed.id });
+  assert.deepEqual(events, ['exited', 'released', 'handed:first']);
+});
+
 test('checking a command passes through to the terminal host', async context => {
   const f = await fixture(context);
   assert.deepEqual(await f.supervision.checkCommand('agent'), { available: true, path: '/bin/agent' });

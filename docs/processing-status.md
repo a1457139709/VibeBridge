@@ -14,7 +14,7 @@ Every accepted visible transition publishes through the existing Workbench snaps
 
 Each interpreter also reports the ID of the session its run is on now, following `/clear`, `/resume` and forks; it is undefined before the first session and after the current one ends, and Errors keep it. `ProcessingStatus` keeps it with the run's observation, so it disappears when the observation is released. A session change of a running run publishes a snapshot.
 
-Run Supervision answers one query from it, locating a session: the project and panel whose current run is on that session now, or none. Dispatch records store only session IDs and use this query to find a panel ([ADR 0003](adr/0003-dispatch-records-point-to-sessions.md)). A run can also hold pending dispatches: each is handed the run's session ID at once if the run is on a session, otherwise on the first report of one, and is dropped unpersisted if the run ends first. Session IDs only locate panels; they are never used to resume a session.
+Run Supervision answers one query from it, locating a session: the project and panel whose current run is on that session now, or none. Dispatch records store only session IDs and use this query to find a panel ([ADR 0003](adr/0003-dispatch-records-point-to-sessions.md)). A run can also hold pending dispatches: each is handed the run's session ID at once if the run is on a session, otherwise on the first report of one, and is dropped unpersisted if the run ends first, its holder told. A run can likewise be waited on until it first reports ready (at once if it has reported ready before, whatever it shows now); a dispatch that fills a new panel pastes its command then. Session IDs only locate panels; they are never used to resume a session.
 
 ## Reports
 

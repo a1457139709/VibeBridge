@@ -5,7 +5,7 @@ import { RelativeTime } from './ForgeDisplay';
 import { agentIcons } from './agent-icons';
 import { agentNames, liveRun, projectPanels, type AgentType, type PanelView, type ProjectView, type Settings } from '../shared/model';
 import { commandDelivery, commandText, workflows, type Delivery, type WorkflowCommand } from '../shared/workflows';
-import { latestLocatable, type DispatchRecordView, type DispatchRequest } from '../shared/dispatch';
+import { latestLocatable, type DispatchRecordView, type DispatchRequest, type DispatchTarget } from '../shared/dispatch';
 import type { IssueSummary } from '../shared/forge';
 import './dispatch.css';
 
@@ -19,22 +19,30 @@ export interface DispatchHost {
   report(message: string): void;
 }
 
-/** New-panel targets, in this order; they are listed and disabled. */
+/** New-panel targets, in this order. */
 const newPanelAgents: AgentType[] = ['claude', 'codex', 'pi'];
 const deliveryText = { submit: 'deliverySubmit', fill: 'deliveryFill' } as const;
 
 /** One Dispatch button with no default command. It opens a cascade beside it: the commands of the enabled workflows,
  * then, leftwards, the targets: new panels of each Agent type, and the project's panels that have a run, whatever
- * they are doing. Submitting returns focus here; filling locates the target panel. */
+ * they are doing. Submitting returns focus here, so a new panel stays a card in the tray; filling locates the target
+ * panel, which opens a new one as its temporary maximize. */
 export function DispatchButton({ project, issue, host }: { project: ProjectView; issue: IssueSummary; host: DispatchHost }) {
   const { t } = useLocalization();
   const [open, setOpen] = useState(false);
   /** The command whose targets show, and how far down the menu its row sits. */
   const [expanded, setExpanded] = useState<{ workflowId: string; command: WorkflowCommand; top: number }>();
-  /** The target the pointer is on; the preview shows the text it would receive. */
-  const [pointed, setPointed] = useState<PanelView>();
+  /** The Agent type of the target the pointer is on; the preview shows the text it would receive. */
+  const [pointed, setPointed] = useState<AgentType>();
+  /** A filled panel to locate once the snapshot has it: a new panel can be answered before the snapshot adding it arrives. */
+  const [filled, setFilled] = useState<string>();
   const root = useRef<HTMLDivElement>(null);
   const button = useRef<HTMLButtonElement>(null);
+  useEffect(() => {
+    if (!filled || !projectPanels(project).some(panel => panel.id === filled)) return;
+    setFilled(undefined);
+    host.locate(project.id, filled);
+  }, [filled, project, host]);
   const close = () => { setOpen(false); setExpanded(undefined); setPointed(undefined); };
   useEffect(() => {
     if (!open) return;
@@ -51,14 +59,14 @@ export function DispatchButton({ project, issue, host }: { project: ProjectView;
   const panels = projectPanels(project).filter(panel => liveRun(panel.run));
   const resident = (panel: PanelView) => project.panels.includes(panel);
 
-  async function dispatch(panel: PanelView) {
+  async function dispatch(target: DispatchTarget) {
     if (!expanded) return;
     const request: DispatchRequest = { issue: { number: issue.number, title: issue.title }, workflowId: expanded.workflowId,
-      commandId: expanded.command.id, target: { kind: 'panel', panelId: panel.id }, invert: false };
+      commandId: expanded.command.id, target, invert: false };
     close();
     try {
-      const { delivery } = await window.workbench.dispatch(project.id, request);
-      if (delivery === 'fill') host.locate(project.id, panel.id); else button.current?.focus();
+      const { delivery, panelId } = await window.workbench.dispatch(project.id, request);
+      if (delivery === 'fill') setFilled(panelId); else button.current?.focus();
       host.dispatched(delivery);
     } catch (error) { host.report((error as Error).message); button.current?.focus(); }
   }
@@ -86,17 +94,17 @@ export function DispatchButton({ project, issue, host }: { project: ProjectView;
       </Fragment>)}
       {expanded && <div className="dispatch-targets" role="menu" aria-label={t('dispatchTargets', { command: expanded.command.skill })}
         style={{ top: Math.max(0, expanded.top - 4) }}>
-        {newPanelAgents.map(agent => <button key={agent} role="menuitem" disabled>
+        {newPanelAgents.map(agent => <button key={agent} role="menuitem" onMouseEnter={() => setPointed(agent)} onClick={() => void dispatch({ kind: 'new', agent })}>
           <span className="dispatch-agent" aria-hidden="true">{agentIcons[agent]}</span>{t('dispatchNew', { agent: agentNames[agent] })}<small>{t('ephemeralPanel')}</small></button>)}
         {!!panels.length && <hr />}
-        {panels.map(panel => <button key={panel.id} role="menuitem" onMouseEnter={() => setPointed(panel)} onClick={() => void dispatch(panel)}>
+        {panels.map(panel => <button key={panel.id} role="menuitem" onMouseEnter={() => setPointed(panel.agent)} onClick={() => void dispatch({ kind: 'panel', panelId: panel.id })}>
           <span className="dispatch-agent" role="img" aria-label={agentNames[panel.agent]}>{agentIcons[panel.agent]}</span>
           <ProcessingStatusIcon state={panel.status} />
           <span className="dispatch-title">{panel.run?.title ?? t('untitled')}</span>
           <small>{[panel.status && t(panel.status), t(resident(panel) ? 'residentPanel' : 'ephemeralPanel')].filter(Boolean).join(' · ')}</small>
         </button>)}
         {/* The issue URL is the forge's; the preview elides it, as the text the target receives starts the same way. */}
-        {pointed && <div className="dispatch-preview"><code>{commandText(pointed.agent, expanded.command, { url: `…#${issue.number}`, number: issue.number, title: issue.title })}</code>
+        {pointed && <div className="dispatch-preview"><code>{commandText(pointed, expanded.command, { url: `…#${issue.number}`, number: issue.number, title: issue.title })}</code>
           <span>{t(deliveryText[delivery(expanded.workflowId, expanded.command)])}</span></div>}
       </div>}
     </div>}
