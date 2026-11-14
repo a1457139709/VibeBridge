@@ -2,44 +2,12 @@ import './support/dom';
 import assert from 'node:assert/strict';
 import test, { afterEach, before } from 'node:test';
 import { cleanup, screen, waitFor, within } from '@testing-library/react';
-import type { DispatchRecordView, DispatchRequest } from '../../app/shared/dispatch';
-import type { Snapshot } from '../../app/shared/model';
-import { issue, page, renderWorkbench, sidebar, stubSidebarApis } from './support/forge-lists';
-import { githubCapabilities } from './support/forge';
+import type { DispatchRecordView } from '../../app/shared/dispatch';
+import { sidebar, stubSidebarApis } from './support/forge-lists';
+import { dispatchButton, listed, menu, panelOf, record, row } from './support/dispatch';
 
 afterEach(cleanup);
 before(stubSidebarApis);
-
-/** Alpha's resident panel runs Codex on "Alpha session"; its tray panel runs Claude Code, Busy on "Fix it"; a second
- * resident panel has no run. Beta's panel belongs to another project. */
-function withPanels(snapshot: Snapshot) {
-  const alpha = snapshot.projects[0];
-  alpha.panels[0].status = 'ready';
-  alpha.panels.push({ id: 'idle', agent: 'pi' });
-  alpha.tray.push({ id: 'tray', agent: 'claude', status: 'busy', run: { id: 'tray-run', panelId: 'tray', projectId: 'alpha', state: 'running', title: 'Fix it' } });
-}
-
-/** The panel a dispatch goes to: the one it names, or a new one. */
-const panelOf = (request: DispatchRequest) => request.target.kind === 'panel' ? request.target.panelId : 'new-panel';
-
-/** The Workbench with Alpha's issues 9 and 8 listed; `dispatch` answers dispatches. */
-async function listed(dispatch: (projectId: string, request: DispatchRequest) => Promise<{ delivery: 'submit' | 'fill'; panelId: string }> = async (_, request) => ({ delivery: 'submit', panelId: panelOf(request) }),
-  change: (snapshot: Snapshot) => void = () => {}) {
-  const requests: [string, DispatchRequest][] = [];
-  const f = renderWorkbench(githubCapabilities, { dispatch: async (projectId, request) => { requests.push([projectId, request]); return dispatch(projectId, request); },
-    // The detail is only opened, never answered.
-    issueDetail: () => new Promise(() => {}) });
-  const first = await f.request(1);
-  // The app has subscribed once it asks for the list.
-  withPanels(f.snapshot);
-  change(f.snapshot);
-  f.publish();
-  first.answer(page([issue(9), issue(8, { state: 'closed', closedAs: 'completed' })]));
-  await waitFor(() => assert.ok(within(sidebar()).getAllByRole('listitem').length === 2));
-  return { ...f, dispatches: requests };
-}
-const row = (number: number) => within(sidebar()).getAllByRole('listitem').find(item => within(item).queryByText(`#${number}`))!;
-const dispatchButton = (number: number) => within(row(number)).getByRole('button', { name: 'Dispatch' });
 
 test('Dispatch opens the commands of the enabled workflow, each marked Submit or Fill only, without a workflow name', async () => {
   const f = await listed(undefined, snapshot => { snapshot.settings.workflows.matt.commands['to-spec'] = { delivery: 'fill' }; });
@@ -130,8 +98,6 @@ test('filling a new panel opens it as the temporary maximize once it joins the t
 
 /** A record's time as the hint shows it. */
 const when = (record: DispatchRecordView) => new Date(record.dispatchedAt).toLocaleString('en');
-const record = (issue: number, location: DispatchRecordView['location'], extra: Partial<DispatchRecordView> = {}): DispatchRecordView =>
-  ({ issue, dispatchedAt: new Date(Date.now() - 3 * 3600e3).toISOString(), agent: 'codex', text: `/implement ${issue}`, location, ...extra });
 
 test('an issue row shows its latest dispatch: the panel\'s state and session title with ×N, or grey when no panel is on its session', async () => {
   const f = await listed(undefined, snapshot => {
@@ -169,4 +135,82 @@ test('a grey latest dispatch locates the latest earlier dispatch a panel is on, 
   assert.equal(status.getAttribute('data-hint'), `Claude Code · ${when(f.snapshot.projects[0].dispatches[1])} · /implement 9 → its session is not in any open panel (click to locate the latest dispatch a panel is on)`);
   await f.user.click(status);
   await waitFor(() => assert.deepEqual(activated, ['beta']));
+});
+
+/** The implement command's item, whichever delivery it shows. */
+const implement = { name: /^implement\s?(Submit|Fill only)$/ };
+/** The item the open menu's keyboard cursor is on. */
+const cursor = () => document.getElementById(menu().getAttribute('aria-activedescendant') ?? '')?.textContent?.replace(/^‹/, '');
+
+test('in the menu ↑/↓ move without wrapping, ← or Space enters the targets, → goes back, Space dispatches, and Enter does nothing', async () => {
+  const f = await listed();
+  await f.user.click(dispatchButton(9));
+  assert.equal(document.activeElement, menu(), 'keys go to the menu, not the terminal');
+  assert.equal(cursor(), 'grill-with-docsSubmit');
+  await f.user.keyboard('{ArrowUp}{ArrowDown}{ArrowDown}');
+  assert.equal(cursor(), 'to-ticketsSubmit');
+  await f.user.keyboard('{ArrowDown}{ArrowLeft}');
+  assert.ok(screen.getByRole('menu', { name: 'Targets for implement' }));
+  assert.equal(cursor(), '✳New · Claude CodeEphemeral');
+  await f.user.keyboard('{ArrowDown}{ArrowRight}');
+  assert.equal(screen.queryByRole('menu', { name: 'Targets for implement' }), null);
+  assert.equal(cursor(), 'implementSubmit');
+  await f.user.keyboard(' {ArrowDown}{ArrowDown}{ArrowDown}{ArrowDown}{ArrowDown}');
+  assert.equal(cursor(), '✳Fix itBusy · Ephemeral');
+  await f.user.keyboard('{Enter}');
+  assert.ok(menu(), 'Enter neither dispatches nor closes the menu');
+  assert.deepEqual(f.dispatches, []);
+  await f.user.keyboard(' ');
+  await waitFor(() => assert.deepEqual(f.dispatches.map(([, request]) => [request.commandId, request.target, request.invert]),
+    [['implement', { kind: 'panel', panelId: 'tray' }, false]]));
+  assert.equal(screen.queryByRole('menu'), null);
+});
+
+test('Esc closes the whole menu from its targets and returns focus to Dispatch', async () => {
+  const f = await listed();
+  await f.user.click(dispatchButton(9));
+  await f.user.keyboard('{ArrowLeft}');
+  assert.ok(screen.getByRole('menu', { name: 'Targets for grill-with-docs' }));
+  await f.user.keyboard('{Escape}');
+  assert.equal(screen.queryByRole('menu'), null);
+  assert.equal(document.activeElement, dispatchButton(9));
+});
+
+test('holding ⌥ shows the inverted deliveries, and ⌥+Space or ⌥+click inverts this dispatch only', async () => {
+  const f = await listed();
+  await f.user.click(dispatchButton(9));
+  await f.user.keyboard('{ArrowDown}{ArrowDown}{ArrowDown}{ArrowLeft}{Alt>}');
+  assert.equal(cursor(), '✳New · Claude CodeEphemeral');
+  assert.equal(within(menu()).getByRole('menuitem', implement).textContent, '‹implementFill only');
+  assert.ok(within(menu()).getByText('Fill only (⌥ inverts)'));
+  await f.user.keyboard(' {/Alt}');
+  await waitFor(() => assert.deepEqual(f.dispatches.map(([, request]) => [request.target, request.invert]), [[{ kind: 'new', agent: 'claude' }, true]]));
+  await f.user.click(dispatchButton(9));
+  await f.user.hover(within(menu()).getByRole('menuitem', implement));
+  assert.equal(within(menu()).getByRole('menuitem', implement).textContent, '‹implementSubmit', 'releasing ⌥ shows the deliveries as set');
+  await f.user.keyboard('{Alt>}');
+  await f.user.click(within(screen.getByRole('menu', { name: 'Targets for implement' })).getByRole('menuitem', { name: /Fix it/ }));
+  await f.user.keyboard('{/Alt}');
+  await waitFor(() => assert.deepEqual(f.dispatches.map(([, request]) => request.invert), [true, true]));
+  await f.user.click(dispatchButton(9));
+  await f.user.hover(within(menu()).getByRole('menuitem', implement));
+  await f.user.click(within(screen.getByRole('menu', { name: 'Targets for implement' })).getByRole('menuitem', { name: /Fix it/ }));
+  await waitFor(() => assert.deepEqual(f.dispatches.map(([, request]) => request.invert), [true, true, false]));
+});
+
+test('the targets mark the one a command last went to and start the cursor there, without dispatching', async () => {
+  const f = await listed();
+  await f.user.click(dispatchButton(9));
+  await f.user.hover(within(menu()).getByRole('menuitem', implement));
+  await f.user.click(within(screen.getByRole('menu', { name: 'Targets for implement' })).getByRole('menuitem', { name: /Fix it/ }));
+  await waitFor(() => assert.equal(f.dispatches.length, 1));
+  await f.user.click(dispatchButton(9));
+  await f.user.keyboard('{ArrowDown}{ArrowDown}{ArrowDown}{ArrowLeft}');
+  const targets = within(screen.getByRole('menu', { name: 'Targets for implement' })).getAllByRole('menuitem');
+  assert.deepEqual(targets.filter(target => within(target).queryByText('last')).map(target => target.textContent), ['✳Fix itBusy · Ephemerallast']);
+  assert.equal(cursor(), '✳Fix itBusy · Ephemerallast');
+  assert.equal(f.dispatches.length, 1, 'the last target is not dispatched to by itself');
+  await f.user.keyboard('{ArrowRight}{ArrowUp}{ArrowLeft}');
+  assert.equal(within(screen.getByRole('menu', { name: 'Targets for to-tickets' })).queryByText('last'), null, 'another command has no last target yet');
+  assert.equal(cursor(), '✳New · Claude CodeEphemeral');
 });

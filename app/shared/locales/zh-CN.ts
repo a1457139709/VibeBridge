@@ -228,6 +228,8 @@ export const chinese: Record<keyof typeof english, string> = {
   "repositoryUnbound": "已解绑 {repository}",
   "projectEditListFailed": "无法读取仓库列表：{reason}。名称、目录和仓库都没有保存，可以再试一次，或撤销仓库修改后只保存名称和目录。",
   "toggleForgeSidebar": "开关 Forge 侧边栏",
+  "openDispatchMenu": "打开派发菜单",
+  "locateDispatchedPanel": "定位派发的面板",
   "openForgeSidebar": "打开 {forge} 侧边栏",
   "closeForgeSidebar": "收起 {forge} 侧边栏",
   "resizeForgeSidebar": "调整 {forge} 侧边栏宽度",
