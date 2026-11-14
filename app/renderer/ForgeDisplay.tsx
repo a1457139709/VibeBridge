@@ -1,9 +1,10 @@
 import type { CSSProperties } from 'react';
-import { BlockedIcon, IssueClosedIcon, IssueOpenedIcon, SkipIcon } from '@primer/octicons-react';
+import { BlockedIcon, GitMergeIcon, GitPullRequestClosedIcon, GitPullRequestDraftIcon, GitPullRequestIcon, IssueClosedIcon, IssueOpenedIcon, SkipIcon } from '@primer/octicons-react';
 import { useLocalization } from './Localization';
-import type { ForgeLabel, IssueSummary, SubIssueProgress } from '../shared/forge';
+import type { ChecksConclusion, ForgeLabel, IssueSummary, PullRequestState, SubIssueProgress } from '../shared/forge';
 
-// How the forge sidebar's lists and details show an issue's state, labels, age, sub-issue progress and blockers.
+// How the forge sidebar's lists and details show an issue's state, labels, age, sub-issue progress and blockers,
+// and a pull request's state and checks.
 
 /** How an issue stands: open, or closed as completed, not planned or a duplicate (completed when the forge does not tell). */
 export const issueState = (issue: Pick<IssueSummary, 'state' | 'closedAs'>) => issue.state === 'open' ? 'open' as const : issue.closedAs ?? 'completed';
@@ -58,4 +59,34 @@ export function BlockedMark({ by, unlisted = 0 }: { by: { reference: string; tit
   const names = [...by.map(blocker => blocker.reference), ...more].join(', ');
   return <span className="forge-blocked" role="img" aria-label={t('blockedBy', { issues: names })}
     data-hint={[...by.map(blocker => `${blocker.reference} ${blocker.title}`), ...more].join('\n')}><BlockedIcon size={12} />{names}</span>;
+}
+
+/** The forge's pull request octicons and colours: open green, draft grey, merged purple, closed red. */
+const pullRequestStates = {
+  open: { Icon: GitPullRequestIcon, tone: 'open', name: 'pullRequestOpen' },
+  draft: { Icon: GitPullRequestDraftIcon, tone: 'skipped', name: 'pullRequestDraft' },
+  merged: { Icon: GitMergeIcon, tone: 'done', name: 'pullRequestMerged' },
+  closed: { Icon: GitPullRequestClosedIcon, tone: 'failed', name: 'pullRequestClosed' },
+} as const;
+
+/** A pull request's state octicon in the forge's colour; inside an element with its own hint, it gives none. */
+export function PullRequestIcon({ state, size = 16, hint = true }: { state: PullRequestState; size?: number; hint?: boolean }) {
+  const { t } = useLocalization();
+  const { Icon, tone, name } = pullRequestStates[state];
+  return <span className={`forge-icon forge-${tone}`} role="img" aria-label={t(name)} data-hint={hint ? t(name) : undefined}><Icon size={size} /></span>;
+}
+
+/** Each checks conclusion's mark, name and colour. */
+const conclusions = {
+  passed: { mark: '✓', name: 'checksPassed', tone: 'open' },
+  failed: { mark: '✗', name: 'checksFailed', tone: 'failed' },
+  pending: { mark: '●', name: 'checksPending', tone: 'pending' },
+} as const;
+
+/** The checks conclusion of an open or draft pull request; nothing for a merged or closed one, or one without checks. */
+export function OpenChecks({ state, checks }: { state: PullRequestState; checks: ChecksConclusion }) {
+  const { t } = useLocalization();
+  if ((state !== 'open' && state !== 'draft') || checks === 'none') return null;
+  const { mark, name, tone } = conclusions[checks];
+  return <span className={`forge-checks forge-${tone}`}>{mark} {t(name)}</span>;
 }

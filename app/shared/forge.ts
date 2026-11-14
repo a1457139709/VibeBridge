@@ -42,16 +42,17 @@ export type RepositoryChoices =
 /** A label as the forge shows it; `color` is a hex colour without `#`. */
 export interface ForgeLabel { name: string; color: string }
 
-/** An issue as a list row shows it. A closed issue says how it was closed when the forge tells. */
-export const issueStates = ['open', 'closed'] as const;
-export type IssueState = typeof issueStates[number];
-/** How many issues are open and closed. */
-export type IssueCounts = Record<IssueState, number>;
+/** Every list filters on open or closed; for pull requests, closed includes merged ones. */
+export const listStates = ['open', 'closed'] as const;
+export type ListState = typeof listStates[number];
+/** How many items are open and closed. */
+export type ListCounts = Record<ListState, number>;
 
+/** An issue as a list row shows it. A closed issue says how it was closed when the forge tells. */
 export interface IssueSummary {
   number: number;
   title: string;
-  state: IssueState;
+  state: ListState;
   closedAs: 'completed' | 'notPlanned' | 'duplicate' | null;
   /** ISO 8601. */
   createdAt: string;
@@ -73,27 +74,43 @@ export interface ListedIssue extends IssueSummary {
   subIssues: { closed: number; total: number; issues: IssueSummary[] };
 }
 
+/** A pull request's state. A draft is open; merged and closed are both closed. */
+export type PullRequestState = 'open' | 'draft' | 'merged' | 'closed';
+/** The combined conclusion of a pull request's checks on its latest commit: `none` when it has none. */
+export type ChecksConclusion = 'passed' | 'failed' | 'pending' | 'none';
+/** A pull request as a list row shows it. */
+export interface PullRequestSummary {
+  number: number;
+  title: string;
+  state: PullRequestState;
+  /** ISO 8601. */
+  createdAt: string;
+  /** The author's account name, or null when the account no longer exists. */
+  author: string | null;
+  checks: ChecksConclusion;
+  labels: ForgeLabel[];
+}
+
 /** What a list asks for. The forge filters on its side: the search matches a title or a number, and every label must be present. */
-export const issueListQuerySchema = z.object({
-  filter: z.object({ search: z.string(), state: z.enum(issueStates), labels: z.array(z.string()) }),
+export const listQuerySchema = z.object({
+  filter: z.object({ search: z.string(), state: z.enum(listStates), labels: z.array(z.string()) }),
   /** Opaque, from the previous page; null asks for the first page. */
   cursor: z.string().nullable(),
 });
-export type IssueListQuery = z.infer<typeof issueListQuerySchema>;
-export type IssueListFilter = IssueListQuery['filter'];
+export type ListQuery = z.infer<typeof listQuerySchema>;
+export type ListFilter = ListQuery['filter'];
 
-/** One page of a repository's issues, newest created first, with the next page's cursor (null on the last page),
- * the labels the repository defines, and how many open and closed issues the filter's search and labels match. */
-export interface IssueListPage { issues: ListedIssue[]; cursor: string | null; labels: ForgeLabel[]; counts: IssueCounts }
-/** A page of the bound repository's issues, or the forge failure. A failure that the repository is inaccessible
+/** One page of a repository's issues or pull requests, newest created first, with the next page's cursor (null on the
+ * last page), the labels the repository defines, and how many open and closed items the filter's search and labels match. */
+export interface ListPage<Item> { items: Item[]; cursor: string | null; labels: ForgeLabel[]; counts: ListCounts }
+/** A page of a list of the bound repository, or the forge failure. A failure that the repository is inaccessible
  * names the active account when the forge can still tell it. */
-export type IssuePage = ({ ok: true } & IssueListPage) | { ok: false; failure: ForgeFailure; account: string | null };
+export type Page<Item> = ({ ok: true } & ListPage<Item>) | { ok: false; failure: ForgeFailure; account: string | null };
+export type IssuePage = Page<ListedIssue>;
+export type PullRequestPage = Page<PullRequestSummary>;
 
 /** Another issue as a detail names it. `url` is its page on the forge: one outside the bound repository opens in the browser. */
-export interface IssueReference { number: number; title: string; state: IssueState; closedAs: IssueSummary['closedAs']; url: string }
-export type PullRequestState = 'open' | 'draft' | 'merged' | 'closed';
-/** The combined conclusion of a pull request's checks: `none` when it has none. */
-export type ChecksConclusion = 'passed' | 'failed' | 'pending' | 'none';
+export interface IssueReference { number: number; title: string; state: ListState; closedAs: IssueSummary['closedAs']; url: string }
 export interface PullRequestReference { number: number; title: string; state: PullRequestState; checks: ChecksConclusion; url: string }
 /** How many of an issue's sub-issues are closed. */
 export interface SubIssueProgress { closed: number; total: number }

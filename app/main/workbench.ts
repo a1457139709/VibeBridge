@@ -9,8 +9,8 @@ import { ProjectStore } from './storage';
 import { SettingsFile, defaultSettings } from './settings';
 import { settingsConflicts, type SettingsSaveResult } from '../shared/settings';
 import { RunSupervision } from './run-supervision';
-import { issueListQuerySchema, issueNumberSchema, sameRepository, type IssueDetailResult, type IssueListQuery, type IssuePage, type RepositoryChoices, type RepositoryReference } from '../shared/forge';
-import { issueDetail, issuePage } from './forge/issues';
+import { listQuerySchema, issueNumberSchema, sameRepository, type IssueDetailResult, type ListQuery, type IssuePage, type PullRequestPage, type RepositoryChoices, type RepositoryReference } from '../shared/forge';
+import { issueDetail, issuePage, pullRequestPage } from './forge/issues';
 import { listedRepository, repositoryChoices } from './forge/repositories';
 import { defaultForge, forges } from './forge/forges';
 
@@ -171,8 +171,12 @@ export class Workbench {
     return repositoryChoices(this.repositories.get(projectId) ?? null, directory);
   }
   /** One page of the issues of the project's bound repository, as `query` asks. */
-  async issuePage(projectId: string, query: IssueListQuery): Promise<IssuePage> {
-    return issuePage(this.boundRepository(projectId), issueListQuerySchema.parse(query));
+  async issuePage(projectId: string, query: ListQuery): Promise<IssuePage> {
+    return issuePage(this.boundRepository(projectId), listQuerySchema.parse(query));
+  }
+  /** One page of the pull requests of the project's bound repository, as `query` asks. */
+  async pullRequestPage(projectId: string, query: ListQuery): Promise<PullRequestPage> {
+    return pullRequestPage(this.boundRepository(projectId), listQuerySchema.parse(query));
   }
   /** One issue of the project's bound repository, with its rendered body, comments and relations. */
   async issueDetail(projectId: string, number: number): Promise<IssueDetailResult> {

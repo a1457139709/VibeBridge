@@ -1,4 +1,4 @@
-import type { ForgeCapabilities, ForgeFailure, ForgeFailureKind, ForgeId, ForgePresentation, IssueDetail, IssueListPage, IssueListQuery } from '../../shared/forge';
+import type { ForgeCapabilities, ForgeFailure, ForgeFailureKind, ForgeId, ForgePresentation, IssueDetail, ListPage, ListQuery, ListedIssue, PullRequestSummary } from '../../shared/forge';
 
 /** A failure of a forge call, in one of the forge-neutral kinds, with the forge's own text. */
 export class ForgeError extends Error {
@@ -23,7 +23,9 @@ export interface Forge {
   /** The entry of `repositories` that names the same repository as `path`, in its listed spelling, or null. */
   find(path: string, repositories: string[]): string | null;
   /** One page of the repository's issues, newest created first, filtered on the forge's side. */
-  issues(path: string, query: IssueListQuery): Promise<IssueListPage>;
+  issues(path: string, query: ListQuery): Promise<ListPage<ListedIssue>>;
+  /** One page of the repository's pull requests, newest created first, filtered on the forge's side. */
+  pullRequests(path: string, query: ListQuery): Promise<ListPage<PullRequestSummary>>;
   /** One issue of the repository with its rendered body, comments and relations. */
   issue(path: string, number: number): Promise<IssueDetail>;
 }

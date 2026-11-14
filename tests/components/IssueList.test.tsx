@@ -67,17 +67,20 @@ test('search, state and labels are sent to the forge, each tab keeps its own, an
 
   await user.click(within(sidebar()).getByRole('tab', { name: 'Pull requests' }));
   assert.equal((within(sidebar()).getByRole('searchbox', { name: 'Search pull requests' }) as HTMLInputElement).value, '', 'the other tab has its own filter');
+  const pullRequests = await request(6);
+  assert.deepEqual(pullRequests, { ...pullRequests, list: 'pullRequests', query: { filter: openNoFilter, cursor: null } });
+  pullRequests.answer(page([]));
   await user.click(within(sidebar()).getByRole('tab', { name: 'Issues' }));
-  const back = await request(6);
+  const back = await request(7);
   assert.deepEqual(back.query.filter, { search: '#4', state: 'closed', labels: ['bug', 'docs'] }, 'the issues tab kept its filter and fetches again');
   back.answer(page([]));
 
   await user.click(screen.getByRole('button', { name: 'Beta' }));
-  const beta = await request(7);
+  const beta = await request(8);
   assert.deepEqual(beta, { ...beta, projectId: 'beta', query: { filter: openNoFilter, cursor: null } });
   beta.answer(page([issue(3)]));
   await user.click(screen.getByRole('button', { name: 'Alpha' }));
-  const alpha = await request(8);
+  const alpha = await request(9);
   assert.deepEqual(alpha, { ...alpha, projectId: 'alpha', query: { filter: openNoFilter, cursor: null } }, 'switching back refreshes from open with no filter');
   alpha.answer(page([issue(1)]));
   await waitFor(() => assert.deepEqual(rows(), ['Issue 1']));
@@ -159,18 +162,6 @@ test('Load more pages the filter of the rows shown, even while a new search is s
   assert.deepEqual(searched.query, { filter: { search: 'x', state: 'open', labels: [] }, cursor: null });
   searched.answer(page([issue(5)]));
   await waitFor(() => assert.deepEqual(rows(), ['Issue 5']));
-});
-
-test('the Pull requests tab has nothing to refresh yet and shows no stale notice', async () => {
-  const { user, request } = renderWorkbench();
-  (await request(1)).answer(page([issue(1)]));
-  await waitFor(() => assert.ok(!refresh().hasAttribute('disabled')));
-  await user.click(refresh());
-  (await request(2)).answer(failed('transient', 'HTTP 502'));
-  await within(sidebar()).findByText('Data may be stale');
-  await user.click(within(sidebar()).getByRole('tab', { name: 'Pull requests' }));
-  assert.ok(refresh().hasAttribute('disabled'));
-  assert.equal(within(sidebar()).queryByText('Data may be stale'), null);
 });
 
 test('a request that fails outside the forge fills the sidebar with its reason and Retry', async () => {

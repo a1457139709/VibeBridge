@@ -2,11 +2,12 @@ const { readFileSync } = require('node:fs');
 
 // A `gh` CLI double. The test writes the account's state to the JSON file named by VIBEBRIDGE_GH_DOUBLE:
 // { account, repositories: ["owner/repo", …], labels?: [{ name, color }], issues?: [{ number, title, state, stateReason?, createdAt, labels,
-//   author?, assignees?, bodyHTML?, comments?, parent?, blockedBy?, closedBy? }], pullRequests?: [{ number, title, state, isDraft?, checks }],
+//   author?, assignees?, bodyHTML?, comments?, parent?, blockedBy?, closedBy? }],
+//   pullRequests?: [{ number, title, state: OPEN|MERGED|CLOSED, isDraft?, createdAt?, author?: login|null, labels?, checks?: rollup state }],
 //   failure?: { code, stdout?, stderr? } } (tests/support/gh-double.ts describes each field).
 // A failure answers every command the way `gh` fails, with that exit code and output. `gh api graphql` answers
-// like GitHub: a repository the account does not list is NOT_FOUND, the issue search reads the qualifiers it is given,
-// and `repository.issue` answers one issue with its relations, or NOT_FOUND.
+// like GitHub: a repository the account does not list is NOT_FOUND, the search reads the qualifiers it is given,
+// listing pull requests for is:pr and issues otherwise, and `repository.issue` answers one issue with its relations, or NOT_FOUND.
 const state = JSON.parse(readFileSync(process.env.VIBEBRIDGE_GH_DOUBLE, 'utf8'));
 const args = process.argv.slice(2);
 if (state.failure) {
@@ -51,6 +52,7 @@ function graphql({ query, owner, name, search, openSearch, closedSearch, after, 
     open: { issueCount: searchIssues(openSearch).length }, closed: { issueCount: searchIssues(closedSearch).length },
     search: { pageInfo: { hasNextPage: end < found.length, endCursor: page.length ? Buffer.from(`cursor:${end}`).toString('base64') : null },
       nodes: page.map(issue => {
+        if (isPullRequestSearch(search)) return pullRequestNode(issue);
         const children = (state.issues ?? []).filter(child => child.parent === issue.number).sort((a, b) => a.number - b.number);
         return { ...node(issue, path, blockerWindow),
           parent: issue.parent === undefined ? null : { number: issue.parent, repository: { nameWithOwner: path } },
@@ -100,6 +102,15 @@ function issueDetail(path, number) {
   } } } }));
 }
 
+/** A pull request's fields as GitHub's GraphQL API names them. */
+function pullRequestNode(pull) {
+  return { number: pull.number, title: pull.title, state: pull.state, isDraft: pull.isDraft ?? false, createdAt: pull.createdAt,
+    author: pull.author === null ? null : { login: pull.author ?? state.account }, labels: { nodes: pull.labels },
+    commits: { nodes: [{ commit: { statusCheckRollup: pull.checks ? { state: pull.checks } : null } }] } };
+}
+
+function isPullRequestSearch(search) { return /(^|\s)is:pr(\s|$)/.test(search); }
+
 /** An issue's own fields and its blockers, as GitHub's GraphQL API names them. */
 function node(issue, path, blockerWindow) {
   const own = other => ({ number: other.number, title: other.title, state: other.state });
@@ -113,8 +124,9 @@ function node(issue, path, blockerWindow) {
     blockedBy: { nodes: blockers.slice(0, blockerWindow) }, issueDependenciesSummary: { blockedBy: blockers.filter(other => other.state === 'OPEN').length } };
 }
 
-/** The issues a GitHub search finds, newest first. Qualifiers: repo:, is:issue, is:open|closed, label:"…",
- * sort:created-desc, in:title; other words are terms, and a number term without in:title matches the issue number. */
+/** The issues, or for is:pr the pull requests, a GitHub search finds, newest first. Qualifiers: repo:, is:issue|pr,
+ * is:open|closed (closed includes merged), label:"…", sort:created-desc, in:title; other words are terms, and a number
+ * term without in:title matches the number. */
 function searchIssues(search) {
   const tokens = search.match(/(?:[\w-]+:)?"[^"]*"|\S+/g) ?? [];
   const unquote = text => text.replace(/^"|"$/g, '');
@@ -131,5 +143,6 @@ function searchIssues(search) {
   const matches = issue => (open === null || (issue.state === 'OPEN') === open)
     && labels.every(label => issue.labels.some(item => item.name === label))
     && terms.every(term => /^#?\d+$/.test(term) && !inTitle ? issue.number === Number(term.replace('#', '')) : issue.title.toLowerCase().includes(term));
-  return (state.issues ?? []).filter(matches).sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+  const items = isPullRequestSearch(search) ? (state.pullRequests ?? []).map(pull => ({ createdAt: '2026-01-01T00:00:00Z', labels: [], ...pull })) : state.issues ?? [];
+  return items.filter(matches).sort((a, b) => b.createdAt.localeCompare(a.createdAt));
 }

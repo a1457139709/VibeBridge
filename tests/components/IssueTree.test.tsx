@@ -79,7 +79,7 @@ for (const capabilities of [{ subIssues: false, blocking: false }, { subIssues: 
     const { request } = renderWorkbench(capabilities);
     const answer = tree();
     assert.ok(answer.ok);
-    answer.issues[0].blockedBy = [{ path: null, number: 1, title: 'Blocker' }];
+    answer.items[0].blockedBy = [{ path: null, number: 1, title: 'Blocker' }];
     (await request(1)).answer(answer);
     await within(sidebar()).findByText('Issue 14');
     assert.deepEqual(rows(), capabilities.subIssues ? ['Issue 14', 'Issue 10'] : ['Issue 14', 'Issue 12', 'Issue 10']);

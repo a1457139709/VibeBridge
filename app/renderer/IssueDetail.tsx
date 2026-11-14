@@ -1,11 +1,10 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState, type MouseEvent, type PointerEvent as ReactPointerEvent } from 'react';
-import { GitMergeIcon, GitPullRequestClosedIcon, GitPullRequestDraftIcon, GitPullRequestIcon } from '@primer/octicons-react';
 import { useLocalization } from './Localization';
 import { detail as reason } from '../shared/messages';
 import { filterForgeHtml } from '../shared/forge-html';
 import type { IssueDetail, IssueDetailResult, IssueReference, PullRequestReference, RepositoryReference } from '../shared/forge';
 import type { ProjectView } from '../shared/model';
-import { BlockedMark, IssueIcon, issueState, issueStates, Label, Progress, RelativeTime } from './ForgeDisplay';
+import { BlockedMark, IssueIcon, issueState, issueStates, Label, OpenChecks, Progress, PullRequestIcon, RelativeTime } from './ForgeDisplay';
 
 interface Props {
   project: ProjectView & { repository: RepositoryReference };
@@ -188,39 +187,16 @@ function Graph({ issue, left, right, follow }: { issue: IssueDetail; left: Issue
   </div>;
 }
 
-/** Each checks conclusion's mark, name and colour. */
-const conclusions = {
-  passed: { mark: '✓', name: 'checksPassed', tone: 'open' },
-  failed: { mark: '✗', name: 'checksFailed', tone: 'failed' },
-  pending: { mark: '●', name: 'checksPending', tone: 'pending' },
-} as const;
-
 /** The pull requests that close the issue on merge, closed ones included, apart from the issue graph and drawn as pull
  * requests. An open or draft one shows its checks conclusion. Each opens in the browser. */
 function ClosingPullRequests({ pulls }: { pulls: PullRequestReference[] }) {
   const { t } = useLocalization();
   return <section className="forge-closing-pulls" aria-label={t('closingPullRequests')}>
     <header>{t('closingPullRequests')}</header>
-    <ul>{pulls.map(pull => {
-      const checks = (pull.state === 'open' || pull.state === 'draft') && pull.checks !== 'none' ? conclusions[pull.checks] : null;
-      return <li key={pull.number}><a className="forge-closing-pull" href={pull.url} target="_blank" rel="noreferrer" data-hint={pull.title}>
-        <PullRequestIcon pull={pull} /><span className="forge-row-number">#{pull.number}</span><span className="forge-ellipsis">{pull.title}</span>
-        {checks && <span className={`forge-checks forge-${checks.tone}`}>{checks.mark} {t(checks.name)}</span>}
-      </a></li>;
-    })}</ul>
+    <ul>{pulls.map(pull => <li key={pull.number}><a className="forge-closing-pull" href={pull.url} target="_blank" rel="noreferrer" data-hint={pull.title}>
+      <PullRequestIcon state={pull.state} size={14} hint={false} /><span className="forge-row-number">#{pull.number}</span><span className="forge-ellipsis">{pull.title}</span>
+      <OpenChecks state={pull.state} checks={pull.checks} />
+    </a></li>)}</ul>
   </section>;
 }
 
-/** The forge's pull request octicons and colours: open green, draft grey, merged purple, closed red. */
-const pullRequestStates = {
-  open: { Icon: GitPullRequestIcon, tone: 'open', name: 'pullRequestOpen' },
-  draft: { Icon: GitPullRequestDraftIcon, tone: 'skipped', name: 'pullRequestDraft' },
-  merged: { Icon: GitMergeIcon, tone: 'done', name: 'pullRequestMerged' },
-  closed: { Icon: GitPullRequestClosedIcon, tone: 'failed', name: 'pullRequestClosed' },
-} as const;
-
-function PullRequestIcon({ pull }: { pull: PullRequestReference }) {
-  const { t } = useLocalization();
-  const { Icon, tone, name } = pullRequestStates[pull.state];
-  return <span className={`forge-icon forge-${tone}`} role="img" aria-label={t(name)}><Icon size={14} /></span>;
-}
