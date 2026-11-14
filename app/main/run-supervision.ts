@@ -70,12 +70,12 @@ export class RunSupervision {
     const run = this.list.find(run => run.id === runId);
     return !!run && this.current(run) && this.processing.holdDispatch(runId, handOver, dropped);
   }
-  /** Calls `ready` once a current run first reports it is ready, at once if it shows ready now; dropped,
+  /** Calls `ready` once a current run first reports it is ready, at once if it has before; dropped,
    * unpersisted, when the run ends first. False when the run can no longer report.
    */
-  whenReady(runId: string, ready: () => void) {
+  afterFirstReady(runId: string, ready: () => void) {
     const run = this.list.find(run => run.id === runId);
-    return !!run && this.current(run) && this.processing.whenReady(runId, ready);
+    return !!run && this.current(run) && this.processing.afterFirstReady(runId, ready);
   }
   /** A live run its panel still expects. */
   private current(run: Run) { return liveRun(run) && this.expects(run); }

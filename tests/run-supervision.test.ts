@@ -314,30 +314,32 @@ test('a terminal host failure drops pending dispatches', async context => {
   assert.deepEqual(handed, []);
 });
 
-test('what waits for a run to be ready runs on its first ready report, once, or at once when it shows ready now', async context => {
+test('what waits for a run\'s first ready report runs on it, once, or at once when the run has reported ready before', async context => {
   const f = await fixture(context);
   const { run } = await f.start();
   const readied: string[] = [];
-  assert.equal(f.supervision.whenReady(run.id, () => { readied.push('first'); }), true);
+  assert.equal(f.supervision.afterFirstReady(run.id, () => { readied.push('first'); }), true);
   await f.report(run.id, { hook_event_name: 'UserPromptSubmit' });
   assert.equal(readied.length, 0, 'a busy report is not ready');
   await f.enter(run.id, 'session');
   await f.enter(run.id, 'session');
   assert.deepEqual(readied, ['first']);
-  assert.equal(f.supervision.whenReady(run.id, () => { readied.push('now'); }), true);
-  assert.deepEqual(readied, ['first', 'now']);
+  assert.equal(f.supervision.afterFirstReady(run.id, () => { readied.push('now'); }), true);
+  await f.report(run.id, { hook_event_name: 'UserPromptSubmit' });
+  assert.equal(f.supervision.afterFirstReady(run.id, () => { readied.push('busy since'); }), true);
+  assert.deepEqual(readied, ['first', 'now', 'busy since']);
 });
 
-test('waiting for a run to be ready is dropped when the run ends first, and refused for a run that cannot report', async context => {
+test('waiting for a run\'s first ready report is dropped when the run ends first, and refused for a run that cannot report', async context => {
   const f = await fixture(context);
   const readied: string[] = [];
   const { run } = await f.start();
-  assert.equal(f.supervision.whenReady(run.id, () => readied.push('ended')), true);
+  assert.equal(f.supervision.afterFirstReady(run.id, () => readied.push('ended')), true);
   f.terminal.event({ kind: 'exit', runId: run.id });
-  assert.equal(f.supervision.whenReady(run.id, () => readied.push('late')), false);
+  assert.equal(f.supervision.afterFirstReady(run.id, () => readied.push('late')), false);
   f.terminal.answer = 'failed';
   const { run: failed } = await f.start();
-  assert.equal(f.supervision.whenReady(failed.id, () => readied.push('failed')), false);
+  assert.equal(f.supervision.afterFirstReady(failed.id, () => readied.push('failed')), false);
   assert.deepEqual(readied, []);
 });
 

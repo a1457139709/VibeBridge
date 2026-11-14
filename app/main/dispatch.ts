@@ -93,7 +93,7 @@ export class Dispatches {
     this.pending.push(pending);
     const settle = () => { this.pending = this.pending.filter(item => item !== pending); };
     if (!this.supervision.holdDispatch(runId, sessionId => void this.append({ ...dispatch, sessionId }, settle), settle)) settle();
-    if (delivery === 'fill') this.supervision.whenReady(runId,
+    if (delivery === 'fill') this.supervision.afterFirstReady(runId,
       () => void this.supervision.input(runId, bracketedPaste(dispatch.text)).catch(error => this.report((error as Error).message)));
     this.changed();
     return panel.id;

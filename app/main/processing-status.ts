@@ -31,6 +31,8 @@ interface Observation {
   state?: ProcessingState; session?: string; interpreter: StatusInterpreter;
   /** Wait for the run's first session ID; dropped with the observation. */
   pendingDispatches: DispatchHold[];
+  /** Whether the run has reported ready; once it has, nothing waits for its first ready report. */
+  readied: boolean;
   /** Wait for the run's first ready report; dropped with the observation. */
   readyWaits: (() => void)[];
   cleanup?: () => Promise<void>;
@@ -50,7 +52,7 @@ export class ProcessingStatus {
   constructor(private changed: () => void, private resourceDirectory: string) {}
 
   async prepare(runId: string, agent: AgentType, command: AgentCommand, directory: string) {
-    const observation: Observation = { agent, token: randomUUID(), accepting: true, running: false, pendingDispatches: [], readyWaits: [],
+    const observation: Observation = { agent, token: randomUUID(), accepting: true, running: false, pendingDispatches: [], readied: false, readyWaits: [],
       interpreter: adapters[agent].observe() };
     this.observations.set(runId, observation);
     try {
@@ -96,13 +98,13 @@ export class ProcessingStatus {
     return true;
   }
 
-  /** Calls `ready` on the run's first ready report: at once if it shows ready now. Dropped when the
-   * run ends first. False when the run is not observed, so it can never report one.
+  /** Calls `ready` on the run's first ready report: at once if it has reported ready before, whatever
+   * it shows now. Dropped when the run ends first. False when the run is not observed, so it can never report one.
    */
-  whenReady(runId: string, ready: () => void) {
+  afterFirstReady(runId: string, ready: () => void) {
     const observation = this.observations.get(runId);
     if (!observation) return false;
-    if (observation.state === 'ready') ready();
+    if (observation.readied) ready();
     else observation.readyWaits.push(ready);
     return true;
   }
@@ -164,7 +166,10 @@ export class ProcessingStatus {
     }
     if (visible && observation.running) this.changed();
     if (session) for (const { handOver } of observation.pendingDispatches.splice(0)) handOver(session);
-    if (observation.state === 'ready') for (const ready of observation.readyWaits.splice(0)) ready();
+    if (state === 'ready') {
+      observation.readied = true;
+      for (const ready of observation.readyWaits.splice(0)) ready();
+    }
     return 204;
   }
 
