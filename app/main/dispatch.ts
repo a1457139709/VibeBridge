@@ -1,7 +1,7 @@
 import { message } from '../shared/messages';
 import { sameRepository, type RepositoryReference } from '../shared/forge';
 import { dispatchRequestSchema, type DispatchLocation, type DispatchRecordView, type DispatchRequest } from '../shared/dispatch';
-import { commandDelivery, commandText, workflowCommand, type Delivery, type WorkflowId, type WorkflowSettings } from '../shared/workflows';
+import { commandDelivery, commandText, invertedDelivery, workflowCommand, type Delivery, type WorkflowId, type WorkflowSettings } from '../shared/workflows';
 import { liveRun, projectPanels, type AgentType, type PanelCreation, type PanelView, type ProjectView } from '../shared/model';
 import type { RunSupervision, PanelLocation } from './run-supervision';
 import type { HandOver } from './processing-status';
@@ -70,7 +70,7 @@ export class Dispatches {
     const settings = found && workflows[found.workflow.id];
     if (!found || !settings?.enabled) throw new Error(message('dispatchCommandUnavailable'));
     const configured = commandDelivery(workflows, workflowId, commandId);
-    const delivery: Delivery = invert ? (configured === 'submit' ? 'fill' : 'submit') : configured;
+    const delivery: Delivery = invert ? invertedDelivery(configured) : configured;
     /** The command in the Agent type's syntax, and the record of sending it now. */
     const command = (agent: AgentType): UnrecordedDispatch => {
       const text = commandText(agent, found.command, { url: forges[repository.forge].issueUrl(repository.path, issue.number), ...issue });

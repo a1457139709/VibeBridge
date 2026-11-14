@@ -1,15 +1,16 @@
 import { message, detail } from './messages';
-export const shortcutActions = ['previousProject', 'nextProject', 'previousPanel', 'nextPanel', 'maximizePanel', 'addPanel', 'closePanel', 'settings', 'toggleForgeSidebar'] as const;
+export const shortcutActions = ['previousProject', 'nextProject', 'previousPanel', 'nextPanel', 'maximizePanel', 'addPanel', 'closePanel', 'settings', 'toggleForgeSidebar', 'dispatch', 'locateDispatch'] as const;
 export type ShortcutAction = typeof shortcutActions[number];
 export type Shortcuts = Record<ShortcutAction, string>;
 export const shortcutNames: Record<ShortcutAction, string> = {
   previousProject: message('previousProject'), nextProject: message('nextProject'), previousPanel: message('previousPanel'), nextPanel: message('nextPanel'),
   maximizePanel: message('maximizePanel'), addPanel: message('addPanel'), closePanel: message('closePanel'), settings: message('openSettings'), toggleForgeSidebar: message('toggleForgeSidebar'),
+  dispatch: message('openDispatchMenu'), locateDispatch: message('locateDispatchedPanel'),
 };
 export const defaultShortcuts = (): Shortcuts => ({
   previousProject: 'Command+Shift+[', nextProject: 'Command+Shift+]', previousPanel: 'Command+[', nextPanel: 'Command+]',
   maximizePanel: 'Command+Enter', addPanel: 'Command+N', closePanel: 'Command+Shift+W', settings: 'Command+,',
-  toggleForgeSidebar: 'Command+Alt+B',
+  toggleForgeSidebar: 'Command+Alt+B', dispatch: 'Command+D', locateDispatch: 'Command+L',
 });
 const reserved: Record<string, string> = {
   'Command+C': message('copy'), 'Command+V': message('paste'), 'Command+X': message('cut'), 'Command+A': message('selectAll'), 'Command+Z': message('undo'), 'Command+Shift+Z': message('redo'),

@@ -94,6 +94,7 @@ function WorkbenchView({ state, setState }: { state?: Snapshot; setState(snapsho
       let handled = false;
       if (action === 'settings') { toggleSettings(); handled = true; }
       else if (action === 'toggleForgeSidebar') handled = forgeSidebar.toggle();
+      else if (action === 'dispatch' || action === 'locateDispatch') handled = forgeSidebar.shortcut(action);
       else if (!settingsOpen && (action === 'nextProject' || action === 'previousProject') && state.projects.length) {
         const index = state.projects.findIndex(project => project.id === state.activeProjectId);
         const next = (index + (action === 'nextProject' ? 1 : -1) + state.projects.length) % state.projects.length;

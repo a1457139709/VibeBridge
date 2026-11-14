@@ -70,6 +70,22 @@ test('a fill-only command is pasted after what the input holds without pressing 
   } finally { await f.close(); }
 });
 
+test('inverting a dispatch flips the command\'s delivery for that dispatch only', async context => {
+  const f = await dispatching(context);
+  try {
+    const { workflows } = f.workbench.snapshot().settings;
+    workflows.matt.commands['to-spec'] = { delivery: 'fill' };
+    await f.workbench.saveSettings({ workflows });
+    const toPanel = (commandId: string, number: number, invert: boolean) => f.workbench.dispatch(f.projectId, { issue: { number, title: `Issue ${number}` },
+      workflowId: 'matt', commandId, target: { kind: 'panel', panelId: f.run.panelId }, invert });
+    assert.equal((await toPanel('implement', 7, true)).delivery, 'fill');
+    assert.equal((await toPanel('to-spec', 8, true)).delivery, 'submit');
+    assert.equal((await toPanel('to-spec', 7, false)).delivery, 'fill');
+    assert.equal(await f.typed(), `${paste('/implement https://github.com/octo/tools/issues/7')}${paste('/to-spec https://github.com/octo/tools/issues/8')}\r`
+      + paste('/to-spec https://github.com/octo/tools/issues/7'));
+  } finally { await f.close(); }
+});
+
 test('a record locates no panel once the panel switches session, and the panel again when it resumes that session', async context => {
   const f = await dispatching(context);
   try {

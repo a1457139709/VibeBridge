@@ -1,7 +1,7 @@
 import './support/dom';
 import assert from 'node:assert/strict';
 import test, { afterEach, before } from 'node:test';
-import { cleanup, screen, waitFor, within } from '@testing-library/react';
+import { cleanup, fireEvent, screen, waitFor, within } from '@testing-library/react';
 import type { DispatchRecordView, DispatchRequest } from '../../app/shared/dispatch';
 import type { Snapshot } from '../../app/shared/model';
 import { issue, page, renderWorkbench, sidebar, stubSidebarApis } from './support/forge-lists';
@@ -168,5 +168,117 @@ test('a grey latest dispatch locates the latest earlier dispatch a panel is on, 
   const status = await waitFor(() => within(row(9)).getByRole('button', { name: /^Dispatched ·/ }));
   assert.equal(status.getAttribute('data-hint'), `Claude Code · ${when(f.snapshot.projects[0].dispatches[1])} · /implement 9 → its session is not in any open panel (click to locate the latest dispatch a panel is on)`);
   await f.user.click(status);
+  await waitFor(() => assert.deepEqual(activated, ['beta']));
+});
+
+/** The open dispatch menu, and the item its keyboard cursor is on. */
+const menu = (number = 9) => screen.getByRole('menu', { name: `Dispatch #${number}` });
+const cursor = () => document.getElementById(menu().getAttribute('aria-activedescendant') ?? '')?.textContent?.replace(/^‹/, '');
+
+test('in the menu ↑/↓ move without wrapping, ← or Space enters the targets, → goes back, Space dispatches, and Enter does nothing', async () => {
+  const f = await listed();
+  await f.user.click(dispatchButton(9));
+  assert.equal(document.activeElement, menu(), 'keys go to the menu, not the terminal');
+  assert.equal(cursor(), 'grill-with-docsSubmit');
+  await f.user.keyboard('{ArrowUp}{ArrowDown}{ArrowDown}');
+  assert.equal(cursor(), 'to-ticketsSubmit');
+  await f.user.keyboard('{ArrowDown}{ArrowLeft}');
+  assert.ok(screen.getByRole('menu', { name: 'Targets for implement' }));
+  assert.equal(cursor(), '✳New · Claude CodeEphemeral');
+  await f.user.keyboard('{ArrowDown}{ArrowRight}');
+  assert.equal(screen.queryByRole('menu', { name: 'Targets for implement' }), null);
+  assert.equal(cursor(), 'implementSubmit');
+  await f.user.keyboard(' {ArrowDown}{ArrowDown}{ArrowDown}{ArrowDown}{ArrowDown}');
+  assert.equal(cursor(), '✳Fix itBusy · Ephemeral');
+  await f.user.keyboard('{Enter}');
+  assert.ok(menu(), 'Enter neither dispatches nor closes the menu');
+  assert.deepEqual(f.dispatches, []);
+  await f.user.keyboard(' ');
+  await waitFor(() => assert.deepEqual(f.dispatches.map(([, request]) => [request.commandId, request.target, request.invert]),
+    [['implement', { kind: 'panel', panelId: 'tray' }, false]]));
+  assert.equal(screen.queryByRole('menu'), null);
+});
+
+test('Esc closes the whole menu from its targets and returns focus to Dispatch', async () => {
+  const f = await listed();
+  await f.user.click(dispatchButton(9));
+  await f.user.keyboard('{ArrowLeft}');
+  assert.ok(screen.getByRole('menu', { name: 'Targets for grill-with-docs' }));
+  await f.user.keyboard('{Escape}');
+  assert.equal(screen.queryByRole('menu'), null);
+  assert.equal(document.activeElement, dispatchButton(9));
+});
+
+test('holding ⌥ shows the flipped deliveries, and ⌥+Space or ⌥+click flips this dispatch only', async () => {
+  const f = await listed();
+  await f.user.click(dispatchButton(9));
+  await f.user.keyboard('{ArrowDown}{ArrowDown}{ArrowDown}{ArrowLeft}{Alt>}');
+  assert.equal(cursor(), '✳New · Claude CodeEphemeral');
+  assert.equal(within(menu()).getByRole('menuitem', { name: /^implement\s?(Submit|Fill only)$/ }).textContent, '‹implementFill only');
+  assert.ok(within(menu()).getByText('Fill only (⌥ flips)'));
+  await f.user.keyboard(' {/Alt}');
+  await waitFor(() => assert.deepEqual(f.dispatches.map(([, request]) => [request.target, request.invert]), [[{ kind: 'new', agent: 'claude' }, true]]));
+  await f.user.click(dispatchButton(9));
+  await f.user.hover(within(menu()).getByRole('menuitem', { name: /^implement\s?(Submit|Fill only)$/ }));
+  assert.equal(within(menu()).getByRole('menuitem', { name: /^implement\s?(Submit|Fill only)$/ }).textContent, '‹implementSubmit', 'releasing ⌥ shows the deliveries as set');
+  await f.user.keyboard('{Alt>}');
+  await f.user.click(within(screen.getByRole('menu', { name: 'Targets for implement' })).getByRole('menuitem', { name: /Fix it/ }));
+  await f.user.keyboard('{/Alt}');
+  await waitFor(() => assert.deepEqual(f.dispatches.map(([, request]) => request.invert), [true, true]));
+  await f.user.click(dispatchButton(9));
+  await f.user.hover(within(menu()).getByRole('menuitem', { name: /^implement\s?(Submit|Fill only)$/ }));
+  await f.user.click(within(screen.getByRole('menu', { name: 'Targets for implement' })).getByRole('menuitem', { name: /Fix it/ }));
+  await waitFor(() => assert.deepEqual(f.dispatches.map(([, request]) => request.invert), [true, true, false]));
+});
+
+test('the targets mark the one a command last went to and start the cursor there, without dispatching', async () => {
+  const f = await listed();
+  await f.user.click(dispatchButton(9));
+  await f.user.hover(within(menu()).getByRole('menuitem', { name: /^implement\s?(Submit|Fill only)$/ }));
+  await f.user.click(within(screen.getByRole('menu', { name: 'Targets for implement' })).getByRole('menuitem', { name: /Fix it/ }));
+  await waitFor(() => assert.equal(f.dispatches.length, 1));
+  await f.user.click(dispatchButton(9));
+  await f.user.keyboard('{ArrowDown}{ArrowDown}{ArrowDown}{ArrowLeft}');
+  const targets = within(screen.getByRole('menu', { name: 'Targets for implement' })).getAllByRole('menuitem');
+  assert.deepEqual(targets.filter(target => within(target).queryByText('last')).map(target => target.textContent), ['✳Fix itBusy · Ephemerallast']);
+  assert.equal(cursor(), '✳Fix itBusy · Ephemerallast');
+  assert.equal(f.dispatches.length, 1, 'the last target is not dispatched to by itself');
+  await f.user.keyboard('{ArrowRight}{ArrowUp}{ArrowLeft}');
+  assert.equal(within(screen.getByRole('menu', { name: 'Targets for to-tickets' })).queryByText('last'), null, 'another command has no last target yet');
+  assert.equal(cursor(), '✳New · Claude CodeEphemeral');
+});
+
+/** Presses a key with ⌘ where focus is; true when nothing took it, so it goes on to where focus is. */
+const command = (code: 'KeyD' | 'KeyL') => fireEvent.keyDown(document.activeElement!, { key: code.at(-1)!.toLowerCase(), code, metaKey: true });
+
+test('⌘D opens the dispatch menu of the issue focused in the list or shown in the detail, and is left alone elsewhere', async () => {
+  const f = await listed();
+  within(row(9)).getByRole('button', { name: 'Issue 9' }).focus();
+  assert.equal(command('KeyD'), false);
+  assert.equal(document.activeElement, menu());
+  await f.user.keyboard('{Escape}');
+  within(row(8)).getByRole('button', { name: 'Issue 8' }).focus();
+  assert.equal(command('KeyD'), true, 'a closed issue is not dispatched');
+  await f.user.click(within(row(9)).getByRole('button', { name: 'Issue 9' }));
+  const detail = await waitFor(() => document.querySelector<HTMLElement>('.forge-detail')!);
+  within(detail).getByRole('button', { name: 'Close' }).focus();
+  assert.equal(command('KeyD'), false);
+  assert.ok(menu());
+  await f.user.keyboard('{Escape}');
+  screen.getByRole('button', { name: 'Add Agent' }).focus();
+  assert.equal(command('KeyD'), true, 'outside the sidebar the key goes to the terminal');
+  assert.equal(screen.queryByRole('menu'), null);
+});
+
+test('⌘L locates the panel of the focused issue\'s latest dispatch a panel is on', async () => {
+  const f = await listed(undefined, snapshot => {
+    snapshot.projects[0].dispatches = [record(9, { projectId: 'beta', panelId: 'beta-panel', status: 'ready' }), record(9, null)];
+  });
+  const activated: string[] = [];
+  window.workbench.activateProject = async id => { activated.push(id); f.snapshot.activeProjectId = id; f.publish(); };
+  screen.getByRole('button', { name: 'Add Agent' }).focus();
+  assert.equal(command('KeyL'), true, 'outside the sidebar the key goes to the terminal');
+  within(row(9)).getByRole('button', { name: 'Issue 9' }).focus();
+  assert.equal(command('KeyL'), false);
   await waitFor(() => assert.deepEqual(activated, ['beta']));
 });
