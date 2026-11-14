@@ -12,7 +12,7 @@ The Status Reporter forwards only `hook_event_name`, `session_id`, `source`, `tu
 
 ## Association and interpretation
 
-`session_id` associates events within one run. `agent_id` and SubagentStart/SubagentStop identify child activity, which cannot change the main run. SessionEnd retires the session without declaring the process exited. A new SessionStart can associate startup, resume, clear or fork with the same terminal run.
+`session_id` associates events within one run, and the current one is reported for locating the panel on a session (see [current session](processing-status.md#current-session)). `agent_id` and SubagentStart/SubagentStop identify child activity, which cannot change the main run. SessionEnd retires the session without declaring the process exited. A new SessionStart can associate startup, resume, clear or fork with the same terminal run.
 
 Known retired sessions and turns, and repeated tool boundaries identified by session, turn, event and tool-use ID, are discarded. A turn ID is not a unique event ID: Stop-hook continuation may submit again within a turn.
 

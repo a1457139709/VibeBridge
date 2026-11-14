@@ -137,14 +137,14 @@ test('observation loss leaves a usable terminal and recovery requires fresh reli
     assert.equal(state(), 'error', 'recovery does not reuse an outcome from before observation was lost');
     await f.send(run.id, { payload: { type: 'agent_start' } });
     assert.equal(state(), 'busy');
-    await f.send(run.id, { payload: { observation: 'unavailable' } });
+    await f.send(run.id, { payload: { type: 'session_shutdown' } });
     assert.equal(state(), 'error');
     await f.send(run.id, { output: 'Ready Busy Done' });
     assert.equal(state(), 'error', 'output does not restore a previous status');
   } finally { await f.close(); }
 });
 
-test('after observation becomes unavailable, silence and liveness keep the run in Error', async t => {
+test('after the reporter shuts down, silence and liveness keep the run in Error', async t => {
   const directory = await testDirectory(t, 'processing-status');
   // The test owns time: any timer ProcessingStatus started would fire on tick.
   t.mock.timers.enable({ apis: ['setTimeout', 'setInterval'] });
@@ -163,7 +163,7 @@ test('after observation becomes unavailable, silence and liveness keep the run i
     processing.lifecycle(run);
     assert.equal(await report({ type: 'agent_start', isIdle: false, hasPendingMessages: false }), 204);
     assert.equal(processing.status(run), 'busy');
-    assert.equal(await report({ observation: 'unavailable' }), 204);
+    assert.equal(await report({ type: 'session_shutdown' }), 204);
     assert.equal(processing.status(run), 'error');
     const published = changes;
     t.mock.timers.tick(24 * 60 * 60 * 1000);

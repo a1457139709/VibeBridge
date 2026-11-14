@@ -1,7 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import { message, detail } from '../shared/messages';
 import type { AgentCommand, AgentType, LaunchResult, Panel, PanelView, Project, Run, TerminalEvent, WorkbenchEvent } from '../shared/model';
-import { ProcessingStatus } from './processing-status';
+import { ProcessingStatus, type HandOver } from './processing-status';
 import { sessionTitle } from './session-title';
 import { TerminalClient } from './terminal-client';
 
@@ -9,6 +9,9 @@ export type Terminal = Pick<TerminalClient, 'start' | 'checkCommand' | 'input' |
 export type TerminalFactory = (onEvent: (event: TerminalEvent) => void, onFailure: (message: string, stopped?: boolean) => void) => Terminal;
 
 const live = (run: Run) => run.state === 'running' || run.state === 'starting';
+
+/** Where a panel is: its project and its own ID. */
+export interface PanelLocation { projectId: string; panelId: string }
 
 export interface SupervisionCallbacks {
   /** A run, its session title, its processing state or the run list changed. */
@@ -56,6 +59,21 @@ export class RunSupervision {
     const status = this.processing.status(run);
     return status ? { ...panel, run, status } : { ...panel, run };
   }
+  /** The panel whose run is on this session now, if any. */
+  locate(sessionId: string): PanelLocation | undefined {
+    const run = this.list.find(run => this.current(run) && this.processing.session(run.id) === sessionId);
+    return run && { projectId: run.projectId, panelId: run.panelId };
+  }
+  /** Holds a pending dispatch on a current run until it reports its first session ID, then hands
+   * that ID over; at once if the run is already on a session. The hold is dropped, unpersisted,
+   * when the run ends first. False when the run can no longer report a session.
+   */
+  holdDispatch(runId: string, handOver: HandOver) {
+    const run = this.list.find(run => run.id === runId);
+    return !!run && this.current(run) && this.processing.holdDispatch(runId, handOver);
+  }
+  /** A live run its panel still expects. */
+  private current(run: Run) { return live(run) && this.expects(run); }
   /** Whether this run is still the one its panel expects. */
   expects(run: Run) { return this.expectedRuns.get(run.panelId)?.runId === run.id; }
   private terminalEvent(event: TerminalEvent) {

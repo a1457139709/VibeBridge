@@ -173,6 +173,31 @@ test('switching Claude sessions with /clear, /resume or a fork shows Ready and d
   check({ hook_event_name: 'Stop', session_id: 'forked', prompt_id: 'branch' }, 'done');
 });
 
+test('Claude reports the current session ID, following /clear and /resume but not late facts of old sessions', () => {
+  const accept = observe(claude);
+  assert.equal(accept.session(), undefined, 'no session before the first report');
+  accept({ hook_event_name: 'SessionStart', source: 'startup', session_id: 'first' });
+  assert.equal(accept.session(), 'first');
+  accept({ hook_event_name: 'SessionEnd', session_id: 'first', source: 'clear', prompt_id: 'clear' });
+  accept({ hook_event_name: 'SessionStart', session_id: 'cleared', source: 'clear', prompt_id: 'clear' });
+  assert.equal(accept.session(), 'cleared');
+  accept({ hook_event_name: 'UserPromptSubmit', session_id: 'first', prompt_id: 'late' });
+  assert.equal(accept.session(), 'cleared', 'a late fact of a retired session does not switch back');
+  accept({ hook_event_name: 'SessionStart', session_id: 'first', source: 'resume', prompt_id: 'pick' });
+  accept({ hook_event_name: 'SessionEnd', session_id: 'first', source: 'resume', prompt_id: 'pick' });
+  assert.equal(accept.session(), 'first', 'resuming keeps the resumed session when its paired SessionEnd arrives late');
+  accept({ hook_event_name: 'StopFailure', session_id: 'first' });
+  assert.equal(accept.session(), 'first', 'an Error keeps session identity');
+  accept({ hook_event_name: 'SessionEnd', session_id: 'first', source: 'other' });
+  assert.equal(accept.session(), undefined, 'an ended session is no longer current');
+});
+
+test('a Claude run whose hooks were trusted after startup reports the session of its first main fact', () => {
+  const accept = observe(claude);
+  accept({ hook_event_name: 'UserPromptSubmit', session_id: 'trusted-late', prompt_id: 'one' });
+  assert.equal(accept.session(), 'trusted-late');
+});
+
 test('Claude launch preparation keeps invocation settings, existing hooks and files, including relative paths', async () => {
   const directory = await mkdtemp(resolve("work/claude-status-'$-"));
   try {

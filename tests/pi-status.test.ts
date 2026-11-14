@@ -198,3 +198,19 @@ test('pi late manual completion preserves the outcome of a turn started by an ea
   check({ type: 'agent_settled' }, 'done');
   check({ type: 'session_compact', reason: 'manual', willRetry: false }, 'done', { idle: true });
 });
+
+test('pi reports the session ID its reporter forwards, following session replacement', () => {
+  const accept = observe(pi);
+  assert.equal(accept.session(), undefined, 'no session before the first report');
+  accept({ type: 'session_start', sessionId: 'first', isIdle: true, hasPendingMessages: false });
+  assert.equal(accept.session(), 'first');
+  accept({ type: 'agent_start', sessionId: 'first', isIdle: false, hasPendingMessages: false });
+  accept({ type: 'unknown_event', sessionId: 'first' });
+  assert.equal(accept.session(), 'first', 'an Error keeps the session');
+  accept({ type: 'session_start', sessionId: 'resumed', isIdle: true, hasPendingMessages: false });
+  assert.equal(accept.session(), 'resumed');
+  accept({ type: 'agent_start', isIdle: false, hasPendingMessages: false });
+  assert.equal(accept.session(), 'resumed', 'a fact without a session ID keeps the session');
+  assert.equal(accept({ type: 'session_shutdown' }), 'error', 'shutdown leaves the run unobserved');
+  assert.equal(accept.session(), undefined, 'a shut-down session is no longer current');
+});

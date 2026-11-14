@@ -16,13 +16,18 @@ const report = z.looseObject({ payload: z.unknown() });
 const launchCredentials = z.looseObject({ runId: z.string(), token: z.string(), agent: z.string() });
 // Observation loss belongs to the Status Reporter transport; adapters see only CLI facts.
 const reportPayload = z.union([
-  z.looseObject({ observation: z.enum(['lost', 'unavailable']) }),
+  z.looseObject({ observation: z.literal('lost') }),
   z.record(z.string(), z.unknown()).refine(payload => !('observation' in payload)),
 ]);
 
+/** Receives the session ID a pending dispatch is recorded under. */
+export type HandOver = (sessionId: string) => void;
+
 interface Observation {
   agent: AgentType; token: string; accepting: boolean; running: boolean;
-  state?: ProcessingState; interpreter: StatusInterpreter;
+  state?: ProcessingState; session?: string; interpreter: StatusInterpreter;
+  /** Wait for the run's first session ID; dropped with the observation. */
+  pendingDispatches: HandOver[];
   cleanup?: () => Promise<void>;
 }
 
@@ -40,7 +45,7 @@ export class ProcessingStatus {
   constructor(private changed: () => void, private resourceDirectory: string) {}
 
   async prepare(runId: string, agent: AgentType, command: AgentCommand, directory: string) {
-    const observation: Observation = { agent, token: randomUUID(), accepting: true, running: false,
+    const observation: Observation = { agent, token: randomUUID(), accepting: true, running: false, pendingDispatches: [],
       interpreter: adapters[agent].observe() };
     this.observations.set(runId, observation);
     try {
@@ -68,6 +73,20 @@ export class ProcessingStatus {
       // Retain failures for close() to report, without interrupting host events.
       void task.then(() => this.cleanups.delete(task), () => {});
     }
+  }
+
+  /** The session the observed run is on now; none once its observation is released. */
+  session(runId: string) { return this.observations.get(runId)?.session; }
+
+  /** Hands the run's session ID to `handOver` once it has one: at once if it already has, else on
+   * its first session report. False when the run is not observed, so it can never report one.
+   */
+  holdDispatch(runId: string, handOver: HandOver) {
+    const observation = this.observations.get(runId);
+    if (!observation) return false;
+    if (observation.session) handOver(observation.session);
+    else observation.pendingDispatches.push(handOver);
+    return true;
   }
 
   /** The processing state the run displays: only a running instance has one. */
@@ -117,12 +136,16 @@ export class ProcessingStatus {
     if (!parsed.success) return 400;
     const payload = parsed.data;
     const state = 'observation' in payload ? 'error' : observation.interpreter.accept(payload);
-    if (state === 'discard') return 204;
+    const session = observation.interpreter.session();
+    let visible = session !== observation.session;
+    observation.session = session;
     if (state === 'error') observation.interpreter.discardEvidence();
-    if (state !== 'keep' && observation.state !== state) {
+    if (state !== 'keep' && state !== 'discard' && observation.state !== state) {
       observation.state = state;
-      if (observation.running) this.changed();
+      visible = true;
     }
+    if (visible && observation.running) this.changed();
+    if (session) for (const handOver of observation.pendingDispatches.splice(0)) handOver(session);
     return 204;
   }
 

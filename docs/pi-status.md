@@ -8,7 +8,7 @@ The extension reads the launch capability from `VIBEBRIDGE_STATUS_CONTEXT`. It s
 
 Each callback captures its facts before any asynchronous delivery, and one queue delivers every report of the pi instance in order, including non-awaited UI notifications. `/reload` keeps that queue in the same process. Transport failures never throw into pi or return extension decisions; the next delivery reports observation loss before fresh evidence. A permanently unreachable listener cannot be told about the reporter's own failure.
 
-Reports contain event names, assistant role and stopReason, idle and pending flags, and compaction outcome flags. Prompt text, UI titles, tool arguments and results, model messages and credentials stay in pi.
+Reports contain event names, assistant role and stopReason, idle and pending flags, compaction outcome flags, and the current session ID from the official context's `sessionManager.getSessionId()`, which the interpreter reports for locating the panel on a session (see [current session](processing-status.md#current-session)). A context that cannot name the session still reports status. Prompt text, UI titles, tool arguments and results, model messages and credentials stay in pi.
 
 ## Interpretation
 
@@ -18,7 +18,7 @@ Reports contain event names, assistant role and stopReason, idle and pending fla
 - Assistant `message_end.stopReason` is held only for the current run segment, then corrected from the last assistant in `agent_end.messages` after all user message replacement handlers have run. `agent_settled` with no active or pending work resolves `stop` to Done and other final failures to Error. A settled `aborted: true` confirms main-run interruption even when the last assistant message has another outcome or is absent; an assistant `stopReason: aborted` also counts as interruption. Either returns Ready only with `isIdle: true` and `hasPendingMessages: false`. A missing outcome without confirmed interruption, length-limited output or an unfinished tool-call outcome is Error. New work clears prior outcome evidence.
 - Official extension compaction callbacks are `session_before_compact`, `session_compact` and `session_compact_failed`. Processing and retries remain Busy. A failed automatic compaction is retained until final settlement unless a new agent segment or a newer assistant outcome establishes recovery, including continuation within the same tool loop. Completed manual compaction restores its prior idle or result fact; manual failure is Error. Cancelling compaction alone is not main-turn interruption.
 - An existing extension can start another compaction before the observer receives the earlier completion. The observer retains the original idle or result fact across overlapping manual compactions and restores it only when a completion confirms idle, no pending messages and no retry. New agent work supersedes that saved fact; a later completion of the old compaction keeps any newly established outcome. UI waits still take priority.
-- Shutdown or unload reports observation unavailable. Reload or later reliable events establish a fresh state; a held outcome does not survive observation loss.
+- Shutdown or unload (`session_shutdown`, for quit, reload and session replacement) is Error and ends the current session. Reload or later reliable events establish a fresh state; a held outcome does not survive observation loss.
 
 ## Known limits
 

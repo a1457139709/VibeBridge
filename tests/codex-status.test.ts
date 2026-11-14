@@ -156,3 +156,22 @@ test('fresh Codex facts recover after a missed prompt, and same-turn hook contin
   check({ hook_event_name: 'PreToolUse', turn_id: 'next', tool_name: 'Bash', tool_use_id: 'fresh' }, 'busy');
   check({ hook_event_name: 'Stop', turn_id: 'first' }, 'busy');
 });
+
+test('Codex reports the current session ID, following new and resumed sessions but not late facts of old sessions', () => {
+  const accept = observe(codex);
+  assert.equal(accept.session(), undefined, 'no session before the first report');
+  accept({ hook_event_name: 'SessionStart', source: 'startup', session_id: 'first' });
+  assert.equal(accept.session(), 'first');
+  accept({ hook_event_name: 'SessionStart', source: 'clear', session_id: 'cleared' });
+  assert.equal(accept.session(), 'cleared');
+  accept({ hook_event_name: 'UserPromptSubmit', session_id: 'first', turn_id: 'late' });
+  assert.equal(accept.session(), 'cleared', 'a late fact of a retired session does not switch back');
+  accept({ hook_event_name: 'SessionStart', source: 'resume', session_id: 'first' });
+  assert.equal(accept.session(), 'first');
+  accept({ hook_event_name: 'UserPromptSubmit', turn_id: 'turn' });
+  assert.equal(accept.session(), 'first', 'a fact without session identity is Error and keeps the session');
+  accept({ hook_event_name: 'SessionEnd', session_id: 'first' });
+  assert.equal(accept.session(), undefined, 'an ended session is no longer current');
+  accept({ hook_event_name: 'UserPromptSubmit', session_id: 'trusted-late', turn_id: 'one' });
+  assert.equal(accept.session(), 'trusted-late', 'a fresh main fact establishes the session when no SessionStart was seen');
+});
