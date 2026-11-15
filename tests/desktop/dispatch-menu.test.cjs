@@ -1,11 +1,12 @@
 const assert = require('node:assert/strict');
 
-/** Whether every corner of the element is inside the window and draws the element itself, so nothing clips or covers it. */
+/** Whether near every corner the element is inside the window and draws itself, so nothing clips or covers it. The points
+ * sit inside its rounded corners, which hit testing leaves to what is beneath. */
 const drawnWhole = selector => `(() => {
   const element = document.querySelector(${JSON.stringify(selector)});
   if (!element) return false;
-  const box = element.getBoundingClientRect();
-  return [[box.left + 2, box.top + 2], [box.right - 2, box.top + 2], [box.left + 2, box.bottom - 2], [box.right - 2, box.bottom - 2]]
+  const box = element.getBoundingClientRect(), inset = 10;
+  return [[box.left + inset, box.top + inset], [box.right - inset, box.top + inset], [box.left + inset, box.bottom - inset], [box.right - inset, box.bottom - inset]]
     .every(([x, y]) => x >= 0 && y >= 0 && x <= innerWidth && y <= innerHeight && element.contains(document.elementFromPoint(x, y)));
 })()`;
 /** The text of each target drawn with a background. */
