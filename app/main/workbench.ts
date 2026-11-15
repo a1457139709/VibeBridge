@@ -2,15 +2,16 @@ import { message, detail } from '../shared/messages';
 import { projectNameError } from '../shared/project-name';
 import type { Language, ProjectEdit, ProjectEditResult } from '../shared/model';
 import { randomUUID } from 'node:crypto';
-import { sidebars, sidebarPreferencesSchema, type Sidebar, type SidebarPreferences, assignedAgents, arrange, validateDraft, removeFromLayout, parseLayout, layoutStructure, layoutPanelIds, panelPosition, projectPanels, panelLimitReached, agentTypes, type AgentType, type DirectoryResult, type LaunchResult, type Layout, type Panel, type Project, type ProjectCreation, type ProjectDraft, type PanelCreation, type Settings, type Snapshot, type WorkbenchEvent } from '../shared/model';
+import { sidebars, sidebarPreferencesSchema, type Sidebar, type SidebarPreferences, assignedAgents, arrange, validateDraft, type AgentType, type DirectoryResult, type Layout, type Project, type ProjectCreation, type ProjectDraft, type PanelCreation, type Settings, type Snapshot, type WorkbenchEvent } from '../shared/model';
 import { ProjectStore } from './storage';
 import { SettingsFile, defaultSettings } from './settings';
 import { settingsConflicts, type SettingsSaveResult } from '../shared/settings';
 import { RunSupervision } from './run-supervision';
+import { ProjectPanels } from './project-panels';
 import { inspectDirectory } from './project-directory';
 import { type DirectAction, sameRepository, type ListQuery, type RepositoryReference } from '../shared/forge';
-import { listedRepository } from './forge/repositories';
-import { BoundRepositories } from './forge/bound-repositories';
+import { RepositoryBindings } from './forge/repository-bindings';
+import { directAction, issueDetail, issuePage, pullRequestDetail, pullRequestPage } from './forge/results';
 import { Dispatches, type DispatchRecord } from './dispatch';
 import type { DispatchRequest } from '../shared/dispatch';
 
@@ -25,24 +26,22 @@ export class Workbench {
   private supervision: RunSupervision;
   private listeners = new Set<(event: WorkbenchEvent) => void>();
   private operations: Promise<unknown> = Promise.resolve();
-  private visited = new Set<string>();
-  // Each project's tray: its ephemeral panels in the order they joined. Never stored.
-  private trays = new Map<string, Panel[]>();
-  private repositories: BoundRepositories;
+  private panels: ProjectPanels;
+  private bindings: RepositoryBindings;
   private dispatches: Dispatches;
   private quitting = false;
   private quitPromise?: Promise<void>;
   private constructor(directory: string, private store: ProjectStore, private settingsFile: SettingsFile,
     stored: { repositories: Record<string, RepositoryReference>; dispatches: DispatchRecord[] }) {
-    this.repositories = new BoundRepositories(stored.repositories, { requireProject: id => this.project(id), store, serially: work => this.operation(work),
-      changed: () => this.changed(), report: message => this.report(message) });
+    this.bindings = new RepositoryBindings(stored.repositories, store);
     this.supervision = new RunSupervision(directory, { changed: () => this.changed(), emit: event => this.emit(event), report: message => this.report(message),
       onRunExited: run => {
         if (!this.quitting) void this.operation(async () => {
           if (!this.supervision.expects(run)) return;
-          await this.removePanel(run.projectId, run.panelId);
+          await this.panels.remove(this.project(run.projectId), run.panelId);
         }).catch(error => this.report(error.message));
       } });
+    this.panels = new ProjectPanels(store, this.supervision, () => this.state.settings.agents, () => this.changed());
     this.dispatches = new Dispatches(stored.dispatches, store, this.supervision, () => this.changed(), message => this.report(message));
   }
   static async open(directory: string, systemDark = false) {
@@ -66,9 +65,8 @@ export class Workbench {
     }
   }
   snapshot(): Snapshot {
-    const view = (panel: Panel) => this.supervision.panelView(panel);
     const views = this.state.projects.map(project =>
-      ({ ...project, panels: project.panels.map(view), tray: this.tray(project.id).map(view), ...this.repositories.view(project.id) }));
+      ({ ...project, ...this.panels.view(project), ...this.bindings.view(project.id) }));
     return structuredClone({ ...this.state, projects: this.dispatches.withViews(views) });
   }
   subscribe(listener: (event: WorkbenchEvent) => void) { this.listeners.add(listener); return () => { this.listeners.delete(listener); }; }
@@ -86,8 +84,6 @@ export class Workbench {
     if (!project) throw new Error(message('projectMissing'));
     return project;
   }
-  private tray(projectId: string) { return this.trays.get(projectId) ?? []; }
-  private panels(project: Project) { return projectPanels({ panels: project.panels, tray: this.tray(project.id) }); }
   inspectDirectory(path: string): Promise<DirectoryResult> { return inspectDirectory(path, this.state.projects); }
   createProject(draft: ProjectDraft): Promise<ProjectCreation> { return this.operation(async () => {
     validateDraft(draft);
@@ -101,8 +97,8 @@ export class Workbench {
     this.state.activeProjectId = project.id;
     await this.store.active(project.id);
     this.changed();
-    const launches = await this.startProject(project);
-    await this.withdrawPanels(project, launches.filter(launch => launch.outcome === 'failed').map(launch => launch.run.panelId));
+    const launches = await this.panels.start(project);
+    await this.panels.withdraw(project, launches);
     return { project: structuredClone(project), launches };
   }); }
   /** Saves name, directory and Repository Binding together. Everything is checked first (a new repository against
@@ -110,7 +106,7 @@ export class Workbench {
   async editProject(id: string, edit: ProjectEdit, restart: boolean): Promise<ProjectEditResult> {
     this.project(id);
     // Listing waits on the forge CLI, so it runs before the edit joins the operation queue. A kept binding stays as stored.
-    const bound = this.repositories.get(id), repository = sameRepository(edit.repository, bound) ? bound : await listedRepository(edit.repository);
+    const repository = await this.bindings.chosen(id, edit.repository);
     return this.operation(async () => {
       const project = this.project(id);
       const nameError = projectNameError(edit.name);
@@ -120,26 +116,19 @@ export class Workbench {
       if (directory.existingProjectId && directory.existingProjectId !== id) throw new Error(message('projectDuplicate', { name: directory.existingProjectName! }));
       const next = { ...project, name: edit.name.trim(), directory: directory.directory! };
       const changedDirectory = project.directory !== next.directory;
-      const bound = this.repositories.get(id);
-      if (!changedDirectory && project.name === next.name && sameRepository(repository, bound)) return { project: structuredClone(project), launches: [] };
+      if (!changedDirectory && project.name === next.name && sameRepository(repository, this.bindings.get(id))) return { project: structuredClone(project), launches: [] };
       await this.store.edit(next, repository);
       Object.assign(project, next);
-      this.repositories.set(id, repository);
+      this.bindings.edited(id, repository);
       this.changed();
       const result: ProjectEditResult = { project: structuredClone(project), launches: [] };
-      if (changedDirectory && restart && this.visited.has(id)) {
-        // Tray panels keep running in the directory they started in.
-        const failures = await this.supervision.stopPanels(project.panels);
-        if (failures.length) result.error = message('projectRestartFailed', { reasons: failures.map(detail) });
-        else for (const panel of project.panels) result.launches.push(await this.startPanel(project, panel));
-      }
+      if (changedDirectory && restart) Object.assign(result, await this.panels.restart(project));
       return result;
     });
   }
   deleteProject(id: string) { return this.operation(async () => {
     const project = this.project(id);
-    const panels = this.panels(project);
-    const failures = await this.supervision.stopPanels(panels);
+    const failures = await this.panels.stop(project);
     if (failures.length) throw new Error(message('projectDeleteFailed', { reasons: failures.map(detail) }));
     const index = this.state.projects.indexOf(project);
     const nextActive = this.state.activeProjectId === id
@@ -148,132 +137,56 @@ export class Workbench {
     // Records and the active-project pointer are removed in the same transaction.
     await this.store.delete(id, nextActive);
     this.state.projects = this.state.projects.filter(item => item.id !== id);
-    this.supervision.release(panels.map(panel => panel.id));
-    this.trays.delete(id);
-    this.repositories.set(id, null);
+    this.panels.forget(project);
+    this.bindings.forget(id);
     this.dispatches.forget(id);
-    this.visited.delete(id);
     const activateNext = this.state.activeProjectId === id;
     this.state.activeProjectId = nextActive;
     this.changed();
-    if (activateNext && nextActive) await this.startProject(this.project(nextActive));
+    if (activateNext && nextActive) await this.panels.start(this.project(nextActive));
   }); }
   // Reads from and direct actions on the project's bound repository; DesktopAPI documents each.
-  repositoryChoices(projectId: string, directory: string) { return this.repositories.choices(projectId, directory); }
-  issuePage(projectId: string, query: ListQuery) { return this.repositories.issuePage(projectId, query); }
-  pullRequestPage(projectId: string, query: ListQuery) { return this.repositories.pullRequestPage(projectId, query); }
-  issueDetail(projectId: string, number: number) { return this.repositories.issueDetail(projectId, number); }
-  pullRequestDetail(projectId: string, number: number) { return this.repositories.pullRequestDetail(projectId, number); }
-  directAction(projectId: string, action: DirectAction) { return this.repositories.directAction(projectId, action); }
+  async repositoryChoices(projectId: string, directory: string) {
+    this.project(projectId);
+    return this.bindings.choices(projectId, directory, found => this.follow(projectId, found));
+  }
+  async issuePage(projectId: string, query: ListQuery) { return issuePage(this.bound(projectId), query); }
+  async pullRequestPage(projectId: string, query: ListQuery) { return pullRequestPage(this.bound(projectId), query); }
+  async issueDetail(projectId: string, number: number) { return issueDetail(this.bound(projectId), number); }
+  async pullRequestDetail(projectId: string, number: number) { return pullRequestDetail(this.bound(projectId), number); }
+  async directAction(projectId: string, action: DirectAction) { return directAction(this.bound(projectId), action); }
+  /** The project's bound repository for a forge call; where the forge finds it at another path, the binding follows. */
+  private bound(projectId: string) {
+    this.project(projectId);
+    return this.bindings.on(projectId, found => this.follow(projectId, found));
+  }
+  /** Writes a binding at the path its repository was found at, in the operation queue, unless the project was rebound,
+   * unbound or deleted meanwhile. */
+  private follow(projectId: string, found: RepositoryReference) {
+    void this.operation(async () => { if (await this.bindings.follow(projectId, found)) this.changed(); })
+      .catch(error => this.report((error as Error).message));
+  }
   /** Dispatches an issue of the project's bound repository with a command of an enabled workflow to one of its panels
    * that has a run, or to a new panel that joins its tray, and records the dispatch on the session that takes it. */
   dispatch(projectId: string, request: DispatchRequest) { return this.operation(async () => {
-    const repository = this.repositories.bound(projectId);
     const project = this.project(projectId);
-    return this.dispatches.dispatch(projectId, repository, request, this.state.settings.workflows, {
-      panel: id => { const panel = this.panels(project).find(panel => panel.id === id); return panel && this.supervision.panelView(panel); },
-      add: (agent, args) => this.addToTray(project, agent, args) });
+    const repository = this.bindings.bound(projectId);
+    return this.dispatches.dispatch(projectId, repository, request, this.state.settings.workflows, this.panels.targets(project));
   }); }
-  /** Starts the panel's Agent as the Agent settings give its type, with `args` after the configured ones. */
-  private startPanel(project: Project, panel: Panel, args: string[] = []) {
-    const command = this.state.settings.agents[panel.agent];
-    return this.supervision.start(project, panel, { ...command, args: [...command.args, ...args] });
-  }
-  private async startProject(project: Project): Promise<LaunchResult[]> {
-    if (this.visited.has(project.id)) return [];
-    this.visited.add(project.id);
-    const launches: LaunchResult[] = [];
-    for (const panel of project.panels) launches.push(await this.startPanel(project, panel));
-    return launches;
-  }
   activateProject(id: string) { return this.operation(async () => {
     const project = this.project(id);
-    if (!project.layout && project.panels.length) {
-      project.layout = arrange(project.panels.map(panel => panel.id), this.state.settings.defaultLayout);
-      await this.store.save(project);
-    }
+    await this.panels.arrange(project, this.state.settings.defaultLayout);
     this.state.activeProjectId = id;
     this.changed();
     await this.store.active(id);
-    await this.startProject(project);
+    await this.panels.start(project);
   }); }
   /** Adds a panel to the end of the project's tray and starts its Agent. The layout is unchanged. */
-  addPanel(projectId: string, agent: AgentType): Promise<PanelCreation> { return this.operation(() => this.addToTray(this.project(projectId), agent)); }
-  private async addToTray(project: Project, agent: AgentType, args?: string[]): Promise<PanelCreation> {
-    if (!agentTypes.includes(agent)) throw new Error(message('agentInvalid'));
-    const tray = this.tray(project.id);
-    if (panelLimitReached({ panels: project.panels, tray })) throw new Error(message('panelLimit'));
-    const panel = { id: randomUUID(), agent };
-    this.trays.set(project.id, [...tray, panel]); this.changed();
-    const launch = await this.startPanel(project, panel, args);
-    if (launch.outcome === 'failed') this.removeFromTray(project.id, panel.id);
-    return { panel: structuredClone(panel), launch };
-  }
-  // Undoes the addition of panels whose Agent never started. Restored layouts keep
-  // their failed panels; this is neither closing a panel nor a run exit.
-  private async withdrawPanels(project: Project, panelIds: string[]) {
-    if (panelIds.length) await this.removePanels(project, panelIds);
-  }
-  private async removePanel(projectId: string, panelId: string) {
-    if (this.tray(projectId).some(panel => panel.id === panelId)) this.removeFromTray(projectId, panelId);
-    else await this.removePanels(this.project(projectId), [panelId]);
-  }
-  private removeFromTray(projectId: string, panelId: string) {
-    this.trays.set(projectId, this.tray(projectId).filter(panel => panel.id !== panelId));
-    this.supervision.release([panelId]);
-    this.changed();
-  }
-  private async removePanels(project: Project, panelIds: string[]) {
-    const next = { ...project, panels: project.panels.filter(p => !panelIds.includes(p.id)),
-      layout: panelIds.reduce((layout, id) => removeFromLayout(layout, id), project.layout) };
-    await this.store.save(next);
-    Object.assign(project, next);
-    this.supervision.release(panelIds);
-    this.changed();
-  }
-  closePanel(projectId: string, panelId: string) { return this.operation(async () => {
-    if (!this.panels(this.project(projectId)).some(p => p.id === panelId)) throw new Error(message('panelMissing'));
-    await this.supervision.stopPanel(panelId);
-    await this.removePanel(projectId, panelId);
-  }); }
-  /**
-   * Makes a tray panel resident with the target layout the renderer computed for the drop.
-   * The layout places the resident panels plus this one; a swap leaves out the one resident
-   * panel whose position this one takes, and that panel joins the end of the tray. Runs are untouched.
-   */
-  placeInLayout(projectId: string, panelId: string, layout: Layout) { return this.operation(async () => {
-    const project = this.project(projectId);
-    const panel = this.tray(projectId).find(p => p.id === panelId);
-    if (!panel) throw new Error(message('panelMissing'));
-    const structure = layoutStructure(layout);
-    const placed = layoutPanelIds(structure);
-    const replaced = project.panels.filter(resident => !placed.includes(resident.id));
-    // A swap is valid only when the placed panel takes the position of the one panel it replaces.
-    if (replaced.length > 1 || (replaced.length === 1 && String(panelPosition(structure, panelId)) !== String(panelPosition(project.layout, replaced[0].id)))) throw new Error(message('layoutMismatch'));
-    const panels = [...project.panels.filter(resident => !replaced.includes(resident)), panel];
-    await this.changeResidency(project, { ...project, panels, layout: parseLayout(structure, panels) },
-      [...this.tray(projectId).filter(p => p !== panel), ...replaced]);
-  }); }
-  /** Makes a resident panel ephemeral: it joins the end of the tray and the other resident panels fill its space as when it closes. Its run is untouched. */
-  moveToTray(projectId: string, panelId: string) { return this.operation(async () => {
-    const project = this.project(projectId);
-    const panel = project.panels.find(p => p.id === panelId);
-    if (!panel) throw new Error(message('panelMissing'));
-    await this.changeResidency(project, { ...project, panels: project.panels.filter(p => p !== panel), layout: removeFromLayout(project.layout, panelId) },
-      [...this.tray(projectId), panel]);
-  }); }
-  /** Saves which panels are resident, then publishes the project with its new tray. */
-  private async changeResidency(project: Project, next: Project, tray: Panel[]) {
-    await this.store.save(next);
-    Object.assign(project, next);
-    this.trays.set(project.id, tray);
-    this.changed();
-  }
-  saveLayout(projectId: string, layout: Layout | null) { return this.operation(async () => {
-    const project = this.project(projectId);
-    project.layout = parseLayout(layout, project.panels); this.changed();
-    await this.store.save(project);
-  }); }
+  addPanel(projectId: string, agent: AgentType): Promise<PanelCreation> { return this.operation(() => this.panels.add(this.project(projectId), agent)); }
+  closePanel(projectId: string, panelId: string) { return this.operation(() => this.panels.close(this.project(projectId), panelId)); }
+  placeInLayout(projectId: string, panelId: string, layout: Layout) { return this.operation(() => this.panels.place(this.project(projectId), panelId, layout)); }
+  moveToTray(projectId: string, panelId: string) { return this.operation(() => this.panels.toTray(this.project(projectId), panelId)); }
+  saveLayout(projectId: string, layout: Layout | null) { return this.operation(() => this.panels.saveLayout(this.project(projectId), layout)); }
   /** Saves a sidebar's preferences with its width within the bounds the sidebar allows. */
   saveSidebar(sidebar: Sidebar, preferences: SidebarPreferences) { return this.operation(async () => {
     const { width, invalid } = sidebars[sidebar];
