@@ -22,8 +22,10 @@ module.exports = {
     const { window, evaluate, until, click } = context;
     const { rect, center } = require('./support/dragging.cjs')(context);
     const project = snapshot.projects[0];
-    assert.equal((await evaluate(`window.workbench.editProject(${JSON.stringify(project.id)}, { name: ${JSON.stringify(project.name)},
-      directory: ${JSON.stringify(project.directory)}, repository: { forge: 'github', path: 'octo/desktop' } }, false)`)).error, undefined);
+    // Bound as picking octo/desktop from the repository field binds it.
+    assert.equal((await evaluate(`(async () => window.workbench.editProject(${JSON.stringify(project.id)}, { name: ${JSON.stringify(project.name)},
+      directory: ${JSON.stringify(project.directory)}, repository: (await window.workbench.repositoryChoices(${JSON.stringify(project.id)},
+      ${JSON.stringify(project.directory)})).repositories.find(item => item.path === 'octo/desktop') }, false))()`)).error, undefined);
     await click('Show the GitHub sidebar');
     await until(() => evaluate('document.querySelector(".forge-row-title")?.textContent === "Dispatched issue"'), 'issue row listed');
     // A pointer left where an item has just been drawn does not enter it, so each point moves there from a corner.

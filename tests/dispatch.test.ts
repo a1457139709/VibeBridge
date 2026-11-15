@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { ghDouble } from './support/gh-double';
-import { day, forgeAccount } from './support/bound-workbench';
+import { bindListed, day, forgeAccount } from './support/bound-workbench';
 import { fixture, until } from './support/cli-double';
 import { Workbench } from '../app/main/workbench';
 import { message } from '../app/shared/messages';
@@ -15,7 +15,7 @@ async function dispatching(context: test.TestContext, { lateSession = false } = 
   const gh = await ghDouble(context, { ...forgeAccount, repositories: [...forgeAccount.repositories, 'octo/other'], issues: [issue(7), issue(8)] });
   const f = await fixture('claude', ['--raw-input', ...lateSession ? ['--late-session'] : []]);
   const { project, launches: [{ run }] } = await f.create();
-  await f.workbench.editProject(project.id, { name: project.name, directory: project.directory, repository: { forge: 'github', path: 'octo/tools' } }, false);
+  await bindListed(f.workbench, project.id, 'octo/tools');
   const session = `session-${run.pid}`;
   if (!lateSession) await until(() => f.workbench.snapshot().projects[0].panels[0].status === 'ready');
   /** What the CLI double has received as typed input, apart from the test's own messages. */
@@ -120,7 +120,7 @@ test('records stay after their panel closes and after the app reopens, where no 
 
 test('rebinding shows only the records of the bound repository and keeps the others; deleting the project deletes its records', async context => {
   const f = await dispatching(context);
-  const bind = (path: string) => f.workbench.editProject(f.projectId, { name: 'claude reporter', directory: f.directory, repository: { forge: 'github', path } }, false);
+  const bind = (path: string) => bindListed(f.workbench, f.projectId, path);
   let reopened: Workbench | undefined;
   try {
     await f.dispatch(7);

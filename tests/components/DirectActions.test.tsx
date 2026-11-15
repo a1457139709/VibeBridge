@@ -8,7 +8,7 @@ import { defaultSettings } from '../../app/shared/settings';
 import type { ProjectView, Snapshot } from '../../app/shared/model';
 import type { Check, DirectAction, DirectActionResult, ForgeFailure, IssueDetail, PullRequestDetail } from '../../app/shared/forge';
 import { deferred, provideWorkbench } from './support/workbench';
-import { githubForge, githubView } from './support/forge';
+import { githubForge, githubView, githubRepository } from './support/forge';
 import { issue as listedIssue, pullRequest as listedPullRequest, stubSidebarApis } from './support/forge-lists';
 
 afterEach(cleanup);
@@ -36,7 +36,7 @@ interface ActionRequest { action: DirectAction; answer(result: DirectActionResul
  * Details and pages answer from `forge` at once; each direct action waits until the test answers it. */
 function renderWorkbench(forge: Forge) {
   const project: ProjectView = {
-    id: 'alpha', name: 'Alpha', directory: '/work/alpha', layout: { panel: 'panel' }, tray: [], repository: { forge: 'github', path: 'octo/alpha' }, ...githubView,
+    id: 'alpha', name: 'Alpha', directory: '/work/alpha', layout: { panel: 'panel' }, tray: [], repository: githubRepository('octo/alpha'), ...githubView,
     panels: [{ id: 'panel', agent: 'codex', run: { id: 'run', panelId: 'panel', projectId: 'alpha', state: 'running', title: 'Alpha session' } }],
   };
   const snapshot: Snapshot = {

@@ -15,8 +15,10 @@ module.exports = {
     const closeDetail = () => evaluate('document.querySelector(".forge-detail-bar button[aria-label=Close]").click()');
     const project = snapshot.projects[0];
     const [run] = runsOf(snapshot);
-    assert.equal((await evaluate(`window.workbench.editProject(${JSON.stringify(project.id)}, { name: ${JSON.stringify(project.name)},
-      directory: ${JSON.stringify(project.directory)}, repository: { forge: 'github', path: 'octo/desktop' } }, false)`)).error, undefined);
+    // Bound as picking octo/desktop from the repository field binds it.
+    assert.equal((await evaluate(`(async () => window.workbench.editProject(${JSON.stringify(project.id)}, { name: ${JSON.stringify(project.name)},
+      directory: ${JSON.stringify(project.directory)}, repository: (await window.workbench.repositoryChoices(${JSON.stringify(project.id)},
+      ${JSON.stringify(project.directory)})).repositories.find(item => item.path === 'octo/desktop') }, false))()`)).error, undefined);
     // A tray panel shows the tray, so the detail has a toolbar above it and a tray below it.
     await evaluate(`window.workbench.addPanel(${JSON.stringify(project.id)}, 'codex')`);
     await until(async () => !!(await evaluate('!!document.querySelector(".panel-tray:not(.empty)")')), 'tray shows its panel');

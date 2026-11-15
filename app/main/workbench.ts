@@ -34,7 +34,8 @@ export class Workbench {
   private quitPromise?: Promise<void>;
   private constructor(directory: string, private store: ProjectStore, private settingsFile: SettingsFile,
     stored: { repositories: Record<string, RepositoryReference>; dispatches: DispatchRecord[] }) {
-    this.repositories = new BoundRepositories(stored.repositories, id => this.project(id));
+    this.repositories = new BoundRepositories(stored.repositories, { requireProject: id => this.project(id), store, serially: work => this.operation(work),
+      changed: () => this.changed(), report: message => this.report(message) });
     this.supervision = new RunSupervision(directory, { changed: () => this.changed(), emit: event => this.emit(event), report: message => this.report(message),
       onRunExited: run => {
         if (!this.quitting) void this.operation(async () => {
@@ -108,8 +109,8 @@ export class Workbench {
    * a fresh list from its forge), then written in one transaction, so a failed check saves nothing. */
   async editProject(id: string, edit: ProjectEdit, restart: boolean): Promise<ProjectEditResult> {
     this.project(id);
-    // Listing waits on the forge CLI, so it runs before the edit joins the operation queue.
-    const repository = sameRepository(edit.repository, this.repositories.get(id)) ? edit.repository : await listedRepository(edit.repository);
+    // Listing waits on the forge CLI, so it runs before the edit joins the operation queue. A kept binding stays as stored.
+    const bound = this.repositories.get(id), repository = sameRepository(edit.repository, bound) ? bound : await listedRepository(edit.repository);
     return this.operation(async () => {
       const project = this.project(id);
       const nameError = projectNameError(edit.name);

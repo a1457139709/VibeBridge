@@ -9,11 +9,11 @@ import type { ProjectEdit, ProjectView } from '../../app/shared/model';
 import { detail, message } from '../../app/shared/messages';
 import type { ForgeFailureKind, RepositoryChoices, RepositoryReference } from '../../app/shared/forge';
 import { provideWorkbench } from './support/workbench';
-import { githubForge, githubView } from './support/forge';
+import { githubForge, githubRepository, githubView } from './support/forge';
 
 afterEach(cleanup);
 
-const github = (path: string): RepositoryReference => ({ forge: 'github', path });
+const github = (path: string) => githubRepository(path);
 const listed: RepositoryChoices = { ok: true, forge: githubForge, account: 'octo', origin: github('octo/vibebridge'),
   repositories: ['octo/tools', 'octo/vibebridge', 'acme/group/forge'].map(github) };
 const failed = (kind: ForgeFailureKind, detail = ''): RepositoryChoices => ({ ok: false, failure: { kind, detail, forge: githubForge } });
@@ -227,4 +227,17 @@ test('from the search box ↑/↓ move through the listed repositories and Enter
   assert.equal(reached(), undefined, 'a new search reaches nothing yet');
   await user.keyboard('{ArrowDown}{Enter}');
   assert.deepEqual(selected(), ['octo/tools']);
+});
+
+test('a bound repository the forge lists at a new path is listed once, there, as the current one', async () => {
+  const renamed: RepositoryChoices = { ...listed, repositories: [githubRepository('octo/tools-x', github('octo/tools').id), github('octo/vibebridge')] };
+  editor(github('octo/tools'), async () => renamed);
+  const user = userEvent.setup();
+  await openEditor(user);
+  await user.click(screen.getByRole('button', { name: 'Change' }));
+  await screen.findByRole('listbox', { name: 'Repository' });
+  assert.deepEqual(screen.getAllByRole('option').map(item => item.dataset.path), ['octo/tools-x', 'octo/vibebridge']);
+  assert.deepEqual(selected(), ['octo/tools-x']);
+  assert.ok(within(option('octo/tools-x')).getByText('current'));
+  assert.equal(saveButton().disabled, true, 'the binding has not changed');
 });

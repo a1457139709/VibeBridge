@@ -49,7 +49,7 @@ export function ProjectEditor({ project, close, openProject, focusRepository = f
   const [result, setResult] = useState<{ outcome: ProjectEditResult; repository: { from: RepositoryReference | null; to: RepositoryReference | null } }>();
   // The default repository follows the directory being edited once it has been inspected.
   const field = useRepositoryField(project, inspection.result.valid ? inspection.result.directory! : original.directory);
-  const bound = original.repository, repository = field.repository;
+  const bound = field.bound, repository = field.repository;
   const bindingChanged = !sameRepository(repository, bound);
   const directory = inspection.path === path ? inspection.result : undefined;
   const checking = !!path && !directory;

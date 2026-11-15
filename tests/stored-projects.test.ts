@@ -86,21 +86,42 @@ for (const [behavior, stored] of [
   });
 }
 
-for (const [behavior, forge, path, field] of [
-  ['names a forge without an adapter', 'gitlab', 'group/sub/repo', 'repository_bindings.forge'],
-  ['has an empty repository path', 'github', '', 'repository_bindings.path'],
-]) {
+const storedBinding = ['github', 'github.com', '42', 'group/sub/repo'];
+for (const [behavior, row, field] of [
+  ['names a forge without an adapter', ['gitlab', 'gitlab.com', '42', 'group/sub/repo'], 'bound_repositories.forge'],
+  ['has an empty host', ['github', '', '42', 'group/sub/repo'], 'bound_repositories.host'],
+  ['has an empty repository ID', ['github', 'github.com', '', 'group/sub/repo'], 'bound_repositories.repository_id'],
+  ['has an empty repository path', ['github', 'github.com', '42', ''], 'bound_repositories.path'],
+] as const) {
   test(`a stored Repository Binding that ${behavior} keeps the workbench closed and the database unchanged`, async context => {
     const { directory, file } = await storedWorkbench(context, 'stored-invalid-binding', database =>
-      database.prepare('INSERT INTO repository_bindings VALUES (?,?,?)').run(project.id, forge, path));
+      database.prepare('INSERT INTO bound_repositories VALUES (?,?,?,?,?)').run(project.id, ...row));
     await assertRejected(directory, file, /projectDataInvalid/, [field, project.id, project.name]);
   });
 }
 
 test('a stored Repository Binding with a nested repository path reopens as stored', async context => {
   const { directory } = await storedWorkbench(context, 'stored-binding', database =>
-    database.prepare('INSERT INTO repository_bindings VALUES (?,?,?)').run(project.id, 'github', 'group/sub/repo'));
+    database.prepare('INSERT INTO bound_repositories VALUES (?,?,?,?,?)').run(project.id, ...storedBinding));
   const workbench = await Workbench.open(directory);
-  try { assert.deepEqual(workbench.snapshot().projects[0].repository, { forge: 'github', path: 'group/sub/repo' }); }
+  try { assert.deepEqual(workbench.snapshot().projects[0].repository, { forge: 'github', host: 'github.com', id: '42', path: 'group/sub/repo' }); }
   finally { await workbench.quit(); }
+});
+
+test('bindings and dispatches stored without the repository ID are dropped: the project reopens unbound and can be deleted', async context => {
+  const { directory } = await storedWorkbench(context, 'stored-without-repository-id', database => database.exec(`
+    CREATE TABLE repository_bindings (project_id TEXT PRIMARY KEY REFERENCES projects(id), forge TEXT NOT NULL, path TEXT NOT NULL);
+    CREATE TABLE dispatch_records (project_id TEXT NOT NULL REFERENCES projects(id), forge TEXT NOT NULL, path TEXT NOT NULL,
+      issue INTEGER NOT NULL, dispatched_at TEXT NOT NULL, agent TEXT NOT NULL, text TEXT NOT NULL, session_id TEXT NOT NULL);
+    INSERT INTO repository_bindings VALUES ('${project.id}', 'github', 'octo/tools');
+    INSERT INTO dispatch_records VALUES ('${project.id}', 'github', 'octo/tools', 7, '2026-01-01T00:00:00Z', 'claude', '/implement', 'session-a');`));
+  let workbench = await Workbench.open(directory);
+  try {
+    const [stored] = workbench.snapshot().projects;
+    assert.deepEqual([stored.name, stored.repository, stored.dispatches], [project.name, null, []]);
+    await workbench.deleteProject(project.id);
+    await workbench.quit();
+    workbench = await Workbench.open(directory);
+    assert.deepEqual(workbench.snapshot().projects, []);
+  } finally { await workbench.quit(); }
 });

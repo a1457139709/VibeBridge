@@ -5,11 +5,15 @@ export const forgeIds = ['github'] as const;
 export type ForgeId = typeof forgeIds[number];
 export const forgeIdSchema = z.enum(forgeIds);
 
-/** A repository on a Forge. The path is the forge's own repository path and may have more
- * than two segments (nested groups), so it is never split into owner and name outside the adapter. */
-export interface RepositoryReference { forge: ForgeId; path: string }
+/** A repository on a Forge (docs/adr/0006-forges-sit-behind-an-interface.md). `host` is the forge instance it lives on, and
+ * `id` the forge's own ID for it, which a rename or transfer keeps; together they name the repository. `path` is where it
+ * was last seen: the forge's own repository path, which may have more than two segments (nested groups), so it is never
+ * split into owner and name outside the adapter. */
+export interface RepositoryReference { forge: ForgeId; host: string; id: string; path: string }
+export const repositoryReferenceSchema = z.object({ forge: forgeIdSchema, host: z.string().min(1), id: z.string().min(1), path: z.string().min(1) });
+/** Whether both name the same repository, wherever each saw it. */
 export const sameRepository = (a: RepositoryReference | null, b: RepositoryReference | null) =>
-  a === b || (!!a && !!b && a.forge === b.forge && a.path === b.path);
+  a === b || (!!a && !!b && a.forge === b.forge && a.host === b.host && a.id === b.id);
 
 /** Features that differ between forges. The UI shows a feature only when the bound forge declares it. */
 export interface ForgeCapabilities {

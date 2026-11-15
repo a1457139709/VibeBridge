@@ -73,7 +73,7 @@ export class Dispatches {
     const delivery: Delivery = invert ? invertedDelivery(configured) : configured;
     /** The command in the Agent type's syntax, and the record of sending it now. */
     const command = (agent: AgentType): UnrecordedDispatch => {
-      const text = commandText(agent, found.command, { url: forges[repository.forge].issueUrl(repository.path, issue.number), ...issue });
+      const text = commandText(agent, found.command, { url: forges[repository.forge].issueUrl(repository, issue.number), ...issue });
       return { projectId, repository, issue: issue.number, dispatchedAt: new Date().toISOString(), agent, text };
     };
     const panelId = target.kind === 'new'
