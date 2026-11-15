@@ -28,10 +28,13 @@ module.exports = {
       ${JSON.stringify(project.directory)})).repositories.find(item => item.path === 'octo/desktop') }, false))()`)).error, undefined);
     await click('Show the GitHub sidebar');
     await until(() => evaluate('document.querySelector(".forge-row-title")?.textContent === "Dispatched issue"'), 'issue row listed');
-    // A pointer left where an item has just been drawn does not enter it, so each point moves there from a corner.
+    // A pointer left where an item has just been drawn does not enter it, so each point moves there from a corner. The
+    // move back waits until the corner is hovered: two moves sent at once can merge into none.
     const point = async selector => {
       const target = center(await rect(selector));
       window.webContents.sendInputEvent({ type: 'mouseMove', x: 1, y: 1 });
+      await until(() => evaluate(`(() => { const corner = document.elementFromPoint(1, 1);
+        return !!corner && corner.matches(':hover') && !corner.contains(document.querySelector(${JSON.stringify(selector)})); })()`), 'pointer in the corner');
       window.webContents.sendInputEvent({ type: 'mouseMove', ...target });
     };
     const key = keyCode => {
