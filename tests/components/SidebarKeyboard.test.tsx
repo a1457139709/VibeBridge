@@ -9,7 +9,7 @@ afterEach(cleanup);
 before(stubSidebarApis);
 
 /** #10 has the open sub-issues #12 and #13; #12 is also on the page. */
-const tree = () => page([
+const parentWithTwoOpenSubIssues = () => page([
   issue(20),
   issue(12, { parent: 10 }),
   issue(10, { subIssues: { closed: 0, total: 2, issues: [summary(12), summary(13)] } }),
@@ -23,7 +23,7 @@ const press = (key: string) => fireEvent.keyDown(document.activeElement!, { key 
 
 async function listedTree() {
   const f = renderWorkbench(undefined, { issueDetail: () => new Promise(() => {}) });
-  (await f.request(1)).answer(tree());
+  (await f.request(1)).answer(parentWithTwoOpenSubIssues());
   await waitFor(() => assert.ok(titleButton('Issue 20')));
   return f;
 }
@@ -100,6 +100,17 @@ test('Space or Enter opens the row\'s detail with focus inside, and → or Esc r
   assert.equal(focusedRow(), 'Issue 5');
 });
 
+test('Enter on the row of the one issue the detail shows closes the detail, and focus stays on that row', async () => {
+  const { user } = await listedTree();
+  titleButton('Issue 10').focus();
+  await user.keyboard('{Enter}');
+  await waitFor(() => assert.ok(detail()?.contains(document.activeElement)));
+  titleButton('Issue 10').focus();
+  await user.keyboard('{Enter}');
+  await waitFor(() => assert.equal(detail(), null));
+  assert.equal(focusedRow(), 'Issue 10');
+});
+
 test('closing a detail whose items have no list row showing puts focus on the list', async () => {
   const { user } = await listedTree();
   titleButton('Issue 10').focus();
@@ -132,11 +143,11 @@ test('the pull request list moves with ↑/↓ and opens a detail that → retur
 
 test('opening the sidebar puts focus on the first row of its list once the list arrives', async () => {
   const { user, request } = renderWorkbench();
-  (await request(1)).answer(tree());
+  (await request(1)).answer(parentWithTwoOpenSubIssues());
   await user.click(screen.getByRole('button', { name: 'Hide the GitHub sidebar' }));
   await user.click(screen.getByRole('button', { name: 'Show the GitHub sidebar' }));
   await waitFor(() => assert.ok(sidebar().contains(document.activeElement), 'focus goes into the sidebar at once'));
-  (await request(2)).answer(tree());
+  (await request(2)).answer(parentWithTwoOpenSubIssues());
   await waitFor(() => assert.equal(focusedRow(), 'Issue 20'));
   await user.keyboard('{ArrowDown}');
   await waitFor(() => assert.equal(focusedRow(), 'Issue 10'));

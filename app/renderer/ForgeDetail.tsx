@@ -66,7 +66,7 @@ export function ForgeDetailPane({ project, item, width, resize, canBack, back, c
   useLayoutEffect(() => { scroller.current?.focus({ preventScroll: true }); scroller.current?.scrollTo?.({ top: 0 }); }, [kind, number]);
   /** → or Esc close the detail, back to the list row. A key a field or menu inside answers goes no further. */
   const keydown = (event: React.KeyboardEvent) => {
-    if (event.defaultPrevented || (event.target as HTMLElement).closest('input, textarea, [role="menu"]')) return;
+    if (event.defaultPrevented || (event.target as HTMLElement).closest('input, textarea, select, [contenteditable="true"], [role="menu"], [role="listbox"]')) return;
     if (event.key === 'Escape' || (event.key === 'ArrowRight' && withoutCommandModifier(event))) { event.preventDefault(); close(); }
   };
   const result = loaded?.item.kind === kind && loaded.item.number === number ? loaded.result : null;

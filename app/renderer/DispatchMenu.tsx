@@ -240,20 +240,21 @@ interface SessionNames { status: string; title: string }
 export function DispatchRecords({ records, folded, locate }: { records: DispatchRecordView[]; folded: boolean; locate(projectId: string, panelId: string): void }) {
   const { t } = useLocalization();
   const [open, setOpen] = useState(!folded);
-  /** The records whose text shows, by their place oldest first. */
-  const [unfolded, setUnfolded] = useState<ReadonlySet<number>>(new Set());
+  /** The records whose text shows, by when they were dispatched: a record's place shifts as older ones are pruned. */
+  const [unfolded, setUnfolded] = useState<ReadonlySet<string>>(new Set());
   const heading = t('dispatchRecords', { count: records.length });
-  const toggleText = (index: number) => setUnfolded(shown => {
+  const toggleText = (dispatchedAt: string) => setUnfolded(shown => {
     const next = new Set(shown);
-    if (!next.delete(index)) next.add(index);
+    if (!next.delete(dispatchedAt)) next.add(dispatchedAt);
     return next;
   });
   return <section className="forge-box dispatch-records" aria-label={heading}>
     <header><button className="dispatch-records-toggle" aria-expanded={open} onClick={() => setOpen(!open)}>{open ? '▾' : '▸'} {heading}</button></header>
-    {open && <ul>{records.map((record, index) => ({ record, index })).reverse().map(({ record, index }) => {
-      const { location } = record;
-      return <li key={index} className="dispatch-record">
-        <span className="dispatch-record-when"><RelativeTime iso={record.dispatchedAt} /></span>
+    {open && <ul>{records.toReversed().map(record => {
+      const { location, dispatchedAt } = record;
+      const textShows = unfolded.has(dispatchedAt);
+      return <li key={dispatchedAt} className="dispatch-record">
+        <span className="dispatch-record-when"><RelativeTime iso={dispatchedAt} /></span>
         <span className="dispatch-agent" role="img" aria-label={agentNames[record.agent]}>{agentIcons[record.agent]}</span>
         {location ? <>
           <button className="dispatch-record-session" data-hint={t('locateSessionPanel')}
@@ -261,9 +262,9 @@ export function DispatchRecords({ records, folded, locate }: { records: Dispatch
           <SessionStatus location={location} locate={locate} hint={() => t('locateSessionPanel')} />
         </> : <span className="dispatch-record-gone">{t('noPanelOnSession')}</span>}
         {/* Folded, the text is named by how it invokes the skill: its first word. */}
-        <button className="dispatch-record-toggle" aria-expanded={unfolded.has(index)} onClick={() => toggleText(index)}>
-          {unfolded.has(index) ? t('hideCommand') : `${record.text.split(/\s/, 1)[0]} ▸`}</button>
-        {unfolded.has(index) && <code className="dispatch-record-text">{record.text}</code>}
+        <button className="dispatch-record-toggle" aria-expanded={textShows} onClick={() => toggleText(dispatchedAt)}>
+          {textShows ? t('hideCommand') : `${record.text.split(/\s/, 1)[0]} ▸`}</button>
+        {textShows && <code className="dispatch-record-text">{record.text}</code>}
       </li>;
     })}</ul>}
   </section>;

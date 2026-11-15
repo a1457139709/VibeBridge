@@ -168,6 +168,12 @@ export function ForgeLists({ project, editBinding, detailHost, dispatchHost, ref
     setOpened([]);
     (title ?? scrollArea.current)?.focus();
   };
+  /** Opens a list row's item in the detail, with focus in it; the row of the one item the detail shows closes it. */
+  const openFromList = (item: DetailItem) => {
+    const only = opened.length === 1 ? opened[0] : undefined;
+    if (only?.kind === item.kind && only.number === item.number) closeDetail();
+    else setOpened([item]);
+  };
   const forgeFailed = (failure: ForgeFailure) => setLists(all => ({ ...all, [tab]: { ...all[tab], failed: { ok: false, failure, account: null } } }));
 
   // The current tab fetches when it shows and whenever its filter changes; typing in the search settles first.
@@ -211,10 +217,10 @@ export function ForgeLists({ project, editBinding, detailHost, dispatchHost, ref
     <FilterBar key={tab} searchLabel={t(texts.search)} filter={filter} setFilter={setFilter} labels={loaded?.labels ?? []} counts={loaded?.counts ?? null} />
     <div className="forge-scroll" ref={scrollArea} tabIndex={-1} onKeyDown={moveOrOpenRow}>
       {lists.issues.loaded && tab === 'issues' && <IssueTree issues={lists.issues.loaded.items} state={lists.issues.loaded.filter.state}
-        capabilities={project.capabilities} selected={selected('issue')} open={number => setOpened([{ kind: 'issue', number }])} addLabel={addLabel} action={issueAction} />}
+        capabilities={project.capabilities} selected={selected('issue')} open={number => openFromList({ kind: 'issue', number })} addLabel={addLabel} action={issueAction} />}
       {lists.pullRequests.loaded && tab === 'pullRequests' && <ul className="forge-rows" aria-label={t(texts.name)}>
         {lists.pullRequests.loaded.items.map(item => <li key={item.number}><PullRequestRow pullRequest={item} selected={item.number === selected('pullRequest')}
-          open={() => setOpened([{ kind: 'pullRequest', number: item.number }])} addLabel={addLabel} /></li>)}</ul>}
+          open={() => openFromList({ kind: 'pullRequest', number: item.number })} addLabel={addLabel} /></li>)}</ul>}
       {loaded && !loaded.items.length && <p className="forge-empty">{t(texts.noMatches)}</p>}
       {!loaded && <p className="forge-empty">{t(texts.loading)}</p>}
       {loaded?.cursor && <button className="forge-more" disabled={loading} onClick={() => void load(tab, loaded.filter, loaded.cursor)}>{t('loadMore')}</button>}
