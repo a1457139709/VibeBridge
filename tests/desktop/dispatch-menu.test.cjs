@@ -36,16 +36,22 @@ module.exports = {
         await click('Dispatched issue');
         await until(() => evaluate('!!document.querySelector(".forge-detail .dispatch-button")'), 'issue detail open with its Dispatch');
       }
-      for (const height of [860, 480]) {
-        window.setContentSize(1280, height);
-        await until(() => evaluate(`document.documentElement.clientHeight === ${height}`), `window content is ${height}px high`);
+      // The window as it opens, then short: a height any screen fits.
+      for (const height of [null, 480]) {
+        if (height) {
+          window.setContentSize(1280, height);
+          await until(() => evaluate(`document.documentElement.clientHeight === ${height}`), `window content is ${height}px high`);
+        } else {
+          window.setContentSize(1280, 700);
+          await until(() => evaluate('document.documentElement.clientWidth === 1280'), 'window content is 1280px wide');
+        }
         await evaluate(`document.querySelector('${scope} .dispatch-button').click()`);
         await until(() => evaluate('document.activeElement?.classList.contains("dispatch-menu")'), `dispatch menu open from the ${place}`);
         // The last command opens its targets lowest, leftwards over the workspace.
         await point('.dispatch-menu > [role=menuitem]:last-of-type');
         await until(() => evaluate('!!document.querySelector(".dispatch-targets")'), 'targets of the last command shown');
-        await until(() => evaluate(drawnWhole('.dispatch-menu')), `commands drawn whole from the ${place} in a ${height}px window`);
-        await until(() => evaluate(drawnWhole('.dispatch-targets')), `targets drawn whole from the ${place} in a ${height}px window`);
+        await until(() => evaluate(drawnWhole('.dispatch-menu')), `commands drawn whole from the ${place} in a ${height ? `${height}px` : "tall"} window`);
+        await until(() => evaluate(drawnWhole('.dispatch-targets')), `targets drawn whole from the ${place} in a ${height ? `${height}px` : "tall"} window`);
         key('Escape');
         await until(() => evaluate('!document.querySelector(".dispatch-menu")'), 'dispatch menu closed');
       }
