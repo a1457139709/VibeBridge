@@ -26,7 +26,12 @@ module.exports = {
       directory: ${JSON.stringify(project.directory)}, repository: { forge: 'github', path: 'octo/desktop' } }, false)`)).error, undefined);
     await click('Show the GitHub sidebar');
     await until(() => evaluate('document.querySelector(".forge-row-title")?.textContent === "Dispatched issue"'), 'issue row listed');
-    const point = async selector => window.webContents.sendInputEvent({ type: 'mouseMove', ...center(await rect(selector)) });
+    // A pointer left where an item has just been drawn does not enter it, so each point moves there from a corner.
+    const point = async selector => {
+      const target = center(await rect(selector));
+      window.webContents.sendInputEvent({ type: 'mouseMove', x: 1, y: 1 });
+      window.webContents.sendInputEvent({ type: 'mouseMove', ...target });
+    };
     const key = keyCode => {
       window.webContents.sendInputEvent({ type: 'keyDown', keyCode });
       window.webContents.sendInputEvent({ type: 'keyUp', keyCode });
