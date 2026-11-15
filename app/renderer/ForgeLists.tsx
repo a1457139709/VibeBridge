@@ -9,7 +9,8 @@ import type { IssueShortcutAction } from '../shared/shortcuts';
 import { ForgeDetailPane } from './ForgeDetail';
 import type { IssueDispatch } from './IssueDetail';
 import { FilterBar } from './ForgeFilterBar';
-import { DispatchButton, DispatchStatus, holdsDispatch, type DispatchHost } from './DispatchMenu';
+import { DispatchButton, holdsDispatch, type DispatchHost } from './DispatchMenu';
+import { DispatchStatus } from './DispatchRecords';
 import type { DetailItem } from './ForgeDisplay';
 import { IssueTree, issueRowOf, moveOrOpenRow, PullRequestRow, rowTitleIn, rowTitleOf } from './ForgeRows';
 

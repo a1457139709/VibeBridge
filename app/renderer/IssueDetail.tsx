@@ -4,7 +4,7 @@ import type { IssueDetail, IssueReference, ForgeLinks, PullRequestReference, Rep
 import type { ProjectView } from '../shared/model';
 import type { DispatchRecordView } from '../shared/dispatch';
 import { IssueActions, type Actions } from './DirectActions';
-import { DispatchRecords } from './DispatchMenu';
+import { DispatchRecords } from './DispatchRecords';
 import { BlockedMark, IssueIcon, issueState, issueStates, ItemReference, Label, linkedItem, OpenChecks, Post, Progress, PullRequestIcon, RelativeTime, type DetailItem } from './ForgeDisplay';
 
 interface DocumentProps {
