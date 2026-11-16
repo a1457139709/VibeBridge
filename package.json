@@ -22,7 +22,8 @@
     "package": "npm run prepare:runtime && npm run build && node scripts/package.mjs",
     "rebuild:terminal": "electron-rebuild -f -w node-pty",
     "prototype:workbench": "node app/renderer/prototype-github-sidebar-fetch.mjs && vite --port 5197 --open /prototype-workbench.html",
-    "prototype:repository-binding": "vite --port 5198 --open /prototype-repository-binding.html"
+    "prototype:repository-binding": "vite --port 5198 --open /prototype-repository-binding.html",
+    "prototype:repository-binding-entry": "vite --port 5199 --open /prototype-repository-binding-entry.html"
   },
   "dependencies": {
     "@primer/octicons-react": "19.42.0",
