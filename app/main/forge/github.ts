@@ -1,6 +1,6 @@
 import { z } from 'zod';
-import type { ChecksConclusion, DirectAction, ForgeLabel, ListFilter, IssueSummary } from '../../shared/forge';
-import type { Forge } from './forge';
+import type { ChecksConclusion, DirectAction, ForgeLabel, ListFilter, IssueSummary, RepositoryReference } from '../../shared/forge';
+import { ForgeError, type Forge } from './forge';
 import { gh, ghOutput, graphql } from './github-cli';
 import { checksState, issueReference, issueReferenceFields, issueReferenceSchema, issueState, issueStateFields, labelSchema, loginSchema, pullRequestState, relatedLimit, repositoryLinks, canWrite, viewerPermission } from './github-fields';
 import { pullRequestDetail } from './github-pull-request';
@@ -111,9 +111,9 @@ function listSearch(path: string, kind: 'issue' | 'pr', { search, state, labels 
 }
 
 /** Runs a list page query for the filter's page and its open and closed counts. */
-function listPage<T>(query: string, schema: z.ZodType<T>, path: string, kind: 'issue' | 'pr', { filter, cursor }: { filter: ListFilter; cursor: string | null }) {
+function listPage<T>(query: string, schema: z.ZodType<T>, { host, path }: RepositoryReference, kind: 'issue' | 'pr', { filter, cursor }: { filter: ListFilter; cursor: string | null }) {
   const [owner, name] = path.split('/');
-  return graphql(query, { owner, name, search: listSearch(path, kind, filter), openSearch: listSearch(path, kind, { ...filter, state: 'open' }),
+  return graphql(host, query, { owner, name, search: listSearch(path, kind, filter), openSearch: listSearch(path, kind, { ...filter, state: 'open' }),
     closedSearch: listSearch(path, kind, { ...filter, state: 'closed' }), ...cursor === null ? {} : { after: cursor } }, schema);
 }
 /** The page's cursor, labels and counts; the caller maps the items. */
@@ -146,26 +146,54 @@ const actionArgs = (action: DirectAction): string[] => {
 };
 
 const outputLines = (text: string) => text.split('\n').map(line => line.trim()).filter(Boolean);
+const escapeRegExp = (text: string) => text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+
+const locateQuery = `query($owner: String!, $name: String!) { repository(owner: $owner, name: $name) { databaseId nameWithOwner } }`;
+const locatedSchema = z.object({ repository: z.object({ databaseId: z.number(), nameWithOwner: z.string() }) });
 
 export const github: Forge = {
   id: 'github',
+  defaultHost: 'github.com',
   presentation: { name: 'GitHub', cli: 'gh', installUrl: 'https://cli.github.com', loginCommand: 'gh auth login' },
   capabilities: { subIssues: true, blocking: true, requiredChecks: true, mergeQueue: true, mergeMethods: ['merge', 'squash', 'rebase'] },
-  async account() { return (await gh(['api', 'user', '--jq', '.login'])).trim(); },
-  async repositories() {
-    return outputLines(await gh(['api', '--paginate', 'user/repos?affiliation=owner,collaborator,organization_member&per_page=100', '--jq', '.[].full_name']));
+  async account(host) { return (await gh(host, ['api', 'user', '--jq', '.login'])).trim(); },
+  async repositories(host) {
+    // The REST `id` is the GraphQL `databaseId`: a number GitHub keeps through renames and transfers.
+    return outputLines(await gh(host, ['api', '--paginate', 'user/repos?affiliation=owner,collaborator,organization_member&per_page=100',
+      '--jq', '.[] | "\\(.id) \\(.full_name)"'])).map(line => { const [id, path] = line.split(' '); return { id, path }; });
   },
-  remotePath(url) {
-    // owner/repo from a github.com remote URL in HTTPS, SSH or scp-like form.
-    const match = url.trim().match(/^(?:(?:https?|ssh|git):\/\/(?:[^@/]+@)?github\.com(?::\d+)?\/|[^@/\s]+@github\.com:)([^/\s]+\/[^/\s]+?)(?:\.git)?\/?$/i);
+  remotePath(host, url) {
+    // owner/repo from a remote URL on the host in HTTPS, SSH or scp-like form.
+    const at = escapeRegExp(host);
+    const match = url.trim().match(new RegExp(`^(?:(?:https?|ssh|git)://(?:[^@/]+@)?${at}(?::\\d+)?/|[^@/\\s]+@${at}:)([^/\\s]+/[^/\\s]+?)(?:\\.git)?/?$`, 'i'));
     return match?.[1] ?? null;
   },
-  issueUrl(path, number) { return `https://github.com/${path}/issues/${number}`; },
-  find(path, repositories) {
-    return repositories.find(repository => samePath(repository, path)) ?? null;
+  issueUrl({ host, path }, number) { return `https://${host}/${path}/issues/${number}`; },
+  find(path, paths) {
+    return paths.find(listed => samePath(listed, path)) ?? null;
   },
-  async issues(path, query) {
-    const data = await listPage(issuePageQuery, issuePageSchema, path, 'issue', query);
+  async locate({ host, id, path }) {
+    if (!/^\d+$/.test(id)) throw new ForgeError('inaccessible', '');
+    // GitHub answers a renamed or transferred repository at its former path while a redirect stays there; the ID tells
+    // whether the one answering is still this repository.
+    const [owner, name] = path.split('/');
+    let notAtPath: ForgeError | undefined;
+    try {
+      const { repository } = await graphql(host, locateQuery, { owner, name }, locatedSchema);
+      if (String(repository.databaseId) === id) return repository.nameWithOwner;
+    } catch (error) {
+      if (!(error instanceof ForgeError) || error.kind !== 'inaccessible') throw error;
+      notAtPath = error;
+    }
+    // With no redirect left, or another repository at the path, only the ID finds it. `repositories/{id}` is not in
+    // GitHub's documented REST API, so it is asked only then. When it cannot find the repository either, GitHub's
+    // answer for the path says more than its 404 for the ID.
+    try { return (await gh(host, ['api', `repositories/${id}`, '--jq', '.full_name'])).trim(); }
+    catch (error) { throw error instanceof ForgeError && error.kind === 'inaccessible' ? notAtPath ?? error : error; }
+  },
+  async issues(repository, query) {
+    const { path } = repository;
+    const data = await listPage(issuePageQuery, issuePageSchema, repository, 'issue', query);
     return {
       items: data.search.nodes.map(issue => ({ ...issueSummary(issue, path),
         parent: issue.parent && samePath(issue.parent.repository.nameWithOwner, path) ? issue.parent.number : null,
@@ -174,17 +202,17 @@ export const github: Forge = {
       ...pageFrame(data),
     };
   },
-  async pullRequests(path, query) {
-    const data = await listPage(pullRequestPageQuery, pullRequestPageSchema, path, 'pr', query);
+  async pullRequests(repository, query) {
+    const data = await listPage(pullRequestPageQuery, pullRequestPageSchema, repository, 'pr', query);
     return {
       items: data.search.nodes.map(pull => ({ number: pull.number, title: pull.title, state: pullRequestState(pull.state, pull.isDraft),
         createdAt: pull.createdAt, author: pull.author?.login ?? null, checks: latestChecks(pull.commits), labels: pull.labels.nodes })),
       ...pageFrame(data),
     };
   },
-  async issue(path, number) {
+  async issue({ host, path }, number) {
     const [owner, name] = path.split('/');
-    const { repository } = await graphql(issueDetailQuery, { owner, name, number }, issueDetailSchema);
+    const { repository } = await graphql(host, issueDetailQuery, { owner, name, number }, issueDetailSchema);
     const { issue } = repository;
     return {
       number: issue.number, title: issue.title, ...issueState(issue), createdAt: issue.createdAt, labels: issue.labels.nodes,
@@ -204,8 +232,8 @@ export const github: Forge = {
     };
   },
   pullRequest: pullRequestDetail,
-  async act(path, action) {
-    const { stdout, stderr } = await ghOutput([...actionArgs(action), '--repo', path]);
+  async act({ host, path }, action) {
+    const { stdout, stderr } = await ghOutput(host, [...actionArgs(action), '--repo', path]);
     return [stdout.trim(), stderr.trim()].filter(Boolean).join('\n');
   },
 };

@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import type { Check, PullRequestDetail } from '../../shared/forge';
+import type { Check, PullRequestDetail, RepositoryReference } from '../../shared/forge';
 import { graphql } from './github-cli';
 import { checksState, issueReference, issueReferenceFields, issueReferenceSchema, labelSchema, loginSchema, pullRequestState, relatedLimit, repositoryLinks, canWrite, viewerPermission } from './github-fields';
 
@@ -51,10 +51,10 @@ const check = (context: z.infer<typeof checkContextSchema>): Check => context.__
   : { name: context.context, result: statusResult[context.state], required: context.isRequired, url: context.targetUrl };
 const reviewVerdict = { COMMENTED: 'commented', APPROVED: 'approved', CHANGES_REQUESTED: 'changesRequested', DISMISSED: 'dismissed' } as const;
 
-/** One pull request of the repository at `path` with its rendered body, timeline and merge requirements. */
-export async function pullRequestDetail(path: string, number: number): Promise<PullRequestDetail> {
+/** One pull request of the repository with its rendered body, timeline and merge requirements. */
+export async function pullRequestDetail({ host, path }: RepositoryReference, number: number): Promise<PullRequestDetail> {
   const [owner, name] = path.split('/');
-  const { repository } = await graphql(pullRequestDetailQuery, { owner, name, number }, pullRequestDetailSchema);
+  const { repository } = await graphql(host, pullRequestDetailQuery, { owner, name, number }, pullRequestDetailSchema);
   const { pullRequest: pull } = repository;
   // A pending review is the viewer's own, not yet submitted. Replies to code comments arrive as reviews without a summary.
   const reviews = pull.reviews.nodes.flatMap(({ state, submittedAt, ...review }) => state === 'PENDING' || submittedAt === null ? [] : [{ ...review, state, submittedAt }]);

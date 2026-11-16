@@ -7,11 +7,11 @@ import type { ProjectView, Snapshot, WorkbenchEvent } from '../../../app/shared/
 import type { DesktopAPI } from '../../../app/shared/api';
 import type { ForgeCapabilities, ListQuery, IssuePage, IssueSummary, ListedIssue, ForgeFailure, PullRequestSummary, Page } from '../../../app/shared/forge';
 import { deferred, provideWorkbench } from './workbench';
-import { githubCapabilities, githubForge, githubView } from './forge';
+import { githubCapabilities, githubForge, githubView, githubRepository } from './forge';
 import { stubLayoutApis } from './no-layout';
 
 const project = (id: string, name: string, capabilities: ForgeCapabilities): ProjectView => ({
-  id, name, directory: `/work/${id}`, layout: { panel: `${id}-panel` }, tray: [], repository: { forge: 'github', path: `octo/${id}` }, ...githubView, capabilities,
+  id, name, directory: `/work/${id}`, layout: { panel: `${id}-panel` }, tray: [], repository: githubRepository(`octo/${id}`), ...githubView, capabilities,
   panels: [{ id: `${id}-panel`, agent: 'codex', run: { id: `${id}-run`, panelId: `${id}-panel`, projectId: id, state: 'running', title: `${name} session` } }],
 });
 export const bug = { name: 'bug', color: 'd73a4a' }, docs = { name: 'docs', color: '0075ca' };
@@ -63,7 +63,7 @@ export function renderWorkbench(capabilities = githubCapabilities, api: Partial<
     activateProject: async id => { snapshot.activeProjectId = id; publish(); },
     saveLayout: async () => {},
     inspectDirectory: async directory => ({ valid: true, directory }),
-    repositoryChoices: async () => ({ ok: true, forge: githubForge, account: 'octo', origin: null, repositories: [{ forge: 'github', path: 'octo/alpha' }] }),
+    repositoryChoices: async () => ({ ok: true, forge: githubForge, account: 'octo', origin: null, repositories: [githubRepository('octo/alpha')] }),
     issuePage: (projectId, query) => listRequest('issues', projectId, query) as Promise<IssuePage>,
     pullRequestPage: (projectId, query) => listRequest('pullRequests', projectId, query) as Promise<Page<PullRequestSummary>>,
     ...api,

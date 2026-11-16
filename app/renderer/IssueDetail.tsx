@@ -1,8 +1,10 @@
-import { useEffect, useRef, useState, type MouseEvent } from 'react';
+import { useEffect, useRef, useState, type MouseEvent, type ReactNode } from 'react';
 import { useLocalization } from './Localization';
 import type { IssueDetail, IssueReference, ForgeLinks, PullRequestReference, RepositoryReference } from '../shared/forge';
 import type { ProjectView } from '../shared/model';
+import type { DispatchRecordView } from '../shared/dispatch';
 import { IssueActions, type Actions } from './DirectActions';
+import { DispatchRecords } from './DispatchRecords';
 import { BlockedMark, IssueIcon, issueState, issueStates, ItemReference, Label, linkedItem, OpenChecks, Post, Progress, PullRequestIcon, RelativeTime, type DetailItem } from './ForgeDisplay';
 
 interface DocumentProps {
@@ -13,11 +15,20 @@ interface DocumentProps {
   /** Opens a clicked link of the bound repository in the detail. */
   followLink(event: MouseEvent): void;
   actions: Actions;
+  dispatch: IssueDispatch;
 }
 
-/** One issue as its detail shows it: the parent, title, state and labels, the relation graph, the pull requests
+/** What the detail shows of dispatching an issue: its Dispatch, and its Dispatch Records, oldest first. */
+export interface IssueDispatch {
+  button: ReactNode;
+  records: DispatchRecordView[];
+  /** Locates a panel; an ephemeral one opens as its temporary maximize. */
+  locate(projectId: string, panelId: string): void;
+}
+
+/** One issue as its detail shows it: the parent, title, state, labels and Dispatch, its Dispatch Records, the relation graph, the pull requests
  * that close it, then the body, sub-issues and comments in the forge's own rendering, filtered, and its direct actions last. */
-export function IssueDocument({ project, issue, open, followLink, actions }: DocumentProps) {
+export function IssueDocument({ project, issue, open, followLink, actions, dispatch }: DocumentProps) {
   const { t } = useLocalization();
   const { capabilities } = project;
   const follow = (reference: IssueReference) => {
@@ -39,12 +50,14 @@ export function IssueDocument({ project, issue, open, followLink, actions }: Doc
       {issue.labels.map(label => <Label key={label.name} label={label} />)}
       <span className="forge-spacer" />
       {capabilities.blocking && issue.state === 'open' && !!openBlockers.length && <BlockedMark by={openBlockers.map(blocker => ({ reference: `#${blocker.number}`, title: blocker.title }))} />}
+      {issue.state === 'open' && dispatch.button}
     </div>
     <div className="forge-doc-meta">
       <b>{issue.author ?? t('deletedAccount')}</b> {t('issueOpened')} <RelativeTime iso={issue.createdAt} />
       {' · '}{issue.commentCount === 1 ? t('oneComment') : t('commentCount', { count: issue.commentCount })}
       {!!issue.assignees.length && <>{' · '}{t('assigneeList', { names: issue.assignees.join(', ') })}</>}
     </div>
+    {!!dispatch.records.length && <DispatchRecords key={`${issue.number} ${issue.state}`} records={dispatch.records} folded={issue.state === 'closed'} locate={dispatch.locate} />}
     {capabilities.blocking && <RelationGraph issue={issue} blockers={openBlockers} follow={follow} />}
     {!!issue.closingPullRequests.length && <ClosingPullRequests pulls={issue.closingPullRequests} links={issue.links} open={open} />}
     <div className="forge-doc-main">

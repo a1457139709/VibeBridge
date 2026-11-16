@@ -1,10 +1,11 @@
 import { useLocalization } from './Localization';
-import { detail, message } from '../shared/messages';
+import { message } from '../shared/messages';
 import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from 'react';
 import { type DirectoryResult, type Project, type ProjectEditResult, type ProjectView } from '../shared/model';
-import { sameRepository, type RepositoryChoices, type RepositoryReference } from '../shared/forge';
+import { sameRepository, type RepositoryReference } from '../shared/forge';
 import { projectNameError, projectNameHasControls } from '../shared/project-name';
 import { LaunchResults } from './LaunchResults';
+import { RepositoryField, useRepositoryField } from './RepositoryField';
 import './project-management.css';
 
 export function ProjectNavigationItem({ project, openProject, children }: {
@@ -35,103 +36,6 @@ export function ProjectNavigationItem({ project, openProject, children }: {
   </div>;
 }
 
-/** The repository field's form state. The choices load when the dialog opens and follow the directory being
- * edited; `repository` is the binding the project has after saving. A list that failed to load binds nothing new. */
-function useRepositoryField(project: ProjectView, directory: string) {
-  const bound = project.repository;
-  const [choices, setChoices] = useState<RepositoryChoices | { ok: false; error: string }>();
-  const [attempt, setAttempt] = useState(0);
-  const [changing, setChanging] = useState(false), [unbinding, setUnbinding] = useState(false);
-  // undefined follows the default: the bound repository, else the one origin points at.
-  const [picked, setPicked] = useState<RepositoryReference | null>();
-  useEffect(() => {
-    let live = true;
-    void window.workbench.repositoryChoices(project.id, directory).then(result => { if (live) setChoices(result); },
-      error => { if (live) setChoices({ ok: false, error: (error as Error).message }); });
-    return () => { live = false; };
-  }, [project.id, directory, attempt]);
-  const listed = choices?.ok ? choices : undefined;
-  const selection = picked !== undefined ? picked : bound ?? listed?.origin ?? null;
-  const repository = bound
-    ? unbinding ? null : changing && listed && selection ? selection : bound
-    : listed ? selection : null;
-  return {
-    bound, choices, listed, selection, repository, changing, unbinding,
-    retry() { setChoices(undefined); setAttempt(value => value + 1); },
-    pick: setPicked,
-    change() { setChanging(true); },
-    unbind() { setUnbinding(true); },
-    undo() { setChanging(false); setUnbinding(false); setPicked(undefined); },
-  };
-}
-type RepositoryFieldState = ReturnType<typeof useRepositoryField>;
-
-function RepositoryList({ field, disabled }: { field: RepositoryFieldState; disabled: boolean }) {
-  const { t } = useLocalization();
-  const [query, setQuery] = useState('');
-  const { choices, bound, selection } = field;
-  const retry = <button type="button" onClick={field.retry}>{t('retry')}</button>;
-  if (!choices) return <span className="muted">{t('loadingRepositories')}</span>;
-  if (!choices.ok && 'error' in choices) return <div className="repository-error"><span>{t('repositoryListFailed', { reason: detail(choices.error) })}</span>{retry}</div>;
-  if (!choices.ok) {
-    const { kind, detail: reason, forge } = choices.failure;
-    return <div className="repository-error">
-      {kind === 'notInstalled' ? <><span>{t('forgeNotInstalled', { cli: forge.cli })}</span><a href={forge.installUrl} target="_blank" rel="noreferrer">{t('installInstructions')}</a></>
-        : kind === 'loggedOut' ? <span>{t('forgeLoggedOut', { cli: forge.cli, command: forge.loginCommand })}</span>
-        : <span>{t('repositoryListFailed', { reason: reason ? detail(reason) : kind })}</span>}
-      {retry}</div>;
-  }
-  // The bound repository stays visible even when the account no longer lists it.
-  const repositories = bound && !choices.repositories.some(item => sameRepository(item, bound)) ? [bound, ...choices.repositories] : choices.repositories;
-  const term = query.trim().toLowerCase();
-  const shown = repositories.filter(item => item.path.toLowerCase().includes(term));
-  return <div className="repository-picker">
-    <input type="search" aria-label={t('searchRepositories')} placeholder={t('searchRepositories')} autoComplete="off" value={query} disabled={disabled} onChange={event => setQuery(event.target.value)} />
-    <div className="repository-list" role="listbox" aria-labelledby="edit-project-repository">
-      {shown.map(item => <button type="button" role="option" key={item.path} data-path={item.path} aria-selected={sameRepository(item, selection)} className={sameRepository(item, selection) ? 'on' : ''} disabled={disabled} onClick={() => field.pick(item)}>
-        <span className="repository-path">{item.path}</span>
-        {sameRepository(item, choices.origin) && <small>{t('repositoryOrigin')}</small>}
-        {sameRepository(item, bound) && <small>{t('repositoryCurrent')}</small>}
-      </button>)}
-      {!shown.length && <span className="muted repository-empty">{t('noRepositories')}</span>}
-    </div>
-    <span className="muted repository-source">{t('repositoryListSource', { cli: choices.forge.cli })}</span>
-  </div>;
-}
-
-/** Bound: the repository with 更换 and 解绑, and the list only after 更换. Unbound: the list, with what saving binds. */
-function RepositoryField({ field, disabled, focus }: { field: RepositoryFieldState; disabled: boolean; focus: boolean }) {
-  const { t } = useLocalization();
-  const element = useRef<HTMLDivElement>(null);
-  const focusPending = useRef(focus);
-  // Opened for the repository: focus goes to the field's first control once it is drawn, i.e. the search
-  // box (or Retry) of the list, or Change for a bound project.
-  useEffect(() => {
-    if (!focusPending.current) return;
-    const target = element.current!.querySelector<HTMLElement>(field.bound
-      ? '.repository-current-actions button' : '.repository-picker input, .repository-error button');
-    if (target) { target.focus(); focusPending.current = false; }
-  });
-  const { bound, repository } = field;
-  const changed = !sameRepository(repository, bound);
-  let summary: ReactNode;
-  if (bound) summary = <>
-    <span className="repository-path"><b>{bound.path}</b>{changed ? <> → <b>{repository?.path ?? t('doNotBind')}</b></> : <small> {t('repositoryCurrent')}</small>}</span>
-    <span className="repository-current-actions">{field.changing || field.unbinding
-      ? <button type="button" disabled={disabled} onClick={field.undo}>{t('undo')}</button>
-      : <><button type="button" disabled={disabled} onClick={field.change}>{t('changeRepository')}</button><button type="button" className="danger" disabled={disabled} onClick={field.unbind}>{t('unbind')}</button></>}</span>
-  </>;
-  else summary = <>
-    <span className="repository-path">{repository ? t('bindAfterSave', { repository: repository.path }) : t('notBound')}</span>
-    {repository && <span className="repository-current-actions"><button type="button" disabled={disabled} onClick={() => field.pick(null)}>{t('doNotBind')}</button></span>}
-  </>;
-  const listShown = bound ? field.changing : true;
-  return <div className="repository-field" ref={element}><span id="edit-project-repository" className="repository-label">{t('repository')}</span>
-    <div className={`repository-current${changed ? ' changed' : ''}`}>{summary}</div>
-    {listShown && <RepositoryList field={field} disabled={disabled} />}
-  </div>;
-}
-
 /** The edit-project dialog. `focusRepository` opens it with focus on the repository field instead of the name. */
 export function ProjectEditor({ project, close, openProject, focusRepository = false }: { project: ProjectView; close(): void; openProject(id: string): void; focusRepository?: boolean }) {
   const { t, text } = useLocalization();
@@ -145,7 +49,7 @@ export function ProjectEditor({ project, close, openProject, focusRepository = f
   const [result, setResult] = useState<{ outcome: ProjectEditResult; repository: { from: RepositoryReference | null; to: RepositoryReference | null } }>();
   // The default repository follows the directory being edited once it has been inspected.
   const field = useRepositoryField(project, inspection.result.valid ? inspection.result.directory! : original.directory);
-  const bound = original.repository, repository = field.repository;
+  const bound = field.bound, repository = field.repository;
   const bindingChanged = !sameRepository(repository, bound);
   const directory = inspection.path === path ? inspection.result : undefined;
   const checking = !!path && !directory;

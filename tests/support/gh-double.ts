@@ -39,7 +39,11 @@ export interface GhPullRequest {
 
 export interface GhState {
   account: string;
-  repositories: string[];
+  /** The repositories the account lists. One named by its path alone has an ID that follows from the path; naming the
+   * ID of another lets a test rename or transfer a repository, or put a new one at a former one's path. */
+  repositories: (string | { id: number; path: string })[];
+  /** Former paths GitHub still answers GraphQL queries at, and the path of the listed repository each leads to. */
+  redirects?: Record<string, string>;
   /** The issues and pull requests of every listed repository, and the labels each repository defines. */
   issues?: GhIssue[];
   pullRequests?: GhPullRequest[];

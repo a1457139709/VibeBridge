@@ -9,11 +9,11 @@ import type { ProjectEdit, ProjectView } from '../../app/shared/model';
 import { detail, message } from '../../app/shared/messages';
 import type { ForgeFailureKind, RepositoryChoices, RepositoryReference } from '../../app/shared/forge';
 import { provideWorkbench } from './support/workbench';
-import { githubForge, githubView } from './support/forge';
+import { githubForge, githubRepository, githubView } from './support/forge';
 
 afterEach(cleanup);
 
-const github = (path: string): RepositoryReference => ({ forge: 'github', path });
+const github = (path: string) => githubRepository(path);
 const listed: RepositoryChoices = { ok: true, forge: githubForge, account: 'octo', origin: github('octo/vibebridge'),
   repositories: ['octo/tools', 'octo/vibebridge', 'acme/group/forge'].map(github) };
 const failed = (kind: ForgeFailureKind, detail = ''): RepositoryChoices => ({ ok: false, failure: { kind, detail, forge: githubForge } });
@@ -193,4 +193,51 @@ test('the default follows the origin of the directory being edited until a repos
   await user.click(saveButton());
   await closed();
   assert.deepEqual(edits.map(item => item.edit.repository), [github('octo/tools')]);
+});
+
+test('from the search box ↑/↓ move through the listed repositories and Enter or Space picks the one reached', async () => {
+  editor(null, async () => listed);
+  const user = userEvent.setup();
+  await openEditor(user);
+  await screen.findByRole('listbox', { name: 'Repository' });
+  const search = screen.getByRole('searchbox', { name: 'Search repositories' }) as HTMLInputElement;
+  const reached = () => document.getElementById(search.getAttribute('aria-activedescendant') ?? '')?.dataset.path;
+  await user.click(search);
+  assert.equal(reached(), undefined, 'no repository is reached before a key moves');
+  await user.keyboard('{ArrowDown}');
+  assert.equal(reached(), 'octo/tools');
+  await user.keyboard('{ArrowUp}');
+  assert.equal(reached(), 'octo/tools', 'the first repository stays reached');
+  await user.keyboard('{ArrowDown}{ArrowDown}{ArrowDown}');
+  assert.equal(reached(), 'acme/group/forge', 'the last repository stays reached');
+  await user.keyboard('{Enter}');
+  assert.deepEqual(selected(), ['acme/group/forge']);
+  assert.ok(screen.getByRole('dialog'), 'Enter picks without saving');
+  await user.keyboard('{ArrowUp} ');
+  assert.deepEqual(selected(), ['octo/vibebridge']);
+  assert.equal(search.value, '', 'Space picks without typing');
+  assert.equal(document.activeElement, search);
+
+  await user.hover(option('octo/tools'));
+  assert.equal(reached(), 'octo/tools', 'pointing reaches a repository');
+  await user.keyboard('{ArrowDown}');
+  assert.equal(reached(), 'octo/vibebridge', 'the keys go on from where the pointer reached');
+
+  await user.type(search, 'tools');
+  assert.equal(reached(), undefined, 'a new search reaches nothing yet');
+  await user.keyboard('{ArrowDown}{Enter}');
+  assert.deepEqual(selected(), ['octo/tools']);
+});
+
+test('a bound repository the forge lists at a new path is listed once, there, as the current one', async () => {
+  const renamed: RepositoryChoices = { ...listed, repositories: [githubRepository('octo/tools-x', github('octo/tools').id), github('octo/vibebridge')] };
+  editor(github('octo/tools'), async () => renamed);
+  const user = userEvent.setup();
+  await openEditor(user);
+  await user.click(screen.getByRole('button', { name: 'Change' }));
+  await screen.findByRole('listbox', { name: 'Repository' });
+  assert.deepEqual(screen.getAllByRole('option').map(item => item.dataset.path), ['octo/tools-x', 'octo/vibebridge']);
+  assert.deepEqual(selected(), ['octo/tools-x']);
+  assert.ok(within(option('octo/tools-x')).getByText('current'));
+  assert.equal(saveButton().disabled, true, 'the binding has not changed');
 });

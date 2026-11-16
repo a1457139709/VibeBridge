@@ -63,7 +63,7 @@
 .forge-failed { color: var(--forge-failed); } .forge-pending { color: var(--forge-pending); }
 .forge-row-main { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 4px; }
 .forge-row { cursor: pointer; }
-.forge-row.selected { background: var(--hover); box-shadow: var(--selection-marker, inset 2px 0 var(--focus)); }
+.forge-row.selected, .forge-row:has(> .forge-row-main > .forge-row-title:focus-visible) { background: var(--hover); box-shadow: var(--selection-marker, inset 2px 0 var(--focus)); }
 .forge-sidebar .forge-row-title { display: block; padding: 0; border: 0; border-radius: 0; background: none; text-align: left; color: inherit;
   font-size: 13px; font-weight: 600; line-height: 1.35; overflow-wrap: anywhere; }
 .forge-row-meta { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 8px; font-size: 11px; color: var(--muted); }

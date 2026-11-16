@@ -11,10 +11,16 @@ db.exec(`PRAGMA journal_mode=WAL; PRAGMA foreign_keys=ON;
   CREATE TABLE IF NOT EXISTS projects (id TEXT PRIMARY KEY, name TEXT NOT NULL, directory TEXT NOT NULL UNIQUE, layout TEXT);
   CREATE TABLE IF NOT EXISTS panels (id TEXT PRIMARY KEY, project_id TEXT NOT NULL REFERENCES projects(id), agent TEXT NOT NULL, position INTEGER NOT NULL);
   CREATE TABLE IF NOT EXISTS workspace (id INTEGER PRIMARY KEY CHECK(id=1), active_project TEXT, navigation TEXT);
-  CREATE TABLE IF NOT EXISTS repository_bindings (project_id TEXT PRIMARY KEY REFERENCES projects(id), forge TEXT NOT NULL, path TEXT NOT NULL);
+  CREATE TABLE IF NOT EXISTS bound_repositories (project_id TEXT PRIMARY KEY REFERENCES projects(id), forge TEXT NOT NULL, host TEXT NOT NULL,
+    repository_id TEXT NOT NULL, path TEXT NOT NULL);
   CREATE TABLE IF NOT EXISTS forge_sidebar (id INTEGER PRIMARY KEY CHECK(id=1), preferences TEXT NOT NULL);
-  CREATE TABLE IF NOT EXISTS dispatch_records (project_id TEXT NOT NULL REFERENCES projects(id), forge TEXT NOT NULL, path TEXT NOT NULL,
-    issue INTEGER NOT NULL, dispatched_at TEXT NOT NULL, agent TEXT NOT NULL, text TEXT NOT NULL, session_id TEXT NOT NULL);
+  CREATE TABLE IF NOT EXISTS dispatches (project_id TEXT NOT NULL REFERENCES projects(id), forge TEXT NOT NULL, host TEXT NOT NULL,
+    repository_id TEXT NOT NULL, path TEXT NOT NULL, issue INTEGER NOT NULL, dispatched_at TEXT NOT NULL, agent TEXT NOT NULL, text TEXT NOT NULL,
+    session_id TEXT NOT NULL);
+  -- Bindings and dispatches stored without the repository's ID cannot name it: their projects are bound again
+  -- (docs/adr/0006-forges-sit-behind-an-interface.md).
+  DROP TABLE IF EXISTS repository_bindings;
+  DROP TABLE IF EXISTS dispatch_records;
 `);
 
 // Stored content is read in its current format only: anything else fails the whole load and leaves the file untouched.
@@ -32,29 +38,33 @@ function readProject(row: Record<string, unknown>): Project {
   return { id, name, directory, layout, panels };
 }
 
-/** Each project's Repository Binding: the forge must be one the Workbench has an adapter for. */
+/** A repository reference stored in `table`'s row: the forge must be one the Workbench has an adapter for, and host, ID and path must be set. */
+function readRepository(table: string, row: Record<string, unknown>, project: Project): RepositoryReference {
+  const invalid = (field: string) => new Error(message('projectDataInvalid', { file, field: `${table}.${field}`, id: project.id, name: project.name }));
+  const forge = forgeIdSchema.safeParse(row.forge);
+  if (!forge.success) throw invalid('forge');
+  for (const field of ['host', 'repository_id', 'path']) if (!row[field]) throw invalid(field);
+  return { forge: forge.data, host: row.host as string, id: row.repository_id as string, path: row.path as string };
+}
+
+/** Each project's Repository Binding. */
 function readBindings(projects: Project[]): Record<string, RepositoryReference> {
   const bindings: Record<string, RepositoryReference> = {};
-  for (const row of db.prepare('SELECT project_id, forge, path FROM repository_bindings').all()) {
+  for (const row of db.prepare('SELECT * FROM bound_repositories').all()) {
     const project = projects.find(project => project.id === row.project_id)!;
-    const forge = forgeIdSchema.safeParse(row.forge);
-    if (!forge.success) throw new Error(message('projectDataInvalid', { file, field: 'repository_bindings.forge', id: project.id, name: project.name }));
-    if (!row.path) throw new Error(message('projectDataInvalid', { file, field: 'repository_bindings.path', id: project.id, name: project.name }));
-    bindings[project.id] = { forge: forge.data, path: row.path as string };
+    bindings[project.id] = readRepository('bound_repositories', row, project);
   }
   return bindings;
 }
 
-/** Every Dispatch Record, oldest first. The forge and Agent type must be ones the Workbench knows. */
+/** Every Dispatch Record, oldest first. The repository and Agent type must be ones the Workbench knows. */
 function readDispatchRecords(projects: Project[]): DispatchRecord[] {
-  return db.prepare('SELECT * FROM dispatch_records ORDER BY rowid').all().map(row => {
+  return db.prepare('SELECT * FROM dispatches ORDER BY rowid').all().map(row => {
     const project = projects.find(project => project.id === row.project_id)!;
-    const invalid = (field: string) => new Error(message('projectDataInvalid', { file, field: `dispatch_records.${field}`, id: project.id, name: project.name }));
-    const forge = forgeIdSchema.safeParse(row.forge);
-    if (!forge.success) throw invalid('forge');
+    const repository = readRepository('dispatches', row, project);
     const agent = agentTypeSchema.safeParse(row.agent);
-    if (!agent.success) throw invalid('agent');
-    return { projectId: project.id, repository: { forge: forge.data, path: row.path as string }, issue: row.issue as number,
+    if (!agent.success) throw new Error(message('projectDataInvalid', { file, field: 'dispatches.agent', id: project.id, name: project.name }));
+    return { projectId: project.id, repository, issue: row.issue as number,
       dispatchedAt: row.dispatched_at as string, agent: agent.data, text: row.text as string, sessionId: row.session_id as string };
   });
 }
@@ -79,6 +89,11 @@ function readSidebar(sidebar: Sidebar): SidebarPreferences {
 function transaction(write: () => void) {
   db.exec('BEGIN IMMEDIATE');
   try { write(); db.exec('COMMIT'); } catch (error) { db.exec('ROLLBACK'); throw error; }
+}
+
+function bind(projectId: string, repository: RepositoryReference) {
+  db.prepare(`INSERT INTO bound_repositories VALUES (?,?,?,?,?) ON CONFLICT(project_id) DO UPDATE SET forge=excluded.forge, host=excluded.host,
+    repository_id=excluded.repository_id, path=excluded.path`).run(projectId, repository.forge, repository.host, repository.id, repository.path);
 }
 
 function saveProject(project: Project) {
@@ -108,18 +123,21 @@ parentPort!.on('message', ({ id, operation, value }) => {
       const { project, repository } = value as { project: Project; repository: RepositoryReference | null };
       transaction(() => {
         saveProject(project);
-        if (repository) db.prepare('INSERT INTO repository_bindings VALUES (?,?,?) ON CONFLICT(project_id) DO UPDATE SET forge=excluded.forge, path=excluded.path')
-          .run(project.id, repository.forge, repository.path);
-        else db.prepare('DELETE FROM repository_bindings WHERE project_id=?').run(project.id);
+        if (repository) bind(project.id, repository);
+        else db.prepare('DELETE FROM bound_repositories WHERE project_id=?').run(project.id);
       });
+    } else if (operation === 'bind') {
+      const { projectId, repository } = value as { projectId: string; repository: RepositoryReference };
+      bind(projectId, repository);
     } else if (operation === 'dispatch') {
       const record = value as DispatchRecord;
-      db.prepare('INSERT INTO dispatch_records VALUES (?,?,?,?,?,?,?,?)').run(record.projectId, record.repository.forge, record.repository.path,
+      const { forge, host, id: repositoryId, path } = record.repository;
+      db.prepare('INSERT INTO dispatches VALUES (?,?,?,?,?,?,?,?,?,?)').run(record.projectId, forge, host, repositoryId, path,
         record.issue, record.dispatchedAt, record.agent, record.text, record.sessionId);
     } else if (operation === 'delete') transaction(() => {
       db.prepare('DELETE FROM panels WHERE project_id=?').run(value.id);
-      db.prepare('DELETE FROM dispatch_records WHERE project_id=?').run(value.id);
-      db.prepare('DELETE FROM repository_bindings WHERE project_id=?').run(value.id);
+      db.prepare('DELETE FROM dispatches WHERE project_id=?').run(value.id);
+      db.prepare('DELETE FROM bound_repositories WHERE project_id=?').run(value.id);
       db.prepare('DELETE FROM projects WHERE id=?').run(value.id);
       db.prepare('INSERT INTO workspace (id, active_project) VALUES (1,?) ON CONFLICT(id) DO UPDATE SET active_project=excluded.active_project').run(value.activeProjectId);
     });

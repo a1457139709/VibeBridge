@@ -52,8 +52,11 @@ export function shortcutConflicts(shortcuts: Shortcuts): ShortcutConflict[] {
     .map(([binding, actions]) => ({ binding, actions, system: reserved[binding] }));
 }
 
+/** Whether a key was pressed with none of ⌘, Ctrl and ⌥ held: a plain key, not a shortcut. */
+export const withoutCommandModifier = (event: Pick<KeyboardEvent, 'metaKey' | 'ctrlKey' | 'altKey'>) => !(event.metaKey || event.ctrlKey || event.altKey);
+
 export function shortcutFromEvent(event: Pick<KeyboardEvent, 'code' | 'metaKey' | 'ctrlKey' | 'altKey' | 'shiftKey' | 'isComposing'>): string | undefined {
-  if (event.isComposing || !(event.metaKey || event.ctrlKey || event.altKey)) return;
+  if (event.isComposing || withoutCommandModifier(event)) return;
   const key = codeKeys[event.code] ?? (/^(Key[A-Z]|Digit[0-9])$/.test(event.code) ? event.code.replace(/^(Key|Digit)/, '') : event.code);
   if (!validKey(key)) return;
   return [event.metaKey && 'Command', event.ctrlKey && 'Control', event.altKey && 'Alt', event.shiftKey && 'Shift', key].filter(Boolean).join('+');

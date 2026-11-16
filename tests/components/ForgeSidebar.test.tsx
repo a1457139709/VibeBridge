@@ -9,7 +9,7 @@ import type { SidebarPreferences, ProjectView, Snapshot, WorkbenchEvent } from '
 import type { RepositoryChoices } from '../../app/shared/forge';
 import { stubLayoutApis } from './support/no-layout';
 import { provideWorkbench } from './support/workbench';
-import { githubForge, githubView } from './support/forge';
+import { githubForge, githubView, githubRepository } from './support/forge';
 
 afterEach(cleanup);
 before(() => {
@@ -28,12 +28,12 @@ function renderWorkbench(forgeSidebar: SidebarPreferences = { visible: false, wi
   const snapshot: Snapshot = {
     navigation: { visible: true, width: 212 }, forgeSidebar, activeProjectId: 'bound', settings: defaultSettings(),
     settingsConflicts: [], startupTheme: 'light', resolvedTheme: 'light', errors: [],
-    projects: [project('bound', 'Bound project', { forge: 'github', path: 'octo/bound' }), project('unbound', 'Unbound project', null)],
+    projects: [project('bound', 'Bound project', githubRepository('octo/bound')), project('unbound', 'Unbound project', null)],
   };
   const listeners = new Set<(event: WorkbenchEvent) => void>();
   const publish = () => { for (const listener of listeners) listener({ kind: 'snapshot', snapshot: structuredClone(snapshot) }); };
   const saved: SidebarPreferences[] = [];
-  const choices: RepositoryChoices = { ok: true, forge: githubForge, account: 'octo', origin: null, repositories: [{ forge: 'github', path: 'octo/unbound' }] };
+  const choices: RepositoryChoices = { ok: true, forge: githubForge, account: 'octo', origin: null, repositories: [githubRepository('octo/unbound')] };
   provideWorkbench({
     snapshot: async () => structuredClone(snapshot), ready: async () => {},
     subscribe: listener => { listeners.add(listener); return () => { listeners.delete(listener); }; },

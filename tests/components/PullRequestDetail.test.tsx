@@ -8,7 +8,7 @@ import { defaultSettings } from '../../app/shared/settings';
 import type { ProjectView, Snapshot } from '../../app/shared/model';
 import type { Check, ForgeCapabilities, IssueDetailResult, PullRequestDetail, PullRequestDetailResult, PullRequestReference } from '../../app/shared/forge';
 import { deferred, provideWorkbench } from './support/workbench';
-import { githubCapabilities, githubView } from './support/forge';
+import { githubCapabilities, githubView, githubRepository } from './support/forge';
 import { issue as listedIssue, pullRequest as listedPullRequest, stubSidebarApis } from './support/forge-lists';
 
 afterEach(cleanup);
@@ -30,7 +30,7 @@ interface Request { kind: 'issue' | 'pullRequest'; number: number; answer(result
 /** The Workbench with a bound project and its sidebar open, listing one pull request and one issue. Every detail request waits until the test answers it. */
 function renderWorkbench({ capabilities = githubCapabilities, closingPullRequests = [] }: { capabilities?: ForgeCapabilities; closingPullRequests?: PullRequestReference[] } = {}) {
   const project: ProjectView = {
-    id: 'alpha', name: 'Alpha', directory: '/work/alpha', layout: { panel: 'panel' }, tray: [], repository: { forge: 'github', path: 'octo/alpha' }, ...githubView, capabilities,
+    id: 'alpha', name: 'Alpha', directory: '/work/alpha', layout: { panel: 'panel' }, tray: [], repository: githubRepository('octo/alpha'), ...githubView, capabilities,
     panels: [{ id: 'panel', agent: 'codex', run: { id: 'run', panelId: 'panel', projectId: 'alpha', state: 'running', title: 'Alpha session' } }],
   };
   const snapshot: Snapshot = {

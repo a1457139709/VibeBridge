@@ -5,8 +5,9 @@ import type { DirectAction, DirectActionResult, ForgeFailure, ForgeLinks, IssueD
 import type { ProjectView } from '../shared/model';
 import { linkedItem, type DetailItem } from './ForgeDisplay';
 import { idleActions, type Actions, type ActionState } from './DirectActions';
-import { IssueDocument } from './IssueDetail';
+import { IssueDocument, type IssueDispatch } from './IssueDetail';
 import { PullRequestDocument } from './PullRequestDetail';
+import { withoutCommandModifier } from '../shared/shortcuts';
 
 interface Props {
   project: ProjectView & { repository: RepositoryReference };
@@ -16,6 +17,7 @@ interface Props {
   resize(event: ReactPointerEvent<HTMLDivElement>): void;
   canBack: boolean;
   back(): void;
+  /** Closes the detail, with focus back on the list row of its item, or on the list when no such row shows. */
   close(): void;
   /** Opens an issue or pull request of the bound repository in this detail. */
   open(item: DetailItem): void;
@@ -25,6 +27,8 @@ interface Props {
   refresh(): void;
   /** Puts the sidebar in the failure state of a forge CLI found missing or logged out. */
   forgeFailed(failure: ForgeFailure): void;
+  /** An issue's Dispatch and Dispatch Records, as its detail shows them. */
+  issueDispatch(issue: IssueDetail): IssueDispatch;
 }
 
 type Loaded = { ok: true; issue: IssueDetail } | { ok: true; pullRequest: PullRequestDetail } | { ok: false; failure: ForgeFailure };
@@ -40,7 +44,7 @@ const kindText = {
  * in one column like the forge. Issue and pull request links of the bound repository open here; every other link opens
  * in the browser. A direct action that succeeds refreshes the sidebar, and what the forge then holds shows; there is no
  * optimistic update. Each reload clears the actions' state, so a failure stays until dismissed or the next refresh. */
-export function ForgeDetailPane({ project, item, width, resize, canBack, back, close, open, generation, refresh, forgeFailed }: Props) {
+export function ForgeDetailPane({ project, item, width, resize, canBack, back, close, open, generation, refresh, forgeFailed, issueDispatch }: Props) {
   const { t, text } = useLocalization();
   const [loaded, setLoaded] = useState<{ item: DetailItem; result: Loaded } | null>(null);
   const [attempt, setAttempt] = useState(0);
@@ -58,7 +62,13 @@ export function ForgeDetailPane({ project, item, width, resize, canBack, back, c
       .then(result => { if (current) { setLoaded({ item, result }); setActionState(idleActions); } });
     return () => { current = false; };
   }, [project.id, kind, number, attempt, generation]);
-  useLayoutEffect(() => { scroller.current?.scrollTo?.({ top: 0 }); }, [kind, number]);
+  // Focus moves into each item the detail opens, on its body: ↑/↓ scroll it there, and Tab walks its links and buttons.
+  useLayoutEffect(() => { scroller.current?.focus({ preventScroll: true }); scroller.current?.scrollTo?.({ top: 0 }); }, [kind, number]);
+  /** → or Esc close the detail, back to the list row. A key a field or menu inside answers goes no further. */
+  const keydown = (event: React.KeyboardEvent) => {
+    if (event.defaultPrevented || (event.target as HTMLElement).closest('input, textarea, select, [contenteditable="true"], [role="menu"], [role="listbox"]')) return;
+    if (event.key === 'Escape' || (event.key === 'ArrowRight' && withoutCommandModifier(event))) { event.preventDefault(); close(); }
+  };
   const result = loaded?.item.kind === kind && loaded.item.number === number ? loaded.result : null;
   const shown = result?.ok ? 'issue' in result ? result.issue : result.pullRequest : null;
   const retry = () => { setLoaded(null); setAttempt(count => count + 1); };
@@ -84,7 +94,7 @@ export function ForgeDetailPane({ project, item, width, resize, canBack, back, c
     open(linked);
   };
 
-  return <section className="forge-detail" aria-label={t(kindText[kind].region)} style={{ width }}>
+  return <section className="forge-detail" aria-label={t(kindText[kind].region)} style={{ width }} onKeyDown={keydown}>
     <div className="forge-detail-resize" role="separator" aria-orientation="vertical" aria-label={t('resizeDetail')} onPointerDown={resize} />
     <header className="forge-detail-bar">
       <button aria-label={t('detailBack')} data-hint={t('detailBack')} disabled={!canBack} onClick={back}>‹</button>
@@ -99,7 +109,8 @@ export function ForgeDetailPane({ project, item, width, resize, canBack, back, c
           <p>{t('detailLoadFailed', { number, reason: reason(result.failure.detail || result.failure.kind) })}</p>
           <button onClick={retry}>{t('retry')}</button>
         </div>
-        : 'issue' in result ? <IssueDocument project={project} issue={result.issue} open={open} followLink={followLink(result.issue.links)} actions={actions} />
+        : 'issue' in result ? <IssueDocument project={project} issue={result.issue} open={open} followLink={followLink(result.issue.links)} actions={actions}
+          dispatch={issueDispatch(result.issue)} />
         : <PullRequestDocument project={project} pullRequest={result.pullRequest} open={open} followLink={followLink(result.pullRequest.links)} actions={actions} />}
     </div>
   </section>;

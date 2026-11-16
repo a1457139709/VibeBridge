@@ -1,11 +1,10 @@
 import { Fragment, useEffect, useId, useLayoutEffect, useRef, useState } from 'react';
 import { useLocalization } from './Localization';
 import { ProcessingStatusIcon } from './ProcessingStatusIcon';
-import { RelativeTime } from './ForgeDisplay';
 import { agentIcons } from './agent-icons';
 import { agentNames, liveRun, projectPanels, type AgentType, type PanelView, type ProjectView, type Settings } from '../shared/model';
 import { commandDelivery, commandText, invertedDelivery, workflows, type Delivery, type WorkflowCommand } from '../shared/workflows';
-import { latestLocatable, type DispatchRecordView, type DispatchRequest, type DispatchTarget } from '../shared/dispatch';
+import type { DispatchRequest, DispatchTarget } from '../shared/dispatch';
 import { displayShortcut } from '../shared/shortcuts';
 import type { IssueSummary } from '../shared/forge';
 import './dispatch.css';
@@ -26,6 +25,10 @@ export interface DispatchHost {
   report(message: string): void;
 }
 
+const dispatchClass = 'dispatch';
+/** Whether `scope` holds an issue's Dispatch: only an open issue has one. */
+export const holdsDispatch = (scope: Element) => !!scope.querySelector(`.${dispatchClass}`);
+
 /** A command of an enabled workflow, as the menu lists it. */
 interface MenuCommand { workflowId: string; command: WorkflowCommand }
 /** Names a command of a workflow across the app's lifetime. */
@@ -38,6 +41,25 @@ const newPanelAgents: AgentType[] = ['claude', 'codex', 'pi'];
 const deliveryText = { submit: 'deliverySubmit', fill: 'deliveryFill' } as const;
 /** Moves a cursor by a step within a list's length, without wrapping. */
 const step = (count: number, by: number) => (index: number) => Math.max(0, Math.min(count - 1, index + by));
+/** The gap between the menu and what it opens from, and the margin it keeps from the window's edges. */
+const gap = 4, margin = 8;
+
+/** Places an open menu in the window, so the list or detail scrolling around Dispatch cannot clip it: below Dispatch and
+ * aligned with its right edge, or above it when there is no room below. The targets open beside the expanded command,
+ * leftwards unless there is no room there, and move up as far as they must to fit. */
+function placeMenu(button: HTMLElement, menu: HTMLElement) {
+  const { clientWidth: width, clientHeight: height } = document.documentElement;
+  const anchor = button.getBoundingClientRect();
+  const below = anchor.bottom + gap;
+  const top = below + menu.offsetHeight <= height - margin ? below : Math.max(margin, anchor.top - gap - menu.offsetHeight);
+  const right = width - anchor.right;
+  Object.assign(menu.style, { top: `${top}px`, right: `${right}px` });
+  const targets = menu.querySelector<HTMLElement>('.dispatch-targets'), command = menu.querySelector<HTMLElement>('[role=menuitem].expanded');
+  if (!targets || !command) return;
+  const fitted = Math.min(command.offsetTop - gap, height - margin - top - targets.offsetHeight);
+  targets.style.top = `${Math.max(margin - top, fitted)}px`;
+  targets.classList.toggle('rightwards', width - right - menu.offsetWidth - gap - targets.offsetWidth < margin);
+}
 
 /** One Dispatch button with no default command. It opens a cascade beside it: the commands of the enabled workflows,
  * then, leftwards, the targets: new panels of each Agent type, and the project's panels that have a run, whatever
@@ -48,7 +70,7 @@ const step = (count: number, by: number) => (index: number) => Math.max(0, Math.
  * panel stays a card in the tray; filling locates the target panel, which opens a new one as its temporary maximize.
  * The owner holds whether the menu is open, so a shortcut can open it. */
 export function DispatchButton({ project, issue, host, open, setOpen }: {
-  project: ProjectView; issue: IssueSummary; host: DispatchHost; open: boolean; setOpen(open: boolean): void;
+  project: ProjectView; issue: Pick<IssueSummary, 'number' | 'title'>; host: DispatchHost; open: boolean; setOpen(open: boolean): void;
 }) {
   const { t } = useLocalization();
   /** Whether the targets show, the command under the cursor, and the target under the cursor while they show. */
@@ -63,26 +85,31 @@ export function DispatchButton({ project, issue, host, open, setOpen }: {
   const root = useRef<HTMLDivElement>(null);
   const button = useRef<HTMLButtonElement>(null);
   const menu = useRef<HTMLDivElement>(null);
-  const commandRows = useRef<(HTMLButtonElement | null)[]>([]);
   useEffect(() => {
     if (!filled || !projectPanels(project).some(panel => panel.id === filled)) return;
     setFilled(undefined);
     host.locate(project.id, filled);
   }, [filled, project, host]);
-  // Each opening starts on the first command, with focus in the menu.
+  // Each opening starts on the first command, with focus in the menu. It stays beside Dispatch as the window resizes or
+  // what is around Dispatch scrolls.
   useLayoutEffect(() => {
     if (!open) return;
     setLevel('commands'); setCommandIndex(0); menu.current?.focus();
     const outside = (event: PointerEvent) => { if (!root.current?.contains(event.target as Node)) setOpen(false); };
     const trackAlt = (event: KeyboardEvent) => setInverting(event.altKey);
+    const place = () => { if (button.current && menu.current) placeMenu(button.current, menu.current); };
     document.addEventListener('pointerdown', outside);
     window.addEventListener('keydown', trackAlt, true); window.addEventListener('keyup', trackAlt, true);
+    window.addEventListener('resize', place); document.addEventListener('scroll', place, true);
     return () => {
       document.removeEventListener('pointerdown', outside);
       window.removeEventListener('keydown', trackAlt, true); window.removeEventListener('keyup', trackAlt, true);
+      window.removeEventListener('resize', place); document.removeEventListener('scroll', place, true);
       setInverting(false);
     };
   }, [open]);
+  // What the menu shows changes its size: the targets, the command they are for, the preview.
+  useLayoutEffect(() => { if (open && button.current && menu.current) placeMenu(button.current, menu.current); });
 
   const commands: MenuCommand[] = workflows.filter(workflow => host.workflows[workflow.id]?.enabled)
     .flatMap(workflow => workflow.commands.map(command => ({ workflowId: workflow.id, command })));
@@ -142,7 +169,7 @@ export function DispatchButton({ project, issue, host, open, setOpen }: {
   const commandElementId = (index: number) => `${menuId}-command-${index}`, targetElementId = (index: number) => `${menuId}-target-${index}`;
   const cursorTarget = expanded && targets[targetIndex];
   const openMenuShortcut = displayShortcut(host.openMenuBinding);
-  return <div className="dispatch" ref={root} onClick={event => event.stopPropagation()}>
+  return <div className={dispatchClass} ref={root} onClick={event => event.stopPropagation()}>
     <button ref={button} className="dispatch-button" aria-haspopup="menu" aria-expanded={open} data-hint={`${t('dispatchHint')} (${openMenuShortcut})`}
       onClick={() => setOpen(!open)}>{t('dispatch')}<span aria-hidden="true"> ▾</span></button>
     {/* Pressing an item keeps focus on the menu, where its keys are answered. */}
@@ -157,7 +184,7 @@ export function DispatchButton({ project, issue, host, open, setOpen }: {
         return <Fragment key={commandKey(item)}>
           {workflowCount > 1 && startsWorkflow && <h4 className="dispatch-workflow">{t(workflows.find(workflow => workflow.id === workflowId)!.name)}</h4>}
           {command.separatorBefore && <hr />}
-          <button ref={row => { commandRows.current[index] = row; }} id={commandElementId(index)} role="menuitem" tabIndex={-1}
+          <button id={commandElementId(index)} role="menuitem" tabIndex={-1}
             className={[index === commandIndex && 'cursor', expanded === item && 'expanded'].filter(Boolean).join(' ')}
             aria-haspopup="menu" aria-expanded={expanded === item} onMouseEnter={() => showTargets(index)} onClick={() => showTargets(index)}>
             <span className="dispatch-caret" aria-hidden="true">‹</span><code>{command.skill}</code>
@@ -165,19 +192,18 @@ export function DispatchButton({ project, issue, host, open, setOpen }: {
           </button>
         </Fragment>;
       })}
-      {expanded && <div className="dispatch-targets" role="menu" aria-label={t('dispatchTargets', { command: expanded.command.skill })}
-        style={{ top: Math.max(0, (commandRows.current[commandIndex]?.offsetTop ?? 0) - 4) }}>
+      {expanded && <div className="dispatch-targets" role="menu" aria-label={t('dispatchTargets', { command: expanded.command.skill })}>
         {targets.map(({ target, agent, panel }, index) => <Fragment key={targetKey(target)}>
           {index === newPanelAgents.length && <hr />}
           <button id={targetElementId(index)} role="menuitem" tabIndex={-1} className={index === targetIndex ? 'cursor' : ''}
             onMouseEnter={() => setTargetIndex(index)} onClick={event => void dispatch(index, event.altKey)}>
             {panel ? <>
-              <span className="dispatch-agent" role="img" aria-label={agentNames[agent]}>{agentIcons[agent]}</span>
+              <span className={`agent-mark ${agent}`} role="img" aria-label={agentNames[agent]}>{agentIcons[agent]}</span>
               <ProcessingStatusIcon state={panel.status} />
               <span className="dispatch-title">{panel.run?.title ?? t('untitled')}</span>
               <small>{[panel.status && t(panel.status), t(resident(panel) ? 'residentPanel' : 'ephemeralPanel')].filter(Boolean).join(' · ')}</small>
             </> : <>
-              <span className="dispatch-agent" aria-hidden="true">{agentIcons[agent]}</span>{t('dispatchNew', { agent: agentNames[agent] })}<small>{t('ephemeralPanel')}</small>
+              <span className={`agent-mark ${agent}`} aria-hidden="true">{agentIcons[agent]}</span>{t('dispatchNew', { agent: agentNames[agent] })}<small>{t('ephemeralPanel')}</small>
             </>}
             {targetKey(target) === lastTargetKey && <span className="dispatch-last">{t('lastTarget')}</span>}
           </button>
@@ -189,31 +215,4 @@ export function DispatchButton({ project, issue, host, open, setOpen }: {
       <p className="dispatch-keys">{t('dispatchMenuKeys')}</p>
     </div>}
   </div>;
-}
-
-/** Where an issue's latest dispatch is now: the processing state of the panel on its session and that session's title,
- * with ×N for several dispatches. Grey with its age when no panel is on the latest one's session. Clicking locates the
- * latest dispatch a panel is on now, which may be an earlier one; with none, the status is not clickable. The hint gives
- * the latest record in full: its Agent type, when, and the text sent. */
-export function DispatchStatus({ records, locate }: { records: DispatchRecordView[]; locate(projectId: string, panelId: string): void }) {
-  const { t, language } = useLocalization();
-  const latest = records.at(-1);
-  if (!latest) return null;
-  const times = records.length > 1 ? <span className="dispatch-times"> ×{records.length}</span> : null;
-  const details = { agent: agentNames[latest.agent], when: new Date(latest.dispatchedAt).toLocaleString(language), text: latest.text };
-  const target = latestLocatable(records)?.location;
-  const onClick = (event: React.MouseEvent) => { event.stopPropagation(); if (target) locate(target.projectId, target.panelId); };
-  if (!latest.location) {
-    const content = <>{t('dispatched')} <RelativeTime iso={latest.dispatchedAt} />{times}</>;
-    return target
-      ? <button className="dispatch-status gone" data-hint={t('dispatchedGoneLocatable', details)} onClick={onClick}>{content}</button>
-      : <span className="dispatch-status gone" data-hint={t('dispatchedGone', details)}>{content}</span>;
-  }
-  const { status } = latest.location;
-  const title = latest.location.title ?? t('untitled');
-  const state = status ? t(status) : '';
-  return <button className={`dispatch-status ${status ? `status-${status}` : ''}`} aria-label={[state, title].filter(Boolean).join(' · ')}
-    data-hint={t('dispatchStatusHint', { status: state, title, ...details })} onClick={onClick}>
-    <ProcessingStatusIcon state={status} /><span className="dispatch-session">{title}</span>{times}
-  </button>;
 }

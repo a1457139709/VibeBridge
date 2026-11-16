@@ -1,18 +1,27 @@
-import test from 'node:test';
+import test, { after, before } from 'node:test';
 import assert from 'node:assert/strict';
 import { execFileSync } from 'node:child_process';
 import { mkdtemp } from 'node:fs/promises';
 import { join } from 'node:path';
 import { Workbench } from '../app/main/workbench';
+import type { RepositoryReference } from '../app/shared/forge';
 import { ghDouble } from './support/gh-double';
-import { interactiveWorkbench } from './support/interactive-workbench';
+import { bindListed, openNoFilter } from './support/bound-workbench';
+import { interactiveWorkbench, until } from './support/interactive-workbench';
 
-const github = (path: string) => ({ forge: 'github' as const, path });
+// The projects' directories are repositories of their own: git run from a hook names this checkout in GIT_* variables,
+// so they are set aside while these tests run.
+const hookGitVariables = Object.entries(process.env).filter(([key]) => key.startsWith('GIT_'));
+before(() => { for (const [key] of hookGitVariables) delete process.env[key]; });
+after(() => { for (const [key, value] of hookGitVariables) process.env[key] = value; });
+
 const account = { account: 'octo', repositories: ['octo/tools', 'Octo/VibeBridge', 'acme/forge'] };
+/** A GitHub repository reference; the ID is one the forge does not list unless a test took it from a listing. */
+const github = (path: string, id = '1'): RepositoryReference => ({ forge: 'github', host: 'github.com', id, path });
 
 type Fixture = Awaited<ReturnType<typeof interactiveWorkbench>>;
 /** Saves the edit-project form with the project's current name and directory and the given binding. */
-function saveBinding(f: Fixture, id: string, repository: { forge: 'github'; path: string } | null, name?: string) {
+function saveBinding(f: Fixture, id: string, repository: RepositoryReference | null, name?: string) {
   const project = f.workbench.snapshot().projects.find(item => item.id === id)!;
   return f.workbench.editProject(id, { name: name ?? project.name, directory: project.directory, repository }, false);
 }
@@ -30,21 +39,25 @@ test('the repository origin points at is offered by default, and only a saved, l
     const { project } = await f.create('Bound');
     const choices = await f.workbench.repositoryChoices(project.id, f.directory);
     assert.ok(choices.ok);
-    assert.deepEqual(choices.repositories, account.repositories.map(github));
-    assert.deepEqual(choices.origin, github('Octo/VibeBridge'));
+    assert.deepEqual(choices.repositories.map(item => [item.forge, item.host, item.path]), account.repositories.map(path => ['github', 'github.com', path]));
+    assert.equal(new Set(choices.repositories.map(item => item.id)).size, 3, 'each listed repository has its own ID');
+    const [tools, vibeBridge, forge] = choices.repositories;
+    assert.deepEqual(choices.origin, vibeBridge);
     assert.equal(choices.account, 'octo');
     assert.equal(f.workbench.snapshot().projects[0].repository, null, 'offering a default does not bind');
 
-    await assert.rejects(saveBinding(f, project.id, github('someone/else')), /repositoryNotListed/);
-    await assert.rejects(saveBinding(f, project.id, github('https://github.com/octo/tools')), /repositoryNotListed/);
+    await assert.rejects(saveBinding(f, project.id, github('octo/tools')), /repositoryNotListed/, 'a listed path with an ID the forge does not list');
+    await assert.rejects(saveBinding(f, project.id, { forge: 'github', path: 'octo/tools' } as RepositoryReference), /repositoryNotListed/, 'a reference without host and ID');
     assert.equal(f.workbench.snapshot().projects[0].repository, null);
 
-    await saveBinding(f, project.id, github('Octo/VibeBridge'));
-    assert.deepEqual(f.workbench.snapshot().projects[0].repository, github('Octo/VibeBridge'));
-    await saveBinding(f, project.id, github('acme/forge'));
+    await saveBinding(f, project.id, { ...tools, path: 'someone/else' });
+    assert.deepEqual(f.workbench.snapshot().projects[0].repository, tools, 'the listed ID binds at its listed path');
+    await saveBinding(f, project.id, vibeBridge);
+    assert.deepEqual(f.workbench.snapshot().projects[0].repository, vibeBridge);
+    await saveBinding(f, project.id, forge);
     await f.workbench.quit();
     const reopened = await Workbench.open(f.directory);
-    try { assert.deepEqual(reopened.snapshot().projects[0].repository, github('acme/forge')); }
+    try { assert.deepEqual(reopened.snapshot().projects[0].repository, forge); }
     finally { await reopened.quit(); }
   } finally { await f.close(); }
 });
@@ -97,13 +110,13 @@ test('unbinding keeps the project, needs no forge, and saves with the name; dele
   const f = await interactiveWorkbench('repository-unbind');
   try {
     const { project } = await f.create('Unbound later');
-    await saveBinding(f, project.id, github('octo/tools'));
+    await bindListed(f.workbench, project.id, 'octo/tools');
     await double.set({ ...account, failure: { code: 4, stderr: 'gh auth login\n' } });
     await saveBinding(f, project.id, null, 'Renamed');
     assert.equal(f.workbench.snapshot().projects[0].repository, null);
     assert.equal(f.workbench.snapshot().projects[0].name, 'Renamed');
     await double.set(account);
-    await saveBinding(f, project.id, github('octo/tools'));
+    await bindListed(f.workbench, project.id, 'octo/tools');
     await f.workbench.deleteProject(project.id);
     assert.deepEqual(f.workbench.snapshot().projects, []);
     await f.workbench.quit();
@@ -122,20 +135,74 @@ test('the default comes from the origin of the directory the dialog shows, not o
     setOrigin(moved, 'https://github.com/acme/forge.git');
     const choices = await f.workbench.repositoryChoices(project.id, moved);
     assert.ok(choices.ok);
-    assert.deepEqual(choices.origin, github('acme/forge'));
+    assert.equal(choices.origin?.path, 'acme/forge');
   } finally { await f.close(); }
 });
 
-test('a repository path differing only in case is the same GitHub repository: listed once and bound in its listed spelling', async context => {
-  const double = await ghDouble(context, account);
+test('the origin URL matches a listed path in any case and offers it in its listed spelling', async context => {
+  await ghDouble(context, account);
   const f = await interactiveWorkbench('repository-case');
   try {
+    setOrigin(f.directory, 'https://github.com/OCTO/vibebridge');
     const { project } = await f.create('Cased');
-    await saveBinding(f, project.id, github('OCTO/TOOLS'));
-    assert.deepEqual(f.workbench.snapshot().projects[0].repository, github('octo/tools'));
-    await double.set({ ...account, repositories: ['Octo/Tools', 'acme/forge'] });
     const choices = await f.workbench.repositoryChoices(project.id, f.directory);
     assert.ok(choices.ok);
-    assert.deepEqual(choices.repositories, ['octo/tools', 'acme/forge'].map(github), 'the bound spelling stands for the listed one');
+    assert.equal(choices.origin?.path, 'Octo/VibeBridge');
+  } finally { await f.close(); }
+});
+
+/** A project bound to octo/tools, the repository's ID, and a way to read the project's binding. */
+async function boundToTools(context: test.TestContext, scope: string) {
+  const double = await ghDouble(context, account);
+  const f = await interactiveWorkbench(scope);
+  const { project } = await f.create('Followed');
+  await bindListed(f.workbench, project.id, 'octo/tools');
+  const bound = () => f.workbench.snapshot().projects[0].repository;
+  return { double, f, projectId: project.id, id: bound()!.id, bound };
+}
+
+for (const [move, redirects] of [
+  ['renamed while GitHub redirects its former path', { 'octo/tools': 'octo/tools-x' }],
+  ['renamed with no redirect left', {}],
+] as const) {
+  test(`a bound repository ${move} is found by its ID, and the binding follows it to its new path`, async context => {
+    const { double, f, projectId, id, bound } = await boundToTools(context, 'repository-renamed');
+    try {
+      await double.set({ ...account, repositories: [{ id: Number(id), path: 'octo/tools-x' }, 'acme/forge'], redirects });
+      const page = await f.workbench.issuePage(projectId, { filter: openNoFilter, cursor: null });
+      assert.ok(page.ok, 'the list loads from the new path');
+      await until(() => bound()?.path === 'octo/tools-x');
+      assert.deepEqual(bound(), github('octo/tools-x', id));
+      const choices = await f.workbench.repositoryChoices(projectId, f.directory);
+      assert.ok(choices.ok);
+      assert.deepEqual(choices.repositories.map(item => item.path), ['octo/tools-x', 'acme/forge'], 'the binding is listed once, at its new path');
+      await f.workbench.quit();
+      const reopened = await Workbench.open(f.directory);
+      try { assert.deepEqual(reopened.snapshot().projects[0].repository, github('octo/tools-x', id), 'the new path is stored'); }
+      finally { await reopened.quit(); }
+    } finally { await f.close(); }
+  });
+}
+
+test('a bound repository transferred to another owner follows from the list of repositories the edit dialog opens with', async context => {
+  const { double, f, projectId, id, bound } = await boundToTools(context, 'repository-transferred');
+  try {
+    await double.set({ ...account, repositories: [{ id: Number(id), path: 'acme/tools' }] });
+    const choices = await f.workbench.repositoryChoices(projectId, f.directory);
+    assert.ok(choices.ok);
+    await until(() => bound()?.path === 'acme/tools');
+    assert.deepEqual(bound(), github('acme/tools', id));
+  } finally { await f.close(); }
+});
+
+test('a new repository at a deleted bound repository\'s path is not the bound one: the binding is inaccessible and stays as it was', async context => {
+  const { double, f, projectId, id, bound } = await boundToTools(context, 'repository-replaced');
+  try {
+    await double.set({ ...account, repositories: [{ id: Number(id) + 1, path: 'octo/tools' }] });
+    const page = await f.workbench.issuePage(projectId, { filter: openNoFilter, cursor: null });
+    assert.ok(!page.ok);
+    assert.equal(page.failure.kind, 'inaccessible');
+    assert.equal(page.account, 'octo');
+    assert.deepEqual(bound(), github('octo/tools', id));
   } finally { await f.close(); }
 });

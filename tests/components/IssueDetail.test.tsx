@@ -9,7 +9,7 @@ import type { ProjectView, Settings, Snapshot, WorkbenchEvent } from '../../app/
 import type { ForgeCapabilities, IssueDetail, IssueDetailResult, IssueReference, ListedIssue } from '../../app/shared/forge';
 import { stubLayoutApis } from './support/no-layout';
 import { deferred, provideWorkbench } from './support/workbench';
-import { githubCapabilities, githubForge, githubView } from './support/forge';
+import { githubCapabilities, githubForge, githubView, githubRepository } from './support/forge';
 import { issue as listedIssue } from './support/forge-lists';
 
 afterEach(cleanup);
@@ -36,7 +36,7 @@ interface Request { number: number; answer(result: IssueDetailResult): void; fai
 /** The Workbench with a bound project, its sidebar open on one page of issues. Every detail request waits until the test answers it. */
 function renderWorkbench(issues: ListedIssue[], capabilities: ForgeCapabilities = githubCapabilities, settings: Partial<Settings> = {}) {
   const project: ProjectView = {
-    id: 'alpha', name: 'Alpha', directory: '/work/alpha', layout: { panel: 'panel' }, tray: [], repository: { forge: 'github', path: 'octo/alpha' }, ...githubView, capabilities,
+    id: 'alpha', name: 'Alpha', directory: '/work/alpha', layout: { panel: 'panel' }, tray: [], repository: githubRepository('octo/alpha'), ...githubView, capabilities,
     panels: [{ id: 'panel', agent: 'codex', run: { id: 'run', panelId: 'panel', projectId: 'alpha', state: 'running', title: 'Alpha session' } }],
   };
   const snapshot: Snapshot = {

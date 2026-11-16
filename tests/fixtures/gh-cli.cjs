@@ -1,16 +1,25 @@
 const { readFileSync, writeFileSync } = require('node:fs');
 
 // A `gh` CLI double. The test writes the account's state to the JSON file named by VIBEBRIDGE_GH_DOUBLE:
-// { account, repositories: ["owner/repo", …], labels?: [{ name, color }], issues?: [{ number, title, state, stateReason?, createdAt, labels,
+// { account, repositories: ["owner/repo" | { id, path }, …], redirects?: { "former/path": "owner/repo" }, labels?: [{ name, color }], issues?: [{ number, title, state, stateReason?, createdAt, labels,
 //   author?, assignees?, bodyHTML?, comments?, parent?, blockedBy?, closedBy? }],
 //   pullRequests?: [{ number, title, state: OPEN|MERGED|CLOSED, isDraft?, createdAt?, author?: login|null, labels?, checks?: rollup state }],
 //   permission?, failure?: { code, stdout?, stderr? } } (tests/support/gh-double.ts describes each field).
 // A failure answers every command the way `gh` fails, with that exit code and output. `gh api graphql` answers
-// like GitHub: a repository the account does not list is NOT_FOUND, the search reads the qualifiers it is given,
+// like GitHub: a repository the account does not list is NOT_FOUND unless a redirect leads from its path to one it lists, the search reads the qualifiers it is given,
 // listing pull requests for is:pr and issues otherwise, and `repository.issue` answers one issue with its relations, or NOT_FOUND.
 // `gh issue close|reopen` and `gh pr merge|close|reopen` change the state file and answer with GitHub's text.
 const state = JSON.parse(readFileSync(process.env.VIBEBRIDGE_GH_DOUBLE, 'utf8'));
 const args = process.argv.slice(2);
+/** The listed repositories with their IDs: one named by its path alone has an ID that follows from the path. */
+const repositories = state.repositories.map(entry => typeof entry === 'string'
+  ? { id: [...entry.toLowerCase()].reduce((hash, char) => (hash * 31 + char.charCodeAt(0)) % 1_000_000_007, 7), path: entry } : entry);
+/** The listed repository at `path`, or the one a redirect leads to from it, or undefined. */
+function repositoryAt(path) {
+  const same = other => other.toLowerCase() === path.toLowerCase();
+  const target = Object.entries(state.redirects ?? {}).find(([from]) => same(from))?.[1];
+  return repositories.find(item => same(item.path)) ?? (target && repositories.find(item => item.path.toLowerCase() === target.toLowerCase()));
+}
 if (state.failure) {
   process.stdout.write(state.failure.stdout ?? '');
   process.stderr.write(state.failure.stderr ?? '');
@@ -19,7 +28,8 @@ if (state.failure) {
 if (args[0] === 'api' && args[1] === 'graphql') graphql(fields(args.slice(2)));
 else if (args[0] === 'issue' || args[0] === 'pr') write(args[0], args[1], Number(args[2]), args.slice(3));
 else if (args[0] === 'api' && args.includes('user')) process.stdout.write(`${state.account}\n`);
-else if (args[0] === 'api' && args.some(arg => arg.startsWith('user/repos'))) process.stdout.write(state.repositories.map(path => `${path}\n`).join(''));
+else if (args[0] === 'api' && args.some(arg => arg.startsWith('user/repos'))) process.stdout.write(repositories.map(({ id, path }) => `${id} ${path}\n`).join(''));
+else if (args[0] === 'api' && /^repositories\/\d+$/.test(args[1])) byId(Number(args[1].split('/')[1]));
 else { process.stderr.write(`gh double: unsupported command ${args.join(' ')}\n`); process.exit(1); }
 
 function fields(list) {
@@ -37,7 +47,7 @@ function write(noun, verb, number, options) {
   const repoAt = options.indexOf('--repo');
   if (repoAt < 0) unsupported();
   const path = options[repoAt + 1];
-  if (!state.repositories.some(listed => listed.toLowerCase() === path.toLowerCase())) fail(`GraphQL: Could not resolve to a Repository with the name '${path}'. (repository)`);
+  if (!repositoryAt(path)) fail(`GraphQL: Could not resolve to a Repository with the name '${path}'. (repository)`);
   const items = noun === 'issue' ? state.issues ?? [] : state.pullRequests ?? [];
   const item = items.find(candidate => candidate.number === number);
   if (!item) fail(`GraphQL: Could not resolve to an issue or pull request with the number of ${number}. (repository.issueOrPullRequest)`);
@@ -75,18 +85,29 @@ function done(message) {
   process.stderr.write(`${message}\n`);
 }
 
+/** `gh api repositories/{id} --jq .full_name`: the path of the listed repository with that ID, or GitHub's 404. */
+function byId(id) {
+  const found = repositories.find(item => item.id === id);
+  if (found) return process.stdout.write(`${found.path}\n`);
+  process.stderr.write(`gh: Not Found (HTTP 404)\nHTTP 404: Not Found (https://api.github.com/repositories/${id})\n`);
+  process.exit(1);
+}
+
 function unsupported() { process.stderr.write(`gh double: unsupported command ${args.join(' ')}\n`); process.exit(1); }
 
 function graphql({ query, owner, name, search, openSearch, closedSearch, after, number }) {
   if (!query) unsupported();
-  const path = `${owner}/${name}`;
+  const asked = `${owner}/${name}`;
   const blockerWindow = Number(/blockedBy\(first: (\d+)\)/.exec(query)?.[1]);
-  if (!state.repositories.some(listed => listed.toLowerCase() === path.toLowerCase())) {
-    const message = `Could not resolve to a Repository with the name '${path}'.`;
+  const repository = repositoryAt(asked);
+  if (!repository) {
+    const message = `Could not resolve to a Repository with the name '${asked}'.`;
     process.stdout.write(JSON.stringify({ data: { repository: null }, errors: [{ type: 'NOT_FOUND', path: ['repository'], message }] }));
     process.stderr.write(`GraphQL: ${message} (repository)\n`);
     process.exit(1);
   }
+  const path = repository.path;
+  if (/databaseId/.test(query)) return process.stdout.write(JSON.stringify({ data: { repository: { databaseId: repository.id, nameWithOwner: path } } }));
   if (/issue\(number:/.test(query)) return issueDetail(path, Number(number));
   if (/pullRequest\(number:/.test(query)) return pullRequestDetail(path, Number(number));
   if (!/search\(/.test(query)) unsupported();

@@ -81,7 +81,7 @@ export function useForgeSidebar(host: Host, api: Pick<DesktopAPI, 'saveSidebar' 
       <div className="forge-sidebar-resize" role="separator" aria-orientation="vertical" aria-label={t('resizeForgeSidebar', { forge: project.forge.name })} onPointerDown={resize} />
       {project.repository
         // Mounted per project and repository: returning to a project or rebinding starts the lists afresh.
-        ? <ForgeLists ref={listsActions} key={`${project.id} ${project.repository.forge} ${project.repository.path}`} project={{ ...project, repository: project.repository }}
+        ? <ForgeLists ref={listsActions} key={`${project.id} ${project.repository.forge} ${project.repository.host} ${project.repository.id}`} project={{ ...project, repository: project.repository }}
           editBinding={() => setEditingRepository(true)} detailHost={detail}
           dispatchHost={{ workflows: snapshot!.settings.workflows, openMenuBinding: snapshot!.settings.shortcuts.openDispatchMenu, lastTargets, locate: host.locatePanel, report: host.report,
             rememberLastTarget: (command, target) => setLastTargets(targets => new Map(targets).set(command, target)) }} />

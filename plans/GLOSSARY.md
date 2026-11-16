@@ -177,7 +177,7 @@ _Avoid_：任务成功、主 Agent 停止回复、面板关闭、进程退出
 _Avoid_：代码托管平台、issue tracker（只管 issue，没有仓库与 pull request）、GitHub 网关、Git 远程、项目目录
 
 **仓库绑定（Repository Binding）**：
-用户在项目建好之后，从 Forge 的 CLI 当前账号自己、协作或所在组织的仓库中为项目选定的一个仓库，记为 Forge 与仓库路径；每个项目至多绑定一个，未绑定的项目没有 issue 与 pull request 视图。项目目录的 `origin` 指向的仓库只决定默认选中哪一个，用户保存后才算绑定。
+用户在项目建好之后，从 Forge 的 CLI 当前账号自己、协作或所在组织的仓库中为项目选定的一个仓库，记为 Forge、主机、仓库 ID 与仓库路径；绑定认的是仓库 ID，仓库改名或转移后跟到新路径。每个项目至多绑定一个，未绑定的项目没有 issue 与 pull request 视图。项目目录的 `origin` 指向的仓库只决定默认选中哪一个，用户保存后才算绑定。
 _Avoid_：从项目目录推断的仓库、任意粘贴的仓库地址、项目目录、多仓库项目
 
 **Forge 侧边栏（Forge Sidebar）**：
