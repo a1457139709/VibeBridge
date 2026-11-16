@@ -1,24 +1,18 @@
 import { message, detail } from '../shared/messages';
 import { projectNameError } from '../shared/project-name';
-import type { Language, ProjectEdit, ProjectEditResult } from '../shared/model';
 import { randomUUID } from 'node:crypto';
-import { sidebars, sidebarPreferencesSchema, type Sidebar, type SidebarPreferences, assignedAgents, arrange, validateDraft, removeFromLayout, parseLayout, layoutStructure, layoutPanelIds, panelPosition, projectPanels, panelLimitReached, agentTypes, type AgentType, type DirectoryResult, type LaunchResult, type Layout, type Panel, type Project, type ProjectCreation, type ProjectDraft, type PanelCreation, type Settings, type Snapshot, type WorkbenchEvent } from '../shared/model';
-import { ProjectStore } from './storage';
-import { SettingsFile, defaultSettings } from './settings';
-import { settingsConflicts, type SettingsSaveResult } from '../shared/settings';
-import { RunSupervision } from './run-supervision';
+import { sidebars, sidebarPreferencesSchema, type ProjectEdit, type ProjectEditResult, type Sidebar, type SidebarPreferences, assignedAgents, arrange, validateDraft, removeFromLayout, parseLayout, layoutStructure, layoutPanelIds, panelPosition, projectPanels, panelLimitReached, agentTypes, type AgentType, type DirectoryResult, type LaunchResult, type Layout, type Panel, type Project, type ProjectCreation, type ProjectDraft, type PanelCreation, type Settings, type Snapshot, type WorkbenchEvent } from '../shared/model';
+import { ProjectStore } from './persistence/storage';
+import { SettingsFile, defaultSettings } from './persistence/settings';
+import { settingsConflicts, type SettingsSaveResult } from '../shared/settings/settings';
+import { RunSupervision } from './runs/run-supervision';
 import { inspectDirectory } from './project-directory';
-import { type DirectAction, sameRepository, type ListQuery, type RepositoryReference } from '../shared/forge';
+import { type DirectAction, sameRepository, type ListQuery, type RepositoryReference } from '../shared/forge/forge';
 import { listedRepository } from './forge/repositories';
 import { BoundRepositories } from './forge/bound-repositories';
 import { Dispatches, type DispatchRecord } from './dispatch';
 import type { DispatchRequest } from '../shared/dispatch';
-
-export class WorkbenchOpenError extends Error {
-  constructor(error: unknown, readonly language: Language) {
-    super(error instanceof Error ? error.message : String(error), { cause: error });
-  }
-}
+import { WorkbenchOpenError } from './workbench-open-error';
 
 export class Workbench {
   private state: Omit<Snapshot, 'projects'> & { projects: Project[] } = { navigation: { ...sidebars.navigation.defaults }, forgeSidebar: { ...sidebars.forgeSidebar.defaults }, projects: [], activeProjectId: null, settings: defaultSettings(), settingsConflicts: [], startupTheme: 'system', resolvedTheme: 'light', errors: [] };

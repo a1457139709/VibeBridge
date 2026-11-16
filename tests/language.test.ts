@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { writeFile } from 'node:fs/promises';
 import { Workbench } from '../app/main/workbench';
 import { testDirectory } from './support/directory';
-import { localize } from '../app/shared/localization';
+import { localize } from '../app/shared/localization/localization';
 
 test('new and legacy settings default to English, while saved Chinese survives reopening with existing settings', async context => {
   const directory = await testDirectory(context, 'language-persistence');

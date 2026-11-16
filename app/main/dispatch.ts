@@ -1,11 +1,11 @@
 import { message } from '../shared/messages';
-import { sameRepository, type RepositoryReference } from '../shared/forge';
+import { sameRepository, type RepositoryReference } from '../shared/forge/forge';
 import { dispatchRequestSchema, type DispatchLocation, type DispatchRecordView, type DispatchRequest } from '../shared/dispatch';
-import { commandDelivery, commandText, invertedDelivery, workflowCommand, type Delivery, type WorkflowId, type WorkflowSettings } from '../shared/workflows';
+import { commandDelivery, commandText, invertedDelivery, workflowCommand, type Delivery, type WorkflowId, type WorkflowSettings } from '../shared/settings/workflows';
 import { liveRun, projectPanels, type AgentType, type PanelCreation, type PanelView, type ProjectView } from '../shared/model';
-import type { RunSupervision, PanelLocation } from './run-supervision';
-import type { HandOver } from './processing-status';
-import type { ProjectStore } from './storage';
+import type { RunSupervision, PanelLocation } from './runs/run-supervision';
+import type { HandOver } from './runs/processing-status';
+import type { ProjectStore } from './persistence/storage';
 import { forges } from './forge/forges';
 
 /** A Dispatch Record as stored: append-only, pointing at the session that took the dispatch, never at a panel

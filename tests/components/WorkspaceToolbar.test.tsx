@@ -4,7 +4,7 @@ import test, { afterEach, before } from 'node:test';
 import { cleanup, render, screen, within } from '@testing-library/react';
 import { userEvent } from '@testing-library/user-event';
 import { App } from '../../app/renderer/Workbench';
-import { defaultSettings } from '../../app/shared/settings';
+import { defaultSettings } from '../../app/shared/settings/settings';
 import type { PanelView, ProjectView, Snapshot } from '../../app/shared/model';
 import type { ProcessingState } from '../../app/shared/processing-status';
 import { stubLayoutApis } from './support/no-layout';

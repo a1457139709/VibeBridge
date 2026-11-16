@@ -3,7 +3,8 @@ import assert from 'node:assert/strict';
 import { mkdir, readFile } from 'node:fs/promises';
 import { join, resolve } from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
-import { Workbench, WorkbenchOpenError } from '../app/main/workbench';
+import { Workbench } from '../app/main/workbench';
+import { WorkbenchOpenError } from '../app/main/workbench-open-error';
 import { testDirectory } from './support/directory';
 import { storedProjects } from './support/panel-views';
 

@@ -89,9 +89,32 @@ npm run check                      # 运行本地无窗口检查
 
 ## 代码结构
 
-- `app/main/workbench.ts`：共用业务入口，协调项目、面板、配置、运行身份与生命周期；IPC 仅调用这些操作。
-- `app/terminal/host.ts`：全部项目共用的独立终端进程，持有 PTY 和权威运行事实。
-- `app/main/storage-worker.ts`：工作线程中的 SQLite 事务，避免阻塞主进程。
-- `app/main/settings.ts`：串行、完整临时写入后替换的配置保存。
-- `app/renderer/terminals.ts`：xterm.js 实例及有界滚动缓冲，视图卸载不结束运行。
-- `app/renderer/panel-interactions.ts`：面板布局交互入口，统一落点预览与交换预览、分隔线约束、取消与面板测量调度。
+`app/` 先按进程划分，进程内再按功能划分；新功能放进对应功能目录，跨两个以上功能复用的部分放进 `common/` 或所在层的根目录。
+
+```text
+app/
+├── main/                 # Electron 主进程
+│   ├── electron.ts       # 应用入口与 IPC
+│   ├── preload.ts        # 渲染进程可用的 DesktopAPI
+│   ├── workbench.ts      # 共用业务入口，协调项目、面板、配置、运行身份与生命周期；IPC 仅调用这些操作
+│   ├── dispatch.ts       # 派发与派发记录
+│   ├── agent-status/     # 各 Agent 类型的状态上报器与解释器
+│   ├── forge/            # Forge 接口、GitHub 实现与仓库绑定
+│   ├── runs/             # 运行实例管理、处理状态、会话标题、终端进程客户端
+│   └── persistence/      # SQLite 存储（storage-worker.ts 在工作线程中执行事务）与配置串行保存
+├── terminal/             # 全部项目共用的独立终端进程，持有 PTY 和权威运行事实（入口 host.ts）
+├── renderer/             # 界面（入口 index.tsx → Workbench.tsx）
+│   ├── common/           # 本地化上下文、通知、提示、图标、弹层与侧栏偏好等通用部件
+│   ├── panels/           # xterm.js 实例（terminals.ts）与面板拖放、缩放、测量、定位（panel-interactions.ts 为入口）
+│   ├── workspace/        # 工作区：布局区域、临时面板托盘、项目汇总、Agent 选择
+│   ├── projects/         # 项目导航、项目创建引导、项目管理与仓库绑定字段
+│   ├── forge/            # Forge 侧栏：Issue / PR 列表、筛选、详情与直接操作
+│   ├── dispatch/         # 派发菜单与派发记录
+│   └── settings/         # 设置页、配置冲突提示与工作流字段
+└── shared/               # 跨进程共用的模型与规则
+    ├── model.ts、api.ts  # 核心数据模型与 DesktopAPI 契约
+    ├── messages.ts       # 跨进程传递错误与通知的消息信封
+    ├── localization/     # 本地化与各语言词典（locales/）
+    ├── forge/            # Forge 数据类型与 HTML 处理
+    └── settings/         # 配置契约、快捷键与工作流
+```

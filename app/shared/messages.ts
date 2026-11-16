@@ -1,4 +1,4 @@
-import type { english } from './locales/en';
+import type { english } from './localization/locales/en';
 
 export type MessageId = keyof typeof english;
 export type MessageValue = string | number | { message: string } | readonly MessageValue[];

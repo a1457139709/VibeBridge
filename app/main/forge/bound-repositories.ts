@@ -1,9 +1,9 @@
 import { message } from '../../shared/messages';
-import { sameRepository, type DirectAction, type DirectActionResult, type IssueDetailResult, type IssuePage, type ListQuery, type PullRequestDetailResult, type PullRequestPage, type RepositoryChoices, type RepositoryReference } from '../../shared/forge';
+import { sameRepository, type DirectAction, type DirectActionResult, type IssueDetailResult, type IssuePage, type ListQuery, type PullRequestDetailResult, type PullRequestPage, type RepositoryChoices, type RepositoryReference } from '../../shared/forge/forge';
 import { directAction, issueDetail, issuePage, pullRequestDetail, pullRequestPage, type Bound } from './results';
 import { repositoryChoices } from './repositories';
 import { defaultForge, forges } from './forges';
-import type { ProjectStore } from '../storage';
+import type { ProjectStore } from '../persistence/storage';
 
 /** What BoundRepositories needs from the Workbench: `requireProject` throws when the project is missing; `serially`
  * runs work in the Workbench's operation queue. */

@@ -1,9 +1,10 @@
 import { app, BrowserWindow, dialog, ipcMain, Menu, nativeTheme, shell } from 'electron';
 import { join } from 'node:path';
 import { pathToFileURL } from 'node:url';
-import { Workbench, WorkbenchOpenError } from './workbench';
+import { Workbench } from './workbench';
+import { WorkbenchOpenError } from './workbench-open-error';
 import type { Language } from '../shared/model';
-import { localize } from '../shared/localization';
+import { localize } from '../shared/localization/localization';
 import { message } from '../shared/messages';
 import { commandEnvironment } from '../terminal/environment';
 
