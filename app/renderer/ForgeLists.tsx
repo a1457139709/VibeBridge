@@ -1,5 +1,5 @@
 import { useEffect, useImperativeHandle, useRef, useState, type PointerEvent as ReactPointerEvent, type Ref } from 'react';
-import { SyncIcon } from '@primer/octicons-react';
+import { ArrowSwitchIcon, SyncIcon } from '@primer/octicons-react';
 import { useLocalization } from './Localization';
 import { detail } from '../shared/messages';
 import type { ForgeFailure, IssueDetail, IssueSummary, ListFilter, ListPage, ListedIssue, Page, PullRequestSummary, RepositoryReference } from '../shared/forge';
@@ -38,12 +38,13 @@ const pageOf: { [T in Tab]: (projectId: string, query: { filter: ListFilter; cur
   pullRequests: (projectId, query) => window.workbench.pullRequestPage(projectId, query),
 };
 
-/** The sidebar's header: the repository, or that none is bound, and the persistent Refresh. */
-export function SidebarHead({ title, refresh, loading = false }: { title: string; refresh?(): void; loading?: boolean }) {
+/** The sidebar's header: the repository, or that none is bound, with Change binding for a bound one, and the persistent Refresh. */
+export function SidebarHead({ title, refresh, loading = false, editBinding }: { title: string; refresh?(): void; loading?: boolean; editBinding?(): void }) {
   const { t } = useLocalization();
   return <header className="forge-sidebar-head">
     <span className="forge-sidebar-repository">{title}</span>
-    <button className={`forge-refresh ${loading ? 'spinning' : ''}`} aria-label={t('refresh')} data-hint={t('refresh')} aria-busy={loading}
+    {editBinding && <button className="forge-head-action" aria-label={t('changeBinding')} data-hint={t('changeBinding')} onClick={editBinding}><ArrowSwitchIcon size={14} /></button>}
+    <button className={`forge-head-action forge-refresh ${loading ? 'spinning' : ''}`} aria-label={t('refresh')} data-hint={t('refresh')} aria-busy={loading}
       disabled={loading || !refresh} onClick={refresh}><SyncIcon size={14} /></button>
   </header>;
 }
@@ -188,7 +189,7 @@ export function ForgeLists({ project, editBinding, detailHost, dispatchHost, ref
   const { forge } = project;
   const { loaded, failed } = lists[tab];
   const retry = <button onClick={refresh} disabled={loading}>{t('retry')}</button>;
-  const head = <SidebarHead title={project.repository.path} refresh={refresh} loading={loading} />;
+  const head = <SidebarHead title={project.repository.path} refresh={refresh} loading={loading} editBinding={editBinding} />;
   const fill = (body: React.ReactNode) => <>{head}<div className="forge-sidebar-state">{body}</div></>;
 
   if (failed?.failure.kind === 'notInstalled') return fill(<>

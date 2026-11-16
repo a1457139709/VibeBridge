@@ -5,7 +5,7 @@ import { displayShortcut, type IssueShortcutAction } from '../shared/shortcuts';
 import type { DesktopAPI } from '../shared/api';
 import type { ProjectView, Snapshot } from '../shared/model';
 import { useSidebarPreferences } from './sidebar-preferences';
-import { ProjectEditor } from './ProjectManagement';
+import { RepositoryBindingDialog } from './RepositoryField';
 import { ForgeLists, SidebarHead, type DetailHost, type ForgeListsActions } from './ForgeLists';
 import type { DispatchTarget } from '../shared/dispatch';
 import { capturePointer } from './pointer-capture';
@@ -15,7 +15,6 @@ interface Host {
   snapshot?: Snapshot;
   /** The project whose data the sidebar shows, or none (no project, or project setup). */
   project?: ProjectView;
-  openProject(id: string): void;
   /** Locates a panel; an ephemeral one opens as its temporary maximize. */
   locatePanel(projectId: string, panelId: string): void;
   report(message: string): void;
@@ -92,8 +91,7 @@ export function useForgeSidebar(host: Host, api: Pick<DesktopAPI, 'saveSidebar' 
             <button className="primary" onClick={() => setEditingRepository(true)}>{t('bindRepository')}</button>
           </div>
         </>}
-      {editingRepository && <ProjectEditor project={project} focusRepository close={() => setEditingRepository(false)}
-        openProject={id => { setEditingRepository(false); host.openProject(id); }} />}
+      {editingRepository && <RepositoryBindingDialog project={project} close={() => setEditingRepository(false)} />}
     </aside>,
   };
 }

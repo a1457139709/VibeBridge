@@ -5,8 +5,9 @@ import type { DirectAction, DirectActionResult, ForgeFailure, IssueDetailResult,
 import { forges } from './forges';
 import { ForgeError, type Forge } from './forge';
 
-/** A bound repository a call is made on, and where to report the path the forge found it at when it has moved. */
-export interface Bound { repository: RepositoryReference; moved(repository: RepositoryReference): void }
+/** A bound repository a call is made on, and `follow`, which moves the binding to where the forge found the repository
+ * when that is another path. */
+export interface Bound { repository: RepositoryReference; follow(found: RepositoryReference): void }
 
 /** Locates the bound repository on its forge, then runs `call` on it at its current path; a ForgeError becomes that
  * forge's failure, with what `onFailure` adds. */
@@ -16,7 +17,7 @@ async function fromForge<T, F extends object>(bound: Bound, call: (forge: Forge,
   try {
     const path = await forge.locate(bound.repository);
     const repository = path === bound.repository.path ? bound.repository : { ...bound.repository, path };
-    if (repository !== bound.repository) bound.moved(repository);
+    if (repository !== bound.repository) bound.follow(repository);
     return { ok: true, ...await call(forge, repository) };
   } catch (error) {
     if (!(error instanceof ForgeError)) throw error;

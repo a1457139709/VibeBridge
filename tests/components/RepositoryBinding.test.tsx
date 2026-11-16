@@ -229,6 +229,24 @@ test('from the search box ↑/↓ move through the listed repositories and Enter
   assert.deepEqual(selected(), ['octo/tools']);
 });
 
+test('Change puts focus in the search box, and picking with the pointer keeps it there for ↑/↓', async () => {
+  editor(github('octo/tools'), async () => listed);
+  const user = userEvent.setup();
+  await openEditor(user);
+  await user.click(screen.getByRole('button', { name: 'Change' }));
+  const search = await screen.findByRole('searchbox', { name: 'Search repositories' }) as HTMLInputElement;
+  const reached = () => document.getElementById(search.getAttribute('aria-activedescendant') ?? '')?.dataset.path;
+  await waitFor(() => assert.equal(document.activeElement, search));
+  await user.keyboard('{ArrowDown}');
+  assert.equal(reached(), 'octo/tools');
+
+  await user.click(option('octo/vibebridge'));
+  assert.deepEqual(selected(), ['octo/vibebridge']);
+  assert.equal(document.activeElement, search);
+  await user.keyboard('{ArrowDown}{Enter}');
+  assert.deepEqual(selected(), ['acme/group/forge']);
+});
+
 test('a bound repository the forge lists at a new path is listed once, there, as the current one', async () => {
   const renamed: RepositoryChoices = { ...listed, repositories: [githubRepository('octo/tools-x', github('octo/tools').id), github('octo/vibebridge')] };
   editor(github('octo/tools'), async () => renamed);
