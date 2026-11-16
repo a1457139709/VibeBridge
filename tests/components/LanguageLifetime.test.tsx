@@ -3,13 +3,13 @@ import assert from 'node:assert/strict';
 import test, { afterEach } from 'node:test';
 import { act, cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { useState } from 'react';
-import { defaultSettings } from '../../app/shared/settings';
+import { defaultSettings } from '../../app/shared/settings/settings';
 import { newDraft } from '../../app/shared/model';
 import { message } from '../../app/shared/messages';
-import { Localization } from '../../app/renderer/Localization';
-import { Notices, useNotices } from '../../app/renderer/Notices';
-import { SettingsPage } from '../../app/renderer/SettingsPage';
-import { Setup } from '../../app/renderer/Setup';
+import { Localization } from '../../app/renderer/common/Localization';
+import { Notices, useNotices } from '../../app/renderer/common/Notices';
+import { SettingsPage } from '../../app/renderer/settings/SettingsPage';
+import { Setup } from '../../app/renderer/projects/Setup';
 import { provideWorkbench } from './support/workbench';
 
 afterEach(cleanup);

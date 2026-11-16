@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { mkdir, mkdtemp, rm } from 'node:fs/promises';
 import { join, resolve } from 'node:path';
 import { Workbench } from '../app/main/workbench';
-import { sessionTitle } from '../app/main/session-title';
+import { sessionTitle } from '../app/main/runs/session-title';
 import type { WorkbenchEvent } from '../app/shared/model';
 import { runsOf, showing, statusOf, storedProjects } from './support/panel-views';
 

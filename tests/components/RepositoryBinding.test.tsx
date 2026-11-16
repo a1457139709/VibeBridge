@@ -3,11 +3,11 @@ import assert from 'node:assert/strict';
 import test, { afterEach } from 'node:test';
 import { cleanup, render, screen, waitFor, within } from '@testing-library/react';
 import { userEvent } from '@testing-library/user-event';
-import { ProjectNavigationItem } from '../../app/renderer/ProjectManagement';
-import { Localization } from '../../app/renderer/Localization';
+import { ProjectNavigationItem } from '../../app/renderer/projects/ProjectManagement';
+import { Localization } from '../../app/renderer/common/Localization';
 import type { ProjectEdit, ProjectView } from '../../app/shared/model';
 import { detail, message } from '../../app/shared/messages';
-import type { ForgeFailureKind, RepositoryChoices, RepositoryReference } from '../../app/shared/forge';
+import type { ForgeFailureKind, RepositoryChoices, RepositoryReference } from '../../app/shared/forge/forge';
 import { provideWorkbench } from './support/workbench';
 import { githubForge, githubRepository, githubView } from './support/forge';
 

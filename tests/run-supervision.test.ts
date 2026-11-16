@@ -1,7 +1,7 @@
 import test, { type TestContext } from 'node:test';
 import assert from 'node:assert/strict';
 import { message } from '../app/shared/messages';
-import { RunSupervision, type Terminal } from '../app/main/run-supervision';
+import { RunSupervision, type Terminal } from '../app/main/runs/run-supervision';
 import type { CommandCheck, Panel, Project, Run, TerminalEvent, WorkbenchEvent } from '../app/shared/model';
 import { testDirectory } from './support/directory';
 

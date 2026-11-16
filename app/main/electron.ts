@@ -3,7 +3,7 @@ import { join } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { Workbench, WorkbenchOpenError } from './workbench';
 import type { Language } from '../shared/model';
-import { localize } from '../shared/localization';
+import { localize } from '../shared/localization/localization';
 import { message } from '../shared/messages';
 import { commandEnvironment } from '../terminal/environment';
 

@@ -89,9 +89,25 @@ npm run check                      # 运行本地无窗口检查
 
 ## 代码结构
 
+`app/` 先按进程分层，层内再按功能分目录：
+
+```text
+app/main/        主进程：electron.ts（IPC）· workbench.ts · dispatch.ts
+  projects/      项目目录检查 · 项目的常驻面板与临时面板托盘
+  runs/          Agent 运行监管 · 终端进程客户端 · 处理状态 · 会话标题
+  forge/         Forge 接口与 GitHub adapter · 仓库绑定
+  persistence/   projects.sqlite（工作线程）· settings.json
+  agent-status/  各 Agent 类型的状态上报
+app/renderer/    界面：Workbench.tsx 组装下列功能
+  workspace/ panels/ projects/ forge/ dispatch/ settings/ common/
+app/shared/      两端共用的模型与契约
+  forge/ settings/ localization/
+app/terminal/    共用终端进程
+```
+
 - `app/main/workbench.ts`：共用业务入口，协调项目、面板、配置、运行身份与生命周期；IPC 仅调用这些操作。
 - `app/terminal/host.ts`：全部项目共用的独立终端进程，持有 PTY 和权威运行事实。
-- `app/main/storage-worker.ts`：工作线程中的 SQLite 事务，避免阻塞主进程。
-- `app/main/settings.ts`：串行、完整临时写入后替换的配置保存。
-- `app/renderer/terminals.ts`：xterm.js 实例及有界滚动缓冲，视图卸载不结束运行。
-- `app/renderer/panel-interactions.ts`：面板布局交互入口，统一落点预览与交换预览、分隔线约束、取消与面板测量调度。
+- `app/main/persistence/storage-worker.ts`：工作线程中的 SQLite 事务，避免阻塞主进程。
+- `app/main/persistence/settings.ts`：串行、完整临时写入后替换的配置保存。
+- `app/renderer/panels/terminals.ts`：xterm.js 实例及有界滚动缓冲，视图卸载不结束运行。
+- `app/renderer/panels/panel-interactions.ts`：面板布局交互入口，统一落点预览与交换预览、分隔线约束、取消与面板测量调度。

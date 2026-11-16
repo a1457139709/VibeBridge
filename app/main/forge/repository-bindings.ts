@@ -1,9 +1,9 @@
 import { message } from '../../shared/messages';
-import { sameRepository, type RepositoryChoices, type RepositoryReference } from '../../shared/forge';
+import { sameRepository, type RepositoryChoices, type RepositoryReference } from '../../shared/forge/forge';
 import type { Bound } from './results';
 import { listedRepository, repositoryChoices } from './repositories';
 import { defaultForge, forges } from './forges';
-import type { ProjectStore } from '../storage';
+import type { ProjectStore } from '../persistence/storage';
 
 /** Each project's Repository Binding as stored. A binding follows its repository wherever the forge shows it at another
  * path (renamed or transferred): `forCall` and `choices` hand such a path to the caller's `follow`, and the caller

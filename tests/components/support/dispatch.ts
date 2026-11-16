@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { screen, waitFor, within } from '@testing-library/react';
 import type { DispatchRecordView, DispatchRequest } from '../../../app/shared/dispatch';
 import type { Snapshot } from '../../../app/shared/model';
-import type { IssueDetail } from '../../../app/shared/forge';
+import type { IssueDetail } from '../../../app/shared/forge/forge';
 import { issue, page, renderWorkbench, sidebar, summary } from './forge-lists';
 import { githubCapabilities } from './forge';
 
