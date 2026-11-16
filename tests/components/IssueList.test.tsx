@@ -2,6 +2,7 @@ import './support/dom';
 import assert from 'node:assert/strict';
 import test, { afterEach, before } from 'node:test';
 import { cleanup, screen, waitFor, within } from '@testing-library/react';
+import { githubForge, githubRepository } from './support/forge';
 import { bug, failed, issue, openNoFilter, page, refresh, renderWorkbench, rows, sidebar, stubSidebarApis } from './support/forge-lists';
 
 afterEach(cleanup);
@@ -126,24 +127,30 @@ test('an inaccessible repository names the account and offers Retry and Change b
   (await request(2)).answer(failed('inaccessible', 'GraphQL: Could not resolve to a Repository', null));
   await waitFor(() => assert.ok(within(sidebar()).getByText('Cannot access octo/alpha: it does not exist, or the active gh account has no access to it.')));
   await user.click(within(sidebar()).getAllByRole('button', { name: 'Change binding' }).find(button => !button.closest('header'))!);
-  const dialog = await screen.findByRole('dialog', { name: 'Edit project' });
-  const search = await within(dialog).findByRole('searchbox', { name: 'Search repositories' });
-  await waitFor(() => assert.equal(document.activeElement, search, 'the repository list is open, with focus in its search box'));
-  assert.ok(await within(dialog).findByRole('option', { name: /^octo\/alpha/ }));
+  const dialog = await screen.findByRole('dialog', { name: 'Change binding' });
+  await waitFor(() => assert.equal(document.activeElement, within(dialog).getByRole('button', { name: 'Change' }), 'focus is on the repository field'));
 });
 
-test('Change binding beside Refresh opens Edit project on the repository list, with focus in its search box', async () => {
-  const { user, request } = renderWorkbench();
+test('Change binding beside Refresh opens the repository field alone, and saves the binding with the name and directory as they are', async () => {
+  const edits: unknown[] = [];
+  const { user, request, snapshot } = renderWorkbench(undefined, {
+    repositoryChoices: async () => ({ ok: true, forge: githubForge, account: 'octo', origin: null, repositories: ['octo/alpha', 'octo/renamed'].map(path => githubRepository(path)) }),
+    editProject: async (id, edit, restart) => { edits.push({ id, edit, restart }); return { project: { ...snapshot.projects[0], ...edit }, launches: [] }; },
+  });
   (await request(1)).answer(page([issue(1)]));
-  const head = sidebar().querySelector('header')!;
-  await user.click(within(head).getByRole('button', { name: 'Change binding' }));
-  const dialog = await screen.findByRole('dialog', { name: 'Edit project' });
+  await user.click(within(sidebar().querySelector('header')!).getByRole('button', { name: 'Change binding' }));
+  const dialog = await screen.findByRole('dialog', { name: 'Change binding' });
+  assert.equal(within(dialog).queryByRole('textbox'), null, 'neither the name nor the directory is shown');
+  const change = within(dialog).getByRole('button', { name: 'Change' });
+  await waitFor(() => assert.equal(document.activeElement, change, 'focus is on Change, as in Edit project'));
+  await user.click(change);
   const search = await within(dialog).findByRole('searchbox', { name: 'Search repositories' });
   await waitFor(() => assert.equal(document.activeElement, search));
-  await user.keyboard('{ArrowDown}');
-  assert.equal(document.getElementById(search.getAttribute('aria-activedescendant') ?? '')?.dataset.path, 'octo/alpha');
-  await user.click(within(dialog).getByRole('button', { name: 'Undo' }));
-  assert.equal(within(dialog).queryByRole('listbox'), null, 'Undo closes the list and keeps the binding');
+  await user.keyboard('{ArrowDown}{ArrowDown}{Enter}');
+  assert.ok(within(within(dialog).getByRole('region', { name: 'After saving' })).getByText('octo/alpha → octo/renamed'));
+  await user.click(within(dialog).getByRole('button', { name: 'Save changes' }));
+  await waitFor(() => assert.equal(screen.queryByRole('dialog'), null));
+  assert.deepEqual(edits, [{ id: 'alpha', edit: { name: 'Alpha', directory: '/work/alpha', repository: githubRepository('octo/renamed') }, restart: false }]);
 });
 
 test('a transient failure keeps the rows under a stale notice, and fills the sidebar when there were none', async () => {

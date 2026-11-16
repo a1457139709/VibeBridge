@@ -1,17 +1,17 @@
-import { useEffect, useId, useRef, useState, type ReactNode } from 'react';
+import { useEffect, useId, useLayoutEffect, useRef, useState, type ReactNode } from 'react';
 import { useLocalization } from './Localization';
 import { detail } from '../shared/messages';
 import type { ProjectView } from '../shared/model';
 import { sameRepository, type RepositoryChoices, type RepositoryReference } from '../shared/forge';
+import './project-management.css';
 
 /** The repository field's form state. The choices load when the dialog opens and follow the directory being
- * edited; `repository` is the binding the project has after saving. A list that failed to load binds nothing new.
- * `changing` opens a bound project's field as Change does. */
-export function useRepositoryField(project: ProjectView, directory: string, changing = false) {
+ * edited; `repository` is the binding the project has after saving. A list that failed to load binds nothing new. */
+export function useRepositoryField(project: ProjectView, directory: string) {
   const bound = project.repository;
   const [choices, setChoices] = useState<RepositoryChoices | { ok: false; error: string }>();
   const [attempt, setAttempt] = useState(0);
-  const [changingNow, setChanging] = useState(changing), [unbinding, setUnbinding] = useState(false);
+  const [changing, setChanging] = useState(false), [unbinding, setUnbinding] = useState(false);
   // undefined follows the default: the bound repository, else the one origin points at.
   const [picked, setPicked] = useState<RepositoryReference | null>();
   useEffect(() => {
@@ -23,10 +23,10 @@ export function useRepositoryField(project: ProjectView, directory: string, chan
   const listed = choices?.ok ? choices : undefined;
   const selection = picked !== undefined ? picked : bound ?? listed?.origin ?? null;
   const repository = bound
-    ? unbinding ? null : changingNow && listed && selection ? selection : bound
+    ? unbinding ? null : changing && listed && selection ? selection : bound
     : listed ? selection : null;
   return {
-    bound, choices, listed, selection, repository, changing: changingNow, unbinding,
+    bound, choices, listed, selection, repository, changing, unbinding,
     retry() { setChoices(undefined); setAttempt(value => value + 1); },
     pick: setPicked,
     change() { setChanging(true); },
@@ -121,4 +121,45 @@ export function RepositoryField({ field, disabled, focus }: { field: RepositoryF
     <div className={`repository-current${changed ? ' changed' : ''}`}>{summary}</div>
     {listShown && <RepositoryList field={field} disabled={disabled} />}
   </div>;
+}
+
+/** The binding change in the "After saving" list of a dialog that saves the field, when a bound project's changes. */
+export function BindingImpact({ field }: { field: RepositoryFieldState }) {
+  const { t } = useLocalization();
+  const { bound, repository } = field;
+  if (!bound || sameRepository(repository, bound)) return null;
+  return <><dt>{t('repository')}</dt><dd><span className="project-path">{bound.path} → {repository?.path ?? t('doNotBind')}</span>
+    <p>{repository ? t('rebindImpact') : t('unbindImpact')}</p></dd></>;
+}
+
+/** The sidebar's dialog for a project's Repository Binding alone: Edit project's repository field, opened with focus on
+ * it, and saved by the same edit with the project's name and directory as they are, so no panel restarts. */
+export function RepositoryBindingDialog({ project, close }: { project: ProjectView; close(): void }) {
+  const { t, text } = useLocalization();
+  const dialog = useRef<HTMLDialogElement>(null);
+  const field = useRepositoryField(project, project.directory);
+  const [busy, setBusy] = useState(false), [error, setError] = useState('');
+  const changed = !sameRepository(field.repository, field.bound);
+  const title = t(field.bound ? 'changeBinding' : 'bindRepository');
+  // Open before the field's effects run: it can take focus only inside an open dialog.
+  useLayoutEffect(() => { const element = dialog.current!; element.showModal(); return () => element.close(); }, []);
+  async function save() {
+    if (busy || !changed) return;
+    setBusy(true); setError('');
+    try {
+      const outcome = await window.workbench.editProject(project.id, { name: project.name, directory: project.directory, repository: field.repository }, false);
+      if (outcome.error) setError(outcome.error); else close();
+    } catch (error) { setError((error as Error).message); }
+    finally { setBusy(false); }
+  }
+  return <dialog ref={dialog} className="project-dialog" aria-label={title} onCancel={event => { event.preventDefault(); if (!busy) close(); }}>
+    <h2>{title}</h2>
+    <form onSubmit={event => { event.preventDefault(); void save(); }}>
+      <RepositoryField field={field} disabled={busy} focus />
+      {changed && field.bound && <section className="save-impact" aria-label={t('afterSave')}><b>{t('afterSave')}</b><dl><BindingImpact field={field} /></dl></section>}
+      {error && <p className="error-text" role="alert">{text(error)}</p>}
+      <div className="project-dialog-actions"><button type="button" disabled={busy} onClick={close}>{t('cancel')}</button>
+        <button type="submit" className="primary" disabled={busy || !changed}>{busy ? t('saving') : t('saveChanges')}</button></div>
+    </form>
+  </dialog>;
 }

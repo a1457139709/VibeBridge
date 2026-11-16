@@ -5,7 +5,7 @@ import { type DirectoryResult, type Project, type ProjectEditResult, type Projec
 import { sameRepository, type RepositoryReference } from '../shared/forge';
 import { projectNameError, projectNameHasControls } from '../shared/project-name';
 import { LaunchResults } from './LaunchResults';
-import { RepositoryField, useRepositoryField } from './RepositoryField';
+import { BindingImpact, RepositoryField, useRepositoryField } from './RepositoryField';
 import './project-management.css';
 
 export function ProjectNavigationItem({ project, openProject, children }: {
@@ -36,9 +36,8 @@ export function ProjectNavigationItem({ project, openProject, children }: {
   </div>;
 }
 
-/** The edit-project dialog. `focusRepository` opens it with focus on the repository field instead of the name, with a
- * bound project's repository list open as Change opens it. */
-export function ProjectEditor({ project, close, openProject, focusRepository = false }: { project: ProjectView; close(): void; openProject(id: string): void; focusRepository?: boolean }) {
+/** The edit-project dialog. */
+export function ProjectEditor({ project, close, openProject }: { project: ProjectView; close(): void; openProject(id: string): void }) {
   const { t, text } = useLocalization();
   const dialog = useRef<HTMLDialogElement>(null);
   const [original] = useState(project);
@@ -49,7 +48,7 @@ export function ProjectEditor({ project, close, openProject, focusRepository = f
   const [busy, setBusy] = useState(false), [choosing, setChoosing] = useState(false), [error, setError] = useState('');
   const [result, setResult] = useState<{ outcome: ProjectEditResult; repository: { from: RepositoryReference | null; to: RepositoryReference | null } }>();
   // The default repository follows the directory being edited once it has been inspected.
-  const field = useRepositoryField(project, inspection.result.valid ? inspection.result.directory! : original.directory, focusRepository);
+  const field = useRepositoryField(project, inspection.result.valid ? inspection.result.directory! : original.directory);
   const bound = field.bound, repository = field.repository;
   const bindingChanged = !sameRepository(repository, bound);
   const directory = inspection.path === path ? inspection.result : undefined;
@@ -94,14 +93,14 @@ export function ProjectEditor({ project, close, openProject, focusRepository = f
         <LaunchResults launches={result.outcome.launches} /></>}
       <div className="project-dialog-actions"><button className="primary" onClick={close}>{t('finish')}</button></div>
     </> : <form onSubmit={event => { event.preventDefault(); if (!changedDirectory && edited) void save(false); }}>
-      <label htmlFor="edit-project-name">{t('projectName')}</label><input id="edit-project-name" autoFocus={!focusRepository} autoComplete="off" value={name} disabled={busy} aria-invalid={!!nameError} aria-describedby="edit-project-name-status" onChange={event => { setNameInputError(''); setName(event.target.value); }} onPaste={event => {
+      <label htmlFor="edit-project-name">{t('projectName')}</label><input id="edit-project-name" autoFocus autoComplete="off" value={name} disabled={busy} aria-invalid={!!nameError} aria-describedby="edit-project-name-status" onChange={event => { setNameInputError(''); setName(event.target.value); }} onPaste={event => {
         if (projectNameHasControls(event.clipboardData.getData('text'))) { event.preventDefault(); setNameInputError(message('nameControls')); }
         else setNameInputError('');
       }} />
       {nameError && <div id="edit-project-name-status" className="field-status error-text">{nameError}</div>}
       <label htmlFor="edit-project-directory">{t('localDirectory')}</label><div className="directory-input"><input id="edit-project-directory" autoComplete="off" value={path} disabled={busy} aria-invalid={!!directoryError} aria-describedby="edit-project-directory-status" onChange={event => setPath(event.target.value)} /><button type="button" disabled={busy || choosing} aria-label={t('chooseNewDirectory')} onClick={async () => { setChoosing(true); try { const selected = await window.workbench.chooseDirectory(); if (selected !== null) setPath(selected); } catch (error) { setError((error as Error).message); } finally { setChoosing(false); } }}>{t('browse')}</button></div>
       {(checking || directoryError) && <div id="edit-project-directory-status" className="field-status" aria-live="polite">{checking ? t('checkingDirectory') : <span className="error-text">{directoryError}</span>}{duplicate && <button type="button" className="open-existing-project" onClick={() => openProject(directory!.existingProjectId!)}>{t('openExisting')}</button>}</div>}
-      <RepositoryField field={field} disabled={busy} focus={focusRepository} />
+      <RepositoryField field={field} disabled={busy} focus={false} />
       {/* Every consequence of saving is listed here, above the buttons that save; this is the confirmation. */}
       {impact && <section className="save-impact" aria-label={t('afterSave')}><b>{t('afterSave')}</b><dl>
         {changedDirectory && <><dt>{t('directory')}</dt><dd><span className="project-path">{original.directory} → {directory!.directory}</span>
@@ -109,8 +108,7 @@ export function ProjectEditor({ project, close, openProject, focusRepository = f
           <p><strong>{t('changeAndRestart')}: </strong>{t('restartImpact')}</p>
           <p><strong>{t('changeWithoutRestart')}: </strong>{t('noRestartImpact')}</p>
           <p>{t('directoryHistory')}</p></dd></>}
-        {!!bound && bindingChanged && <><dt>{t('repository')}</dt><dd><span className="project-path">{bound.path} → {repository?.path ?? t('doNotBind')}</span>
-          <p>{repository ? t('rebindImpact') : t('unbindImpact')}</p></dd></>}
+        <BindingImpact field={field} />
       </dl></section>}
       {error && <p className="error-text" role="alert">{text(error)}</p>}
       <div className="project-dialog-actions"><button type="button" disabled={busy} onClick={close}>{changedDirectory ? t('cancelChange') : t('cancel')}</button>{changedDirectory ? <><button type="button" disabled={!canSave} onClick={() => void save(false)}>{t('changeWithoutRestart')}</button><button className="primary" type="button" disabled={!canSave} onClick={() => void save(true)}>{busy ? t('processing') : t('changeAndRestart')}</button></> : <button type="submit" className="primary" disabled={!canSave || !edited}>{busy ? t('saving') : t('saveChanges')}</button>}</div>

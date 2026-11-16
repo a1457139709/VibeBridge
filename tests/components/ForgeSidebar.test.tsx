@@ -91,13 +91,13 @@ test('the sidebar follows the current project and stays on the settings page', a
   assert.ok(within(sidebar()!).getByText('No repository bound'));
 });
 
-test('an unbound project shows the empty state, and Bind repository opens Edit project with focus on the repository field', async () => {
+test('an unbound project shows the empty state, and Bind repository opens the repository field with focus in its search box', async () => {
   const { user } = renderWorkbench({ visible: true, width: 380 });
   await user.click(await screen.findByRole('button', { name: 'Unbound project' }));
   const opened = await shownSidebar();
   await waitFor(() => within(opened).getByText('This project has no GitHub repository bound.'));
   await user.click(within(opened).getByRole('button', { name: 'Bind repository' }));
-  const dialog = await screen.findByRole('dialog', { name: 'Edit project' });
+  const dialog = await screen.findByRole('dialog', { name: 'Bind repository' });
   const search = await within(dialog).findByRole('searchbox', { name: 'Search repositories' });
   await waitFor(() => assert.equal(document.activeElement, search));
   // The list the repository field loaded is drawn, so nothing is left to settle after the test.
