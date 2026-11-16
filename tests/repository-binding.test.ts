@@ -4,7 +4,7 @@ import { execFileSync } from 'node:child_process';
 import { mkdtemp } from 'node:fs/promises';
 import { join } from 'node:path';
 import { Workbench } from '../app/main/workbench';
-import type { RepositoryReference } from '../app/shared/forge';
+import type { RepositoryReference } from '../app/shared/forge/forge';
 import { ghDouble } from './support/gh-double';
 import { bindListed, openNoFilter } from './support/bound-workbench';
 import { interactiveWorkbench, until } from './support/interactive-workbench';

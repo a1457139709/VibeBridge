@@ -1,20 +1,20 @@
-import { HoverHints } from './HoverHints';
-import { Localization, useLocalization } from './Localization';
+import { HoverHints } from './common/HoverHints';
+import { Localization, useLocalization } from './common/Localization';
 import { useEffect, useRef, useState, type CSSProperties } from 'react';
 import { flushSync } from 'react-dom';
 import type {} from '../shared/api';
 import { newDraft, type Snapshot } from '../shared/model';
-import { useProjectNavigation } from './ProjectNavigation';
-import { useForgeSidebar } from './ForgeSidebar';
-import { Setup } from './Setup';
-import { Workspace, type WorkspaceActions } from './Workspace';
-import { usePanelLocation } from './panel-location';
-import { Notices, useNotices } from './Notices';
-import { SettingsPage, type SettingsPageActions } from './SettingsPage';
-import { SettingsConflictDialog } from './SettingsConflict';
-import { shortcutActions, shortcutFromEvent } from '../shared/shortcuts';
-import type { SettingsCategory } from '../shared/settings';
-import { configureTerminals, reconcileTerminals, terminalEvent, setTerminalLanguage } from './terminals';
+import { useProjectNavigation } from './projects/ProjectNavigation';
+import { useForgeSidebar } from './forge/ForgeSidebar';
+import { Setup } from './projects/Setup';
+import { Workspace, type WorkspaceActions } from './workspace/Workspace';
+import { usePanelLocation } from './panels/panel-location';
+import { Notices, useNotices } from './common/Notices';
+import { SettingsPage, type SettingsPageActions } from './settings/SettingsPage';
+import { SettingsConflictDialog } from './settings/SettingsConflict';
+import { shortcutActions, shortcutFromEvent } from '../shared/settings/shortcuts';
+import type { SettingsCategory } from '../shared/settings/settings';
+import { configureTerminals, reconcileTerminals, terminalEvent, setTerminalLanguage } from './panels/terminals';
 
 /** The application shell: system bar, project navigation, and the current page. */
 export function App() {

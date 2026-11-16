@@ -4,7 +4,7 @@ import test from 'node:test';
 import { projectNameError, projectNameFromDirectory } from '../app/shared/project-name';
 import { arrange, assignedAgents, parseLayout, validateDraft, type ProjectDraft } from '../app/shared/model';
 import { layoutBoxes } from '../app/shared/layout';
-import { defaultShortcuts, shortcutConflicts, shortcutFromEvent, shortcutFormatError } from '../app/shared/shortcuts';
+import { defaultShortcuts, shortcutConflicts, shortcutFromEvent, shortcutFormatError } from '../app/shared/settings/shortcuts';
 
 test('project names reject controls and clean only automatic directory names', () => {
   assert.equal(projectNameError('  '), message('nameRequired'));

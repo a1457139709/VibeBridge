@@ -3,8 +3,8 @@ import assert from 'node:assert/strict';
 import test, { afterEach, mock } from 'node:test';
 import { act, cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { userEvent } from '@testing-library/user-event';
-import { Localization } from '../../app/renderer/Localization';
-import { SettingsConflictDialog } from '../../app/renderer/SettingsConflict';
+import { Localization } from '../../app/renderer/common/Localization';
+import { SettingsConflictDialog } from '../../app/renderer/settings/SettingsConflict';
 import { provideWorkbench } from './support/workbench';
 
 afterEach(cleanup);

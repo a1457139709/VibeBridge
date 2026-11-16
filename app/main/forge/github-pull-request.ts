@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import type { Check, PullRequestDetail, RepositoryReference } from '../../shared/forge';
+import type { Check, PullRequestDetail, RepositoryReference } from '../../shared/forge/forge';
 import { graphql } from './github-cli';
 import { checksState, issueReference, issueReferenceFields, issueReferenceSchema, labelSchema, loginSchema, pullRequestState, relatedLimit, repositoryLinks, canWrite, viewerPermission } from './github-fields';
 

@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { mkdir, mkdtemp, rm } from 'node:fs/promises';
 import { request } from 'node:http';
 import { join, resolve } from 'node:path';
-import { ProcessingStatus } from '../app/main/processing-status';
+import { ProcessingStatus } from '../app/main/runs/processing-status';
 import { Workbench } from '../app/main/workbench';
 import type { AgentType, Run, WorkbenchEvent } from '../app/shared/model';
 import type { ProcessingState } from '../app/shared/processing-status';

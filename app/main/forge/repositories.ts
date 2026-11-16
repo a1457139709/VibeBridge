@@ -1,5 +1,5 @@
 import { message, detail } from '../../shared/messages';
-import { repositoryReferenceSchema, type RepositoryChoices, type RepositoryReference } from '../../shared/forge';
+import { repositoryReferenceSchema, type RepositoryChoices, type RepositoryReference } from '../../shared/forge/forge';
 import { forges, defaultForge } from './forges';
 import { ForgeError } from './forge';
 import { originUrl } from './origin';

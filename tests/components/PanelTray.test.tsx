@@ -3,8 +3,8 @@ import assert from 'node:assert/strict';
 import test, { afterEach } from 'node:test';
 import { cleanup, render, screen, within } from '@testing-library/react';
 import { userEvent } from '@testing-library/user-event';
-import { PanelTray } from '../../app/renderer/PanelTray';
-import { Localization } from '../../app/renderer/Localization';
+import { PanelTray } from '../../app/renderer/workspace/PanelTray';
+import { Localization } from '../../app/renderer/common/Localization';
 import type { PanelView } from '../../app/shared/model';
 
 afterEach(cleanup);
