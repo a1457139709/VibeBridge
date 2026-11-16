@@ -35,8 +35,9 @@ export function useRepositoryField(project: ProjectView, directory: string) {
 }
 type RepositoryFieldState = ReturnType<typeof useRepositoryField>;
 
-/** The account's repositories, searchable. From the search box ↑/↓ move through the ones shown, without wrapping, and
- * Enter or Space picks the one reached; pointing at one reaches it too, and a new search reaches none until a key moves. */
+/** The account's repositories, searchable. Focus stays in the search box, picking with the pointer too, and there ↑/↓
+ * move through the ones shown, without wrapping and with no scroll bar, keeping the one reached in view; Enter or Space
+ * picks it. Pointing at one reaches it too, and a new search reaches none until a key moves. */
 function RepositoryList({ field, disabled }: { field: RepositoryFieldState; disabled: boolean }) {
   const { t } = useLocalization();
   const [query, setQuery] = useState('');
@@ -75,9 +76,10 @@ function RepositoryList({ field, disabled }: { field: RepositoryFieldState; disa
     <input type="search" aria-label={t('searchRepositories')} placeholder={t('searchRepositories')} autoComplete="off" value={query} disabled={disabled}
       aria-controls={listId} aria-activedescendant={reachedIndex >= 0 ? optionId(shown[reachedIndex].path) : undefined}
       onChange={event => { setQuery(event.target.value); setReached(undefined); }} onKeyDown={keydown} />
-    <div className="repository-list" id={listId} role="listbox" aria-labelledby="edit-project-repository">
+    {/* Pressing the list keeps focus in the search box, where its keys are answered. */}
+    <div className="repository-list" id={listId} role="listbox" aria-labelledby="edit-project-repository" onMouseDown={event => event.preventDefault()}>
       {shown.map(item => <button type="button" role="option" key={item.path} id={optionId(item.path)} data-path={item.path} aria-selected={sameRepository(item, selection)}
-        className={[sameRepository(item, selection) && 'on', item.path === reached && 'reached'].filter(Boolean).join(' ')} disabled={disabled} onMouseEnter={() => setReached(item.path)} onClick={() => field.pick(item)}>
+        className={[sameRepository(item, selection) && 'on', item.path === reached && 'reached'].filter(Boolean).join(' ')} disabled={disabled} tabIndex={-1} onMouseEnter={() => setReached(item.path)} onClick={() => field.pick(item)}>
         <span className="repository-path">{item.path}</span>
         {sameRepository(item, choices.origin) && <small>{t('repositoryOrigin')}</small>}
         {sameRepository(item, bound) && <small>{t('repositoryCurrent')}</small>}
@@ -93,11 +95,11 @@ export function RepositoryField({ field, disabled, focus }: { field: RepositoryF
   const { t } = useLocalization();
   const element = useRef<HTMLDivElement>(null);
   const focusPending = useRef(focus);
-  // Opened for the repository: focus goes to the field's first control once it is drawn, i.e. the search
-  // box (or Retry) of the list, or Change for a bound project.
+  // Opened for the repository, or the list shown by Change: focus goes to the field's first control once it is drawn,
+  // i.e. the search box (or Retry) of the list, or Change for a bound project.
   useEffect(() => {
     if (!focusPending.current) return;
-    const target = element.current!.querySelector<HTMLElement>(field.bound
+    const target = element.current!.querySelector<HTMLElement>(field.bound && !field.changing
       ? '.repository-current-actions button' : '.repository-picker input, .repository-error button');
     if (target) { target.focus(); focusPending.current = false; }
   });
@@ -108,7 +110,7 @@ export function RepositoryField({ field, disabled, focus }: { field: RepositoryF
     <span className="repository-path"><b>{bound.path}</b>{changed ? <> → <b>{repository?.path ?? t('doNotBind')}</b></> : <small> {t('repositoryCurrent')}</small>}</span>
     <span className="repository-current-actions">{field.changing || field.unbinding
       ? <button type="button" disabled={disabled} onClick={field.undo}>{t('undo')}</button>
-      : <><button type="button" disabled={disabled} onClick={field.change}>{t('changeRepository')}</button><button type="button" className="danger" disabled={disabled} onClick={field.unbind}>{t('unbind')}</button></>}</span>
+      : <><button type="button" disabled={disabled} onClick={() => { focusPending.current = true; field.change(); }}>{t('changeRepository')}</button><button type="button" className="danger" disabled={disabled} onClick={field.unbind}>{t('unbind')}</button></>}</span>
   </>;
   else summary = <>
     <span className="repository-path">{repository ? t('bindAfterSave', { repository: repository.path }) : t('notBound')}</span>
