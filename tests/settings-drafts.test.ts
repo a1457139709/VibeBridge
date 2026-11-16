@@ -9,7 +9,8 @@ import { testDirectory } from './support/directory';
 async function writeShortcutConflict(directory: string) {
   const contents = JSON.stringify({ theme: 'dark', defaultLayout: 'row', agents: {
     codex: { command: 'custom-codex', args: ['custom'] }, claude: { command: 'claude', args: [] }, pi: { command: 'pi', args: [] },
-  }, shortcuts: { previousProject: 'Command+Shift+[', nextProject: 'Command+Shift+]', previousPanel: 'Command+[', nextPanel: 'Command+Shift+W', addPanel: 'Command+N', closePanel: 'Command+Shift+W', settings: 'Command+,' } });
+  }, shortcuts: { previousProject: 'Command+Shift+[', nextProject: 'Command+Shift+]', previousPanel: 'Command+[',
+    nextPanel: 'Command+Shift+W', addPanel: 'Command+N', closePanel: 'Command+Shift+W', settings: 'Command+,' } });
   await writeFile(`${directory}/settings.json`, contents);
 }
 const storedSettings = async (directory: string) => JSON.parse(await readFile(`${directory}/settings.json`, 'utf8'));
@@ -88,7 +89,9 @@ test('empty Agent commands return field errors while failed partial saves retain
     const saved = workbench.snapshot().settings;
     await rm(`${directory}/settings.json`);
     await mkdir(`${directory}/settings.json`);
-    assert.deepEqual(await workbench.saveSettings({ agents: { ...before.agents, pi: { command: '/not-installed-but-valid', args: [] } } }), { ok: false, kind: 'storage', message: message('settingsWriteFailed') });
+    const validCommand = { command: '/not-installed-but-valid', args: [] };
+    assert.deepEqual(await workbench.saveSettings({ agents: { ...before.agents, pi: validCommand } }),
+      { ok: false, kind: 'storage', message: message('settingsWriteFailed') });
     assert.deepEqual(workbench.snapshot().settings, saved);
     await rm(`${directory}/settings.json`, { recursive: true });
   } finally { await workbench.quit(); }

@@ -62,6 +62,7 @@ module.exports = {
     assert.equal((await project()).layout, null);
     assert.deepEqual(Object.fromEntries(panelViews({ projects: [await project()] }).map(panel => [panel.id, panel.run.id])), runs);
     assert.equal(await evaluate('document.querySelector(".tray-card[aria-pressed=true]")'), null, 'the moved panel is not open');
-    console.log('The empty tray took no space and appeared only while a resident panel was dragged; lines separated the toolbar, layout area and tray; the move-to-tray action matched the drop and kept every run.');
+    console.log('The empty tray took no space and appeared only while a resident panel was dragged; lines separated the toolbar,'
+      + ' layout area and tray; the move-to-tray action matched the drop and kept every run.');
   },
 };

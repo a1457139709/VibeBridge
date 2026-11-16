@@ -25,7 +25,9 @@ await chmod(`${pty}/build/Release/spawn-helper`, 0o755);
 const pkg = JSON.parse(await readFile('package.json', 'utf8'));
 await writeFile(`${resources}/package.json`, JSON.stringify({ name: pkg.name, productName: 'VibeBridge', version: pkg.version, main: 'dist/main.cjs' }));
 const plist = `${output}/Contents/Info.plist`;
-for (const [key, value] of Object.entries({ CFBundleDisplayName: 'VibeBridge', CFBundleName: 'VibeBridge', CFBundleIdentifier: 'local.vibebridge.app', CFBundleShortVersionString: pkg.version, CFBundleVersion: pkg.version })) {
+const bundle = { CFBundleDisplayName: 'VibeBridge', CFBundleName: 'VibeBridge', CFBundleIdentifier: 'local.vibebridge.app',
+  CFBundleShortVersionString: pkg.version, CFBundleVersion: pkg.version };
+for (const [key, value] of Object.entries(bundle)) {
   const result = spawnSync('/usr/libexec/PlistBuddy', ['-c', `Set :${key} ${value}`, plist], { stdio: 'inherit' });
   if (result.status !== 0) throw new Error(`Could not set ${key}`);
 }

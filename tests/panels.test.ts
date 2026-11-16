@@ -40,15 +40,15 @@ test('an added panel enters the tray, leaving the saved layout and existing runs
     assert.deepEqual(workbench.snapshot().projects[0].tray.map(panel => panel.id), [added.panel.id, second.panel.id], 'the tray keeps the order panels were added in');
     const output = (id: string) => events.filter(e => e.kind === 'output' && e.runId === id).map(e => e.kind === 'output' ? e.data : '').join('');
     await until(() => runsOf(workbench.snapshot()).every(run => output(run.id).includes('READY:')));
-    await workbench.sendInput(originalRuns[1].id, 'after-add');
+    await workbench.runs.input(originalRuns[1].id, 'after-add');
     await until(() => output(originalRuns[1].id).includes('INPUT:after-add'));
-    await workbench.sendInput(added.launch.run.id, 'child');
+    await workbench.runs.input(added.launch.run.id, 'child');
     await until(() => /CHILD:(\d+)/.test(output(added.launch.run.id)));
     const childPid = Number(output(added.launch.run.id).match(/CHILD:(\d+)/)![1]);
     await workbench.closePanel(project.id, added.panel.id);
     assert.throws(() => process.kill(childPid, 0));
     assert.throws(() => process.kill(added.launch.run.pid!, 0));
-    await assert.rejects(workbench.sendInput(added.launch.run.id, 'stale'), /runInvalid/);
+    await assert.rejects(workbench.runs.input(added.launch.run.id, 'stale'), /runInvalid/);
     assert.deepEqual(workbench.snapshot().projects[0].tray.map(panel => panel.id), [second.panel.id]);
     assert.deepEqual(workbench.snapshot().projects[0].layout, layout);
     assert.deepEqual(runsOf(workbench.snapshot()).filter(run => run.id !== second.launch.run.id), originalRuns);
@@ -83,13 +83,13 @@ test('normal and abnormal run exits of tray panels remove them from the tray', a
     assert.notEqual(added.launch.run.id, old.id);
     assert.deepEqual(workbench.snapshot().projects[0].tray.map(panel => panel.id), [added.panel.id]);
     await until(() => events.some(e => e.kind === 'output' && e.runId === added.launch.run.id && e.data.includes('READY:')));
-    await assert.rejects(workbench.sendInput(old.id, 'old-input'), /runInvalid/);
-    await workbench.sendInput(added.launch.run.id, 'exit');
+    await assert.rejects(workbench.runs.input(old.id, 'old-input'), /runInvalid/);
+    await workbench.runs.input(added.launch.run.id, 'exit');
     await until(() => workbench.snapshot().projects[0].tray.length === 0);
     const abnormal = await workbench.addPanel(project.id, 'claude');
     assert.equal(abnormal.launch.outcome, 'started');
     await until(() => workbench.snapshot().projects[0].tray.length === 0);
-    await assert.rejects(workbench.sendInput(abnormal.launch.run.id, 'old-input'), /runInvalid/);
+    await assert.rejects(workbench.runs.input(abnormal.launch.run.id, 'old-input'), /runInvalid/);
   } finally { await workbench.quit(); await rm(directory, { recursive: true, force: true }); }
 });
 
@@ -129,7 +129,7 @@ test('an added panel whose Agent cannot start is withdrawn, and adding succeeds 
     assert.deepEqual(after.projects, before.projects, 'panels, runs and processing states are as before the addition');
     assert.deepEqual(snapshots.at(-1)!.projects, before.projects);
     await until(() => output.includes('READY:'));
-    await workbench.sendInput(runsOf(before)[1].id, 'still-alive');
+    await workbench.runs.input(runsOf(before)[1].id, 'still-alive');
     await until(() => output.includes('INPUT:still-alive'));
     await workbench.quit();
     workbench = await Workbench.open(directory);
@@ -207,9 +207,9 @@ test('terminal manager failure cleans up runs without removing saved panel confi
     const { project: second } = await workbench.createProject({ name: 'Background cleanup', directory: resolve(directory, 'second'), total: 1, counts: { codex: 1, claude: 0, pi: 0 } });
     const runs = runsOf(workbench.snapshot());
     await until(() => output.includes('READY:'));
-    await workbench.sendInput(runs[0].id, 'host');
+    await workbench.runs.input(runs[0].id, 'host');
     await until(() => /HOST:(\d+)/.test(output));
-    await workbench.sendInput(runs[0].id, 'orphan');
+    await workbench.runs.input(runs[0].id, 'orphan');
     await until(() => /ORPHAN:(\d+)/.test(output));
     orphanPid = Number(output.match(/ORPHAN:(\d+)/)![1]);
     process.kill(Number(output.match(/HOST:(\d+)/)![1]), 'SIGKILL');
@@ -220,7 +220,7 @@ test('terminal manager failure cleans up runs without removing saved panel confi
     }));
     assert.deepEqual(storedProjects(workbench.snapshot()), [project, second]);
     assert.ok(runsOf(workbench.snapshot()).every(run => run.state !== 'running'));
-    await assert.rejects(workbench.sendInput(runs[0].id, 'after-fault'), /terminalHostExited/);
+    await assert.rejects(workbench.runs.input(runs[0].id, 'after-fault'), /terminalHostExited/);
     await assert.rejects(workbench.quit(), /terminalHostExited/);
     assert.match(await readFile(resolve(directory, 'last-failure.json'), 'utf8'), /SIGKILL/);
     workbench = await Workbench.open(directory);
@@ -250,17 +250,17 @@ test('input while a naturally exited run is still being cleaned up is dropped wi
     await workbench.createProject({ name: 'Exit cleanup', directory, total: 1, counts: { codex: 1, claude: 0, pi: 0 } });
     const [run] = runsOf(workbench.snapshot());
     await until(() => output.includes('READY:'));
-    await workbench.sendInput(run.id, 'linger');
+    await workbench.runs.input(run.id, 'linger');
     await until(() => /LINGER:(\d+)/.test(output));
     lingerPid = Number(output.match(/LINGER:(\d+)/)![1]);
     // The child inherits the run's owner marker, so cleanup finds it after the Agent exits and waits
     // while it ignores SIGTERM.
-    await workbench.sendInput(run.id, 'exit');
+    await workbench.runs.input(run.id, 'exit');
     await until(() => { try { process.kill(run.pid!, 0); return false; } catch { return true; } });
     // The panel still shows the run while its leftover child is cleaned up.
     assert.equal(runsOf(workbench.snapshot()).find(r => r.id === run.id)?.state, 'running');
-    await workbench.sendInput(run.id, 'typed-after-exit');
-    await workbench.sendInput(run.id, '\x1b[O');
+    await workbench.runs.input(run.id, 'typed-after-exit');
+    await workbench.runs.input(run.id, '\x1b[O');
     await until(() => exits.includes(run.id));
     // The exit event precedes the queued panel removal.
     await until(() => workbench.snapshot().projects[0].panels.length === 0);

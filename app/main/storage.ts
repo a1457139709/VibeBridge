@@ -32,7 +32,10 @@ export class ProjectStore {
       const id = ++this.sequence; this.pending.set(id, { resolve, reject }); this.worker.postMessage({ id, operation, value });
     });
   }
-  load() { return this.request<{ projects: Project[]; repositories: Record<string, RepositoryReference>; dispatches: DispatchRecord[]; activeProjectId: string | null; } & Record<Sidebar, SidebarPreferences>>('load'); }
+  load() {
+    return this.request<{ projects: Project[]; repositories: Record<string, RepositoryReference>; dispatches: DispatchRecord[];
+      activeProjectId: string | null; } & Record<Sidebar, SidebarPreferences>>('load');
+  }
   save(project: Project) { return this.request<void>('save', project); }
   /** Saves an edited project and its Repository Binding (null for none) in one transaction. */
   edit(project: Project, repository: RepositoryReference | null) { return this.request<void>('edit', { project, repository }); }

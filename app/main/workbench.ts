@@ -2,7 +2,9 @@ import { message, detail } from '../shared/messages';
 import { projectNameError } from '../shared/project-name';
 import type { Language, ProjectEdit, ProjectEditResult } from '../shared/model';
 import { randomUUID } from 'node:crypto';
-import { sidebars, sidebarPreferencesSchema, type Sidebar, type SidebarPreferences, assignedAgents, arrange, validateDraft, type AgentType, type DirectoryResult, type Layout, type Project, type ProjectCreation, type ProjectDraft, type PanelCreation, type Settings, type Snapshot, type WorkbenchEvent } from '../shared/model';
+import { sidebars, sidebarPreferencesSchema, type Sidebar, type SidebarPreferences, assignedAgents, arrange,
+  validateDraft, type AgentType, type DirectoryResult, type Layout, type Project, type ProjectCreation,
+  type ProjectDraft, type PanelCreation, type Settings, type Snapshot, type WorkbenchEvent } from '../shared/model';
 import { ProjectStore } from './storage';
 import { SettingsFile, defaultSettings } from './settings';
 import { settingsConflicts, type SettingsSaveResult } from '../shared/settings';
@@ -22,8 +24,12 @@ export class WorkbenchOpenError extends Error {
 }
 
 export class Workbench {
-  private state: Omit<Snapshot, 'projects'> & { projects: Project[] } = { navigation: { ...sidebars.navigation.defaults }, forgeSidebar: { ...sidebars.forgeSidebar.defaults }, projects: [], activeProjectId: null, settings: defaultSettings(), settingsConflicts: [], startupTheme: 'system', resolvedTheme: 'light', errors: [] };
-  private supervision: RunSupervision;
+  private state: Omit<Snapshot, 'projects'> & { projects: Project[] } = {
+    navigation: { ...sidebars.navigation.defaults }, forgeSidebar: { ...sidebars.forgeSidebar.defaults },
+    projects: [], activeProjectId: null, settings: defaultSettings(), settingsConflicts: [],
+    startupTheme: 'system', resolvedTheme: 'light', errors: [] };
+  /** Runs of the projects' panels: their input, size, output flow and the commands that start them. */
+  readonly runs: RunSupervision;
   private listeners = new Set<(event: WorkbenchEvent) => void>();
   private operations: Promise<unknown> = Promise.resolve();
   private panels: ProjectPanels;
@@ -34,15 +40,15 @@ export class Workbench {
   private constructor(directory: string, private store: ProjectStore, private settingsFile: SettingsFile,
     stored: { repositories: Record<string, RepositoryReference>; dispatches: DispatchRecord[] }) {
     this.bindings = new RepositoryBindings(stored.repositories, store);
-    this.supervision = new RunSupervision(directory, { changed: () => this.changed(), emit: event => this.emit(event), report: message => this.report(message),
+    this.runs = new RunSupervision(directory, { changed: () => this.changed(), emit: event => this.emit(event), report: message => this.report(message),
       onRunExited: run => {
         if (!this.quitting) void this.operation(async () => {
-          if (!this.supervision.expects(run)) return;
+          if (!this.runs.expects(run)) return;
           await this.panels.remove(this.project(run.projectId), run.panelId);
         }).catch(error => this.report(error.message));
       } });
-    this.panels = new ProjectPanels(store, this.supervision, () => this.state.settings.agents, () => this.changed());
-    this.dispatches = new Dispatches(stored.dispatches, store, this.supervision, () => this.changed(), message => this.report(message));
+    this.panels = new ProjectPanels(store, this.runs, () => this.state.settings.agents, () => this.changed());
+    this.dispatches = new Dispatches(stored.dispatches, store, this.runs, () => this.changed(), message => this.report(message));
   }
   static async open(directory: string, systemDark = false) {
     const settingsFile = new SettingsFile(directory);
@@ -196,10 +202,6 @@ export class Workbench {
     await this.store.sidebar(sidebar, value);
     this.state[sidebar] = value; this.changed();
   }); }
-  sendInput(runId: string, data: string) { return this.supervision.input(runId, data); }
-  resizeRun(runId: string, cols: number, rows: number) { return this.supervision.resize(runId, cols, rows); }
-  acknowledgeOutput(runId: string, characters: number) { this.supervision.acknowledgeOutput(runId, characters); }
-  checkCommand(command: string) { return this.supervision.checkCommand(command); }
   saveSettings(patch: Partial<Settings>): Promise<SettingsSaveResult> {
     const update = structuredClone(patch);
     return this.operation(async () => {
@@ -215,7 +217,7 @@ export class Workbench {
       await this.operations;
       let error: unknown;
       try { await this.settingsFile.saveOnQuit(this.state.settings); } catch (failure) { error = failure; }
-      try { await this.supervision.shutdown(); } catch (failure) { error ??= failure; }
+      try { await this.runs.shutdown(); } catch (failure) { error ??= failure; }
       try { await this.store.close(); } catch (failure) { error ??= failure; }
       if (error) throw error;
     })();

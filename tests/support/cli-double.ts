@@ -30,7 +30,7 @@ export async function fixture(agent: AgentType, args: string[] = []) {
   const events: WorkbenchEvent[] = [];
   workbench.subscribe(event => {
     events.push(event);
-    if (event.kind === 'output') workbench.acknowledgeOutput(event.runId, event.data.length);
+    if (event.kind === 'output') workbench.runs.acknowledgeOutput(event.runId, event.data.length);
   });
   const output = (id: string) => events.flatMap(e => e.kind === 'output' && e.runId === id ? [e.data] : []).join('');
   const command = { command: process.env.VIBEBRIDGE_TEST_NODE!, args: [resolve(`tests/fixtures/${agent}-cli.cjs`), ...args] };
@@ -52,7 +52,7 @@ export async function fixture(agent: AgentType, args: string[] = []) {
     async send(runId: string, payload?: object, options: object = {}) {
       const id = ++sequence;
       const start = output(runId).length;
-      await workbench.sendInput(runId, JSON.stringify({ id, payload, ...options }) + '\n');
+      await workbench.runs.input(runId, JSON.stringify({ id, payload, ...options }) + '\n');
       await until(() => output(runId).includes(`ACK:${id}\r\n`), () => output(runId).slice(start));
       assertHooksCompleted(output(runId).slice(start));
     },

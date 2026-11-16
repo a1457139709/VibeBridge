@@ -26,7 +26,8 @@ module.exports = async context => {
     window.webContents.sendInputEvent({ type: 'keyDown', keyCode });
     window.webContents.sendInputEvent({ type: 'keyUp', keyCode });
   };
-  const focused = run => evaluate(`document.activeElement?.classList.contains('xterm-helper-textarea') && document.activeElement.closest('[data-panel-id]')?.dataset.panelId === ${JSON.stringify(run.panelId)}`);
+  const focused = run => evaluate(`document.activeElement?.classList.contains('xterm-helper-textarea')
+    && document.activeElement.closest('[data-panel-id]')?.dataset.panelId === ${JSON.stringify(run.panelId)}`);
   const receiveInput = async (run, marker) => {
     await until(() => focused(run), `terminal of panel ${run.panelId} focused`);
     const message = JSON.stringify({ id: marker, output: `RECEIVED:${marker}\n` });
@@ -35,7 +36,8 @@ module.exports = async context => {
     await until(() => evaluate(`window.summaryOutput[${JSON.stringify(run.id)}]?.includes(${JSON.stringify(`ACK:${marker}\r\n`)})`), `run ${run.id} acknowledged typed input ${marker}`);
     const outputs = await evaluate('window.summaryOutput');
     for (const other of runs.filter(other => other.id !== run.id)) assert.ok(!outputs[other.id]?.includes(`ACK:${marker}\r\n`));
-    await until(() => evaluate(`document.querySelector('[data-panel-id="${run.panelId}"] .xterm-rows').textContent.includes(${JSON.stringify(`RECEIVED:${marker}`)})`), `terminal of panel ${run.panelId} shows RECEIVED:${marker}`);
+    await until(() => evaluate(`document.querySelector('[data-panel-id="${run.panelId}"] .xterm-rows').textContent.includes(${JSON.stringify(`RECEIVED:${marker}`)})`),
+      `terminal of panel ${run.panelId} shows RECEIVED:${marker}`);
   };
   const open = async state => {
     const current = await snapshot();

@@ -41,7 +41,8 @@ async function checkDirectory(directory) {
 try {
   await checkDirectory('tests');
   if (failures.length) {
-    console.error(`Tests must not wait a fixed time or a fixed number of frames:\n${failures.join('\n')}\nWait with until() for the state the behaviour settles in, or prove that something does not happen in a unit test.`);
+    console.error(`Tests must not wait a fixed time or a fixed number of frames:\n${failures.join('\n')}
+Wait with until() for the state the behaviour settles in, or prove that something does not happen in a unit test.`);
     process.exitCode = 1;
   }
 } catch (error) {

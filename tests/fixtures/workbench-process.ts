@@ -16,7 +16,7 @@ void (async () => {
   await mkdir(second);
   await workbench.createProject({ name: 'Second', directory: second, total: 1, counts: { codex: 1, claude: 0, pi: 0 } });
   const run = runsOf(workbench.snapshot())[0];
-  await workbench.sendInput(run.id, 'host orphan');
+  await workbench.runs.input(run.id, 'host orphan');
   const deadline = Date.now() + 5000;
   while (!/ORPHAN:(\d+)/.test(output)) {
     if (Date.now() > deadline) throw new Error('Fixture did not create orphan');

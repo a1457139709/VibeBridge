@@ -20,7 +20,8 @@ module.exports = {
     for (const [index, [state, label, payload]] of cases.entries()) {
       const message = { id: state, payload, output: `\x1b]2;${label} with a long session title for compact panels | project\x07` };
       await evaluate(`window.workbench.sendInput(${JSON.stringify(runs[index].id)}, ${JSON.stringify(JSON.stringify(message) + '\n')})`);
-      await until(() => evaluate(`document.querySelector('[data-panel-id="${runs[index].panelId}"] .processing-status')?.getAttribute('aria-label') === ${JSON.stringify(label)}`), `panel ${runs[index].panelId} shows ${label}`);
+      await until(() => evaluate(`document.querySelector('[data-panel-id="${runs[index].panelId}"] .processing-status')?.getAttribute('aria-label') === ${JSON.stringify(label)}`),
+        `panel ${runs[index].panelId} shows ${label}`);
       assert.equal(await evaluate(`document.querySelector('[data-locate-panel-id="${runs[index].panelId}"] .processing-status').getAttribute('aria-label')`), label);
     }
     // Real keyboard focus must expose the same label, without clearing Done.
@@ -99,7 +100,9 @@ module.exports = {
         // The first panel takes the saved half along the axis, the other panels share the rest.
         await until(() => evaluate(`(slot => slot.style.${axis === 'row' ? 'width' : 'height'} === '50%'
           && slot.style.${axis === 'row' ? 'height' : 'width'} === '100%')(document.querySelector('[data-panel-id="${runs[0].panelId}"]'))
-          && (dividers => dividers.length === ${runs.length - 1} && dividers.every(divider => divider.getAttribute('aria-orientation') === '${axis === 'row' ? 'vertical' : 'horizontal'}'))([...document.querySelectorAll('.divider')])`),
+          && (dividers => dividers.length === ${runs.length - 1}
+            && dividers.every(divider => divider.getAttribute('aria-orientation') === '${axis === 'row' ? 'vertical' : 'horizontal'}'))
+          ([...document.querySelectorAll('.divider')])`),
           `saved ${axis} layout drawn`);
         const handle = await evaluate(`(() => { const rect = document.querySelector('.divider').getBoundingClientRect();
           const canvas = document.querySelector('.canvas').getBoundingClientRect();
@@ -121,7 +124,8 @@ module.exports = {
         window.webContents.sendInputEvent({ type: 'mouseUp', ...destination, button: 'left', clickCount: 1 });
         await until(() => evaluate('!document.querySelector(".canvas").classList.contains("resizing")'), 'resize released');
         await until(async () => (await evaluate('window.workbench.snapshot()')).projects.find(project => project.id === projectId).layout.ratio < .49, 'resized ratio saved');
-        await until(() => evaluate(`document.querySelector('[data-panel-id="${runs[0].panelId}"] .agent-panel').dataset.compactLayout === '${presentation}'`), `first panel uses the ${presentation} compact presentation`);
+        await until(() => evaluate(`document.querySelector('[data-panel-id="${runs[0].panelId}"] .agent-panel').dataset.compactLayout === '${presentation}'`),
+          `first panel uses the ${presentation} compact presentation`);
         await checkGeometry();
       }
       await click(language === 'en' ? 'Collapse project navigation' : '折叠项目导航'); await checkGeometry(); await click(language === 'en' ? 'Expand project navigation' : '展开项目导航');
@@ -135,7 +139,8 @@ module.exports = {
     reducedMotion = false;
     await evaluate(`document.querySelector('[data-panel-id="${runs[3].panelId}"] button[aria-label="Maximize panel"]').click()`);
     await checkGeometry();
-    await until(() => evaluate(`document.activeElement.closest('[data-panel-id]')?.dataset.panelId === '${runs[3].panelId}' && document.activeElement.classList.contains('xterm-helper-textarea')`), 'maximized Done panel terminal focused');
+    await until(() => evaluate(`document.activeElement.closest('[data-panel-id]')?.dataset.panelId === '${runs[3].panelId}' && document.activeElement.classList.contains('xterm-helper-textarea')`),
+      'maximized Done panel terminal focused');
     const input = JSON.stringify({ id: 'native-input', payload: { hook_event_name: 'UserPromptSubmit' } });
     for (const character of input) window.webContents.sendInputEvent({ type: 'char', keyCode: character });
     window.webContents.sendInputEvent({ type: 'keyDown', keyCode: 'Enter' });

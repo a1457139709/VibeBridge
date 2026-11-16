@@ -4,7 +4,8 @@ import { agentNames, agentTypes, type AgentType, type Settings } from './model';
 import { defaultDelivery, defaultWorkflowSettings, deliveries, workflows } from './workflows';
 import { defaultShortcuts, shortcutActions, shortcutConflicts, shortcutConflictMessage, shortcutFormatError } from './shortcuts';
 
-export const defaultSettings = (): Settings => ({ language: 'en', theme: 'system', defaultLayout: 'auto', sidebarCoexistence: 'squeeze', detailCoexistence: 'overlay', shortcuts: defaultShortcuts(), agents: {
+export const defaultSettings = (): Settings => ({ language: 'en', theme: 'system', defaultLayout: 'auto',
+  sidebarCoexistence: 'squeeze', detailCoexistence: 'overlay', shortcuts: defaultShortcuts(), agents: {
   codex: { command: 'codex', args: [] }, claude: { command: 'claude', args: [] }, pi: { command: 'pi', args: [] },
 }, workflows: defaultWorkflowSettings() });
 

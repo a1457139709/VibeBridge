@@ -16,4 +16,6 @@ export const showing = (snapshot: Snapshot, projectId: string, state: Processing
 };
 /** The snapshot's projects in their stored shape: resident panels without run and processing state, no tray, no Repository Binding,
  * no Forge and no Dispatch Records. */
-export const storedProjects = (snapshot: Snapshot): Project[] => snapshot.projects.map(({ tray: _tray, repository: _repository, forge: _forge, capabilities: _capabilities, dispatches: _dispatches, ...project }) => ({ ...project, panels: project.panels.map(({ run: _run, status: _status, ...panel }) => panel) }));
+export const storedProjects = (snapshot: Snapshot): Project[] => snapshot.projects.map(({
+  tray: _tray, repository: _repository, forge: _forge, capabilities: _capabilities, dispatches: _dispatches, ...project
+}) => ({ ...project, panels: project.panels.map(({ run: _run, status: _status, ...panel }) => panel) }));

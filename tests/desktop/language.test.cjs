@@ -18,7 +18,8 @@ module.exports = {
     // Keep an unfinished input line in a real PTY while settings take focus.
     const pending = JSON.stringify({ id: 'input-across-language', output: 'INPUT-PRESERVED\n' });
     for (const character of pending) window.webContents.sendInputEvent({ type: 'char', keyCode: character });
-    await until(() => evaluate(`document.querySelector('[data-panel-id="${first.panelId}"] .xterm-rows').textContent.includes('input-across-language')`), 'pending input line drawn in the first panel');
+    await until(() => evaluate(`document.querySelector('[data-panel-id="${first.panelId}"] .xterm-rows').textContent.includes('input-across-language')`),
+      'pending input line drawn in the first panel');
     await click('Global settings'); await click('Agent');
     await fill('command-codex', `${before.settings.agents.codex.command}-draft`);
     await click('General');
@@ -74,7 +75,8 @@ module.exports = {
     await until(() => evaluate('!document.querySelector(".settings-page")'), 'settings page closed');
     await f.choose('done', first); await until(() => f.focused(first), 'first panel terminal focused after choosing it');
     f.nativeKey('Enter');
-    await until(() => evaluate(`window.summaryOutput[${JSON.stringify(first.id)}].includes(${JSON.stringify('ACK:input-across-language\r\n')})`), 'first run acknowledged the input kept across language saves');
+    await until(() => evaluate(`window.summaryOutput[${JSON.stringify(first.id)}].includes(${JSON.stringify('ACK:input-across-language\r\n')})`),
+      'first run acknowledged the input kept across language saves');
     assert.ok(await evaluate(`document.querySelector('[data-panel-id="${first.panelId}"] .xterm-rows').textContent.includes('RECEIVED:before-language-change')`));
     assert.equal(await evaluate(`document.querySelector('[data-panel-id="${first.panelId}"] .xterm-helper-textarea').getAttribute('aria-label')`), '终端输入');
     assert.deepEqual((await f.snapshot()).projects, before.projects);

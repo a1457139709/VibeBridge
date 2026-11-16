@@ -24,7 +24,7 @@ async function fixture() {
   await workbench.saveSettings(settings);
   return { directory, workbench, events,
     output: (id: string) => events.filter(e => e.kind === 'output' && e.runId === id).map(e => e.kind === 'output' ? e.data : '').join(''),
-    emit: (runId: string, id: string, chunks: string[], delay = 0) => workbench.sendInput(runId, JSON.stringify({ id, chunks, delay }) + '\n'),
+    emit: (runId: string, id: string, chunks: string[], delay = 0) => workbench.runs.input(runId, JSON.stringify({ id, chunks, delay }) + '\n'),
     close: async () => { await workbench.quit(); await rm(directory, { recursive: true, force: true }); } };
 }
 
@@ -53,7 +53,9 @@ test('OSC 2 and OSC 0 publish each session title change once, with split ST term
     await f.workbench.createProject({ name: 'Title changes', directory: f.directory, total: 1, counts: { codex: 1, claude: 0, pi: 0 } });
     const run = runsOf(f.workbench.snapshot())[0];
     await until(() => f.output(run.id).includes('READY:'));
-    const chunks = ['\x1b]2;◐ First | directory\x1b', '\\', '\x1b]0; Second | directory \x07', '\x1b]2;\x1b', '\\', '\x1b]1;not-a-title\x1b', '\\', 'body mentions Claude Code and π - project', '\x1b]2;⠋ Final | directory\x1b', '\\', '\x1b]0;⠙ Final | directory\x07', '\x1b]2;⠹ Final | directory \x07'];
+    const chunks = ['\x1b]2;◐ First | directory\x1b', '\\', '\x1b]0; Second | directory \x07', '\x1b]2;\x1b', '\\',
+      '\x1b]1;not-a-title\x1b', '\\', 'body mentions Claude Code and π - project', '\x1b]2;⠋ Final | directory\x1b', '\\',
+      '\x1b]0;⠙ Final | directory\x07', '\x1b]2;⠹ Final | directory \x07'];
     const from = f.events.length;
     await f.emit(run.id, 'consecutive', chunks, 20);
     await until(() => f.output(run.id).includes('DONE:consecutive'));
@@ -74,7 +76,7 @@ test('titles stay with their running instance, reset on directory restart and ne
     await f.emit(second.id, 'second', ['\x1b]2;Second | directory\x1b\\']);
     await until(() => f.output(first.id).includes('DONE:first') && f.output(second.id).includes('DONE:second'));
     assert.deepEqual(runsOf(f.workbench.snapshot()).map(run => run.title), ['First', 'Second']);
-    await f.workbench.sendInput(first.id, JSON.stringify({ id: 'termination', onTerminate: 'Old run late title' }) + '\n');
+    await f.workbench.runs.input(first.id, JSON.stringify({ id: 'termination', onTerminate: 'Old run late title' }) + '\n');
     await until(() => f.output(first.id).includes('DONE:termination'));
     const result = await f.workbench.editProject(project.id, { name: project.name, directory: target, repository: null }, true);
     const current = result.launches.map(launch => launch.run);
@@ -102,7 +104,7 @@ test('a delayed genuine start replaces the uncertain starting run and then accep
     await f.workbench.createProject({ name: 'Existing', directory: f.directory, total: 1, counts: { codex: 1, claude: 0, pi: 0 } });
     const first = runsOf(f.workbench.snapshot())[0];
     await until(() => f.output(first.id).includes('READY:'));
-    await f.workbench.sendInput(first.id, JSON.stringify({ id: 'host', host: true, chunks: ['\x1b]2;Existing title | directory\x07'] }) + '\n');
+    await f.workbench.runs.input(first.id, JSON.stringify({ id: 'host', host: true, chunks: ['\x1b]2;Existing title | directory\x07'] }) + '\n');
     await until(() => /HOST:(\d+)/.test(f.output(first.id)));
     host = Number(f.output(first.id).match(/HOST:(\d+)/)![1]);
     const settings = f.workbench.snapshot().settings;

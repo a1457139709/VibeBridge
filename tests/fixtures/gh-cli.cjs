@@ -1,7 +1,8 @@
 const { readFileSync, writeFileSync } = require('node:fs');
 
 // A `gh` CLI double. The test writes the account's state to the JSON file named by VIBEBRIDGE_GH_DOUBLE:
-// { account, repositories: ["owner/repo" | { id, path }, …], redirects?: { "former/path": "owner/repo" }, labels?: [{ name, color }], issues?: [{ number, title, state, stateReason?, createdAt, labels,
+// { account, repositories: ["owner/repo" | { id, path }, …], redirects?: { "former/path": "owner/repo" }, labels?: [{ name, color }],
+//   issues?: [{ number, title, state, stateReason?, createdAt, labels,
 //   author?, assignees?, bodyHTML?, comments?, parent?, blockedBy?, closedBy? }],
 //   pullRequests?: [{ number, title, state: OPEN|MERGED|CLOSED, isDraft?, createdAt?, author?: login|null, labels?, checks?: rollup state }],
 //   permission?, failure?: { code, stdout?, stderr? } } (tests/support/gh-double.ts describes each field).
@@ -53,7 +54,9 @@ function write(noun, verb, number, options) {
   if (!item) fail(`GraphQL: Could not resolve to an issue or pull request with the number of ${number}. (repository.issueOrPullRequest)`);
   const mutation = { 'issue close': 'closeIssue', 'issue reopen': 'reopenIssue', 'pr merge': 'mergePullRequest', 'pr close': 'closePullRequest', 'pr reopen': 'reopenPullRequest' }[`${noun} ${verb}`];
   if (!mutation) unsupported();
-  if (['READ', 'TRIAGE'].includes(state.permission)) fail(`GraphQL: ${state.account} does not have the correct permissions to execute \`${mutation[0].toUpperCase()}${mutation.slice(1)}\` (${mutation})`);
+  if (['READ', 'TRIAGE'].includes(state.permission)) {
+    fail(`GraphQL: ${state.account} does not have the correct permissions to execute \`${mutation[0].toUpperCase()}${mutation.slice(1)}\` (${mutation})`);
+  }
   const name = `${path}#${number} (${item.title})`;
   if (noun === 'issue' && verb === 'close') {
     const reason = options[options.indexOf('--reason') + 1];
@@ -67,7 +70,8 @@ function write(noun, verb, number, options) {
     if (!method) unsupported();
     if (item.state !== 'OPEN') fail(`X Pull request ${path}#${number} (${item.title}) can't be merged because it is ${item.state === 'MERGED' ? 'already merged' : 'closed'}`);
     if (item.mergeable === 'CONFLICTING') fail(`X Pull request ${path}#${number} is not mergeable: the merge commit cannot be cleanly created.`);
-    if (state.mergeMethods?.[method] === false) fail(`GraphQL: ${{ merge: 'Merge commits', squash: 'Squash merges', rebase: 'Rebase merges' }[method]} are not allowed on this repository. (mergePullRequest)`);
+    const methodName = { merge: 'Merge commits', squash: 'Squash merges', rebase: 'Rebase merges' }[method];
+    if (state.mergeMethods?.[method] === false) fail(`GraphQL: ${methodName} are not allowed on this repository. (mergePullRequest)`);
     item.state = 'MERGED';
     done(`✓ ${{ merge: 'Merged', squash: 'Squashed and merged', rebase: 'Rebased and merged' }[method]} pull request ${name}`);
   } else if (verb === 'close') {
@@ -160,7 +164,8 @@ function issueDetail(path, number) {
     author: issue.author === null ? null : { login: issue.author ?? state.account },
     assignees: { nodes: (issue.assignees ?? []).map(login => ({ login })) },
     labels: { nodes: issue.labels },
-    comments: { totalCount: comments.length, nodes: comments.map(comment => ({ author: comment.author === null ? null : { login: comment.author }, createdAt: comment.createdAt, bodyHTML: comment.bodyHTML })) },
+    comments: { totalCount: comments.length, nodes: comments.map(comment => ({
+      author: comment.author === null ? null : { login: comment.author }, createdAt: comment.createdAt, bodyHTML: comment.bodyHTML })) },
     parent: issue.parent ? { ...reference(byNumber([issue.parent])[0]), subIssuesSummary: subIssuesSummary(issue.parent) } : null,
     // GitHub lists sub-issues in the order they were added, not by number.
     subIssues: { nodes: issues.filter(item => item.parent === issue.number).reverse().map(reference) },

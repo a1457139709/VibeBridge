@@ -18,7 +18,9 @@ export class TerminalClient {
   private exited: Promise<void>;
   constructor(directory: string, onEvent: (event: TerminalEvent) => void, onFailure: (message: string, stopped?: boolean) => void) {
     const faultFile = join(directory, 'last-failure.json');
-    this.child = fork(join(__dirname, 'terminal.cjs'), [], { env: { ...process.env, ELECTRON_RUN_AS_NODE: '1', VIBEBRIDGE_HOST_OWNER: this.owner, VIBEBRIDGE_FAULT_FILE: faultFile }, stdio: ['ignore', 'inherit', 'inherit', 'ipc'] });
+    this.child = fork(join(__dirname, 'terminal.cjs'), [], {
+      env: { ...process.env, ELECTRON_RUN_AS_NODE: '1', VIBEBRIDGE_HOST_OWNER: this.owner, VIBEBRIDGE_FAULT_FILE: faultFile },
+      stdio: ['ignore', 'inherit', 'inherit', 'ipc'] });
     this.exited = new Promise(resolve => this.child.once('exit', () => resolve()));
     this.child.on('message', (message: any) => {
       if (this.failure) return;

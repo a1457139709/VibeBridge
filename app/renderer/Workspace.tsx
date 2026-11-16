@@ -20,7 +20,12 @@ function TerminalView({ run }: { run?: Run }) {
   useLayoutEffect(() => {
     if (run?.state === 'running' && container.current) return mountTerminal(run.id, container.current);
   }, [run?.id, run?.state]);
-  return <div className="terminal-container" ref={container}>{run?.state === 'starting' ? <div className="terminal-message">{t('launchPending')}</div> : run?.state === 'failed' ? <div className="terminal-message">{t('launchFailed')}</div> : run?.state === 'stopped' ? <div className="terminal-message">{t('runStopped')}</div> : !run ? <div className="terminal-message muted">{t('starting')}</div> : null}</div>;
+  return <div className="terminal-container" ref={container}>
+    {run?.state === 'starting' ? <div className="terminal-message">{t('launchPending')}</div>
+      : run?.state === 'failed' ? <div className="terminal-message">{t('launchFailed')}</div>
+      : run?.state === 'stopped' ? <div className="terminal-message">{t('runStopped')}</div>
+      : !run ? <div className="terminal-message muted">{t('starting')}</div> : null}
+  </div>;
 }
 
 const maximizedPosition: CSSProperties = { left: 0, top: 0, width: '100%', height: '100%', zIndex: 2 };
@@ -35,7 +40,13 @@ function AgentPanel({ panel, position, focused, actions, select, focusChanged, h
   return <section data-panel-id={panel.id} className={`panel-slot ${panel.agent}`} style={position}><div className={`agent-panel ${focused ? 'focused' : ''}`}
     onMouseDown={event => { if (!(event.target as HTMLElement).closest('.panel-header')) select(); }} onFocusCapture={focusChanged}>
     <header className="panel-header" onPointerDown={headerPointerDown} onClick={headerClick}>
-      <span className="agent-title" data-hint={title}><span className="agent-symbols"><ProcessingStatusIcon state={panel.status} focusable /><span className="agent-mark" aria-hidden="true">{agentIcons[panel.agent]}</span></span><span className="session-title">{title}</span></span>
+      <span className="agent-title" data-hint={title}>
+        <span className="agent-symbols">
+          <ProcessingStatusIcon state={panel.status} focusable />
+          <span className="agent-mark" aria-hidden="true">{agentIcons[panel.agent]}</span>
+        </span>
+        <span className="session-title">{title}</span>
+      </span>
       <span className="panel-actions">{actions}</span>
     </header><TerminalView run={panel.run} />
   </div></section>;
@@ -45,7 +56,10 @@ function PanelAction({ label, run, children }: { label: string; run(): void; chi
   return <button aria-label={label} draggable={false} onMouseDown={event => event.stopPropagation()} onClick={event => { event.stopPropagation(); run(); }}>{children}</button>;
 }
 
-export function Workspace({ project, report, openAgentSettings, location, visible, ref }: { project: ProjectView; report(message: string): void; openAgentSettings(): void; location: PanelLocation; visible: boolean; ref: Ref<WorkspaceActions> }) {
+export function Workspace({ project, report, openAgentSettings, location, visible, ref }: {
+  project: ProjectView; report(message: string): void; openAgentSettings(): void; location: PanelLocation; visible: boolean;
+  ref: Ref<WorkspaceActions>;
+}) {
   const { t, language } = useLocalization();
   const [layout, setLayout] = useState(project.layout);
   const [adding, setAdding] = useState(false);
@@ -130,7 +144,9 @@ export function Workspace({ project, report, openAgentSettings, location, visibl
         const style: CSSProperties = axis === 'row'
           ? { left: `calc(${(box.x + box.width * ratio) * 100}% - 4px)`, top: `${box.y * 100}%`, width: 8, height: `${box.height * 100}%`, cursor: 'col-resize' }
           : { left: `${box.x * 100}%`, top: `calc(${(box.y + box.height * ratio) * 100}% - 4px)`, height: 8, width: `${box.width * 100}%`, cursor: 'row-resize' };
-        return <div key={divider.path.join('.')} role="separator" aria-orientation={axis === 'row' ? 'vertical' : 'horizontal'} className="divider" style={style} onPointerDown={event => interactions.current?.startResize(event.nativeEvent, event.currentTarget, divider)} />;
+        return <div key={divider.path.join('.')} role="separator" aria-orientation={axis === 'row' ? 'vertical' : 'horizontal'}
+          className="divider" style={style}
+          onPointerDown={event => interactions.current?.startResize(event.nativeEvent, event.currentTarget, divider)} />;
       })}
     </div>
     <PanelTray ref={tray} panels={project.tray} openPanelId={openTrayPanel?.id} open={viewing.openTrayPanel} collapse={viewing.collapse}

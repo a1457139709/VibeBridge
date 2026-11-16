@@ -132,7 +132,8 @@ test('a grey latest dispatch locates the latest earlier dispatch a panel is on, 
   const activated: string[] = [];
   window.workbench.activateProject = async id => { activated.push(id); f.snapshot.activeProjectId = id; f.publish(); };
   const status = await waitFor(() => within(row(9)).getByRole('button', { name: /^Dispatched ·/ }));
-  assert.equal(status.getAttribute('data-hint'), `Claude Code · ${when(f.snapshot.projects[0].dispatches[1])} · /implement 9 → its session is not in any open panel (click to locate the latest dispatch a panel is on)`);
+  assert.equal(status.getAttribute('data-hint'), `Claude Code · ${when(f.snapshot.projects[0].dispatches[1])} · /implement 9`
+    + ' → its session is not in any open panel (click to locate the latest dispatch a panel is on)');
   await f.user.click(status);
   await waitFor(() => assert.deepEqual(activated, ['beta']));
 });

@@ -59,7 +59,8 @@ module.exports = {
     await evaluate(`window.workbench.createProject(${JSON.stringify({ name: 'Other summary project', directory: otherDirectory, total: 1, counts: { codex: 1, claude: 0, pi: 0 } })})`);
     await click('Other summary project');
     await f.send(third, { payload: { hook_event_name: 'Stop' } });
-    await until(() => evaluate(`document.querySelector('[data-locate-panel-id="${third.panelId}"] .processing-status')?.getAttribute('aria-label') === 'Done'`), 'navigation shows Done for the background project panel');
+    await until(() => evaluate(`document.querySelector('[data-locate-panel-id="${third.panelId}"] .processing-status')?.getAttribute('aria-label') === 'Done'`),
+      'navigation shows Done for the background project panel');
     assert.equal(await evaluate('document.querySelectorAll(".project-summary").length'), 1);
     assert.ok(await evaluate('[...document.querySelectorAll(".summary-entry")].some(button => button.textContent === "0 Done")'));
     await click(project.name);

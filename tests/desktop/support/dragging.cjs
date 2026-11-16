@@ -1,6 +1,9 @@
 // Native pointer drags in the workbench window, and the geometry they are checked against.
 module.exports = ({ window, evaluate, until }) => {
-  const rect = selector => evaluate(`(() => { const r = document.querySelector(${JSON.stringify(selector)}).getBoundingClientRect(); return { left: r.left, top: r.top, right: r.right, bottom: r.bottom, width: r.width, height: r.height }; })()`);
+  const rect = selector => evaluate(`(() => {
+    const r = document.querySelector(${JSON.stringify(selector)}).getBoundingClientRect();
+    return { left: r.left, top: r.top, right: r.right, bottom: r.bottom, width: r.width, height: r.height };
+  })()`);
   const center = box => ({ x: Math.round(box.left + box.width / 2), y: Math.round(box.top + box.height / 2) });
   return {
     rect, center,

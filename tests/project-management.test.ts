@@ -20,7 +20,7 @@ test('editing a name or the same real directory preserves panels, layout and the
     assert.deepEqual(edited.project, { ...project, name: 'Renamed' });
     assert.deepEqual(edited.launches, []);
     assert.deepEqual(runsOf(f.workbench.snapshot()), runsOf(before));
-    await f.workbench.sendInput(runsOf(before)[0].id, 'rename-survives');
+    await f.workbench.runs.input(runsOf(before)[0].id, 'rename-survives');
     await until(() => f.output(runsOf(before)[0].id).includes('INPUT:rename-survives'));
     await f.workbench.editProject(project.id, { name: 'Renamed', directory: link, repository: null }, false);
     assert.deepEqual(runsOf(f.workbench.snapshot()), runsOf(before));
@@ -46,7 +46,7 @@ test('directory restart saves first, cleans descendants and preserves project la
     await f.workbench.saveLayout(project.id, layout);
     const before = runsOf(f.workbench.snapshot()), oldRuns = before.filter(run => run.projectId === project.id);
     await until(() => oldRuns.every(run => f.output(run.id).includes('READY:')));
-    await f.workbench.sendInput(oldRuns[0].id, 'child');
+    await f.workbench.runs.input(oldRuns[0].id, 'child');
     await until(() => /CHILD:(\d+)/.test(f.output(oldRuns[0].id)));
     const child = Number(f.output(oldRuns[0].id).match(/CHILD:(\d+)/)![1]);
     const result = await f.workbench.editProject(project.id, { name: 'New directory', directory: target, repository: null }, true);
@@ -61,7 +61,7 @@ test('directory restart saves first, cleans descendants and preserves project la
     await until(() => restarted.every(run => f.output(run.id).includes(`:${target}`)));
     assert.deepEqual(storedProjects(f.workbench.snapshot()).find(item => item.id === project.id)?.layout, layout);
     // Natural exit still removes its panel after a controlled restart.
-    await f.workbench.sendInput(restarted[0].id, 'exit');
+    await f.workbench.runs.input(restarted[0].id, 'exit');
     await until(() => f.workbench.snapshot().projects.find(item => item.id === project.id)!.panels.length === 1);
   } finally { await f.close(); }
 });
@@ -79,7 +79,7 @@ test('changing directory without restart keeps original cwd and identity and use
     assert.deepEqual(result.launches, []);
     await f.workbench.activateProject(project.id); await f.workbench.activateProject(second.id); await f.workbench.activateProject(project.id);
     assert.deepEqual(runsOf(f.workbench.snapshot()).find(run => run.id === old.id), old);
-    await f.workbench.sendInput(old.id, 'cwd-report');
+    await f.workbench.runs.input(old.id, 'cwd-report');
     await until(() => f.output(old.id).includes(`CWD:${f.directory}`));
     const added = await f.workbench.addPanel(project.id, 'codex');
     await until(() => f.output(added.launch.run.id).includes(`:${target}`));
@@ -112,7 +112,7 @@ test('deletion cleans only the target project, preserves files, persists removal
     await f.workbench.activateProject(projects[1].id);
     const before = runsOf(f.workbench.snapshot()), target = before.find(run => run.projectId === projects[1].id)!;
     await until(() => f.output(target.id).includes('READY:'));
-    await f.workbench.sendInput(target.id, 'orphan');
+    await f.workbench.runs.input(target.id, 'orphan');
     await until(() => /ORPHAN:(\d+)/.test(f.output(target.id)));
     const orphan = Number(f.output(target.id).match(/ORPHAN:(\d+)/)![1]);
     await f.workbench.deleteProject(projects[1].id);
@@ -189,7 +189,7 @@ test('a terminal stop timeout reports a saved edit and leaves panel records inta
     const { project } = await f.create('Stop failure');
     const run = runsOf(f.workbench.snapshot())[0];
     await until(() => f.output(run.id).includes('READY:'));
-    await f.workbench.sendInput(run.id, 'host');
+    await f.workbench.runs.input(run.id, 'host');
     await until(() => /HOST:(\d+)/.test(f.output(run.id)));
     host = Number(f.output(run.id).match(/HOST:(\d+)/)![1]);
     process.kill(host, 'SIGSTOP');
@@ -212,7 +212,7 @@ test('deletion after a terminal manager failure does not claim cleanup succeeded
     const { project } = await f.create('Keep after failure');
     const run = runsOf(f.workbench.snapshot())[0];
     await until(() => f.output(run.id).includes('READY:'));
-    await f.workbench.sendInput(run.id, 'host');
+    await f.workbench.runs.input(run.id, 'host');
     await until(() => /HOST:(\d+)/.test(f.output(run.id)));
     const host = Number(f.output(run.id).match(/HOST:(\d+)/)![1]);
     process.kill(host, 'SIGKILL');
@@ -230,7 +230,7 @@ test('a start response timeout returns an explicit per-panel uncertain result wh
     const { project } = await f.create('Start timeout');
     const old = runsOf(f.workbench.snapshot())[0];
     await until(() => f.output(old.id).includes('READY:'));
-    await f.workbench.sendInput(old.id, 'host');
+    await f.workbench.runs.input(old.id, 'host');
     await until(() => /HOST:(\d+)/.test(f.output(old.id)));
     host = Number(f.output(old.id).match(/HOST:(\d+)/)![1]);
     const unsubscribe = f.workbench.subscribe(event => {

@@ -25,7 +25,9 @@ export function FilterBar({ searchLabel, filter, setFilter, labels, counts }: {
           {t('labelsFilter')}{filter.labels.length ? ` ${filter.labels.length}` : ''} ▾</button>
         {choosing && <div className="forge-popover" role="menu" aria-label={t('labelsFilter')}>
           {labels.map(label => <button key={label.name} role="menuitemcheckbox" aria-checked={filter.labels.includes(label.name)} onClick={() => toggle(label.name)}>
-            <span className="forge-swatch" style={{ background: `#${label.color}` }} /><span className="forge-ellipsis">{label.name}</span><b>{filter.labels.includes(label.name) ? '✓' : ''}</b></button>)}
+            <span className="forge-swatch" style={{ background: `#${label.color}` }} />
+            <span className="forge-ellipsis">{label.name}</span>
+            <b>{filter.labels.includes(label.name) ? '✓' : ''}</b></button>)}
           {!!filter.labels.length && <button className="forge-popover-clear" role="menuitem" onClick={() => setFilter(f => ({ ...f, labels: [] }))}>{t('clearLabels')}</button>}
         </div>}
       </div>

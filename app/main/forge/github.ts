@@ -2,7 +2,8 @@ import { z } from 'zod';
 import type { ChecksConclusion, DirectAction, ForgeLabel, ListFilter, IssueSummary, RepositoryReference } from '../../shared/forge';
 import { ForgeError, type Forge } from './forge';
 import { gh, ghOutput, graphql } from './github-cli';
-import { checksState, issueReference, issueReferenceFields, issueReferenceSchema, issueState, issueStateFields, labelSchema, loginSchema, pullRequestState, relatedLimit, repositoryLinks, canWrite, viewerPermission } from './github-fields';
+import { checksState, issueReference, issueReferenceFields, issueReferenceSchema, issueState, issueStateFields,
+  labelSchema, loginSchema, pullRequestState, relatedLimit, repositoryLinks, canWrite, viewerPermission } from './github-fields';
 import { pullRequestDetail } from './github-pull-request';
 
 

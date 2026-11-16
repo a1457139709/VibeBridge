@@ -7,11 +7,9 @@ import { resolve } from 'node:path';
 test('installed pre-commit blocks oversized staged files before working-tree checks and leaves the index untouched', async () => {
   await mkdir('work/commit-gate', { recursive: true });
   const directory = await mkdtemp(resolve('work/commit-gate/repo-'));
-  // A hook's Git environment points at the caller's index. Never inherit it into
-  // the disposable repository used to exercise the real Git hook protocol.
-  const env = Object.fromEntries(Object.entries(process.env).filter(([key]) => !key.startsWith('GIT_')));
-  Object.assign(env, { GIT_CONFIG_NOSYSTEM: '1', GIT_CONFIG_GLOBAL: '/dev/null', HUSKY: '1',
-    npm_config_cache: `${directory}/npm-cache` });
+  // The disposable repository reads no system or user Git configuration, and Husky runs its hooks.
+  const env = { ...process.env, GIT_CONFIG_NOSYSTEM: '1', GIT_CONFIG_GLOBAL: '/dev/null', HUSKY: '1',
+    npm_config_cache: `${directory}/npm-cache` };
   const run = (command: string, args: string[], extra = {}) => spawnSync(command, args, { cwd: directory,
     env: { ...env, ...extra }, encoding: 'utf8', timeout: 30000 });
   const git = (...args: string[]) => {
@@ -33,6 +31,7 @@ test('installed pre-commit blocks oversized staged files before working-tree che
 appendFileSync('checks.jsonl', JSON.stringify({ stage: '${stage}', input: readFileSync('sample.txt', 'utf8') }) + '\\n');
 if (process.env.FAIL_CHECK === '${stage}') { console.error('FAILED:${stage}'); process.exit(1); }`;
     await writeFile(`${directory}/scripts/check-source-paths.mjs`, check('source-paths'));
+    await writeFile(`${directory}/scripts/check-source-shape.mjs`, check('source-shape'));
     await writeFile(`${directory}/scripts/check-test-waits.mjs`, check('test-waits'));
     await writeFile(`${directory}/scripts/typecheck.mjs`, check('typecheck'));
     await writeFile(`${directory}/scripts/test.mjs`, check('unit'));
@@ -56,7 +55,7 @@ if (process.env.FAIL_CHECK === '${stage}') { console.error('FAILED:${stage}'); p
     await writeFile(`${directory}/sample.txt`, 'staged'); git('add', 'sample.txt');
     await writeFile(`${directory}/sample.txt`, 'working tree');
     const staged = git('diff', '--cached'), unstaged = git('diff');
-    const stages = ['source-paths', 'test-waits', 'typecheck', 'unit', 'components'];
+    const stages = ['source-paths', 'source-shape', 'test-waits', 'typecheck', 'unit', 'components'];
     for (const [index, stage] of stages.entries()) {
       await writeFile(`${directory}/checks.jsonl`, '');
       const result = run('git', ['commit', '-m', `Fails ${stage}`], { FAIL_CHECK: stage });

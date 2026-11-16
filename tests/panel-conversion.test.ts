@@ -21,7 +21,7 @@ test('placing a tray panel into the layout and moving a resident panel to the tr
     assert.deepEqual(view.layout, layout);
     assert.deepEqual(view.tray, []);
     assert.equal(view.panels.find(panel => panel.id === added.panel.id)?.run?.id, run.id);
-    await f.workbench.sendInput(run.id, 'placed');
+    await f.workbench.runs.input(run.id, 'placed');
     await until(() => f.output(run.id).includes('INPUT:placed'));
 
     const residentRun = view.panels.find(panel => panel.id === left.id)!.run!;
@@ -29,7 +29,7 @@ test('placing a tray panel into the layout and moving a resident panel to the tr
     view = f.workbench.snapshot().projects[0];
     assert.deepEqual(view.layout, { axis: 'column', ratio: .5, first: { panel: right.id }, second: { panel: added.panel.id } }, 'the remaining resident panels fill the space as when a panel closes');
     assert.deepEqual(view.tray.map(panel => [panel.id, panel.run?.id]), [[left.id, residentRun.id]]);
-    await f.workbench.sendInput(residentRun.id, 'moved');
+    await f.workbench.runs.input(residentRun.id, 'moved');
     await until(() => f.output(residentRun.id).includes('INPUT:moved'));
   } finally { await f.close(); }
 });

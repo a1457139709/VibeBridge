@@ -19,7 +19,9 @@ export function withPanels(snapshot: Snapshot) {
 export const panelOf = (request: DispatchRequest) => request.target.kind === 'panel' ? request.target.panelId : 'new-panel';
 
 /** The Workbench with Alpha's issues 9 and 8 listed; `dispatch` answers dispatches. */
-export async function listed(dispatch: (projectId: string, request: DispatchRequest) => Promise<{ delivery: 'submit' | 'fill'; panelId: string }> = async (_, request) => ({ delivery: 'submit', panelId: panelOf(request) }),
+export async function listed(
+  dispatch: (projectId: string, request: DispatchRequest) => Promise<{ delivery: 'submit' | 'fill'; panelId: string }>
+    = async (_, request) => ({ delivery: 'submit', panelId: panelOf(request) }),
   change: (snapshot: Snapshot) => void = () => {}) {
   const requests: [string, DispatchRequest][] = [];
   const f = renderWorkbench(githubCapabilities, { dispatch: async (projectId, request) => { requests.push([projectId, request]); return dispatch(projectId, request); },

@@ -53,17 +53,17 @@ test('confirmed projects start independent runs in the selected directory and re
     assert.equal(new Set(runs.map(r => r.id)).size, 3);
     const output = (runId: string) => events.filter(e => e.kind === 'output' && e.runId === runId).map(e => e.kind === 'output' ? e.data : '').join('');
     await until(() => runs.every(run => output(run.id).includes(`:${dataDirectory}`)));
-    await workbench.sendInput(runs[1].id, 'unique-target');
+    await workbench.runs.input(runs[1].id, 'unique-target');
     await until(() => output(runs[1].id).includes('INPUT:unique-target'));
     assert.ok(!output(runs[0].id).includes('unique-target'));
     assert.ok(!output(runs[2].id).includes('unique-target'));
-    await workbench.resizeRun(runs[1].id, 93, 27);
+    await workbench.runs.resize(runs[1].id, 93, 27);
     await until(() => output(runs[1].id).includes('SIZE:93x27'));
     assert.equal((await workbench.inspectDirectory(`${dataDirectory}/.`)).existingProjectId, project.id);
     await assert.rejects(workbench.createProject({ name: 'Duplicate', directory: dataDirectory, total: 1, counts: { codex: 1, claude: 0, pi: 0 } }), /projectDirectoryExists/);
-    await workbench.sendInput(runs[1].id, 'exit');
+    await workbench.runs.input(runs[1].id, 'exit');
     await until(() => workbench.snapshot().projects[0].panels.length === 2);
-    await assert.rejects(workbench.sendInput(runs[1].id, 'stale'), /runInvalid/);
+    await assert.rejects(workbench.runs.input(runs[1].id, 'stale'), /runInvalid/);
   } finally {
     unsubscribe();
     await workbench.quit();
@@ -82,7 +82,7 @@ test('quit cleans up runs and detached children while preserving the saved works
     const { project } = await workbench.createProject({ name: 'Persistent', directory: dataDirectory, total: 2, counts: { codex: 2, claude: 0, pi: 0 } });
     const oldRuns = runsOf(workbench.snapshot());
     await until(() => events.some(e => e.kind === 'output' && e.data.includes('READY:')));
-    await workbench.sendInput(oldRuns[0].id, 'child');
+    await workbench.runs.input(oldRuns[0].id, 'child');
     let childPid = 0;
     await until(() => {
       const output = events.filter(e => e.kind === 'output').map(e => e.kind === 'output' ? e.data : '').join('');
@@ -103,7 +103,7 @@ test('quit cleans up runs and detached children while preserving the saved works
     assert.deepEqual(workbench.snapshot().settings, settings);
     await workbench.activateProject(project.id);
     assert.ok(runsOf(workbench.snapshot()).every(r => !oldRuns.some(old => old.id === r.id)));
-    await assert.rejects(workbench.sendInput(oldRuns[0].id, 'old-run'), /runInvalid/);
+    await assert.rejects(workbench.runs.input(oldRuns[0].id, 'old-run'), /runInvalid/);
     await workbench.closePanel(project.id, project.panels[0].id);
     await workbench.quit();
     workbench = await Workbench.open(dataDirectory);
