@@ -5,12 +5,13 @@ import type { ProjectView } from '../shared/model';
 import { sameRepository, type RepositoryChoices, type RepositoryReference } from '../shared/forge';
 
 /** The repository field's form state. The choices load when the dialog opens and follow the directory being
- * edited; `repository` is the binding the project has after saving. A list that failed to load binds nothing new. */
-export function useRepositoryField(project: ProjectView, directory: string) {
+ * edited; `repository` is the binding the project has after saving. A list that failed to load binds nothing new.
+ * `changing` opens a bound project's field as Change does. */
+export function useRepositoryField(project: ProjectView, directory: string, changing = false) {
   const bound = project.repository;
   const [choices, setChoices] = useState<RepositoryChoices | { ok: false; error: string }>();
   const [attempt, setAttempt] = useState(0);
-  const [changing, setChanging] = useState(false), [unbinding, setUnbinding] = useState(false);
+  const [changingNow, setChanging] = useState(changing), [unbinding, setUnbinding] = useState(false);
   // undefined follows the default: the bound repository, else the one origin points at.
   const [picked, setPicked] = useState<RepositoryReference | null>();
   useEffect(() => {
@@ -22,10 +23,10 @@ export function useRepositoryField(project: ProjectView, directory: string) {
   const listed = choices?.ok ? choices : undefined;
   const selection = picked !== undefined ? picked : bound ?? listed?.origin ?? null;
   const repository = bound
-    ? unbinding ? null : changing && listed && selection ? selection : bound
+    ? unbinding ? null : changingNow && listed && selection ? selection : bound
     : listed ? selection : null;
   return {
-    bound, choices, listed, selection, repository, changing, unbinding,
+    bound, choices, listed, selection, repository, changing: changingNow, unbinding,
     retry() { setChoices(undefined); setAttempt(value => value + 1); },
     pick: setPicked,
     change() { setChanging(true); },
@@ -36,8 +37,7 @@ export function useRepositoryField(project: ProjectView, directory: string) {
 type RepositoryFieldState = ReturnType<typeof useRepositoryField>;
 
 /** The account's repositories, searchable. Focus stays in the search box, picking with the pointer too, and there ↑/↓
- * move through the ones shown, without wrapping and with no scroll bar, keeping the one reached in view; Enter or Space
- * picks it. Pointing at one reaches it too, and a new search reaches none until a key moves. */
+ * move through the ones shown, without wrapping, keeping the one reached in view; Enter or Space picks it. Pointing at one reaches it too, and a new search reaches none until a key moves. */
 function RepositoryList({ field, disabled }: { field: RepositoryFieldState; disabled: boolean }) {
   const { t } = useLocalization();
   const [query, setQuery] = useState('');

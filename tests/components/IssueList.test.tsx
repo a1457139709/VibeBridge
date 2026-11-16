@@ -125,10 +125,25 @@ test('an inaccessible repository names the account and offers Retry and Change b
   await user.click(within(sidebar()).getByRole('button', { name: 'Retry' }));
   (await request(2)).answer(failed('inaccessible', 'GraphQL: Could not resolve to a Repository', null));
   await waitFor(() => assert.ok(within(sidebar()).getByText('Cannot access octo/alpha: it does not exist, or the active gh account has no access to it.')));
-  await user.click(within(sidebar()).getByRole('button', { name: 'Change binding' }));
+  await user.click(within(sidebar()).getAllByRole('button', { name: 'Change binding' }).find(button => !button.closest('header'))!);
   const dialog = await screen.findByRole('dialog', { name: 'Edit project' });
-  await waitFor(() => assert.equal(document.activeElement?.textContent, 'Change', 'focus is on the repository field'));
-  assert.ok(dialog.contains(document.activeElement));
+  const search = await within(dialog).findByRole('searchbox', { name: 'Search repositories' });
+  await waitFor(() => assert.equal(document.activeElement, search, 'the repository list is open, with focus in its search box'));
+  assert.ok(await within(dialog).findByRole('option', { name: /^octo\/alpha/ }));
+});
+
+test('Change binding beside Refresh opens Edit project on the repository list, with focus in its search box', async () => {
+  const { user, request } = renderWorkbench();
+  (await request(1)).answer(page([issue(1)]));
+  const head = sidebar().querySelector('header')!;
+  await user.click(within(head).getByRole('button', { name: 'Change binding' }));
+  const dialog = await screen.findByRole('dialog', { name: 'Edit project' });
+  const search = await within(dialog).findByRole('searchbox', { name: 'Search repositories' });
+  await waitFor(() => assert.equal(document.activeElement, search));
+  await user.keyboard('{ArrowDown}');
+  assert.equal(document.getElementById(search.getAttribute('aria-activedescendant') ?? '')?.dataset.path, 'octo/alpha');
+  await user.click(within(dialog).getByRole('button', { name: 'Undo' }));
+  assert.equal(within(dialog).queryByRole('listbox'), null, 'Undo closes the list and keeps the binding');
 });
 
 test('a transient failure keeps the rows under a stale notice, and fills the sidebar when there were none', async () => {

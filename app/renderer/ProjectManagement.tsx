@@ -36,7 +36,8 @@ export function ProjectNavigationItem({ project, openProject, children }: {
   </div>;
 }
 
-/** The edit-project dialog. `focusRepository` opens it with focus on the repository field instead of the name. */
+/** The edit-project dialog. `focusRepository` opens it with focus on the repository field instead of the name, with a
+ * bound project's repository list open as Change opens it. */
 export function ProjectEditor({ project, close, openProject, focusRepository = false }: { project: ProjectView; close(): void; openProject(id: string): void; focusRepository?: boolean }) {
   const { t, text } = useLocalization();
   const dialog = useRef<HTMLDialogElement>(null);
@@ -48,7 +49,7 @@ export function ProjectEditor({ project, close, openProject, focusRepository = f
   const [busy, setBusy] = useState(false), [choosing, setChoosing] = useState(false), [error, setError] = useState('');
   const [result, setResult] = useState<{ outcome: ProjectEditResult; repository: { from: RepositoryReference | null; to: RepositoryReference | null } }>();
   // The default repository follows the directory being edited once it has been inspected.
-  const field = useRepositoryField(project, inspection.result.valid ? inspection.result.directory! : original.directory);
+  const field = useRepositoryField(project, inspection.result.valid ? inspection.result.directory! : original.directory, focusRepository);
   const bound = field.bound, repository = field.repository;
   const bindingChanged = !sameRepository(repository, bound);
   const directory = inspection.path === path ? inspection.result : undefined;

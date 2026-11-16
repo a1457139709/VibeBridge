@@ -22,9 +22,9 @@
 :root[data-theme='dark'] { --forge-open: #3fb950; --forge-done: #a371f7; --forge-skipped: #8b949e; --forge-failed: #f85149; --forge-pending: #d29922; --forge-card-head: #ffffff08; --forge-link: #4493f8; --forge-row-hover: #ffffff08; }
 .forge-sidebar button { min-height: 0; }
 .forge-sidebar-head .forge-sidebar-repository { flex: 1; min-width: 0; }
-.forge-refresh { display: grid; place-items: center; width: 26px; height: 24px; padding: 0; border: 0; background: none; color: var(--muted); }
-.forge-refresh svg { fill: currentColor; }
-.forge-refresh:disabled { opacity: .5; }
+.forge-head-action { display: grid; place-items: center; width: 26px; height: 24px; padding: 0; border: 0; background: none; color: var(--muted); }
+.forge-head-action svg { fill: currentColor; }
+.forge-head-action:disabled { opacity: .5; }
 .forge-refresh.spinning { opacity: 1; }
 .forge-refresh.spinning svg { animation: forge-spin .8s linear infinite; }
 @keyframes forge-spin { to { transform: rotate(360deg); } }
