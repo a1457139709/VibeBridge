@@ -26,6 +26,8 @@ export function SidebarBinding({ variant, gh, listCheck, repo, origin, project, 
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string>();
   useEffect(() => { setPicking(false); setOthers(false); setPicked(undefined); setConfirm(undefined); setError(undefined); }, [variant, bound]);
+  // C/D: Edit project's 「在 Forge 侧边栏修改」 opens the picker of a bound project (an unbound one already shows it).
+  useEffect(() => { if (menuOpen && variant !== 'E') { if (bound) setPicking(true); setMenuOpen(false); } }, [menuOpen, variant, bound]);
 
   function bind(to: string | null) {
     setBusy(true); setError(undefined);

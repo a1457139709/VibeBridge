@@ -9,8 +9,9 @@
 //   Without an origin on GitHub, the list shows directly.
 // - E 标题菜单: the sidebar header's repository name is a menu (like a branch switcher): pick to bind, ✓ marks the current,
 //   「解绑」 at the bottom; a rebind or unbind asks inside the menu. Binding lives only here: Edit project shows it read-only.
-// Edit project in C and D stops preselecting origin: the field reads 「未绑定」 + 「选择仓库…」, so renaming an unbound
-// project never binds it by accident. Bound projects keep #181's grammar in A–D: 「更换」/「解绑」, 「A → B」 + 「撤销」.
+// In C, D and E no dialog holds a pending binding, so nothing needs 「撤销」/「不绑定」 beside the dialog's 「取消」
+// (user feedback): Edit project shows the binding read-only and links to the sidebar, where the button binds at once.
+// A and B keep #181's dialog grammar: 「更换」/「解绑」, 「A → B」 + 「撤销」.
 import { useEffect, useState, type ReactNode } from 'react';
 import type { GhState } from './prototype-workbench-settings';
 import type { StoredProject } from './prototype-repository-binding';
@@ -68,8 +69,8 @@ interface Props {
 /** Edit project in every variant, and the sidebar's dialog in A and B. */
 export function BindingEntryDialog({ variant, entry, gh, listCheck, repo, origin, stored, onStore, onClose, call, openSidebarMenu }: Props) {
   const choices = repositoryChoices(repo);
-  const optIn = variant === 'C' || variant === 'D';
-  const readOnly = variant === 'E';
+  // C, D, E bind only in the sidebar, where the button is the act; Edit project shows the binding and links there.
+  const readOnly = variant === 'C' || variant === 'D' || variant === 'E';
   const [name, setName] = useState(stored.name);
   const [path, setPath] = useState(stored.directory);
   const nameError = !name.trim() ? '名称不能为空' : '';
@@ -79,9 +80,8 @@ export function BindingEntryDialog({ variant, entry, gh, listCheck, repo, origin
   const failure = failureOf(gh, retried);
   const [changing, setChanging] = useState(false);
   const [unbinding, setUnbinding] = useState(false);
-  const [choosing, setChoosing] = useState(false); // C/D: 「选择仓库…」 opened the list
   // undefined: follow the default (origin when unbound); null: nothing picked.
-  const [picked, setPicked] = useState<string | null | undefined>(optIn ? null : undefined);
+  const [picked, setPicked] = useState<string | null | undefined>();
   const selection = picked !== undefined ? picked : bound ?? (failure ? null : origin ?? null);
 
   const target: string | null | undefined = readOnly ? undefined : bound // what saving does to the binding: undefined keeps it
@@ -89,7 +89,7 @@ export function BindingEntryDialog({ variant, entry, gh, listCheck, repo, origin
     : !failure && selection ? selection : undefined;
   const edited = name.trim() !== stored.name || path !== stored.directory || target !== undefined;
   const [error, setError] = useState<ReactNode>();
-  const undo = () => { setChanging(false); setUnbinding(false); setChoosing(false); setPicked(optIn ? null : undefined); };
+  const undo = () => { setChanging(false); setUnbinding(false); setPicked(undefined); };
 
   function save() {
     if (nameError || !edited) return;
@@ -137,14 +137,6 @@ export function BindingEntryDialog({ variant, entry, gh, listCheck, repo, origin
         {target && <button className="gh-btn" onClick={() => setPicked(null)}>撤销</button>}
       </div>
       {list()}
-    </>;
-  } else {
-    field = <>
-      <div className={`pb-current ${target ? 'pb-changed' : ''}`}>
-        <span className="gh-ellipsis"><b>未绑定</b>{target ? <> → <b>{target}</b></> : <small> 当前</small>}</span><span className="gh-spacer" />
-        {choosing ? <button className="gh-btn" onClick={undo}>撤销</button> : <button className="gh-btn" onClick={() => setChoosing(true)}>选择仓库…</button>}
-      </div>
-      {choosing && list()}
     </>;
   }
 
