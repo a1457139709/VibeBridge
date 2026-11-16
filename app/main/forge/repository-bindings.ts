@@ -6,7 +6,8 @@ import { defaultForge, forges } from './forges';
 import type { ProjectStore } from '../storage';
 
 /** Each project's Repository Binding as stored. A binding follows its repository wherever the forge shows it at another
- * path (renamed or transferred); the caller reports those paths through `moved` and writes them with `follow`. */
+ * path (renamed or transferred): `forCall` and `choices` hand such a path to the caller's `follow`, and the caller
+ * writes it with `follow` here. */
 export class RepositoryBindings {
   private bindings: Map<string, RepositoryReference>;
   constructor(stored: Record<string, RepositoryReference>, private store: Pick<ProjectStore, 'bind'>) {
@@ -26,17 +27,17 @@ export class RepositoryBindings {
     if (!repository) throw new Error(message('noRepositoryBound'));
     return repository;
   }
-  /** The project's bound repository for a forge call; `moved` hears where the forge found it at another path. */
-  on(projectId: string, moved: (found: RepositoryReference) => void): Bound {
-    return { repository: this.bound(projectId), moved };
+  /** The project's bound repository for a forge call, which calls `follow` when the forge finds it at another path. */
+  forCall(projectId: string, follow: (found: RepositoryReference) => void): Bound {
+    return { repository: this.bound(projectId), follow };
   }
   /** The repositories the project can bind, with the one that `origin` of `directory` (the directory as the user is
-   * editing it) points at; `moved` hears when the list shows the bound repository at another path. */
-  async choices(projectId: string, directory: string, moved: (found: RepositoryReference) => void): Promise<RepositoryChoices> {
+   * editing it) points at; calls `follow` when the list shows the bound repository at another path. */
+  async choices(projectId: string, directory: string, follow: (found: RepositoryReference) => void): Promise<RepositoryChoices> {
     const bound = this.get(projectId);
     const choices = await repositoryChoices(bound, directory);
     const listed = choices.ok && choices.repositories.find(item => sameRepository(item, bound));
-    if (listed && listed.path !== bound!.path) moved(listed);
+    if (listed && listed.path !== bound!.path) follow(listed);
     return choices;
   }
   /** The binding a project edit saves: the stored binding when it is still the same repository, otherwise `repository`

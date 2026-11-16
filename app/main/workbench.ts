@@ -158,7 +158,7 @@ export class Workbench {
   /** The project's bound repository for a forge call; where the forge finds it at another path, the binding follows. */
   private bound(projectId: string) {
     this.project(projectId);
-    return this.bindings.on(projectId, found => this.follow(projectId, found));
+    return this.bindings.forCall(projectId, found => this.follow(projectId, found));
   }
   /** Writes a binding at the path its repository was found at, in the operation queue, unless the project was rebound,
    * unbound or deleted meanwhile. */
