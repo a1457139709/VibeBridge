@@ -21,10 +21,18 @@ const REPO = 'a1457139709/VibeBridge';
 
 function Page() {
   const params = new URLSearchParams(location.search);
-  const [theme, setTheme] = useState(params.get('theme') === 'light' ? 'light' : 'dark');
+  // The web build follows the viewer's theme (an explicit data-theme, else the system setting); ?theme= still wins.
+  const [theme, setTheme] = useState(() => params.get('theme') ?? document.documentElement.dataset.theme
+    ?? (matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark'));
   useEffect(() => { document.documentElement.dataset.theme = theme; }, [theme]);
-  const initial = params.get('variant') as Variant;
+  // The variant comes from #variant-c (the web build keeps only the hash) or ?variant=C.
+  const fromLocation = () => (location.hash.match(/^#variant-([a-e])$/)?.[1].toUpperCase() ?? params.get('variant')) as Variant;
+  const initial = fromLocation();
   const [variant, setVariantState] = useState<Variant>(variants.some(v => v.key === initial) ? initial : 'A');
+  useEffect(() => {
+    const follow = () => { const v = fromLocation(); if (variants.some(x => x.key === v)) setVariant(v); };
+    window.addEventListener('hashchange', follow); return () => window.removeEventListener('hashchange', follow);
+  });
   const [gh, setGh] = useState<GhState>('unbound');
   const [listCheck, setListCheck] = useState<'ok' | 'fail'>('ok');
   const [originState, setOriginState] = useState<'repo' | 'none'>('repo');
@@ -37,8 +45,9 @@ function Page() {
   const call = (text: string) => setCalls(list => [...list, text]);
 
   const setVariant = (v: Variant) => {
-    setVariantState(v); const p = new URLSearchParams(location.search); p.set('variant', v);
-    history.replaceState(null, '', `?${p}`); setEntry(undefined); setMenuOpen(false); setRun(n => n + 1);
+    if (v === variant) return;
+    setVariantState(v); history.replaceState(null, '', `#variant-${v.toLowerCase()}`);
+    setEntry(undefined); setMenuOpen(false); setRun(n => n + 1);
   };
   const setGhState = (state: GhState) => {
     setGh(state);

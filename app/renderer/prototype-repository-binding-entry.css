@@ -38,4 +38,16 @@
 .pe-confirm { display: flex; flex-direction: column; gap: 6px; }
 .pe-confirm p { margin: 0; font-size: 12px; }
 .pb-page .pb-state { left: auto; right: 12px; bottom: 64px; width: 320px; }
+/* Narrow screens (web build on a phone): the sidebar alone, the toolbar wraps, the state box hides. */
+.pe-page { box-sizing: border-box; padding-inline: max(16px, env(safe-area-inset-left, 0px)) max(16px, env(safe-area-inset-right, 0px)); }
+@media (max-width: 900px) {
+  .pb-page .proto-bar { position: static; transform: none; max-width: 100%; flex-wrap: wrap; margin: 12px 0 0; border-radius: 12px; box-sizing: border-box; }
+  .pe-shell { grid-template-columns: 1fr; grid-template-rows: auto 1fr; padding-top: 12px; padding-bottom: 80px; height: auto; min-height: 0; }
+  .pe-main { display: none; }
+  .pe-nav { border-right: 0; border-bottom: 1px solid var(--line); }
+  .pe-sidebar { border-left: 0; min-width: 0; }
+  .pb-page .pb-state { display: none; }
+  .pe-switcher { max-width: calc(100vw - 32px); font-size: 11px; }
+  .wb-modal { max-width: calc(100vw - 32px); box-sizing: border-box; }
+}
 .pe-switcher button { border: 0; border-radius: 999px; width: 26px; height: 26px; background: #111; color: #fff; cursor: pointer; }
