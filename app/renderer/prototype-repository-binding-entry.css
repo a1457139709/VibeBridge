@@ -14,4 +14,28 @@
 .pe-folded { display: flex; align-items: center; gap: 8px; padding: 8px 10px; border-radius: 6px; background: color-mix(in srgb, var(--line) 35%, transparent); font-size: 12px; }
 .pe-switcher { position: fixed; bottom: 16px; left: 50%; transform: translateX(-50%); z-index: 300; display: flex; align-items: center; gap: 10px;
   padding: 6px 10px; border-radius: 999px; background: #ff5fa2; color: #111; font: 600 12px/1 ui-sans-serif, system-ui; box-shadow: 0 6px 20px #0006; }
+.pe-pane { display: flex; flex-direction: column; gap: 8px; padding: 12px; font-size: 13px; }
+.pe-pane p { margin: 0; }
+.pe-card { align-items: stretch; text-align: left; }
+.pe-origin { display: flex; flex-direction: column; gap: 2px; padding: 8px 10px; border: 1px solid var(--line); border-radius: 6px; font-size: 12px; }
+.pe-row { display: flex; align-items: center; gap: 8px; }
+.pe-hint { font-size: 12px; }
+.pe-pad { padding: 0 8px; font-size: 12px; }
+.pe-consequence { font-size: 12px; padding: 8px 10px; border-radius: 6px; background: color-mix(in srgb, var(--gh-pending) 12%, transparent); }
+.pe-check { width: 14px; display: inline-block; color: var(--gh-link); }
+.danger-text { color: var(--danger, #e5534b); }
+.pe-head-menu { position: relative; }
+.pe-head-menu button { width: auto; height: auto; font-size: 13px; color: inherit; }
+.pe-head-menu .gh-btn { height: 26px; padding: 0 10px; }
+.pe-head-menu .gh-btn.primary { color: #fff; }
+.pe-pane > .pe-link { align-self: flex-start; }
+.pe-card > .pe-link { align-self: center; }
+.pe-repo-button { display: flex; align-items: center; gap: 4px; max-width: 100%; border: 0; background: none; color: inherit; font: inherit; font-weight: 600; cursor: pointer; padding: 2px 6px; border-radius: 6px; }
+.pe-repo-button:hover { background: color-mix(in srgb, var(--line) 50%, transparent); }
+.pe-menu { position: absolute; top: calc(100% + 4px); left: 8px; right: 8px; z-index: 50; display: flex; flex-direction: column; gap: 6px; padding: 8px;
+  border: 1px solid var(--line); border-radius: 8px; background: var(--surface, #1c2128); box-shadow: 0 8px 24px #0006; font-size: 13px; font-weight: normal; }
+.pe-menu-foot { border-top: 1px solid var(--line); padding-top: 6px; }
+.pe-confirm { display: flex; flex-direction: column; gap: 6px; }
+.pe-confirm p { margin: 0; font-size: 12px; }
+.pb-page .pb-state { left: auto; right: 12px; bottom: 64px; width: 320px; }
 .pe-switcher button { border: 0; border-radius: 999px; width: 26px; height: 26px; background: #111; color: #fff; cursor: pointer; }
