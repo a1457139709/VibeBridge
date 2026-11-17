@@ -42,21 +42,23 @@ export function RelationGraph({ repo, issue, onOpen }: { repo: Repo; issue: Issu
   const pos = new Map(g.nodes.map(n => [key(n.kind, n.n), { x: PAD + n.col * (colW + GAP), y: HEAD + (n.row + (rows - colRows[n.col]) / 2) * ROW }]));
   const H = HEAD + rows * ROW + 4;
   return <div className="gh-graph" ref={host} style={{ height: H }}>
-    {g.heads.map((h, c) => <span key={c} className="gh-graph-head" style={{ left: PAD + c * (colW + GAP), width: colW }}>{h}</span>)}
+    {g.heads.map((h, c) => <span key={`lane${c}`} className={`vf-lane vf-lane-${c}`} style={{ left: PAD + c * (colW + GAP) - 6, width: colW + 12 }} />)}
+    {g.heads.map((h, c) => <span key={c} className={`gh-graph-head vf-head-${c}`} style={{ left: PAD + c * (colW + GAP), width: colW }}>{h}</span>)}
     <svg width={w} height={H}>
-      <defs>{(['blocks', 'pr'] as const).map(k => <marker key={k} id={`gh-arrow-${k}`} viewBox="0 0 8 8" refX="7" refY="4" markerWidth="6" markerHeight="6" orient="auto"><path d="M0 0L8 4L0 8z" className={`gh-arrow-${k}`} /></marker>)}</defs>
+      <defs>{(['blocks', 'pr', 'in', 'out'] as const).map(k => <marker key={k} id={`gh-arrow-${k}`} viewBox="0 0 8 8" refX="7" refY="4" markerWidth="6" markerHeight="6" orient="auto"><path d="M0 0L8 4L0 8z" className={`gh-arrow-${k}`} /></marker>)}</defs>
       {g.edges.map(e => {
         const a = pos.get(e.from), b = pos.get(e.to);
         if (!a || !b) return null;
         const x1 = a.x + colW, y1 = a.y + ROW / 2 - 2, x2 = b.x, y2 = b.y + ROW / 2 - 2, mx = (x1 + x2) / 2;
-        return <path key={`${e.from}-${e.to}`} d={`M${x1} ${y1} C${mx} ${y1} ${mx} ${y2} ${x2 - 1} ${y2}`} className={`gh-edge gh-edge-${e.kind}`} markerEnd={`url(#gh-arrow-${e.kind})`} />;
+        const side = e.to === key('issue', issue.number) ? 'in' : 'out'; // #223: edges carry their side for the coloured variants
+        return <path key={`${e.from}-${e.to}`} d={`M${x1} ${y1} C${mx} ${y1} ${mx} ${y2} ${x2 - 1} ${y2}`} className={`gh-edge gh-edge-${e.kind} vf-edge-${side}`} markerEnd={`url(#gh-arrow-${side})`} />;
       })}
     </svg>
     {g.nodes.map(n => {
       const p = pos.get(key(n.kind, n.n))!;
       const item = n.kind === 'issue' ? repo.issues.get(n.n) : repo.pulls.get(n.n);
       const closed = n.kind === 'issue' ? (item as Issue | undefined)?.state === 'closed' : false;
-      return <button key={key(n.kind, n.n)} className={`gh-node ${n.self ? 'self' : ''} ${closed ? 'closed' : ''}`} style={{ left: p.x, top: p.y, width: colW }} title={item ? `#${n.n} ${item.title}` : `#${n.n}`}
+      return <button key={key(n.kind, n.n)} className={`gh-node ${n.self ? 'self' : ''} ${closed ? 'closed' : ''} vf-node-${n.col === 0 ? 'in' : n.col === 2 ? 'out' : 'self'}`} style={{ left: p.x, top: p.y, width: colW }} title={item ? `#${n.n} ${item.title}` : `#${n.n}`}
         onClick={() => !n.self && onOpen({ kind: n.kind, number: n.n })}>
         {item && (n.kind === 'issue' ? <IssueIcon issue={item as Issue} size={12} /> : <PullIcon pull={repo.pulls.get(n.n)!} size={12} />)}
         <span className="gh-row-num">#{n.n}</span><span className="gh-ellipsis">{item?.title ?? '不在快照里'}</span>

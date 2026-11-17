@@ -5,7 +5,7 @@
 // Merge decisions made in #160: in 覆盖 mode the toolbar and tray yield to the sidebar and only the layout area is covered;
 // 提交 to a new panel only puts a card in the tray; Esc always belongs to the terminal (temporary maximize closes by button only);
 // the issue detail covers only the layout area, between the workspace toolbar and the tray.
-import React, { useEffect, useRef, useState, type CSSProperties, type PointerEvent as ReactPointerEvent } from 'react';
+import React, { useEffect, useLayoutEffect, useRef, useState, type CSSProperties, type PointerEvent as ReactPointerEvent } from 'react';
 import { createRoot } from 'react-dom/client';
 import { SidebarCollapseIcon, SidebarExpandIcon, SyncIcon } from '@primer/octicons-react';
 import { Localization } from './Localization';
@@ -30,13 +30,28 @@ import { IssueList, PullList } from './prototype-github-sidebar-lists';
 import { DetailPane } from './prototype-github-sidebar-detail';
 import { DispatchButton, initialWorkflow, inputFor, type Command, type Mode, type Target, type WorkflowSettings } from './prototype-workbench-dispatch';
 import { EditProjectDialog, ghStates, SettingsPage, type Fit, type GhState } from './prototype-workbench-settings';
+import { useVariants, variantClasses, VariantBar, type Axis } from './prototype-visual-feedback';
+import './prototype-visual-feedback.css';
 
 const mod = (e: KeyboardEvent) => e.metaKey || e.ctrlKey;
+// #223: no open issue in the snapshot has live blocking relations, so the prototype seeds some among open issues
+// (in memory only): the first open issue is blocked by two others and blocks three. Returns that issue's number.
+let graphIssue: number | undefined;
+function seedRelations(s: Snapshot): Snapshot {
+  const open = s.issues.filter(i => i.state === 'open');
+  if (open.length < 6) return s;
+  const [self, a, b, c, d, e] = open;
+  graphIssue = self.number;
+  self.blockedBy = [...new Set([...self.blockedBy, b.number, d.number])];
+  for (const x of [a, c, e]) x.blockedBy = [...new Set([...x.blockedBy, self.number])];
+  return s;
+}
 const newTitles = ['to-spec：面板角色', '查 Electron 44 变更', '补测试：撤回新增面板', '研究 gh 限额'];
 
 function Prototype() {
   // ---- chrome & settings ----
-  const [theme, setTheme] = useState(() => new URLSearchParams(location.search).get('theme') === 'light' ? 'light' : 'dark');
+  const [theme, setTheme] = useState(() => new URLSearchParams(location.search).get('theme') ?? (matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark'));
+  const [v, setVariant] = useVariants(); // #223
   const [barHidden, setBarHidden] = useState(false);
   const [running, setRunning] = useState(true);
   const [page, setPage] = useState<'workspace' | 'settings'>('workspace');
@@ -76,6 +91,11 @@ function Prototype() {
   const [drag, setDrag] = useState<{ id: string; from: 'tray' | 'layout' }>();
   const [drop, setDrop] = useState<{ target: string; side: Drop } | 'tray'>();
   const canvas = useRef<HTMLDivElement>(null);
+  // #223 (QA #10): collapse / expand feedback for the open tray panel, per tray variant.
+  const popRef = useRef<HTMLElement>(null);
+  const trayRef = useRef<HTMLDivElement>(null);
+  const [landed, setLanded] = useState<string>();
+  const [toast, setToast] = useState<{ title: string; left: number; top: number }>();
 
   const selected = history[history.length - 1];
   const all = [...persistent, ...ephemeral];
@@ -85,7 +105,7 @@ function Prototype() {
 
   useEffect(() => {
     fetch('./prototype-github-sidebar.snapshot.json').then(r => r.ok ? r.json() : Promise.reject(new Error(`HTTP ${r.status}`)))
-      .then((s: Snapshot) => setRepo(index(s))).catch(e => setError(String(e)));
+      .then((s: Snapshot) => setRepo(index(seedRelations(s)))).catch(e => setError(String(e)));
   }, []);
   useEffect(() => { document.documentElement.dataset.theme = theme; }, [theme]);
   useEffect(() => { const resize = () => setWinW(window.innerWidth); window.addEventListener('resize', resize); return () => window.removeEventListener('resize', resize); }, []);
@@ -117,7 +137,35 @@ function Prototype() {
     setMax(id); focusPane(id);
   };
   const exitPane = (id: string) => { setEphemeral(l => l.filter(p => p.id !== id)); setPersistent(l => l.filter(p => p.id !== id)); setTree(t => removeFrom(t, id)); if (max === id) setMax(undefined); };
-  const toggleMax = (id: string) => setMax(m => m === id ? undefined : id);
+  const cardRect = (id: string) => trayRef.current?.querySelector(`[data-card="${id}"]`)?.getBoundingClientRect();
+  const toCard = (el: HTMLElement, id: string): Keyframe => {
+    const a = el.getBoundingClientRect(), b = cardRect(id)!;
+    return { transform: `translate(${b.left - a.left}px, ${b.top - a.top}px) scale(${b.width / a.width}, ${b.height / a.height})`, opacity: .35, transformOrigin: '0 0' };
+  };
+  const land = (id: string) => { setLanded(id); setTimeout(() => setLanded(l => l === id ? undefined : l), 1000); };
+  const collapse = () => {
+    const id = max, el = popRef.current;
+    if (!id || !ephemeral.some(p => p.id === id)) { setMax(undefined); return; } // a resident panel's 还原 is not in question
+    const done = () => { setMax(m => m === id ? undefined : m); land(id); };
+    if (v.tray === 'b' && el && cardRect(id)) { el.animate([{ transform: 'none', opacity: 1, transformOrigin: '0 0' }, toCard(el, id)], { duration: 260, easing: 'cubic-bezier(.4,0,.7,1)', fill: 'forwards' }).finished.then(done); return; }
+    if (v.tray === 'd' && el) { el.animate([{ transform: 'none', opacity: 1 }, { transform: 'translateY(100%)', opacity: .3 }], { duration: 220, easing: 'ease-in', fill: 'forwards' }).finished.then(done); return; }
+    setMax(undefined);
+    if (v.tray === 'c') {
+      land(id); const r = cardRect(id);
+      setToast({ title: ephemeral.find(p => p.id === id)!.title, left: r?.left ?? 8, top: (r?.top ?? innerHeight - 40) - 36 });
+      setTimeout(() => setToast(undefined), 2200);
+    }
+  };
+  const toggleMax = (id: string) => { if (max === id) collapse(); else setMax(id); };
+  const prevMax = useRef<string>(undefined);
+  useLayoutEffect(() => {
+    const id = max, el = popRef.current;
+    if (id && id !== prevMax.current && el && ephemeral.some(p => p.id === id)) {
+      if (v.tray === 'b' && cardRect(id)) el.animate([toCard(el, id), { transform: 'none', opacity: 1, transformOrigin: '0 0' }], { duration: 260, easing: 'cubic-bezier(.2,0,.2,1)' });
+      if (v.tray === 'd') el.animate([{ transform: 'translateY(100%)', opacity: .3 }, { transform: 'none', opacity: 1 }], { duration: 220, easing: 'ease-out' });
+    }
+    prevMax.current = id;
+  }, [max]);
   const locate = (id: string) => {
     setPage('workspace'); setHistory([]);
     if (ephemeral.some(p => p.id === id)) setMax(id);
@@ -297,24 +345,25 @@ function Prototype() {
           onDragLeave={() => setDrop(d => d !== 'tray' && d?.target === ROOT && d.side === side ? undefined : d)}
           onDrop={e => { e.preventDefault(); e.stopPropagation(); dropOnPanel(ROOT, side); }} />)}
         {drop && drop !== 'tray' && drop.target === ROOT && <div className={`proto-drop proto-drop-${drop.side} proto-drop-root`}>占满布局区域的{({ left: '左侧', right: '右侧', top: '上方', bottom: '下方', center: '' })[drop.side]}</div>}
-        {opened && <section className={`panel-slot ${opened.agent} proto-pop`} style={{ left: 0, top: 0, width: '100%', height: '100%', zIndex: 3 }}>
+        {opened && <section key={opened.id} ref={popRef} className={`panel-slot ${opened.agent} proto-pop`} style={{ left: 0, top: 0, width: '100%', height: '100%', zIndex: 3 }}>
           <PanelView pane={opened} ephemeral={openedIsEphemeral} focused onReply={reply} onInterrupt={interrupt} focusKey={focusReq?.id === opened.id ? focusReq.n : undefined}
-            actions={<><button title={openedIsEphemeral ? '收起，回到托盘（Esc 留给终端）' : '还原'} onClick={() => setMax(undefined)}>⌄</button>
+            actions={<><button title={openedIsEphemeral ? '收起，回到托盘（Esc 留给终端）' : '还原'} onClick={collapse}>⌄</button>
               {openedIsEphemeral && <button title="关闭（等同 Agent 退出）" onClick={() => exitPane(opened.id)}>×</button>}</>} />
         </section>}
       </div>
     </div>
-    <div className={`proto-tray ${drop === 'tray' ? 'proto-tray-drop' : ''}`} aria-label="临时面板托盘"
+    <div ref={trayRef} className={`proto-tray ${drop === 'tray' ? 'proto-tray-drop' : ''}`} aria-label="临时面板托盘"
       onDragOver={e => { if (drag?.from !== 'layout') return; e.preventDefault(); setDrop('tray'); }}
       onDragLeave={e => { if (!e.currentTarget.contains(e.relatedTarget as Node)) setDrop(d => d === 'tray' ? undefined : d); }}
       onDrop={e => { e.preventDefault(); dropOnTray(); }}>
       {drop === 'tray' && <span className="proto-tray-hint">松手放回托盘，成为临时面板</span>}
-      {ephemeral.map(p => <button key={p.id} draggable onDragStart={startDrag(p.id, 'tray')} onDragEnd={endDrag} className={`proto-card ${p.agent} status-${p.status} ${max === p.id ? 'open' : ''}`}
+      {ephemeral.map(p => <button key={p.id} draggable onDragStart={startDrag(p.id, 'tray')} onDragEnd={endDrag} data-card={p.id} aria-pressed={max === p.id} className={`proto-card ${p.agent} status-${p.status} ${max === p.id ? 'open' : ''} ${landed === p.id ? 'vf-landed' : ''}`}
         title={`${agentName[p.agent]} · ${p.title}`} onClick={() => toggleMax(p.id)}>
         <span className="agent-symbols"><ProcessingStatusIcon state={p.status} /><span className="agent-mark">{agentIcons[p.agent]}</span></span>
         <span className="session-title">{p.title}</span><small>{statusName[p.status]}</small></button>)}
       {!ephemeral.length && !drop && <span className="muted wb-tray-empty">没有临时面板</span>}
     </div>
+    {toast && <div className="vf-toast" style={{ left: toast.left, top: toast.top }}>已收起到托盘：{toast.title}<span className="muted"> · 点卡片再打开</span></div>}
   </div></div>;
 
   // #160: English preview via ?lang=en (switching reloads the page).
@@ -323,7 +372,14 @@ function Prototype() {
   const setLang = (l: string) => { const u = new URL(location.href); if (l === 'en') u.searchParams.set('lang', 'en'); else u.searchParams.delete('lang'); location.href = u.toString(); };
   const group = <K extends string>(label: string, items: readonly { key: K; name: string }[], value: K, set: (k: K) => void) =>
     <span className="proto-group"><span>{label}</span><select value={value} onChange={e => set(e.target.value as K)}>{items.map(i => <option key={i.key} value={i.key}>{i.name}</option>)}</select></span>;
-  return <Localization language={lang}><div className="app proto proto-top">
+  const jump = (axis: Axis) => {
+    if (axis === 'toggle') { setPage('settings'); return; }
+    setPage('workspace'); setGh('bound');
+    if (axis === 'graph') { setSideOpen(true); setTab('issue'); if (graphIssue) setHistory([{ kind: 'issue', number: graphIssue }]); return; }
+    if (axis === 'row') { setSideOpen(true); setTab('issue'); setHistory([]); setTimeout(() => listRef.current?.focus()); return; }
+    setHistory([]); if (ephemeral[0] && max !== ephemeral[0].id) setMax(ephemeral[0].id);
+  };
+  return <Localization language={lang}><div className={`app proto proto-top vf-root ${variantClasses(v)}`}>
     <header className="system-bar"><div className="system-brand">
       <button className={`gh-sys-toggle ${navOpen ? 'on' : ''}`} title={navOpen ? '收起项目导航' : '展开项目导航'} aria-pressed={navOpen} onClick={() => setNavOpen(o => !o)}>
         {navOpen ? <SidebarCollapseIcon size={16} /> : <SidebarExpandIcon size={16} />}</button><span className="wordmark">VibeBridge</span></div>
@@ -357,11 +413,12 @@ function Prototype() {
         </div>
         <div className="nav-footer"><span>本地工作台</span><button className={`settings-entry ${page === 'settings' ? 'selected' : ''}`} title="设置" onClick={() => setPage(p => p === 'settings' ? 'workspace' : 'settings')}>⚙</button></div>
       </nav>}
-      <main>{page === 'settings' ? <SettingsPage fit={fit} setFit={setFit} detailFit={detailFit} setDetailFit={setDetailFit} workflow={workflow} setWorkflow={setWorkflow} /> : workspace}</main>
+      <main>{page === 'settings' ? <SettingsPage fit={fit} setFit={setFit} detailFit={detailFit} setDetailFit={setDetailFit} workflow={workflow} setWorkflow={setWorkflow} toggle={v.toggle} /> : workspace}</main>
       {sidebar}
     </div>
     {dialog && <EditProjectDialog repo={repo?.snapshot.repo ?? 'a1457139709/VibeBridge'} bound={gh === 'unbound' ? undefined : bound} gh={gh}
       onSave={r => { setBound(r); setGh(r ? 'bound' : 'unbound'); }} onClose={() => setDialog(false)} />}
+    <VariantBar value={v} set={setVariant} onJump={jump} />
   </div></Localization>;
 }
 

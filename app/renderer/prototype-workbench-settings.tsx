@@ -7,7 +7,16 @@ export type Fit = 'overlay' | 'push';
 const categories = ['通用', 'Agent', '工作流', '外观', '快捷键'] as const;
 type Category = typeof categories[number];
 
-export function SettingsPage({ fit, setFit, detailFit, setDetailFit, workflow, setWorkflow }: { fit: Fit; setFit(f: Fit): void; detailFit: Fit; setDetailFit(f: Fit): void; workflow: WorkflowSettings; setWorkflow(update: (w: WorkflowSettings) => WorkflowSettings): void }) {
+/** #223 (QA #13): a = main's checkbox; b = pill + text; c = pill only; d = the same segmented control as 提交 | 只填入. */
+function WorkflowSwitch({ variant, on, set }: { variant: string; on: boolean; set(on: boolean): void }) {
+  if (variant === 'a') return <label className="wb-switch"><input type="checkbox" checked={on} onChange={e => set(e.target.checked)} /><span>{on ? '已开启' : '已关闭'}</span></label>;
+  if (variant === 'd') return <span className="wb-seg vf-seg" role="radiogroup" aria-label="Matt 的流程">{[true, false].map(v =>
+    <button key={String(v)} role="radio" aria-checked={on === v} className={on === v ? 'on' : ''} onClick={() => set(v)}>{v ? '开启' : '关闭'}</button>)}</span>;
+  return <label className="vf-switch-row">{variant === 'b' && <span className={on ? '' : 'muted'}>{on ? '已开启' : '已关闭'}</span>}
+    <button role="switch" aria-checked={on} aria-label="Matt 的流程" className={`vf-switch ${on ? 'on' : ''}`} onClick={() => set(!on)}><span className="vf-knob" /></button></label>;
+}
+
+export function SettingsPage({ fit, setFit, detailFit, setDetailFit, workflow, setWorkflow, toggle }: { fit: Fit; setFit(f: Fit): void; detailFit: Fit; setDetailFit(f: Fit): void; workflow: WorkflowSettings; setWorkflow(update: (w: WorkflowSettings) => WorkflowSettings): void; toggle: string }) {
   const [category, setCategory] = useState<Category>('工作流');
   const [expanded, setExpanded] = useState(true);
   const setMode = (skill: string, mode: Mode) => setWorkflow(w => ({ ...w, modes: { ...w.modes, [skill]: mode } }));
@@ -22,7 +31,7 @@ export function SettingsPage({ fit, setFit, detailFit, setDetailFit, workflow, s
           <div className="wb-setting-row">
             <button className="gh-text-button" onClick={() => setExpanded(e => !e)}>{expanded ? '▾' : '▸'}</button>
             <div className="wb-setting-text"><b>Matt 的流程</b><span className="muted">12 条指令 · 每条都用 issue 的 {'{url}'} 作参数</span></div>
-            <label className="wb-switch"><input type="checkbox" checked={workflow.enabled} onChange={e => setWorkflow(w => ({ ...w, enabled: e.target.checked }))} /><span>{workflow.enabled ? '已开启' : '已关闭'}</span></label>
+            <WorkflowSwitch variant={toggle} on={workflow.enabled} set={on => setWorkflow(w => ({ ...w, enabled: on }))} />
           </div>
           {expanded && <div className={`wb-commands ${workflow.enabled ? '' : 'off'}`}>{mattCommands.map((c, n) => c === 'separator' ? <hr key={n} /> :
             <div key={c.skill} className="wb-command"><code>{(c as Command).skill} {(c as Command).args}</code>

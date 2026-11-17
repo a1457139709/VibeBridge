@@ -1,0 +1,87 @@
+/* PROTOTYPE — throwaway styles for #223's variants (prototype-visual-feedback.tsx). Root classes: .vf-<axis>-<a|b|c|d>. */
+
+/* ---- the switcher bar: pink, so it is obviously not part of the design ---- */
+.vf-bar { position: fixed; left: 50%; top: 44px; transform: translateX(-50%); z-index: 200; max-width: calc(100vw - 24px); display: flex; flex-direction: column; gap: 4px;
+  padding: 6px 10px; border-radius: 12px; background: #d6338a; color: #fff; font-size: 12px; box-shadow: 0 8px 28px #0006; }
+.vf-bar button { min-height: 0; height: 22px; padding: 0 6px; border: 0; border-radius: 5px; background: transparent; color: inherit; font: inherit; }
+.vf-bar button:hover:not(:disabled) { background: #ffffff2e; }
+.vf-groups { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 10px; }
+.vf-group { display: inline-flex; align-items: center; gap: 1px; padding: 1px 2px; border-radius: 7px; }
+.vf-group.on { background: #ffffff2b; box-shadow: inset 0 0 0 1px #ffffff80; }
+.vf-axis { font-weight: 700 !important; text-decoration: underline dotted; text-underline-offset: 3px; }
+.vf-label { min-width: 92px; text-align: center; cursor: default; white-space: nowrap; }
+.vf-arrow { width: 22px; font-size: 15px !important; }
+.vf-note { max-width: 860px; font-size: 11px; line-height: 1.45; opacity: .95; }
+.vf-note .muted { color: #ffe3f1; }
+.vf-bar-mini { flex-direction: row; padding: 4px 10px; border: 0; font-size: 11px; }
+@media (max-width: 720px) { .vf-bar { top: 40px; } .vf-label { min-width: 0; } .vf-note .muted { display: none; } }
+
+/* Main has no pop-in for a temporary maximize; the prototype's own one would muddle tray variant A. */
+.vf-root .proto-pop { animation: none; }
+
+/* ---- QA #7: the relation graph ---- */
+.vf-lane { display: none; position: absolute; top: -4px; bottom: -4px; border-radius: 8px; }
+.gh-arrow-in, .gh-arrow-out { fill: var(--gh-pending); }
+
+/* b: a bordered plate under the whole graph; node borders stronger; colour says nothing about relations. */
+.vf-graph-b .gh-graph { margin: 12px 10px 24px; border-radius: 6px; background: color-mix(in srgb, var(--accent) 6%, var(--canvas));
+  box-shadow: 0 0 0 10px color-mix(in srgb, var(--accent) 6%, var(--canvas)), 0 0 0 11px var(--line); }
+.vf-graph-b .gh-node { border-color: color-mix(in srgb, var(--accent) 30%, var(--line)); background: var(--surface); }
+.vf-graph-b .gh-edge { stroke: var(--muted); stroke-width: 1.6; }
+.vf-graph-b .gh-arrow-in, .vf-graph-b .gh-arrow-out { fill: var(--muted); }
+
+/* c: colour by relation. Blocked by = red, blocks = amber, this issue = solid inverse. */
+.vf-graph-c .gh-node.vf-node-in { border-color: var(--gh-failed); background: color-mix(in srgb, var(--gh-failed) 14%, var(--canvas)); }
+.vf-graph-c .gh-node.vf-node-out { border-color: var(--gh-pending); background: color-mix(in srgb, var(--gh-pending) 14%, var(--canvas)); }
+.vf-graph-c .gh-node.self { background: var(--accent); color: var(--canvas); border-color: var(--accent); }
+.vf-graph-c .gh-node.self .gh-row-num, .vf-graph-c .gh-node.self .gh-icon { color: var(--canvas); }
+.vf-graph-c .vf-edge-in { stroke: var(--gh-failed); stroke-width: 1.6; } .vf-graph-c .gh-arrow-in { fill: var(--gh-failed); }
+.vf-graph-c .vf-edge-out { stroke: var(--gh-pending); stroke-width: 1.6; }
+.vf-graph-c .vf-head-0 { color: var(--gh-failed); } .vf-graph-c .vf-head-2 { color: var(--gh-pending); }
+
+/* d: a tinted lane per column; nodes stay neutral. */
+.vf-graph-d .gh-graph { margin: 8px 0 18px; }
+.vf-graph-d .vf-lane { display: block; }
+.vf-graph-d .vf-lane-0 { background: color-mix(in srgb, var(--gh-failed) 10%, transparent); }
+.vf-graph-d .vf-lane-1 { background: color-mix(in srgb, var(--accent) 7%, transparent); }
+.vf-graph-d .vf-lane-2 { background: color-mix(in srgb, var(--gh-pending) 11%, transparent); }
+.vf-graph-d .gh-graph-head { padding-left: 6px; }
+.vf-graph-d .vf-head-0 { color: var(--gh-failed); } .vf-graph-d .vf-head-2 { color: var(--gh-pending); }
+.vf-graph-d .gh-node { border-color: color-mix(in srgb, var(--accent) 22%, var(--line)); }
+
+/* ---- QA #13: the workflow switch ---- */
+.vf-switch-row { display: inline-flex; align-items: center; gap: 8px; font-size: 12px; cursor: pointer; }
+.vf-switch { position: relative; width: 34px; height: 20px !important; min-height: 0; padding: 0; border: 0; border-radius: 10px; background: var(--line); transition: background 140ms; flex-shrink: 0; }
+.vf-switch.on { background: var(--gh-open); }
+.vf-switch:hover:not(:disabled) { background: color-mix(in srgb, var(--line) 80%, var(--accent)); }
+.vf-switch.on:hover:not(:disabled) { background: color-mix(in srgb, var(--gh-open) 85%, #000); }
+.vf-knob { position: absolute; top: 2px; left: 2px; width: 16px; height: 16px; border-radius: 50%; background: #fff; box-shadow: 0 1px 2px #0005; transition: transform 140ms; }
+.vf-switch.on .vf-knob { transform: translateX(14px); }
+
+/* ---- QA #14: issue row highlight. The prototype's list holds focus; main's title button does, so :focus stands in for it. ---- */
+.vf-root .gh-scroll:focus { outline: none; }
+.vf-root .gh-row.selected { background: none; box-shadow: none; }
+/* a: main — faint row + 2px marker, and the global focus ring around the title while the list has keyboard focus. */
+.vf-row-a .gh-row.selected { background: var(--hover); box-shadow: inset 2px 0 var(--focus); }
+.vf-row-a .gh-scroll:focus .gh-row.selected .gh-row-title { outline: 2px solid var(--focus); outline-offset: 2px; }
+/* b: the whole row, strong while the list has focus, faint when it does not; no title ring. */
+.vf-row-b .gh-row.selected { background: var(--hover); box-shadow: inset 2px 0 var(--focus); }
+.vf-row-b .gh-scroll:focus .gh-row.selected { background: color-mix(in srgb, var(--accent) 13%, var(--canvas)); box-shadow: inset 3px 0 var(--accent); }
+/* c: only the title text. */
+.vf-row-c .gh-row.selected .gh-row-title { align-self: flex-start; border-radius: 3px; background: color-mix(in srgb, var(--accent) 12%, transparent); box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 12%, transparent); }
+.vf-row-c .gh-scroll:focus .gh-row.selected .gh-row-title { background: color-mix(in srgb, var(--accent) 22%, transparent); box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 22%, transparent); }
+/* d: the focus ring moves from the title to the row. */
+.vf-row-d .gh-row.selected { background: var(--hover); }
+.vf-row-d .gh-scroll:focus .gh-row.selected { outline: 2px solid var(--focus); outline-offset: -2px; border-radius: 4px; }
+
+/* ---- QA #10: tray collapse ---- */
+.proto-card.vf-landed { animation: vf-land 1s ease-out; }
+@keyframes vf-land { 0%, 30% { box-shadow: 0 0 0 3px var(--brand); transform: translateY(-2px); } 100% { box-shadow: 0 0 0 0 transparent; transform: none; } }
+.vf-toast { position: fixed; z-index: 150; padding: 5px 10px; border: 1px solid var(--line); border-radius: 7px; background: var(--surface); font-size: 12px; box-shadow: 0 6px 18px #0004;
+  white-space: nowrap; animation: vf-toast 2.2s ease forwards; pointer-events: none; }
+@keyframes vf-toast { 0% { opacity: 0; transform: translateY(6px); } 10%, 80% { opacity: 1; transform: none; } 100% { opacity: 0; } }
+.vf-tray-c .proto-card.open, .vf-tray-b .proto-card.open { box-shadow: 0 0 0 1px var(--brand); }
+/* d: the open card is a tab joined to the panel above; the panel slides down behind the tray. */
+.vf-tray-d .proto-tray { position: relative; z-index: 4; overflow: visible; }
+.vf-tray-d .proto-card.open { align-self: flex-start; margin-top: -8px; min-height: 42px; box-shadow: 0 -4px 0 var(--surface); border: 1px solid var(--brand); border-top: 0; border-left-width: 3px;
+  border-radius: 0 0 8px 8px; background: var(--surface); transition: min-height 160ms; }
