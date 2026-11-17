@@ -7,10 +7,9 @@ import test from 'node:test';
 async function fixture() {
   await mkdir('work', { recursive: true });
   const directory = await mkdtemp(resolve('work/staged-file-size-'));
-  // A nested test repository must never inherit the real commit's index or Git directory.
-  const env = Object.fromEntries(Object.entries(process.env).filter(([key]) => !key.startsWith('GIT_')));
-  Object.assign(env, { GIT_CONFIG_GLOBAL: '/dev/null', GIT_CONFIG_NOSYSTEM: '1', HUSKY: '1',
-    npm_config_cache: `${directory}/npm-cache` });
+  // The test repository reads no system or user Git configuration, and Husky runs its hooks.
+  const env = { ...process.env, GIT_CONFIG_GLOBAL: '/dev/null', GIT_CONFIG_NOSYSTEM: '1', HUSKY: '1',
+    npm_config_cache: `${directory}/npm-cache` };
   const run = (command: string, args: string[], extra = {}) => spawnSync(command, args, {
     cwd: directory, env: { ...env, ...extra }, encoding: 'utf8', timeout: 10000,
   });

@@ -1,4 +1,4 @@
-import test, { after, before } from 'node:test';
+import test from 'node:test';
 import assert from 'node:assert/strict';
 import { execFileSync } from 'node:child_process';
 import { mkdtemp } from 'node:fs/promises';
@@ -8,12 +8,6 @@ import type { RepositoryReference } from '../app/shared/forge/forge';
 import { ghDouble } from './support/gh-double';
 import { bindListed, openNoFilter } from './support/bound-workbench';
 import { interactiveWorkbench, until } from './support/interactive-workbench';
-
-// The projects' directories are repositories of their own: git run from a hook names this checkout in GIT_* variables,
-// so they are set aside while these tests run.
-const hookGitVariables = Object.entries(process.env).filter(([key]) => key.startsWith('GIT_'));
-before(() => { for (const [key] of hookGitVariables) delete process.env[key]; });
-after(() => { for (const [key, value] of hookGitVariables) process.env[key] = value; });
 
 const account = { account: 'octo', repositories: ['octo/tools', 'Octo/VibeBridge', 'acme/forge'] };
 /** A GitHub repository reference; the ID is one the forge does not list unless a test took it from a listing. */

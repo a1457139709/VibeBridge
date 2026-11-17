@@ -36,14 +36,14 @@ test('projects share a terminal host while retaining independent runs, backgroun
     assert.notEqual(firstRun.id, secondRun.id);
     assert.notEqual(firstRun.panelId, secondRun.panelId);
     await until(() => output(firstRun.id).includes(`:${directory}`) && output(secondRun.id).includes(`:${secondDirectory}`));
-    for (const run of runs) await workbench.sendInput(run.id, 'host');
+    for (const run of runs) await workbench.runs.input(run.id, 'host');
     await until(() => runs.every(run => /HOST:(\d+)/.test(output(run.id))));
     assert.equal(output(firstRun.id).match(/HOST:(\d+)/)![1], output(secondRun.id).match(/HOST:(\d+)/)![1]);
     await workbench.activateProject(first.id);
-    await workbench.sendInput(firstRun.id, 'later');
+    await workbench.runs.input(firstRun.id, 'later');
     await workbench.activateProject(second.id);
     await until(() => output(firstRun.id).includes('BACKGROUND:completed'));
-    await workbench.sendInput(secondRun.id, 'second-only');
+    await workbench.runs.input(secondRun.id, 'second-only');
     await until(() => output(secondRun.id).includes('INPUT:second-only'));
     assert.ok(!output(firstRun.id).includes('second-only'));
     await Promise.all([workbench.activateProject(first.id), workbench.activateProject(second.id), workbench.activateProject(first.id)]);
@@ -52,7 +52,7 @@ test('projects share a terminal host while retaining independent runs, backgroun
     await workbench.closePanel(first.id, first.panels[0].id);
     assert.deepEqual(storedProjects(workbench.snapshot()).find(project => project.id === first.id)?.panels, []);
     assert.throws(() => process.kill(firstRun.pid!, 0));
-    await workbench.sendInput(secondRun.id, 'still-running');
+    await workbench.runs.input(secondRun.id, 'still-running');
     await until(() => output(secondRun.id).includes('INPUT:still-running'));
   } finally { await workbench.quit(); await rm(directory, { recursive: true, force: true }); }
 });

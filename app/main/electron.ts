@@ -108,12 +108,12 @@ void app.whenReady().then(async () => {
   handle('layout', (service, project, layout) => service.saveLayout(project, layout));
   handle('sidebar', (service, sidebar, preferences) => service.saveSidebar(sidebar, preferences));
   handle('settings', (service, settings) => service.saveSettings(settings));
-  handle('check-command', (service, command) => service.checkCommand(command));
-  handle('input', (service, run, data) => service.sendInput(run, data));
-  handle('resize', (service, run, cols, rows) => service.resizeRun(run, cols, rows));
+  handle('check-command', (service, command) => service.runs.checkCommand(command));
+  handle('input', (service, run, data) => service.runs.input(run, data));
+  handle('resize', (service, run, cols, rows) => service.runs.resize(run, cols, rows));
   ipcMain.on('workbench:output-consumed', (event, run, characters) => {
     if (event.sender === window!.webContents && event.senderFrame?.url === page) {
-      void workbench.then(service => service.acknowledgeOutput(run, characters));
+      void workbench.then(service => service.runs.acknowledgeOutput(run, characters));
     }
   });
   handle('choose-directory', async () => {

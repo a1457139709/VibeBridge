@@ -61,7 +61,7 @@ test('quit requests termination before forcing a refusing run, and keeps its pan
     const { project } = await workbench.createProject({ name: 'Refusing run', directory, total: 1, counts: { codex: 1, claude: 0, pi: 0 } });
     const run = runsOf(workbench.snapshot())[0];
     await until(() => output.includes('READY:'));
-    await workbench.sendInput(run.id, 'resist stream');
+    await workbench.runs.input(run.id, 'resist stream');
     // This consumer withholds parser credit. Signals must still reach a paused run and cleanup stay bounded.
     await until(() => output.length >= 128 * 1024);
     const started = Date.now();

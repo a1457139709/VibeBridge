@@ -14,7 +14,8 @@ afterEach(cleanup);
 
 for (const language of ['en', 'zh-CN'] as const) {
   test(`project editing and deletion explain results in ${language} and preserve user content`, async () => {
-    const project: ProjectView = { id: 'project', name: 'Untitled task 原样', directory: '/原样/old', panels: [{ id: 'panel', agent: 'pi' }], tray: [], layout: { panel: 'panel' }, repository: null, ...githubView };
+    const project: ProjectView = { id: 'project', name: 'Untitled task 原样', directory: '/原样/old',
+      panels: [{ id: 'panel', agent: 'pi' }], tray: [], layout: { panel: 'panel' }, repository: null, ...githubView };
     const calls: unknown[] = [];
     provideWorkbench({ inspectDirectory: async directory => ({ valid: true, directory }),
       repositoryChoices: async () => ({ ok: false, failure: { kind: 'notInstalled', detail: '', forge: githubForge } }),

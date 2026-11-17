@@ -27,6 +27,17 @@ Code comments, README, and `docs/` state what the current design is and why. Phr
 
 These rules apply to every change. Old design found outside the change under review becomes its own issue rather than growing the current change.
 
+## Names
+
+A name states what its code does or holds, read at the call site without opening the definition. Matching a glossary term is a start, not the test.
+
+- A function or method is named with a verb for what it does: `follow(projectId, found)` moves a binding; `on(...)` or `handle(...)` says only that something happens.
+- A callback field is named for the event it answers: `onRunExited`, not `moved` or `done`.
+- A short name or abbreviation stands for exactly one thing in its scope, and that thing is what the full word would say.
+- When behaviour changes, its names change with it in the same change.
+
+Review each new or changed name by reading its call site alone and asking whether it says what happens there.
+
 ## Tests
 
 ### Waits

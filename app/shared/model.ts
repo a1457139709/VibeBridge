@@ -24,7 +24,11 @@ export type Language = 'en' | 'zh-CN';
 export type SidebarCoexistence = 'squeeze' | 'overlay';
 /** Whether an open issue or pull request detail overlays the layout area or squeezes it. */
 export type DetailCoexistence = 'overlay' | 'squeeze';
-export interface Settings { language: Language; theme: 'system' | 'dark' | 'light'; defaultLayout: DefaultLayout; sidebarCoexistence: SidebarCoexistence; detailCoexistence: DetailCoexistence; agents: Record<AgentType, AgentCommand>; shortcuts: Shortcuts; workflows: Record<WorkflowId, WorkflowSettings> }
+export interface Settings {
+  language: Language; theme: 'system' | 'dark' | 'light'; defaultLayout: DefaultLayout;
+  sidebarCoexistence: SidebarCoexistence; detailCoexistence: DetailCoexistence;
+  agents: Record<AgentType, AgentCommand>; shortcuts: Shortcuts; workflows: Record<WorkflowId, WorkflowSettings>;
+}
 export type CommandCheck = { available: true; path: string } | { available: false; message: string };
 export interface Run { id: string; projectId: string; panelId: string; state: 'running' | 'starting' | 'failed' | 'stopped'; pid?: number; title?: string }
 /** A run that is starting or running; it has not failed or stopped. */
@@ -58,9 +62,14 @@ export type PanelView = Panel & { run?: Run; status?: ProcessingState };
  * Forge its forge sidebar shows: the bound one, else the one an unbound project binds from; `capabilities` are
  * the features that Forge declares, and the sidebar shows only those. `dispatches` are its Dispatch Records for the bound
  * repository, oldest first; records for other repositories stay stored but are not shown. */
-export type ProjectView = Omit<Project, 'panels'> & { panels: PanelView[]; tray: PanelView[]; repository: RepositoryReference | null; forge: ForgePresentation; capabilities: ForgeCapabilities; dispatches: DispatchRecordView[] };
-export interface Snapshot extends Record<Sidebar, SidebarPreferences> { projects: ProjectView[]; activeProjectId: string | null; settings: Settings; settingsConflicts: SettingsIssue[]; startupTheme: Settings['theme']; resolvedTheme: 'dark' | 'light'; errors: string[] }
-export type TerminalEvent = { kind: 'title'; runId: string; title: string } | { kind: 'output'; runId: string; data: string } | { kind: 'started'; run: Run } | { kind: 'stopping'; runId: string } | { kind: 'exit'; runId: string };
+export type ProjectView = Omit<Project, 'panels'> & { panels: PanelView[]; tray: PanelView[]; repository: RepositoryReference | null;
+  forge: ForgePresentation; capabilities: ForgeCapabilities; dispatches: DispatchRecordView[] };
+export interface Snapshot extends Record<Sidebar, SidebarPreferences> {
+  projects: ProjectView[]; activeProjectId: string | null; settings: Settings; settingsConflicts: SettingsIssue[];
+  startupTheme: Settings['theme']; resolvedTheme: 'dark' | 'light'; errors: string[];
+}
+export type TerminalEvent = { kind: 'title'; runId: string; title: string } | { kind: 'output'; runId: string; data: string }
+  | { kind: 'started'; run: Run } | { kind: 'stopping'; runId: string } | { kind: 'exit'; runId: string };
 export type WorkbenchEvent = Extract<TerminalEvent, { kind: 'started' | 'output' | 'exit' }> | { kind: 'snapshot'; snapshot: Snapshot } | { kind: 'error'; message: string };
 export interface DirectoryResult { valid: boolean; directory?: string; name?: string; existingProjectId?: string; existingProjectName?: string }
 

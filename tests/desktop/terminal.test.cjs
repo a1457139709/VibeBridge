@@ -75,7 +75,8 @@ module.exports = {
     await until(async () => (await rows()) < rowsInView, 'terminal fitted its shorter size back in view');
     await until(async () => (await reportedSize(run.id)).rows === await rows(), 'run reports the rows the terminal shows');
     await evaluate(`window.workbench.sendInput(${JSON.stringify(run.id)}, 'after-hidden-resize')`);
-    await until(() => evaluate('document.querySelector(".xterm-rows").textContent.includes("INPUT:after-hidden-resize")'), 'terminal resized off screen still follows output (INPUT:after-hidden-resize drawn)');
+    await until(() => evaluate('document.querySelector(".xterm-rows").textContent.includes("INPUT:after-hidden-resize")'),
+      'terminal resized off screen still follows output (INPUT:after-hidden-resize drawn)');
     await evaluate(`document.querySelector('.terminal-container').style.cssText = ''`);
     // Keep the descendant check bounded to the one retained cleanup flow.
     await evaluate(`window.workbench.sendInput(${JSON.stringify(run.id)}, 'child')`);

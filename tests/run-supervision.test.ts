@@ -178,7 +178,9 @@ test('events of a replaced run are ignored', async context => {
   const { run: current } = await f.start();
   assert.deepEqual(f.runs().map(run => run.id), [current.id]);
   const emitted = f.emitted.length;
-  for (const event of [{ kind: 'title', runId: old.id, title: 'Stale | project' }, { kind: 'output', runId: old.id, data: 'stale' }, { kind: 'exit', runId: old.id }] as TerminalEvent[]) f.terminal.event(event);
+  const stale: TerminalEvent[] = [{ kind: 'title', runId: old.id, title: 'Stale | project' },
+    { kind: 'output', runId: old.id, data: 'stale' }, { kind: 'exit', runId: old.id }];
+  for (const event of stale) f.terminal.event(event);
   f.terminal.event({ kind: 'started', run: { ...old, state: 'running' } });
   assert.equal(f.emitted.length, emitted);
   assert.deepEqual(f.exited, []);

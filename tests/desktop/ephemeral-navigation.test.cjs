@@ -32,6 +32,7 @@ module.exports = {
     const resident = project.panels[0].id;
     await until(() => evaluate(`!document.querySelector('[data-panel-id="${resident}"]').checkVisibility({ visibilityProperty: true })`), 'resident panel hidden behind the open tray panel');
     assert.equal(await evaluate(`document.querySelector('[data-locate-panel-id="${trayPanelId}"]').getAttribute('aria-current')`), 'true');
-    console.log('The navigation listed the tray panel in a collapsed ephemeral group; its entry switched projects and opened the panel as the ephemeral maximize without saving navigation preferences.');
+    console.log('The navigation listed the tray panel in a collapsed ephemeral group; its entry switched projects and opened'
+      + ' the panel as the ephemeral maximize without saving navigation preferences.');
   },
 };

@@ -120,7 +120,9 @@ function IssueRow({ issue, selected, open, addLabel, blocking, progress, action 
       <div className="forge-row-meta">
         <span className="forge-row-number">#{issue.number}</span><RelativeTime iso={issue.createdAt} />
         {progress}
-        {blocking && !!(issue.blockedBy.length || issue.unlistedBlockers) && <BlockedMark by={issue.blockedBy.map(blocker => ({ reference: `${blocker.path ?? ''}#${blocker.number}`, title: blocker.title }))} unlisted={issue.unlistedBlockers} />}
+        {blocking && !!(issue.blockedBy.length || issue.unlistedBlockers) && <BlockedMark
+          by={issue.blockedBy.map(blocker => ({ reference: `${blocker.path ?? ''}#${blocker.number}`, title: blocker.title }))}
+          unlisted={issue.unlistedBlockers} />}
         {issue.labels.map(label => <Label key={label.name} label={label} onClick={() => addLabel(label.name)} />)}
       </div>
     </div>

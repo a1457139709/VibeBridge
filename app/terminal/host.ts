@@ -76,7 +76,8 @@ async function handle(operation: string, value: any) {
     } catch (error) { return { available: false, message: message('commandUnavailable', { reason: detail((error as Error).message) }) }; }
   }
   if (operation === 'start') {
-    const { id, panelId, projectId, directory, command, integration } = value as { id: string; panelId: string; projectId: string; directory: string; command: AgentCommand; integration: Record<string, string> };
+    const { id, panelId, projectId, directory, command, integration } = value as { id: string; panelId: string;
+      projectId: string; directory: string; command: AgentCommand; integration: Record<string, string> };
     try {
       environment ??= commandEnvironment();
       const env = await environment;

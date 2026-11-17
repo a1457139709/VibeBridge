@@ -24,7 +24,7 @@ async function fixture() {
   const events: WorkbenchEvent[] = [];
   workbench.subscribe(event => {
     events.push(event);
-    if (event.kind === 'output') workbench.acknowledgeOutput(event.runId, event.data.length);
+    if (event.kind === 'output') workbench.runs.acknowledgeOutput(event.runId, event.data.length);
   });
   const command = { command: process.env.VIBEBRIDGE_TEST_NODE!, args: [resolve('tests/fixtures/status-cli.cjs')] };
   await workbench.saveSettings({ agents: { codex: command, claude: command, pi: command } });
@@ -39,7 +39,7 @@ async function fixture() {
     },
     async send(runId: string, message: object) {
       const id = String(++next);
-      await workbench.sendInput(runId, JSON.stringify({ ...message, id }) + '\n');
+      await workbench.runs.input(runId, JSON.stringify({ ...message, id }) + '\n');
       await until(() => output(runId).includes(`ACK:${id}\r\n`));
     },
     close: async () => { await workbench.quit(); await rm(directory, { recursive: true, force: true }); },
@@ -199,7 +199,7 @@ test('background panels retain independent memberships, exits remove them, and q
     await f.send(second.id, { payload: { hook_event_name: 'PreToolUse', tool_name: 'request_user_input' } });
     assert.deepEqual(showingIn('needs-input'), pairs(second, third));
     for (const [run, code] of [[first, 0], [second, 2]] as const) {
-      await f.workbench.sendInput(run.id, JSON.stringify({ exit: code }) + '\n');
+      await f.workbench.runs.input(run.id, JSON.stringify({ exit: code }) + '\n');
       await until(() => !f.workbench.snapshot().projects.find(p => p.id === project.id)!.panels.some(p => p.id === run.panelId));
       assert.equal(statusOf(f.workbench.snapshot(), run.id), undefined);
     }

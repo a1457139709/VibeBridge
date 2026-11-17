@@ -43,8 +43,17 @@ void (async () => {
     catch (error) { throw new Error(`Desktop script failed: ${code}`, { cause: error }); }
   };
   await until(() => evaluate('!!window.workbench && !!document.querySelector("h1, .workspace")'), 'renderer exposes window.workbench and draws a page');
-  const click = label => evaluate(`(() => { const button = [...document.querySelectorAll('button')].find(b => b.getAttribute('aria-label') === ${JSON.stringify(label)} || b.textContent === ${JSON.stringify(label)}); if (!button) throw new Error('Missing button'); button.click(); })()`);
-  const fill = (id, value) => evaluate(`(() => { const input = document.getElementById(${JSON.stringify(id)}); Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value').set.call(input, ${JSON.stringify(value)}); input.dispatchEvent(new Event('input', { bubbles: true })); })()`);
+  const click = label => evaluate(`(() => {
+    const button = [...document.querySelectorAll('button')]
+      .find(b => b.getAttribute('aria-label') === ${JSON.stringify(label)} || b.textContent === ${JSON.stringify(label)});
+    if (!button) throw new Error('Missing button');
+    button.click();
+  })()`);
+  const fill = (id, value) => evaluate(`(() => {
+    const input = document.getElementById(${JSON.stringify(id)});
+    Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value').set.call(input, ${JSON.stringify(value)});
+    input.dispatchEvent(new Event('input', { bubbles: true }));
+  })()`);
   const result = await (reopen ? suite.reopen : suite.run)({ app, window, evaluate, click, fill, until, directory });
   const runs = runsOf(await evaluate('window.workbench.snapshot()'));
   app.once('will-quit', event => {

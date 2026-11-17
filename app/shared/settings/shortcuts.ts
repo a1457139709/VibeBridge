@@ -1,5 +1,6 @@
 import { message, detail } from '../messages';
-export const shortcutActions = ['previousProject', 'nextProject', 'previousPanel', 'nextPanel', 'maximizePanel', 'addPanel', 'closePanel', 'settings', 'toggleForgeSidebar', 'openDispatchMenu', 'locateDispatchedPanel'] as const;
+export const shortcutActions = ['previousProject', 'nextProject', 'previousPanel', 'nextPanel', 'maximizePanel',
+  'addPanel', 'closePanel', 'settings', 'toggleForgeSidebar', 'openDispatchMenu', 'locateDispatchedPanel'] as const;
 export type ShortcutAction = typeof shortcutActions[number];
 /** The actions on the issue focus is on in the forge sidebar; elsewhere their keys go on to the terminal. */
 export type IssueShortcutAction = Extract<ShortcutAction, 'openDispatchMenu' | 'locateDispatchedPanel'>;

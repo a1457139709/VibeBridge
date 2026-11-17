@@ -60,7 +60,8 @@ module.exports = {
     point = center(await rect(`[data-panel-id="${a}"]`));
     await press(card(t1)); await hover(point, 'Swap preview: pi and Codex');
     window.webContents.sendInputEvent({ type: 'keyDown', keyCode: 'Escape' });
-    await until(() => evaluate('!document.querySelector(".canvas").classList.contains("dragging") && !document.querySelector(".panel-swap-preview")'), 'Esc ended the drag and removed the swap preview');
+    await until(() => evaluate('!document.querySelector(".canvas").classList.contains("dragging") && !document.querySelector(".panel-swap-preview")'),
+      'Esc ended the drag and removed the swap preview');
     window.webContents.sendInputEvent({ type: 'keyUp', keyCode: 'Escape' });
     release(point);
     point = center(await rect('.workspace-toolbar'));

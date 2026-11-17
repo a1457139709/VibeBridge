@@ -23,7 +23,7 @@ test('directory restart restarts resident panels while tray panels keep their ru
     assert.equal(alive(resident.pid!), false);
     const view = f.workbench.snapshot().projects[0];
     assert.deepEqual(view.tray.map(panel => [panel.id, panel.run?.id, panel.run?.state]), [[added.panel.id, tray.id, 'running']]);
-    await f.workbench.sendInput(tray.id, 'cwd-report');
+    await f.workbench.runs.input(tray.id, 'cwd-report');
     await until(() => f.output(tray.id).includes(`CWD:${f.directory}`));
   } finally { await f.close(); }
 });
@@ -37,12 +37,12 @@ test('deleting a project and quitting the Workbench both end tray panel runs', a
     const { project: kept } = await f.create('Kept', second);
     const quitting = (await f.workbench.addPanel(kept.id, 'codex')).launch.run;
     await until(() => [deleted, quitting].every(run => f.output(run.id).includes('READY:')));
-    await f.workbench.sendInput(deleted.id, 'orphan');
+    await f.workbench.runs.input(deleted.id, 'orphan');
     await until(() => /ORPHAN:(\d+)/.test(f.output(deleted.id)));
     const orphan = Number(f.output(deleted.id).match(/ORPHAN:(\d+)/)![1]);
     await f.workbench.deleteProject(project.id);
     assert.equal(alive(deleted.pid!), false); assert.equal(alive(orphan), false);
-    await assert.rejects(f.workbench.sendInput(deleted.id, 'stale'), /runInvalid/);
+    await assert.rejects(f.workbench.runs.input(deleted.id, 'stale'), /runInvalid/);
     assert.deepEqual(f.workbench.snapshot().projects.map(item => item.id), [kept.id]);
     await f.workbench.quit();
     assert.equal(alive(quitting.pid!), false);

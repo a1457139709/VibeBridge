@@ -58,7 +58,8 @@ module.exports = {
     point = { x: Math.round(target.left + target.width / 2), y: Math.round(target.top + target.height / 2) };
     await press(a); await hover(point, 'Swap preview: Codex and pi');
     window.webContents.sendInputEvent({ type: 'keyDown', keyCode: 'Escape' });
-    await until(() => evaluate('!document.querySelector(".canvas").classList.contains("dragging") && !document.querySelector(".panel-swap-preview")'), 'Esc ended the drag and removed the swap preview');
+    await until(() => evaluate('!document.querySelector(".canvas").classList.contains("dragging") && !document.querySelector(".panel-swap-preview")'),
+      'Esc ended the drag and removed the swap preview');
     window.webContents.sendInputEvent({ type: 'keyUp', keyCode: 'Escape' });
     release(point);
     target = await rect(`[data-panel-id="${a}"]`);

@@ -45,10 +45,14 @@ ${oversized.join('\n')}
 Split each file before committing:
 1. Group related responsibilities and move each group into a focused, clearly named file.
    Code: extract cohesive modules/components and update imports/exports and callers.
+   A file every feature edits (such as app/main/workbench.ts) gives each feature's state
+   and calls their own module, as app/main/projects/project-panels.ts and
+   app/main/forge/repository-bindings.ts do; callers such as the IPC in app/main/electron.ts
+   call that module directly.
    Tests: split by feature or scenario; move shared setup into a small helper.
    Docs/data: split by topic or logical section and update links or loaders.
-2. Keep every resulting file at or below 20,000 bytes. Preserve behavior; do not minify
-   code or delete useful comments just to meet the limit.
+2. Keep every resulting file at or below 20,000 bytes. Preserve behavior and comments, and keep
+   the formatting of the surrounding code: one statement or declaration per line.
 3. Run the relevant checks, then git add the original and new files and retry the commit.
 
 Only tool-produced or vendored files should be excluded: mark their exact paths with

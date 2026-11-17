@@ -93,7 +93,9 @@ test('the body and comments pass the HTML filter, same-repository issue links op
   (await request(1)).answer({ ok: true, issue: detail(7, {
     body: `<p onclick="steal()">See <a class="issue-link" href="https://github.com/Octo/Alpha/issues/3">#3</a>, <a href="https://example.com/doc">the doc</a>
       and <a href="javascript:steal()">this</a>.</p><script>steal()</script><style>p { display: none }</style>
-      <img src="https://user-images.githubusercontent.com/shot.png" alt="Screenshot"><a href="https://user-images.githubusercontent.com/linked.png"><img src="https://user-images.githubusercontent.com/linked.png" alt="Linked"></a><iframe src="https://example.com"></iframe>
+      <img src="https://user-images.githubusercontent.com/shot.png" alt="Screenshot">
+      <a href="https://user-images.githubusercontent.com/linked.png"><img src="https://user-images.githubusercontent.com/linked.png" alt="Linked"></a>
+      <iframe src="https://example.com"></iframe>
       <ul><li><input type="checkbox" checked> done</li></ul><g-emoji alias="tada">🎉</g-emoji><form><button>Submit</button></form>`,
     comments: [{ author: 'hubot', createdAt: hoursAgo(1), html: '<p>Merged in <a href="https://github.com/other/repo/issues/3">other/repo#3</a>.</p><img src="x" onerror="steal()">' }],
   }) });
@@ -162,7 +164,8 @@ test('a closed issue draws no issues it blocks, and an issue with no live relati
 test('relations a forge does not declare are not shown', async () => {
   const { user, request } = renderWorkbench([summary(5)], { ...githubCapabilities, subIssues: false, blocking: false });
   await user.click(await row('Issue 5'));
-  (await request(1)).answer({ ok: true, issue: detail(5, { parent: { ...reference(1, { title: 'Spec' }), progress: { closed: 0, total: 1 } }, blockedBy: [reference(2)], subIssues: [reference(6)] }) });
+  (await request(1)).answer({ ok: true, issue: detail(5, { parent: { ...reference(1, { title: 'Spec' }), progress: { closed: 0, total: 1 } },
+    blockedBy: [reference(2)], subIssues: [reference(6)] }) });
   await within(pane()).findByRole('heading', { name: 'Issue 5 #5' });
   assert.equal(within(pane()).queryByRole('group', { name: 'Relations' }), null);
   assert.equal(within(pane()).queryByRole('region', { name: 'Sub-issues' }), null);

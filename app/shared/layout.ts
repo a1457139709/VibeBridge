@@ -9,7 +9,8 @@ export function layoutBoxes(layout: Layout | null) {
     const { x, y, width, height } = box;
     const row = node.axis === 'row';
     visit(node.first, { x, y, width: row ? width * node.ratio : width, height: row ? height : height * node.ratio }, [...path, 'first']);
-    visit(node.second, { x: row ? x + width * node.ratio : x, y: row ? y : y + height * node.ratio, width: row ? width * (1 - node.ratio) : width, height: row ? height : height * (1 - node.ratio) }, [...path, 'second']);
+    visit(node.second, { x: row ? x + width * node.ratio : x, y: row ? y : y + height * node.ratio,
+      width: row ? width * (1 - node.ratio) : width, height: row ? height : height * (1 - node.ratio) }, [...path, 'second']);
   };
   if (layout) visit(layout, { x: 0, y: 0, width: 1, height: 1 }, []);
   return { panels, dividers };

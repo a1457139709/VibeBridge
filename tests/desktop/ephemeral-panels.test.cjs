@@ -16,14 +16,16 @@ module.exports = {
       window.webContents.sendInputEvent({ type: 'keyUp', keyCode });
     };
     const focusedPanel = () => evaluate(`document.activeElement?.classList.contains('xterm-helper-textarea') ? document.activeElement.closest('[data-panel-id]')?.dataset.panelId : undefined`);
-    const visibleResidents = () => evaluate(`${JSON.stringify(project.panels.map(panel => panel.id))}.filter(id => document.querySelector('[data-panel-id="' + id + '"]').checkVisibility({ visibilityProperty: true })).length`);
+    const visibleResidents = () => evaluate(`${JSON.stringify(project.panels.map(panel => panel.id))}
+      .filter(id => document.querySelector('[data-panel-id="' + id + '"]').checkVisibility({ visibilityProperty: true })).length`);
     const pressed = () => evaluate('[...document.querySelectorAll(".panel-tray .tray-card")].map(card => [card.dataset.trayPanelId, card.getAttribute("aria-pressed")])');
     const addThroughPicker = async (open, agent) => {
       const before = (await tray()).length;
       await open();
       await until(() => evaluate('!!document.querySelector("dialog.agent-picker[open]")'), 'agent picker opened');
       await evaluate(`document.querySelector('dialog.agent-picker .agent-option.${agent}').click()`);
-      await until(async () => (await tray()).length === before + 1 && !(await evaluate('!!document.querySelector("dialog.agent-picker[open]")')), `${agent} panel joined the tray and the agent picker closed`);
+      await until(async () => (await tray()).length === before + 1 && !(await evaluate('!!document.querySelector("dialog.agent-picker[open]")')),
+        `${agent} panel joined the tray and the agent picker closed`);
       return (await tray()).at(-1);
     };
     const typeInto = async (panel, text) => {
@@ -88,7 +90,8 @@ module.exports = {
     assert.deepEqual((await snapshot()).projects[0].layout, layout);
     // Panel shortcuts follow the resident layout: with a tray panel open they collapse it first.
     const residentIds = project.panels.map(panel => panel.id);
-    const shortcut = (code, key, shiftKey = false) => evaluate(`document.activeElement.dispatchEvent(new KeyboardEvent("keydown", { key: ${JSON.stringify(key)}, code: ${JSON.stringify(code)}, metaKey: true, shiftKey: ${shiftKey}, bubbles: true }))`);
+    const shortcut = (code, key, shiftKey = false) => evaluate(`document.activeElement.dispatchEvent(new KeyboardEvent("keydown",
+      { key: ${JSON.stringify(key)}, code: ${JSON.stringify(code)}, metaKey: true, shiftKey: ${shiftKey}, bubbles: true }))`);
     const third = await addThroughPicker(() => click('Add Agent'), 'codex');
     await until(async () => await focusedPanel() === third.id, 'third tray panel focused');
     await shortcut('Enter', 'Enter');

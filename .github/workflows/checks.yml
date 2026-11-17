@@ -28,6 +28,8 @@ jobs:
         run: npm ci
       - run: npm run check:source-paths
       - if: ${{ !cancelled() && steps.install.outcome == 'success' }}
+        run: npm run check:source-shape
+      - if: ${{ !cancelled() && steps.install.outcome == 'success' }}
         run: npm run check:test-waits
       - if: ${{ !cancelled() && steps.install.outcome == 'success' }}
         run: npm run typecheck

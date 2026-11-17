@@ -1,6 +1,8 @@
 import { randomUUID } from 'node:crypto';
 import { message, detail } from '../../shared/messages';
-import { arrange, removeFromLayout, parseLayout, layoutStructure, layoutPanelIds, panelPosition, projectPanels, panelLimitReached, agentTypes, type AgentType, type LaunchResult, type Layout, type Panel, type PanelCreation, type PanelView, type Project, type Settings } from '../../shared/model';
+import { arrange, removeFromLayout, parseLayout, layoutStructure, layoutPanelIds, panelPosition, projectPanels,
+  panelLimitReached, agentTypes, type AgentType, type LaunchResult, type Layout, type Panel, type PanelCreation,
+  type PanelView, type Project, type Settings } from '../../shared/model';
 import type { ProjectStore } from '../persistence/storage';
 import type { RunSupervision } from '../runs/run-supervision';
 import type { DispatchTargets } from '../dispatch';
@@ -109,7 +111,9 @@ export class ProjectPanels {
     const placed = layoutPanelIds(structure);
     const replaced = project.panels.filter(resident => !placed.includes(resident.id));
     // A swap is valid only when the placed panel takes the position of the one panel it replaces.
-    if (replaced.length > 1 || (replaced.length === 1 && String(panelPosition(structure, panelId)) !== String(panelPosition(project.layout, replaced[0].id)))) throw new Error(message('layoutMismatch'));
+    const takesReplacedPosition = replaced.length === 1
+      && String(panelPosition(structure, panelId)) === String(panelPosition(project.layout, replaced[0].id));
+    if (replaced.length > 1 || (replaced.length === 1 && !takesReplacedPosition)) throw new Error(message('layoutMismatch'));
     const panels = [...project.panels.filter(resident => !replaced.includes(resident)), panel];
     await this.changeResidency(project, { ...project, panels, layout: parseLayout(structure, panels) },
       [...this.tray(project.id).filter(p => p !== panel), ...replaced]);

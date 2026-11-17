@@ -11,13 +11,17 @@ const directory = await mkdtemp(resolve('work/unit-tests/run-'));
 try {
   await build({ entryPoints: entries, outdir: directory, bundle: true, platform: 'node',
     format: 'cjs', outExtension: { '.js': '.cjs' }, external: ['node-pty', 'electron'] });
-  await build({ entryPoints: { storage: 'app/main/persistence/storage-worker.ts', terminal: 'app/terminal/host.ts', 'codex-reporter': 'app/main/agent-status/codex/reporter.ts', 'claude-reporter': 'app/main/agent-status/claude/reporter.ts', 'workbench-process': 'tests/fixtures/workbench-process.ts' }, outdir: directory, bundle: true,
+  await build({ entryPoints: { storage: 'app/main/persistence/storage-worker.ts', terminal: 'app/terminal/host.ts',
+    'codex-reporter': 'app/main/agent-status/codex/reporter.ts', 'claude-reporter': 'app/main/agent-status/claude/reporter.ts',
+    'workbench-process': 'tests/fixtures/workbench-process.ts' }, outdir: directory, bundle: true,
     platform: 'node', format: 'cjs', outExtension: { '.js': '.cjs' }, external: ['node-pty'] });
   const binary = resolve('node_modules/electron/dist', (await readFile('node_modules/electron/path.txt', 'utf8')).trim());
   await build({ entryPoints: { 'pi-reporter': 'app/main/agent-status/pi/reporter.ts' }, outdir: directory, bundle: true,
     platform: 'node', format: 'esm', outExtension: { '.js': '.mjs' } });
+  // Git run from a hook names this checkout's index and directory in GIT_* variables; tests create repositories of their own.
+  const env = Object.fromEntries(Object.entries(process.env).filter(([key]) => !key.startsWith('GIT_')));
   const result = spawnSync(binary, ['--test', ...entries.map(f => resolve(directory, basename(f).replace('.ts', '.cjs')))],
-    { stdio: 'inherit', env: { ...process.env, ELECTRON_RUN_AS_NODE: '1', VIBEBRIDGE_TEST_NODE: process.execPath } });
+    { stdio: 'inherit', env: { ...env, ELECTRON_RUN_AS_NODE: '1', VIBEBRIDGE_TEST_NODE: process.execPath } });
   if (result.error) throw result.error;
   process.exitCode = result.status ?? 1;
 } finally { await rm(directory, { recursive: true, force: true }); }
