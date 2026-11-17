@@ -49,6 +49,31 @@
 .vf-graph-d .vf-head-0 { color: var(--gh-failed); } .vf-graph-d .vf-head-2 { color: var(--gh-pending); }
 .vf-graph-d .gh-node { border-color: color-mix(in srgb, var(--accent) 22%, var(--line)); }
 
+/* ---- round 2: B (plate) × C (colour by relation) ---- */
+:is(.vf-graph-e, .vf-graph-f, .vf-graph-g, .vf-graph-h) .gh-graph { margin: 12px 10px 24px; border-radius: 6px; background: color-mix(in srgb, var(--accent) 6%, var(--canvas));
+  box-shadow: 0 0 0 10px color-mix(in srgb, var(--accent) 6%, var(--canvas)), 0 0 0 11px var(--line); }
+:is(.vf-graph-e, .vf-graph-f, .vf-graph-g, .vf-graph-h) .gh-node { border-color: color-mix(in srgb, var(--accent) 30%, var(--line)); background: var(--surface); }
+:is(.vf-graph-e, .vf-graph-f, .vf-graph-g, .vf-graph-h) .vf-edge-in { stroke: var(--gh-failed); stroke-width: 1.6; }
+:is(.vf-graph-e, .vf-graph-f, .vf-graph-g, .vf-graph-h) .vf-edge-out { stroke: var(--gh-pending); stroke-width: 1.6; }
+:is(.vf-graph-e, .vf-graph-f, .vf-graph-g, .vf-graph-h) .gh-arrow-in { fill: var(--gh-failed); }
+:is(.vf-graph-e, .vf-graph-f, .vf-graph-g, .vf-graph-h) .vf-head-0 { color: var(--gh-failed); }
+:is(.vf-graph-e, .vf-graph-f, .vf-graph-g, .vf-graph-h) .vf-head-2 { color: var(--gh-pending); }
+/* self as solid inverse: e, g, h */
+:is(.vf-graph-e, .vf-graph-g, .vf-graph-h) .gh-node.self { background: var(--accent); color: var(--canvas); border-color: var(--accent); }
+:is(.vf-graph-e, .vf-graph-g, .vf-graph-h) .gh-node.self :is(.gh-row-num, .gh-icon) { color: var(--canvas); }
+/* e: C's tints on B's plate */
+.vf-graph-e .gh-node.vf-node-in { border-color: var(--gh-failed); background: color-mix(in srgb, var(--gh-failed) 14%, var(--surface)); }
+.vf-graph-e .gh-node.vf-node-out { border-color: var(--gh-pending); background: color-mix(in srgb, var(--gh-pending) 14%, var(--surface)); }
+/* f: neutral nodes, a coloured stripe on the left; self keeps main's outline */
+.vf-graph-f .gh-node.vf-node-in { box-shadow: inset 3px 0 var(--gh-failed); }
+.vf-graph-f .gh-node.vf-node-out { box-shadow: inset 3px 0 var(--gh-pending); }
+/* g: colour lives only on lines, arrows and heads */
+/* h: lighter tints, heads become a legend with counts */
+.vf-graph-h .gh-node.vf-node-in { border-color: color-mix(in srgb, var(--gh-failed) 60%, var(--line)); background: color-mix(in srgb, var(--gh-failed) 7%, var(--surface)); }
+.vf-graph-h .gh-node.vf-node-out { border-color: color-mix(in srgb, var(--gh-pending) 60%, var(--line)); background: color-mix(in srgb, var(--gh-pending) 7%, var(--surface)); }
+.vf-graph-h :is(.vf-head-0, .vf-head-2)::before { content: '●'; margin-right: 4px; }
+.vf-graph-h :is(.vf-head-0, .vf-head-2)::after { content: ' · ' attr(data-n); color: var(--muted); font-weight: 400; }
+
 /* ---- QA #13: the workflow switch ---- */
 .vf-switch-row { display: inline-flex; align-items: center; gap: 8px; font-size: 12px; cursor: pointer; }
 .vf-switch { position: relative; width: 34px; height: 20px !important; min-height: 0; padding: 0; border: 0; border-radius: 10px; background: var(--line); transition: background 140ms; flex-shrink: 0; }

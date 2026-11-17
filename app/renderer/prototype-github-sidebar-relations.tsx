@@ -43,7 +43,7 @@ export function RelationGraph({ repo, issue, onOpen }: { repo: Repo; issue: Issu
   const H = HEAD + rows * ROW + 4;
   return <div className="gh-graph" ref={host} style={{ height: H }}>
     {g.heads.map((h, c) => <span key={`lane${c}`} className={`vf-lane vf-lane-${c}`} style={{ left: PAD + c * (colW + GAP) - 6, width: colW + 12 }} />)}
-    {g.heads.map((h, c) => <span key={c} className={`gh-graph-head vf-head-${c}`} style={{ left: PAD + c * (colW + GAP), width: colW }}>{h}</span>)}
+    {g.heads.map((h, c) => <span key={c} className={`gh-graph-head vf-head-${c}`} data-n={colRows[c]} style={{ left: PAD + c * (colW + GAP), width: colW }}>{h}</span>)}
     <svg width={w} height={H}>
       <defs>{(['blocks', 'pr', 'in', 'out'] as const).map(k => <marker key={k} id={`gh-arrow-${k}`} viewBox="0 0 8 8" refX="7" refY="4" markerWidth="6" markerHeight="6" orient="auto"><path d="M0 0L8 4L0 8z" className={`gh-arrow-${k}`} /></marker>)}</defs>
       {g.edges.map(e => {
