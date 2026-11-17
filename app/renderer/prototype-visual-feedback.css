@@ -50,14 +50,14 @@
 .vf-graph-d .gh-node { border-color: color-mix(in srgb, var(--accent) 22%, var(--line)); }
 
 /* ---- round 2: B (plate) × C (colour by relation) ---- */
-:is(.vf-graph-e, .vf-graph-f, .vf-graph-g, .vf-graph-h, .vf-graph-i) .gh-graph { margin: 12px 10px 24px; border-radius: 6px; background: color-mix(in srgb, var(--accent) 6%, var(--canvas));
+:is(.vf-graph-e, .vf-graph-f, .vf-graph-g, .vf-graph-h, .vf-graph-i, .vf-graph-j) .gh-graph { margin: 12px 10px 24px; border-radius: 6px; background: color-mix(in srgb, var(--accent) 6%, var(--canvas));
   box-shadow: 0 0 0 10px color-mix(in srgb, var(--accent) 6%, var(--canvas)), 0 0 0 11px var(--line); }
-:is(.vf-graph-e, .vf-graph-f, .vf-graph-g, .vf-graph-h, .vf-graph-i) .gh-node { border-color: color-mix(in srgb, var(--accent) 30%, var(--line)); background: var(--surface); }
-:is(.vf-graph-e, .vf-graph-f, .vf-graph-g, .vf-graph-h, .vf-graph-i) .vf-edge-in { stroke: var(--gh-failed); stroke-width: 1.6; }
-:is(.vf-graph-e, .vf-graph-f, .vf-graph-g, .vf-graph-h, .vf-graph-i) .vf-edge-out { stroke: var(--gh-pending); stroke-width: 1.6; }
-:is(.vf-graph-e, .vf-graph-f, .vf-graph-g, .vf-graph-h, .vf-graph-i) .gh-arrow-in { fill: var(--gh-failed); }
-:is(.vf-graph-e, .vf-graph-f, .vf-graph-g, .vf-graph-h, .vf-graph-i) .vf-head-0 { color: var(--gh-failed); }
-:is(.vf-graph-e, .vf-graph-f, .vf-graph-g, .vf-graph-h, .vf-graph-i) .vf-head-2 { color: var(--gh-pending); }
+:is(.vf-graph-e, .vf-graph-f, .vf-graph-g, .vf-graph-h, .vf-graph-i, .vf-graph-j) .gh-node { border-color: color-mix(in srgb, var(--accent) 30%, var(--line)); background: var(--surface); }
+:is(.vf-graph-e, .vf-graph-f, .vf-graph-g, .vf-graph-h, .vf-graph-i, .vf-graph-j) .vf-edge-in { stroke: var(--gh-failed); stroke-width: 1.6; }
+:is(.vf-graph-e, .vf-graph-f, .vf-graph-g, .vf-graph-h, .vf-graph-i, .vf-graph-j) .vf-edge-out { stroke: var(--gh-pending); stroke-width: 1.6; }
+:is(.vf-graph-e, .vf-graph-f, .vf-graph-g, .vf-graph-h, .vf-graph-i, .vf-graph-j) .gh-arrow-in { fill: var(--gh-failed); }
+:is(.vf-graph-e, .vf-graph-f, .vf-graph-g, .vf-graph-h, .vf-graph-i, .vf-graph-j) .vf-head-0 { color: var(--gh-failed); }
+:is(.vf-graph-e, .vf-graph-f, .vf-graph-g, .vf-graph-h, .vf-graph-i, .vf-graph-j) .vf-head-2 { color: var(--gh-pending); }
 /* self as solid inverse: e, g, h */
 :is(.vf-graph-e, .vf-graph-g, .vf-graph-h) .gh-node.self { background: var(--accent); color: var(--canvas); border-color: var(--accent); }
 :is(.vf-graph-e, .vf-graph-g, .vf-graph-h) .gh-node.self :is(.gh-row-num, .gh-icon) { color: var(--canvas); }
@@ -69,6 +69,10 @@
 .vf-graph-i .gh-node.vf-node-out { border-color: var(--gh-pending); background: color-mix(in srgb, var(--gh-pending) 14%, var(--surface)); }
 .vf-graph-i .gh-node.self { background: var(--gh-open); color: #fff; border-color: var(--gh-open); box-shadow: none; }
 .vf-graph-i .gh-node.self :is(.gh-row-num, .gh-icon) { color: #fff; }
+/* j: E with the centre in the same tint-and-border style, green */
+.vf-graph-j .gh-node.vf-node-in { border-color: var(--gh-failed); background: color-mix(in srgb, var(--gh-failed) 14%, var(--surface)); }
+.vf-graph-j .gh-node.vf-node-out { border-color: var(--gh-pending); background: color-mix(in srgb, var(--gh-pending) 14%, var(--surface)); }
+.vf-graph-j .gh-node.self { background: color-mix(in srgb, var(--gh-open) 16%, var(--surface)); border: 2px solid var(--gh-open); box-shadow: none; font-weight: 700; }
 /* f: neutral nodes, a coloured stripe on the left; self keeps main's outline */
 .vf-graph-f .gh-node.vf-node-in { box-shadow: inset 3px 0 var(--gh-failed); }
 .vf-graph-f .gh-node.vf-node-out { box-shadow: inset 3px 0 var(--gh-pending); }
