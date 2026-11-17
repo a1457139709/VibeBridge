@@ -18,6 +18,7 @@ export const axes: { key: Axis; name: string; qa: string; chosen?: string; varia
     { key: 'f', name: '底板 + 色条', note: '底板上节点保持中性，只在左边加一道红 / 琥珀色条；连线与栏头上色；本 issue 保留描边，不反色。最克制。' },
     { key: 'g', name: '底板 + 只染连线', note: '节点全中性，颜色只出现在连线、箭头和栏头上；本 issue 实心反色作为中心。' },
     { key: 'h', name: '底板 + 关系色 + 图例', note: 'E 的基础上节点底色减淡，栏头变成「● 被阻塞于 · 2」式图例，带数量。' },
+    { key: 'i', name: 'E + 绿色中心', note: '同 E，只是本 issue 从实心反色（黑 / 白）改成实心绿底白字。' },
   ] },
   { key: 'toggle', name: '工作流开关', qa: 'QA #13', chosen: 'b', variants: [
     { key: 'a', name: '现状', note: '复选框 +「已开启 / 已关闭」。这是全应用唯一的复选框式开关。' },
