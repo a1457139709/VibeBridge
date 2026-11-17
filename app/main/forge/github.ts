@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import type { ChecksConclusion, DirectAction, ForgeLabel, ListFilter, IssueSummary, RepositoryReference } from '../../shared/forge';
+import type { ChecksConclusion, DirectAction, ForgeLabel, ListFilter, IssueSummary, RepositoryReference } from '../../shared/forge/forge';
 import { ForgeError, type Forge } from './forge';
 import { gh, ghOutput, graphql } from './github-cli';
 import { checksState, issueReference, issueReferenceFields, issueReferenceSchema, issueState, issueStateFields,

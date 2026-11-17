@@ -1,4 +1,4 @@
-import type { ListFilter } from '../../app/shared/forge';
+import type { ListFilter } from '../../app/shared/forge/forge';
 import type { Workbench } from '../../app/main/workbench';
 import { interactiveWorkbench } from './interactive-workbench';
 

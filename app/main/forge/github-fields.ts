@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import type { PullRequestState } from '../../shared/forge';
+import type { PullRequestState } from '../../shared/forge/forge';
 
 // GitHub's GraphQL fields that the adapter's issue and pull request reads share, and how they map to domain shapes.
 

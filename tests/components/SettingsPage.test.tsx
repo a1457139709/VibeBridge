@@ -4,8 +4,8 @@ import test, { afterEach, mock } from 'node:test';
 import { createRef } from 'react';
 import { act, cleanup, fireEvent, render, screen, within } from '@testing-library/react';
 import { userEvent } from '@testing-library/user-event';
-import { SettingsPage, type SettingsPageActions } from '../../app/renderer/SettingsPage';
-import { defaultSettings, type SettingsSaveResult } from '../../app/shared/settings';
+import { SettingsPage, type SettingsPageActions } from '../../app/renderer/settings/SettingsPage';
+import { defaultSettings, type SettingsSaveResult } from '../../app/shared/settings/settings';
 import type { CommandCheck, Settings } from '../../app/shared/model';
 import { deferred, provideWorkbench } from './support/workbench';
 

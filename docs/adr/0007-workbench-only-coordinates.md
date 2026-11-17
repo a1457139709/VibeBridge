@@ -2,9 +2,9 @@
 
 主进程的 `Workbench`（`app/main/workbench.ts`）是 IPC 进来的地方，但它不持有功能的状态。每个功能有自己的模块，模块持有自己的状态，并自己读写存储：
 
-- `ProjectPanels`（`app/main/project-panels.ts`）：项目的面板、托盘和布局。
+- `ProjectPanels`（`app/main/projects/project-panels.ts`）：项目的面板、托盘和布局。
 - `RepositoryBindings`（`app/main/forge/repository-bindings.ts`）：仓库绑定，以及绑定按 ID 跟随仓库。
-- `RunSupervision`（`app/main/run-supervision.ts`）：面板的运行、输入、尺寸和输出流。
+- `RunSupervision`（`app/main/runs/run-supervision.ts`）：面板的运行、输入、尺寸和输出流。
 - `Dispatches`（`app/main/dispatch.ts`）：派发和派发记录。
 
 `Workbench` 只做跨模块的事：

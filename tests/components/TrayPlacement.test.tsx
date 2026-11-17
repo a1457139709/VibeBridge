@@ -4,7 +4,7 @@ import test, { afterEach, before } from 'node:test';
 import { act, cleanup, fireEvent, render, screen, within } from '@testing-library/react';
 import { userEvent } from '@testing-library/user-event';
 import { App } from '../../app/renderer/Workbench';
-import { defaultSettings } from '../../app/shared/settings';
+import { defaultSettings } from '../../app/shared/settings/settings';
 import type { Layout, Snapshot } from '../../app/shared/model';
 import type { WorkbenchEvent } from '../../app/shared/model';
 import { deferred, provideWorkbench } from './support/workbench';

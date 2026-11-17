@@ -5,7 +5,7 @@ await build({
     main: 'app/main/electron.ts',
     preload: 'app/main/preload.ts',
     terminal: 'app/terminal/host.ts',
-    storage: 'app/main/storage-worker.ts',
+    storage: 'app/main/persistence/storage-worker.ts',
     'codex-reporter': 'app/main/agent-status/codex/reporter.ts',
     'claude-reporter': 'app/main/agent-status/claude/reporter.ts',
   },

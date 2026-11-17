@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import test, { afterEach } from 'node:test';
 import { cleanup, render, screen, waitFor } from '@testing-library/react';
 import { userEvent } from '@testing-library/user-event';
-import { HoverHints } from '../../app/renderer/HoverHints';
+import { HoverHints } from '../../app/renderer/common/HoverHints';
 
 afterEach(cleanup);
 

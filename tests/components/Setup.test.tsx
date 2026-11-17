@@ -4,7 +4,7 @@ import test, { afterEach, mock } from 'node:test';
 import { useState } from 'react';
 import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { userEvent } from '@testing-library/user-event';
-import { Setup } from '../../app/renderer/Setup';
+import { Setup } from '../../app/renderer/projects/Setup';
 import { newDraft, type AgentType, type DirectoryResult, type LaunchResult, type ProjectCreation, type ProjectDraft } from '../../app/shared/model';
 import { deferred, provideWorkbench } from './support/workbench';
 

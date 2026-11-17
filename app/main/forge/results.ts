@@ -1,7 +1,7 @@
 /** A repository's issues and pull requests read from its forge and changed by direct actions: the data, or the forge failure.
  * What the renderer asks for is checked here before the forge sees it. */
-import { directActionSchema, itemNumberSchema, listQuerySchema } from '../../shared/forge';
-import type { DirectAction, DirectActionResult, ForgeFailure, IssueDetailResult, IssuePage, ListQuery, PullRequestDetailResult, PullRequestPage, RepositoryReference } from '../../shared/forge';
+import { directActionSchema, itemNumberSchema, listQuerySchema } from '../../shared/forge/forge';
+import type { DirectAction, DirectActionResult, ForgeFailure, IssueDetailResult, IssuePage, ListQuery, PullRequestDetailResult, PullRequestPage, RepositoryReference } from '../../shared/forge/forge';
 import { forges } from './forges';
 import { ForgeError, type Forge } from './forge';
 

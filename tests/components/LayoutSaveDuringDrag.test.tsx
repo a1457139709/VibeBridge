@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import test, { afterEach, before } from 'node:test';
 import { act, cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { App } from '../../app/renderer/Workbench';
-import { defaultSettings } from '../../app/shared/settings';
+import { defaultSettings } from '../../app/shared/settings/settings';
 import type { Layout, PanelView, Snapshot, WorkbenchEvent } from '../../app/shared/model';
 import { stubLayoutApis } from './support/no-layout';
 import { provideWorkbench } from './support/workbench';

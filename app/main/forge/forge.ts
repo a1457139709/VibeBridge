@@ -1,5 +1,5 @@
 import type { DirectAction, ForgeCapabilities, ForgeFailure, ForgeFailureKind, ForgeId, ForgePresentation,
-  IssueDetail, ListPage, ListQuery, ListedIssue, PullRequestDetail, PullRequestSummary, RepositoryReference } from '../../shared/forge';
+  IssueDetail, ListPage, ListQuery, ListedIssue, PullRequestDetail, PullRequestSummary, RepositoryReference } from '../../shared/forge/forge';
 
 /** A failure of a forge call, in one of the forge-neutral kinds, with the forge's own text. */
 export class ForgeError extends Error {

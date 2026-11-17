@@ -1,9 +1,9 @@
 import type { Sidebar, SidebarPreferences, AgentType, CommandCheck, DirectoryResult, Layout, ProjectCreation,
   PanelCreation, ProjectDraft, ProjectEdit, ProjectEditResult, Settings, Snapshot, WorkbenchEvent } from './model';
-import type { SettingsSaveResult } from './settings';
+import type { SettingsSaveResult } from './settings/settings';
 import type { DispatchRequest } from './dispatch';
-import type { Delivery } from './workflows';
-import type { DirectAction, DirectActionResult, IssueDetailResult, PullRequestDetailResult, IssuePage, ListQuery, PullRequestPage, RepositoryChoices } from './forge';
+import type { Delivery } from './settings/workflows';
+import type { DirectAction, DirectActionResult, IssueDetailResult, PullRequestDetailResult, IssuePage, ListQuery, PullRequestPage, RepositoryChoices } from './forge/forge';
 
 export interface DesktopAPI {
   snapshot(): Promise<Snapshot>;

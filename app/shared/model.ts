@@ -1,11 +1,11 @@
 import { z } from 'zod';
 import { message, type MessageId } from './messages';
-import type { Shortcuts } from './shortcuts';
+import type { Shortcuts } from './settings/shortcuts';
 import { projectNameError } from './project-name';
 import type { ProcessingState } from './processing-status';
-import type { SettingsIssue } from './settings';
-import type { WorkflowId, WorkflowSettings } from './workflows';
-import type { ForgeCapabilities, ForgePresentation, RepositoryReference } from './forge';
+import type { SettingsIssue } from './settings/settings';
+import type { WorkflowId, WorkflowSettings } from './settings/workflows';
+import type { ForgeCapabilities, ForgePresentation, RepositoryReference } from './forge/forge';
 import type { DispatchRecordView } from './dispatch';
 
 export const agentTypes = ['codex', 'claude', 'pi'] as const;

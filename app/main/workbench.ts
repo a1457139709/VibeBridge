@@ -5,13 +5,13 @@ import { randomUUID } from 'node:crypto';
 import { sidebars, sidebarPreferencesSchema, type Sidebar, type SidebarPreferences, assignedAgents, arrange,
   validateDraft, type AgentType, type DirectoryResult, type Layout, type Project, type ProjectCreation,
   type ProjectDraft, type PanelCreation, type Settings, type Snapshot, type WorkbenchEvent } from '../shared/model';
-import { ProjectStore } from './storage';
-import { SettingsFile, defaultSettings } from './settings';
-import { settingsConflicts, type SettingsSaveResult } from '../shared/settings';
-import { RunSupervision } from './run-supervision';
-import { ProjectPanels } from './project-panels';
-import { inspectDirectory } from './project-directory';
-import { type DirectAction, sameRepository, type ListQuery, type RepositoryReference } from '../shared/forge';
+import { ProjectStore } from './persistence/storage';
+import { SettingsFile, defaultSettings } from './persistence/settings';
+import { settingsConflicts, type SettingsSaveResult } from '../shared/settings/settings';
+import { RunSupervision } from './runs/run-supervision';
+import { ProjectPanels } from './projects/project-panels';
+import { inspectDirectory } from './projects/project-directory';
+import { type DirectAction, sameRepository, type ListQuery, type RepositoryReference } from '../shared/forge/forge';
 import { RepositoryBindings } from './forge/repository-bindings';
 import { directAction, issueDetail, issuePage, pullRequestDetail, pullRequestPage } from './forge/results';
 import { Dispatches, type DispatchRecord } from './dispatch';

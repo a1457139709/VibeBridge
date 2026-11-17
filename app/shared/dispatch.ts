@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { itemNumberSchema } from './forge';
+import { itemNumberSchema } from './forge/forge';
 import { agentTypes, type AgentType } from './model';
 import type { ProcessingState } from './processing-status';
 

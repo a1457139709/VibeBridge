@@ -2,7 +2,7 @@ import './support/dom';
 import assert from 'node:assert/strict';
 import test, { afterEach, before } from 'node:test';
 import { cleanup, screen, waitFor, within } from '@testing-library/react';
-import type { IssueDetail } from '../../app/shared/forge';
+import type { IssueDetail } from '../../app/shared/forge/forge';
 import type { DispatchRecordView } from '../../app/shared/dispatch';
 import type { Snapshot } from '../../app/shared/model';
 import { sidebar, stubSidebarApis } from './support/forge-lists';

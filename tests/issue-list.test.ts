@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { ghDouble, type GhIssue } from './support/gh-double';
-import type { ListFilter } from '../app/shared/forge';
+import type { ListFilter } from '../app/shared/forge/forge';
 import { boundWorkbench, day, forgeAccount, openNoFilter } from './support/bound-workbench';
 
 /** 30 open issues, #1 the oldest, created a day apart. */

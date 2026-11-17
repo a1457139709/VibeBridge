@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { commandText, workflows } from '../app/shared/workflows';
+import { commandText, workflows } from '../app/shared/settings/workflows';
 
 const issue = { url: 'https://github.com/acme/app/issues/7', number: 7, title: 'Fix the {url} parser' };
 const command = (id: string) => workflows[0].commands.find(command => command.id === id)!;

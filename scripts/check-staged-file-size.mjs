@@ -45,9 +45,10 @@ ${oversized.join('\n')}
 Split each file before committing:
 1. Group related responsibilities and move each group into a focused, clearly named file.
    Code: extract cohesive modules/components and update imports/exports and callers.
-   A file every feature edits (such as app/main/workbench.ts) gives each feature's state and
-   calls their own module, as app/main/project-panels.ts and app/main/forge/repository-bindings.ts
-   do; callers such as the IPC in app/main/electron.ts call that module directly.
+   A file every feature edits (such as app/main/workbench.ts) gives each feature's state
+   and calls their own module, as app/main/projects/project-panels.ts and
+   app/main/forge/repository-bindings.ts do; callers such as the IPC in app/main/electron.ts
+   call that module directly.
    Tests: split by feature or scenario; move shared setup into a small helper.
    Docs/data: split by topic or logical section and update links or loaders.
 2. Keep every resulting file at or below 20,000 bytes. Preserve behavior and comments, and keep
