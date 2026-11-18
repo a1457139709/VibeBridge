@@ -84,6 +84,7 @@ npm run package
 ```sh
 npm run check                      # 运行本地无窗口检查
 npm run format                     # 用 Prettier 格式化源码，范围见 .prettierignore
+git config blame.ignoreRevsFile .git-blame-ignore-revs   # 让 git blame 跳过只改格式的提交
 ```
 
 本地检查包含 Claude hooks 的模拟 CLI 测试，不会启动真实 Claude 或访问其服务。生产桌面测试在 GitHub Actions **Checks** 中运行，也可通过 **Run workflow** 手动触发。真实 Claude 验收由用户手动进行，详见 [Claude 测试入口](docs/claude-status.md#test-entry-points)。
