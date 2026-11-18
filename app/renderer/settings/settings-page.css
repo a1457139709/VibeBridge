@@ -1,0 +1,45 @@
+.settings-page { height: 100%; min-height: 0; overflow: hidden; }
+.settings-shell { height: 100%; max-width: 1040px; margin: 0 auto; padding: 24px 40px; display: flex; flex-direction: column; }
+.settings-back { align-self: flex-start; background: var(--canvas); padding: 6px; margin: -6px -6px 14px; }
+.settings-columns { display: flex; flex: 1; min-height: 0; gap: 32px; margin-top: 24px; }
+.settings-navigation { flex: 0 0 160px; display: flex; flex-direction: column; gap: 8px; }
+.settings-navigation button { text-align: left; border: 0; background: none; min-height: 40px; }
+.settings-navigation button[aria-current='page'] { background: var(--hover); }
+.settings-content { flex: 1; min-width: 0; display: flex; flex-direction: column; min-height: 0; }
+.settings-content-heading { flex-shrink: 0; display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 12px; padding-bottom: 16px; }
+.settings-save { display: flex; flex-wrap: wrap; align-items: center; justify-content: flex-end; gap: 8px; margin-left: auto; }
+.settings-save button { flex-shrink: 0; }
+.settings-scroll { min-height: 0; overflow-y: auto; scrollbar-gutter: stable; padding: 4px 20px 4px 4px; scroll-padding: 8px; }
+.settings-scroll input, .settings-scroll textarea, .settings-scroll select { scroll-margin: 4px; }
+.settings-content fieldset { border: 0; padding: 0; margin: 0; min-width: 0; }
+.settings-content h2 { font-size: 13px; font-weight: 600; margin: 0; display: flex; align-items: center; gap: 10px; }
+.settings-content p { font-size: 12px; line-height: 1.7; }
+.agent-settings { border-bottom: 1px solid var(--line); padding: 24px 0; margin-bottom: 16px; }
+.settings-row-heading { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.settings-row-heading button { font-size: 11px; }
+.command-input { font: 12px Menlo, monospace; }
+.command-result { font-size: 11px; overflow-wrap: anywhere; }
+.command-result:not(:empty), .agent-settings > .error-text:not(:empty) { margin-top: 7px; }
+.radio-options { display: grid; gap: 10px; margin: 22px 0; }
+.radio-options label { display: flex; align-items: center; gap: 10px; margin: 0; min-height: 36px; }
+.radio-options input { width: 16px; height: 16px; accent-color: var(--accent); }
+.restart-notice { border-left: 2px solid var(--accent); padding: 8px 12px; background: var(--hover); }
+.shortcut-search { display: flex; gap: 8px; margin-top: 22px; }
+.shortcut-search button { flex-shrink: 0; }
+.shortcut-row { display: flex; align-items: center; justify-content: space-between; gap: 20px; padding: 18px 0; border-bottom: 1px solid var(--line); }
+.shortcut-row label { font-size: 13px; margin: 0 0 7px; }
+.shortcut-row small { font-size: 11px; }
+.shortcut-row input { width: 170px; flex-shrink: 0; text-align: center; }
+.shortcut-help { margin-top: 22px; }
+.settings-status { font-size: 12px; color: var(--muted); overflow-wrap: anywhere; }
+.settings-status:empty { display: none; }
+@media (max-width: 760px) { .settings-shell { padding: 20px; } .settings-columns { gap: 20px; } .settings-navigation { flex-basis: 90px; } .shortcut-row { gap: 10px; } .shortcut-row input { width: 130px; } }
+
+.command-input[aria-invalid="true"] { border-color: var(--error, #b33e2d); }
+.settings-leave, .settings-conflict { color: var(--text); background: var(--canvas); border: 1px solid var(--line); border-radius: 12px; max-width: 460px; padding: 24px; }
+.settings-leave::backdrop, .settings-conflict::backdrop { background: var(--modal-backdrop, #0004); }
+.settings-leave h2, .settings-conflict h2 { margin-top: 0; }
+.settings-leave .dialog-actions, .settings-conflict .dialog-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 24px; }
+
+.shortcut-conflict input { border: 2px solid var(--conflict-color); background: color-mix(in srgb, var(--conflict-color) 10%, var(--surface)); }
+.shortcut-conflict-message { color: var(--conflict-color); margin: 6px 0 0; }

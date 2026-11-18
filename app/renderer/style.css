@@ -90,19 +90,6 @@ hr { border: 0; border-top: 1px solid var(--line); margin: 22px 0; }
 .workspace-toolbar { container: workspace-toolbar / inline-size; position: relative; z-index: 6; height: 32px; display: grid; grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr); align-items: center; padding: 0 12px; font-size: 11px; flex-shrink: 0; background: var(--navigation, var(--canvas)); border-bottom: 1px solid var(--line); }
 .workspace-toolbar > button { grid-column: 3; justify-self: end; border: 0; background: none; min-height: 26px; font-size: 19px; padding: 0 6px; }
 .canvas { flex: 1; position: relative; min-height: 0; margin: 4px; }
-.panel-slot { position: absolute; padding: 4px; min-width: 0; min-height: 0; transition: left 200ms, top 200ms, width 200ms, height 200ms; }
-.resizing .panel-slot { transition: none; }
-.agent-panel { --panel-header-height: 31px; --panel-header-start: 11px; --panel-header-end: 7px; --panel-mark-size: 16px; --panel-title-gap: 6px; --compact-padding: 6px; --compact-mark-size: 20px; position: relative; height: 100%; border: 1px solid var(--line); border-radius: 10px; background: var(--surface); display: flex; flex-direction: column; overflow: hidden; transition: border-color 140ms, box-shadow 140ms; }
-.agent-panel.focused { border-color: var(--brand); box-shadow: 0 0 0 2px color-mix(in srgb, var(--brand) 35%, transparent); }
-.panel-header { height: var(--panel-header-height); flex-shrink: 0; display: flex; align-items: center; justify-content: space-between; padding: 0 var(--panel-header-end) 0 var(--panel-header-start); cursor: grab; user-select: none; font-size: 11px; gap: 4px; background: var(--panel-heading, var(--surface)); border-bottom: var(--panel-heading-border, 0); }
-.agent-title { display: flex; align-items: center; gap: var(--panel-title-gap); min-width: 0; white-space: nowrap; color: var(--muted); }
-.focused .agent-title { color: inherit; }
-.agent-title .agent-mark { font-size: var(--panel-mark-size); width: var(--panel-mark-size); }
-.panel-actions { display: flex; flex-shrink: 0; }
-.panel-actions button { font-size: 17px; border: 0; min-height: 25px; width: 27px; padding: 0; background: transparent; color: var(--muted); }
-.panel-menu { position: absolute; top: 30px; right: 7px; z-index: 4; display: grid; padding: 4px; background: var(--surface); border: 1px solid var(--line); border-radius: 6px; box-shadow: 0 4px 16px #0002; }
-.panel-menu button { border: 0; text-align: left; font-size: 12px; }
-.divider { position: absolute; z-index: 1; touch-action: none; }
 .empty { display: flex; height: 100%; flex-direction: column; align-items: center; justify-content: center; color: var(--muted); }
 .empty p { margin-bottom: 20px; }
 .agent-picker { position: fixed; inset: 0; margin: auto; width: min(480px, 90vw); color: inherit; background: var(--surface); border: 1px solid var(--line); border-radius: 14px; padding: 40px 24px 24px; box-shadow: 0 20px 60px #0002; }
@@ -117,84 +104,10 @@ hr { border: 0; border-top: 1px solid var(--line); margin: 22px 0; }
 .notice.error { --notice-color: var(--error, #b33e2d); }
 .notice-icon { color: var(--notice-color); font-weight: 700; font-size: 15px; }
 .notice button { border: 0; background: none; padding: 0 5px; font-size: 18px; min-height: 24px; flex-shrink: 0; }
-.settings-page { height: 100%; min-height: 0; overflow: hidden; }
-.settings-shell { height: 100%; max-width: 1040px; margin: 0 auto; padding: 24px 40px; display: flex; flex-direction: column; }
-.settings-back { align-self: flex-start; background: var(--canvas); padding: 6px; margin: -6px -6px 14px; }
-.settings-columns { display: flex; flex: 1; min-height: 0; gap: 32px; margin-top: 24px; }
-.settings-navigation { flex: 0 0 160px; display: flex; flex-direction: column; gap: 8px; }
-.settings-navigation button { text-align: left; border: 0; background: none; min-height: 40px; }
-.settings-navigation button[aria-current='page'] { background: var(--hover); }
-.settings-content { flex: 1; min-width: 0; display: flex; flex-direction: column; min-height: 0; }
-.settings-content-heading { flex-shrink: 0; display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 12px; padding-bottom: 16px; }
-.settings-save { display: flex; flex-wrap: wrap; align-items: center; justify-content: flex-end; gap: 8px; margin-left: auto; }
-.settings-save button { flex-shrink: 0; }
-.settings-scroll { min-height: 0; overflow-y: auto; scrollbar-gutter: stable; padding: 4px 20px 4px 4px; scroll-padding: 8px; }
-.settings-scroll input, .settings-scroll textarea, .settings-scroll select { scroll-margin: 4px; }
-.settings-content fieldset { border: 0; padding: 0; margin: 0; min-width: 0; }
-.settings-content h2 { font-size: 13px; font-weight: 600; margin: 0; display: flex; align-items: center; gap: 10px; }
-.settings-content p { font-size: 12px; line-height: 1.7; }
-.agent-settings { border-bottom: 1px solid var(--line); padding: 24px 0; margin-bottom: 16px; }
-.settings-row-heading { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
-.settings-row-heading button { font-size: 11px; }
-.command-input { font: 12px Menlo, monospace; }
 textarea, select { width: 100%; background: var(--surface); border: 1px solid var(--line); border-radius: 6px; padding: 8px 11px; }
 textarea { resize: vertical; }
-.command-result { font-size: 11px; overflow-wrap: anywhere; }
-.command-result:not(:empty), .agent-settings > .error-text:not(:empty) { margin-top: 7px; }
-.radio-options { display: grid; gap: 10px; margin: 22px 0; }
-.radio-options label { display: flex; align-items: center; gap: 10px; margin: 0; min-height: 36px; }
-.radio-options input { width: 16px; height: 16px; accent-color: var(--accent); }
-.restart-notice { border-left: 2px solid var(--accent); padding: 8px 12px; background: var(--hover); }
-.shortcut-search { display: flex; gap: 8px; margin-top: 22px; }
-.shortcut-search button { flex-shrink: 0; }
-.shortcut-row { display: flex; align-items: center; justify-content: space-between; gap: 20px; padding: 18px 0; border-bottom: 1px solid var(--line); }
-.shortcut-row label { font-size: 13px; margin: 0 0 7px; }
-.shortcut-row small { font-size: 11px; }
-.shortcut-row input { width: 170px; flex-shrink: 0; text-align: center; }
-.shortcut-help { margin-top: 22px; }
-.settings-status { font-size: 12px; color: var(--muted); overflow-wrap: anywhere; }
-.settings-status:empty { display: none; }
-@media (max-width: 760px) { .settings-shell { padding: 20px; } .settings-columns { gap: 20px; } .settings-navigation { flex-basis: 90px; } .shortcut-row { gap: 10px; } .shortcut-row input { width: 130px; } }
 @media (max-width: 760px) { .setup { margin: 28px 20px; } }
 @media (prefers-reduced-motion: reduce) { *, *::before, *::after { transition: none !important; animation: none !important; } }
 
-.command-input[aria-invalid="true"] { border-color: var(--error, #b33e2d); }
-.settings-leave, .settings-conflict { color: var(--text); background: var(--canvas); border: 1px solid var(--line); border-radius: 12px; max-width: 460px; padding: 24px; }
-.settings-leave::backdrop, .settings-conflict::backdrop { background: var(--modal-backdrop, #0004); }
-.settings-leave h2, .settings-conflict h2 { margin-top: 0; }
-.settings-leave .dialog-actions, .settings-conflict .dialog-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 24px; }
-
-.shortcut-conflict input { border: 2px solid var(--conflict-color); background: color-mix(in srgb, var(--conflict-color) 10%, var(--surface)); }
-.shortcut-conflict-message { color: var(--conflict-color); margin: 6px 0 0; }
-.agent-panel[data-tiny='true'] { border-radius: 6px; background: color-mix(in srgb, var(--brand) 12%, var(--surface)); }
-.agent-panel[data-tiny='true'] .panel-header { height: 100%; min-height: 0; justify-content: center; padding: var(--compact-padding); border: 0; background: transparent; }
-.agent-panel[data-tiny='true'] .agent-title { flex: 0 1 auto; max-width: 100%; justify-content: center; color: inherit; }
-.agent-panel[data-tiny='true'] .agent-mark { width: var(--compact-mark-size); height: var(--compact-mark-size); font-size: var(--compact-mark-size); line-height: 1; }
-.agent-panel[data-tiny='true'] .session-title { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; max-height: 2.8em; white-space: pre-wrap; overflow-wrap: anywhere; text-align: center; }
-.agent-panel[data-compact-layout='stacked'] .agent-title { flex-direction: column; }
-.agent-panel[data-compact-layout='strip'] .session-title { display: block; white-space: pre; max-height: 1.4em; }
-.agent-panel[data-tiny='true'] .panel-actions { position: absolute; right: 7px; visibility: hidden; pointer-events: none; }
-.agent-panel[data-tiny='true'] .panel-menu { display: none; }
-/* Preserve the original terminal and input while the title occupies the compact panel. */
-.agent-panel[data-tiny='true'] .terminal-container { position: absolute; inset: 0; padding: 0; opacity: 0; pointer-events: none; }
-
-.panel-header { touch-action: none; }
-.panel-drag-image, .panel-preview-image { position: fixed; pointer-events: none; overflow: hidden; }
-.panel-drag-image { z-index: 31; opacity: .5; }
-/* Suppress paint only: the real terminal keeps its geometry, selection and input focus. */
-.panel-drag-hidden { opacity: 0; }
-.panel-swap-preview { position: fixed; inset: 0; z-index: 30; pointer-events: none; }
-.panel-drop-preview { position: fixed; z-index: 30; pointer-events: none; box-sizing: border-box; border: 2px dashed var(--brand); border-radius: 8px; background: color-mix(in srgb, var(--brand) 18%, transparent); }
 /* Hover hints follow the pointer's element, never take the pointer, and sit above every drag figure. */
 .hover-hint { position: fixed; z-index: 40; max-width: min(360px, calc(100vw - 16px)); padding: 4px 8px; border: 1px solid var(--line); border-radius: 6px; background: var(--surface); color: inherit; box-shadow: 0 4px 14px #0002; font-size: 11px; line-height: 1.4; overflow-wrap: anywhere; white-space: pre-line; pointer-events: none; }
-.panel-swap-preview .agent-panel,.panel-drag-image .agent-panel { transition: none; }
-.dragging, .dragging .panel-header { cursor: grabbing; }
-/* Placing a tray panel shows the resident layout even while a tray panel is open over it. */
-.canvas.placing > .panel-slot { visibility: visible !important; }
-
-.session-title { display: block; min-width: 0; overflow: hidden; white-space: pre; text-overflow: ellipsis; line-height: 1.4; max-height: 1.4em; }
-.agent-title { flex: 1; overflow: hidden; }
-.agent-title .agent-mark { flex-shrink: 0; }
-
-/* The locator owns its two 100ms halves; layout interpolation would add a second transition. */
-.locating-panel .panel-slot { transition: none; }
