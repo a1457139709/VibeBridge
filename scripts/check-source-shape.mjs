@@ -7,9 +7,11 @@ const workbench = join('app', 'main', 'workbench.ts');
 const failures = [];
 
 /** A call of a method on one of the instance's fields: `this.field.method(...)`. */
-const fieldCall = node => ts.isCallExpression(node) && ts.isPropertyAccessExpression(node.expression)
-  && ts.isPropertyAccessExpression(node.expression.expression)
-  && node.expression.expression.expression.kind === ts.SyntaxKind.ThisKeyword;
+const fieldCall = node =>
+  ts.isCallExpression(node) &&
+  ts.isPropertyAccessExpression(node.expression) &&
+  ts.isPropertyAccessExpression(node.expression.expression) &&
+  node.expression.expression.expression.kind === ts.SyntaxKind.ThisKeyword;
 
 /** A method whose body is one call on a field, as a return or a statement, forwards a call it adds nothing to. */
 function forwarders(source) {
@@ -17,7 +19,8 @@ function forwarders(source) {
   const visit = node => {
     if (ts.isMethodDeclaration(node) && node.body?.statements.length === 1) {
       const [statement] = node.body.statements;
-      const expression = ts.isReturnStatement(statement) || ts.isExpressionStatement(statement) ? statement.expression : undefined;
+      const expression =
+        ts.isReturnStatement(statement) || ts.isExpressionStatement(statement) ? statement.expression : undefined;
       let call = expression;
       while (call && ts.isAwaitExpression(call)) call = call.expression;
       if (call && fieldCall(call)) found.push({ node, target: call.expression.getText(source) });

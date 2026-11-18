@@ -7,7 +7,10 @@ import { focusTerminal, terminalHasFocus } from './terminals';
 // `selected` is always a resident panel. `maximized` is the one panel occupying the
 // layout area: a resident panel, or the open tray panel (its ephemeral maximize).
 // The panel receiving keyboard input is the maximized one, else the selected one.
-interface View { selected?: string; maximized?: string }
+interface View {
+  selected?: string;
+  maximized?: string;
+}
 interface Host {
   snapshot?: Snapshot;
   visible: boolean;
@@ -15,7 +18,11 @@ interface Host {
   showWorkbench(): void;
   report: ReportNotice;
 }
-interface Connection { projectId: string; canvas: HTMLElement; view: View }
+interface Connection {
+  projectId: string;
+  canvas: HTMLElement;
+  view: View;
+}
 interface Location {
   projectId: string;
   panelId?: string;
@@ -31,8 +38,10 @@ const inTray = (project: ProjectView | undefined, id?: string) => !!project?.tra
 const resident = (project: ProjectView | undefined, id?: string) => !!project?.panels.some(panel => panel.id === id);
 const inputTarget = (view: View) => view.maximized ?? view.selected;
 function validView(project: ProjectView | undefined, view?: View): View {
-  return { selected: resident(project, view?.selected) ? view?.selected : project?.panels[0]?.id,
-    maximized: resident(project, view?.maximized) || inTray(project, view?.maximized) ? view?.maximized : undefined };
+  return {
+    selected: resident(project, view?.selected) ? view?.selected : project?.panels[0]?.id,
+    maximized: resident(project, view?.maximized) || inTray(project, view?.maximized) ? view?.maximized : undefined,
+  };
 }
 const sameView = (a: View, b: View) => a.selected === b.selected && a.maximized === b.maximized;
 
@@ -57,36 +66,54 @@ function createLocation(initial: Host, changed: () => void) {
     const item = project(projectId);
     return item?.panels.find(panel => panel.id === panelId) ?? item?.tray.find(panel => panel.id === panelId);
   };
-  const runningId = (item?: PanelView) => item?.run?.state === 'running' ? item.run.id : undefined;
-  const focusKey = (projectId: string, panelId?: string) => JSON.stringify([projectId, panelId, runningId(panel(projectId, panelId))]);
-  const notify = () => { if (!disposed) changed(); };
+  const runningId = (item?: PanelView) => (item?.run?.state === 'running' ? item.run.id : undefined);
+  const focusKey = (projectId: string, panelId?: string) =>
+    JSON.stringify([projectId, panelId, runningId(panel(projectId, panelId))]);
+  const notify = () => {
+    if (!disposed) changed();
+  };
   function cancel() {
     current = undefined;
-    animation?.cancel(); animation = undefined;
+    animation?.cancel();
+    animation = undefined;
     if (frame !== undefined) cancelAnimationFrame(frame);
     frame = undefined;
     notify();
   }
   function targetExists(projectId: string, panelId?: string, runId?: string) {
-    return !!project(projectId) && (!panelId || !!panel(projectId, panelId))
-      && (!runId || runningId(panel(projectId, panelId)) === runId);
+    return (
+      !!project(projectId) &&
+      (!panelId || !!panel(projectId, panelId)) &&
+      (!runId || runningId(panel(projectId, panelId)) === runId)
+    );
   }
   function rejectTarget() {
-    cancel(); focusBlocked = true; focusedKey = undefined;
+    cancel();
+    focusBlocked = true;
+    focusedKey = undefined;
     // A fallback view keeps the workspace usable, but is not an input target
     // authorized by the cancelled request. Wait for an explicit new selection.
-    if (document.activeElement instanceof HTMLElement && connection?.canvas.contains(document.activeElement)) document.activeElement.blur();
+    if (document.activeElement instanceof HTMLElement && connection?.canvas.contains(document.activeElement))
+      document.activeElement.blur();
   }
   function select(projectId: string, next: View) {
     if (sameView(view(project(projectId)), next)) return;
-    views.set(projectId, next); notify();
+    views.set(projectId, next);
+    notify();
   }
   function schedule() {
     if (!disposed && !suspended && frame === undefined) frame = requestAnimationFrame(progress);
   }
   function connected() {
-    if (!host.visible || suspended || !connection || !connection.canvas.isConnected
-      || !connection.canvas.checkVisibility() || host.snapshot?.activeProjectId !== connection.projectId) return;
+    if (
+      !host.visible ||
+      suspended ||
+      !connection ||
+      !connection.canvas.isConnected ||
+      !connection.canvas.checkVisibility() ||
+      host.snapshot?.activeProjectId !== connection.projectId
+    )
+      return;
     if (!sameView(connection.view, view(project(connection.projectId)))) return;
     return connection;
   }
@@ -99,26 +126,44 @@ function createLocation(initial: Host, changed: () => void) {
       if (runId) return focusTerminal(runId);
       // The panel is displayed, but it has no input receiver. In particular a
       // keyboard command must not leave input going to the previous terminal.
-      if (document.activeElement instanceof HTMLElement && connection?.canvas.contains(document.activeElement)) document.activeElement.blur();
+      if (document.activeElement instanceof HTMLElement && connection?.canvas.contains(document.activeElement))
+        document.activeElement.blur();
       return true;
+    } finally {
+      focusing = false;
     }
-    finally { focusing = false; }
   }
   async function animate(element: HTMLElement, entering: boolean) {
     if (!element.animate) return false;
     let own: Animation | undefined;
     try {
-      const frames = [{ transform: 'scale(1)', opacity: 1 }, { transform: 'scale(.96)', opacity: .3 }];
-      own = element.animate(entering ? frames.reverse() : frames, { duration: 100, easing: 'ease-in-out', fill: 'both' });
+      const frames = [
+        { transform: 'scale(1)', opacity: 1 },
+        { transform: 'scale(.96)', opacity: 0.3 },
+      ];
+      own = element.animate(entering ? frames.reverse() : frames, {
+        duration: 100,
+        easing: 'ease-in-out',
+        fill: 'both',
+      });
       animation = own;
       await own.finished;
       return true;
-    } catch { return false; }
-    finally { own?.cancel(); if (animation === own) animation = undefined; }
+    } catch {
+      return false;
+    } finally {
+      own?.cancel();
+      if (animation === own) animation = undefined;
+    }
   }
   function complete(operation: Location) {
-    if (current !== operation || !operation.focusSettled || !operation.animationDone
-      || connected()?.projectId !== operation.projectId) return;
+    if (
+      current !== operation ||
+      !operation.focusSettled ||
+      !operation.animationDone ||
+      connected()?.projectId !== operation.projectId
+    )
+      return;
     if (operation.changingMaximized && !operation.animated) {
       const target = panel(operation.projectId, operation.panelId);
       if (target) {
@@ -126,23 +171,37 @@ function createLocation(initial: Host, changed: () => void) {
         host.report(t('locatedPanel', { title: target.run?.title ?? t('untitled') }), 'success');
       }
     }
-    current = undefined; notify();
+    current = undefined;
+    notify();
   }
   function progress() {
     frame = undefined;
     const actual = connected();
     if (focusBlocked || !actual || actual.projectId !== focusProject) return;
     const operation = current;
-    if (operation && (operation.projectId !== actual.projectId || operation.stage === 'outgoing' || operation.stage === 'activating')) return;
+    if (
+      operation &&
+      (operation.projectId !== actual.projectId || operation.stage === 'outgoing' || operation.stage === 'activating')
+    )
+      return;
     const active = document.activeElement;
     // Snapshot changes may update the displayed selection while a control or
     // list owns the keyboard. Only an explicit location may take that focus.
-    if (!operation && focusedKey !== undefined && active !== document.body && active !== document.documentElement && !terminalHasFocus()) return;
+    if (
+      !operation &&
+      focusedKey !== undefined &&
+      active !== document.body &&
+      active !== document.documentElement &&
+      !terminalHasFocus()
+    )
+      return;
     const target = inputTarget(actual.view);
     const key = focusKey(actual.projectId, target);
     if (focusedKey !== key || (operation && !operation.focusSettled)) {
-      if (focus(actual.projectId, target)) { focusedKey = key; if (operation) operation.focusSettled = true; }
-      else schedule();
+      if (focus(actual.projectId, target)) {
+        focusedKey = key;
+        if (operation) operation.focusSettled = true;
+      } else schedule();
     }
     if (!operation) return;
     if (operation.stage === 'presenting') {
@@ -150,7 +209,9 @@ function createLocation(initial: Host, changed: () => void) {
       if (operation.animated) {
         void animate(actual.canvas, true).then(animated => {
           if (current !== operation) return;
-          operation.animated = animated; operation.animationDone = true; complete(operation);
+          operation.animated = animated;
+          operation.animationDone = true;
+          complete(operation);
         });
       } else operation.animationDone = true;
     }
@@ -159,24 +220,43 @@ function createLocation(initial: Host, changed: () => void) {
   async function open(projectId: string, panelId?: string, runId?: string) {
     if (disposed) return;
     const target = project(projectId);
-    if (!target || !targetExists(projectId, panelId, runId)) { rejectTarget(); return; }
+    if (!target || !targetExists(projectId, panelId, runId)) {
+      rejectTarget();
+      return;
+    }
     const sourceProject = project(host.snapshot?.activeProjectId);
     const sourceView = view(sourceProject);
-    const changingMaximized = !!panelId && !!sourceView.maximized
-      && (host.snapshot?.activeProjectId !== projectId || sourceView.maximized !== panelId);
+    const changingMaximized =
+      !!panelId &&
+      !!sourceView.maximized &&
+      (host.snapshot?.activeProjectId !== projectId || sourceView.maximized !== panelId);
     cancel();
-    focusProject = projectId; focusedKey = undefined; focusBlocked = false;
-    const operation: Location = { projectId, panelId: panelId ?? inputTarget(view(target)), runId, stage: 'outgoing', changingMaximized,
+    focusProject = projectId;
+    focusedKey = undefined;
+    focusBlocked = false;
+    const operation: Location = {
+      projectId,
+      panelId: panelId ?? inputTarget(view(target)),
+      runId,
+      stage: 'outgoing',
+      changingMaximized,
       animated: changingMaximized && !matchMedia('(prefers-reduced-motion: reduce)').matches,
-      animationDone: false, focusSettled: false };
-    current = operation; notify();
+      animationDone: false,
+      focusSettled: false,
+    };
+    current = operation;
+    notify();
     try {
       const source = connected();
       if (operation.animated) operation.animated = source ? await animate(source.canvas, false) : false;
       if (current !== operation) return;
       if (panelId && inTray(target, panelId)) select(projectId, { ...view(target), maximized: panelId });
       // A maximized resident panel hands its maximize to the located one; an open tray panel collapses.
-      else if (panelId) select(projectId, { selected: panelId, maximized: resident(sourceProject, sourceView.maximized) ? panelId : undefined });
+      else if (panelId)
+        select(projectId, {
+          selected: panelId,
+          maximized: resident(sourceProject, sourceView.maximized) ? panelId : undefined,
+        });
       suspended = false;
       host.showWorkbench();
       operation.stage = 'activating';
@@ -184,20 +264,33 @@ function createLocation(initial: Host, changed: () => void) {
       // only the still-current operation may schedule focus or report success.
       await host.activateProject(projectId);
       if (current !== operation) return;
-      operation.stage = 'presenting'; schedule();
+      operation.stage = 'presenting';
+      schedule();
     } catch (error) {
-      if (current === operation) { cancel(); host.report((error as Error).message); }
+      if (current === operation) {
+        cancel();
+        host.report((error as Error).message);
+      }
     }
   }
   function interact(projectId: string, panelId: string, intent: 'select' | 'focus' | 'maximize' = 'select') {
     const target = project(projectId);
     const ephemeral = inTray(target, panelId);
-    if (disposed || suspended || !host.visible || host.snapshot?.activeProjectId !== projectId
-      || !(resident(target, panelId) || ephemeral)) return;
-    cancel(); focusProject = projectId; focusBlocked = false;
+    if (
+      disposed ||
+      suspended ||
+      !host.visible ||
+      host.snapshot?.activeProjectId !== projectId ||
+      !(resident(target, panelId) || ephemeral)
+    )
+      return;
+    cancel();
+    focusProject = projectId;
+    focusBlocked = false;
     const previous = view(target);
     if (intent !== 'select' || inputTarget(previous) !== panelId) focusedKey = undefined;
-    const maximized = intent === 'maximize' ? previous.maximized === panelId ? undefined : panelId : previous.maximized;
+    const maximized =
+      intent === 'maximize' ? (previous.maximized === panelId ? undefined : panelId) : previous.maximized;
     select(projectId, { selected: ephemeral ? previous.selected : panelId, maximized });
     // Header/maximize actions historically accept input immediately when their
     // terminal is already visible. Only an unmounted/hidden target needs a frame.
@@ -210,29 +303,59 @@ function createLocation(initial: Host, changed: () => void) {
   }
   return {
     view,
-    get locating() { return !!current; },
-    openProject: (id: string) => { void open(id); },
-    locatePanel: (projectId: string, panelId: string, runId?: string) => { void open(projectId, panelId, runId); },
-    leaveWorkbench(changePage: () => void) { cancel(); suspended = true; focusedKey = undefined; changePage(); },
+    get locating() {
+      return !!current;
+    },
+    openProject: (id: string) => {
+      void open(id);
+    },
+    locatePanel: (projectId: string, panelId: string, runId?: string) => {
+      void open(projectId, panelId, runId);
+    },
+    leaveWorkbench(changePage: () => void) {
+      cancel();
+      suspended = true;
+      focusedKey = undefined;
+      changePage();
+    },
     update(next: Host) {
       const wasVisible = host.visible;
       host = next;
-      if (!host.visible && wasVisible) { cancel(); suspended = true; focusedKey = undefined; }
-      if (host.visible && !wasVisible) { suspended = false; if (!current) focusProject = host.snapshot?.activeProjectId; }
+      if (!host.visible && wasVisible) {
+        cancel();
+        suspended = true;
+        focusedKey = undefined;
+      }
+      if (host.visible && !wasVisible) {
+        suspended = false;
+        if (!current) focusProject = host.snapshot?.activeProjectId;
+      }
       if (current && !targetExists(current.projectId, current.panelId, current.runId)) rejectTarget();
       for (const [id, saved] of views) {
         const item = project(id);
-        if (!item) { views.delete(id); notify(); }
-        else { const nextView = validView(item, saved); if (!sameView(saved, nextView)) { views.set(id, nextView); notify(); } }
+        if (!item) {
+          views.delete(id);
+          notify();
+        } else {
+          const nextView = validView(item, saved);
+          if (!sameView(saved, nextView)) {
+            views.set(id, nextView);
+            notify();
+          }
+        }
       }
       if (!project(focusProject)) focusProject = host.snapshot?.activeProjectId;
       schedule();
     },
-    connect(next: Connection) { connection = next; schedule(); },
+    connect(next: Connection) {
+      connection = next;
+      schedule();
+    },
     disconnect(canvas: HTMLElement) {
       if (connection?.canvas !== canvas) return;
       if (animation?.effect instanceof KeyframeEffect && animation.effect.target === canvas) animation.cancel();
-      connection = undefined; focusedKey = undefined;
+      connection = undefined;
+      focusedKey = undefined;
       if (frame !== undefined) cancelAnimationFrame(frame);
       frame = undefined;
     },
@@ -241,7 +364,9 @@ function createLocation(initial: Host, changed: () => void) {
     focusChanged(projectId: string, panelId: string) {
       if (!focusing && interact(projectId, panelId)) focusedKey = focusKey(projectId, panelId);
     },
-    toggleMaximize(projectId: string, panelId: string) { interact(projectId, panelId, 'maximize'); },
+    toggleMaximize(projectId: string, panelId: string) {
+      interact(projectId, panelId, 'maximize');
+    },
     /** Collapses the open tray panel, if any, back into the tray. */
     collapse(projectId: string) {
       const current = view(project(projectId));
@@ -251,11 +376,22 @@ function createLocation(initial: Host, changed: () => void) {
      * may not be in the snapshot yet, so the view is set without validation. */
     panelAdded(projectId: string, panelId: string) {
       if (disposed || suspended || host.snapshot?.activeProjectId !== projectId) return;
-      cancel(); focusProject = projectId; focusBlocked = false; focusedKey = undefined;
-      views.set(projectId, { selected: view(project(projectId)).selected, maximized: panelId }); notify(); schedule();
+      cancel();
+      focusProject = projectId;
+      focusBlocked = false;
+      focusedKey = undefined;
+      views.set(projectId, { selected: view(project(projectId)).selected, maximized: panelId });
+      notify();
+      schedule();
     },
-    mount() { disposed = false; },
-    dispose() { disposed = true; cancel(); connection = undefined; },
+    mount() {
+      disposed = false;
+    },
+    dispose() {
+      disposed = true;
+      cancel();
+      connection = undefined;
+    },
   };
 }
 
@@ -264,8 +400,13 @@ const workspaceConnection = Symbol('workspaceConnection');
 export function usePanelLocation(host: Host) {
   const [, render] = useState(0);
   const [location] = useState(() => createLocation(host, () => render(value => value + 1)));
-  useLayoutEffect(() => { location.mount(); return () => location.dispose(); }, [location]);
-  useLayoutEffect(() => { location.update(host); });
+  useLayoutEffect(() => {
+    location.mount();
+    return () => location.dispose();
+  }, [location]);
+  useLayoutEffect(() => {
+    location.update(host);
+  });
   return {
     view: (projectId: string) => location.view(host.snapshot?.projects.find(project => project.id === projectId)),
     locating: location.locating,
@@ -278,7 +419,12 @@ export function usePanelLocation(host: Host) {
 }
 export type PanelLocation = ReturnType<typeof usePanelLocation>;
 
-export function useWorkspacePanelLocation(location: PanelLocation, project: ProjectView, canvas: RefObject<HTMLElement | null>, order: string[]) {
+export function useWorkspacePanelLocation(
+  location: PanelLocation,
+  project: ProjectView,
+  canvas: RefObject<HTMLElement | null>,
+  order: string[],
+) {
   const view = location.view(project.id);
   const connection = location[workspaceConnection];
   const element = useRef<HTMLElement | null>(null);
@@ -286,7 +432,12 @@ export function useWorkspacePanelLocation(location: PanelLocation, project: Proj
     element.current = canvas.current;
     if (element.current) connection.connect({ projectId: project.id, canvas: element.current, view });
   });
-  useLayoutEffect(() => () => { if (element.current) connection.disconnect(element.current); }, [connection]);
+  useLayoutEffect(
+    () => () => {
+      if (element.current) connection.disconnect(element.current);
+    },
+    [connection],
+  );
   return {
     ...view,
     select: (panelId: string) => connection.select(project.id, panelId),
@@ -294,10 +445,14 @@ export function useWorkspacePanelLocation(location: PanelLocation, project: Proj
     focusChanged: (panelId: string) => connection.focusChanged(project.id, panelId),
     toggleMaximize: (panelId: string) => connection.toggleMaximize(project.id, panelId),
     /** Opens a tray panel as the ephemeral maximize; an open tray panel returns to the tray. */
-    openTrayPanel: (panelId: string) => { if (view.maximized !== panelId) connection.toggleMaximize(project.id, panelId); },
+    openTrayPanel: (panelId: string) => {
+      if (view.maximized !== panelId) connection.toggleMaximize(project.id, panelId);
+    },
     collapse: () => connection.collapse(project.id),
     /** Reopens a tray panel collapsed for a request that failed, unless a panel has since taken the layout area. */
-    reopen: (panelId: string) => { if (!location.view(project.id).maximized) connection.toggleMaximize(project.id, panelId); },
+    reopen: (panelId: string) => {
+      if (!location.view(project.id).maximized) connection.toggleMaximize(project.id, panelId);
+    },
     panelAdded: (panelId: string) => connection.panelAdded(project.id, panelId),
     move(offset: -1 | 1) {
       if (!view.selected || !order.length) return;

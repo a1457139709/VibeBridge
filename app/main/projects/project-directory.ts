@@ -8,6 +8,14 @@ export async function inspectDirectory(path: string, projects: Project[]): Promi
     const directory = await realpath(path);
     if (!(await stat(directory)).isDirectory()) return { valid: false };
     const existing = projects.find(project => project.directory === directory);
-    return { valid: true, directory, name: basename(directory), existingProjectId: existing?.id, existingProjectName: existing?.name };
-  } catch { return { valid: false }; }
+    return {
+      valid: true,
+      directory,
+      name: basename(directory),
+      existingProjectId: existing?.id,
+      existingProjectName: existing?.name,
+    };
+  } catch {
+    return { valid: false };
+  }
 }

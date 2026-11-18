@@ -8,11 +8,18 @@ import { HoverHints } from '../../app/renderer/common/HoverHints';
 afterEach(cleanup);
 
 function renderHinted() {
-  render(<>
-    <button data-hint="Claude Code · Review the parser">Card<span role="img" aria-label="Busy" data-hint="Busy">◌</span></button>
-    <button>Plain</button>
-    <HoverHints />
-  </>);
+  render(
+    <>
+      <button data-hint="Claude Code · Review the parser">
+        Card
+        <span role="img" aria-label="Busy" data-hint="Busy">
+          ◌
+        </span>
+      </button>
+      <button>Plain</button>
+      <HoverHints />
+    </>,
+  );
   return userEvent.setup();
 }
 
@@ -28,10 +35,15 @@ test('hovering an element with a hint shows the hint, and leaving it hides the h
 test('a hint inside a hinted element replaces the outer hint while the pointer is over it', async () => {
   const user = renderHinted();
   await user.hover(screen.getByRole('img', { name: 'Busy' }));
-  await waitFor(() => assert.deepEqual(screen.getAllByRole('tooltip').map(hint => hint.textContent), ['Busy']));
+  await waitFor(() =>
+    assert.deepEqual(
+      screen.getAllByRole('tooltip').map(hint => hint.textContent),
+      ['Busy'],
+    ),
+  );
 });
 
-test('keyboard focus shows the focused element\'s hint, and pressing the element hides it', async () => {
+test("keyboard focus shows the focused element's hint, and pressing the element hides it", async () => {
   const user = renderHinted();
   await user.tab();
   assert.equal((await screen.findByRole('tooltip')).textContent, 'Claude Code · Review the parser');
@@ -43,13 +55,15 @@ test('keyboard focus shows the focused element\'s hint, and pressing the element
   await waitFor(() => assert.equal(screen.queryByRole('tooltip'), null));
 });
 
-test('the keyboard-focused element\'s hint returns after the pointer passes over another hinted element', async () => {
-  render(<>
-    <button data-hint="Focused hint">Focused</button>
-    <button data-hint="Passing hint">Passing</button>
-    <span>Elsewhere</span>
-    <HoverHints />
-  </>);
+test("the keyboard-focused element's hint returns after the pointer passes over another hinted element", async () => {
+  render(
+    <>
+      <button data-hint="Focused hint">Focused</button>
+      <button data-hint="Passing hint">Passing</button>
+      <span>Elsewhere</span>
+      <HoverHints />
+    </>,
+  );
   const user = userEvent.setup();
   await user.tab();
   assert.equal((await screen.findByRole('tooltip')).textContent, 'Focused hint');

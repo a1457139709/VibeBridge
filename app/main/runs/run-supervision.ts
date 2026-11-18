@@ -1,15 +1,35 @@
 import { randomUUID } from 'node:crypto';
 import { message, detail } from '../../shared/messages';
-import { liveRun, type AgentCommand, type AgentType, type LaunchResult, type Panel, type PanelView, type Project, type Run, type TerminalEvent, type WorkbenchEvent } from '../../shared/model';
+import {
+  liveRun,
+  type AgentCommand,
+  type AgentType,
+  type LaunchResult,
+  type Panel,
+  type PanelView,
+  type Project,
+  type Run,
+  type TerminalEvent,
+  type WorkbenchEvent,
+} from '../../shared/model';
 import { ProcessingStatus, type HandOver } from './processing-status';
 import { sessionTitle } from './session-title';
 import { TerminalClient } from './terminal-client';
 
-export type Terminal = Pick<TerminalClient, 'start' | 'checkCommand' | 'input' | 'resize' | 'stop' | 'acknowledgeOutput' | 'shutdown'>;
-export type TerminalFactory = (onEvent: (event: TerminalEvent) => void, onFailure: (message: string, stopped?: boolean) => void) => Terminal;
+export type Terminal = Pick<
+  TerminalClient,
+  'start' | 'checkCommand' | 'input' | 'resize' | 'stop' | 'acknowledgeOutput' | 'shutdown'
+>;
+export type TerminalFactory = (
+  onEvent: (event: TerminalEvent) => void,
+  onFailure: (message: string, stopped?: boolean) => void,
+) => Terminal;
 
 /** Where a panel is: its project and its own ID. */
-export interface PanelLocation { projectId: string; panelId: string }
+export interface PanelLocation {
+  projectId: string;
+  panelId: string;
+}
 
 export interface SupervisionCallbacks {
   /** A run, its session title, its processing state or the run list changed. */
@@ -38,17 +58,27 @@ export class RunSupervision {
   private expectedRuns = new Map<string, { runId: string; agent: AgentType }>();
   private controlledStops = new Set<string>();
   private terminalFailure?: string;
-  constructor(directory: string, private callbacks: SupervisionCallbacks,
-    terminal: TerminalFactory = (onEvent, onFailure) => new TerminalClient(directory, onEvent, onFailure)) {
+  constructor(
+    directory: string,
+    private callbacks: SupervisionCallbacks,
+    terminal: TerminalFactory = (onEvent, onFailure) => new TerminalClient(directory, onEvent, onFailure),
+  ) {
     this.processing = new ProcessingStatus(() => callbacks.changed(), directory);
-    this.terminal = terminal(event => this.terminalEvent(event), (message, stopped) => {
-      if (stopped) {
-        this.terminalFailure = message;
-        for (const run of this.list) if (liveRun(run)) { run.state = 'stopped'; this.processing.forget(run.id); }
-        callbacks.changed();
-      }
-      callbacks.report(message);
-    });
+    this.terminal = terminal(
+      event => this.terminalEvent(event),
+      (message, stopped) => {
+        if (stopped) {
+          this.terminalFailure = message;
+          for (const run of this.list)
+            if (liveRun(run)) {
+              run.state = 'stopped';
+              this.processing.forget(run.id);
+            }
+          callbacks.changed();
+        }
+        callbacks.report(message);
+      },
+    );
   }
   /** The panel with its current run, of any state, and the processing state that run displays. */
   panelView(panel: Panel): PanelView {
@@ -78,9 +108,13 @@ export class RunSupervision {
     return !!run && this.current(run) && this.processing.onFirstReadyReport(runId, ready);
   }
   /** A live run its panel still expects. */
-  private current(run: Run) { return liveRun(run) && this.expects(run); }
+  private current(run: Run) {
+    return liveRun(run) && this.expects(run);
+  }
   /** Whether this run is still the one its panel expects. */
-  expects(run: Run) { return this.expectedRuns.get(run.panelId)?.runId === run.id; }
+  expects(run: Run) {
+    return this.expectedRuns.get(run.panelId)?.runId === run.id;
+  }
   private terminalEvent(event: TerminalEvent) {
     if (event.kind === 'started') {
       if (!this.expects(event.run)) return;
@@ -90,12 +124,16 @@ export class RunSupervision {
     } else {
       const run = this.list.find(run => run.id === event.runId);
       if (!run || run.state !== 'running' || !this.expects(run)) return;
-      if (event.kind === 'stopping') { this.processing.stopping(run.id); return; }
+      if (event.kind === 'stopping') {
+        this.processing.stopping(run.id);
+        return;
+      }
       if (event.kind === 'title') {
         // Agents animate a spinner in the terminal title while busy; only a new session title is a change.
         const title = sessionTitle(this.expectedRuns.get(run.panelId)!.agent, event.title);
         if (title === run.title) return;
-        if (title) run.title = title; else delete run.title;
+        if (title) run.title = title;
+        else delete run.title;
         this.callbacks.changed();
         return;
       }
@@ -115,16 +153,32 @@ export class RunSupervision {
     this.expectedRuns.set(panel.id, { runId: id, agent: panel.agent });
     try {
       const launch = await this.processing.prepare(id, panel.agent, command, project.directory);
-      const run = await this.terminal.start({ id, panelId: panel.id, projectId: project.id, directory: project.directory, ...launch });
+      const run = await this.terminal.start({
+        id,
+        panelId: panel.id,
+        projectId: project.id,
+        directory: project.directory,
+        ...launch,
+      });
       return { outcome: run.state === 'failed' ? 'failed' : 'started', run, agent: panel.agent };
     } catch (error) {
       // A missing response is not proof that the process never started. Preserve any
       // observed run and keep accepting its later events instead of retrying implicitly.
       // A failed terminal host has already stopped everything it ran and reports nothing more.
       const observed = this.list.find(run => run.id === id);
-      const run = observed ?? { id, panelId: panel.id, projectId: project.id, state: this.terminalFailure ? 'stopped' as const : 'starting' as const };
+      const run = observed ?? {
+        id,
+        panelId: panel.id,
+        projectId: project.id,
+        state: this.terminalFailure ? ('stopped' as const) : ('starting' as const),
+      };
       if (!observed) this.terminalEvent({ kind: 'started', run });
-      return { outcome: 'unconfirmed', run: structuredClone(run), agent: panel.agent, reason: message('launchUnconfirmed', { reason: detail((error as Error).message) }) };
+      return {
+        outcome: 'unconfirmed',
+        run: structuredClone(run),
+        agent: panel.agent,
+        reason: message('launchUnconfirmed', { reason: detail((error as Error).message) }),
+      };
     }
   }
   /** Stops the runs of these panels; returns one reason per run that could not be stopped,
@@ -136,8 +190,13 @@ export class RunSupervision {
     for (const run of this.list.filter(run => ids.includes(run.panelId) && liveRun(run))) {
       // Mark before requesting cleanup: its exit event can arrive before the response.
       this.controlledStops.add(run.id);
-      try { await this.terminal.stop(run.id); }
-      catch (error) { failures.push(message('panelFailure', { number: ids.indexOf(run.panelId) + 1, reason: detail((error as Error).message) })); }
+      try {
+        await this.terminal.stop(run.id);
+      } catch (error) {
+        failures.push(
+          message('panelFailure', { number: ids.indexOf(run.panelId) + 1, reason: detail((error as Error).message) }),
+        );
+      }
     }
     return failures;
   }
@@ -147,8 +206,12 @@ export class RunSupervision {
     const run = this.list.find(r => r.panelId === panelId && liveRun(r));
     if (!run) return;
     this.controlledStops.add(run.id);
-    try { await this.terminal.stop(run.id); }
-    catch (error) { this.controlledStops.delete(run.id); throw error; }
+    try {
+      await this.terminal.stop(run.id);
+    } catch (error) {
+      this.controlledStops.delete(run.id);
+      throw error;
+    }
   }
   /** Forgets runs of panels that no longer exist; their late events are ignored. */
   release(panelIds: string[]) {
@@ -156,15 +219,31 @@ export class RunSupervision {
     for (const run of this.list) if (panelIds.includes(run.panelId)) this.processing.forget(run.id);
     this.list = this.list.filter(r => !panelIds.includes(r.panelId));
   }
-  input(runId: string, data: string) { return this.terminal.input(runId, data); }
-  resize(runId: string, cols: number, rows: number) { return this.terminal.resize(runId, cols, rows); }
-  acknowledgeOutput(runId: string, characters: number) { this.terminal.acknowledgeOutput(runId, characters); }
-  checkCommand(command: string) { return this.terminal.checkCommand(command); }
+  input(runId: string, data: string) {
+    return this.terminal.input(runId, data);
+  }
+  resize(runId: string, cols: number, rows: number) {
+    return this.terminal.resize(runId, cols, rows);
+  }
+  acknowledgeOutput(runId: string, characters: number) {
+    this.terminal.acknowledgeOutput(runId, characters);
+  }
+  checkCommand(command: string) {
+    return this.terminal.checkCommand(command);
+  }
   /** Ends all runs, then observation; reports the first failure after attempting both. */
   async shutdown() {
     let error: unknown;
-    try { await this.terminal.shutdown(); } catch (failure) { error = failure; }
-    try { await this.processing.close(); } catch (failure) { error ??= failure; }
+    try {
+      await this.terminal.shutdown();
+    } catch (failure) {
+      error = failure;
+    }
+    try {
+      await this.processing.close();
+    } catch (failure) {
+      error ??= failure;
+    }
     if (error) throw error;
   }
 }

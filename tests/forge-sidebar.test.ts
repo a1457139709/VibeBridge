@@ -11,11 +11,17 @@ test('the forge sidebar starts closed, and its open state and width are shared b
     assert.deepEqual(workbench.snapshot().forgeSidebar, { visible: false, width: 380 });
     await workbench.saveSidebar('forgeSidebar', { visible: true, width: 420 });
     assert.deepEqual(workbench.snapshot().forgeSidebar, { visible: true, width: 420 });
-    assert.deepEqual(workbench.snapshot().navigation, { visible: true, width: 212 }, 'project navigation keeps its own preferences');
+    assert.deepEqual(
+      workbench.snapshot().navigation,
+      { visible: true, width: 212 },
+      'project navigation keeps its own preferences',
+    );
     await workbench.quit();
     workbench = await Workbench.open(directory);
     assert.deepEqual(workbench.snapshot().forgeSidebar, { visible: true, width: 420 });
-  } finally { await workbench.quit(); }
+  } finally {
+    await workbench.quit();
+  }
 });
 
 test('the forge sidebar width stays within 300–560px and an invalid request keeps the saved preferences', async context => {
@@ -28,7 +34,9 @@ test('the forge sidebar width stays within 300–560px and an invalid request ke
     assert.deepEqual(workbench.snapshot().forgeSidebar, { visible: false, width: 300 });
     await assert.rejects(workbench.saveSidebar('forgeSidebar', { visible: true, width: NaN }), /forgeSidebarInvalid/);
     assert.deepEqual(workbench.snapshot().forgeSidebar, { visible: false, width: 300 });
-  } finally { await workbench.quit(); }
+  } finally {
+    await workbench.quit();
+  }
 });
 
 test('unreadable stored forge sidebar preferences fail opening and leave the file untouched', async context => {
@@ -41,6 +49,9 @@ test('unreadable stored forge sidebar preferences fail opening and leave the fil
   db.close();
   await assert.rejects(Workbench.open(directory), /forge_sidebar/);
   const reread = new DatabaseSync(`${directory}/projects.sqlite`);
-  assert.equal((reread.prepare('SELECT preferences FROM forge_sidebar').get() as { preferences: string }).preferences, '{"visible":"yes","width":400}');
+  assert.equal(
+    (reread.prepare('SELECT preferences FROM forge_sidebar').get() as { preferences: string }).preferences,
+    '{"visible":"yes","width":400}',
+  );
   reread.close();
 });

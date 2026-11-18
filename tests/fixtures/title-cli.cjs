@@ -6,17 +6,24 @@ if (process.argv[2] === '--initial-title') process.stdout.write(`\x1b]2;${proces
 let input = '';
 let commands = Promise.resolve();
 process.stdin.on('data', data => {
-  if (!input && !data.toString().startsWith('{')) { process.stdout.write(`INPUT:${data}\r\nBYTES:${Buffer.from(data).toString('hex')}\r\n`); return; }
+  if (!input && !data.toString().startsWith('{')) {
+    process.stdout.write(`INPUT:${data}\r\nBYTES:${Buffer.from(data).toString('hex')}\r\n`);
+    return;
+  }
   input += data;
   let newline;
   while ((newline = input.indexOf('\n')) !== -1) {
-    const line = input.slice(0, newline); input = input.slice(newline + 1);
+    const line = input.slice(0, newline);
+    input = input.slice(newline + 1);
     commands = commands.then(async () => {
       const command = JSON.parse(line);
       if (command.host) process.stdout.write(`HOST:${process.ppid}\r\n`);
       if (command.onTerminate) {
         process.on('SIGHUP', () => {});
-        process.on('SIGTERM', () => { process.stdout.write(`\x1b]2;${command.onTerminate}\x07`); setTimeout(() => process.exit(0), 80); });
+        process.on('SIGTERM', () => {
+          process.stdout.write(`\x1b]2;${command.onTerminate}\x07`);
+          setTimeout(() => process.exit(0), 80);
+        });
       }
       for (const chunk of command.chunks ?? []) {
         process.stdout.write(chunk);

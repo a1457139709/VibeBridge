@@ -1,10 +1,33 @@
 import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { join, resolve } from 'node:path';
-import { reporterCommand, type Launch, type Outcome, type Payload, type PreparedLaunch, type StatusAdapter, type StatusInterpreter, type Transition } from '../adapter';
+import {
+  reporterCommand,
+  type Launch,
+  type Outcome,
+  type Payload,
+  type PreparedLaunch,
+  type StatusAdapter,
+  type StatusInterpreter,
+  type Transition,
+} from '../adapter';
 
-const events = ['SessionStart', 'SessionEnd', 'UserPromptSubmit', 'PreToolUse', 'PostToolUse',
-  'PostToolUseFailure', 'PermissionRequest', 'PreCompact', 'PostCompact', 'SubagentStart', 'SubagentStop',
-  'Stop', 'StopFailure', 'Elicitation', 'ElicitationResult'];
+const events = [
+  'SessionStart',
+  'SessionEnd',
+  'UserPromptSubmit',
+  'PreToolUse',
+  'PostToolUse',
+  'PostToolUseFailure',
+  'PermissionRequest',
+  'PreCompact',
+  'PostCompact',
+  'SubagentStart',
+  'SubagentStop',
+  'Stop',
+  'StopFailure',
+  'Elicitation',
+  'ElicitationResult',
+];
 
 /** Augment only the effective invocation settings. Lower layers, trust and policy
  * remain Claude's responsibility. Never rewrite a user's settings file.
@@ -21,8 +44,11 @@ async function prepare({ command, directory, resourceDirectory }: Launch): Promi
     } else if (args[index].startsWith('--settings=')) value = args[index].slice(11);
   }
   if (value !== undefined) {
-    settings = JSON.parse(value.trimStart().startsWith('{') ? value : await readFile(resolve(directory, value), 'utf8'));
-    if (!settings || typeof settings !== 'object' || Array.isArray(settings)) throw new Error('Invalid Claude settings');
+    settings = JSON.parse(
+      value.trimStart().startsWith('{') ? value : await readFile(resolve(directory, value), 'utf8'),
+    );
+    if (!settings || typeof settings !== 'object' || Array.isArray(settings))
+      throw new Error('Invalid Claude settings');
   }
   const existing = settings.hooks ?? {};
   if (typeof existing !== 'object' || Array.isArray(existing)) throw new Error('Invalid Claude hooks');
@@ -44,10 +70,18 @@ async function prepare({ command, directory, resourceDirectory }: Launch): Promi
       const file = join(temporary, 'settings.json');
       await writeFile(file, merged, { mode: 0o600, flag: 'wx' });
       merged = file;
-    } catch (error) { await cleanup(); throw error; }
+    } catch (error) {
+      await cleanup();
+      throw error;
+    }
   }
-  return { command: { ...command, args: [...args, '--settings', merged,
-    ...(boundary < 0 ? [] : command.args.slice(boundary))] }, cleanup };
+  return {
+    command: {
+      ...command,
+      args: [...args, '--settings', merged, ...(boundary < 0 ? [] : command.args.slice(boundary))],
+    },
+    cleanup,
+  };
 }
 
 class ClaudeInterpreter implements StatusInterpreter {
@@ -64,18 +98,28 @@ class ClaudeInterpreter implements StatusInterpreter {
   private elicitations = new Set<string>();
 
   accept(event: Payload): Outcome {
-    if (event.agent_id || event.hook_event_name === 'SubagentStart' || event.hook_event_name === 'SubagentStop') return 'discard';
+    if (event.agent_id || event.hook_event_name === 'SubagentStart' || event.hook_event_name === 'SubagentStop')
+      return 'discard';
     const session = event.session_id;
     if (typeof session !== 'string' || !session) return 'error';
     const known = this.identify(event, session);
     return known ? this.classify(known) : 'discard';
   }
 
-  discardEvidence() { this.clearWaits(); this.activeTools.clear(); }
+  discardEvidence() {
+    this.clearWaits();
+    this.activeTools.clear();
+  }
 
-  session() { return this.currentSession; }
+  session() {
+    return this.currentSession;
+  }
 
-  private clearWaits() { this.questions.clear(); this.permissions.clear(); this.elicitations.clear(); }
+  private clearWaits() {
+    this.questions.clear();
+    this.permissions.clear();
+    this.elicitations.clear();
+  }
 
   /** Native identity checks run after capability authentication. Independent hook
    * processes share no order, so only recognizable stale facts drop.
@@ -94,7 +138,8 @@ class ClaudeInterpreter implements StatusInterpreter {
         this.completedTools.clear();
         this.activeTools.clear();
       }
-      if (event.source !== 'compact') this.sessionStartPromptId = typeof event.prompt_id === 'string' ? event.prompt_id : undefined;
+      if (event.source !== 'compact')
+        this.sessionStartPromptId = typeof event.prompt_id === 'string' ? event.prompt_id : undefined;
       return event;
     }
     if (this.retired.has(session) || (this.currentSession && this.currentSession !== session)) return;
@@ -123,10 +168,18 @@ class ClaudeInterpreter implements StatusInterpreter {
       if (this.seen.has(key)) return;
       this.seen.add(key);
     }
-    if ((name === 'Elicitation' || name === 'ElicitationResult') && typeof event.elicitation_id === 'string' && event.elicitation_id) {
+    if (
+      (name === 'Elicitation' || name === 'ElicitationResult') &&
+      typeof event.elicitation_id === 'string' &&
+      event.elicitation_id
+    ) {
       const identity = [session, event.mcp_server_name, event.elicitation_id];
       const key = JSON.stringify([name, ...identity]);
-      if (this.seen.has(key) || (name === 'Elicitation' && this.seen.has(JSON.stringify(['ElicitationResult', ...identity])))) return;
+      if (
+        this.seen.has(key) ||
+        (name === 'Elicitation' && this.seen.has(JSON.stringify(['ElicitationResult', ...identity])))
+      )
+        return;
       this.seen.add(key);
     }
     if (typeof event.tool_use_id === 'string' && event.tool_use_id) {
@@ -142,8 +195,10 @@ class ClaudeInterpreter implements StatusInterpreter {
     }
     if (name === 'UserPromptSubmit' || name === 'Stop' || name === 'StopFailure') this.activeTools.clear();
     if (name === 'PermissionRequest' && !event.tool_use_id) {
-      const candidates = typeof event.tool_input_hash === 'string'
-        ? [...this.activeTools].filter(([, hash]) => hash === event.tool_input_hash) : [];
+      const candidates =
+        typeof event.tool_input_hash === 'string'
+          ? [...this.activeTools].filter(([, hash]) => hash === event.tool_input_hash)
+          : [];
       // Never resolve an unidentified wait by tool name or by an ambiguous
       // input match. A later main-turn fact can still establish a fresh state.
       const { tool_input_hash: _hash, ...unidentified } = event;
@@ -155,9 +210,16 @@ class ClaudeInterpreter implements StatusInterpreter {
   private classify(event: Payload): Transition {
     const name = event.hook_event_name;
     const tool = typeof event.tool_use_id === 'string' ? event.tool_use_id : '';
-    const permission = tool ? `id:${tool}` : typeof event.tool_input_hash === 'string' ? `input:${event.tool_input_hash}` : '?';
+    const permission = tool
+      ? `id:${tool}`
+      : typeof event.tool_input_hash === 'string'
+        ? `input:${event.tool_input_hash}`
+        : '?';
     const elicitation = JSON.stringify([event.mcp_server_name ?? '', event.elicitation_id ?? '']);
-    if (['UserPromptSubmit', 'Stop', 'StopFailure'].includes(String(name)) || (name === 'SessionStart' && event.source !== 'compact')) {
+    if (
+      ['UserPromptSubmit', 'Stop', 'StopFailure'].includes(String(name)) ||
+      (name === 'SessionStart' && event.source !== 'compact')
+    ) {
       this.clearWaits();
     }
     if (name === 'PreToolUse' && event.tool_name === 'AskUserQuestion') this.questions.add(tool);
@@ -171,16 +233,31 @@ class ClaudeInterpreter implements StatusInterpreter {
     }
     const waiting = !!(this.questions.size || this.permissions.size || this.elicitations.size);
     switch (name) {
-      case 'SessionStart': return event.source === 'compact' ? (waiting ? 'needs-input' : 'busy') : 'ready';
-      case 'PreToolUse': case 'PostToolUse': case 'PostToolUseFailure': case 'UserPromptSubmit':
-      case 'PermissionRequest': case 'Elicitation': case 'ElicitationResult':
-      case 'PreCompact': case 'PostCompact': return waiting ? 'needs-input' : 'busy';
+      case 'SessionStart':
+        return event.source === 'compact' ? (waiting ? 'needs-input' : 'busy') : 'ready';
+      case 'PreToolUse':
+      case 'PostToolUse':
+      case 'PostToolUseFailure':
+      case 'UserPromptSubmit':
+      case 'PermissionRequest':
+      case 'Elicitation':
+      case 'ElicitationResult':
+      case 'PreCompact':
+      case 'PostCompact':
+        return waiting ? 'needs-input' : 'busy';
       // A turn ends only when no Spawned Task it started is still running.
-      case 'Stop': return Array.isArray(event.background_tasks)
-        && event.background_tasks.some(task => task?.status === 'running') ? 'busy' : 'done';
-      case 'StopFailure': return 'error';
-      case 'SessionEnd': case 'SubagentStart': case 'SubagentStop': return 'keep';
-      default: return 'error';
+      case 'Stop':
+        return Array.isArray(event.background_tasks) && event.background_tasks.some(task => task?.status === 'running')
+          ? 'busy'
+          : 'done';
+      case 'StopFailure':
+        return 'error';
+      case 'SessionEnd':
+      case 'SubagentStart':
+      case 'SubagentStop':
+        return 'keep';
+      default:
+        return 'error';
     }
   }
 }

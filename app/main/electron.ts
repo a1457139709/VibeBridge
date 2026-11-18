@@ -17,46 +17,113 @@ let confirming = false;
 let language: Language = 'en';
 // An app opened from the Finder inherits a minimal PATH. Forge CLIs such as gh are looked up on the
 // inherited PATH first, then on the login shell's, where the Agents find them too.
-const loginPath = commandEnvironment().then(environment => {
-  const entries = [...(process.env.PATH ?? '').split(':'), ...(environment.PATH ?? '').split(':')].filter(Boolean);
-  process.env.PATH = [...new Set(entries)].join(':');
-}).catch(() => {});
+const loginPath = commandEnvironment()
+  .then(environment => {
+    const entries = [...(process.env.PATH ?? '').split(':'), ...(environment.PATH ?? '').split(':')].filter(Boolean);
+    process.env.PATH = [...new Set(entries)].join(':');
+  })
+  .catch(() => {});
 
 function updateNativeLanguage(next: Language) {
   language = next;
   const { t } = localize(language);
-  Menu.setApplicationMenu(Menu.buildFromTemplate([
-    { label: 'VibeBridge', submenu: [{ role: 'about', label: t('about') }, { type: 'separator' },
-      { role: 'hide', label: t('hideWorkbench') }, { role: 'hideOthers', label: t('hideOthers') }, { role: 'unhide', label: t('showAll') },
-      { type: 'separator' }, { role: 'quit', label: t('quitWorkbench') }] },
-    { label: t('editMenu'), submenu: [{ role: 'undo', label: t('undo') }, { role: 'redo', label: t('redo') }, { type: 'separator' },
-      { role: 'cut', label: t('cut') }, { role: 'copy', label: t('copy') }, { role: 'paste', label: t('paste') }, { role: 'selectAll', label: t('selectAll') }] },
-    { label: t('windowMenu'), submenu: [{ role: 'minimize', label: t('minimize') }, { role: 'zoom', label: t('zoom') }] },
-  ]));
+  Menu.setApplicationMenu(
+    Menu.buildFromTemplate([
+      {
+        label: 'VibeBridge',
+        submenu: [
+          { role: 'about', label: t('about') },
+          { type: 'separator' },
+          { role: 'hide', label: t('hideWorkbench') },
+          { role: 'hideOthers', label: t('hideOthers') },
+          { role: 'unhide', label: t('showAll') },
+          { type: 'separator' },
+          { role: 'quit', label: t('quitWorkbench') },
+        ],
+      },
+      {
+        label: t('editMenu'),
+        submenu: [
+          { role: 'undo', label: t('undo') },
+          { role: 'redo', label: t('redo') },
+          { type: 'separator' },
+          { role: 'cut', label: t('cut') },
+          { role: 'copy', label: t('copy') },
+          { role: 'paste', label: t('paste') },
+          { role: 'selectAll', label: t('selectAll') },
+        ],
+      },
+      {
+        label: t('windowMenu'),
+        submenu: [
+          { role: 'minimize', label: t('minimize') },
+          { role: 'zoom', label: t('zoom') },
+        ],
+      },
+    ]),
+  );
 }
 
 async function requestQuit() {
   if (exiting || confirming) return;
   confirming = true;
   const { t, text } = localize(language);
-  const answer = await dialog.showMessageBox(window!, { type: 'question', message: t('quitQuestion'),
-    detail: t('quitDetail'), buttons: [t('cancel'), t('quit')], defaultId: 0, cancelId: 0 });
-  if (answer.response === 0) { confirming = false; return; }
-  try { await (await workbench).quit(); }
-  catch (error) { await dialog.showMessageBox(window!, { type: 'error', message: t('quitError'), detail: text((error as Error).message) }); }
+  const answer = await dialog.showMessageBox(window!, {
+    type: 'question',
+    message: t('quitQuestion'),
+    detail: t('quitDetail'),
+    buttons: [t('cancel'), t('quit')],
+    defaultId: 0,
+    cancelId: 0,
+  });
+  if (answer.response === 0) {
+    confirming = false;
+    return;
+  }
+  try {
+    await (await workbench).quit();
+  } catch (error) {
+    await dialog.showMessageBox(window!, {
+      type: 'error',
+      message: t('quitError'),
+      detail: text((error as Error).message),
+    });
+  }
   exiting = true;
   app.quit();
 }
 
-app.on('before-quit', event => { if (!exiting) { event.preventDefault(); void requestQuit(); } });
-app.on('window-all-closed', () => { if (exiting) app.quit(); });
+app.on('before-quit', event => {
+  if (!exiting) {
+    event.preventDefault();
+    void requestQuit();
+  }
+});
+app.on('window-all-closed', () => {
+  if (exiting) app.quit();
+});
 
 void app.whenReady().then(async () => {
   const page = pathToFileURL(join(__dirname, 'renderer/index.html')).href;
-  window = new BrowserWindow({ width: 1280, height: 860, title: 'VibeBridge', titleBarStyle: 'hiddenInset',
+  window = new BrowserWindow({
+    width: 1280,
+    height: 860,
+    title: 'VibeBridge',
+    titleBarStyle: 'hiddenInset',
     backgroundColor: nativeTheme.shouldUseDarkColors ? '#141414' : '#f5f5f5',
-    webPreferences: { preload: join(__dirname, 'preload.cjs'), contextIsolation: true, nodeIntegration: false, sandbox: true } });
-  window.on('close', event => { if (!exiting) { event.preventDefault(); void requestQuit(); } });
+    webPreferences: {
+      preload: join(__dirname, 'preload.cjs'),
+      contextIsolation: true,
+      nodeIntegration: false,
+      sandbox: true,
+    },
+  });
+  window.on('close', event => {
+    if (!exiting) {
+      event.preventDefault();
+      void requestQuit();
+    }
+  });
   window.webContents.setWindowOpenHandler(({ url }) => {
     // The links forge HTML keeps (http, https and mailto) open in the system's own apps.
     if (/^(https?:\/\/|mailto:)/i.test(url)) void shell.openExternal(url);
@@ -65,24 +132,33 @@ void app.whenReady().then(async () => {
   window.webContents.on('will-navigate', event => event.preventDefault());
   updateNativeLanguage(language);
   workbench = Workbench.open(app.getPath('userData'), nativeTheme.shouldUseDarkColors);
-  void workbench.then(service => {
-    updateNativeLanguage(service.snapshot().settings.language);
-    service.subscribe(event => {
-      if (event.kind === 'snapshot' && event.snapshot.settings.language !== language) updateNativeLanguage(event.snapshot.settings.language);
-    });
-    nativeTheme.themeSource = service.snapshot().resolvedTheme;
-    window?.setBackgroundColor(service.snapshot().resolvedTheme === 'dark' ? '#141414' : '#f5f5f5');
-  }).catch(() => {});
+  void workbench
+    .then(service => {
+      updateNativeLanguage(service.snapshot().settings.language);
+      service.subscribe(event => {
+        if (event.kind === 'snapshot' && event.snapshot.settings.language !== language)
+          updateNativeLanguage(event.snapshot.settings.language);
+      });
+      nativeTheme.themeSource = service.snapshot().resolvedTheme;
+      window?.setBackgroundColor(service.snapshot().resolvedTheme === 'dark' ? '#141414' : '#f5f5f5');
+    })
+    .catch(() => {});
   void workbench.catch(error => {
     if (error instanceof WorkbenchOpenError) updateNativeLanguage(error.language);
-    return dialog.showMessageBox(window!, { type: 'error', message: localize(language).t('workbenchReadFailed'), detail: localize(language).text(error.message) });
+    return dialog.showMessageBox(window!, {
+      type: 'error',
+      message: localize(language).t('workbenchReadFailed'),
+      detail: localize(language).text(error.message),
+    });
   });
   // Install handlers before showing the page, while disk work completes asynchronously.
   const handle = (name: string, action: (service: Workbench, ...args: any[]) => unknown) => {
     ipcMain.handle(`workbench:${name}`, async (event, ...args) => {
-      if (event.sender !== window!.webContents || event.senderFrame?.url !== page) throw new Error(message('requestInvalid'));
-      try { return await action(await workbench, ...args); }
-      catch (error) {
+      if (event.sender !== window!.webContents || event.senderFrame?.url !== page)
+        throw new Error(message('requestInvalid'));
+      try {
+        return await action(await workbench, ...args);
+      } catch (error) {
         if (error instanceof WorkbenchOpenError) throw new Error(localize(error.language).text(error.message));
         throw error;
       }
@@ -90,16 +166,37 @@ void app.whenReady().then(async () => {
   };
   handle('snapshot', service => service.snapshot());
   handle('create', (service, draft) => service.createProject(draft));
-  handle('edit-project', async (service, id, edit, restart) => { await loginPath; return service.editProject(id, edit, restart); });
+  handle('edit-project', async (service, id, edit, restart) => {
+    await loginPath;
+    return service.editProject(id, edit, restart);
+  });
   handle('delete-project', (service, id) => service.deleteProject(id));
   handle('directory', (service, directory) => service.inspectDirectory(directory));
-  handle('repository-choices', async (service, id, directory) => { await loginPath; return service.repositoryChoices(id, directory); });
-  handle('issue-page', async (service, id, query) => { await loginPath; return service.issuePage(id, query); });
-  handle('issue-detail', async (service, id, number) => { await loginPath; return service.issueDetail(id, number); });
+  handle('repository-choices', async (service, id, directory) => {
+    await loginPath;
+    return service.repositoryChoices(id, directory);
+  });
+  handle('issue-page', async (service, id, query) => {
+    await loginPath;
+    return service.issuePage(id, query);
+  });
+  handle('issue-detail', async (service, id, number) => {
+    await loginPath;
+    return service.issueDetail(id, number);
+  });
   handle('dispatch', (service, id, request) => service.dispatch(id, request));
-  handle('pull-request-detail', async (service, id, number) => { await loginPath; return service.pullRequestDetail(id, number); });
-  handle('direct-action', async (service, id, action) => { await loginPath; return service.directAction(id, action); });
-  handle('pull-request-page', async (service, id, query) => { await loginPath; return service.pullRequestPage(id, query); });
+  handle('pull-request-detail', async (service, id, number) => {
+    await loginPath;
+    return service.pullRequestDetail(id, number);
+  });
+  handle('direct-action', async (service, id, action) => {
+    await loginPath;
+    return service.directAction(id, action);
+  });
+  handle('pull-request-page', async (service, id, query) => {
+    await loginPath;
+    return service.pullRequestPage(id, query);
+  });
   handle('activate', (service, id) => service.activateProject(id));
   handle('add', (service, project, agent) => service.addPanel(project, agent));
   handle('close', (service, project, panel) => service.closePanel(project, panel));
@@ -118,15 +215,23 @@ void app.whenReady().then(async () => {
   });
   handle('choose-directory', async () => {
     const { t } = localize(language);
-    const choice = await dialog.showOpenDialog(window!, { title: t('chooseDirectory'), buttonLabel: t('selectDirectory'), properties: ['openDirectory'] });
+    const choice = await dialog.showOpenDialog(window!, {
+      title: t('chooseDirectory'),
+      buttonLabel: t('selectDirectory'),
+      properties: ['openDirectory'],
+    });
     return choice.canceled ? null : choice.filePaths[0];
   });
-  handle('quit', () => { void requestQuit(); });
+  handle('quit', () => {
+    void requestQuit();
+  });
   let ready = false;
   handle('ready', async service => {
     if (ready) return;
     ready = true;
-    service.subscribe(event => { if (window && !window.isDestroyed()) window.webContents.send('workbench:event', event); });
+    service.subscribe(event => {
+      if (window && !window.isDestroyed()) window.webContents.send('workbench:event', event);
+    });
     const active = service.snapshot().activeProjectId;
     if (active) await service.activateProject(active);
   });

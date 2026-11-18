@@ -20,25 +20,67 @@ before(() => {
 });
 
 const project = (id: string, name: string, repository: ProjectView['repository']): ProjectView => ({
-  id, name, directory: `/work/${id}`, layout: { panel: `${id}-panel` }, tray: [], repository, ...githubView,
-  panels: [{ id: `${id}-panel`, agent: 'codex', run: { id: `${id}-run`, panelId: `${id}-panel`, projectId: id, state: 'running', title: `${name} session` } }],
+  id,
+  name,
+  directory: `/work/${id}`,
+  layout: { panel: `${id}-panel` },
+  tray: [],
+  repository,
+  ...githubView,
+  panels: [
+    {
+      id: `${id}-panel`,
+      agent: 'codex',
+      run: { id: `${id}-run`, panelId: `${id}-panel`, projectId: id, state: 'running', title: `${name} session` },
+    },
+  ],
 });
 
 function renderWorkbench(forgeSidebar: SidebarPreferences = { visible: false, width: 380 }) {
   const snapshot: Snapshot = {
-    navigation: { visible: true, width: 212 }, forgeSidebar, activeProjectId: 'bound', settings: defaultSettings(),
-    settingsConflicts: [], startupTheme: 'light', resolvedTheme: 'light', errors: [],
-    projects: [project('bound', 'Bound project', githubRepository('octo/bound')), project('unbound', 'Unbound project', null)],
+    navigation: { visible: true, width: 212 },
+    forgeSidebar,
+    activeProjectId: 'bound',
+    settings: defaultSettings(),
+    settingsConflicts: [],
+    startupTheme: 'light',
+    resolvedTheme: 'light',
+    errors: [],
+    projects: [
+      project('bound', 'Bound project', githubRepository('octo/bound')),
+      project('unbound', 'Unbound project', null),
+    ],
   };
   const listeners = new Set<(event: WorkbenchEvent) => void>();
-  const publish = () => { for (const listener of listeners) listener({ kind: 'snapshot', snapshot: structuredClone(snapshot) }); };
+  const publish = () => {
+    for (const listener of listeners) listener({ kind: 'snapshot', snapshot: structuredClone(snapshot) });
+  };
   const saved: SidebarPreferences[] = [];
-  const choices: RepositoryChoices = { ok: true, forge: githubForge, account: 'octo', origin: null, repositories: [githubRepository('octo/unbound')] };
+  const choices: RepositoryChoices = {
+    ok: true,
+    forge: githubForge,
+    account: 'octo',
+    origin: null,
+    repositories: [githubRepository('octo/unbound')],
+  };
   provideWorkbench({
-    snapshot: async () => structuredClone(snapshot), ready: async () => {},
-    subscribe: listener => { listeners.add(listener); return () => { listeners.delete(listener); }; },
-    saveSidebar: async (sidebar, preferences) => { if (sidebar === 'forgeSidebar') saved.push(preferences); snapshot[sidebar] = preferences; publish(); },
-    activateProject: async id => { snapshot.activeProjectId = id; publish(); },
+    snapshot: async () => structuredClone(snapshot),
+    ready: async () => {},
+    subscribe: listener => {
+      listeners.add(listener);
+      return () => {
+        listeners.delete(listener);
+      };
+    },
+    saveSidebar: async (sidebar, preferences) => {
+      if (sidebar === 'forgeSidebar') saved.push(preferences);
+      snapshot[sidebar] = preferences;
+      publish();
+    },
+    activateProject: async id => {
+      snapshot.activeProjectId = id;
+      publish();
+    },
     saveLayout: async () => {},
     inspectDirectory: async directory => ({ valid: true, directory }),
     repositoryChoices: async () => choices,
@@ -48,13 +90,22 @@ function renderWorkbench(forgeSidebar: SidebarPreferences = { visible: false, wi
 }
 
 const sidebar = () => screen.queryByRole('complementary', { name: 'GitHub' });
-const shownSidebar = () => waitFor(() => { const element = sidebar(); assert.ok(element, 'the sidebar is shown'); return element; });
+const shownSidebar = () =>
+  waitFor(() => {
+    const element = sidebar();
+    assert.ok(element, 'the sidebar is shown');
+    return element;
+  });
 const toggle = () => document.querySelector('.system-bar')!.lastElementChild as HTMLButtonElement;
 
 test('the button at the right end of the system bar opens the sidebar for the current project, with focus inside, and closes it', async () => {
   const { user, saved } = renderWorkbench();
   await screen.findByRole('button', { name: 'Show the GitHub sidebar' });
-  assert.equal(toggle().getAttribute('aria-label'), 'Show the GitHub sidebar', 'the toggle is the last item of the system bar');
+  assert.equal(
+    toggle().getAttribute('aria-label'),
+    'Show the GitHub sidebar',
+    'the toggle is the last item of the system bar',
+  );
   assert.equal(toggle().textContent, '', 'the toggle shows no count');
   assert.equal(sidebar(), null);
   await user.click(toggle());
@@ -64,7 +115,10 @@ test('the button at the right end of the system bar opens the sidebar for the cu
   assert.equal(toggle().getAttribute('aria-label'), 'Hide the GitHub sidebar');
   await user.click(toggle());
   assert.equal(sidebar(), null);
-  assert.deepEqual(saved, [{ visible: true, width: 380 }, { visible: false, width: 380 }]);
+  assert.deepEqual(saved, [
+    { visible: true, width: 380 },
+    { visible: false, width: 380 },
+  ]);
 });
 
 test('Command+Alt+B opens the sidebar with focus inside wherever focus is, and closes it when open', async () => {
@@ -76,7 +130,12 @@ test('Command+Alt+B opens the sidebar with focus inside wherever focus is, and c
   document.querySelector<HTMLElement>('.xterm-helper-textarea')!.focus();
   await user.keyboard('{Meta>}{Alt>}b{/Alt}{/Meta}');
   assert.equal(sidebar(), null);
-  await waitFor(() => assert.deepEqual(saved, [{ visible: true, width: 380 }, { visible: false, width: 380 }]));
+  await waitFor(() =>
+    assert.deepEqual(saved, [
+      { visible: true, width: 380 },
+      { visible: false, width: 380 },
+    ]),
+  );
 });
 
 test('the sidebar follows the current project and stays on the settings page', async () => {

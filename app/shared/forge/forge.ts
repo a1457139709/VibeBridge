@@ -2,15 +2,25 @@ import { z } from 'zod';
 
 /** The Forges the Workbench has an adapter for, in a closed table (app/main/forge/forges.ts). */
 export const forgeIds = ['github'] as const;
-export type ForgeId = typeof forgeIds[number];
+export type ForgeId = (typeof forgeIds)[number];
 export const forgeIdSchema = z.enum(forgeIds);
 
 /** A repository on a Forge (docs/adr/0006-forges-sit-behind-an-interface.md). `host` is the forge instance it lives on, and
  * `id` the forge's own ID for it, which a rename or transfer keeps; together they name the repository. `path` is where it
  * was last seen: the forge's own repository path, which may have more than two segments (nested groups), so it is never
  * split into owner and name outside the adapter. */
-export interface RepositoryReference { forge: ForgeId; host: string; id: string; path: string }
-export const repositoryReferenceSchema = z.object({ forge: forgeIdSchema, host: z.string().min(1), id: z.string().min(1), path: z.string().min(1) });
+export interface RepositoryReference {
+  forge: ForgeId;
+  host: string;
+  id: string;
+  path: string;
+}
+export const repositoryReferenceSchema = z.object({
+  forge: forgeIdSchema,
+  host: z.string().min(1),
+  id: z.string().min(1),
+  path: z.string().min(1),
+});
 /** Whether both name the same repository, wherever each saw it. */
 export const sameRepository = (a: RepositoryReference | null, b: RepositoryReference | null) =>
   a === b || (!!a && !!b && a.forge === b.forge && a.host === b.host && a.id === b.id);
@@ -31,7 +41,7 @@ export interface ForgeCapabilities {
 
 /** How a pull request's changes join its base branch: a merge commit, one squashed commit, or rebased commits. */
 export const mergeMethods = ['merge', 'squash', 'rebase'] as const;
-export type MergeMethod = typeof mergeMethods[number];
+export type MergeMethod = (typeof mergeMethods)[number];
 
 /** What the UI shows for a forge; each adapter provides its own. */
 export interface ForgePresentation {
@@ -45,20 +55,33 @@ export interface ForgePresentation {
 
 /** Every forge failure falls into one of these kinds. `detail` is the forge's own text, unchanged. */
 export type ForgeFailureKind = 'notInstalled' | 'loggedOut' | 'inaccessible' | 'transient';
-export interface ForgeFailure { kind: ForgeFailureKind; detail: string; forge: ForgePresentation }
+export interface ForgeFailure {
+  kind: ForgeFailureKind;
+  detail: string;
+  forge: ForgePresentation;
+}
 
 /** The repositories a project can bind: those of the forge CLI's active account, and the one the project
  * directory's `origin` points at when it is among them. Offering it does not bind it. */
 export type RepositoryChoices =
-  | { ok: true; forge: ForgePresentation; account: string; repositories: RepositoryReference[]; origin: RepositoryReference | null }
+  | {
+      ok: true;
+      forge: ForgePresentation;
+      account: string;
+      repositories: RepositoryReference[];
+      origin: RepositoryReference | null;
+    }
   | { ok: false; failure: ForgeFailure };
 
 /** A label as the forge shows it; `color` is a hex colour without `#`. */
-export interface ForgeLabel { name: string; color: string }
+export interface ForgeLabel {
+  name: string;
+  color: string;
+}
 
 /** Every list filters on open or closed; for pull requests, closed includes merged ones. */
 export const listStates = ['open', 'closed'] as const;
-export type ListState = typeof listStates[number];
+export type ListState = (typeof listStates)[number];
 /** How many items are open and closed. */
 export type ListCounts = Record<ListState, number>;
 /** An issue is open or closed. */
@@ -80,7 +103,11 @@ export interface IssueSummary {
 }
 
 /** An issue blocking a listed one. `path` names its repository when it is not the listed one, else it is null. */
-export interface BlockerReference { path: string | null; number: number; title: string }
+export interface BlockerReference {
+  path: string | null;
+  number: number;
+  title: string;
+}
 
 /** An issue as the list holds it, with its place in the issue tree. Empty of tree data when the forge has no sub-issues. */
 export interface ListedIssue extends IssueSummary {
@@ -118,7 +145,12 @@ export type ListFilter = ListQuery['filter'];
 
 /** One page of a repository's issues or pull requests, newest created first, with the next page's cursor (null on the
  * last page), the labels the repository defines, and how many open and closed items the filter's search and labels match. */
-export interface ListPage<Item> { items: Item[]; cursor: string | null; labels: ForgeLabel[]; counts: ListCounts }
+export interface ListPage<Item> {
+  items: Item[];
+  cursor: string | null;
+  labels: ForgeLabel[];
+  counts: ListCounts;
+}
 /** A page of a list of the bound repository, or the forge failure. A failure that the repository is inaccessible
  * names the active account when the forge can still tell it. */
 export type Page<Item> = ({ ok: true } & ListPage<Item>) | { ok: false; failure: ForgeFailure; account: string | null };
@@ -126,14 +158,36 @@ export type IssuePage = Page<ListedIssue>;
 export type PullRequestPage = Page<PullRequestSummary>;
 
 /** Another issue as a detail names it. `url` is its page on the forge: one outside the bound repository opens in the browser. */
-export interface IssueReference { number: number; title: string; state: IssueState; closedAs: IssueSummary['closedAs']; url: string }
-export interface PullRequestReference { number: number; title: string; state: PullRequestState; checks: ChecksConclusion; url: string }
+export interface IssueReference {
+  number: number;
+  title: string;
+  state: IssueState;
+  closedAs: IssueSummary['closedAs'];
+  url: string;
+}
+export interface PullRequestReference {
+  number: number;
+  title: string;
+  state: PullRequestState;
+  checks: ChecksConclusion;
+  url: string;
+}
 /** How many of an issue's sub-issues are closed. */
-export interface SubIssueProgress { closed: number; total: number }
+export interface SubIssueProgress {
+  closed: number;
+  total: number;
+}
 /** URL prefixes of the bound repository's issues and pull requests: a link to `<prefix><number>` opens in the sidebar. */
-export interface ForgeLinks { issues: string; pullRequests: string }
+export interface ForgeLinks {
+  issues: string;
+  pullRequests: string;
+}
 /** A comment as the forge rendered it. `html` is the forge's own HTML, unfiltered: filter it before it joins a page. */
-export interface ForgeComment { author: string | null; createdAt: string; html: string }
+export interface ForgeComment {
+  author: string | null;
+  createdAt: string;
+  html: string;
+}
 
 /** An issue as its read-only detail shows it. `body` and the comments are the forge's rendered HTML, unfiltered.
  * `commentCount` counts every comment, also those beyond the ones listed. Relations the forge does not declare
@@ -164,13 +218,23 @@ export type IssueDetailResult = { ok: true; issue: IssueDetail } | { ok: false; 
 /** How a review left a pull request. */
 export type ReviewVerdict = 'approved' | 'changesRequested' | 'commented' | 'dismissed';
 /** A comment, or a review's summary with its verdict. */
-export interface TimelineEntry extends ForgeComment { verdict: ReviewVerdict | null }
+export interface TimelineEntry extends ForgeComment {
+  verdict: ReviewVerdict | null;
+}
 
 /** Where a pull request's review stands: approved, changes requested, or still waiting for a required review; or no
  * review is required. `requiredApprovals` is how many approvals the base branch requires; null when the forge does not tell or none are required. */
-export interface ReviewStatus { state: 'approved' | 'changesRequested' | 'required' | 'notRequired'; requiredApprovals: number | null }
+export interface ReviewStatus {
+  state: 'approved' | 'changesRequested' | 'required' | 'notRequired';
+  requiredApprovals: number | null;
+}
 /** A check on the latest commit. A skipped check does not hold up a merge. `url` opens its log on the forge, or where it ran. */
-export interface Check { name: string; result: 'passed' | 'failed' | 'pending' | 'skipped'; required: boolean; url: string | null }
+export interface Check {
+  name: string;
+  result: 'passed' | 'failed' | 'pending' | 'skipped';
+  required: boolean;
+  url: string | null;
+}
 /** Whether the pull request conflicts with its base branch; `unknown` while the forge has not worked it out yet. */
 export type Conflicts = 'none' | 'conflicting' | 'unknown';
 
@@ -201,7 +265,8 @@ export interface PullRequestDetail extends Omit<PullRequestSummary, 'checks'> {
   canWrite: boolean;
 }
 /** A pull request of the bound repository, or the forge failure. */
-export type PullRequestDetailResult = { ok: true; pullRequest: PullRequestDetail } | { ok: false; failure: ForgeFailure };
+export type PullRequestDetailResult =
+  { ok: true; pullRequest: PullRequestDetail } | { ok: false; failure: ForgeFailure };
 
 /** A one-click change to an issue or pull request of the bound repository. A merge uses the forge's default commit message. */
 export const directActionSchema = z.discriminatedUnion('kind', [

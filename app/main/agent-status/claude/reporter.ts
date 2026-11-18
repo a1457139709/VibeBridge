@@ -3,25 +3,48 @@ import { reportCommandHook } from '../reporter';
 
 function canonical(value: unknown): string {
   if (Array.isArray(value)) return `[${value.map(canonical).join(',')}]`;
-  if (value && typeof value === 'object') return `{${Object.entries(value).sort(([a], [b]) => a.localeCompare(b))
-    .map(([key, item]) => `${JSON.stringify(key)}:${canonical(item)}`).join(',')}}`;
+  if (value && typeof value === 'object')
+    return `{${Object.entries(value)
+      .sort(([a], [b]) => a.localeCompare(b))
+      .map(([key, item]) => `${JSON.stringify(key)}:${canonical(item)}`)
+      .join(',')}}`;
   return JSON.stringify(value);
 }
 
 reportCommandHook('claude', raw => {
-  const payload = Object.fromEntries(['hook_event_name', 'session_id', 'source', 'prompt_id', 'agent_id',
-    'tool_name', 'tool_use_id', 'mcp_server_name', 'elicitation_id'].filter(key => key in raw).map(key => [key, raw[key]]));
+  const payload = Object.fromEntries(
+    [
+      'hook_event_name',
+      'session_id',
+      'source',
+      'prompt_id',
+      'agent_id',
+      'tool_name',
+      'tool_use_id',
+      'mcp_server_name',
+      'elicitation_id',
+    ]
+      .filter(key => key in raw)
+      .map(key => [key, raw[key]]),
+  );
   // PermissionRequest omits tool_use_id. Match exact tool inputs without sending
   // commands, paths, answers or other tool content to the status module.
   if (typeof raw.tool_name === 'string' && raw.tool_input && typeof raw.tool_input === 'object') {
-    payload.tool_input_hash = createHash('sha256').update(canonical([raw.tool_name, raw.tool_input])).digest('hex');
+    payload.tool_input_hash = createHash('sha256')
+      .update(canonical([raw.tool_name, raw.tool_input]))
+      .digest('hex');
   }
   // Whether a Spawned Task still runs needs only its kind and status; commands and
   // descriptions stay in Claude.
   if (Array.isArray(raw.background_tasks)) {
-    payload.background_tasks = raw.background_tasks.map(task => task && typeof task === 'object'
-      ? { type: typeof task.type === 'string' ? task.type : undefined,
-        status: typeof task.status === 'string' ? task.status : undefined } : {});
+    payload.background_tasks = raw.background_tasks.map(task =>
+      task && typeof task === 'object'
+        ? {
+            type: typeof task.type === 'string' ? task.type : undefined,
+            status: typeof task.status === 'string' ? task.status : undefined,
+          }
+        : {},
+    );
   }
   return payload;
 });

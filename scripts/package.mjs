@@ -13,20 +13,38 @@ await mkdir(resources, { recursive: true });
 await cp('dist', `${resources}/dist`, { recursive: true });
 const pty = `${resources}/node_modules/node-pty`;
 await mkdir(`${pty}/build/Release`, { recursive: true });
-await cp('node_modules/node-pty/lib', `${pty}/lib`, { recursive: true, filter: path => !path.endsWith('.map') && !path.includes('.test.') });
+await cp('node_modules/node-pty/lib', `${pty}/lib`, {
+  recursive: true,
+  filter: path => !path.endsWith('.map') && !path.includes('.test.'),
+});
 await cp('node_modules/node-pty/package.json', `${pty}/package.json`);
 let nativeDirectory;
 for (const candidate of ['build/Release', 'build/Debug', `prebuilds/darwin-${process.arch}`]) {
-  try { await access(`node_modules/node-pty/${candidate}/pty.node`); nativeDirectory = candidate; break; } catch { /* next native build */ }
+  try {
+    await access(`node_modules/node-pty/${candidate}/pty.node`);
+    nativeDirectory = candidate;
+    break;
+  } catch {
+    /* next native build */
+  }
 }
 if (!nativeDirectory) throw new Error('Prepare the native PTY before packaging.');
-for (const file of ['pty.node', 'spawn-helper']) await cp(`node_modules/node-pty/${nativeDirectory}/${file}`, `${pty}/build/Release/${file}`);
+for (const file of ['pty.node', 'spawn-helper'])
+  await cp(`node_modules/node-pty/${nativeDirectory}/${file}`, `${pty}/build/Release/${file}`);
 await chmod(`${pty}/build/Release/spawn-helper`, 0o755);
 const pkg = JSON.parse(await readFile('package.json', 'utf8'));
-await writeFile(`${resources}/package.json`, JSON.stringify({ name: pkg.name, productName: 'VibeBridge', version: pkg.version, main: 'dist/main.cjs' }));
+await writeFile(
+  `${resources}/package.json`,
+  JSON.stringify({ name: pkg.name, productName: 'VibeBridge', version: pkg.version, main: 'dist/main.cjs' }),
+);
 const plist = `${output}/Contents/Info.plist`;
-const bundle = { CFBundleDisplayName: 'VibeBridge', CFBundleName: 'VibeBridge', CFBundleIdentifier: 'local.vibebridge.app',
-  CFBundleShortVersionString: pkg.version, CFBundleVersion: pkg.version };
+const bundle = {
+  CFBundleDisplayName: 'VibeBridge',
+  CFBundleName: 'VibeBridge',
+  CFBundleIdentifier: 'local.vibebridge.app',
+  CFBundleShortVersionString: pkg.version,
+  CFBundleVersion: pkg.version,
+};
 for (const [key, value] of Object.entries(bundle)) {
   const result = spawnSync('/usr/libexec/PlistBuddy', ['-c', `Set :${key} ${value}`, plist], { stdio: 'inherit' });
   if (result.status !== 0) throw new Error(`Could not set ${key}`);

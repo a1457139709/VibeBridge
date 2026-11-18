@@ -29,7 +29,11 @@ const detailWidth = { initial: 640, min: 420, max: 1100 };
 export function useForgeSidebar(host: Host, api: Pick<DesktopAPI, 'saveSidebar' | 'subscribe'> = window.workbench) {
   const { t } = useLocalization();
   const { snapshot, project } = host;
-  const { preferences, toggle: togglePreferences, resize } = useSidebarPreferences({ sidebar: 'forgeSidebar', snapshot, api, edge: -1, report: host.report });
+  const {
+    preferences,
+    toggle: togglePreferences,
+    resize,
+  } = useSidebarPreferences({ sidebar: 'forgeSidebar', snapshot, api, edge: -1, report: host.report });
   const element = useRef<HTMLElement>(null);
   const focusOnOpen = useRef(false);
   const [editingRepository, setEditingRepository] = useState(false);
@@ -38,16 +42,22 @@ export function useForgeSidebar(host: Host, api: Pick<DesktopAPI, 'saveSidebar' 
   /** The target each command last went to, kept only while the app runs. */
   const [lastTargets, setLastTargets] = useState<ReadonlyMap<string, DispatchTarget>>(new Map());
   const listsActions = useRef<ForgeListsActions>(null);
-  const detail: DetailHost = { width, shown: setDetailOpen, resize(event: ReactPointerEvent<HTMLDivElement>) {
-    if (event.button !== 0) return;
-    event.preventDefault();
-    // The detail's right edge is the sidebar's left edge: dragging its left edge leftwards widens it.
-    const start = event.clientX, from = event.currentTarget.parentElement!.getBoundingClientRect().width;
-    capturePointer(event.currentTarget, event.pointerId, {
-      move: pointer => setWidth(Math.round(Math.max(detailWidth.min, Math.min(detailWidth.max, from - (pointer.clientX - start))))),
-      finish: () => {},
-    });
-  } };
+  const detail: DetailHost = {
+    width,
+    shown: setDetailOpen,
+    resize(event: ReactPointerEvent<HTMLDivElement>) {
+      if (event.button !== 0) return;
+      event.preventDefault();
+      // The detail's right edge is the sidebar's left edge: dragging its left edge leftwards widens it.
+      const start = event.clientX,
+        from = event.currentTarget.parentElement!.getBoundingClientRect().width;
+      capturePointer(event.currentTarget, event.pointerId, {
+        move: pointer =>
+          setWidth(Math.round(Math.max(detailWidth.min, Math.min(detailWidth.max, from - (pointer.clientX - start))))),
+        finish: () => {},
+      });
+    },
+  };
   const shown = preferences.visible && !!project;
   useLayoutEffect(() => {
     if (shown && focusOnOpen.current) element.current!.focus();
@@ -65,33 +75,76 @@ export function useForgeSidebar(host: Host, api: Pick<DesktopAPI, 'saveSidebar' 
   const handleIssueShortcut = (action: IssueShortcutAction) =>
     !!element.current?.contains(document.activeElement) && (listsActions.current?.handleIssueShortcut(action) ?? false);
   // The toggle names the current project's forge; without a project it names the sidebar by what it shows.
-  const label = project ? t(preferences.visible ? 'closeForgeSidebar' : 'openForgeSidebar', { forge: project.forge.name }) : t('toggleForgeSidebar');
+  const label = project
+    ? t(preferences.visible ? 'closeForgeSidebar' : 'openForgeSidebar', { forge: project.forge.name })
+    : t('toggleForgeSidebar');
   const binding = snapshot?.settings.shortcuts.toggleForgeSidebar;
   const overlay = snapshot?.settings.sidebarCoexistence === 'overlay';
   return {
-    toggle, handleIssueShortcut,
-    shown, overlay, width: preferences.width,
+    toggle,
+    handleIssueShortcut,
+    shown,
+    overlay,
+    width: preferences.width,
     /** Whether an open detail squeezes the layout area, and its width. */
     detail: { squeeze: shown && detailOpen && snapshot?.settings.detailCoexistence === 'squeeze', width },
-    button: <button className="forge-sidebar-toggle" aria-label={label} data-hint={binding ? `${label} (${displayShortcut(binding)})` : label}
-      aria-expanded={shown} disabled={!project} onClick={toggle}>{shown ? <SidebarCollapseIcon size={16} /> : <SidebarExpandIcon size={16} />}</button>,
-    sidebar: shown && project && <aside ref={element} tabIndex={-1} className={`forge-sidebar ${overlay ? 'overlay' : ''}`} aria-label={project.forge.name}
-      style={{ width: preferences.width }}>
-      <div className="forge-sidebar-resize" role="separator" aria-orientation="vertical" aria-label={t('resizeForgeSidebar', { forge: project.forge.name })} onPointerDown={resize} />
-      {project.repository
-        // Mounted per project and repository: returning to a project or rebinding starts the lists afresh.
-        ? <ForgeLists ref={listsActions} key={`${project.id} ${project.repository.forge} ${project.repository.host} ${project.repository.id}`} project={{ ...project, repository: project.repository }}
-          editBinding={() => setEditingRepository(true)} detailHost={detail}
-          dispatchHost={{ workflows: snapshot!.settings.workflows, openMenuBinding: snapshot!.settings.shortcuts.openDispatchMenu, lastTargets, locate: host.locatePanel, report: host.report,
-            rememberLastTarget: (command, target) => setLastTargets(targets => new Map(targets).set(command, target)) }} />
-        : <>
-          <SidebarHead title={t('noRepositoryBound')} />
-          <div className="forge-sidebar-state">
-            <p>{t('projectUnbound', { forge: project.forge.name })}</p>
-            <button className="primary" onClick={() => setEditingRepository(true)}>{t('bindRepository')}</button>
-          </div>
-        </>}
-      {editingRepository && <RepositoryBindingDialog project={project} close={() => setEditingRepository(false)} />}
-    </aside>,
+    button: (
+      <button
+        className="forge-sidebar-toggle"
+        aria-label={label}
+        data-hint={binding ? `${label} (${displayShortcut(binding)})` : label}
+        aria-expanded={shown}
+        disabled={!project}
+        onClick={toggle}
+      >
+        {shown ? <SidebarCollapseIcon size={16} /> : <SidebarExpandIcon size={16} />}
+      </button>
+    ),
+    sidebar: shown && project && (
+      <aside
+        ref={element}
+        tabIndex={-1}
+        className={`forge-sidebar ${overlay ? 'overlay' : ''}`}
+        aria-label={project.forge.name}
+        style={{ width: preferences.width }}
+      >
+        <div
+          className="forge-sidebar-resize"
+          role="separator"
+          aria-orientation="vertical"
+          aria-label={t('resizeForgeSidebar', { forge: project.forge.name })}
+          onPointerDown={resize}
+        />
+        {project.repository ? (
+          // Mounted per project and repository: returning to a project or rebinding starts the lists afresh.
+          <ForgeLists
+            ref={listsActions}
+            key={`${project.id} ${project.repository.forge} ${project.repository.host} ${project.repository.id}`}
+            project={{ ...project, repository: project.repository }}
+            editBinding={() => setEditingRepository(true)}
+            detailHost={detail}
+            dispatchHost={{
+              workflows: snapshot!.settings.workflows,
+              openMenuBinding: snapshot!.settings.shortcuts.openDispatchMenu,
+              lastTargets,
+              locate: host.locatePanel,
+              report: host.report,
+              rememberLastTarget: (command, target) => setLastTargets(targets => new Map(targets).set(command, target)),
+            }}
+          />
+        ) : (
+          <>
+            <SidebarHead title={t('noRepositoryBound')} />
+            <div className="forge-sidebar-state">
+              <p>{t('projectUnbound', { forge: project.forge.name })}</p>
+              <button className="primary" onClick={() => setEditingRepository(true)}>
+                {t('bindRepository')}
+              </button>
+            </div>
+          </>
+        )}
+        {editingRepository && <RepositoryBindingDialog project={project} close={() => setEditingRepository(false)} />}
+      </aside>
+    ),
   };
 }

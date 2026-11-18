@@ -13,15 +13,25 @@ test('the startup settings conflict dialog cannot be dismissed and offers only t
   const quit = mock.fn(async () => {});
   provideWorkbench({ quit });
   const openSettings = mock.fn();
-  render(<Localization language="en"><SettingsConflictDialog category="shortcuts" openSettings={openSettings} /></Localization>);
+  render(
+    <Localization language="en">
+      <SettingsConflictDialog category="shortcuts" openSettings={openSettings} />
+    </Localization>,
+  );
   const user = userEvent.setup();
   const dialog = screen.getByRole<HTMLDialogElement>('dialog', { name: 'Settings conflict' });
   assert.equal(dialog.open, true);
   assert.match(dialog.textContent!, /Keyboard shortcuts settings/);
   assert.equal(fireEvent(dialog, new Event('cancel', { cancelable: true })), false);
-  act(() => { dialog.close(); fireEvent(dialog, new Event('close')); });
+  act(() => {
+    dialog.close();
+    fireEvent(dialog, new Event('close'));
+  });
   assert.equal(dialog.open, true);
-  assert.deepEqual(screen.getAllByRole('button').map(button => button.textContent), ['Quit app', 'Fix in settings']);
+  assert.deepEqual(
+    screen.getAllByRole('button').map(button => button.textContent),
+    ['Quit app', 'Fix in settings'],
+  );
   await user.click(screen.getByRole('button', { name: 'Quit app' }));
   assert.equal(quit.mock.callCount(), 1);
   assert.equal(openSettings.mock.callCount(), 0);

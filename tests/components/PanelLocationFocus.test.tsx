@@ -16,27 +16,61 @@ let nextFrame = 0;
 const unavailable = new Set<string>();
 
 afterEach(cleanup);
-beforeEach(() => { frames.clear(); unavailable.clear(); });
+beforeEach(() => {
+  frames.clear();
+  unavailable.clear();
+});
 before(() => {
   for (const name of ['ResizeObserver', 'IntersectionObserver'] as const) {
-    Object.defineProperty(globalThis, name, { configurable: true, value: class { observe() {} unobserve() {} disconnect() {} } });
+    Object.defineProperty(globalThis, name, {
+      configurable: true,
+      value: class {
+        observe() {}
+        unobserve() {}
+        disconnect() {}
+      },
+    });
   }
-  const matchMedia = () => ({ matches: false, addEventListener() {}, removeEventListener() {}, addListener() {}, removeListener() {} });
-  const requestAnimationFrame = (callback: FrameRequestCallback) => { frames.set(++nextFrame, callback); return nextFrame; };
-  const cancelAnimationFrame = (id: number) => { frames.delete(id); };
-  for (const target of [globalThis, window]) Object.assign(target, { matchMedia, requestAnimationFrame, cancelAnimationFrame });
-  const available = (element: HTMLElement) => !unavailable.has(element.closest<HTMLElement>('[data-panel-id]')?.dataset.panelId ?? '');
-  Object.assign(window.HTMLElement.prototype, { checkVisibility(this: HTMLElement) { return available(this); } });
+  const matchMedia = () => ({
+    matches: false,
+    addEventListener() {},
+    removeEventListener() {},
+    addListener() {},
+    removeListener() {},
+  });
+  const requestAnimationFrame = (callback: FrameRequestCallback) => {
+    frames.set(++nextFrame, callback);
+    return nextFrame;
+  };
+  const cancelAnimationFrame = (id: number) => {
+    frames.delete(id);
+  };
+  for (const target of [globalThis, window])
+    Object.assign(target, { matchMedia, requestAnimationFrame, cancelAnimationFrame });
+  const available = (element: HTMLElement) =>
+    !unavailable.has(element.closest<HTMLElement>('[data-panel-id]')?.dataset.panelId ?? '');
+  Object.assign(window.HTMLElement.prototype, {
+    checkVisibility(this: HTMLElement) {
+      return available(this);
+    },
+  });
   for (const size of ['clientWidth', 'clientHeight']) {
-    Object.defineProperty(window.HTMLElement.prototype, size, { configurable: true, get(this: HTMLElement) { return available(this) ? 100 : 0; } });
+    Object.defineProperty(window.HTMLElement.prototype, size, {
+      configurable: true,
+      get(this: HTMLElement) {
+        return available(this) ? 100 : 0;
+      },
+    });
   }
 });
 
 /** Runs the frames requested so far; frames they request wait for the next call. */
-const runFrame = () => act(async () => {
-  const pending = [...frames.values()]; frames.clear();
-  for (const callback of pending) callback(0);
-});
+const runFrame = () =>
+  act(async () => {
+    const pending = [...frames.values()];
+    frames.clear();
+    for (const callback of pending) callback(0);
+  });
 /** Runs frames until none is requested, so no pending work can change focus afterwards. A location
  * waiting for its terminal requests a frame every frame, so this also proves no location still waits. */
 const settle = async () => {
@@ -46,41 +80,78 @@ const settle = async () => {
   }
 };
 
-const panel = (id: string): PanelView =>
-  ({ id, agent: 'codex', run: { id: `run-${id}`, panelId: id, projectId: 'project', state: 'running', title: `Session ${id}` }, status: 'done' });
+const panel = (id: string): PanelView => ({
+  id,
+  agent: 'codex',
+  run: { id: `run-${id}`, panelId: id, projectId: 'project', state: 'running', title: `Session ${id}` },
+  status: 'done',
+});
 
 async function renderWorkbench() {
   const snapshot: Snapshot = {
-    navigation: { visible: true, width: 212 }, forgeSidebar: { visible: false, width: 380 }, activeProjectId: 'project', settings: defaultSettings(),
-    settingsConflicts: [], startupTheme: 'light', resolvedTheme: 'light', errors: [],
-    projects: [{ id: 'project', name: 'Locating', directory: '/work/locating',
-      layout: { axis: 'row', ratio: .5, first: { panel: 'first' }, second: { panel: 'second' } },
-      panels: [panel('first'), panel('second')], tray: [], repository: null, ...githubView }],
+    navigation: { visible: true, width: 212 },
+    forgeSidebar: { visible: false, width: 380 },
+    activeProjectId: 'project',
+    settings: defaultSettings(),
+    settingsConflicts: [],
+    startupTheme: 'light',
+    resolvedTheme: 'light',
+    errors: [],
+    projects: [
+      {
+        id: 'project',
+        name: 'Locating',
+        directory: '/work/locating',
+        layout: { axis: 'row', ratio: 0.5, first: { panel: 'first' }, second: { panel: 'second' } },
+        panels: [panel('first'), panel('second')],
+        tray: [],
+        repository: null,
+        ...githubView,
+      },
+    ],
   };
   let listener: (event: WorkbenchEvent) => void = () => {};
-  provideWorkbench({ snapshot: async () => structuredClone(snapshot), ready: async () => {},
-    subscribe: next => { listener = next; return () => {}; },
-    activateProject: async () => {}, saveSidebar: async () => {}, saveLayout: async () => {} });
+  provideWorkbench({
+    snapshot: async () => structuredClone(snapshot),
+    ready: async () => {},
+    subscribe: next => {
+      listener = next;
+      return () => {};
+    },
+    activateProject: async () => {},
+    saveSidebar: async () => {},
+    saveLayout: async () => {},
+  });
   render(<App />);
   await screen.findAllByText('Session first');
   const user = userEvent.setup();
   return {
     // The panel whose terminal receives keyboard input, if any.
-    focused: () => document.activeElement?.classList.contains('xterm-helper-textarea')
-      ? document.activeElement.closest<HTMLElement>('[data-panel-id]')?.dataset.panelId : undefined,
+    focused: () =>
+      document.activeElement?.classList.contains('xterm-helper-textarea')
+        ? document.activeElement.closest<HTMLElement>('[data-panel-id]')?.dataset.panelId
+        : undefined,
     locating: () => document.querySelector('.workbench-page')!.classList.contains('locating-panel'),
     open: () => user.click(screen.getByRole('button', { name: /^\d+ Done$/ })),
     async choose(panelId: string) {
       await this.open();
-      await user.click(within(screen.getByRole('dialog', { name: 'Done' })).getByRole('button', { name: new RegExp(`Session ${panelId}`) }));
+      await user.click(
+        within(screen.getByRole('dialog', { name: 'Done' })).getByRole('button', {
+          name: new RegExp(`Session ${panelId}`),
+        }),
+      );
       await runFrame();
     },
     // The main process closes a panel and reports the project as it now is.
-    close: (panelId: string) => act(() => {
-      const [project] = snapshot.projects;
-      Object.assign(project, { layout: { panel: project.panels.find(item => item.id !== panelId)!.id }, panels: project.panels.filter(item => item.id !== panelId) });
-      listener({ kind: 'snapshot', snapshot: structuredClone(snapshot) });
-    }),
+    close: (panelId: string) =>
+      act(() => {
+        const [project] = snapshot.projects;
+        Object.assign(project, {
+          layout: { panel: project.panels.find(item => item.id !== panelId)!.id },
+          panels: project.panels.filter(item => item.id !== panelId),
+        });
+        listener({ kind: 'snapshot', snapshot: structuredClone(snapshot) });
+      }),
   };
 }
 

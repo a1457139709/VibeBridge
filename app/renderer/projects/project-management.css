@@ -1,37 +1,207 @@
-.project-row { display: flex; align-items: center; position: relative; flex-shrink: 0; min-width: 0; }
-.project-row > .project-link { flex: 1; min-width: 0; padding-right: 32px; }
-.project-menu-trigger { position: absolute; right: 4px; top: 3px; padding: 0; width: 28px; min-height: 30px; background: transparent; border: 0; font-size: 18px; }
-.project-menu { position: fixed; z-index: 20; padding: 4px; width: 160px; border: 1px solid var(--line); border-radius: 8px; background: var(--surface); box-shadow: 0 5px 22px #0002; }
-.project-menu button { display: block; width: 100%; border: 0; text-align: left; }
-.project-dialog { width: min(540px, calc(100vw - 32px)); max-height: calc(100vh - 48px); overflow: auto; margin: auto; border: 1px solid var(--line); border-radius: 12px; padding: 24px; color: inherit; background: var(--surface); box-shadow: 0 18px 60px #0003; }
-.project-dialog::backdrop { background: var(--modal-backdrop, #0004); }
-.project-dialog h2 { margin: 0 0 18px; font-size: 18px; }
-.project-dialog p { line-height: 1.6; }
-.project-dialog .error-text { color: var(--error, #b33e2d); }
-.project-dialog-actions { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 8px; margin-top: 22px; }
-.project-path { overflow-wrap: anywhere; }
-.project-launch-results { padding-left: 20px; line-height: 1.8; }
-.danger { color: var(--error, #b33e2d); }
-.repository-field { display: flex; flex-direction: column; gap: 4px; margin-top: 14px; }
-.repository-label { font-weight: 600; }
-.repository-picker { display: flex; flex-direction: column; gap: 6px; }
-.repository-list { max-height: 150px; overflow: auto; border: 1px solid var(--line); border-radius: 6px; }
-.repository-list button { display: flex; gap: 6px; width: 100%; min-height: 0; padding: 5px 10px; border: 0; border-radius: 0; background: none; text-align: left; font-size: 12px; }
-.repository-list button:hover:not(:disabled) { background: none; }
-.repository-list button.reached:not(:disabled) { background: var(--hover); }
-.repository-list button.on, .repository-list button.on:not(:disabled) { background: var(--selection, var(--hover)); color: var(--selection-text, var(--accent)); }
-.repository-list small { margin-left: auto; color: var(--muted); }
-.repository-path { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.repository-empty { display: block; padding: 5px 10px; font-size: 12px; }
-.repository-source { font-size: 11px; }
-.repository-error { display: flex; flex-direction: column; align-items: flex-start; gap: 8px; padding: 10px; border-radius: 6px; background: color-mix(in srgb, var(--error, #b33e2d) 10%, transparent); font-size: 12px; overflow-wrap: anywhere; }
-.repository-current { display: flex; align-items: center; gap: 8px; padding: 6px 10px; border: 1px dashed var(--line); border-radius: 6px; font-size: 12px; }
-.repository-current small { color: var(--muted); }
-.repository-current.changed { border-style: solid; border-color: color-mix(in srgb, var(--accent) 55%, var(--line)); background: color-mix(in srgb, var(--accent) 8%, transparent); }
-.repository-current-actions { display: flex; gap: 6px; margin-left: auto; flex-shrink: 0; }
-.repository-current-actions button { min-height: 24px; padding: 0 10px; }
-.save-impact { display: flex; flex-direction: column; gap: 6px; margin-top: 18px; padding: 10px 12px; border-radius: 8px; background: color-mix(in srgb, var(--muted) 14%, transparent); font-size: 12px; }
-.save-impact dl { margin: 0; display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 8px 12px; }
-.save-impact dt { color: var(--muted); }
-.save-impact dd { margin: 0; min-width: 0; }
-.save-impact p { margin: 4px 0 0; color: var(--muted); }
+.project-row {
+  display: flex;
+  align-items: center;
+  position: relative;
+  flex-shrink: 0;
+  min-width: 0;
+}
+.project-row > .project-link {
+  flex: 1;
+  min-width: 0;
+  padding-right: 32px;
+}
+.project-menu-trigger {
+  position: absolute;
+  right: 4px;
+  top: 3px;
+  padding: 0;
+  width: 28px;
+  min-height: 30px;
+  background: transparent;
+  border: 0;
+  font-size: 18px;
+}
+.project-menu {
+  position: fixed;
+  z-index: 20;
+  padding: 4px;
+  width: 160px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--surface);
+  box-shadow: 0 5px 22px #0002;
+}
+.project-menu button {
+  display: block;
+  width: 100%;
+  border: 0;
+  text-align: left;
+}
+.project-dialog {
+  width: min(540px, calc(100vw - 32px));
+  max-height: calc(100vh - 48px);
+  overflow: auto;
+  margin: auto;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  padding: 24px;
+  color: inherit;
+  background: var(--surface);
+  box-shadow: 0 18px 60px #0003;
+}
+.project-dialog::backdrop {
+  background: var(--modal-backdrop, #0004);
+}
+.project-dialog h2 {
+  margin: 0 0 18px;
+  font-size: 18px;
+}
+.project-dialog p {
+  line-height: 1.6;
+}
+.project-dialog .error-text {
+  color: var(--error, #b33e2d);
+}
+.project-dialog-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 22px;
+}
+.project-path {
+  overflow-wrap: anywhere;
+}
+.project-launch-results {
+  padding-left: 20px;
+  line-height: 1.8;
+}
+.danger {
+  color: var(--error, #b33e2d);
+}
+.repository-field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-top: 14px;
+}
+.repository-label {
+  font-weight: 600;
+}
+.repository-picker {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.repository-list {
+  max-height: 150px;
+  overflow: auto;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+}
+.repository-list button {
+  display: flex;
+  gap: 6px;
+  width: 100%;
+  min-height: 0;
+  padding: 5px 10px;
+  border: 0;
+  border-radius: 0;
+  background: none;
+  text-align: left;
+  font-size: 12px;
+}
+.repository-list button:hover:not(:disabled) {
+  background: none;
+}
+.repository-list button.reached:not(:disabled) {
+  background: var(--hover);
+}
+.repository-list button.on,
+.repository-list button.on:not(:disabled) {
+  background: var(--selection, var(--hover));
+  color: var(--selection-text, var(--accent));
+}
+.repository-list small {
+  margin-left: auto;
+  color: var(--muted);
+}
+.repository-path {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.repository-empty {
+  display: block;
+  padding: 5px 10px;
+  font-size: 12px;
+}
+.repository-source {
+  font-size: 11px;
+}
+.repository-error {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 10px;
+  border-radius: 6px;
+  background: color-mix(in srgb, var(--error, #b33e2d) 10%, transparent);
+  font-size: 12px;
+  overflow-wrap: anywhere;
+}
+.repository-current {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 10px;
+  border: 1px dashed var(--line);
+  border-radius: 6px;
+  font-size: 12px;
+}
+.repository-current small {
+  color: var(--muted);
+}
+.repository-current.changed {
+  border-style: solid;
+  border-color: color-mix(in srgb, var(--accent) 55%, var(--line));
+  background: color-mix(in srgb, var(--accent) 8%, transparent);
+}
+.repository-current-actions {
+  display: flex;
+  gap: 6px;
+  margin-left: auto;
+  flex-shrink: 0;
+}
+.repository-current-actions button {
+  min-height: 24px;
+  padding: 0 10px;
+}
+.save-impact {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-top: 18px;
+  padding: 10px 12px;
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--muted) 14%, transparent);
+  font-size: 12px;
+}
+.save-impact dl {
+  margin: 0;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 8px 12px;
+}
+.save-impact dt {
+  color: var(--muted);
+}
+.save-impact dd {
+  margin: 0;
+  min-width: 0;
+}
+.save-impact p {
+  margin: 4px 0 0;
+  color: var(--muted);
+}

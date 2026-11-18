@@ -2,16 +2,29 @@ import { message } from '../shared/messages';
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
 
-export interface ProcessIdentity { pid: number; parent: number; started: string; owner?: string }
+export interface ProcessIdentity {
+  pid: number;
+  parent: number;
+  started: string;
+  owner?: string;
+}
 const execute = promisify(execFile);
 export async function processTable(includeOwners = false): Promise<ProcessIdentity[]> {
   // macOS -E reads the launch environment, including inherited ownership after reparenting.
   // Only retain our marker; never log or send command lines or other environment values.
-  const args = includeOwners ? ['-Eww', '-U', String(process.getuid!()), '-o', 'pid=,ppid=,lstart=,state=,command=']
+  const args = includeOwners
+    ? ['-Eww', '-U', String(process.getuid!()), '-o', 'pid=,ppid=,lstart=,state=,command=']
     : ['-axo', 'pid=,ppid=,lstart=,state='];
   let stdout: string;
-  try { ({ stdout } = await execute('/bin/ps', args, { timeout: 1000, maxBuffer: 16 * 1024 * 1024, env: { ...process.env, LC_ALL: 'C' } })); }
-  catch { throw new Error(message('processInspectionFailed')); }
+  try {
+    ({ stdout } = await execute('/bin/ps', args, {
+      timeout: 1000,
+      maxBuffer: 16 * 1024 * 1024,
+      env: { ...process.env, LC_ALL: 'C' },
+    }));
+  } catch {
+    throw new Error(message('processInspectionFailed'));
+  }
   return stdout.split('\n').flatMap(line => {
     const match = line.trim().match(/^(\d+)\s+(\d+)\s+(\w{3}\s+\w{3}\s+\d+\s+[\d:]+\s+\d{4})\s+(\S+)(.*)$/);
     if (!match || match[4].includes('Z')) return [];
@@ -21,11 +34,15 @@ export async function processTable(includeOwners = false): Promise<ProcessIdenti
 }
 
 export function descendants(table: ProcessIdentity[], known: ProcessIdentity[], owner?: string): ProcessIdentity[] {
-  const result = table.filter(row => known.some(p => p.pid === row.pid && p.started === row.started)
-    || (owner && (row.owner === owner || row.owner?.startsWith(`${owner}:`))));
+  const result = table.filter(
+    row =>
+      known.some(p => p.pid === row.pid && p.started === row.started) ||
+      (owner && (row.owner === owner || row.owner?.startsWith(`${owner}:`))),
+  );
   for (let size = -1; size !== result.length;) {
     size = result.length;
-    for (const row of table) if (!result.some(p => p.pid === row.pid) && result.some(p => p.pid === row.parent)) result.push(row);
+    for (const row of table)
+      if (!result.some(p => p.pid === row.pid) && result.some(p => p.pid === row.parent)) result.push(row);
   }
   return result;
 }
@@ -35,7 +52,11 @@ export async function stopProcesses(known: ProcessIdentity[], owner?: string, af
   let remaining = descendants(await processTable(!!owner), known, owner);
   const signal = (processes: ProcessIdentity[], name: NodeJS.Signals) => {
     for (const processInfo of [...processes].reverse()) {
-      try { process.kill(processInfo.pid, name); } catch (error) { if ((error as NodeJS.ErrnoException).code !== 'ESRCH') throw error; }
+      try {
+        process.kill(processInfo.pid, name);
+      } catch (error) {
+        if ((error as NodeJS.ErrnoException).code !== 'ESRCH') throw error;
+      }
     }
   };
   signal(remaining, 'SIGTERM');

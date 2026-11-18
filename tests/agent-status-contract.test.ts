@@ -17,7 +17,10 @@ interface Contract {
   configured: string[];
   /** Configuration the adapter cannot safely understand, or null when it reads none. */
   unsafe: string[] | null;
-  ready: Payload[]; busy: Payload[]; waiting: Payload[]; done: Payload[];
+  ready: Payload[];
+  busy: Payload[];
+  waiting: Payload[];
+  done: Payload[];
   /** A known auxiliary fact that keeps the current state. */
   auxiliary: Payload[];
   /** A valid current-run fact with no classification. */
@@ -33,19 +36,31 @@ const fact = (type: string, fields: Payload = {}) => ({ type, isIdle: false, has
 
 const contracts: Record<AgentType, Contract> = {
   codex: {
-    adapter: codex, configured: ['-c', 'hooks.Stop=[]'], unsafe: ['-c', 'hooks=1'],
+    adapter: codex,
+    configured: ['-c', 'hooks.Stop=[]'],
+    unsafe: ['-c', 'hooks=1'],
     ready: [hook('SessionStart', { source: 'startup' })],
     busy: [hook('UserPromptSubmit', { turn_id: 'turn' })],
-    waiting: [hook('UserPromptSubmit', { turn_id: 'turn' }), hook('PermissionRequest', { turn_id: 'turn', tool_use_id: 'approval', tool_name: 'Bash' })],
+    waiting: [
+      hook('UserPromptSubmit', { turn_id: 'turn' }),
+      hook('PermissionRequest', { turn_id: 'turn', tool_use_id: 'approval', tool_name: 'Bash' }),
+    ],
     done: [hook('UserPromptSubmit', { turn_id: 'turn' }), hook('Stop', { turn_id: 'turn' })],
     auxiliary: [hook('UserPromptSubmit', { turn_id: 'turn' }), hook('SessionEnd')],
     unclassified: [hook('Unclassified')],
     progress: id => hook('PreToolUse', { turn_id: 'turn', tool_use_id: id, tool_name: 'Bash' }),
-    retired: { before: [hook('SessionStart', { source: 'startup', session_id: 'old' }), hook('SessionStart', { source: 'clear' })],
-      stale: hook('Stop', { session_id: 'old' }) },
+    retired: {
+      before: [
+        hook('SessionStart', { source: 'startup', session_id: 'old' }),
+        hook('SessionStart', { source: 'clear' }),
+      ],
+      stale: hook('Stop', { session_id: 'old' }),
+    },
   },
   claude: {
-    adapter: claude, configured: ['--settings', 'settings.json'], unsafe: ['--settings', '[]'],
+    adapter: claude,
+    configured: ['--settings', 'settings.json'],
+    unsafe: ['--settings', '[]'],
     ready: [hook('SessionStart', { source: 'startup' })],
     busy: [hook('UserPromptSubmit')],
     waiting: [hook('UserPromptSubmit'), hook('PreToolUse', { tool_name: 'AskUserQuestion', tool_use_id: 'question' })],
@@ -53,15 +68,26 @@ const contracts: Record<AgentType, Contract> = {
     auxiliary: [hook('UserPromptSubmit'), hook('SessionEnd')],
     unclassified: [hook('Unclassified')],
     progress: id => hook('PreToolUse', { tool_name: 'Read', tool_use_id: id }),
-    retired: { before: [hook('SessionStart', { source: 'startup', session_id: 'old' }), hook('SessionStart', { source: 'clear' })],
-      stale: hook('Stop', { session_id: 'old' }) },
+    retired: {
+      before: [
+        hook('SessionStart', { source: 'startup', session_id: 'old' }),
+        hook('SessionStart', { source: 'clear' }),
+      ],
+      stale: hook('Stop', { session_id: 'old' }),
+    },
   },
   pi: {
-    adapter: pi, configured: ['--extension', './mine.mjs'], unsafe: null,
+    adapter: pi,
+    configured: ['--extension', './mine.mjs'],
+    unsafe: null,
     ready: [fact('session_start', { isIdle: true, sessionId: 'session' })],
     busy: [fact('agent_start')],
     waiting: [fact('agent_start'), fact('ui_prompt_start')],
-    done: [fact('agent_start'), fact('message_end', { message: { role: 'assistant', stopReason: 'stop' } }), fact('agent_settled', { isIdle: true })],
+    done: [
+      fact('agent_start'),
+      fact('message_end', { message: { role: 'assistant', stopReason: 'stop' } }),
+      fact('agent_settled', { isIdle: true }),
+    ],
     auxiliary: [fact('agent_start'), fact('turn_start')],
     unclassified: [fact('unclassified')],
     progress: () => fact('tool_execution_start'),
@@ -98,14 +124,28 @@ for (const [agent, contract] of Object.entries(contracts)) {
         await prepared.cleanup?.();
         assert.deepEqual(await readdir(resources), [], 'no invocation resources remain');
       }
-      if (contract.unsafe) await assert.rejects(contract.adapter.prepare({
-        command: { command: 'cli', args: contract.unsafe }, directory, resourceDirectory: resources }));
-    } finally { await rm(directory, { recursive: true, force: true }); }
+      if (contract.unsafe)
+        await assert.rejects(
+          contract.adapter.prepare({
+            command: { command: 'cli', args: contract.unsafe },
+            directory,
+            resourceDirectory: resources,
+          }),
+        );
+    } finally {
+      await rm(directory, { recursive: true, force: true });
+    }
   });
 
   test(`${agent}: each sample reaches its state, auxiliary facts keep it and unclassified facts are Error`, () => {
-    for (const [sample, expected] of [['ready', 'ready'], ['busy', 'busy'], ['waiting', 'needs-input'], ['done', 'done'],
-      ['auxiliary', 'keep'], ['unclassified', 'error']] as const) {
+    for (const [sample, expected] of [
+      ['ready', 'ready'],
+      ['busy', 'busy'],
+      ['waiting', 'needs-input'],
+      ['done', 'done'],
+      ['auxiliary', 'keep'],
+      ['unclassified', 'error'],
+    ] as const) {
       assert.equal(observe(contract.adapter).feed(contract[sample]), expected, sample);
     }
   });
@@ -134,7 +174,8 @@ for (const [agent, contract] of Object.entries(contracts)) {
   });
 
   test(`${agent}: interpreters of two runs are independent`, () => {
-    const first = observe(contract.adapter), second = observe(contract.adapter);
+    const first = observe(contract.adapter),
+      second = observe(contract.adapter);
     first.feed(contract.waiting);
     second.feed(contract.busy);
     assert.equal(second.accept(contract.progress('progress')), 'busy');

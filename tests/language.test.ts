@@ -22,7 +22,9 @@ test('new and legacy settings default to English, while saved Chinese survives r
     await workbench.quit();
     workbench = await Workbench.open(directory);
     assert.deepEqual(workbench.snapshot().settings, { ...legacy, language: 'zh-CN' });
-  } finally { await workbench.quit(); }
+  } finally {
+    await workbench.quit();
+  }
 });
 
 test('a rejected whole settings submission retains the saved language and reports translatable field reasons', async context => {
@@ -30,13 +32,18 @@ test('a rejected whole settings submission retains the saved language and report
   const workbench = await Workbench.open(directory);
   try {
     const before = workbench.snapshot().settings;
-    const result = await workbench.saveSettings({ language: 'zh-CN', theme: 'dark',
-      agents: { ...before.agents, codex: { command: '', args: [] } } });
+    const result = await workbench.saveSettings({
+      language: 'zh-CN',
+      theme: 'dark',
+      agents: { ...before.agents, codex: { command: '', args: [] } },
+    });
     assert.ok(!result.ok && result.kind === 'validation');
     assert.deepEqual(workbench.snapshot().settings, before);
     assert.equal(localize('en').text(result.issues[0].message), 'Launch command is required');
     assert.equal(localize('zh-CN').text(result.issues[0].message), '启动命令不能为空');
-  } finally { await workbench.quit(); }
+  } finally {
+    await workbench.quit();
+  }
 });
 
 test('project storage startup failures retain the saved language for native error presentation', async context => {

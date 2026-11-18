@@ -20,24 +20,47 @@ test('switching language preserves project input and old notice identity and exp
     const [settings, setSettings] = useState(defaultSettings);
     const [draft, setDraft] = useState(newDraft);
     const { notices, report, dismiss } = useNotices();
-    provideWorkbench({ chooseDirectory: async () => { throw new Error(message('environmentFailed')); },
-      saveSettings: async patch => { const next = { ...settings, ...patch }; setSettings(next); return { ok: true, settings: next }; } });
-    return <Localization language={settings.language}>
-      <Setup draft={draft} change={setDraft} defaultLayout="auto" cancel={() => {}} created={() => {}} openProject={() => {}} report={report} openAgentSettings={() => {}} />
-      <SettingsPage settings={settings} startupTheme="system" ref={null} back={() => {}} report={report} />
-      <Notices notices={notices} dismiss={dismiss} />
-    </Localization>;
+    provideWorkbench({
+      chooseDirectory: async () => {
+        throw new Error(message('environmentFailed'));
+      },
+      saveSettings: async patch => {
+        const next = { ...settings, ...patch };
+        setSettings(next);
+        return { ok: true, settings: next };
+      },
+    });
+    return (
+      <Localization language={settings.language}>
+        <Setup
+          draft={draft}
+          change={setDraft}
+          defaultLayout="auto"
+          cancel={() => {}}
+          created={() => {}}
+          openProject={() => {}}
+          report={report}
+          openAgentSettings={() => {}}
+        />
+        <SettingsPage settings={settings} startupTheme="system" ref={null} back={() => {}} report={report} />
+        <Notices notices={notices} dismiss={dismiss} />
+      </Localization>
+    );
   }
   render(<Harness />);
   const input = screen.getByRole<HTMLInputElement>('textbox', { name: 'Project name' });
   fireEvent.change(input, { target: { value: 'Untitled task 原样' } });
   fireEvent.paste(input, { clipboardData: { getData: () => 'line\nbreak' } });
   assert.ok(screen.getByText('Project names cannot contain line breaks or control characters'));
-  await act(async () => { fireEvent.click(screen.getByRole('button', { name: 'Choose local directory' })); });
+  await act(async () => {
+    fireEvent.click(screen.getByRole('button', { name: 'Choose local directory' }));
+  });
   const notice = screen.getByText('Could not read the local command environment').closest('[role=alert]');
   act(() => context.mock.timers.tick(4000));
   fireEvent.change(screen.getByRole('combobox', { name: 'Interface language' }), { target: { value: 'zh-CN' } });
-  await act(async () => { fireEvent.click(screen.getByRole('button', { name: 'Save' })); });
+  await act(async () => {
+    fireEvent.click(screen.getByRole('button', { name: 'Save' }));
+  });
   assert.equal(screen.getByRole<HTMLInputElement>('textbox', { name: '项目名称' }), input);
   assert.equal(input.value, 'Untitled task 原样');
   assert.ok(screen.getByText('项目名称不能包含换行或控制字符'));

@@ -11,12 +11,24 @@ import { provideWorkbench } from './support/workbench';
 
 afterEach(cleanup);
 
-const failed: PanelCreation = { panel: { id: 'panel', agent: 'pi' },
-  launch: { outcome: 'failed', run: { id: 'run', panelId: 'panel', projectId: 'project', state: 'failed' }, agent: 'pi' } };
+const failed: PanelCreation = {
+  panel: { id: 'panel', agent: 'pi' },
+  launch: {
+    outcome: 'failed',
+    run: { id: 'run', panelId: 'panel', projectId: 'project', state: 'failed' },
+    agent: 'pi',
+  },
+};
 
 function renderPicker(language: 'en' | 'zh-CN' = 'en') {
-  const close = mock.fn(), added = mock.fn(), openAgentSettings = mock.fn();
-  render(<Localization language={language}><AgentPicker projectId="project" full={false} {...{ close, added, openAgentSettings }} /></Localization>);
+  const close = mock.fn(),
+    added = mock.fn(),
+    openAgentSettings = mock.fn();
+  render(
+    <Localization language={language}>
+      <AgentPicker projectId="project" full={false} {...{ close, added, openAgentSettings }} />
+    </Localization>,
+  );
   return { user: userEvent.setup(), close, added, openAgentSettings };
 }
 
@@ -40,7 +52,11 @@ test('the launch failure and its settings entry are localized', async () => {
 });
 
 test('an error that is not a launch failure offers no settings entry', async () => {
-  provideWorkbench({ addPanel: async () => { throw new Error('Panel limit'); } });
+  provideWorkbench({
+    addPanel: async () => {
+      throw new Error('Panel limit');
+    },
+  });
   const { user } = renderPicker();
   await user.click(screen.getByRole('button', { name: /pi$/ }));
   assert.equal(screen.getByRole('alert').textContent, 'Panel limit');
@@ -48,8 +64,17 @@ test('an error that is not a launch failure offers no settings entry', async () 
 });
 
 test('an unconfirmed launch reports its reason without suggesting the Agent settings are wrong', async () => {
-  provideWorkbench({ addPanel: async () => ({ panel: { id: 'panel', agent: 'pi' }, launch: { outcome: 'unconfirmed', agent: 'pi',
-    run: { id: 'run', panelId: 'panel', projectId: 'project', state: 'starting' }, reason: message('launchUnconfirmed', { reason: 'host timeout' }) } }) });
+  provideWorkbench({
+    addPanel: async () => ({
+      panel: { id: 'panel', agent: 'pi' },
+      launch: {
+        outcome: 'unconfirmed',
+        agent: 'pi',
+        run: { id: 'run', panelId: 'panel', projectId: 'project', state: 'starting' },
+        reason: message('launchUnconfirmed', { reason: 'host timeout' }),
+      },
+    }),
+  });
   const { user, added } = renderPicker();
   await user.click(screen.getByRole('button', { name: /pi$/ }));
   assert.equal(screen.getByRole('alert').textContent, 'Launch could not be confirmed: host timeout');

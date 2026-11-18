@@ -10,7 +10,14 @@ export async function until(check: () => boolean, timeout = 7000) {
     await new Promise(resolve => setTimeout(resolve, 20));
   }
 }
-export const alive = (pid: number) => { try { process.kill(pid, 0); return true; } catch { return false; } };
+export const alive = (pid: number) => {
+  try {
+    process.kill(pid, 0);
+    return true;
+  } catch {
+    return false;
+  }
+};
 
 /** A Workbench in its own data directory whose every Agent runs tests/fixtures/interactive.cjs. */
 export async function interactiveWorkbench(scope: string) {
@@ -19,10 +26,26 @@ export async function interactiveWorkbench(scope: string) {
   const events: WorkbenchEvent[] = [];
   workbench.subscribe(event => events.push(event));
   const settings = workbench.snapshot().settings;
-  for (const agent of ['codex', 'claude', 'pi'] as const) settings.agents[agent] = { command: process.env.VIBEBRIDGE_TEST_NODE!, args: [resolve('tests/fixtures/interactive.cjs')] };
+  for (const agent of ['codex', 'claude', 'pi'] as const)
+    settings.agents[agent] = {
+      command: process.env.VIBEBRIDGE_TEST_NODE!,
+      args: [resolve('tests/fixtures/interactive.cjs')],
+    };
   await workbench.saveSettings(settings);
-  return { directory, workbench, events,
-    output: (id: string) => events.filter(e => e.kind === 'output' && e.runId === id).map(e => e.kind === 'output' ? e.data : '').join(''),
-    create: (name: string, path = directory, total = 1) => workbench.createProject({ name, directory: path, total, counts: { codex: total, claude: 0, pi: 0 } }),
-    close: async () => { await workbench.quit(); await rm(directory, { recursive: true, force: true }); } };
+  return {
+    directory,
+    workbench,
+    events,
+    output: (id: string) =>
+      events
+        .filter(e => e.kind === 'output' && e.runId === id)
+        .map(e => (e.kind === 'output' ? e.data : ''))
+        .join(''),
+    create: (name: string, path = directory, total = 1) =>
+      workbench.createProject({ name, directory: path, total, counts: { codex: total, claude: 0, pi: 0 } }),
+    close: async () => {
+      await workbench.quit();
+      await rm(directory, { recursive: true, force: true });
+    },
+  };
 }

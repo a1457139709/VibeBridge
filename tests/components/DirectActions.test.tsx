@@ -6,7 +6,14 @@ import { userEvent } from '@testing-library/user-event';
 import { App } from '../../app/renderer/Workbench';
 import { defaultSettings } from '../../app/shared/settings/settings';
 import type { ProjectView, Snapshot } from '../../app/shared/model';
-import type { Check, DirectAction, DirectActionResult, ForgeFailure, IssueDetail, PullRequestDetail } from '../../app/shared/forge/forge';
+import type {
+  Check,
+  DirectAction,
+  DirectActionResult,
+  ForgeFailure,
+  IssueDetail,
+  PullRequestDetail,
+} from '../../app/shared/forge/forge';
 import { deferred, provideWorkbench } from './support/workbench';
 import { githubForge, githubView, githubRepository } from './support/forge';
 import { issue as listedIssue, pullRequest as listedPullRequest, stubSidebarApis } from './support/forge-lists';
@@ -17,41 +24,136 @@ before(stubSidebarApis);
 const repositoryUrl = 'https://github.com/octo/alpha';
 const links = { issues: `${repositoryUrl}/issues/`, pullRequests: `${repositoryUrl}/pull/` };
 const issueDetail = (number: number, extra: Partial<IssueDetail> = {}): IssueDetail => {
-  const { blockedBy: _, unlistedBlockers: __, parent: ___, subIssues: ____, ...summary } = listedIssue(number, { title: 'Spec' });
-  return { ...summary, url: `${repositoryUrl}/issues/${number}`, author: 'mona', assignees: [], body: '', comments: [], commentCount: 0,
-    parent: null, subIssues: [], blockedBy: [], blocking: [], closingPullRequests: [], links, canWrite: true, ...extra };
+  const {
+    blockedBy: _,
+    unlistedBlockers: __,
+    parent: ___,
+    subIssues: ____,
+    ...summary
+  } = listedIssue(number, { title: 'Spec' });
+  return {
+    ...summary,
+    url: `${repositoryUrl}/issues/${number}`,
+    author: 'mona',
+    assignees: [],
+    body: '',
+    comments: [],
+    commentCount: 0,
+    parent: null,
+    subIssues: [],
+    blockedBy: [],
+    blocking: [],
+    closingPullRequests: [],
+    links,
+    canWrite: true,
+    ...extra,
+  };
 };
 const pullDetail = (number: number, extra: Partial<PullRequestDetail> = {}): PullRequestDetail => {
   const { checks: _, ...summary } = listedPullRequest(number, { title: 'Read-only detail' });
-  return { ...summary, url: `${repositoryUrl}/pull/${number}`, changesUrl: `${repositoryUrl}/pull/${number}/files`, head: 'feature', base: 'main', body: '',
-    timeline: [], commentCount: 0, codeComments: 0, closingIssues: [], links, review: { state: 'notRequired', requiredApprovals: null }, checks: [],
-    conflicts: 'none', merge: { methods: ['merge', 'squash', 'rebase'], queue: false }, canWrite: true, ...extra };
+  return {
+    ...summary,
+    url: `${repositoryUrl}/pull/${number}`,
+    changesUrl: `${repositoryUrl}/pull/${number}/files`,
+    head: 'feature',
+    base: 'main',
+    body: '',
+    timeline: [],
+    commentCount: 0,
+    codeComments: 0,
+    closingIssues: [],
+    links,
+    review: { state: 'notRequired', requiredApprovals: null },
+    checks: [],
+    conflicts: 'none',
+    merge: { methods: ['merge', 'squash', 'rebase'], queue: false },
+    canWrite: true,
+    ...extra,
+  };
 };
-const check = (name: string, result: Check['result'], required = false): Check => ({ name, result, required, url: null });
+const check = (name: string, result: Check['result'], required = false): Check => ({
+  name,
+  result,
+  required,
+  url: null,
+});
 
-interface Forge { issue?: IssueDetail; pullRequest?: PullRequestDetail }
-interface ActionRequest { action: DirectAction; answer(result: DirectActionResult): void }
+interface Forge {
+  issue?: IssueDetail;
+  pullRequest?: PullRequestDetail;
+}
+interface ActionRequest {
+  action: DirectAction;
+  answer(result: DirectActionResult): void;
+}
 
 /** The Workbench with a bound project and its sidebar open, its forge holding one issue (#3) and one pull request (#12).
  * Details and pages answer from `forge` at once; each direct action waits until the test answers it. */
 function renderWorkbench(forge: Forge) {
   const project: ProjectView = {
-    id: 'alpha', name: 'Alpha', directory: '/work/alpha', layout: { panel: 'panel' }, tray: [], repository: githubRepository('octo/alpha'), ...githubView,
-    panels: [{ id: 'panel', agent: 'codex', run: { id: 'run', panelId: 'panel', projectId: 'alpha', state: 'running', title: 'Alpha session' } }],
+    id: 'alpha',
+    name: 'Alpha',
+    directory: '/work/alpha',
+    layout: { panel: 'panel' },
+    tray: [],
+    repository: githubRepository('octo/alpha'),
+    ...githubView,
+    panels: [
+      {
+        id: 'panel',
+        agent: 'codex',
+        run: { id: 'run', panelId: 'panel', projectId: 'alpha', state: 'running', title: 'Alpha session' },
+      },
+    ],
   };
   const snapshot: Snapshot = {
-    navigation: { visible: true, width: 212 }, forgeSidebar: { visible: true, width: 380 }, activeProjectId: 'alpha', settings: defaultSettings(),
-    settingsConflicts: [], startupTheme: 'light', resolvedTheme: 'light', errors: [], projects: [project],
+    navigation: { visible: true, width: 212 },
+    forgeSidebar: { visible: true, width: 380 },
+    activeProjectId: 'alpha',
+    settings: defaultSettings(),
+    settingsConflicts: [],
+    startupTheme: 'light',
+    resolvedTheme: 'light',
+    errors: [],
+    projects: [project],
   };
   const actions: ActionRequest[] = [];
   const reads = { issue: 0, pullRequest: 0, pages: 0 };
   provideWorkbench({
-    snapshot: async () => structuredClone(snapshot), ready: async () => {}, subscribe: () => () => {},
-    saveSidebar: async () => {}, activateProject: async () => {}, saveLayout: async () => {},
-    issuePage: async () => { reads.pages++; return { ok: true, items: [listedIssue(3, { title: 'Spec' })], cursor: null, labels: [], counts: { open: 1, closed: 0 } }; },
-    pullRequestPage: async () => { reads.pages++; return { ok: true, items: [listedPullRequest(12, { title: 'Read-only detail' })], cursor: null, labels: [], counts: { open: 1, closed: 0 } }; },
-    issueDetail: async () => { reads.issue++; return { ok: true, issue: structuredClone(forge.issue!) }; },
-    pullRequestDetail: async () => { reads.pullRequest++; return { ok: true, pullRequest: structuredClone(forge.pullRequest!) }; },
+    snapshot: async () => structuredClone(snapshot),
+    ready: async () => {},
+    subscribe: () => () => {},
+    saveSidebar: async () => {},
+    activateProject: async () => {},
+    saveLayout: async () => {},
+    issuePage: async () => {
+      reads.pages++;
+      return {
+        ok: true,
+        items: [listedIssue(3, { title: 'Spec' })],
+        cursor: null,
+        labels: [],
+        counts: { open: 1, closed: 0 },
+      };
+    },
+    pullRequestPage: async () => {
+      reads.pages++;
+      return {
+        ok: true,
+        items: [listedPullRequest(12, { title: 'Read-only detail' })],
+        cursor: null,
+        labels: [],
+        counts: { open: 1, closed: 0 },
+      };
+    },
+    issueDetail: async () => {
+      reads.issue++;
+      return { ok: true, issue: structuredClone(forge.issue!) };
+    },
+    pullRequestDetail: async () => {
+      reads.pullRequest++;
+      return { ok: true, pullRequest: structuredClone(forge.pullRequest!) };
+    },
     directAction: (_, action) => {
       const answer = deferred<DirectActionResult>();
       actions.push({ action, answer: answer.resolve });
@@ -59,7 +161,11 @@ function renderWorkbench(forge: Forge) {
     },
   });
   render(<App />);
-  const action = (count: number) => waitFor(() => { assert.equal(actions.length, count, 'direct actions asked for'); return actions[count - 1]; });
+  const action = (count: number) =>
+    waitFor(() => {
+      assert.equal(actions.length, count, 'direct actions asked for');
+      return actions[count - 1];
+    });
   return { user: userEvent.setup(), action, reads };
 }
 
@@ -67,18 +173,28 @@ const sidebar = () => screen.getByRole('complementary', { name: 'GitHub' });
 const issuePane = () => within(sidebar()).getByRole('region', { name: 'Issue detail' });
 const pullPane = () => within(sidebar()).getByRole('region', { name: 'Pull request detail' });
 /** The texts of the buttons in the pull request's merge area. */
-const mergeButtons = () => within(within(pullPane()).getByRole('region', { name: 'Merge requirements' })).queryAllByRole('button').map(button => button.textContent);
-const failure = (detail: string): DirectActionResult => ({ ok: false, failure: { kind: 'transient', detail, forge: githubForge } });
+const mergeButtons = () =>
+  within(within(pullPane()).getByRole('region', { name: 'Merge requirements' }))
+    .queryAllByRole('button')
+    .map(button => button.textContent);
+const failure = (detail: string): DirectActionResult => ({
+  ok: false,
+  failure: { kind: 'transient', detail, forge: githubForge },
+});
 
 async function openIssue(forge: Forge) {
   const view = renderWorkbench(forge);
-  await view.user.click(await within(await screen.findByRole('complementary', { name: 'GitHub' })).findByRole('button', { name: 'Spec' }));
+  await view.user.click(
+    await within(await screen.findByRole('complementary', { name: 'GitHub' })).findByRole('button', { name: 'Spec' }),
+  );
   await within(issuePane()).findByRole('heading', { name: 'Spec #3' });
   return view;
 }
 async function openPullRequest(forge: Forge) {
   const view = renderWorkbench(forge);
-  await view.user.click(within(await screen.findByRole('complementary', { name: 'GitHub' })).getByRole('tab', { name: 'Pull requests' }));
+  await view.user.click(
+    within(await screen.findByRole('complementary', { name: 'GitHub' })).getByRole('tab', { name: 'Pull requests' }),
+  );
   await view.user.click(await within(sidebar()).findByRole('button', { name: 'Read-only detail' }));
   await within(pullPane()).findByRole('heading', { name: 'Read-only detail #12' });
   return view;
@@ -87,16 +203,26 @@ async function openPullRequest(forge: Forge) {
 test('Close issue closes it as completed, shows it working meanwhile, and on success refreshes once to show what the forge holds', async () => {
   const forge: Forge = { issue: issueDetail(3) };
   const { user, action, reads } = await openIssue(forge);
-  const pagesBefore = reads.pages, detailsBefore = reads.issue;
+  const pagesBefore = reads.pages,
+    detailsBefore = reads.issue;
   await user.click(within(issuePane()).getByRole('button', { name: 'Close issue' }));
   const asked = await action(1);
   assert.deepEqual(asked.action, { kind: 'closeIssue', number: 3, reason: 'completed' });
   await within(issuePane()).findByRole('button', { name: 'Working…' });
-  assert.ok(within(issuePane()).getByRole('button', { name: 'More ways to close' }).hasAttribute('disabled'), 'the other actions wait');
+  assert.ok(
+    within(issuePane()).getByRole('button', { name: 'More ways to close' }).hasAttribute('disabled'),
+    'the other actions wait',
+  );
   forge.issue = issueDetail(3, { state: 'closed', closedAs: 'completed' });
   asked.answer({ ok: true, detail: '✓ Closed issue octo/alpha#3 (Spec)' });
   await within(issuePane()).findByRole('button', { name: 'Reopen issue' });
-  await waitFor(() => assert.deepEqual([reads.issue - detailsBefore, reads.pages - pagesBefore], [1, 1], 'one refresh of the detail and the list'));
+  await waitFor(() =>
+    assert.deepEqual(
+      [reads.issue - detailsBefore, reads.pages - pagesBefore],
+      [1, 1],
+      'one refresh of the detail and the list',
+    ),
+  );
   assert.equal(within(issuePane()).queryByRole('button', { name: 'Close issue' }), null);
 });
 
@@ -105,7 +231,12 @@ test('the close menu closes an issue as not planned, and a closed issue reopens'
   const { user, action } = await openIssue(forge);
   await user.click(within(issuePane()).getByRole('button', { name: 'More ways to close' }));
   const menu = within(issuePane()).getByRole('menu', { name: 'More ways to close' });
-  assert.deepEqual(within(menu).getAllByRole('menuitem').map(item => item.textContent), ['Close as completed', 'Close as not planned']);
+  assert.deepEqual(
+    within(menu)
+      .getAllByRole('menuitem')
+      .map(item => item.textContent),
+    ['Close as completed', 'Close as not planned'],
+  );
   await user.click(within(menu).getByRole('menuitem', { name: 'Close as not planned' }));
   const close = await action(1);
   assert.deepEqual(close.action, { kind: 'closeIssue', number: 3, reason: 'notPlanned' });
@@ -121,7 +252,10 @@ test('a failed action shows the forge text under the buttons with Retry until di
   await user.click(within(issuePane()).getByRole('button', { name: 'Close issue' }));
   (await action(1)).answer(failure('HTTP 502: Server Error (https://api.github.com/graphql)'));
   const alert = await within(issuePane()).findByRole('alert');
-  assert.equal(within(alert).getByText(/failed/).textContent, 'Close as completed failed: HTTP 502: Server Error (https://api.github.com/graphql)');
+  assert.equal(
+    within(alert).getByText(/failed/).textContent,
+    'Close as completed failed: HTTP 502: Server Error (https://api.github.com/graphql)',
+  );
   assert.ok(!within(issuePane()).getByRole('button', { name: 'Close issue' }).hasAttribute('disabled'));
 
   await user.click(within(alert).getByRole('button', { name: 'Retry' }));
@@ -136,7 +270,9 @@ test('a failed action shows the forge text under the buttons with Retry until di
   (await action(3)).answer(failure('Again'));
   await within(issuePane()).findByRole('alert');
   await user.click(within(sidebar()).getByRole('button', { name: 'Refresh' }));
-  await waitFor(() => assert.equal(within(issuePane()).queryByRole('alert'), null, 'the next refresh clears the failure'));
+  await waitFor(() =>
+    assert.equal(within(issuePane()).queryByRole('alert'), null, 'the next refresh clears the failure'),
+  );
 });
 
 test('an action that finds the forge CLI missing or logged out puts the sidebar in that failure state', async () => {
@@ -146,12 +282,19 @@ test('an action that finds the forge CLI missing or logged out puts the sidebar 
   const notInstalled: ForgeFailure = { kind: 'notInstalled', detail: '', forge: githubForge };
   (await missing.action(1)).answer({ ok: false, failure: notInstalled });
   await within(sidebar()).findByText('Could not find gh. Install it to use the sidebar.');
-  assert.equal(within(sidebar()).queryByRole('region', { name: 'Issue detail' }), null, 'the failure fills the content area');
+  assert.equal(
+    within(sidebar()).queryByRole('region', { name: 'Issue detail' }),
+    null,
+    'the failure fills the content area',
+  );
   cleanup();
 
   const loggedOut = await openPullRequest(forge);
   await loggedOut.user.click(within(pullPane()).getByRole('button', { name: 'Close PR' }));
-  (await loggedOut.action(1)).answer({ ok: false, failure: { kind: 'loggedOut', detail: 'HTTP 401: Bad credentials', forge: githubForge } });
+  (await loggedOut.action(1)).answer({
+    ok: false,
+    failure: { kind: 'loggedOut', detail: 'HTTP 401: Bad credentials', forge: githubForge },
+  });
   await within(sidebar()).findByRole('button', { name: 'Copy gh auth login' });
 });
 
@@ -172,7 +315,10 @@ test('merging takes two clicks in place: the method, then its confirmation', asy
   const merge = await action(1);
   assert.deepEqual(merge.action, { kind: 'merge', number: 12, method: 'merge' });
   await within(pullPane()).findByRole('button', { name: 'Merging…' });
-  assert.ok(within(pullPane()).getByRole('button', { name: 'Close PR' }).hasAttribute('disabled'), 'the other actions wait');
+  assert.ok(
+    within(pullPane()).getByRole('button', { name: 'Close PR' }).hasAttribute('disabled'),
+    'the other actions wait',
+  );
   forge.pullRequest = pullDetail(12, { state: 'merged' });
   merge.answer({ ok: true, detail: '' });
   await within(pullPane()).findByText('Merged', { selector: '.forge-merge-row' });
@@ -193,21 +339,39 @@ test('a pull request closes, and a closed one reopens', async () => {
 });
 
 test('a blocked merge greys out the merge button and says why', async () => {
-  const forge: Forge = { pullRequest: pullDetail(12, { state: 'draft', conflicts: 'conflicting', review: { state: 'required', requiredApprovals: 2 },
-    checks: [check('unit', 'failed', true), check('lint', 'failed'), check('e2e', 'pending', true)] }) };
+  const forge: Forge = {
+    pullRequest: pullDetail(12, {
+      state: 'draft',
+      conflicts: 'conflicting',
+      review: { state: 'required', requiredApprovals: 2 },
+      checks: [check('unit', 'failed', true), check('lint', 'failed'), check('e2e', 'pending', true)],
+    }),
+  };
   await openPullRequest(forge);
   assert.ok(within(pullPane()).getByRole('button', { name: 'Create a merge commit' }).hasAttribute('disabled'));
   assert.ok(within(pullPane()).getByRole('button', { name: 'Choose a merge method' }).hasAttribute('disabled'));
-  within(pullPane()).getByText('Cannot merge: this is a draft, conflicts, required checks failing, 2 approvals still needed');
-  assert.ok(!within(pullPane()).getByRole('button', { name: 'Close PR' }).hasAttribute('disabled'), 'closing is not blocked');
+  within(pullPane()).getByText(
+    'Cannot merge: this is a draft, conflicts, required checks failing, 2 approvals still needed',
+  );
+  assert.ok(
+    !within(pullPane()).getByRole('button', { name: 'Close PR' }).hasAttribute('disabled'),
+    'closing is not blocked',
+  );
   cleanup();
 
-  forge.pullRequest = pullDetail(12, { review: { state: 'changesRequested', requiredApprovals: null }, checks: [check('e2e', 'pending', true)] });
+  forge.pullRequest = pullDetail(12, {
+    review: { state: 'changesRequested', requiredApprovals: null },
+    checks: [check('e2e', 'pending', true)],
+  });
   await openPullRequest(forge);
   within(pullPane()).getByText('Cannot merge: required checks still running, changes were requested');
   cleanup();
 
-  forge.pullRequest = pullDetail(12, { review: { state: 'required', requiredApprovals: null }, conflicts: 'unknown', checks: [check('lint', 'failed')] });
+  forge.pullRequest = pullDetail(12, {
+    review: { state: 'required', requiredApprovals: null },
+    conflicts: 'unknown',
+    checks: [check('lint', 'failed')],
+  });
   await openPullRequest(forge);
   within(pullPane()).getByText('Cannot merge: a required review is missing');
 });
@@ -219,7 +383,10 @@ test('a repository that merges through a merge queue greys out merging and links
   assert.ok(merge.hasAttribute('disabled'));
   const note = merge.parentElement!;
   assert.match(note.textContent ?? '', /This repository merges through a merge queue/);
-  assert.equal(within(note).getByRole('link', { name: 'Open on GitHub ↗' }).getAttribute('href'), `${repositoryUrl}/pull/12`);
+  assert.equal(
+    within(note).getByRole('link', { name: 'Open on GitHub ↗' }).getAttribute('href'),
+    `${repositoryUrl}/pull/12`,
+  );
 });
 
 // The chosen merge method is remembered for the rest of the app's run, so this test runs last.
@@ -229,7 +396,12 @@ test('the method menu lists only the methods the repository allows and remembers
   await user.click(within(pullPane()).getByRole('button', { name: 'Squash and merge' }));
   await user.click(within(pullPane()).getByRole('button', { name: 'Choose a merge method' }));
   const menu = within(pullPane()).getByRole('menu', { name: 'Choose a merge method' });
-  assert.deepEqual(within(menu).getAllByRole('menuitemradio').map(item => item.textContent), ['Squash and merge', 'Rebase and merge']);
+  assert.deepEqual(
+    within(menu)
+      .getAllByRole('menuitemradio')
+      .map(item => item.textContent),
+    ['Squash and merge', 'Rebase and merge'],
+  );
   await user.click(within(menu).getByRole('menuitemradio', { name: 'Rebase and merge' }));
   await user.click(within(pullPane()).getByRole('button', { name: 'Rebase and merge' }));
   await user.click(within(pullPane()).getByRole('button', { name: 'Confirm: rebase and merge' }));

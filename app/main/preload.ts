@@ -23,7 +23,10 @@ const api: DesktopAPI = {
   moveToTray: (project, panel) => ipcRenderer.invoke('workbench:tray', project, panel),
   saveLayout: (project, layout) => ipcRenderer.invoke('workbench:layout', project, layout),
   saveSidebar: (sidebar, preferences) => ipcRenderer.invoke('workbench:sidebar', sidebar, preferences),
-  saveSettings: settings => ipcRenderer.invoke('workbench:settings', settings).catch(() => ({ ok: false, kind: 'unavailable', message: message('settingsUnavailable') })),
+  saveSettings: settings =>
+    ipcRenderer
+      .invoke('workbench:settings', settings)
+      .catch(() => ({ ok: false, kind: 'unavailable', message: message('settingsUnavailable') })),
   checkCommand: command => ipcRenderer.invoke('workbench:check-command', command),
   sendInput: (run, data) => ipcRenderer.invoke('workbench:input', run, data),
   resizeRun: (run, cols, rows) => ipcRenderer.invoke('workbench:resize', run, cols, rows),
@@ -33,7 +36,9 @@ const api: DesktopAPI = {
   subscribe: listener => {
     const receive = (_event: Electron.IpcRendererEvent, value: Parameters<typeof listener>[0]) => listener(value);
     ipcRenderer.on('workbench:event', receive);
-    return () => { ipcRenderer.removeListener('workbench:event', receive); };
+    return () => {
+      ipcRenderer.removeListener('workbench:event', receive);
+    };
   },
 };
 contextBridge.exposeInMainWorld('workbench', api);

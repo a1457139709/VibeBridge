@@ -1,15 +1,38 @@
-import type { DirectAction, ForgeCapabilities, ForgeFailure, ForgeFailureKind, ForgeId, ForgePresentation,
-  IssueDetail, ListPage, ListQuery, ListedIssue, PullRequestDetail, PullRequestSummary, RepositoryReference } from '../../shared/forge/forge';
+import type {
+  DirectAction,
+  ForgeCapabilities,
+  ForgeFailure,
+  ForgeFailureKind,
+  ForgeId,
+  ForgePresentation,
+  IssueDetail,
+  ListPage,
+  ListQuery,
+  ListedIssue,
+  PullRequestDetail,
+  PullRequestSummary,
+  RepositoryReference,
+} from '../../shared/forge/forge';
 
 /** A failure of a forge call, in one of the forge-neutral kinds, with the forge's own text. */
 export class ForgeError extends Error {
-  constructor(readonly kind: ForgeFailureKind, readonly detail: string) { super(detail || kind); }
+  constructor(
+    readonly kind: ForgeFailureKind,
+    readonly detail: string,
+  ) {
+    super(detail || kind);
+  }
   /** The failure as the UI receives it, with how `forge` presents itself. */
-  failure(forge: Forge): ForgeFailure { return { kind: this.kind, detail: this.detail, forge: forge.presentation }; }
+  failure(forge: Forge): ForgeFailure {
+    return { kind: this.kind, detail: this.detail, forge: forge.presentation };
+  }
 }
 
 /** A repository as the forge lists it: its ID, which a rename or transfer keeps, and its current path. */
-export interface ListedRepository { id: string; path: string }
+export interface ListedRepository {
+  id: string;
+  path: string;
+}
 
 /** One Forge behind the Workbench. The adapter is the only code that talks to the forge or its
  * CLI. It declares the features it has in `capabilities`. It returns domain shapes with forge-neutral names and throws ForgeError on every forge failure.

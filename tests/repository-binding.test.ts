@@ -33,15 +33,26 @@ test('the repository origin points at is offered by default, and only a saved, l
     const { project } = await f.create('Bound');
     const choices = await f.workbench.repositoryChoices(project.id, f.directory);
     assert.ok(choices.ok);
-    assert.deepEqual(choices.repositories.map(item => [item.forge, item.host, item.path]), account.repositories.map(path => ['github', 'github.com', path]));
+    assert.deepEqual(
+      choices.repositories.map(item => [item.forge, item.host, item.path]),
+      account.repositories.map(path => ['github', 'github.com', path]),
+    );
     assert.equal(new Set(choices.repositories.map(item => item.id)).size, 3, 'each listed repository has its own ID');
     const [tools, vibeBridge, forge] = choices.repositories;
     assert.deepEqual(choices.origin, vibeBridge);
     assert.equal(choices.account, 'octo');
     assert.equal(f.workbench.snapshot().projects[0].repository, null, 'offering a default does not bind');
 
-    await assert.rejects(saveBinding(f, project.id, github('octo/tools')), /repositoryNotListed/, 'a listed path with an ID the forge does not list');
-    await assert.rejects(saveBinding(f, project.id, { forge: 'github', path: 'octo/tools' } as RepositoryReference), /repositoryNotListed/, 'a reference without host and ID');
+    await assert.rejects(
+      saveBinding(f, project.id, github('octo/tools')),
+      /repositoryNotListed/,
+      'a listed path with an ID the forge does not list',
+    );
+    await assert.rejects(
+      saveBinding(f, project.id, { forge: 'github', path: 'octo/tools' } as RepositoryReference),
+      /repositoryNotListed/,
+      'a reference without host and ID',
+    );
     assert.equal(f.workbench.snapshot().projects[0].repository, null);
 
     await saveBinding(f, project.id, { ...tools, path: 'someone/else' });
@@ -51,9 +62,14 @@ test('the repository origin points at is offered by default, and only a saved, l
     await saveBinding(f, project.id, forge);
     await f.workbench.quit();
     const reopened = await Workbench.open(f.directory);
-    try { assert.deepEqual(reopened.snapshot().projects[0].repository, forge); }
-    finally { await reopened.quit(); }
-  } finally { await f.close(); }
+    try {
+      assert.deepEqual(reopened.snapshot().projects[0].repository, forge);
+    } finally {
+      await reopened.quit();
+    }
+  } finally {
+    await f.close();
+  }
 });
 
 test('forge failures are classified into the four kinds and carry the forge text unchanged', async context => {
@@ -61,17 +77,50 @@ test('forge failures are classified into the four kinds and carry the forge text
   const f = await interactiveWorkbench('repository-failures');
   try {
     const { project } = await f.create('Failing');
-    const graphqlMissing = JSON.stringify({ errors: [{ type: 'NOT_FOUND', message: 'Could not resolve to a Repository' }] });
+    const graphqlMissing = JSON.stringify({
+      errors: [{ type: 'NOT_FOUND', message: 'Could not resolve to a Repository' }],
+    });
     for (const [failure, kind, detail] of [
-      [{ code: 4, stderr: 'To get started with GitHub CLI, please run:  gh auth login\n' }, 'loggedOut', 'To get started with GitHub CLI, please run:  gh auth login'],
-      [{ code: 1, stderr: 'HTTP 401: Bad credentials (https://api.github.com/user)\n' }, 'loggedOut', 'HTTP 401: Bad credentials (https://api.github.com/user)'],
-      [{ code: 1, stderr: 'HTTP 404: Not Found (https://api.github.com/user/repos)\n' }, 'inaccessible', 'HTTP 404: Not Found (https://api.github.com/user/repos)'],
-      [{ code: 1, stdout: graphqlMissing, stderr: 'GraphQL: Could not resolve to a Repository (repository)\n' }, 'inaccessible', 'GraphQL: Could not resolve to a Repository (repository)'],
-      [{ code: 1, stderr: 'HTTP 403: API rate limit exceeded 原样\n' }, 'transient', 'HTTP 403: API rate limit exceeded 原样'],
+      [
+        { code: 4, stderr: 'To get started with GitHub CLI, please run:  gh auth login\n' },
+        'loggedOut',
+        'To get started with GitHub CLI, please run:  gh auth login',
+      ],
+      [
+        { code: 1, stderr: 'HTTP 401: Bad credentials (https://api.github.com/user)\n' },
+        'loggedOut',
+        'HTTP 401: Bad credentials (https://api.github.com/user)',
+      ],
+      [
+        { code: 1, stderr: 'HTTP 404: Not Found (https://api.github.com/user/repos)\n' },
+        'inaccessible',
+        'HTTP 404: Not Found (https://api.github.com/user/repos)',
+      ],
+      [
+        { code: 1, stdout: graphqlMissing, stderr: 'GraphQL: Could not resolve to a Repository (repository)\n' },
+        'inaccessible',
+        'GraphQL: Could not resolve to a Repository (repository)',
+      ],
+      [
+        { code: 1, stderr: 'HTTP 403: API rate limit exceeded 原样\n' },
+        'transient',
+        'HTTP 403: API rate limit exceeded 原样',
+      ],
     ] as const) {
       await double.set({ ...account, failure });
       const choices = await f.workbench.repositoryChoices(project.id, f.directory);
-      assert.deepEqual(choices, { ok: false, failure: { kind, detail, forge: { name: 'GitHub', cli: 'gh', installUrl: 'https://cli.github.com', loginCommand: 'gh auth login' } } }, detail);
+      assert.deepEqual(
+        choices,
+        {
+          ok: false,
+          failure: {
+            kind,
+            detail,
+            forge: { name: 'GitHub', cli: 'gh', installUrl: 'https://cli.github.com', loginCommand: 'gh auth login' },
+          },
+        },
+        detail,
+      );
       await assert.rejects(saveBinding(f, project.id, github('octo/tools')), /projectEditListFailed/);
     }
     double.uninstall();
@@ -81,7 +130,9 @@ test('forge failures are classified into the four kinds and carry the forge text
     await assert.rejects(saveBinding(f, project.id, github('octo/tools'), 'Renamed'), /projectEditListFailed/);
     assert.equal(f.workbench.snapshot().projects[0].repository, null);
     assert.equal(f.workbench.snapshot().projects[0].name, 'Failing', 'a failed list check saves nothing');
-  } finally { await f.close(); }
+  } finally {
+    await f.close();
+  }
 });
 
 test('an unbound project, or one whose directory has no origin on the forge, offers no default', async context => {
@@ -96,7 +147,9 @@ test('an unbound project, or one whose directory has no origin on the forge, off
     const elsewhere = await f.workbench.repositoryChoices(project.id, f.directory);
     assert.ok(elsewhere.ok);
     assert.equal(elsewhere.origin, null);
-  } finally { await f.close(); }
+  } finally {
+    await f.close();
+  }
 });
 
 test('unbinding keeps the project, needs no forge, and saves with the name; deleting a bound project removes it for good', async context => {
@@ -115,9 +168,14 @@ test('unbinding keeps the project, needs no forge, and saves with the name; dele
     assert.deepEqual(f.workbench.snapshot().projects, []);
     await f.workbench.quit();
     const reopened = await Workbench.open(f.directory);
-    try { assert.deepEqual(reopened.snapshot().projects, []); }
-    finally { await reopened.quit(); }
-  } finally { await f.close(); }
+    try {
+      assert.deepEqual(reopened.snapshot().projects, []);
+    } finally {
+      await reopened.quit();
+    }
+  } finally {
+    await f.close();
+  }
 });
 
 test('the default comes from the origin of the directory the dialog shows, not only the stored one', async context => {
@@ -130,7 +188,9 @@ test('the default comes from the origin of the directory the dialog shows, not o
     const choices = await f.workbench.repositoryChoices(project.id, moved);
     assert.ok(choices.ok);
     assert.equal(choices.origin?.path, 'acme/forge');
-  } finally { await f.close(); }
+  } finally {
+    await f.close();
+  }
 });
 
 test('the origin URL matches a listed path in any case and offers it in its listed spelling', async context => {
@@ -142,7 +202,9 @@ test('the origin URL matches a listed path in any case and offers it in its list
     const choices = await f.workbench.repositoryChoices(project.id, f.directory);
     assert.ok(choices.ok);
     assert.equal(choices.origin?.path, 'Octo/VibeBridge');
-  } finally { await f.close(); }
+  } finally {
+    await f.close();
+  }
 });
 
 /** A project bound to octo/tools, the repository's ID, and a way to read the project's binding. */
@@ -162,19 +224,36 @@ for (const [move, redirects] of [
   test(`a bound repository ${move} is found by its ID, and the binding follows it to its new path`, async context => {
     const { double, f, projectId, id, bound } = await boundToTools(context, 'repository-renamed');
     try {
-      await double.set({ ...account, repositories: [{ id: Number(id), path: 'octo/tools-x' }, 'acme/forge'], redirects });
+      await double.set({
+        ...account,
+        repositories: [{ id: Number(id), path: 'octo/tools-x' }, 'acme/forge'],
+        redirects,
+      });
       const page = await f.workbench.issuePage(projectId, { filter: openNoFilter, cursor: null });
       assert.ok(page.ok, 'the list loads from the new path');
       await until(() => bound()?.path === 'octo/tools-x');
       assert.deepEqual(bound(), github('octo/tools-x', id));
       const choices = await f.workbench.repositoryChoices(projectId, f.directory);
       assert.ok(choices.ok);
-      assert.deepEqual(choices.repositories.map(item => item.path), ['octo/tools-x', 'acme/forge'], 'the binding is listed once, at its new path');
+      assert.deepEqual(
+        choices.repositories.map(item => item.path),
+        ['octo/tools-x', 'acme/forge'],
+        'the binding is listed once, at its new path',
+      );
       await f.workbench.quit();
       const reopened = await Workbench.open(f.directory);
-      try { assert.deepEqual(reopened.snapshot().projects[0].repository, github('octo/tools-x', id), 'the new path is stored'); }
-      finally { await reopened.quit(); }
-    } finally { await f.close(); }
+      try {
+        assert.deepEqual(
+          reopened.snapshot().projects[0].repository,
+          github('octo/tools-x', id),
+          'the new path is stored',
+        );
+      } finally {
+        await reopened.quit();
+      }
+    } finally {
+      await f.close();
+    }
   });
 }
 
@@ -186,10 +265,12 @@ test('a bound repository transferred to another owner follows from the list of r
     assert.ok(choices.ok);
     await until(() => bound()?.path === 'acme/tools');
     assert.deepEqual(bound(), github('acme/tools', id));
-  } finally { await f.close(); }
+  } finally {
+    await f.close();
+  }
 });
 
-test('a new repository at a deleted bound repository\'s path is not the bound one: the binding is inaccessible and stays as it was', async context => {
+test("a new repository at a deleted bound repository's path is not the bound one: the binding is inaccessible and stays as it was", async context => {
   const { double, f, projectId, id, bound } = await boundToTools(context, 'repository-replaced');
   try {
     await double.set({ ...account, repositories: [{ id: Number(id) + 1, path: 'octo/tools' }] });
@@ -198,5 +279,7 @@ test('a new repository at a deleted bound repository\'s path is not the bound on
     assert.equal(page.failure.kind, 'inaccessible');
     assert.equal(page.account, 'octo');
     assert.deepEqual(bound(), github('octo/tools', id));
-  } finally { await f.close(); }
+  } finally {
+    await f.close();
+  }
 });

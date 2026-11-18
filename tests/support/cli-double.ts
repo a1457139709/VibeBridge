@@ -8,14 +8,16 @@ import { statusOf } from './panel-views';
 export async function until(check: () => boolean, output?: () => string) {
   const deadline = Date.now() + 8000;
   while (!check()) {
-    if (Date.now() > deadline) throw new Error(`Timed out waiting for the CLI double${output ? `; output: ${JSON.stringify(output())}` : ''}`);
+    if (Date.now() > deadline)
+      throw new Error(`Timed out waiting for the CLI double${output ? `; output: ${JSON.stringify(output())}` : ''}`);
     await new Promise(resolve => setTimeout(resolve, 20));
   }
 }
 
 /** The CLI double reports hooks that failed or outlived their timeout before it continues. */
 function assertHooksCompleted(reply: string) {
-  if (/HOOK-(FAILED|TIMEOUT):/.test(reply)) throw new Error(`A hook did not complete; output: ${JSON.stringify(reply)}`);
+  if (/HOOK-(FAILED|TIMEOUT):/.test(reply))
+    throw new Error(`A hook did not complete; output: ${JSON.stringify(reply)}`);
 }
 
 /** A Workbench whose Agent runs tests/fixtures/<agent>-cli.cjs: a CLI double that loads
@@ -24,26 +26,54 @@ function assertHooksCompleted(reply: string) {
 export async function fixture(agent: AgentType, args: string[] = []) {
   const directory = await mkdtemp(resolve(`work/${agent}-reporter-'$-`));
   let workbench: Workbench;
-  try { workbench = await Workbench.open(directory); }
-  catch (error) { await rm(directory, { recursive: true, force: true }); throw error; }
-  const close = async () => { try { await workbench.quit(); } finally { await rm(directory, { recursive: true, force: true }); } };
+  try {
+    workbench = await Workbench.open(directory);
+  } catch (error) {
+    await rm(directory, { recursive: true, force: true });
+    throw error;
+  }
+  const close = async () => {
+    try {
+      await workbench.quit();
+    } finally {
+      await rm(directory, { recursive: true, force: true });
+    }
+  };
   const events: WorkbenchEvent[] = [];
   workbench.subscribe(event => {
     events.push(event);
     if (event.kind === 'output') workbench.runs.acknowledgeOutput(event.runId, event.data.length);
   });
-  const output = (id: string) => events.flatMap(e => e.kind === 'output' && e.runId === id ? [e.data] : []).join('');
-  const command = { command: process.env.VIBEBRIDGE_TEST_NODE!, args: [resolve(`tests/fixtures/${agent}-cli.cjs`), ...args] };
-  try { await workbench.saveSettings({ agents: { ...workbench.snapshot().settings.agents, [agent]: command } }); }
-  catch (error) { await close(); throw error; }
+  const output = (id: string) => events.flatMap(e => (e.kind === 'output' && e.runId === id ? [e.data] : [])).join('');
+  const command = {
+    command: process.env.VIBEBRIDGE_TEST_NODE!,
+    args: [resolve(`tests/fixtures/${agent}-cli.cjs`), ...args],
+  };
+  try {
+    await workbench.saveSettings({ agents: { ...workbench.snapshot().settings.agents, [agent]: command } });
+  } catch (error) {
+    await close();
+    throw error;
+  }
   let sequence = 0;
-  return { workbench, directory, events, output,
+  return {
+    workbench,
+    directory,
+    events,
+    output,
     state: (runId: string) => statusOf(workbench.snapshot(), runId),
     async create(total = 1) {
-      const created = await workbench.createProject({ name: `${agent} reporter`, directory, total,
-        counts: { codex: 0, claude: 0, pi: 0, [agent]: total } });
+      const created = await workbench.createProject({
+        name: `${agent} reporter`,
+        directory,
+        total,
+        counts: { codex: 0, claude: 0, pi: 0, [agent]: total },
+      });
       for (const { run } of created.launches) {
-        await until(() => output(run.id).includes('CLI-DOUBLE-READY'), () => output(run.id));
+        await until(
+          () => output(run.id).includes('CLI-DOUBLE-READY'),
+          () => output(run.id),
+        );
         assertHooksCompleted(output(run.id));
       }
       return created;
@@ -53,7 +83,10 @@ export async function fixture(agent: AgentType, args: string[] = []) {
       const id = ++sequence;
       const start = output(runId).length;
       await workbench.runs.input(runId, JSON.stringify({ id, payload, ...options }) + '\n');
-      await until(() => output(runId).includes(`ACK:${id}\r\n`), () => output(runId).slice(start));
+      await until(
+        () => output(runId).includes(`ACK:${id}\r\n`),
+        () => output(runId).slice(start),
+      );
       assertHooksCompleted(output(runId).slice(start));
     },
     async context(runId: string) {

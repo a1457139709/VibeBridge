@@ -12,18 +12,37 @@ module.exports = {
     const context = await require('./support/terminal-waits.cjs')(suite);
     const { window, evaluate, until } = context;
     const [run] = runsOf(await require('./support/project.cjs')(context));
-    await until(() => evaluate('document.querySelector(".xterm-rows").textContent.includes("READY:")'), 'terminal shows READY:');
+    await until(
+      () => evaluate('document.querySelector(".xterm-rows").textContent.includes("READY:")'),
+      'terminal shows READY:',
+    );
     await evaluate('document.querySelector(".xterm-helper-textarea").focus()');
     // xterm draws its cursor once the user has typed.
     window.webContents.sendInputEvent({ type: 'char', keyCode: 'k' });
-    await until(() => evaluate('document.querySelector(".xterm-rows").textContent.includes("INPUT:k")'), 'terminal echoes typed k');
+    await until(
+      () => evaluate('document.querySelector(".xterm-rows").textContent.includes("INPUT:k")'),
+      'terminal echoes typed k',
+    );
     await evaluate(`window.workbench.sendInput(${JSON.stringify(run.id)}, ${JSON.stringify(`print:${line}`)})`);
-    await until(() => evaluate(`document.querySelector(".xterm-rows > div").textContent.startsWith(${JSON.stringify(line)})`), 'full-width punctuation line drawn on the first row');
+    await until(
+      () => evaluate(`document.querySelector(".xterm-rows > div").textContent.startsWith(${JSON.stringify(line)})`),
+      'full-width punctuation line drawn on the first row',
+    );
 
     window.webContents.debugger.attach();
     try {
-      await window.webContents.debugger.sendCommand('Input.imeSetComposition', { text: 'ni', selectionStart: 2, selectionEnd: 2 });
-      await until(() => evaluate('(view => view?.classList.contains("active") && !!view.style.left)(document.querySelector(".composition-view"))'), 'IME composition view active and positioned');
+      await window.webContents.debugger.sendCommand('Input.imeSetComposition', {
+        text: 'ni',
+        selectionStart: 2,
+        selectionEnd: 2,
+      });
+      await until(
+        () =>
+          evaluate(
+            '(view => view?.classList.contains("active") && !!view.style.left)(document.querySelector(".composition-view"))',
+          ),
+        'IME composition view active and positioned',
+      );
       // Each drawn position, or a description of where it is off its cell.
       const offGrid = async () => {
         const { chars, cursor, composition } = await evaluate(`(() => {
@@ -38,20 +57,37 @@ module.exports = {
             composition: document.querySelector('.composition-view').getBoundingClientRect().left };
         })()`);
         if (chars.length < line.length) return [`the first row draws ${chars.length} of ${line.length} characters`];
-        const origin = chars[0].left; const cell = chars[1].left - origin;
+        const origin = chars[0].left;
+        const cell = chars[1].left - origin;
         // A squeezed mark shifts later text by about 0.8 cells; a quarter cell absorbs sub-pixel rounding.
-        const check = (left, column, label) => left !== undefined && Math.abs(left - (origin + column * cell)) < cell / 4 ? []
-          : [`${label} is drawn at ${left === undefined ? 'no position' : (left - origin) / cell} cells; its cell is ${column}`];
-        return [...chars.slice(0, line.length).flatMap((char, i) => check(char.left, cellsOf(line.slice(0, i)), `"${char.char}" at index ${i}`)),
-          ...check(cursor, cellsOf(line), 'The cursor'), ...check(composition, cellsOf(line), 'The composition view')];
+        const check = (left, column, label) =>
+          left !== undefined && Math.abs(left - (origin + column * cell)) < cell / 4
+            ? []
+            : [
+                `${label} is drawn at ${left === undefined ? 'no position' : (left - origin) / cell} cells; its cell is ${column}`,
+              ];
+        return [
+          ...chars
+            .slice(0, line.length)
+            .flatMap((char, i) => check(char.left, cellsOf(line.slice(0, i)), `"${char.char}" at index ${i}`)),
+          ...check(cursor, cellsOf(line), 'The cursor'),
+          ...check(composition, cellsOf(line), 'The composition view'),
+        ];
       };
       let problems;
-      await suite.until(async () => (problems = await offGrid()).length === 0, 'text, cursor and composition view drawn on their terminal cells',
-        { context: () => problems.join('\n') });
+      await suite.until(
+        async () => (problems = await offGrid()).length === 0,
+        'text, cursor and composition view drawn on their terminal cells',
+        { context: () => problems.join('\n') },
+      );
     } finally {
-      await window.webContents.debugger.sendCommand('Input.imeSetComposition', { text: '', selectionStart: 0, selectionEnd: 0 }).catch(() => {});
+      await window.webContents.debugger
+        .sendCommand('Input.imeSetComposition', { text: '', selectionStart: 0, selectionEnd: 0 })
+        .catch(() => {});
       window.webContents.debugger.detach();
     }
-    console.log('Text after full-width punctuation, the cursor and the IME composition view all sat on their terminal cells.');
+    console.log(
+      'Text after full-width punctuation, the cursor and the IME composition view all sat on their terminal cells.',
+    );
   },
 };

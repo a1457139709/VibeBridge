@@ -17,24 +17,45 @@ before(() => {
   window.HTMLElement.prototype.checkVisibility = () => true;
 });
 
-const panel = (id: string, status: ProcessingState): PanelView =>
-  ({ id, agent: 'codex', run: { id: `run-${id}`, panelId: id, projectId: 'project', state: 'running', title: `Session ${id}` }, status });
+const panel = (id: string, status: ProcessingState): PanelView => ({
+  id,
+  agent: 'codex',
+  run: { id: `run-${id}`, panelId: id, projectId: 'project', state: 'running', title: `Session ${id}` },
+  status,
+});
 
 const project = (): ProjectView => ({
-  id: 'project', name: 'Toolbar project', directory: '/work/toolbar-directory',
-  layout: { panel: 'resident' }, panels: [panel('resident', 'done')],
+  id: 'project',
+  name: 'Toolbar project',
+  directory: '/work/toolbar-directory',
+  layout: { panel: 'resident' },
+  panels: [panel('resident', 'done')],
   tray: [panel('first-ephemeral', 'needs-input'), panel('second-ephemeral', 'done')],
-  repository: null, ...githubView,
+  repository: null,
+  ...githubView,
 });
 
 function renderWorkbench(change: (snapshot: Snapshot) => void = () => {}) {
   const snapshot: Snapshot = {
-    navigation: { visible: true, width: 212 }, forgeSidebar: { visible: false, width: 380 }, activeProjectId: 'project', settings: defaultSettings(),
-    settingsConflicts: [], startupTheme: 'light', resolvedTheme: 'light', errors: [], projects: [project()],
+    navigation: { visible: true, width: 212 },
+    forgeSidebar: { visible: false, width: 380 },
+    activeProjectId: 'project',
+    settings: defaultSettings(),
+    settingsConflicts: [],
+    startupTheme: 'light',
+    resolvedTheme: 'light',
+    errors: [],
+    projects: [project()],
   };
   change(snapshot);
-  provideWorkbench({ snapshot: async () => structuredClone(snapshot), subscribe: () => () => {}, ready: async () => {},
-    activateProject: async () => {}, saveSidebar: async () => {}, saveLayout: async () => {} });
+  provideWorkbench({
+    snapshot: async () => structuredClone(snapshot),
+    subscribe: () => () => {},
+    ready: async () => {},
+    activateProject: async () => {},
+    saveSidebar: async () => {},
+    saveLayout: async () => {},
+  });
   render(<App />);
   return userEvent.setup();
 }
@@ -43,7 +64,12 @@ test('the workspace toolbar holds the project summary of resident and tray panel
   renderWorkbench();
   const toolbar = (await screen.findByRole('button', { name: 'Add Agent' })).closest('header')!;
   const summary = within(toolbar).getByRole('region', { name: 'Current project summary' });
-  assert.deepEqual(within(summary).getAllByRole('button').map(button => button.getAttribute('aria-label')), ['0 Ready', '1 Needs input', '2 Done', '0 Error']);
+  assert.deepEqual(
+    within(summary)
+      .getAllByRole('button')
+      .map(button => button.getAttribute('aria-label')),
+    ['0 Ready', '1 Needs input', '2 Done', '0 Error'],
+  );
   assert.equal(toolbar.textContent?.includes('Toolbar project'), false);
   assert.equal(toolbar.textContent?.includes('toolbar-directory'), false);
   assert.equal(toolbar.textContent?.includes('panel'), false);
@@ -53,9 +79,13 @@ test('the workspace toolbar holds the project summary of resident and tray panel
 test('choosing a tray panel in the summary opens it ephemerally', async () => {
   const user = renderWorkbench();
   await user.click(await screen.findByRole('button', { name: '2 Done' }));
-  await user.click(within(screen.getByRole('dialog', { name: 'Done' })).getByRole('button', { name: /Session second-ephemeral/ }));
+  await user.click(
+    within(screen.getByRole('dialog', { name: 'Done' })).getByRole('button', { name: /Session second-ephemeral/ }),
+  );
   assert.ok(!screen.queryByRole('dialog'));
-  const card = within(screen.getByRole('region', { name: 'Ephemeral panel tray' })).getByRole('button', { name: /Session second-ephemeral/ });
+  const card = within(screen.getByRole('region', { name: 'Ephemeral panel tray' })).getByRole('button', {
+    name: /Session second-ephemeral/,
+  });
   assert.equal(card.getAttribute('aria-pressed'), 'true');
   assert.ok(screen.getByRole('button', { name: 'Collapse panel' }));
   await user.click(screen.getByRole('button', { name: '1 Needs input' }));
@@ -64,22 +94,32 @@ test('choosing a tray panel in the summary opens it ephemerally', async () => {
   assert.equal(card.getAttribute('aria-pressed'), 'true', 'Escape closes only the summary list');
 });
 
-test('Escape in an open tray panel\'s terminal goes to the terminal and leaves the panel open', async () => {
+test("Escape in an open tray panel's terminal goes to the terminal and leaves the panel open", async () => {
   const user = renderWorkbench();
   const tray = await screen.findByRole('region', { name: 'Ephemeral panel tray' });
   await user.click(within(tray).getByRole('button', { name: /Session first-ephemeral/ }));
   document.querySelector<HTMLElement>('.canvas > [data-panel-id="first-ephemeral"] .xterm-helper-textarea')!.focus();
   await user.keyboard('{Escape}');
-  assert.deepEqual(within(tray).getAllByRole('button').map(card => card.getAttribute('aria-pressed')), ['true', 'false']);
+  assert.deepEqual(
+    within(tray)
+      .getAllByRole('button')
+      .map(card => card.getAttribute('aria-pressed')),
+    ['true', 'false'],
+  );
   assert.ok(screen.getByRole('button', { name: 'Collapse panel' }));
 });
 
 test('choosing a resident panel in the summary leaves the tray closed', async () => {
   const user = renderWorkbench();
   await user.click(await screen.findByRole('button', { name: '2 Done' }));
-  await user.click(within(screen.getByRole('dialog', { name: 'Done' })).getByRole('button', { name: /Session resident/ }));
+  await user.click(
+    within(screen.getByRole('dialog', { name: 'Done' })).getByRole('button', { name: /Session resident/ }),
+  );
   const cards = within(screen.getByRole('region', { name: 'Ephemeral panel tray' })).getAllByRole('button');
-  assert.deepEqual(cards.map(card => card.getAttribute('aria-pressed')), ['false', 'false']);
+  assert.deepEqual(
+    cards.map(card => card.getAttribute('aria-pressed')),
+    ['false', 'false'],
+  );
   assert.ok(!screen.queryByRole('button', { name: 'Collapse panel' }));
 });
 
@@ -89,10 +129,20 @@ test('choosing a resident panel in the summary while a tray panel is open collap
   await user.click(within(tray).getByRole('button', { name: /Session first-ephemeral/ }));
   assert.ok(screen.getByRole('button', { name: 'Collapse panel' }));
   await user.click(screen.getByRole('button', { name: '2 Done' }));
-  await user.click(within(screen.getByRole('dialog', { name: 'Done' })).getByRole('button', { name: /Session resident/ }));
-  assert.deepEqual(within(tray).getAllByRole('button').map(card => card.getAttribute('aria-pressed')), ['false', 'false']);
+  await user.click(
+    within(screen.getByRole('dialog', { name: 'Done' })).getByRole('button', { name: /Session resident/ }),
+  );
+  assert.deepEqual(
+    within(tray)
+      .getAllByRole('button')
+      .map(card => card.getAttribute('aria-pressed')),
+    ['false', 'false'],
+  );
   assert.ok(!screen.queryByRole('button', { name: 'Collapse panel' }));
-  assert.ok(screen.getByRole('button', { name: 'Maximize panel' }), 'the resident panel is not maximized in place of the tray panel');
+  assert.ok(
+    screen.getByRole('button', { name: 'Maximize panel' }),
+    'the resident panel is not maximized in place of the tray panel',
+  );
 });
 
 test('the summary is not shown on the settings page, the project creation guide or the welcome page', async () => {
@@ -103,12 +153,17 @@ test('the summary is not shown on the settings page, the project creation guide 
   assert.ok(!screen.queryByRole('region', { name: 'Current project summary' }));
   cleanup();
 
-  renderWorkbench(snapshot => { snapshot.activeProjectId = null; });
+  renderWorkbench(snapshot => {
+    snapshot.activeProjectId = null;
+  });
   await screen.findByRole('button', { name: 'Create project' });
   assert.ok(!screen.queryByRole('region', { name: 'Current project summary' }));
   cleanup();
 
-  renderWorkbench(snapshot => { snapshot.projects = []; snapshot.activeProjectId = null; });
+  renderWorkbench(snapshot => {
+    snapshot.projects = [];
+    snapshot.activeProjectId = null;
+  });
   await screen.findByRole('textbox', { name: 'Project name' });
   assert.ok(!screen.queryByRole('region', { name: 'Current project summary' }));
 });

@@ -24,7 +24,10 @@ void (async () => {
   const reopen = !!process.env.VIBEBRIDGE_TEST_REOPEN;
   if (!reopen) {
     const command = { command: process.env.VIBEBRIDGE_TEST_NODE, args: [resolve('tests/fixtures/interactive.cjs')] };
-    await writeFile(`${directory}/settings.json`, JSON.stringify({ theme: 'light', agents: { codex: command, claude: command, pi: command } }));
+    await writeFile(
+      `${directory}/settings.json`,
+      JSON.stringify({ theme: 'light', agents: { codex: command, claude: command, pi: command } }),
+    );
   }
   dialog.showMessageBox = async (_window, options) => {
     if (options.type === 'error') throw new Error(options.detail);
@@ -37,19 +40,29 @@ void (async () => {
   window.webContents.setBackgroundThrottling(false);
   window.webContents.on('console-message', details => console.log(`[renderer:${details.level}] ${details.message}`));
   window.webContents.on('render-process-gone', (_event, details) => console.error('Renderer exited:', details));
-  app.focus({ steal: true }); window.focus(); window.webContents.focus();
+  app.focus({ steal: true });
+  window.focus();
+  window.webContents.focus();
   const evaluate = async code => {
-    try { return await window.webContents.executeJavaScript(code, true); }
-    catch (error) { throw new Error(`Desktop script failed: ${code}`, { cause: error }); }
+    try {
+      return await window.webContents.executeJavaScript(code, true);
+    } catch (error) {
+      throw new Error(`Desktop script failed: ${code}`, { cause: error });
+    }
   };
-  await until(() => evaluate('!!window.workbench && !!document.querySelector("h1, .workspace")'), 'renderer exposes window.workbench and draws a page');
-  const click = label => evaluate(`(() => {
+  await until(
+    () => evaluate('!!window.workbench && !!document.querySelector("h1, .workspace")'),
+    'renderer exposes window.workbench and draws a page',
+  );
+  const click = label =>
+    evaluate(`(() => {
     const button = [...document.querySelectorAll('button')]
       .find(b => b.getAttribute('aria-label') === ${JSON.stringify(label)} || b.textContent === ${JSON.stringify(label)});
     if (!button) throw new Error('Missing button');
     button.click();
   })()`);
-  const fill = (id, value) => evaluate(`(() => {
+  const fill = (id, value) =>
+    evaluate(`(() => {
     const input = document.getElementById(${JSON.stringify(id)});
     Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value').set.call(input, ${JSON.stringify(value)});
     input.dispatchEvent(new Event('input', { bubbles: true }));
@@ -62,7 +75,10 @@ void (async () => {
       for (const run of runs) if (run.pid) assert.throws(() => process.kill(run.pid, 0));
       await result?.afterQuit?.();
       app.exit(0);
-    })().catch(error => { console.error(error); app.exit(1); });
+    })().catch(error => {
+      console.error(error);
+      app.exit(1);
+    });
   });
   app.quit();
 })().catch(fail);

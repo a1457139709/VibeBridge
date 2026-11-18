@@ -14,13 +14,22 @@ const { issueDetail, pullRequestDetail } = require('./gh-cli-details.cjs');
 const state = JSON.parse(readFileSync(process.env.VIBEBRIDGE_GH_DOUBLE, 'utf8'));
 const args = process.argv.slice(2);
 /** The listed repositories with their IDs: one named by its path alone has an ID that follows from the path. */
-const repositories = state.repositories.map(entry => typeof entry === 'string'
-  ? { id: [...entry.toLowerCase()].reduce((hash, char) => (hash * 31 + char.charCodeAt(0)) % 1_000_000_007, 7), path: entry } : entry);
+const repositories = state.repositories.map(entry =>
+  typeof entry === 'string'
+    ? {
+        id: [...entry.toLowerCase()].reduce((hash, char) => (hash * 31 + char.charCodeAt(0)) % 1_000_000_007, 7),
+        path: entry,
+      }
+    : entry,
+);
 /** The listed repository at `path`, or the one a redirect leads to from it, or undefined. */
 function repositoryAt(path) {
   const same = other => other.toLowerCase() === path.toLowerCase();
   const target = Object.entries(state.redirects ?? {}).find(([from]) => same(from))?.[1];
-  return repositories.find(item => same(item.path)) ?? (target && repositories.find(item => item.path.toLowerCase() === target.toLowerCase()));
+  return (
+    repositories.find(item => same(item.path)) ??
+    (target && repositories.find(item => item.path.toLowerCase() === target.toLowerCase()))
+  );
 }
 if (state.failure) {
   process.stdout.write(state.failure.stdout ?? '');
@@ -30,9 +39,13 @@ if (state.failure) {
 if (args[0] === 'api' && args[1] === 'graphql') graphql(fields(args.slice(2)));
 else if (args[0] === 'issue' || args[0] === 'pr') write(args[0], args[1], Number(args[2]), args.slice(3));
 else if (args[0] === 'api' && args.includes('user')) process.stdout.write(`${state.account}\n`);
-else if (args[0] === 'api' && args.some(arg => arg.startsWith('user/repos'))) process.stdout.write(repositories.map(({ id, path }) => `${id} ${path}\n`).join(''));
+else if (args[0] === 'api' && args.some(arg => arg.startsWith('user/repos')))
+  process.stdout.write(repositories.map(({ id, path }) => `${id} ${path}\n`).join(''));
 else if (args[0] === 'api' && /^repositories\/\d+$/.test(args[1])) byId(Number(args[1].split('/')[1]));
-else { process.stderr.write(`gh double: unsupported command ${args.join(' ')}\n`); process.exit(1); }
+else {
+  process.stderr.write(`gh double: unsupported command ${args.join(' ')}\n`);
+  process.exit(1);
+}
 
 function fields(list) {
   const values = {};
@@ -45,18 +58,32 @@ function fields(list) {
 }
 /** A write subcommand as gh runs it against GitHub: it changes the item, prints how it went, and fails with GitHub's text. */
 function write(noun, verb, number, options) {
-  const fail = message => { process.stderr.write(`${message}\n`); process.exit(1); };
+  const fail = message => {
+    process.stderr.write(`${message}\n`);
+    process.exit(1);
+  };
   const repoAt = options.indexOf('--repo');
   if (repoAt < 0) unsupported();
   const path = options[repoAt + 1];
   if (!repositoryAt(path)) fail(`GraphQL: Could not resolve to a Repository with the name '${path}'. (repository)`);
-  const items = noun === 'issue' ? state.issues ?? [] : state.pullRequests ?? [];
+  const items = noun === 'issue' ? (state.issues ?? []) : (state.pullRequests ?? []);
   const item = items.find(candidate => candidate.number === number);
-  if (!item) fail(`GraphQL: Could not resolve to an issue or pull request with the number of ${number}. (repository.issueOrPullRequest)`);
-  const mutation = { 'issue close': 'closeIssue', 'issue reopen': 'reopenIssue', 'pr merge': 'mergePullRequest', 'pr close': 'closePullRequest', 'pr reopen': 'reopenPullRequest' }[`${noun} ${verb}`];
+  if (!item)
+    fail(
+      `GraphQL: Could not resolve to an issue or pull request with the number of ${number}. (repository.issueOrPullRequest)`,
+    );
+  const mutation = {
+    'issue close': 'closeIssue',
+    'issue reopen': 'reopenIssue',
+    'pr merge': 'mergePullRequest',
+    'pr close': 'closePullRequest',
+    'pr reopen': 'reopenPullRequest',
+  }[`${noun} ${verb}`];
   if (!mutation) unsupported();
   if (['READ', 'TRIAGE'].includes(state.permission)) {
-    fail(`GraphQL: ${state.account} does not have the correct permissions to execute \`${mutation[0].toUpperCase()}${mutation.slice(1)}\` (${mutation})`);
+    fail(
+      `GraphQL: ${state.account} does not have the correct permissions to execute \`${mutation[0].toUpperCase()}${mutation.slice(1)}\` (${mutation})`,
+    );
   }
   const name = `${path}#${number} (${item.title})`;
   if (noun === 'issue' && verb === 'close') {
@@ -69,12 +96,19 @@ function write(noun, verb, number, options) {
   } else if (verb === 'merge') {
     const method = ['merge', 'squash', 'rebase'].find(flag => options.includes(`--${flag}`));
     if (!method) unsupported();
-    if (item.state !== 'OPEN') fail(`X Pull request ${path}#${number} (${item.title}) can't be merged because it is ${item.state === 'MERGED' ? 'already merged' : 'closed'}`);
-    if (item.mergeable === 'CONFLICTING') fail(`X Pull request ${path}#${number} is not mergeable: the merge commit cannot be cleanly created.`);
+    if (item.state !== 'OPEN')
+      fail(
+        `X Pull request ${path}#${number} (${item.title}) can't be merged because it is ${item.state === 'MERGED' ? 'already merged' : 'closed'}`,
+      );
+    if (item.mergeable === 'CONFLICTING')
+      fail(`X Pull request ${path}#${number} is not mergeable: the merge commit cannot be cleanly created.`);
     const methodName = { merge: 'Merge commits', squash: 'Squash merges', rebase: 'Rebase merges' }[method];
-    if (state.mergeMethods?.[method] === false) fail(`GraphQL: ${methodName} are not allowed on this repository. (mergePullRequest)`);
+    if (state.mergeMethods?.[method] === false)
+      fail(`GraphQL: ${methodName} are not allowed on this repository. (mergePullRequest)`);
     item.state = 'MERGED';
-    done(`✓ ${{ merge: 'Merged', squash: 'Squashed and merged', rebase: 'Rebased and merged' }[method]} pull request ${name}`);
+    done(
+      `✓ ${{ merge: 'Merged', squash: 'Squashed and merged', rebase: 'Rebased and merged' }[method]} pull request ${name}`,
+    );
   } else if (verb === 'close') {
     item.state = 'CLOSED';
     done(`✓ Closed pull request ${name}`);
@@ -98,7 +132,10 @@ function byId(id) {
   process.exit(1);
 }
 
-function unsupported() { process.stderr.write(`gh double: unsupported command ${args.join(' ')}\n`); process.exit(1); }
+function unsupported() {
+  process.stderr.write(`gh double: unsupported command ${args.join(' ')}\n`);
+  process.exit(1);
+}
 
 function graphql({ query, owner, name, search, openSearch, closedSearch, after, number }) {
   if (!query) unsupported();
@@ -107,12 +144,17 @@ function graphql({ query, owner, name, search, openSearch, closedSearch, after, 
   const repository = repositoryAt(asked);
   if (!repository) {
     const message = `Could not resolve to a Repository with the name '${asked}'.`;
-    process.stdout.write(JSON.stringify({ data: { repository: null }, errors: [{ type: 'NOT_FOUND', path: ['repository'], message }] }));
+    process.stdout.write(
+      JSON.stringify({ data: { repository: null }, errors: [{ type: 'NOT_FOUND', path: ['repository'], message }] }),
+    );
     process.stderr.write(`GraphQL: ${message} (repository)\n`);
     process.exit(1);
   }
   const path = repository.path;
-  if (/databaseId/.test(query)) return process.stdout.write(JSON.stringify({ data: { repository: { databaseId: repository.id, nameWithOwner: path } } }));
+  if (/databaseId/.test(query))
+    return process.stdout.write(
+      JSON.stringify({ data: { repository: { databaseId: repository.id, nameWithOwner: path } } }),
+    );
   if (/issue\(number:/.test(query)) return issueDetail(state, path, Number(number));
   if (/pullRequest\(number:/.test(query)) return pullRequestDetail(state, path, Number(number));
   if (!/search\(/.test(query)) unsupported();
@@ -120,41 +162,76 @@ function graphql({ query, owner, name, search, openSearch, closedSearch, after, 
   const offset = after ? Number(Buffer.from(after, 'base64').toString().replace('cursor:', '')) : 0;
   const page = found.slice(offset, offset + 25);
   const end = offset + page.length;
-  process.stdout.write(JSON.stringify({ data: {
-    repository: { labels: { nodes: state.labels ?? [] } },
-    open: { issueCount: searchIssues(openSearch).length }, closed: { issueCount: searchIssues(closedSearch).length },
-    search: { pageInfo: { hasNextPage: end < found.length, endCursor: page.length ? Buffer.from(`cursor:${end}`).toString('base64') : null },
-      nodes: page.map(issue => {
-        if (isPullRequestSearch(search)) return pullRequestNode(issue);
-        const children = (state.issues ?? []).filter(child => child.parent === issue.number).sort((a, b) => a.number - b.number);
-        return { ...node(issue, path, blockerWindow),
-          parent: issue.parent === undefined ? null : { number: issue.parent, repository: { nameWithOwner: path } },
-          subIssuesSummary: { total: children.length, completed: children.filter(child => child.state === 'CLOSED').length },
-          subIssues: { nodes: children.map(child => node(child, path, blockerWindow)) } };
-      }) },
-  } }));
+  process.stdout.write(
+    JSON.stringify({
+      data: {
+        repository: { labels: { nodes: state.labels ?? [] } },
+        open: { issueCount: searchIssues(openSearch).length },
+        closed: { issueCount: searchIssues(closedSearch).length },
+        search: {
+          pageInfo: {
+            hasNextPage: end < found.length,
+            endCursor: page.length ? Buffer.from(`cursor:${end}`).toString('base64') : null,
+          },
+          nodes: page.map(issue => {
+            if (isPullRequestSearch(search)) return pullRequestNode(issue);
+            const children = (state.issues ?? [])
+              .filter(child => child.parent === issue.number)
+              .sort((a, b) => a.number - b.number);
+            return {
+              ...node(issue, path, blockerWindow),
+              parent: issue.parent === undefined ? null : { number: issue.parent, repository: { nameWithOwner: path } },
+              subIssuesSummary: {
+                total: children.length,
+                completed: children.filter(child => child.state === 'CLOSED').length,
+              },
+              subIssues: { nodes: children.map(child => node(child, path, blockerWindow)) },
+            };
+          }),
+        },
+      },
+    }),
+  );
 }
 
 /** A pull request's fields as GitHub's GraphQL API names them. */
 function pullRequestNode(pull) {
-  return { number: pull.number, title: pull.title, state: pull.state, isDraft: pull.isDraft ?? false, createdAt: pull.createdAt,
-    author: pull.author === null ? null : { login: pull.author ?? state.account }, labels: { nodes: pull.labels },
-    commits: { nodes: [{ commit: { statusCheckRollup: pull.checks ? { state: pull.checks } : null } }] } };
+  return {
+    number: pull.number,
+    title: pull.title,
+    state: pull.state,
+    isDraft: pull.isDraft ?? false,
+    createdAt: pull.createdAt,
+    author: pull.author === null ? null : { login: pull.author ?? state.account },
+    labels: { nodes: pull.labels },
+    commits: { nodes: [{ commit: { statusCheckRollup: pull.checks ? { state: pull.checks } : null } }] },
+  };
 }
 
-function isPullRequestSearch(search) { return /(^|\s)is:pr(\s|$)/.test(search); }
+function isPullRequestSearch(search) {
+  return /(^|\s)is:pr(\s|$)/.test(search);
+}
 
 /** An issue's own fields and its blockers, as GitHub's GraphQL API names them. */
 function node(issue, path, blockerWindow) {
   const own = other => ({ number: other.number, title: other.title, state: other.state });
-  const blocker = entry => typeof entry === 'number'
-    ? { ...own((state.issues ?? []).find(other => other.number === entry)), repository: { nameWithOwner: path } }
-    : { ...own(entry), repository: { nameWithOwner: entry.path } };
+  const blocker = entry =>
+    typeof entry === 'number'
+      ? { ...own((state.issues ?? []).find(other => other.number === entry)), repository: { nameWithOwner: path } }
+      : { ...own(entry), repository: { nameWithOwner: entry.path } };
   const blockers = (issue.blockedBy ?? []).map(blocker);
-  return { number: issue.number, title: issue.title, state: issue.state, stateReason: issue.stateReason ?? null, createdAt: issue.createdAt,
-    labels: { nodes: issue.labels }, repository: { nameWithOwner: path },
+  return {
+    number: issue.number,
+    title: issue.title,
+    state: issue.state,
+    stateReason: issue.stateReason ?? null,
+    createdAt: issue.createdAt,
+    labels: { nodes: issue.labels },
+    repository: { nameWithOwner: path },
     // Like GitHub, the listed blockers stop at the query's window, open and closed alike; the summary counts every open one.
-    blockedBy: { nodes: blockers.slice(0, blockerWindow) }, issueDependenciesSummary: { blockedBy: blockers.filter(other => other.state === 'OPEN').length } };
+    blockedBy: { nodes: blockers.slice(0, blockerWindow) },
+    issueDependenciesSummary: { blockedBy: blockers.filter(other => other.state === 'OPEN').length },
+  };
 }
 
 /** The issues, or for is:pr the pull requests, a GitHub search finds, newest first. Qualifiers: repo:, is:issue|pr,
@@ -163,8 +240,10 @@ function node(issue, path, blockerWindow) {
 function searchIssues(search) {
   const tokens = search.match(/(?:[\w-]+:)?"[^"]*"|\S+/g) ?? [];
   const unquote = text => text.replace(/^"|"$/g, '');
-  let open = null, inTitle = false;
-  const labels = [], terms = [];
+  let open = null,
+    inTitle = false;
+  const labels = [],
+    terms = [];
   for (const token of tokens) {
     const qualifier = token.match(/^([\w-]+):(.*)$/);
     if (qualifier?.[1] === 'is' && qualifier[2] === 'open') open = true;
@@ -173,9 +252,16 @@ function searchIssues(search) {
     else if (qualifier?.[1] === 'in' && qualifier[2] === 'title') inTitle = true;
     else if (!qualifier || token.startsWith('"')) terms.push(unquote(token).toLowerCase());
   }
-  const matches = issue => (open === null || (issue.state === 'OPEN') === open)
-    && labels.every(label => issue.labels.some(item => item.name === label))
-    && terms.every(term => /^#?\d+$/.test(term) && !inTitle ? issue.number === Number(term.replace('#', '')) : issue.title.toLowerCase().includes(term));
-  const items = isPullRequestSearch(search) ? (state.pullRequests ?? []).map(pull => ({ createdAt: '2026-01-01T00:00:00Z', labels: [], ...pull })) : state.issues ?? [];
+  const matches = issue =>
+    (open === null || (issue.state === 'OPEN') === open) &&
+    labels.every(label => issue.labels.some(item => item.name === label)) &&
+    terms.every(term =>
+      /^#?\d+$/.test(term) && !inTitle
+        ? issue.number === Number(term.replace('#', ''))
+        : issue.title.toLowerCase().includes(term),
+    );
+  const items = isPullRequestSearch(search)
+    ? (state.pullRequests ?? []).map(pull => ({ createdAt: '2026-01-01T00:00:00Z', labels: [], ...pull }))
+    : (state.issues ?? []);
   return items.filter(matches).sort((a, b) => b.createdAt.localeCompare(a.createdAt));
 }

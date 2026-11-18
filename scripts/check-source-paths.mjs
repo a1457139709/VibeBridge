@@ -15,8 +15,11 @@ async function checkDirectory(directory) {
       if (issuePath.test(file)) failures.push(`${file}: name files by their responsibility.`);
       const source = ts.createSourceFile(file, await readFile(file, 'utf8'), ts.ScriptTarget.Latest, true);
       const visit = node => {
-        const parts = ts.isTemplateExpression(node) ? [node.head, ...node.templateSpans.map(span => span.literal)]
-          : ts.isStringLiteralLike(node) ? [node] : [];
+        const parts = ts.isTemplateExpression(node)
+          ? [node.head, ...node.templateSpans.map(span => span.literal)]
+          : ts.isStringLiteralLike(node)
+            ? [node]
+            : [];
         if (parts.length && !/^[a-z][a-z\d+.-]*:\/\//i.test(parts[0].text)) {
           for (const part of parts) {
             if (!issuePath.test(part.text)) continue;
@@ -34,7 +37,9 @@ async function checkDirectory(directory) {
 try {
   for (const directory of ['app', 'tests', 'scripts']) await checkDirectory(directory);
   if (failures.length) {
-    console.error(`Issue-numbered local paths are not allowed in source files:\n${failures.join('\n')}\nUse feature or scenario names; keep issue references in links or comments.`);
+    console.error(
+      `Issue-numbered local paths are not allowed in source files:\n${failures.join('\n')}\nUse feature or scenario names; keep issue references in links or comments.`,
+    );
     process.exitCode = 1;
   }
 } catch (error) {

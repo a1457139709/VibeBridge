@@ -9,10 +9,23 @@ await build({
     'codex-reporter': 'app/main/agent-status/codex/reporter.ts',
     'claude-reporter': 'app/main/agent-status/claude/reporter.ts',
   },
-  outdir: 'dist', outExtension: { '.js': '.cjs' },
-  bundle: true, platform: 'node', format: 'cjs', target: 'node22',
-  external: ['electron', 'node-pty'], sourcemap: true,
+  outdir: 'dist',
+  outExtension: { '.js': '.cjs' },
+  bundle: true,
+  platform: 'node',
+  format: 'cjs',
+  target: 'node22',
+  external: ['electron', 'node-pty'],
+  sourcemap: true,
 });
 
-await build({ entryPoints: { 'pi-reporter': 'app/main/agent-status/pi/reporter.ts' }, outdir: 'dist', outExtension: { '.js': '.mjs' },
-  bundle: true, platform: 'node', format: 'esm', target: 'node22', sourcemap: true });
+await build({
+  entryPoints: { 'pi-reporter': 'app/main/agent-status/pi/reporter.ts' },
+  outdir: 'dist',
+  outExtension: { '.js': '.mjs' },
+  bundle: true,
+  platform: 'node',
+  format: 'esm',
+  target: 'node22',
+  sourcemap: true,
+});

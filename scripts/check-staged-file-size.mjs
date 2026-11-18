@@ -4,12 +4,17 @@ const maxBytes = 5000 * 4;
 
 function checkStagedFiles() {
   const root = execFileSync('git', ['rev-parse', '--show-toplevel'], { encoding: 'utf8' }).trimEnd();
-  const git = (args, input) => execFileSync('git', args, {
-    cwd: root, encoding: 'utf8', input, maxBuffer: 16 * 1024 * 1024,
-  });
+  const git = (args, input) =>
+    execFileSync('git', args, {
+      cwd: root,
+      encoding: 'utf8',
+      input,
+      maxBuffer: 16 * 1024 * 1024,
+    });
   // Disabling rename detection also checks the destination of renames and copies.
-  const changes = git(['diff', '--cached', '--raw', '--no-abbrev', '--no-renames', '-z', '--diff-filter=ACMT'])
-    .split('\0');
+  const changes = git(['diff', '--cached', '--raw', '--no-abbrev', '--no-renames', '-z', '--diff-filter=ACMT']).split(
+    '\0',
+  );
   const files = [];
   for (let i = 0; i < changes.length - 1; i += 2) {
     const [, mode, , object] = changes[i].split(' ');
@@ -19,8 +24,10 @@ function checkStagedFiles() {
   if (!files.length) return;
 
   // Use staged attributes too: unstaged exclusions must not change the result.
-  const attributes = git(['check-attr', '--cached', '-z', '--stdin', 'linguist-generated', 'linguist-vendored'],
-    files.map(file => file.path).join('\0') + '\0').split('\0');
+  const attributes = git(
+    ['check-attr', '--cached', '-z', '--stdin', 'linguist-generated', 'linguist-vendored'],
+    files.map(file => file.path).join('\0') + '\0',
+  ).split('\0');
   const ignored = new Set();
   for (let i = 0; i < attributes.length - 1; i += 3) {
     if (attributes[i + 2] === 'set' || attributes[i + 2] === 'true') ignored.add(attributes[i]);
@@ -29,12 +36,17 @@ function checkStagedFiles() {
   if (!authoredFiles.length) return;
 
   // Read blob sizes from the index's object IDs, never from working-tree files.
-  const sizes = git(['cat-file', '--batch-check=%(objectsize)'],
-    authoredFiles.map(file => file.object).join('\n') + '\n').trimEnd().split('\n');
+  const sizes = git(
+    ['cat-file', '--batch-check=%(objectsize)'],
+    authoredFiles.map(file => file.object).join('\n') + '\n',
+  )
+    .trimEnd()
+    .split('\n');
   const oversized = [];
   authoredFiles.forEach((file, index) => {
     const bytes = Number(sizes[index]);
-    if (!Number.isSafeInteger(bytes) || bytes < 0) throw new Error(`Cannot read staged size of ${JSON.stringify(file.path)}`);
+    if (!Number.isSafeInteger(bytes) || bytes < 0)
+      throw new Error(`Cannot read staged size of ${JSON.stringify(file.path)}`);
     if (bytes > maxBytes) oversized.push(`  ${JSON.stringify(file.path)}: ${bytes / 4} tokens (${bytes} bytes)`);
   });
   if (!oversized.length) return;

@@ -7,11 +7,18 @@ module.exports = {
     const { window, evaluate, until, click, reportedSize } = context;
     const before = await require('./support/project.cjs')(context);
     const [run] = runsOf(before);
-    assert.equal(run.state, 'running'); assert.ok(run.pid);
-    await until(() => evaluate('document.querySelector(".xterm-rows").textContent.includes("READY:")'), 'terminal shows READY:');
+    assert.equal(run.state, 'running');
+    assert.ok(run.pid);
+    await until(
+      () => evaluate('document.querySelector(".xterm-rows").textContent.includes("READY:")'),
+      'terminal shows READY:',
+    );
     await evaluate('document.querySelector(".xterm-helper-textarea").focus()');
     window.webContents.sendInputEvent({ type: 'char', keyCode: 'k' });
-    await until(() => evaluate('document.querySelector(".xterm-rows").textContent.includes("INPUT:k")'), 'terminal echoes typed k');
+    await until(
+      () => evaluate('document.querySelector(".xterm-rows").textContent.includes("INPUT:k")'),
+      'terminal echoes typed k',
+    );
 
     // Agent CLIs read CSI u Shift+Enter as a newline in their prompt; plain Enter still submits.
     const bytesOf = async (keyCode, modifiers, after = async () => {}) => {
@@ -21,7 +28,10 @@ module.exports = {
       await after();
       // A trailing marker shows every byte of the key has arrived; PTY reads may merge them.
       window.webContents.sendInputEvent({ type: 'char', keyCode: '.' });
-      await until(() => evaluate('/BYTES:[0-9a-f]*2e[^0-9a-f]/.test(window.output)'), 'key bytes and the trailing . marker reported');
+      await until(
+        () => evaluate('/BYTES:[0-9a-f]*2e[^0-9a-f]/.test(window.output)'),
+        'key bytes and the trailing . marker reported',
+      );
       return evaluate('[...window.output.matchAll(/BYTES:([0-9a-f]+)/g)].map(match => match[1]).join("")');
     };
     assert.equal(await bytesOf('Enter', ['shift']), Buffer.from('\x1b[13;2u.').toString('hex'));
@@ -29,12 +39,16 @@ module.exports = {
     // Command+V reaches the terminal only through the Edit menu's paste, which synthetic key events
     // cannot trigger, so the paste is performed after the key; it must land before the marker.
     require('electron').clipboard.writeText('pasted');
-    const paste = async () => { window.webContents.paste(); await until(() => evaluate('window.output.includes("INPUT:pasted")'), 'pasted text echoed'); };
+    const paste = async () => {
+      window.webContents.paste();
+      await until(() => evaluate('window.output.includes("INPUT:pasted")'), 'pasted text echoed');
+    };
     assert.equal(await bytesOf('v', ['meta'], paste), `${Buffer.from('pasted').toString('hex')}2e`);
     // Command+C over a selection is left to the Edit menu and sends nothing to the Agent.
     // Echoed CSI u restores the cursor and overwrites earlier rows, so select on a freshly cleared screen.
     await evaluate(`window.workbench.sendInput(${JSON.stringify(run.id)}, 'palette')`);
-    const accentRow = '[...document.querySelectorAll(".xterm-rows > div")].find(row => row.textContent.startsWith("ACCENT"))';
+    const accentRow =
+      '[...document.querySelectorAll(".xterm-rows > div")].find(row => row.textContent.startsWith("ACCENT"))';
     await until(() => evaluate(`!!${accentRow}`), 'palette ACCENT row drawn');
     const word = await evaluate(`(() => {
       const row = ${accentRow};
@@ -42,7 +56,13 @@ module.exports = {
       return { x: Math.round(left + 4), y: Math.round(top + height / 2) };
     })()`);
     for (const clickCount of [1, 2]) {
-      window.webContents.sendInputEvent({ type: 'mouseDown', ...word, button: 'left', modifiers: ['leftbuttondown'], clickCount });
+      window.webContents.sendInputEvent({
+        type: 'mouseDown',
+        ...word,
+        button: 'left',
+        modifiers: ['leftbuttondown'],
+        clickCount,
+      });
       window.webContents.sendInputEvent({ type: 'mouseUp', ...word, button: 'left', clickCount });
     }
     await until(() => evaluate('!!document.querySelector(".xterm-selection div")'), 'double-click selection drawn');
@@ -52,7 +72,10 @@ module.exports = {
     // A screen that follows output keeps following after it shrinks while off screen. Off screen
     // the renderer pauses; held idle callbacks keep its earlier size, as on a busy main thread.
     for (let i = 0; i < 8; i++) await evaluate(`window.workbench.sendInput(${JSON.stringify(run.id)}, 'fill-${i}')`);
-    await until(() => evaluate('document.querySelector(".xterm-rows").textContent.includes("INPUT:fill-7")'), 'terminal shows INPUT:fill-7');
+    await until(
+      () => evaluate('document.querySelector(".xterm-rows").textContent.includes("INPUT:fill-7")'),
+      'terminal shows INPUT:fill-7',
+    );
     const rows = () => evaluate('document.querySelector(".xterm-rows").children.length');
     const rowsInView = await rows();
     // The test observes the screen as the Workbench does. Observers are notified in the order they were
@@ -68,15 +91,25 @@ module.exports = {
     })()`);
     await until(() => evaluate('window.observedScreen.inView === false'), 'terminal screen observed off screen');
     await evaluate(`document.querySelector('.terminal-container').style.height = '90px'`);
-    await until(() => evaluate('window.observedScreen.height < window.observedScreen.start'), 'terminal screen observed at its shorter size while off screen');
-    await evaluate(`document.querySelector('.terminal-container').style.top = '0'; window.requestIdleCallback = window.heldIdle; void 0`);
+    await until(
+      () => evaluate('window.observedScreen.height < window.observedScreen.start'),
+      'terminal screen observed at its shorter size while off screen',
+    );
+    await evaluate(
+      `document.querySelector('.terminal-container').style.top = '0'; window.requestIdleCallback = window.heldIdle; void 0`,
+    );
     // Back in view the screen fits its shorter size. The run is asked for its size until it
     // answers with the rows the screen shows, so later input lands after the resize is settled.
     await until(async () => (await rows()) < rowsInView, 'terminal fitted its shorter size back in view');
-    await until(async () => (await reportedSize(run.id)).rows === await rows(), 'run reports the rows the terminal shows');
+    await until(
+      async () => (await reportedSize(run.id)).rows === (await rows()),
+      'run reports the rows the terminal shows',
+    );
     await evaluate(`window.workbench.sendInput(${JSON.stringify(run.id)}, 'after-hidden-resize')`);
-    await until(() => evaluate('document.querySelector(".xterm-rows").textContent.includes("INPUT:after-hidden-resize")'),
-      'terminal resized off screen still follows output (INPUT:after-hidden-resize drawn)');
+    await until(
+      () => evaluate('document.querySelector(".xterm-rows").textContent.includes("INPUT:after-hidden-resize")'),
+      'terminal resized off screen still follows output (INPUT:after-hidden-resize drawn)',
+    );
     await evaluate(`document.querySelector('.terminal-container').style.cssText = ''`);
     // Keep the descendant check bounded to the one retained cleanup flow.
     await evaluate(`window.workbench.sendInput(${JSON.stringify(run.id)}, 'child')`);
@@ -84,10 +117,18 @@ module.exports = {
     const child = Number(await evaluate('window.output.match(/CHILD:(\\d+)/)[1]'));
     process.kill(child, 0);
     await click('Close panel');
-    await until(async () => !runsOf(await evaluate('window.workbench.snapshot()')).length, 'closed panel run left the snapshot');
-    await until(() => evaluate('document.body.innerText.includes("This project has no Agent Panels yet")'), 'empty project message shown after closing the panel');
+    await until(
+      async () => !runsOf(await evaluate('window.workbench.snapshot()')).length,
+      'closed panel run left the snapshot',
+    );
+    await until(
+      () => evaluate('document.body.innerText.includes("This project has no Agent Panels yet")'),
+      'empty project message shown after closing the panel',
+    );
     assert.throws(() => process.kill(run.pid, 0));
     assert.throws(() => process.kill(child, 0));
-    console.log('Native terminal input rendered its CLI echo; Shift+Enter sent CSI u while Enter sent a carriage return; Command+V pasted once and Command+C over a selection sent nothing; a screen resized off screen kept following output; closing the panel removed the run and descendant.');
+    console.log(
+      'Native terminal input rendered its CLI echo; Shift+Enter sent CSI u while Enter sent a carriage return; Command+V pasted once and Command+C over a selection sent nothing; a screen resized off screen kept following output; closing the panel removed the run and descendant.',
+    );
   },
 };

@@ -6,7 +6,9 @@ module.exports = {
   async run(context) {
     const { window, evaluate, until, click } = context;
     const command = { command: process.env.VIBEBRIDGE_TEST_NODE, args: [resolve('tests/fixtures/status-cli.cjs')] };
-    await evaluate(`window.workbench.saveSettings(${JSON.stringify({ agents: { codex: command, claude: command, pi: command } })})`);
+    await evaluate(
+      `window.workbench.saveSettings(${JSON.stringify({ agents: { codex: command, claude: command, pi: command } })})`,
+    );
     const created = await require('./support/project.cjs')(context, 'Status panels', { Codex: 5 });
     const projectId = created.activeProjectId;
     const runs = runsOf(await evaluate('window.workbench.snapshot()'));
@@ -18,11 +20,27 @@ module.exports = {
       ['error', 'Error', { hook_event_name: 'unclassified' }],
     ];
     for (const [index, [state, label, payload]] of cases.entries()) {
-      const message = { id: state, payload, output: `\x1b]2;${label} with a long session title for compact panels | project\x07` };
-      await evaluate(`window.workbench.sendInput(${JSON.stringify(runs[index].id)}, ${JSON.stringify(JSON.stringify(message) + '\n')})`);
-      await until(() => evaluate(`document.querySelector('[data-panel-id="${runs[index].panelId}"] .processing-status')?.getAttribute('aria-label') === ${JSON.stringify(label)}`),
-        `panel ${runs[index].panelId} shows ${label}`);
-      assert.equal(await evaluate(`document.querySelector('[data-locate-panel-id="${runs[index].panelId}"] .processing-status').getAttribute('aria-label')`), label);
+      const message = {
+        id: state,
+        payload,
+        output: `\x1b]2;${label} with a long session title for compact panels | project\x07`,
+      };
+      await evaluate(
+        `window.workbench.sendInput(${JSON.stringify(runs[index].id)}, ${JSON.stringify(JSON.stringify(message) + '\n')})`,
+      );
+      await until(
+        () =>
+          evaluate(
+            `document.querySelector('[data-panel-id="${runs[index].panelId}"] .processing-status')?.getAttribute('aria-label') === ${JSON.stringify(label)}`,
+          ),
+        `panel ${runs[index].panelId} shows ${label}`,
+      );
+      assert.equal(
+        await evaluate(
+          `document.querySelector('[data-locate-panel-id="${runs[index].panelId}"] .processing-status').getAttribute('aria-label')`,
+        ),
+        label,
+      );
     }
     // Real keyboard focus must expose the same label, without clearing Done.
     await evaluate(`document.querySelector('[data-panel-id="${runs[3].panelId}"] .processing-status').focus()`);
@@ -48,42 +66,75 @@ module.exports = {
         if (!icon.leftOfType) problems.push(`${icon.label} icon is not left of the Agent type`);
         if (!icon.visible) problems.push(`${icon.label} icon is not fully visible in its panel`);
         if (!icon.label) problems.push('an icon has no label');
-        if (icon.static !== (!icon.busy || reducedMotion)) problems.push(`${icon.label} moves only while Busy and motion is allowed`);
+        if (icon.static !== (!icon.busy || reducedMotion))
+          problems.push(`${icon.label} moves only while Busy and motion is allowed`);
       }
       // Every rendered Busy icon, in panels and navigation, turns in one shared phase.
-      const phases = await evaluate(`[...document.querySelectorAll('.processing-busy svg')].flatMap(icon => icon.getAnimations())
+      const phases =
+        await evaluate(`[...document.querySelectorAll('.processing-busy svg')].flatMap(icon => icon.getAnimations())
         .map(animation => animation.currentTime % ${busyPeriod})`);
       if (!reducedMotion) {
         if (!phases.length) problems.push('no Busy animation');
-        if (phases.some(phase => Math.min(Math.abs(phase - phases[0]), busyPeriod - Math.abs(phase - phases[0])) >= 50)) problems.push(`Busy phases ${phases}`);
+        if (phases.some(phase => Math.min(Math.abs(phase - phases[0]), busyPeriod - Math.abs(phase - phases[0])) >= 50))
+          problems.push(`Busy phases ${phases}`);
       } else if (phases.length) problems.push(`Busy animations under reduced motion: ${phases}`);
       return problems;
     };
     const checkGeometry = async () => {
       let problems;
-      await until(async () => (problems = await geometryProblems()).length === 0, 'status icons settled beside the Agent type, Busy alone turning',
-        { context: () => problems.join('\n') });
+      await until(
+        async () => (problems = await geometryProblems()).length === 0,
+        'status icons settled beside the Agent type, Busy alone turning',
+        { context: () => problems.join('\n') },
+      );
     };
     // The host's own motion setting must not decide the result; emulate each preference explicitly.
-    console.log(`Host prefers reduced motion: ${await evaluate("matchMedia('(prefers-reduced-motion: reduce)').matches")}`);
+    console.log(
+      `Host prefers reduced motion: ${await evaluate("matchMedia('(prefers-reduced-motion: reduce)').matches")}`,
+    );
     window.webContents.debugger.attach();
-    const motion = value => window.webContents.debugger.sendCommand('Emulation.setEmulatedMedia', { features: [{ name: 'prefers-reduced-motion', value }] });
+    const motion = value =>
+      window.webContents.debugger.sendCommand('Emulation.setEmulatedMedia', {
+        features: [{ name: 'prefers-reduced-motion', value }],
+      });
     await motion('no-preference');
     let reducedMotion = false;
     const busyPeriod = 1500; // processing-spin duration in processing-status.css
     for (const language of ['en', 'zh-CN']) {
       await evaluate(`window.workbench.saveSettings({ language: ${JSON.stringify(language)} })`);
-      await until(() => evaluate(`document.documentElement.lang === ${JSON.stringify(language)}`), `interface switched to ${language}`);
-      const labels = language === 'en' ? ['Ready', 'Busy', 'Needs input', 'Done', 'Error'] : ['就绪', '处理中', '等待输入', '本轮结束', '异常'];
+      await until(
+        () => evaluate(`document.documentElement.lang === ${JSON.stringify(language)}`),
+        `interface switched to ${language}`,
+      );
+      const labels =
+        language === 'en'
+          ? ['Ready', 'Busy', 'Needs input', 'Done', 'Error']
+          : ['就绪', '处理中', '等待输入', '本轮结束', '异常'];
       for (const [index, label] of labels.entries()) {
-        assert.equal(await evaluate(`document.querySelector('[data-panel-id="${runs[index].panelId}"] .processing-status').getAttribute('aria-label')`), label);
-        assert.equal(await evaluate(`document.querySelector('[data-locate-panel-id="${runs[index].panelId}"] .processing-status').getAttribute('aria-label')`), label);
+        assert.equal(
+          await evaluate(
+            `document.querySelector('[data-panel-id="${runs[index].panelId}"] .processing-status').getAttribute('aria-label')`,
+          ),
+          label,
+        );
+        assert.equal(
+          await evaluate(
+            `document.querySelector('[data-locate-panel-id="${runs[index].panelId}"] .processing-status').getAttribute('aria-label')`,
+          ),
+          label,
+        );
       }
       for (const theme of ['light', 'dark']) {
         await evaluate(`document.documentElement.dataset.theme = ${JSON.stringify(theme)}`);
-        for (const size of [[1280, 860], [640, 480]]) {
+        for (const size of [
+          [1280, 860],
+          [640, 480],
+        ]) {
           window.setContentSize(...size);
-          await until(() => evaluate(`document.documentElement.clientWidth === ${size[0]}`), `window content is ${size[0]}px wide`);
+          await until(
+            () => evaluate(`document.documentElement.clientWidth === ${size[0]}`),
+            `window content is ${size[0]}px wide`,
+          );
           await checkGeometry();
         }
       }
@@ -91,44 +142,89 @@ module.exports = {
       // minima. The status/type pair stays horizontal in all three presentations.
       window.setContentSize(1280, 860);
       await until(() => evaluate('document.documentElement.clientWidth === 1280'), 'window content is 1280px wide');
-      for (const [axis, size, presentation] of [['row', 180, 'row'], ['row', 1, 'stacked'], ['column', 1, 'strip']]) {
+      for (const [axis, size, presentation] of [
+        ['row', 180, 'row'],
+        ['row', 1, 'stacked'],
+        ['column', 1, 'strip'],
+      ]) {
         const remaining = runs.slice(1).map(run => run.panelId);
-        const rest = ids => ids.length === 1 ? { panel: ids[0] }
-          : { axis, ratio: 1 / ids.length, first: { panel: ids[0] }, second: rest(ids.slice(1)) };
-        const layout = { axis, ratio: .5, first: { panel: runs[0].panelId }, second: rest(remaining) };
+        const rest = ids =>
+          ids.length === 1
+            ? { panel: ids[0] }
+            : { axis, ratio: 1 / ids.length, first: { panel: ids[0] }, second: rest(ids.slice(1)) };
+        const layout = { axis, ratio: 0.5, first: { panel: runs[0].panelId }, second: rest(remaining) };
         await evaluate(`window.workbench.saveLayout(${JSON.stringify(projectId)}, ${JSON.stringify(layout)})`);
         // The first panel takes the saved half along the axis, the other panels share the rest.
-        await until(() => evaluate(`(slot => slot.style.${axis === 'row' ? 'width' : 'height'} === '50%'
+        await until(
+          () =>
+            evaluate(`(slot => slot.style.${axis === 'row' ? 'width' : 'height'} === '50%'
           && slot.style.${axis === 'row' ? 'height' : 'width'} === '100%')(document.querySelector('[data-panel-id="${runs[0].panelId}"]'))
           && (dividers => dividers.length === ${runs.length - 1}
             && dividers.every(divider => divider.getAttribute('aria-orientation') === '${axis === 'row' ? 'vertical' : 'horizontal'}'))
           ([...document.querySelectorAll('.divider')])`),
-          `saved ${axis} layout drawn`);
+          `saved ${axis} layout drawn`,
+        );
         const handle = await evaluate(`(() => { const rect = document.querySelector('.divider').getBoundingClientRect();
           const canvas = document.querySelector('.canvas').getBoundingClientRect();
           return { x: Math.round(rect.x + rect.width / 2), y: Math.round(rect.y + rect.height / 2), left: canvas.left, top: canvas.top }; })()`);
         // Electron's button identifies the changed button; modifiers carry the
         // held buttons across movement so Chromium retains pointer capture.
-        window.webContents.sendInputEvent({ type: 'mouseDown', x: handle.x, y: handle.y, button: 'left', modifiers: ['leftbuttondown'], clickCount: 1 });
+        window.webContents.sendInputEvent({
+          type: 'mouseDown',
+          x: handle.x,
+          y: handle.y,
+          button: 'left',
+          modifiers: ['leftbuttondown'],
+          clickCount: 1,
+        });
         // Native input dispatch is asynchronous. Observe capture and preview before
         // releasing, then require a persisted resize before starting another drag.
-        await until(() => evaluate('document.querySelector(".canvas").classList.contains("resizing")'), 'layout area captured the divider for resizing');
-        const destination = { x: axis === 'row' ? Math.round(handle.left + size) : handle.x,
-          y: axis === 'column' ? Math.round(handle.top + size) : handle.y };
-        window.webContents.sendInputEvent({ type: 'mouseMove', ...destination, button: 'left', modifiers: ['leftbuttondown'] });
-        await until(() => evaluate(`(() => {
+        await until(
+          () => evaluate('document.querySelector(".canvas").classList.contains("resizing")'),
+          'layout area captured the divider for resizing',
+        );
+        const destination = {
+          x: axis === 'row' ? Math.round(handle.left + size) : handle.x,
+          y: axis === 'column' ? Math.round(handle.top + size) : handle.y,
+        };
+        window.webContents.sendInputEvent({
+          type: 'mouseMove',
+          ...destination,
+          button: 'left',
+          modifiers: ['leftbuttondown'],
+        });
+        await until(
+          () =>
+            evaluate(`(() => {
           const panel = document.querySelector('[data-panel-id="${runs[0].panelId}"]').getBoundingClientRect();
           const canvas = document.querySelector('.canvas').getBoundingClientRect();
           return ${axis === 'row' ? 'panel.width < canvas.width * .49' : 'panel.height < canvas.height * .49'};
-        })()`), `${axis} resize shrinks the first panel`);
+        })()`),
+          `${axis} resize shrinks the first panel`,
+        );
         window.webContents.sendInputEvent({ type: 'mouseUp', ...destination, button: 'left', clickCount: 1 });
-        await until(() => evaluate('!document.querySelector(".canvas").classList.contains("resizing")'), 'resize released');
-        await until(async () => (await evaluate('window.workbench.snapshot()')).projects.find(project => project.id === projectId).layout.ratio < .49, 'resized ratio saved');
-        await until(() => evaluate(`document.querySelector('[data-panel-id="${runs[0].panelId}"] .agent-panel').dataset.compactLayout === '${presentation}'`),
-          `first panel uses the ${presentation} compact presentation`);
+        await until(
+          () => evaluate('!document.querySelector(".canvas").classList.contains("resizing")'),
+          'resize released',
+        );
+        await until(
+          async () =>
+            (await evaluate('window.workbench.snapshot()')).projects.find(project => project.id === projectId).layout
+              .ratio < 0.49,
+          'resized ratio saved',
+        );
+        await until(
+          () =>
+            evaluate(
+              `document.querySelector('[data-panel-id="${runs[0].panelId}"] .agent-panel').dataset.compactLayout === '${presentation}'`,
+            ),
+          `first panel uses the ${presentation} compact presentation`,
+        );
         await checkGeometry();
       }
-      await click(language === 'en' ? 'Collapse project navigation' : '折叠项目导航'); await checkGeometry(); await click(language === 'en' ? 'Expand project navigation' : '展开项目导航');
+      await click(language === 'en' ? 'Collapse project navigation' : '折叠项目导航');
+      await checkGeometry();
+      await click(language === 'en' ? 'Expand project navigation' : '展开项目导航');
     }
     await evaluate('window.workbench.saveSettings({ language: "en" })');
     await until(() => evaluate('document.documentElement.lang === "en"'), 'interface switched to en');
@@ -137,16 +233,28 @@ module.exports = {
     await checkGeometry();
     await motion('no-preference');
     reducedMotion = false;
-    await evaluate(`document.querySelector('[data-panel-id="${runs[3].panelId}"] button[aria-label="Maximize panel"]').click()`);
+    await evaluate(
+      `document.querySelector('[data-panel-id="${runs[3].panelId}"] button[aria-label="Maximize panel"]').click()`,
+    );
     await checkGeometry();
-    await until(() => evaluate(`document.activeElement.closest('[data-panel-id]')?.dataset.panelId === '${runs[3].panelId}' && document.activeElement.classList.contains('xterm-helper-textarea')`),
-      'maximized Done panel terminal focused');
+    await until(
+      () =>
+        evaluate(
+          `document.activeElement.closest('[data-panel-id]')?.dataset.panelId === '${runs[3].panelId}' && document.activeElement.classList.contains('xterm-helper-textarea')`,
+        ),
+      'maximized Done panel terminal focused',
+    );
     const input = JSON.stringify({ id: 'native-input', payload: { hook_event_name: 'UserPromptSubmit' } });
     for (const character of input) window.webContents.sendInputEvent({ type: 'char', keyCode: character });
     window.webContents.sendInputEvent({ type: 'keyDown', keyCode: 'Enter' });
     window.webContents.sendInputEvent({ type: 'keyUp', keyCode: 'Enter' });
-    await until(async () => statusOf(await evaluate('window.workbench.snapshot()'), runs[3].id) === 'busy', 'typed prompt made the Done run Busy');
+    await until(
+      async () => statusOf(await evaluate('window.workbench.snapshot()'), runs[3].id) === 'busy',
+      'typed prompt made the Done run Busy',
+    );
     assert.equal(statusOf(await evaluate('window.workbench.snapshot()'), runs[4].id), 'error');
-    console.log('Five status shapes agree between panels and navigation, Busy alone turns in one phase or rests under reduced motion; theme, narrow-window and native-input checks passed.');
+    console.log(
+      'Five status shapes agree between panels and navigation, Busy alone turns in one phase or rests under reduced motion; theme, narrow-window and native-input checks passed.',
+    );
   },
 };

@@ -22,23 +22,57 @@ test('an added panel enters the tray, leaving the saved layout and existing runs
   workbench.subscribe(event => events.push(event));
   try {
     const settings = workbench.snapshot().settings;
-    settings.agents.codex = { command: process.env.VIBEBRIDGE_TEST_NODE!, args: [resolve('tests/fixtures/interactive.cjs')] };
+    settings.agents.codex = {
+      command: process.env.VIBEBRIDGE_TEST_NODE!,
+      args: [resolve('tests/fixtures/interactive.cjs')],
+    };
     await workbench.saveSettings(settings);
-    const { project } = await workbench.createProject({ name: 'Panels', directory, total: 3, counts: { codex: 3, claude: 0, pi: 0 } });
+    const { project } = await workbench.createProject({
+      name: 'Panels',
+      directory,
+      total: 3,
+      counts: { codex: 3, claude: 0, pi: 0 },
+    });
     const originalRuns = runsOf(workbench.snapshot());
-    const layout = { axis: 'column' as const, ratio: 0.7, first: { panel: project.panels[1].id },
-      second: { axis: 'row' as const, ratio: 0.35, first: { panel: project.panels[2].id }, second: { panel: project.panels[0].id } } };
+    const layout = {
+      axis: 'column' as const,
+      ratio: 0.7,
+      first: { panel: project.panels[1].id },
+      second: {
+        axis: 'row' as const,
+        ratio: 0.35,
+        first: { panel: project.panels[2].id },
+        second: { panel: project.panels[0].id },
+      },
+    };
     await workbench.saveLayout(project.id, layout);
     const added = await workbench.addPanel(project.id, 'codex');
     assert.equal(added.launch.outcome, 'started');
     const after = workbench.snapshot();
     assert.deepEqual(after.projects[0].layout, layout);
-    assert.deepEqual(after.projects[0].panels.map(panel => panel.id), project.panels.map(panel => panel.id));
-    assert.deepEqual(after.projects[0].tray.map(panel => [panel.id, panel.agent, panel.run?.id]), [[added.panel.id, 'codex', added.launch.run.id]]);
-    assert.deepEqual(runsOf(after).filter(run => run.id !== added.launch.run.id), originalRuns);
+    assert.deepEqual(
+      after.projects[0].panels.map(panel => panel.id),
+      project.panels.map(panel => panel.id),
+    );
+    assert.deepEqual(
+      after.projects[0].tray.map(panel => [panel.id, panel.agent, panel.run?.id]),
+      [[added.panel.id, 'codex', added.launch.run.id]],
+    );
+    assert.deepEqual(
+      runsOf(after).filter(run => run.id !== added.launch.run.id),
+      originalRuns,
+    );
     const second = await workbench.addPanel(project.id, 'codex');
-    assert.deepEqual(workbench.snapshot().projects[0].tray.map(panel => panel.id), [added.panel.id, second.panel.id], 'the tray keeps the order panels were added in');
-    const output = (id: string) => events.filter(e => e.kind === 'output' && e.runId === id).map(e => e.kind === 'output' ? e.data : '').join('');
+    assert.deepEqual(
+      workbench.snapshot().projects[0].tray.map(panel => panel.id),
+      [added.panel.id, second.panel.id],
+      'the tray keeps the order panels were added in',
+    );
+    const output = (id: string) =>
+      events
+        .filter(e => e.kind === 'output' && e.runId === id)
+        .map(e => (e.kind === 'output' ? e.data : ''))
+        .join('');
     await until(() => runsOf(workbench.snapshot()).every(run => output(run.id).includes('READY:')));
     await workbench.runs.input(originalRuns[1].id, 'after-add');
     await until(() => output(originalRuns[1].id).includes('INPUT:after-add'));
@@ -49,14 +83,27 @@ test('an added panel enters the tray, leaving the saved layout and existing runs
     assert.throws(() => process.kill(childPid, 0));
     assert.throws(() => process.kill(added.launch.run.pid!, 0));
     await assert.rejects(workbench.runs.input(added.launch.run.id, 'stale'), /runInvalid/);
-    assert.deepEqual(workbench.snapshot().projects[0].tray.map(panel => panel.id), [second.panel.id]);
+    assert.deepEqual(
+      workbench.snapshot().projects[0].tray.map(panel => panel.id),
+      [second.panel.id],
+    );
     assert.deepEqual(workbench.snapshot().projects[0].layout, layout);
-    assert.deepEqual(runsOf(workbench.snapshot()).filter(run => run.id !== second.launch.run.id), originalRuns);
+    assert.deepEqual(
+      runsOf(workbench.snapshot()).filter(run => run.id !== second.launch.run.id),
+      originalRuns,
+    );
     await workbench.quit();
     workbench = await Workbench.open(directory);
-    assert.deepEqual(storedProjects(workbench.snapshot())[0], { ...project, layout }, 'only resident panels return; the store holds no tray panels');
+    assert.deepEqual(
+      storedProjects(workbench.snapshot())[0],
+      { ...project, layout },
+      'only resident panels return; the store holds no tray panels',
+    );
     assert.deepEqual(workbench.snapshot().projects[0].tray, []);
-  } finally { await workbench.quit(); await rm(directory, { recursive: true, force: true }); }
+  } finally {
+    await workbench.quit();
+    await rm(directory, { recursive: true, force: true });
+  }
 });
 
 test('normal and abnormal run exits of tray panels remove them from the tray', async () => {
@@ -64,11 +111,19 @@ test('normal and abnormal run exits of tray panels remove them from the tray', a
   let workbench = await Workbench.open(directory);
   try {
     const settings = workbench.snapshot().settings;
-    settings.agents.codex = { command: process.env.VIBEBRIDGE_TEST_NODE!, args: [resolve('tests/fixtures/interactive.cjs')] };
+    settings.agents.codex = {
+      command: process.env.VIBEBRIDGE_TEST_NODE!,
+      args: [resolve('tests/fixtures/interactive.cjs')],
+    };
     // A successfully spawned CLI can exit before the caller receives its launch result.
     settings.agents.claude = { command: '/usr/bin/false', args: [] };
     await workbench.saveSettings(settings);
-    const { project } = await workbench.createProject({ name: 'Empty project', directory, total: 1, counts: { codex: 1, claude: 0, pi: 0 } });
+    const { project } = await workbench.createProject({
+      name: 'Empty project',
+      directory,
+      total: 1,
+      counts: { codex: 1, claude: 0, pi: 0 },
+    });
     const old = runsOf(workbench.snapshot())[0];
     await workbench.closePanel(project.id, project.panels[0].id);
     assert.equal(workbench.snapshot().projects[0].layout, null);
@@ -81,8 +136,13 @@ test('normal and abnormal run exits of tray panels remove them from the tray', a
     workbench.subscribe(event => events.push(event));
     const added = await workbench.addPanel(project.id, 'codex');
     assert.notEqual(added.launch.run.id, old.id);
-    assert.deepEqual(workbench.snapshot().projects[0].tray.map(panel => panel.id), [added.panel.id]);
-    await until(() => events.some(e => e.kind === 'output' && e.runId === added.launch.run.id && e.data.includes('READY:')));
+    assert.deepEqual(
+      workbench.snapshot().projects[0].tray.map(panel => panel.id),
+      [added.panel.id],
+    );
+    await until(() =>
+      events.some(e => e.kind === 'output' && e.runId === added.launch.run.id && e.data.includes('READY:')),
+    );
     await assert.rejects(workbench.runs.input(old.id, 'old-input'), /runInvalid/);
     await workbench.runs.input(added.launch.run.id, 'exit');
     await until(() => workbench.snapshot().projects[0].tray.length === 0);
@@ -90,7 +150,10 @@ test('normal and abnormal run exits of tray panels remove them from the tray', a
     assert.equal(abnormal.launch.outcome, 'started');
     await until(() => workbench.snapshot().projects[0].tray.length === 0);
     await assert.rejects(workbench.runs.input(abnormal.launch.run.id, 'old-input'), /runInvalid/);
-  } finally { await workbench.quit(); await rm(directory, { recursive: true, force: true }); }
+  } finally {
+    await workbench.quit();
+    await rm(directory, { recursive: true, force: true });
+  }
 });
 
 test('quitting the Workbench preserves panels and layout', async () => {
@@ -98,7 +161,10 @@ test('quitting the Workbench preserves panels and layout', async () => {
   let workbench = await Workbench.open(directory);
   try {
     const settings = workbench.snapshot().settings;
-    settings.agents.codex = { command: process.env.VIBEBRIDGE_TEST_NODE!, args: [resolve('tests/fixtures/interactive.cjs')] };
+    settings.agents.codex = {
+      command: process.env.VIBEBRIDGE_TEST_NODE!,
+      args: [resolve('tests/fixtures/interactive.cjs')],
+    };
     await workbench.saveSettings(settings);
     await workbench.createProject({ name: 'Quit', directory, total: 2, counts: { codex: 2, claude: 0, pi: 0 } });
     const [project] = storedProjects(workbench.snapshot());
@@ -106,7 +172,10 @@ test('quitting the Workbench preserves panels and layout', async () => {
     await workbench.quit();
     workbench = await Workbench.open(directory);
     assert.deepEqual(storedProjects(workbench.snapshot()), [project]);
-  } finally { await workbench.quit(); await rm(directory, { recursive: true, force: true }); }
+  } finally {
+    await workbench.quit();
+    await rm(directory, { recursive: true, force: true });
+  }
 });
 
 test('an added panel whose Agent cannot start is withdrawn, and adding succeeds once the command is fixed', async () => {
@@ -114,15 +183,22 @@ test('an added panel whose Agent cannot start is withdrawn, and adding succeeds 
   let workbench = await Workbench.open(directory);
   try {
     const settings = workbench.snapshot().settings;
-    settings.agents.codex = { command: process.env.VIBEBRIDGE_TEST_NODE!, args: [resolve('tests/fixtures/interactive.cjs')] };
+    settings.agents.codex = {
+      command: process.env.VIBEBRIDGE_TEST_NODE!,
+      args: [resolve('tests/fixtures/interactive.cjs')],
+    };
     settings.agents.pi = { command: '/no-such-agent', args: [] };
     await workbench.saveSettings(settings);
     let output = '';
-    workbench.subscribe(event => { if (event.kind === 'output') output += event.data; });
+    workbench.subscribe(event => {
+      if (event.kind === 'output') output += event.data;
+    });
     await workbench.createProject({ name: 'Withdraw', directory, total: 2, counts: { codex: 2, claude: 0, pi: 0 } });
     const before = workbench.snapshot();
     const snapshots: Snapshot[] = [];
-    workbench.subscribe(event => { if (event.kind === 'snapshot') snapshots.push(event.snapshot); });
+    workbench.subscribe(event => {
+      if (event.kind === 'snapshot') snapshots.push(event.snapshot);
+    });
     const failed = await workbench.addPanel(before.projects[0].id, 'pi');
     assert.equal(failed.launch.outcome, 'failed');
     const after = workbench.snapshot();
@@ -138,8 +214,14 @@ test('an added panel whose Agent cannot start is withdrawn, and adding succeeds 
     await workbench.saveSettings({ agents: { ...settings.agents, pi: settings.agents.codex } });
     const fixed = await workbench.addPanel(before.projects[0].id, 'pi');
     assert.equal(fixed.launch.outcome, 'started');
-    assert.deepEqual(workbench.snapshot().projects[0].tray.map(panel => panel.id), [fixed.panel.id]);
-  } finally { await workbench.quit(); await rm(directory, { recursive: true, force: true }); }
+    assert.deepEqual(
+      workbench.snapshot().projects[0].tray.map(panel => panel.id),
+      [fixed.panel.id],
+    );
+  } finally {
+    await workbench.quit();
+    await rm(directory, { recursive: true, force: true });
+  }
 });
 
 test('project creation withdraws only the panels whose Agent cannot start, keeping the project even when none start', async () => {
@@ -147,27 +229,55 @@ test('project creation withdraws only the panels whose Agent cannot start, keepi
   let workbench = await Workbench.open(directory);
   try {
     const settings = workbench.snapshot().settings;
-    settings.agents.codex = { command: process.env.VIBEBRIDGE_TEST_NODE!, args: [resolve('tests/fixtures/interactive.cjs')] };
+    settings.agents.codex = {
+      command: process.env.VIBEBRIDGE_TEST_NODE!,
+      args: [resolve('tests/fixtures/interactive.cjs')],
+    };
     settings.agents.pi = { command: '/no-such-agent', args: [] };
     await workbench.saveSettings(settings);
-    const partial = await workbench.createProject({ name: 'Partial', directory, total: 3, counts: { codex: 2, claude: 0, pi: 1 } });
-    assert.deepEqual(partial.launches.map(launch => launch.outcome), ['started', 'started', 'failed']);
+    const partial = await workbench.createProject({
+      name: 'Partial',
+      directory,
+      total: 3,
+      counts: { codex: 2, claude: 0, pi: 1 },
+    });
+    assert.deepEqual(
+      partial.launches.map(launch => launch.outcome),
+      ['started', 'started', 'failed'],
+    );
     const started = partial.launches.filter(launch => launch.outcome === 'started').map(launch => launch.run.panelId);
-    assert.deepEqual(partial.project.panels.map(panel => panel.id), started);
-    assert.deepEqual(partial.project.panels.map(panel => panel.agent), ['codex', 'codex']);
+    assert.deepEqual(
+      partial.project.panels.map(panel => panel.id),
+      started,
+    );
+    assert.deepEqual(
+      partial.project.panels.map(panel => panel.agent),
+      ['codex', 'codex'],
+    );
     assert.deepEqual([...layoutBoxes(partial.project.layout).panels.keys()].sort(), [...started].sort());
     assert.deepEqual(storedProjects(workbench.snapshot()), [partial.project]);
     assert.ok(runsOf(workbench.snapshot()).every(run => started.includes(run.panelId)));
     await mkdir(resolve(directory, 'none'));
-    const none = await workbench.createProject({ name: 'None', directory: resolve(directory, 'none'), total: 2, counts: { codex: 0, claude: 0, pi: 2 } });
-    assert.deepEqual(none.launches.map(launch => launch.outcome), ['failed', 'failed']);
+    const none = await workbench.createProject({
+      name: 'None',
+      directory: resolve(directory, 'none'),
+      total: 2,
+      counts: { codex: 0, claude: 0, pi: 2 },
+    });
+    assert.deepEqual(
+      none.launches.map(launch => launch.outcome),
+      ['failed', 'failed'],
+    );
     assert.deepEqual(none.project.panels, []);
     assert.equal(none.project.layout, null);
     assert.equal(workbench.snapshot().activeProjectId, none.project.id);
     await workbench.quit();
     workbench = await Workbench.open(directory);
     assert.deepEqual(storedProjects(workbench.snapshot()), [partial.project, none.project]);
-  } finally { await workbench.quit(); await rm(directory, { recursive: true, force: true }); }
+  } finally {
+    await workbench.quit();
+    await rm(directory, { recursive: true, force: true });
+  }
 });
 
 test('restoring a layout keeps panels whose Agent cannot start', async () => {
@@ -175,20 +285,38 @@ test('restoring a layout keeps panels whose Agent cannot start', async () => {
   let workbench = await Workbench.open(directory);
   try {
     const settings = workbench.snapshot().settings;
-    settings.agents.codex = { command: process.env.VIBEBRIDGE_TEST_NODE!, args: [resolve('tests/fixtures/interactive.cjs')] };
+    settings.agents.codex = {
+      command: process.env.VIBEBRIDGE_TEST_NODE!,
+      args: [resolve('tests/fixtures/interactive.cjs')],
+    };
     await workbench.saveSettings(settings);
-    const { project } = await workbench.createProject({ name: 'Restore', directory, total: 2, counts: { codex: 2, claude: 0, pi: 0 } });
+    const { project } = await workbench.createProject({
+      name: 'Restore',
+      directory,
+      total: 2,
+      counts: { codex: 2, claude: 0, pi: 0 },
+    });
     await workbench.saveSettings({ agents: { ...settings.agents, codex: { command: '/no-such-agent', args: [] } } });
     await workbench.quit();
     workbench = await Workbench.open(directory);
     await workbench.activateProject(project.id);
     const snapshot = workbench.snapshot();
     assert.deepEqual(storedProjects(snapshot), [project]);
-    assert.deepEqual(snapshot.projects[0].panels.map(panel => [panel.run?.state, panel.status]), [['failed', undefined], ['failed', undefined]], 'a failed launch displays no processing state');
+    assert.deepEqual(
+      snapshot.projects[0].panels.map(panel => [panel.run?.state, panel.status]),
+      [
+        ['failed', undefined],
+        ['failed', undefined],
+      ],
+      'a failed launch displays no processing state',
+    );
     await workbench.quit();
     workbench = await Workbench.open(directory);
     assert.deepEqual(storedProjects(workbench.snapshot()), [project]);
-  } finally { await workbench.quit(); await rm(directory, { recursive: true, force: true }); }
+  } finally {
+    await workbench.quit();
+    await rm(directory, { recursive: true, force: true });
+  }
 });
 
 test('terminal manager failure cleans up runs without removing saved panel configurations', async () => {
@@ -198,13 +326,28 @@ test('terminal manager failure cleans up runs without removing saved panel confi
   let orphanPid = 0;
   try {
     const settings = workbench.snapshot().settings;
-    settings.agents.codex = { command: process.env.VIBEBRIDGE_TEST_NODE!, args: [resolve('tests/fixtures/interactive.cjs')] };
+    settings.agents.codex = {
+      command: process.env.VIBEBRIDGE_TEST_NODE!,
+      args: [resolve('tests/fixtures/interactive.cjs')],
+    };
     await workbench.saveSettings(settings);
     let output = '';
-    workbench.subscribe(event => { if (event.kind === 'output') output += event.data; });
-    const { project } = await workbench.createProject({ name: 'Fault cleanup', directory, total: 2, counts: { codex: 2, claude: 0, pi: 0 } });
+    workbench.subscribe(event => {
+      if (event.kind === 'output') output += event.data;
+    });
+    const { project } = await workbench.createProject({
+      name: 'Fault cleanup',
+      directory,
+      total: 2,
+      counts: { codex: 2, claude: 0, pi: 0 },
+    });
     await mkdir(resolve(directory, 'second'));
-    const { project: second } = await workbench.createProject({ name: 'Background cleanup', directory: resolve(directory, 'second'), total: 1, counts: { codex: 1, claude: 0, pi: 0 } });
+    const { project: second } = await workbench.createProject({
+      name: 'Background cleanup',
+      directory: resolve(directory, 'second'),
+      total: 1,
+      counts: { codex: 1, claude: 0, pi: 0 },
+    });
     const runs = runsOf(workbench.snapshot());
     await until(() => output.includes('READY:'));
     await workbench.runs.input(runs[0].id, 'host');
@@ -215,9 +358,16 @@ test('terminal manager failure cleans up runs without removing saved panel confi
     process.kill(Number(output.match(/HOST:(\d+)/)![1]), 'SIGKILL');
     hostStopped = true;
     await until(() => workbench.snapshot().errors.some(message => message.includes('terminalHostExited')));
-    await until(() => [...runs.map(run => run.pid!), orphanPid].every(pid => {
-      try { process.kill(pid, 0); return false; } catch { return true; }
-    }));
+    await until(() =>
+      [...runs.map(run => run.pid!), orphanPid].every(pid => {
+        try {
+          process.kill(pid, 0);
+          return false;
+        } catch {
+          return true;
+        }
+      }),
+    );
     assert.deepEqual(storedProjects(workbench.snapshot()), [project, second]);
     assert.ok(runsOf(workbench.snapshot()).every(run => run.state !== 'running'));
     await assert.rejects(workbench.runs.input(runs[0].id, 'after-fault'), /terminalHostExited/);
@@ -227,8 +377,15 @@ test('terminal manager failure cleans up runs without removing saved panel confi
     hostStopped = false;
     assert.deepEqual(storedProjects(workbench.snapshot()), [project, second]);
   } finally {
-    if (orphanPid) { try { process.kill(orphanPid, 'SIGKILL'); } catch { /* already cleaned */ } }
-    if (hostStopped) await workbench.quit().catch(() => {}); else await workbench.quit();
+    if (orphanPid) {
+      try {
+        process.kill(orphanPid, 'SIGKILL');
+      } catch {
+        /* already cleaned */
+      }
+    }
+    if (hostStopped) await workbench.quit().catch(() => {});
+    else await workbench.quit();
     await rm(directory, { recursive: true, force: true });
   }
 });
@@ -239,7 +396,10 @@ test('input while a naturally exited run is still being cleaned up is dropped wi
   let lingerPid = 0;
   try {
     const settings = workbench.snapshot().settings;
-    settings.agents.codex = { command: process.env.VIBEBRIDGE_TEST_NODE!, args: [resolve('tests/fixtures/interactive.cjs')] };
+    settings.agents.codex = {
+      command: process.env.VIBEBRIDGE_TEST_NODE!,
+      args: [resolve('tests/fixtures/interactive.cjs')],
+    };
     await workbench.saveSettings(settings);
     let output = '';
     const exits: string[] = [];
@@ -247,7 +407,12 @@ test('input while a naturally exited run is still being cleaned up is dropped wi
       if (event.kind === 'output') output += event.data;
       if (event.kind === 'exit') exits.push(event.runId);
     });
-    await workbench.createProject({ name: 'Exit cleanup', directory, total: 1, counts: { codex: 1, claude: 0, pi: 0 } });
+    await workbench.createProject({
+      name: 'Exit cleanup',
+      directory,
+      total: 1,
+      counts: { codex: 1, claude: 0, pi: 0 },
+    });
     const [run] = runsOf(workbench.snapshot());
     await until(() => output.includes('READY:'));
     await workbench.runs.input(run.id, 'linger');
@@ -256,7 +421,14 @@ test('input while a naturally exited run is still being cleaned up is dropped wi
     // The child inherits the run's owner marker, so cleanup finds it after the Agent exits and waits
     // while it ignores SIGTERM.
     await workbench.runs.input(run.id, 'exit');
-    await until(() => { try { process.kill(run.pid!, 0); return false; } catch { return true; } });
+    await until(() => {
+      try {
+        process.kill(run.pid!, 0);
+        return false;
+      } catch {
+        return true;
+      }
+    });
     // The panel still shows the run while its leftover child is cleaned up.
     assert.equal(runsOf(workbench.snapshot()).find(r => r.id === run.id)?.state, 'running');
     await workbench.runs.input(run.id, 'typed-after-exit');
@@ -266,7 +438,13 @@ test('input while a naturally exited run is still being cleaned up is dropped wi
     await until(() => workbench.snapshot().projects[0].panels.length === 0);
     assert.deepEqual(workbench.snapshot().errors, []);
   } finally {
-    if (lingerPid) { try { process.kill(lingerPid, 'SIGKILL'); } catch { /* already cleaned */ } }
+    if (lingerPid) {
+      try {
+        process.kill(lingerPid, 'SIGKILL');
+      } catch {
+        /* already cleaned */
+      }
+    }
     await workbench.quit();
     await rm(directory, { recursive: true, force: true });
   }
