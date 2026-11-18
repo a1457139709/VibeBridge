@@ -27,15 +27,10 @@ module.exports = {
     const closeDetail = () => evaluate('document.querySelector(".forge-detail-bar button[aria-label=Close]").click()');
     const project = snapshot.projects[0];
     const [run] = runsOf(snapshot);
-    // Bound as picking octo/desktop from the repository field binds it.
-    assert.equal(
-      (
-        await evaluate(`(async () => window.workbench.editProject(${JSON.stringify(project.id)}, { name: ${JSON.stringify(project.name)},
-      directory: ${JSON.stringify(project.directory)}, repository: (await window.workbench.repositoryChoices(${JSON.stringify(project.id)},
-      ${JSON.stringify(project.directory)})).repositories.find(item => item.path === 'octo/desktop') }, false))()`)
-      ).error,
-      undefined,
-    );
+    // Bound as Bind in the Forge sidebar binds octo/desktop.
+    await evaluate(`(async () => window.workbench.bindRepository(${JSON.stringify(project.id)},
+      (await window.workbench.repositoryChoices(${JSON.stringify(project.id)}, ${JSON.stringify(project.directory)}))
+        .repositories.find(item => item.path === 'octo/desktop')))()`);
     // A tray panel shows the tray, so the detail has a toolbar above it and a tray below it.
     await evaluate(`window.workbench.addPanel(${JSON.stringify(project.id)}, 'codex')`);
     await until(

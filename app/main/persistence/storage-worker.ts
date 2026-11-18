@@ -183,6 +183,8 @@ parentPort!.on('message', ({ id, operation, value }) => {
     } else if (operation === 'bind') {
       const { projectId, repository } = value as { projectId: string; repository: RepositoryReference };
       bind(projectId, repository);
+    } else if (operation === 'unbind') {
+      db.prepare('DELETE FROM bound_repositories WHERE project_id=?').run(value as string);
     } else if (operation === 'dispatch') {
       const record = value as DispatchRecord;
       const { forge, host, id: repositoryId, path } = record.repository;

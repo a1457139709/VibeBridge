@@ -212,6 +212,25 @@ export class Workbench {
       return result;
     });
   }
+  /** Binds or rebinds the project to `repository`. The forge's list is read again first, outside the operation queue
+   * since it waits on the forge CLI; when it cannot be read or does not show the repository, nothing is written. */
+  async bindRepository(projectId: string, repository: RepositoryReference) {
+    this.project(projectId);
+    const listed = await this.bindings.findListed(repository);
+    return this.operation(async () => {
+      this.project(projectId);
+      await this.bindings.bind(projectId, listed);
+      this.changed();
+    });
+  }
+  /** Unbinds the project. It reads no list, so it works without the forge CLI. */
+  unbindRepository(projectId: string) {
+    return this.operation(async () => {
+      this.project(projectId);
+      await this.bindings.unbind(projectId);
+      this.changed();
+    });
+  }
   deleteProject(id: string) {
     return this.operation(async () => {
       const project = this.project(id);

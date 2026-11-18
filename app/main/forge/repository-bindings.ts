@@ -12,7 +12,7 @@ export class RepositoryBindings {
   private bindings: Map<string, RepositoryReference>;
   constructor(
     stored: Record<string, RepositoryReference>,
-    private store: Pick<ProjectStore, 'bind'>,
+    private store: Pick<ProjectStore, 'bind' | 'unbind'>,
   ) {
     this.bindings = new Map(Object.entries(stored));
   }
@@ -53,12 +53,28 @@ export class RepositoryBindings {
    * as a fresh list from its forge shows it. */
   async chosen(projectId: string, repository: RepositoryReference | null) {
     const bound = this.get(projectId);
-    return sameRepository(repository, bound) ? bound : listedRepository(repository);
+    return sameRepository(repository, bound) ? bound : listedRepository(repository, 'projectEditListFailed');
   }
   /** Records the binding a project edit has written. */
   edited(projectId: string, repository: RepositoryReference | null) {
     if (repository) this.bindings.set(projectId, repository);
     else this.bindings.delete(projectId);
+  }
+  /** The repository as a fresh list from its forge shows it, for `bind`; throws when the list cannot be read or does
+   * not show it. */
+  async findListed(repository: RepositoryReference) {
+    return (await listedRepository(repository, 'bindListFailed'))!;
+  }
+  /** Binds the project to a repository `findListed` returned, replacing any binding it has. Runs in the Workbench's
+   * operation queue. */
+  async bind(projectId: string, repository: RepositoryReference) {
+    await this.store.bind(projectId, repository);
+    this.bindings.set(projectId, repository);
+  }
+  /** Removes the project's binding; it reads no list, so it works without the forge CLI. */
+  async unbind(projectId: string) {
+    await this.store.unbind(projectId);
+    this.bindings.delete(projectId);
   }
   /** Drops the binding of a deleted project. */
   forget(projectId: string) {

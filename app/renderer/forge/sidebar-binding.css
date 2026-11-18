@@ -1,0 +1,69 @@
+.binding-pane {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 12px;
+  font-size: 13px;
+}
+.binding-pane p {
+  margin: 0;
+}
+.binding-pane > .binding-link {
+  align-self: flex-start;
+}
+.binding-card > .binding-link {
+  align-self: center;
+}
+.binding-origin {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 8px 10px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  font-size: 12px;
+}
+.binding-hint,
+.binding-now {
+  font-size: 12px;
+}
+.binding-now {
+  padding: 4px 0;
+}
+.binding-consequence {
+  padding: 8px 10px;
+  border-radius: 6px;
+  background: color-mix(in srgb, var(--forge-pending, #bf8700) 12%, transparent);
+  font-size: 12px;
+}
+.binding-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.binding-spacer {
+  flex: 1;
+}
+.binding-link {
+  min-height: 0;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--forge-link);
+  font: inherit;
+}
+.binding-link:hover:not(:disabled) {
+  background: none;
+  text-decoration: underline;
+}
+.binding-pane .danger {
+  color: var(--error, #b33e2d);
+}
+.binding-pane .error-text {
+  color: var(--error, #b33e2d);
+  font-size: 12px;
+  overflow-wrap: anywhere;
+}

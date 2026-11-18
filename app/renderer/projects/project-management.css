@@ -88,69 +88,6 @@
 .repository-label {
   font-weight: 600;
 }
-.repository-picker {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-}
-.repository-list {
-  max-height: 150px;
-  overflow: auto;
-  border: 1px solid var(--line);
-  border-radius: 6px;
-}
-.repository-list button {
-  display: flex;
-  gap: 6px;
-  width: 100%;
-  min-height: 0;
-  padding: 5px 10px;
-  border: 0;
-  border-radius: 0;
-  background: none;
-  text-align: left;
-  font-size: 12px;
-}
-.repository-list button:hover:not(:disabled) {
-  background: none;
-}
-.repository-list button.reached:not(:disabled) {
-  background: var(--hover);
-}
-.repository-list button.on,
-.repository-list button.on:not(:disabled) {
-  background: var(--selection, var(--hover));
-  color: var(--selection-text, var(--accent));
-}
-.repository-list small {
-  margin-left: auto;
-  color: var(--muted);
-}
-.repository-path {
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-.repository-empty {
-  display: block;
-  padding: 5px 10px;
-  font-size: 12px;
-}
-.repository-source {
-  font-size: 11px;
-}
-.repository-error {
-  display: flex;
-  flex-direction: column;
-  align-items: flex-start;
-  gap: 8px;
-  padding: 10px;
-  border-radius: 6px;
-  background: color-mix(in srgb, var(--error, #b33e2d) 10%, transparent);
-  font-size: 12px;
-  overflow-wrap: anywhere;
-}
 .repository-current {
   display: flex;
   align-items: center;

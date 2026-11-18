@@ -273,6 +273,7 @@ export const english = {
   unbindImpact: 'Dispatch records are kept; the sidebar shows the project as unbound.',
   repositoryBound: 'Bound {repository}',
   repositoryUnbound: 'Unbound {repository}',
+  bindListFailed: 'Not bound: could not read the repository list ({reason}). You can try again.',
   projectEditListFailed:
     'Could not read the repository list: {reason}. Name, directory and repository were not saved; try again, or undo the repository change to save only name and directory.',
   toggleForgeSidebar: 'Toggle the forge sidebar',

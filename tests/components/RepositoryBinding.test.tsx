@@ -289,23 +289,23 @@ test('from the search box ↑/↓ move through the listed repositories and Enter
   await user.click(search);
   assert.equal(reached(), undefined, 'no repository is reached before a key moves');
   await user.keyboard('{ArrowDown}');
-  assert.equal(reached(), 'octo/tools');
+  assert.equal(reached(), 'octo/vibebridge', 'the repository origin points at is listed first');
   await user.keyboard('{ArrowUp}');
-  assert.equal(reached(), 'octo/tools', 'the first repository stays reached');
+  assert.equal(reached(), 'octo/vibebridge', 'the first repository stays reached');
   await user.keyboard('{ArrowDown}{ArrowDown}{ArrowDown}');
   assert.equal(reached(), 'acme/group/forge', 'the last repository stays reached');
   await user.keyboard('{Enter}');
   assert.deepEqual(selected(), ['acme/group/forge']);
   assert.ok(screen.getByRole('dialog'), 'Enter picks without saving');
   await user.keyboard('{ArrowUp} ');
-  assert.deepEqual(selected(), ['octo/vibebridge']);
+  assert.deepEqual(selected(), ['octo/tools']);
   assert.equal(search.value, '', 'Space picks without typing');
   assert.equal(document.activeElement, search);
 
   await user.hover(option('octo/tools'));
   assert.equal(reached(), 'octo/tools', 'pointing reaches a repository');
   await user.keyboard('{ArrowDown}');
-  assert.equal(reached(), 'octo/vibebridge', 'the keys go on from where the pointer reached');
+  assert.equal(reached(), 'acme/group/forge', 'the keys go on from where the pointer reached');
 
   await user.type(search, 'tools');
   assert.equal(reached(), undefined, 'a new search reaches nothing yet');
@@ -322,12 +322,12 @@ test('Change puts focus in the search box, and picking with the pointer keeps it
   const reached = () => document.getElementById(search.getAttribute('aria-activedescendant') ?? '')?.dataset.path;
   await waitFor(() => assert.equal(document.activeElement, search));
   await user.keyboard('{ArrowDown}');
-  assert.equal(reached(), 'octo/tools');
+  assert.equal(reached(), 'octo/vibebridge');
 
   await user.click(option('octo/vibebridge'));
   assert.deepEqual(selected(), ['octo/vibebridge']);
   assert.equal(document.activeElement, search);
-  await user.keyboard('{ArrowDown}{Enter}');
+  await user.keyboard('{ArrowDown}{ArrowDown}{Enter}');
   assert.deepEqual(selected(), ['acme/group/forge']);
 });
 
@@ -343,7 +343,8 @@ test('a bound repository the forge lists at a new path is listed once, there, as
   await screen.findByRole('listbox', { name: 'Repository' });
   assert.deepEqual(
     screen.getAllByRole('option').map(item => item.dataset.path),
-    ['octo/tools-x', 'octo/vibebridge'],
+    ['octo/vibebridge', 'octo/tools-x'],
+    'origin first',
   );
   assert.deepEqual(selected(), ['octo/tools-x']);
   assert.ok(within(option('octo/tools-x')).getByText('current'));

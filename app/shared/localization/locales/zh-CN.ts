@@ -268,6 +268,7 @@ export const chinese: Record<keyof typeof english, string> = {
   unbindImpact: '派发记录保留；侧边栏显示未绑定。',
   repositoryBound: '已绑定 {repository}',
   repositoryUnbound: '已解绑 {repository}',
+  bindListFailed: '没有绑定：无法读取仓库列表（{reason}）。可以再试一次。',
   projectEditListFailed:
     '无法读取仓库列表：{reason}。名称、目录和仓库都没有保存，可以再试一次，或撤销仓库修改后只保存名称和目录。',
   toggleForgeSidebar: '开关 Forge 侧边栏',

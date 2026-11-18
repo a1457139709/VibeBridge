@@ -40,8 +40,12 @@ export async function repositoryChoices(
   }
 }
 
-/** The repository as its forge currently lists it, found by its ID, at its listed path; null stays null and needs no list. */
-export async function listedRepository(repository: RepositoryReference | null): Promise<RepositoryReference | null> {
+/** The repository as its forge currently lists it, found by its ID, at its listed path; null stays null and needs no list.
+ * A list that cannot be read throws `listFailed` with the forge's reason. */
+export async function listedRepository(
+  repository: RepositoryReference | null,
+  listFailed: 'projectEditListFailed' | 'bindListFailed',
+): Promise<RepositoryReference | null> {
   if (repository === null) return null;
   const parsed = repositoryReferenceSchema.safeParse(repository);
   if (!parsed.success) throw new Error(message('repositoryNotListed'));
@@ -53,7 +57,7 @@ export async function listedRepository(repository: RepositoryReference | null): 
   } catch (error) {
     if (error instanceof ForgeError)
       throw new Error(
-        message('projectEditListFailed', {
+        message(listFailed, {
           reason: detail(error.detail || message('forgeNotInstalled', { cli: forge.presentation.cli })),
         }),
       );

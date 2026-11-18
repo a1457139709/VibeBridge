@@ -317,7 +317,7 @@ export function ProjectEditor({
               )}
             </div>
           )}
-          <RepositoryField field={field} disabled={busy} focus={false} />
+          <RepositoryField field={field} disabled={busy} />
           {/* Every consequence of saving is listed here, above the buttons that save; this is the confirmation. */}
           {impact && (
             <section className="save-impact" aria-label={t('afterSave')}>
