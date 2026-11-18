@@ -1,0 +1,13 @@
+# Prettier formats the authored source: ts, tsx, mts, mjs, cjs and css under app/, tests/ and scripts/.
+# Everything else, including outputs/, dist/, work/ and package-lock.json, keeps its own formatting.
+/*
+!/app/
+!/tests/
+!/scripts/
+*.*
+!*.ts
+!*.tsx
+!*.mts
+!*.mjs
+!*.cjs
+!*.css

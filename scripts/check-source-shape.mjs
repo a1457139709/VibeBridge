@@ -1,12 +1,7 @@
-import { existsSync } from 'node:fs';
-import { readdir, readFile } from 'node:fs/promises';
+import { readFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import ts from 'typescript';
 
-// A line past this width packs several statements or declarations together; wrap it as the surrounding code wraps.
-const maxLine = 200;
-// A line holding one string longer than the limit, such as an SVG path, is data rather than packed code.
-const dataString = new RegExp(`"[^"]{${maxLine},}"|'[^']{${maxLine},}'`);
 // Workbench coordinates work across feature modules (docs/adr/0007-workbench-only-coordinates.md).
 const workbench = join('app', 'main', 'workbench.ts');
 const failures = [];
@@ -33,30 +28,19 @@ function forwarders(source) {
   return found;
 }
 
-async function checkDirectory(directory) {
-  for (const entry of await readdir(directory, { withFileTypes: true })) {
-    const file = join(directory, entry.name);
-    if (entry.isDirectory()) { await checkDirectory(file); continue; }
-    if (!entry.isFile() || !/\.(?:[cm]?[jt]s|[jt]sx)$/.test(entry.name)) continue;
-    const text = await readFile(file, 'utf8');
-    text.split('\n').forEach((line, index) => {
-      if (line.length > maxLine && !dataString.test(line)) failures.push(`${file}:${index + 1}: ${line.length} characters (at most ${maxLine})`);
-    });
-    if (file !== workbench) continue;
-    const source = ts.createSourceFile(file, text, ts.ScriptTarget.Latest, true);
-    for (const { node, target } of forwarders(source)) {
-      const { line } = source.getLineAndCharacterOfPosition(node.getStart(source));
-      failures.push(`${file}:${line + 1}: ${node.name.getText(source)} only forwards to ${target}`);
-    }
+async function checkWorkbench() {
+  const source = ts.createSourceFile(workbench, await readFile(workbench, 'utf8'), ts.ScriptTarget.Latest, true);
+  for (const { node, target } of forwarders(source)) {
+    const { line } = source.getLineAndCharacterOfPosition(node.getStart(source));
+    failures.push(`${workbench}:${line + 1}: ${node.name.getText(source)} only forwards to ${target}`);
   }
 }
 
 try {
-  for (const directory of ['app', 'tests', 'scripts']) if (existsSync(directory)) await checkDirectory(directory);
+  await checkWorkbench();
   if (failures.length) {
     console.error(`Source shape check failed:\n${failures.join('\n')}
 
-Long lines: wrap them as the surrounding code wraps, one statement or declaration per line.
 Forwarding methods: callers call the feature module directly, as IPC calls workbench.runs;
 Workbench keeps the methods that queue an operation or combine feature modules.`);
     process.exitCode = 1;

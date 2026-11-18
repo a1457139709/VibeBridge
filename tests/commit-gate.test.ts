@@ -30,6 +30,7 @@ test('installed pre-commit blocks oversized staged files before working-tree che
     const check = (stage: string) => `import { appendFileSync, readFileSync } from 'node:fs';
 appendFileSync('checks.jsonl', JSON.stringify({ stage: '${stage}', input: readFileSync('sample.txt', 'utf8') }) + '\\n');
 if (process.env.FAIL_CHECK === '${stage}') { console.error('FAILED:${stage}'); process.exit(1); }`;
+    await writeFile(`${directory}/scripts/check-format.mjs`, check('format'));
     await writeFile(`${directory}/scripts/check-source-paths.mjs`, check('source-paths'));
     await writeFile(`${directory}/scripts/check-source-shape.mjs`, check('source-shape'));
     await writeFile(`${directory}/scripts/check-test-waits.mjs`, check('test-waits'));
@@ -38,6 +39,8 @@ if (process.env.FAIL_CHECK === '${stage}') { console.error('FAILED:${stage}'); p
     await writeFile(`${directory}/scripts/test-components.mjs`, check('components'));
     await writeFile(`${directory}/node_modules/.bin/tsc`, '#!/bin/sh\nexec node scripts/typecheck.mjs\n');
     await chmod(`${directory}/node_modules/.bin/tsc`, 0o755);
+    await writeFile(`${directory}/node_modules/.bin/prettier`, '#!/bin/sh\nexec node scripts/check-format.mjs\n');
+    await chmod(`${directory}/node_modules/.bin/prettier`, 0o755);
     const installed = run('npm', ['run', 'prepare']);
     assert.equal(installed.status, 0, installed.stderr);
     assert.equal(git('config', '--get', 'core.hooksPath'), '.husky/_');
@@ -55,7 +58,7 @@ if (process.env.FAIL_CHECK === '${stage}') { console.error('FAILED:${stage}'); p
     await writeFile(`${directory}/sample.txt`, 'staged'); git('add', 'sample.txt');
     await writeFile(`${directory}/sample.txt`, 'working tree');
     const staged = git('diff', '--cached'), unstaged = git('diff');
-    const stages = ['source-paths', 'source-shape', 'test-waits', 'typecheck', 'unit', 'components'];
+    const stages = ['format', 'source-paths', 'source-shape', 'test-waits', 'typecheck', 'unit', 'components'];
     for (const [index, stage] of stages.entries()) {
       await writeFile(`${directory}/checks.jsonl`, '');
       const result = run('git', ['commit', '-m', `Fails ${stage}`], { FAIL_CHECK: stage });

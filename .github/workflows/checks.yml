@@ -26,7 +26,9 @@ jobs:
           cache: npm
       - id: install
         run: npm ci
-      - run: npm run check:source-paths
+      - run: npm run check:format
+      - if: ${{ !cancelled() && steps.install.outcome == 'success' }}
+        run: npm run check:source-paths
       - if: ${{ !cancelled() && steps.install.outcome == 'success' }}
         run: npm run check:source-shape
       - if: ${{ !cancelled() && steps.install.outcome == 'success' }}

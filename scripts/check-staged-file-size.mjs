@@ -51,8 +51,9 @@ Split each file before committing:
    call that module directly.
    Tests: split by feature or scenario; move shared setup into a small helper.
    Docs/data: split by topic or logical section and update links or loaders.
-2. Keep every resulting file at or below 20,000 bytes. Preserve behavior and comments, and keep
-   the formatting of the surrounding code: one statement or declaration per line.
+2. Keep every resulting file at or below 20,000 bytes and preserve behavior and comments.
+   Prettier sets the layout (npm run format), so shrink a file by splitting it into modules,
+   never by packing more onto each line.
 3. Run the relevant checks, then git add the original and new files and retry the commit.
 
 Only tool-produced or vendored files should be excluded: mark their exact paths with
