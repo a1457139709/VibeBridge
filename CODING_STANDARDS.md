@@ -12,7 +12,9 @@ The code describes the **current design**: the one set by the latest spec, issue
 
 ### Persisted data
 
-- Stored formats (`settings.json`, `projects.sqlite`, …) are read in their current format only. Write no migration code and no compatibility for older formats.
+- Stored formats (`settings.json`, `projects.sqlite`, …) are read in their current format only. When a format changes, the store drops the old-format data when it opens (a table, or a key in `settings.json`), keeps everything the change does not touch, and converts nothing. The PR names what users lose.
+- A format stores what the current design needs. A later change drops and starts over, so a field waits for the design that uses it.
+- These two rules hold while VibeBridge has no users whose data must survive an upgrade; revisit them before it does.
 - How a file treats invalid content is decided per file, in its ADR or issue resolution. A file that cannot be read at all is reported clearly and left untouched.
 
 ### When decisions conflict
@@ -34,11 +36,17 @@ A name states what its code does or holds, read at the call site without opening
 - A function or method is named with a verb for what it does: `follow(projectId, found)` moves a binding; `on(...)` or `handle(...)` says only that something happens.
 - A callback field is named for the event it answers: `onRunExited`, not `moved` or `done`.
 - A short name or abbreviation stands for exactly one thing in its scope, and that thing is what the full word would say.
+- Two functions that behave differently carry different names, even in different layers: a shared name tells the reader they do the same thing.
+- A lower layer names things in its own terms. `ProcessingStatus` speaks of reports and observations; dispatch is a word of the layers above it.
 - When behaviour changes, its names change with it in the same change.
 
 Review each new or changed name by reading its call site alone and asking whether it says what happens there.
 
 ## Tests
+
+### Data
+
+Each test creates the data it needs and cleans it up, so a clean checkout passes without artifacts left by earlier tasks. Fixtures are named by the behaviour they stand for.
 
 ### Waits
 

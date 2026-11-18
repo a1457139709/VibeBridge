@@ -48,30 +48,7 @@ npm run package
 
 `VIBEBRIDGE_DATA_DIR` 可指定隔离的数据目录（供验收使用）；不要在多个应用实例间共用同一数据目录。
 
-缺失或非法的配置项使用以下默认值，未知的键保留在文件中：
-
-```json
-{
-  "language": "en",
-  "theme": "system",
-  "defaultLayout": "auto",
-  "shortcuts": {
-    "previousProject": "Command+Shift+[",
-    "nextProject": "Command+Shift+]",
-    "previousPanel": "Command+[",
-    "nextPanel": "Command+]",
-    "maximizePanel": "Command+Enter",
-    "addPanel": "Command+N",
-    "closePanel": "Command+Shift+W",
-    "settings": "Command+,"
-  },
-  "agents": {
-    "codex": { "command": "codex", "args": [] },
-    "claude": { "command": "claude", "args": [] },
-    "pi": { "command": "pi", "args": [] }
-  }
-}
-```
+缺失或非法的配置项使用默认值，未知的键保留在文件中。各项默认值以 `app/shared/settings/settings.ts` 中的 `defaultSettings` 为准。
 
 设置存在冲突（如两个动作使用同一快捷键）时配置照常生效，启动后会要求在对应设置中修正。
 
@@ -107,7 +84,7 @@ app/shared/      两端共用的模型与契约
 app/terminal/    共用终端进程
 ```
 
-- `app/main/workbench.ts`：共用业务入口，协调项目、面板、配置、运行身份与生命周期；IPC 仅调用这些操作。
+- `app/main/workbench.ts`：只做跨功能模块的协调（操作队列、按 ID 找项目、项目的创建与删除等跨模块流程、快照），各功能的状态归它自己的模块，见 [ADR 0007](docs/adr/0007-workbench-only-coordinates.md)。
 - `app/terminal/host.ts`：全部项目共用的独立终端进程，持有 PTY 和权威运行事实。
 - `app/main/persistence/storage-worker.ts`：工作线程中的 SQLite 事务，避免阻塞主进程。
 - `app/main/persistence/settings.ts`：串行、完整临时写入后替换的配置保存。
