@@ -4,8 +4,6 @@ VibeBridge 是面向个人日常工作的多项目 Agent CLI 工作台。本词�
 
 ## Language
 
-每个词条的 _Avoid_ 只列容易被误用来指它的名字。工作台做什么、不做什么，写在 spec 或 ADR 里。
-
 ### 工作组织
 
 **工作台（Workbench）**：
