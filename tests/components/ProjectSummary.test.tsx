@@ -14,47 +14,107 @@ import { githubView } from './support/forge';
 
 afterEach(cleanup);
 
-const panel = (id: string, status: ProcessingState): PanelView =>
-  ({ id, agent: 'codex', run: { id, panelId: id, projectId: 'project', state: 'running', title: `Session ${id}` }, status });
+const panel = (id: string, status: ProcessingState): PanelView => ({
+  id,
+  agent: 'codex',
+  run: { id, panelId: id, projectId: 'project', state: 'running', title: `Session ${id}` },
+  status,
+});
 
 // Like the workspace, the harness shows one summary per current project over its resident and tray panels.
 function fixture() {
   const snapshot: Snapshot = {
-    navigation: { visible: true, width: 212 }, forgeSidebar: { visible: false, width: 380 }, activeProjectId: 'project', settings: defaultSettings(),
-    settingsConflicts: [], startupTheme: 'light', resolvedTheme: 'light', errors: [],
-    projects: [{ id: 'project', name: 'Project title stays out of the bar', directory: '/project', layout: null,
-      panels: ([['first', 'done'], ['third', 'needs-input']] as const).map(([id, status]) => panel(id, status)),
-      tray: ([['second', 'done'], ['fresh', 'ready']] as const).map(([id, status]) => panel(id, status)), repository: null, ...githubView }],
+    navigation: { visible: true, width: 212 },
+    forgeSidebar: { visible: false, width: 380 },
+    activeProjectId: 'project',
+    settings: defaultSettings(),
+    settingsConflicts: [],
+    startupTheme: 'light',
+    resolvedTheme: 'light',
+    errors: [],
+    projects: [
+      {
+        id: 'project',
+        name: 'Project title stays out of the bar',
+        directory: '/project',
+        layout: null,
+        panels: (
+          [
+            ['first', 'done'],
+            ['third', 'needs-input'],
+          ] as const
+        ).map(([id, status]) => panel(id, status)),
+        tray: (
+          [
+            ['second', 'done'],
+            ['fresh', 'ready'],
+          ] as const
+        ).map(([id, status]) => panel(id, status)),
+        repository: null,
+        ...githubView,
+      },
+    ],
   };
   const listeners = new Set<(event: WorkbenchEvent) => void>();
   const located: string[] = [];
-  provideWorkbench({ snapshot: async () => structuredClone(snapshot),
-    subscribe: listener => { listeners.add(listener); return () => { listeners.delete(listener); }; },
+  provideWorkbench({
+    snapshot: async () => structuredClone(snapshot),
+    subscribe: listener => {
+      listeners.add(listener);
+      return () => {
+        listeners.delete(listener);
+      };
+    },
   });
   function Summary() {
     const [state, setState] = useState<Snapshot>();
     useEffect(() => {
       void window.workbench.snapshot().then(setState);
-      return window.workbench.subscribe(event => { if (event.kind === 'snapshot') setState(event.snapshot); });
+      return window.workbench.subscribe(event => {
+        if (event.kind === 'snapshot') setState(event.snapshot);
+      });
     }, []);
     const active = state?.projects.find(project => project.id === state.activeProjectId);
-    return <Localization language={state?.settings.language ?? 'en'}><button>Outside</button>
-      {active && <ProjectSummary key={active.id} panels={[...active.panels, ...active.tray]} locate={panel => located.push(panel.id)} />}
-    </Localization>;
+    return (
+      <Localization language={state?.settings.language ?? 'en'}>
+        <button>Outside</button>
+        {active && (
+          <ProjectSummary
+            key={active.id}
+            panels={[...active.panels, ...active.tray]}
+            locate={panel => located.push(panel.id)}
+          />
+        )}
+      </Localization>
+    );
   }
   render(<Summary />);
-  return { snapshot, member: (id: string) => [...snapshot.projects[0].panels, ...snapshot.projects[0].tray].find(panel => panel.id === id)!, located, user: userEvent.setup(),
-    update: async () => act(() => { for (const listener of listeners) listener({ kind: 'snapshot', snapshot: structuredClone(snapshot) }); }),
+  return {
+    snapshot,
+    member: (id: string) =>
+      [...snapshot.projects[0].panels, ...snapshot.projects[0].tray].find(panel => panel.id === id)!,
+    located,
+    user: userEvent.setup(),
+    update: async () =>
+      act(() => {
+        for (const listener of listeners) listener({ kind: 'snapshot', snapshot: structuredClone(snapshot) });
+      }),
   };
 }
 
-test('summary counts the current project\'s panels by state in fixed order and always lists members before locating, even one result', async () => {
+test("summary counts the current project's panels by state in fixed order and always lists members before locating, even one result", async () => {
   const { user, located } = fixture();
   const bar = await screen.findByRole('region', { name: 'Current project summary' });
   await screen.findByRole('button', { name: '1 Needs input' });
-  assert.deepEqual(within(bar).getAllByRole('button').map(button => button.textContent), ['1 Ready', '1 Needs input', '2 Done', '0 Error']);
+  assert.deepEqual(
+    within(bar)
+      .getAllByRole('button')
+      .map(button => button.textContent),
+    ['1 Ready', '1 Needs input', '2 Done', '0 Error'],
+  );
   assert.equal(bar.textContent?.includes('Project title'), false);
-  for (const entry of within(bar).getAllByRole('button')) assert.equal(entry.dataset.hint, entry.getAttribute('aria-label'), 'names survive a collapse to icon and count');
+  for (const entry of within(bar).getAllByRole('button'))
+    assert.equal(entry.dataset.hint, entry.getAttribute('aria-label'), 'names survive a collapse to icon and count');
   assert.equal(within(bar).getByRole<HTMLButtonElement>('button', { name: '0 Error' }).disabled, true);
   await user.click(within(bar).getByRole('button', { name: '1 Needs input' }));
   const list = screen.getByRole('dialog', { name: 'Needs input' });
@@ -64,21 +124,27 @@ test('summary counts the current project\'s panels by state in fixed order and a
   assert.deepEqual(located, ['third']);
   assert.ok(!screen.queryByRole('dialog'));
   await user.click(within(bar).getByRole('button', { name: '1 Ready' }));
-  await user.click(within(screen.getByRole('dialog', { name: 'Ready' })).getByRole('button', { name: /Session fresh/ }));
+  await user.click(
+    within(screen.getByRole('dialog', { name: 'Ready' })).getByRole('button', { name: /Session fresh/ }),
+  );
   assert.deepEqual(located.at(-1), 'fresh');
 });
 
 test('keyboard users can choose members, switch lists and return to the triggering entry on Escape or close', async () => {
   const { user, located } = fixture();
   const done = await screen.findByRole('button', { name: '2 Done' });
-  done.focus(); await user.keyboard('{Enter}');
+  done.focus();
+  await user.keyboard('{Enter}');
   assert.match(document.activeElement!.textContent!, /Session first/);
   await user.keyboard('{ArrowDown}');
   assert.match(document.activeElement!.textContent!, /Session second/);
-  await user.keyboard('{Home}'); assert.match(document.activeElement!.textContent!, /Session first/);
-  await user.keyboard('{End}'); assert.match(document.activeElement!.textContent!, /Session second/);
+  await user.keyboard('{Home}');
+  assert.match(document.activeElement!.textContent!, /Session first/);
+  await user.keyboard('{End}');
+  assert.match(document.activeElement!.textContent!, /Session second/);
   await user.keyboard('{Escape}');
-  assert.ok(!screen.queryByRole('dialog')); assert.equal(document.activeElement, done);
+  assert.ok(!screen.queryByRole('dialog'));
+  assert.equal(document.activeElement, done);
   await user.keyboard(' ');
   await user.click(screen.getByRole('button', { name: 'Close panel list' }));
   assert.equal(document.activeElement, done);
@@ -89,9 +155,11 @@ test('keyboard users can choose members, switch lists and return to the triggeri
   assert.equal(done.getAttribute('aria-expanded'), 'false');
   await user.click(screen.getByRole('button', { name: '1 Needs input' }));
   assert.ok(!screen.queryByRole('dialog'));
-  await user.click(done); await user.click(screen.getByRole('button', { name: 'Outside' }));
+  await user.click(done);
+  await user.click(screen.getByRole('button', { name: 'Outside' }));
   assert.ok(!screen.queryByRole('dialog'));
-  done.focus(); await user.keyboard('{ArrowUp}{ArrowDown}{Enter}');
+  done.focus();
+  await user.keyboard('{ArrowUp}{ArrowDown}{Enter}');
   assert.deepEqual(located, ['first']);
 });
 

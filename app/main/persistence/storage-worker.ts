@@ -1,7 +1,16 @@
 import { message } from '../../shared/messages';
 import { parentPort, workerData } from 'node:worker_threads';
 import { DatabaseSync } from 'node:sqlite';
-import { agentTypeSchema, sidebars, sidebarPreferencesSchema, parseLayout, type Sidebar, type SidebarPreferences, type Panel, type Project } from '../../shared/model';
+import {
+  agentTypeSchema,
+  sidebars,
+  sidebarPreferencesSchema,
+  parseLayout,
+  type Sidebar,
+  type SidebarPreferences,
+  type Panel,
+  type Project,
+} from '../../shared/model';
 import { forgeIdSchema, type RepositoryReference } from '../../shared/forge/forge';
 import type { DispatchRecord } from '../dispatch';
 
@@ -26,21 +35,34 @@ db.exec(`PRAGMA journal_mode=WAL; PRAGMA foreign_keys=ON;
 // Stored content is read in its current format only: anything else fails the whole load and leaves the file untouched.
 // Columns other than layout and panels.agent are kept as the table constraints store them.
 function readProject(row: Record<string, unknown>): Project {
-  const { id, name, directory, layout: storedLayout } = row as { id: string; name: string; directory: string; layout: string };
+  const {
+    id,
+    name,
+    directory,
+    layout: storedLayout,
+  } = row as { id: string; name: string; directory: string; layout: string };
   const invalid = (field: string) => new Error(message('projectDataInvalid', { file, field, id, name }));
-  const panels = db.prepare('SELECT id, agent FROM panels WHERE project_id=? ORDER BY position').all(id).map((panel): Panel => {
-    const agent = agentTypeSchema.safeParse(panel.agent);
-    if (!agent.success) throw invalid('panels.agent');
-    return { id: panel.id as string, agent: agent.data };
-  });
+  const panels = db
+    .prepare('SELECT id, agent FROM panels WHERE project_id=? ORDER BY position')
+    .all(id)
+    .map((panel): Panel => {
+      const agent = agentTypeSchema.safeParse(panel.agent);
+      if (!agent.success) throw invalid('panels.agent');
+      return { id: panel.id as string, agent: agent.data };
+    });
   let layout;
-  try { layout = parseLayout(JSON.parse(storedLayout), panels); } catch { throw invalid('layout'); }
+  try {
+    layout = parseLayout(JSON.parse(storedLayout), panels);
+  } catch {
+    throw invalid('layout');
+  }
   return { id, name, directory, layout, panels };
 }
 
 /** A repository reference stored in `table`'s row: the forge must be one the Workbench has an adapter for, and host, ID and path must be set. */
 function readRepository(table: string, row: Record<string, unknown>, project: Project): RepositoryReference {
-  const invalid = (field: string) => new Error(message('projectDataInvalid', { file, field: `${table}.${field}`, id: project.id, name: project.name }));
+  const invalid = (field: string) =>
+    new Error(message('projectDataInvalid', { file, field: `${table}.${field}`, id: project.id, name: project.name }));
   const forge = forgeIdSchema.safeParse(row.forge);
   if (!forge.success) throw invalid('forge');
   for (const field of ['host', 'repository_id', 'path']) if (!row[field]) throw invalid(field);
@@ -59,22 +81,42 @@ function readBindings(projects: Project[]): Record<string, RepositoryReference> 
 
 /** Every Dispatch Record, oldest first. The repository and Agent type must be ones the Workbench knows. */
 function readDispatchRecords(projects: Project[]): DispatchRecord[] {
-  return db.prepare('SELECT * FROM dispatches ORDER BY rowid').all().map(row => {
-    const project = projects.find(project => project.id === row.project_id)!;
-    const repository = readRepository('dispatches', row, project);
-    const agent = agentTypeSchema.safeParse(row.agent);
-    if (!agent.success) throw new Error(message('projectDataInvalid', { file, field: 'dispatches.agent', id: project.id, name: project.name }));
-    return { projectId: project.id, repository, issue: row.issue as number,
-      dispatchedAt: row.dispatched_at as string, agent: agent.data, text: row.text as string, sessionId: row.session_id as string };
-  });
+  return db
+    .prepare('SELECT * FROM dispatches ORDER BY rowid')
+    .all()
+    .map(row => {
+      const project = projects.find(project => project.id === row.project_id)!;
+      const repository = readRepository('dispatches', row, project);
+      const agent = agentTypeSchema.safeParse(row.agent);
+      if (!agent.success)
+        throw new Error(
+          message('projectDataInvalid', { file, field: 'dispatches.agent', id: project.id, name: project.name }),
+        );
+      return {
+        projectId: project.id,
+        repository,
+        issue: row.issue as number,
+        dispatchedAt: row.dispatched_at as string,
+        agent: agent.data,
+        text: row.text as string,
+        sessionId: row.session_id as string,
+      };
+    });
 }
 
 /** Where each sidebar's preferences are stored; `field` names that place when what is stored there is invalid. */
 const sidebarStorage: Record<Sidebar, { read: string; write: string; field: string }> = {
-  navigation: { field: 'navigation', read: 'SELECT navigation AS preferences FROM workspace WHERE id=1',
-    write: 'INSERT INTO workspace (id, navigation) VALUES (1,?) ON CONFLICT(id) DO UPDATE SET navigation=excluded.navigation' },
-  forgeSidebar: { field: 'forge_sidebar', read: 'SELECT preferences FROM forge_sidebar WHERE id=1',
-    write: 'INSERT INTO forge_sidebar VALUES (1,?) ON CONFLICT(id) DO UPDATE SET preferences=excluded.preferences' },
+  navigation: {
+    field: 'navigation',
+    read: 'SELECT navigation AS preferences FROM workspace WHERE id=1',
+    write:
+      'INSERT INTO workspace (id, navigation) VALUES (1,?) ON CONFLICT(id) DO UPDATE SET navigation=excluded.navigation',
+  },
+  forgeSidebar: {
+    field: 'forge_sidebar',
+    read: 'SELECT preferences FROM forge_sidebar WHERE id=1',
+    write: 'INSERT INTO forge_sidebar VALUES (1,?) ON CONFLICT(id) DO UPDATE SET preferences=excluded.preferences',
+  },
 };
 
 /** A sidebar's stored preferences, or its defaults when none are stored. */
@@ -82,23 +124,35 @@ function readSidebar(sidebar: Sidebar): SidebarPreferences {
   const { read, field } = sidebarStorage[sidebar];
   const stored = db.prepare(read).get()?.preferences;
   if (stored === null || stored === undefined) return sidebars[sidebar].defaults;
-  try { return sidebarPreferencesSchema.parse(JSON.parse(stored as string)); }
-  catch { throw new Error(message('sidebarDataInvalid', { file, field })); }
+  try {
+    return sidebarPreferencesSchema.parse(JSON.parse(stored as string));
+  } catch {
+    throw new Error(message('sidebarDataInvalid', { file, field }));
+  }
 }
 
 function transaction(write: () => void) {
   db.exec('BEGIN IMMEDIATE');
-  try { write(); db.exec('COMMIT'); } catch (error) { db.exec('ROLLBACK'); throw error; }
+  try {
+    write();
+    db.exec('COMMIT');
+  } catch (error) {
+    db.exec('ROLLBACK');
+    throw error;
+  }
 }
 
 function bind(projectId: string, repository: RepositoryReference) {
-  db.prepare(`INSERT INTO bound_repositories VALUES (?,?,?,?,?) ON CONFLICT(project_id) DO UPDATE SET forge=excluded.forge, host=excluded.host,
-    repository_id=excluded.repository_id, path=excluded.path`).run(projectId, repository.forge, repository.host, repository.id, repository.path);
+  db.prepare(
+    `INSERT INTO bound_repositories VALUES (?,?,?,?,?) ON CONFLICT(project_id) DO UPDATE SET forge=excluded.forge, host=excluded.host,
+    repository_id=excluded.repository_id, path=excluded.path`,
+  ).run(projectId, repository.forge, repository.host, repository.id, repository.path);
 }
 
 function saveProject(project: Project) {
-  db.prepare('INSERT INTO projects VALUES (?,?,?,?) ON CONFLICT(id) DO UPDATE SET name=excluded.name, directory=excluded.directory, layout=excluded.layout')
-    .run(project.id, project.name, project.directory, JSON.stringify(project.layout));
+  db.prepare(
+    'INSERT INTO projects VALUES (?,?,?,?) ON CONFLICT(id) DO UPDATE SET name=excluded.name, directory=excluded.directory, layout=excluded.layout',
+  ).run(project.id, project.name, project.directory, JSON.stringify(project.layout));
   db.prepare('DELETE FROM panels WHERE project_id=?').run(project.id);
   const insert = db.prepare('INSERT INTO panels VALUES (?,?,?,?)');
   project.panels.forEach((panel, position) => insert.run(panel.id, project.id, panel.agent, position));
@@ -132,22 +186,39 @@ parentPort!.on('message', ({ id, operation, value }) => {
     } else if (operation === 'dispatch') {
       const record = value as DispatchRecord;
       const { forge, host, id: repositoryId, path } = record.repository;
-      db.prepare('INSERT INTO dispatches VALUES (?,?,?,?,?,?,?,?,?,?)').run(record.projectId, forge, host, repositoryId, path,
-        record.issue, record.dispatchedAt, record.agent, record.text, record.sessionId);
-    } else if (operation === 'delete') transaction(() => {
-      db.prepare('DELETE FROM panels WHERE project_id=?').run(value.id);
-      db.prepare('DELETE FROM dispatches WHERE project_id=?').run(value.id);
-      db.prepare('DELETE FROM bound_repositories WHERE project_id=?').run(value.id);
-      db.prepare('DELETE FROM projects WHERE id=?').run(value.id);
-      db.prepare('INSERT INTO workspace (id, active_project) VALUES (1,?) ON CONFLICT(id) DO UPDATE SET active_project=excluded.active_project').run(value.activeProjectId);
-    });
+      db.prepare('INSERT INTO dispatches VALUES (?,?,?,?,?,?,?,?,?,?)').run(
+        record.projectId,
+        forge,
+        host,
+        repositoryId,
+        path,
+        record.issue,
+        record.dispatchedAt,
+        record.agent,
+        record.text,
+        record.sessionId,
+      );
+    } else if (operation === 'delete')
+      transaction(() => {
+        db.prepare('DELETE FROM panels WHERE project_id=?').run(value.id);
+        db.prepare('DELETE FROM dispatches WHERE project_id=?').run(value.id);
+        db.prepare('DELETE FROM bound_repositories WHERE project_id=?').run(value.id);
+        db.prepare('DELETE FROM projects WHERE id=?').run(value.id);
+        db.prepare(
+          'INSERT INTO workspace (id, active_project) VALUES (1,?) ON CONFLICT(id) DO UPDATE SET active_project=excluded.active_project',
+        ).run(value.activeProjectId);
+      });
     else if (operation === 'active') {
-      db.prepare('INSERT INTO workspace (id, active_project) VALUES (1,?) ON CONFLICT(id) DO UPDATE SET active_project=excluded.active_project').run(value);
+      db.prepare(
+        'INSERT INTO workspace (id, active_project) VALUES (1,?) ON CONFLICT(id) DO UPDATE SET active_project=excluded.active_project',
+      ).run(value);
     } else if (operation === 'sidebar') {
       const { sidebar, preferences } = value as { sidebar: Sidebar; preferences: SidebarPreferences };
       db.prepare(sidebarStorage[sidebar].write).run(JSON.stringify(preferences));
     } else if (operation === 'close') db.close();
     else throw new Error(message('storageOperationUnknown'));
     parentPort!.postMessage({ id, result });
-  } catch (error) { parentPort!.postMessage({ id, error: error instanceof Error ? error.message : String(error) }); }
+  } catch (error) {
+    parentPort!.postMessage({ id, error: error instanceof Error ? error.message : String(error) });
+  }
 });

@@ -24,11 +24,19 @@ const reportPayload = z.union([
 export type HandOver = (sessionId: string) => void;
 
 /** A wait for an observed run's first session report: handed its session ID, or told it is dropped with the observation. */
-interface SessionWait { handOver: HandOver; dropped?: () => void }
+interface SessionWait {
+  handOver: HandOver;
+  dropped?: () => void;
+}
 
 interface Observation {
-  agent: AgentType; token: string; accepting: boolean; running: boolean;
-  state?: ProcessingState; session?: string; interpreter: StatusInterpreter;
+  agent: AgentType;
+  token: string;
+  accepting: boolean;
+  running: boolean;
+  state?: ProcessingState;
+  session?: string;
+  interpreter: StatusInterpreter;
   /** Waits for the run's first session report; dropped with the observation. */
   sessionWaits: SessionWait[];
   /** Whether the run has reported ready; once it has, nothing waits for its first ready report. */
@@ -49,19 +57,34 @@ export class ProcessingStatus {
   private server?: Server;
   private endpoint?: Promise<string>;
   private cleanups = new Set<Promise<void>>();
-  constructor(private changed: () => void, private resourceDirectory: string) {}
+  constructor(
+    private changed: () => void,
+    private resourceDirectory: string,
+  ) {}
 
   async prepare(runId: string, agent: AgentType, command: AgentCommand, directory: string) {
-    const observation: Observation = { agent, token: randomUUID(), accepting: true, running: false, sessionWaits: [], readied: false, readyWaits: [],
-      interpreter: adapters[agent].observe() };
+    const observation: Observation = {
+      agent,
+      token: randomUUID(),
+      accepting: true,
+      running: false,
+      sessionWaits: [],
+      readied: false,
+      readyWaits: [],
+      interpreter: adapters[agent].observe(),
+    };
     this.observations.set(runId, observation);
     try {
       const url = await (this.endpoint ??= this.listen());
       const prepared = await adapters[agent].prepare({ command, directory, resourceDirectory: this.resourceDirectory });
       observation.cleanup = prepared.cleanup;
-      return { command: prepared.command,
-        integration: { VIBEBRIDGE_STATUS_CONTEXT: JSON.stringify({ url, runId, agent, token: observation.token }) } };
-    } catch { return { command, integration: {} as Record<string, string> }; } // Observation must never prevent a terminal launch.
+      return {
+        command: prepared.command,
+        integration: { VIBEBRIDGE_STATUS_CONTEXT: JSON.stringify({ url, runId, agent, token: observation.token }) },
+      };
+    } catch {
+      return { command, integration: {} as Record<string, string> };
+    } // Observation must never prevent a terminal launch.
   }
 
   lifecycle(run: Run) {
@@ -70,7 +93,10 @@ export class ProcessingStatus {
     observation.running = run.state === 'running';
     if (run.state === 'failed' || run.state === 'stopped') this.forget(run.id);
   }
-  stopping(runId: string) { const observation = this.observations.get(runId); if (observation) observation.accepting = false; }
+  stopping(runId: string) {
+    const observation = this.observations.get(runId);
+    if (observation) observation.accepting = false;
+  }
   forget(runId: string) {
     const observation = this.observations.get(runId);
     this.observations.delete(runId);
@@ -79,12 +105,17 @@ export class ProcessingStatus {
       const task = observation.cleanup();
       this.cleanups.add(task);
       // Retain failures for close() to report, without interrupting host events.
-      void task.then(() => this.cleanups.delete(task), () => {});
+      void task.then(
+        () => this.cleanups.delete(task),
+        () => {},
+      );
     }
   }
 
   /** The session the observed run is on now; none once its observation is released. */
-  session(runId: string) { return this.observations.get(runId)?.session; }
+  session(runId: string) {
+    return this.observations.get(runId)?.session;
+  }
 
   /** Hands the run's session ID to `handOver` once it has one: at once if it already has, else on
    * its first session report. `dropped` is told when the observation is released first. False when
@@ -111,31 +142,43 @@ export class ProcessingStatus {
 
   /** The processing state the run displays: only a running instance has one. */
   status(run: Run): ProcessingState | undefined {
-    return run.state === 'running' ? this.observations.get(run.id)?.state ?? 'error' : undefined;
+    return run.state === 'running' ? (this.observations.get(run.id)?.state ?? 'error') : undefined;
   }
 
   private listen(): Promise<string> {
     return new Promise((resolve, reject) => {
-      const server = this.server = createServer((request, response) => {
-        if (request.method !== 'POST' || request.url !== '/events') { response.writeHead(404).end(); return; }
-        let body = '', size = 0;
+      const server = (this.server = createServer((request, response) => {
+        if (request.method !== 'POST' || request.url !== '/events') {
+          response.writeHead(404).end();
+          return;
+        }
+        let body = '',
+          size = 0;
         request.setEncoding('utf8');
         request.on('error', () => {});
         request.on('data', chunk => {
           size += Buffer.byteLength(chunk);
-          if (size > 64 * 1024) { response.writeHead(413).end(); request.destroy(); }
-          else body += chunk;
+          if (size > 64 * 1024) {
+            response.writeHead(413).end();
+            request.destroy();
+          } else body += chunk;
         });
         request.on('end', () => {
           if (size > 64 * 1024) return;
-          try { response.writeHead(this.receive(JSON.parse(body))).end(); }
-          catch { response.writeHead(400).end(); }
+          try {
+            response.writeHead(this.receive(JSON.parse(body))).end();
+          } catch {
+            response.writeHead(400).end();
+          }
         });
-      });
+      }));
       server.requestTimeout = 5000;
       server.on('error', error => {
         reject(error);
-        for (const observation of this.observations.values()) { observation.state = 'error'; observation.interpreter.discardEvidence(); }
+        for (const observation of this.observations.values()) {
+          observation.state = 'error';
+          observation.interpreter.discardEvidence();
+        }
         this.changed();
       });
       server.listen(0, '127.0.0.1', () => {
@@ -151,7 +194,13 @@ export class ProcessingStatus {
     const credentials = launchCredentials.safeParse(event.data);
     const observation = credentials.success ? this.observations.get(credentials.data.runId) : undefined;
     // Authenticate this launch before interpreting even an unfamiliar event.
-    if (!credentials.success || !observation?.accepting || credentials.data.token !== observation.token || credentials.data.agent !== observation.agent) return 403;
+    if (
+      !credentials.success ||
+      !observation?.accepting ||
+      credentials.data.token !== observation.token ||
+      credentials.data.agent !== observation.agent
+    )
+      return 403;
     const parsed = reportPayload.safeParse(event.data.payload);
     if (!parsed.success) return 400;
     const payload = parsed.data;
@@ -181,9 +230,13 @@ export class ProcessingStatus {
       await new Promise<void>(resolve => server.close(() => resolve()));
     }
     const results = await Promise.allSettled(this.cleanups);
-    const failures = results.flatMap(result => result.status === 'rejected' ? [result.reason] : []);
-    if (failures.length) throw new AggregateError(failures, message('statusCleanupFailed', {
-      reasons: failures.map(error => detail(error instanceof Error ? error.message : String(error))),
-    }));
+    const failures = results.flatMap(result => (result.status === 'rejected' ? [result.reason] : []));
+    if (failures.length)
+      throw new AggregateError(
+        failures,
+        message('statusCleanupFailed', {
+          reasons: failures.map(error => detail(error instanceof Error ? error.message : String(error))),
+        }),
+      );
   }
 }

@@ -11,7 +11,6 @@ import { deferred, provideWorkbench } from './support/workbench';
 import { githubView } from './support/forge';
 import { stubLayoutApis } from './support/no-layout';
 
-
 afterEach(cleanup);
 before(() => {
   // jsdom has no layout, frames, media queries or pointer capture. Every element reports one fixed area,
@@ -20,8 +19,12 @@ before(() => {
   Object.assign(globalThis, { getComputedStyle: window.getComputedStyle.bind(window) });
   const area = new window.DOMRect(0, 0, 800, 600);
   Object.assign(window.HTMLElement.prototype, {
-    checkVisibility: () => true, getBoundingClientRect: () => area, getClientRects: () => [area],
-    setPointerCapture() {}, releasePointerCapture() {}, hasPointerCapture: () => false,
+    checkVisibility: () => true,
+    getBoundingClientRect: () => area,
+    getClientRects: () => [area],
+    setPointerCapture() {},
+    releasePointerCapture() {},
+    hasPointerCapture: () => false,
   });
 });
 
@@ -31,28 +34,86 @@ function renderWorkbench(resident = false) {
   const moved: [string, string][] = [];
   const listeners = new Set<(event: WorkbenchEvent) => void>();
   const snapshot: Snapshot = {
-    navigation: { visible: true, width: 212 }, forgeSidebar: { visible: false, width: 380 }, activeProjectId: 'project', settings: defaultSettings(),
-    settingsConflicts: [], startupTheme: 'light', resolvedTheme: 'light', errors: [],
-    projects: [{ id: 'project', name: 'Placement', directory: '/work/placement',
-      layout: resident ? { panel: 'resident' } : null,
-      panels: resident ? [{ id: 'resident', agent: 'claude', run: { id: 'run-resident', panelId: 'resident', projectId: 'project', state: 'starting', title: 'Session resident' } }] : [],
-      tray: [{ id: 'ephemeral', agent: 'codex',
-        run: { id: 'run-ephemeral', panelId: 'ephemeral', projectId: 'project', state: 'starting', title: 'Session ephemeral' } }],
-      repository: null, ...githubView }],
+    navigation: { visible: true, width: 212 },
+    forgeSidebar: { visible: false, width: 380 },
+    activeProjectId: 'project',
+    settings: defaultSettings(),
+    settingsConflicts: [],
+    startupTheme: 'light',
+    resolvedTheme: 'light',
+    errors: [],
+    projects: [
+      {
+        id: 'project',
+        name: 'Placement',
+        directory: '/work/placement',
+        layout: resident ? { panel: 'resident' } : null,
+        panels: resident
+          ? [
+              {
+                id: 'resident',
+                agent: 'claude',
+                run: {
+                  id: 'run-resident',
+                  panelId: 'resident',
+                  projectId: 'project',
+                  state: 'starting',
+                  title: 'Session resident',
+                },
+              },
+            ]
+          : [],
+        tray: [
+          {
+            id: 'ephemeral',
+            agent: 'codex',
+            run: {
+              id: 'run-ephemeral',
+              panelId: 'ephemeral',
+              projectId: 'project',
+              state: 'starting',
+              title: 'Session ephemeral',
+            },
+          },
+        ],
+        repository: null,
+        ...githubView,
+      },
+    ],
   };
-  provideWorkbench({ snapshot: async () => structuredClone(snapshot),
-    subscribe: listener => { listeners.add(listener); return () => { listeners.delete(listener); }; }, ready: async () => {},
-    activateProject: async () => {}, saveSidebar: async () => {}, saveLayout: async () => {},
-    placeInLayout: (...request) => { requests.push(request); return placed.promise; },
+  provideWorkbench({
+    snapshot: async () => structuredClone(snapshot),
+    subscribe: listener => {
+      listeners.add(listener);
+      return () => {
+        listeners.delete(listener);
+      };
+    },
+    ready: async () => {},
+    activateProject: async () => {},
+    saveSidebar: async () => {},
+    saveLayout: async () => {},
+    placeInLayout: (...request) => {
+      requests.push(request);
+      return placed.promise;
+    },
     moveToTray: async (...request) => {
       // The main process moves the panel from the layout to the tray's end; `publish` delivers that snapshot.
       moved.push(request);
       const [project] = snapshot.projects;
       const panel = project.panels.find(item => item.id === request[1])!;
-      Object.assign(project, { layout: null, panels: project.panels.filter(item => item !== panel), tray: [...project.tray, panel] });
-    } });
+      Object.assign(project, {
+        layout: null,
+        panels: project.panels.filter(item => item !== panel),
+        tray: [...project.tray, panel],
+      });
+    },
+  });
   render(<App />);
-  const publish = () => act(async () => { for (const listener of listeners) listener({ kind: 'snapshot', snapshot: structuredClone(snapshot) }); });
+  const publish = () =>
+    act(async () => {
+      for (const listener of listeners) listener({ kind: 'snapshot', snapshot: structuredClone(snapshot) });
+    });
   return { user: userEvent.setup(), placed, requests, moved, publish };
 }
 
@@ -71,17 +132,23 @@ test('a rejected placement leaves the open tray panel open', async () => {
 
   drag(card);
   assert.deepEqual(requests, [['project', 'ephemeral', { panel: 'ephemeral' }]]);
-  await act(async () => { placed.reject(new Error('The layout does not match.')); await placed.promise.catch(() => {}); });
+  await act(async () => {
+    placed.reject(new Error('The layout does not match.'));
+    await placed.promise.catch(() => {});
+  });
   assert.equal(card.getAttribute('aria-pressed'), 'true');
   assert.ok(screen.getByRole('button', { name: 'Collapse panel' }));
 });
 
-test('a resident panel\'s move-to-tray action moves it to the tray without opening it', async () => {
+test("a resident panel's move-to-tray action moves it to the tray without opening it", async () => {
   const { user, moved } = renderWorkbench(true);
   await screen.findByRole('region', { name: 'Ephemeral panel tray' });
   const header = document.querySelector<HTMLElement>('.canvas [data-panel-id="resident"] .panel-actions')!;
   const actions = within(header).getAllByRole('button');
-  assert.deepEqual(actions.map(action => action.getAttribute('aria-label')), ['Move to tray', 'Maximize panel', 'Close panel']);
+  assert.deepEqual(
+    actions.map(action => action.getAttribute('aria-label')),
+    ['Move to tray', 'Maximize panel', 'Close panel'],
+  );
   await user.click(actions[0]);
   assert.deepEqual(moved, [['project', 'resident']]);
   assert.equal(screen.queryByRole('button', { name: 'Collapse panel' }), null);
@@ -96,6 +163,11 @@ test('moving the maximized resident panel to the tray leaves it collapsed in the
   assert.deepEqual(moved, [['project', 'resident']]);
   await publish();
   const tray = screen.getByRole('region', { name: 'Ephemeral panel tray' });
-  assert.deepEqual(within(tray).getAllByRole('button').map(card => card.getAttribute('aria-pressed')), ['false', 'false']);
+  assert.deepEqual(
+    within(tray)
+      .getAllByRole('button')
+      .map(card => card.getAttribute('aria-pressed')),
+    ['false', 'false'],
+  );
   assert.equal(screen.queryByRole('button', { name: 'Collapse panel' }), null);
 });

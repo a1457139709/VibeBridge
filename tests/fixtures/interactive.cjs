@@ -3,15 +3,24 @@ function stream() {
   let chunks = 0;
   const chunk = `\x1b[32m${'output '.repeat(580)}\x1b[0m\r\n`;
   const write = () => {
-    if (++chunks > 2048) { process.stdout.write(`\x1b[2J\x1b[HFINAL:${process.pid}\r\n\x1b[6n`); return; }
+    if (++chunks > 2048) {
+      process.stdout.write(`\x1b[2J\x1b[HFINAL:${process.pid}\r\n\x1b[6n`);
+      return;
+    }
     if (process.stdout.write(chunk)) setImmediate(write);
     else process.stdout.once('drain', write);
   };
   write();
 }
-if (process.argv[2] === 'stream-child') { stream(); return; }
+if (process.argv[2] === 'stream-child') {
+  stream();
+  return;
+}
 if (process.argv[2] === 'orphan-parent') {
-  spawn(process.execPath, [__filename, 'orphan-child'], { detached: true, stdio: ['ignore', process.stdout, 'ignore'] }).unref();
+  spawn(process.execPath, [__filename, 'orphan-child'], {
+    detached: true,
+    stdio: ['ignore', process.stdout, 'ignore'],
+  }).unref();
   process.exit(0);
 }
 if (process.argv[2] === 'orphan-child') {
@@ -25,7 +34,10 @@ process.stdout.write(`READY:${process.pid}:${cwd}\r\n`);
 process.stdin.on('data', data => {
   const text = data.toString();
   // Clears the screen and writes the line on its first row, leaving the cursor right after it, as a CLI's prompt does while the user types.
-  if (text.startsWith('print:')) { process.stdout.write(`\x1b[2J\x1b[H${text.slice(6)}`); return; }
+  if (text.startsWith('print:')) {
+    process.stdout.write(`\x1b[2J\x1b[H${text.slice(6)}`);
+    return;
+  }
   if (text.startsWith('title:')) process.stdout.write(`\x1b]2;${text.slice(6)}\x07`);
   if (text.includes('resist')) {
     process.on('SIGTERM', () => {
@@ -36,7 +48,8 @@ process.stdin.on('data', data => {
   }
   if (text.includes('stream')) {
     // Keep the signal-handler fixture responsive even when macOS blocks a synchronous TTY writer.
-    if (process.argv[2] === '--termination-file') spawn(process.execPath, [__filename, 'stream-child'], { stdio: ['ignore', process.stdout, 'ignore'] });
+    if (process.argv[2] === '--termination-file')
+      spawn(process.execPath, [__filename, 'stream-child'], { stdio: ['ignore', process.stdout, 'ignore'] });
     else stream();
   }
   if (text === 'size') process.stdout.write(`SIZE:${process.stdout.columns}x${process.stdout.rows}\r\n`);
@@ -46,13 +59,22 @@ process.stdin.on('data', data => {
   if (text.includes('later')) setTimeout(() => process.stdout.write('BACKGROUND:completed\r\n'), 300);
   if (text === 'cursor-normal') process.stdout.write('\x1b[?1l');
   if (text === 'cursor-application') process.stdout.write('\x1b[?1h');
-  if (text === 'palette') process.stdout.write('\x1b[2J\x1b[H\x1b[90mANSI-GRAY\x1b[0m\r\n\x1b[38;5;242mINDEXED-GRAY\x1b[0m\r\n\x1b[38;2;102;102;102mPI-FOOTER\x1b[0m\r\n\x1b[38;2;138;190;183mACCENT\x1b[0m\r\nTEXT\r\n\x1b[2mDIM\x1b[0m\r\n\x1b[38;2;102;102;102m\u2588\u2588\x1b[0m\r\n');
+  if (text === 'palette')
+    process.stdout.write(
+      '\x1b[2J\x1b[H\x1b[90mANSI-GRAY\x1b[0m\r\n\x1b[38;5;242mINDEXED-GRAY\x1b[0m\r\n\x1b[38;2;102;102;102mPI-FOOTER\x1b[0m\r\n\x1b[38;2;138;190;183mACCENT\x1b[0m\r\nTEXT\r\n\x1b[2mDIM\x1b[0m\r\n\x1b[38;2;102;102;102m\u2588\u2588\x1b[0m\r\n',
+    );
   if (text.includes('orphan')) {
-    const child = spawn(process.execPath, [__filename, 'orphan-parent'], { detached: true, stdio: ['ignore', 'pipe', 'ignore'] });
+    const child = spawn(process.execPath, [__filename, 'orphan-parent'], {
+      detached: true,
+      stdio: ['ignore', 'pipe', 'ignore'],
+    });
     child.stdout.on('data', data => process.stdout.write(data));
   }
   if (text.includes('linger')) {
-    const child = spawn(process.execPath, ['-e', 'process.on("SIGTERM", () => {}); setInterval(() => {}, 1000)'], { detached: true, stdio: 'ignore' });
+    const child = spawn(process.execPath, ['-e', 'process.on("SIGTERM", () => {}); setInterval(() => {}, 1000)'], {
+      detached: true,
+      stdio: 'ignore',
+    });
     process.stdout.write(`LINGER:${child.pid}\r\n`);
   }
   if (text.includes('child')) {

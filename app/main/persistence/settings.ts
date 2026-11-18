@@ -3,7 +3,13 @@ import { readFile, writeFile, rename, mkdir, rm } from 'node:fs/promises';
 import { join } from 'node:path';
 import type { Settings } from '../../shared/model';
 
-import { defaultSettings, readSettings, settingsCategories, settingsIssues, type SettingsSaveResult } from '../../shared/settings/settings';
+import {
+  defaultSettings,
+  readSettings,
+  settingsCategories,
+  settingsIssues,
+  type SettingsSaveResult,
+} from '../../shared/settings/settings';
 export { defaultSettings } from '../../shared/settings/settings';
 
 export class SettingsFile {
@@ -19,17 +25,23 @@ export class SettingsFile {
       throw new Error(message('settingsReadFailed', { reason: detail((error as Error).message) }), { cause: error });
     }
   }
-  saveOnQuit(settings: Settings): Promise<void> { return this.write(settings); }
+  saveOnQuit(settings: Settings): Promise<void> {
+    return this.write(settings);
+  }
   async commit(current: Settings, patch: Partial<Settings>): Promise<SettingsSaveResult> {
     const settings = { ...current, ...patch };
     // A settings conflict blocks only the categories being saved.
-    const saving = settingsCategories.filter(category => category.keys.some(key => key in patch)).map(category => category.id);
+    const saving = settingsCategories
+      .filter(category => category.keys.some(key => key in patch))
+      .map(category => category.id);
     const issues = settingsIssues(settings).filter(issue => saving.includes(issue.category));
     if (issues.length) return { ok: false, kind: 'validation', issues };
     try {
       await this.write(settings);
       return { ok: true, settings };
-    } catch (error) { return { ok: false, kind: 'storage', message: (error as Error).message }; }
+    } catch (error) {
+      return { ok: false, kind: 'storage', message: (error as Error).message };
+    }
   }
   private write(settings: Settings): Promise<void> {
     if (!this.readable) return Promise.reject(new Error(message('settingsUnreadable')));

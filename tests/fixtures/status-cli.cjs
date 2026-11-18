@@ -6,10 +6,21 @@ const context = JSON.parse(process.env.VIBEBRIDGE_STATUS_CONTEXT || '{}');
 function report(payload, overrides = {}, destination = context) {
   return new Promise(resolve => {
     if (!destination.url) return resolve('unavailable');
-    const body = JSON.stringify({ runId: context.runId, token: context.token, agent: context.agent, payload, ...overrides });
-    const request = http.request(destination.url, { method: 'POST', headers: { 'content-type': 'application/json' } }, response => {
-      response.resume(); response.on('end', () => resolve(response.statusCode));
+    const body = JSON.stringify({
+      runId: context.runId,
+      token: context.token,
+      agent: context.agent,
+      payload,
+      ...overrides,
     });
+    const request = http.request(
+      destination.url,
+      { method: 'POST', headers: { 'content-type': 'application/json' } },
+      response => {
+        response.resume();
+        response.on('end', () => resolve(response.statusCode));
+      },
+    );
     request.on('error', () => resolve('unavailable'));
     request.end(body);
   });
@@ -21,8 +32,10 @@ readline.createInterface({ input: process.stdin }).on('line', line => {
     if (message.exit !== undefined) process.exit(message.exit);
     if (message.context) process.stdout.write(`CONTEXT:${JSON.stringify(context)}\n`);
     // Native hook reporters always carry the CLI session identity.
-    const payload = message.payload?.hook_event_name && !('session_id' in message.payload)
-      ? { session_id: 'status-cli', ...message.payload } : message.payload;
+    const payload =
+      message.payload?.hook_event_name && !('session_id' in message.payload)
+        ? { session_id: 'status-cli', ...message.payload }
+        : message.payload;
     if (payload) await report(payload, message.overrides, message.destination);
     if (message.output) process.stdout.write(message.output);
     process.stdout.write(`ACK:${message.id}\n`);

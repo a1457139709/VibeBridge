@@ -2,7 +2,19 @@ import './support/dom';
 import assert from 'node:assert/strict';
 import test, { afterEach, before } from 'node:test';
 import { cleanup, waitFor, within } from '@testing-library/react';
-import { bug, failed, issue, pullRequest, openNoFilter, page, refresh, renderWorkbench, rows, sidebar, stubSidebarApis } from './support/forge-lists';
+import {
+  bug,
+  failed,
+  issue,
+  pullRequest,
+  openNoFilter,
+  page,
+  refresh,
+  renderWorkbench,
+  rows,
+  sidebar,
+  stubSidebarApis,
+} from './support/forge-lists';
 
 afterEach(cleanup);
 before(stubSidebarApis);
@@ -19,12 +31,22 @@ async function onPullRequests() {
 test('the Pull requests tab lists one page of rows with state, number, age, author, checks and labels, and Load more appends', async () => {
   const { user, request } = await onPullRequests();
   const first = await request(2);
-  assert.deepEqual(first, { ...first, list: 'pullRequests', projectId: 'alpha', query: { filter: openNoFilter, cursor: null } });
-  first.answer(page([
-    pullRequest(9, { checks: 'passed', labels: [bug] }),
-    pullRequest(8, { state: 'draft', checks: 'pending', author: 'octo' }),
-    pullRequest(7, { checks: 'failed' }),
-  ], 'next'));
+  assert.deepEqual(first, {
+    ...first,
+    list: 'pullRequests',
+    projectId: 'alpha',
+    query: { filter: openNoFilter, cursor: null },
+  });
+  first.answer(
+    page(
+      [
+        pullRequest(9, { checks: 'passed', labels: [bug] }),
+        pullRequest(8, { state: 'draft', checks: 'pending', author: 'octo' }),
+        pullRequest(7, { checks: 'failed' }),
+      ],
+      'next',
+    ),
+  );
   await waitFor(() => assert.deepEqual(rows(), ['Change 9', 'Change 8', 'Change 7']));
   const [passed, pending, failing] = within(sidebar()).getAllByRole('listitem');
   assert.ok(within(passed).getByLabelText('Open pull request'), 'the state icon names the state');
@@ -44,7 +66,9 @@ test('the Pull requests tab lists one page of rows with state, number, age, auth
   await user.click(within(sidebar()).getByRole('button', { name: 'Load more' }));
   const more = await request(3);
   assert.deepEqual(more, { ...more, list: 'pullRequests', query: { filter: openNoFilter, cursor: 'next' } });
-  more.answer(page([pullRequest(6, { state: 'merged', checks: 'failed' }), pullRequest(5, { state: 'closed', author: null })]));
+  more.answer(
+    page([pullRequest(6, { state: 'merged', checks: 'failed' }), pullRequest(5, { state: 'closed', author: null })]),
+  );
   await waitFor(() => assert.deepEqual(rows(), ['Change 9', 'Change 8', 'Change 7', 'Change 6', 'Change 5']));
   const [merged, closed] = within(sidebar()).getAllByRole('listitem').slice(3);
   assert.ok(within(merged).getByLabelText('Merged pull request'));
@@ -59,7 +83,11 @@ test('the Pull requests tab sends its own search, state and labels, and Refresh 
   await waitFor(() => assert.deepEqual(rows(), ['Change 1']));
   await user.type(within(sidebar()).getByRole('searchbox', { name: 'Search pull requests' }), 'tray');
   const searched = await request(3);
-  assert.deepEqual(searched, { ...searched, list: 'pullRequests', query: { filter: { search: 'tray', state: 'open', labels: [] }, cursor: null } });
+  assert.deepEqual(searched, {
+    ...searched,
+    list: 'pullRequests',
+    query: { filter: { search: 'tray', state: 'open', labels: [] }, cursor: null },
+  });
   searched.answer(page([pullRequest(2)]));
   await user.click(within(sidebar()).getByRole('button', { name: 'Closed 2' }));
   const closed = await request(4);
@@ -74,13 +102,21 @@ test('the Pull requests tab sends its own search, state and labels, and Refresh 
   await waitFor(() => assert.ok(within(sidebar()).getByText('No matching pull requests')));
   await user.click(refresh());
   const again = await request(6);
-  assert.deepEqual(again, { ...again, list: 'pullRequests', query: { filter: { search: 'tray', state: 'closed', labels: ['bug'] }, cursor: null } });
+  assert.deepEqual(again, {
+    ...again,
+    list: 'pullRequests',
+    query: { filter: { search: 'tray', state: 'closed', labels: ['bug'] }, cursor: null },
+  });
   again.answer(page([pullRequest(4, { state: 'closed' })]));
   await waitFor(() => assert.deepEqual(rows(), ['Change 4']));
 
   await user.click(within(sidebar()).getByRole('tab', { name: 'Issues' }));
   const issues = await request(7);
-  assert.deepEqual(issues, { ...issues, list: 'issues', query: { filter: openNoFilter, cursor: null } }, 'the issues tab kept its own filter');
+  assert.deepEqual(
+    issues,
+    { ...issues, list: 'issues', query: { filter: openNoFilter, cursor: null } },
+    'the issues tab kept its own filter',
+  );
 });
 
 test('a pull request page failure keeps the rows under a stale notice, and fills the sidebar when there were none', async () => {
@@ -106,7 +142,11 @@ test('a logged-out forge CLI on the Pull requests tab fills the sidebar, and Ret
   const { user, request } = await onPullRequests();
   (await request(2)).answer(failed('loggedOut', 'HTTP 401: Bad credentials'));
   await within(sidebar()).findByRole('button', { name: 'Copy gh auth login' });
-  assert.equal(within(sidebar()).queryByRole('tab', { name: 'Pull requests' }), null, 'the state takes the whole content area');
+  assert.equal(
+    within(sidebar()).queryByRole('tab', { name: 'Pull requests' }),
+    null,
+    'the state takes the whole content area',
+  );
   await user.click(within(sidebar()).getByRole('button', { name: 'Retry' }));
   const retried = await request(3);
   assert.equal(retried.list, 'pullRequests');

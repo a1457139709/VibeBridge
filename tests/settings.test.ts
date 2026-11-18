@@ -13,18 +13,33 @@ test('saved preferences apply at their intended boundaries and manual edits appl
     assert.equal(workbench.snapshot().startupTheme, 'system');
     assert.equal(workbench.snapshot().resolvedTheme, 'dark');
     const settings = workbench.snapshot().settings;
-    settings.agents.codex = { command: process.env.VIBEBRIDGE_TEST_NODE!, args: [resolve('tests/fixtures/interactive.cjs')] };
+    settings.agents.codex = {
+      command: process.env.VIBEBRIDGE_TEST_NODE!,
+      args: [resolve('tests/fixtures/interactive.cjs')],
+    };
     settings.agents.claude = settings.agents.codex;
     await workbench.saveSettings(settings);
-    const { project } = await workbench.createProject({ name: 'Settings', directory, total: 2, counts: { codex: 2, claude: 0, pi: 0 } });
+    const { project } = await workbench.createProject({
+      name: 'Settings',
+      directory,
+      total: 2,
+      counts: { codex: 2, claude: 0, pi: 0 },
+    });
     const runs = runsOf(workbench.snapshot());
     assert.equal(runs.length, 2);
     assert.ok(runs.every(run => run.state === 'running'));
-    const layout = { axis: 'row' as const, ratio: 0.7, first: { panel: project.panels[1].id }, second: { panel: project.panels[0].id } };
+    const layout = {
+      axis: 'row' as const,
+      ratio: 0.7,
+      first: { panel: project.panels[1].id },
+      second: { panel: project.panels[0].id },
+    };
     await workbench.saveLayout(project.id, layout);
     await Promise.all([
       workbench.saveSettings({ language: 'zh-CN', theme: 'light', defaultLayout: 'column' }),
-      workbench.saveSettings({ agents: { ...settings.agents, codex: { command: '/missing-agent', args: ['changed'] } } }),
+      workbench.saveSettings({
+        agents: { ...settings.agents, codex: { command: '/missing-agent', args: ['changed'] } },
+      }),
     ]);
     assert.equal(workbench.snapshot().resolvedTheme, 'dark');
     assert.equal(workbench.snapshot().startupTheme, 'system');
@@ -36,7 +51,12 @@ test('saved preferences apply at their intended boundaries and manual edits appl
     assert.deepEqual(storedProjects(workbench.snapshot())[0], { ...project, layout });
     const nextDirectory = resolve(directory, 'next');
     await mkdir(nextDirectory);
-    const next = await workbench.createProject({ name: 'New layout', directory: nextDirectory, total: 2, counts: { codex: 0, claude: 2, pi: 0 } });
+    const next = await workbench.createProject({
+      name: 'New layout',
+      directory: nextDirectory,
+      total: 2,
+      counts: { codex: 0, claude: 2, pi: 0 },
+    });
     assert.equal(next.project.layout && 'axis' in next.project.layout && next.project.layout.axis, 'column');
     await workbench.quit();
     workbench = await Workbench.open(directory, true);
@@ -44,10 +64,15 @@ test('saved preferences apply at their intended boundaries and manual edits appl
     assert.equal(workbench.snapshot().settings.agents.codex.command, '/missing-agent');
     assert.deepEqual(workbench.snapshot().projects[0].layout, layout);
     await workbench.quit();
-    await writeFile(resolve(directory, 'settings.json'), JSON.stringify({ ...workbench.snapshot().settings, theme: 'dark' }));
+    await writeFile(
+      resolve(directory, 'settings.json'),
+      JSON.stringify({ ...workbench.snapshot().settings, theme: 'dark' }),
+    );
     workbench = await Workbench.open(directory, false);
     assert.equal(workbench.snapshot().resolvedTheme, 'dark');
-  } finally { await workbench.quit(); }
+  } finally {
+    await workbench.quit();
+  }
 });
 
 test('shortcut conflicts name the existing action and retain effective bindings until a valid save', async context => {
@@ -59,8 +84,12 @@ test('shortcut conflicts name the existing action and retain effective bindings 
     await workbench.saveSettings({ shortcuts });
     assert.equal(workbench.snapshot().settings.shortcuts.nextPanel, 'Command+K');
     for (const [patch, message] of [
-      [{ maximizePanel: 'Command+K' }, /nextPanel/], [{ previousPanel: 'Command+K' }, /nextPanel/], [{ nextPanel: 'Command+C' }, /copy/],
-      [{ toggleForgeSidebar: 'Command+K' }, /nextPanel/], [{ openDispatchMenu: 'Command+K' }, /nextPanel/], [{ locateDispatchedPanel: 'Command+D' }, /openDispatchMenu/],
+      [{ maximizePanel: 'Command+K' }, /nextPanel/],
+      [{ previousPanel: 'Command+K' }, /nextPanel/],
+      [{ nextPanel: 'Command+C' }, /copy/],
+      [{ toggleForgeSidebar: 'Command+K' }, /nextPanel/],
+      [{ openDispatchMenu: 'Command+K' }, /nextPanel/],
+      [{ locateDispatchedPanel: 'Command+D' }, /openDispatchMenu/],
     ] as const) {
       const result = await workbench.saveSettings({ shortcuts: { ...shortcuts, ...patch } });
       assert.ok(!result.ok && result.kind === 'validation');
@@ -69,5 +98,7 @@ test('shortcut conflicts name the existing action and retain effective bindings 
     }
     await workbench.saveSettings({ shortcuts: original });
     assert.deepEqual(workbench.snapshot().settings.shortcuts, original);
-  } finally { await workbench.quit(); }
+  } finally {
+    await workbench.quit();
+  }
 });

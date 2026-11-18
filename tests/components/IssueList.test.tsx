@@ -3,7 +3,18 @@ import assert from 'node:assert/strict';
 import test, { afterEach, before } from 'node:test';
 import { cleanup, screen, waitFor, within } from '@testing-library/react';
 import { githubForge, githubRepository } from './support/forge';
-import { bug, failed, issue, openNoFilter, page, refresh, renderWorkbench, rows, sidebar, stubSidebarApis } from './support/forge-lists';
+import {
+  bug,
+  failed,
+  issue,
+  openNoFilter,
+  page,
+  refresh,
+  renderWorkbench,
+  rows,
+  sidebar,
+  stubSidebarApis,
+} from './support/forge-lists';
 
 afterEach(cleanup);
 before(stubSidebarApis);
@@ -52,7 +63,11 @@ test('search, state and labels are sent to the forge, each tab keeps its own, an
   await waitFor(() => assert.deepEqual(rows(), ['Issue 1']));
   await user.type(within(sidebar()).getByRole('searchbox', { name: 'Search issues' }), '#4');
   const searched = await request(2);
-  assert.deepEqual(searched.query.filter, { search: '#4', state: 'open', labels: [] }, 'one request after typing settles');
+  assert.deepEqual(
+    searched.query.filter,
+    { search: '#4', state: 'open', labels: [] },
+    'one request after typing settles',
+  );
   searched.answer(page([issue(4)]));
   await user.click(within(sidebar()).getByRole('button', { name: 'Closed 2' }));
   const closed = await request(3);
@@ -67,13 +82,25 @@ test('search, state and labels are sent to the forge, each tab keeps its own, an
   await waitFor(() => assert.ok(within(sidebar()).getByText('No matching issues')));
 
   await user.click(within(sidebar()).getByRole('tab', { name: 'Pull requests' }));
-  assert.equal((within(sidebar()).getByRole('searchbox', { name: 'Search pull requests' }) as HTMLInputElement).value, '', 'the other tab has its own filter');
+  assert.equal(
+    (within(sidebar()).getByRole('searchbox', { name: 'Search pull requests' }) as HTMLInputElement).value,
+    '',
+    'the other tab has its own filter',
+  );
   const pullRequests = await request(6);
-  assert.deepEqual(pullRequests, { ...pullRequests, list: 'pullRequests', query: { filter: openNoFilter, cursor: null } });
+  assert.deepEqual(pullRequests, {
+    ...pullRequests,
+    list: 'pullRequests',
+    query: { filter: openNoFilter, cursor: null },
+  });
   pullRequests.answer(page([]));
   await user.click(within(sidebar()).getByRole('tab', { name: 'Issues' }));
   const back = await request(7);
-  assert.deepEqual(back.query.filter, { search: '#4', state: 'closed', labels: ['bug', 'docs'] }, 'the issues tab kept its filter and fetches again');
+  assert.deepEqual(
+    back.query.filter,
+    { search: '#4', state: 'closed', labels: ['bug', 'docs'] },
+    'the issues tab kept its filter and fetches again',
+  );
   back.answer(page([]));
 
   await user.click(screen.getByRole('button', { name: 'Beta' }));
@@ -82,7 +109,11 @@ test('search, state and labels are sent to the forge, each tab keeps its own, an
   beta.answer(page([issue(3)]));
   await user.click(screen.getByRole('button', { name: 'Alpha' }));
   const alpha = await request(9);
-  assert.deepEqual(alpha, { ...alpha, projectId: 'alpha', query: { filter: openNoFilter, cursor: null } }, 'switching back refreshes from open with no filter');
+  assert.deepEqual(
+    alpha,
+    { ...alpha, projectId: 'alpha', query: { filter: openNoFilter, cursor: null } },
+    'switching back refreshes from open with no filter',
+  );
   alpha.answer(page([issue(1)]));
   await waitFor(() => assert.deepEqual(rows(), ['Issue 1']));
 });
@@ -103,7 +134,11 @@ test('a missing forge CLI fills the sidebar with install instructions, and Retry
   const link = await within(sidebar()).findByRole('link', { name: 'Install instructions ↗' });
   assert.equal(link.getAttribute('href'), 'https://cli.github.com');
   assert.ok(within(sidebar()).getByText('Could not find gh. Install it to use the sidebar.'));
-  assert.equal(within(sidebar()).queryByRole('tab', { name: 'Issues' }), null, 'the state takes the whole content area');
+  assert.equal(
+    within(sidebar()).queryByRole('tab', { name: 'Issues' }),
+    null,
+    'the state takes the whole content area',
+  );
   await user.click(within(sidebar()).getByRole('button', { name: 'Retry' }));
   (await request(2)).answer(page([issue(1)]));
   await waitFor(() => assert.deepEqual(rows(), ['Issue 1']));
@@ -122,20 +157,51 @@ test('a logged-out forge CLI offers to copy the login command and Retry', async 
 test('an inaccessible repository names the account and offers Retry and Change binding', async () => {
   const { user, request } = renderWorkbench();
   (await request(1)).answer(failed('inaccessible', 'GraphQL: Could not resolve to a Repository', 'octo'));
-  await waitFor(() => assert.ok(within(sidebar()).getByText('Cannot access octo/alpha: it does not exist, or the gh account octo has no access to it.')));
+  await waitFor(() =>
+    assert.ok(
+      within(sidebar()).getByText(
+        'Cannot access octo/alpha: it does not exist, or the gh account octo has no access to it.',
+      ),
+    ),
+  );
   await user.click(within(sidebar()).getByRole('button', { name: 'Retry' }));
   (await request(2)).answer(failed('inaccessible', 'GraphQL: Could not resolve to a Repository', null));
-  await waitFor(() => assert.ok(within(sidebar()).getByText('Cannot access octo/alpha: it does not exist, or the active gh account has no access to it.')));
-  await user.click(within(sidebar()).getAllByRole('button', { name: 'Change binding' }).find(button => !button.closest('header'))!);
+  await waitFor(() =>
+    assert.ok(
+      within(sidebar()).getByText(
+        'Cannot access octo/alpha: it does not exist, or the active gh account has no access to it.',
+      ),
+    ),
+  );
+  await user.click(
+    within(sidebar())
+      .getAllByRole('button', { name: 'Change binding' })
+      .find(button => !button.closest('header'))!,
+  );
   const dialog = await screen.findByRole('dialog', { name: 'Change binding' });
-  await waitFor(() => assert.equal(document.activeElement, within(dialog).getByRole('button', { name: 'Change' }), 'focus is on the repository field'));
+  await waitFor(() =>
+    assert.equal(
+      document.activeElement,
+      within(dialog).getByRole('button', { name: 'Change' }),
+      'focus is on the repository field',
+    ),
+  );
 });
 
 test('Change binding beside Refresh opens the repository field alone, and saves the binding with the name and directory as they are', async () => {
   const edits: unknown[] = [];
   const { user, request, snapshot } = renderWorkbench(undefined, {
-    repositoryChoices: async () => ({ ok: true, forge: githubForge, account: 'octo', origin: null, repositories: ['octo/alpha', 'octo/renamed'].map(path => githubRepository(path)) }),
-    editProject: async (id, edit, restart) => { edits.push({ id, edit, restart }); return { project: { ...snapshot.projects[0], ...edit }, launches: [] }; },
+    repositoryChoices: async () => ({
+      ok: true,
+      forge: githubForge,
+      account: 'octo',
+      origin: null,
+      repositories: ['octo/alpha', 'octo/renamed'].map(path => githubRepository(path)),
+    }),
+    editProject: async (id, edit, restart) => {
+      edits.push({ id, edit, restart });
+      return { project: { ...snapshot.projects[0], ...edit }, launches: [] };
+    },
   });
   (await request(1)).answer(page([issue(1)]));
   await user.click(within(sidebar().querySelector('header')!).getByRole('button', { name: 'Change binding' }));
@@ -147,10 +213,18 @@ test('Change binding beside Refresh opens the repository field alone, and saves 
   const search = await within(dialog).findByRole('searchbox', { name: 'Search repositories' });
   await waitFor(() => assert.equal(document.activeElement, search));
   await user.keyboard('{ArrowDown}{ArrowDown}{Enter}');
-  assert.ok(within(within(dialog).getByRole('region', { name: 'After saving' })).getByText('octo/alpha → octo/renamed'));
+  assert.ok(
+    within(within(dialog).getByRole('region', { name: 'After saving' })).getByText('octo/alpha → octo/renamed'),
+  );
   await user.click(within(dialog).getByRole('button', { name: 'Save changes' }));
   await waitFor(() => assert.equal(screen.queryByRole('dialog'), null));
-  assert.deepEqual(edits, [{ id: 'alpha', edit: { name: 'Alpha', directory: '/work/alpha', repository: githubRepository('octo/renamed') }, restart: false }]);
+  assert.deepEqual(edits, [
+    {
+      id: 'alpha',
+      edit: { name: 'Alpha', directory: '/work/alpha', repository: githubRepository('octo/renamed') },
+      restart: false,
+    },
+  ]);
 });
 
 test('a transient failure keeps the rows under a stale notice, and fills the sidebar when there were none', async () => {

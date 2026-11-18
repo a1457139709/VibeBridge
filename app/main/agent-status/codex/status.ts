@@ -1,13 +1,35 @@
 import { parse } from 'smol-toml';
 import type { AgentCommand } from '../../../shared/model';
-import { reporterCommand, type Outcome, type Payload, type StatusAdapter, type StatusInterpreter, type Transition } from '../adapter';
+import {
+  reporterCommand,
+  type Outcome,
+  type Payload,
+  type StatusAdapter,
+  type StatusInterpreter,
+  type Transition,
+} from '../adapter';
 
-const events = ['SessionStart', 'SessionEnd', 'UserPromptSubmit', 'PreToolUse', 'PostToolUse',
-  'PermissionRequest', 'PreCompact', 'PostCompact', 'SubagentStart', 'SubagentStop', 'Stop', 'Interrupt'];
+const events = [
+  'SessionStart',
+  'SessionEnd',
+  'UserPromptSubmit',
+  'PreToolUse',
+  'PostToolUse',
+  'PermissionRequest',
+  'PreCompact',
+  'PostCompact',
+  'SubagentStart',
+  'SubagentStop',
+  'Stop',
+  'Interrupt',
+];
 
 function inline(value: unknown): string {
   if (Array.isArray(value)) return `[${value.map(inline).join(',')}]`;
-  if (value && typeof value === 'object') return `{${Object.entries(value).map(([key, item]) => `${JSON.stringify(key)}=${inline(item)}`).join(',')}}`;
+  if (value && typeof value === 'object')
+    return `{${Object.entries(value)
+      .map(([key, item]) => `${JSON.stringify(key)}=${inline(item)}`)
+      .join(',')}}`;
   return JSON.stringify(value);
 }
 
@@ -21,8 +43,16 @@ function launch(command: AgentCommand): AgentCommand {
   const args = command.args.slice(0, boundary < 0 ? undefined : boundary);
   for (let index = 0; index < args.length; index++) {
     const arg = args[index];
-    const override = arg === '-c' || arg === '--config' ? args[++index]
-      : arg.startsWith('--config=') ? arg.slice(9) : arg.startsWith('-c=') ? arg.slice(3) : arg.startsWith('-c') ? arg.slice(2) : undefined;
+    const override =
+      arg === '-c' || arg === '--config'
+        ? args[++index]
+        : arg.startsWith('--config=')
+          ? arg.slice(9)
+          : arg.startsWith('-c=')
+            ? arg.slice(3)
+            : arg.startsWith('-c')
+              ? arg.slice(2)
+              : undefined;
     if (!override || !/^\s*["']?hooks(?:["']?\s*[.=])/.test(override)) continue;
     const parsed = parse(override).hooks;
     if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) throw new Error('Invalid Codex hook override');
@@ -32,7 +62,10 @@ function launch(command: AgentCommand): AgentCommand {
   const added = events.flatMap(event => {
     const existing = hooks[event] ?? [];
     if (!Array.isArray(existing)) throw new Error('Invalid Codex hook handlers');
-    return ['-c', `hooks.${event}=${inline([...existing, { hooks: [{ type: 'command', command: reporter, timeout: 3 }] }])}`];
+    return [
+      '-c',
+      `hooks.${event}=${inline([...existing, { hooks: [{ type: 'command', command: reporter, timeout: 3 }] }])}`,
+    ];
   });
   // Native TUI must stay within the terminal host's run, not attach to a shared daemon.
   added.push('-c', 'features.daemon_auto_start=false');
@@ -50,16 +83,22 @@ class CodexInterpreter implements StatusInterpreter {
   private unansweredAsyncQuestion = false;
 
   accept(event: Payload): Outcome {
-    if (event.agent_id || event.hook_event_name === 'SubagentStart' || event.hook_event_name === 'SubagentStop') return 'discard';
+    if (event.agent_id || event.hook_event_name === 'SubagentStart' || event.hook_event_name === 'SubagentStop')
+      return 'discard';
     const session = event.session_id;
     if (typeof session !== 'string' || !session) return 'error';
     const known = this.identify(event, session);
     return known ? this.classify(known) : 'discard';
   }
 
-  discardEvidence() { this.waits.clear(); this.unansweredAsyncQuestion = false; }
+  discardEvidence() {
+    this.waits.clear();
+    this.unansweredAsyncQuestion = false;
+  }
 
-  session() { return this.currentSession; }
+  session() {
+    return this.currentSession;
+  }
 
   /** Interpret identity only after the outer run capability was authenticated.
    * Only identifiable retired sessions, turns and repeated source boundaries
@@ -123,28 +162,49 @@ class CodexInterpreter implements StatusInterpreter {
       else if (event.tool_name === 'request_user_input') this.waits.delete('request_user_input');
     }
     // Any user input counts as the answer; the conversation is never read.
-    const answered = name === 'UserPromptSubmit' || (name === 'SessionStart' && event.source !== 'compact') || interrupted;
+    const answered =
+      name === 'UserPromptSubmit' || (name === 'SessionStart' && event.source !== 'compact') || interrupted;
     if (answered || name === 'Stop') this.waits.clear();
     if (answered) this.unansweredAsyncQuestion = false;
     if (name === 'PreToolUse' && event.tool_name === 'request_user_input_async') this.unansweredAsyncQuestion = true;
     const waiting = this.waits.size > 0 || this.unansweredAsyncQuestion;
-    if (waiting && (['PreToolUse', 'PostToolUse', 'PreCompact', 'PostCompact', 'Stop'].includes(String(name))
-      || (name === 'SessionStart' && event.source === 'compact'))) return 'needs-input';
+    if (
+      waiting &&
+      (['PreToolUse', 'PostToolUse', 'PreCompact', 'PostCompact', 'Stop'].includes(String(name)) ||
+        (name === 'SessionStart' && event.source === 'compact'))
+    )
+      return 'needs-input';
     switch (name) {
-      case 'SessionStart': return event.source === 'compact' ? 'busy'
-        : ['startup', 'resume', 'clear', 'fork'].includes(String(event.source)) ? 'ready' : 'error';
-      case 'UserPromptSubmit': case 'PostToolUse':
-      case 'PreCompact': case 'PostCompact': return 'busy';
-      case 'PreToolUse': return 'busy';
-      case 'Stop': return 'done';
-      case 'Interrupt': return interrupted ? 'ready' : 'keep';
-      case 'SessionEnd': case 'SubagentStart': case 'SubagentStop': return 'keep';
-      default: return 'error';
+      case 'SessionStart':
+        return event.source === 'compact'
+          ? 'busy'
+          : ['startup', 'resume', 'clear', 'fork'].includes(String(event.source))
+            ? 'ready'
+            : 'error';
+      case 'UserPromptSubmit':
+      case 'PostToolUse':
+      case 'PreCompact':
+      case 'PostCompact':
+        return 'busy';
+      case 'PreToolUse':
+        return 'busy';
+      case 'Stop':
+        return 'done';
+      case 'Interrupt':
+        return interrupted ? 'ready' : 'keep';
+      case 'SessionEnd':
+      case 'SubagentStart':
+      case 'SubagentStop':
+        return 'keep';
+      default:
+        return 'error';
     }
   }
 }
 
 export const codex: StatusAdapter = {
-  async prepare({ command }) { return { command: launch(command) }; },
+  async prepare({ command }) {
+    return { command: launch(command) };
+  },
   observe: () => new CodexInterpreter(),
 };

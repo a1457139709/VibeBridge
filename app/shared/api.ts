@@ -1,9 +1,32 @@
-import type { Sidebar, SidebarPreferences, AgentType, CommandCheck, DirectoryResult, Layout, ProjectCreation,
-  PanelCreation, ProjectDraft, ProjectEdit, ProjectEditResult, Settings, Snapshot, WorkbenchEvent } from './model';
+import type {
+  Sidebar,
+  SidebarPreferences,
+  AgentType,
+  CommandCheck,
+  DirectoryResult,
+  Layout,
+  ProjectCreation,
+  PanelCreation,
+  ProjectDraft,
+  ProjectEdit,
+  ProjectEditResult,
+  Settings,
+  Snapshot,
+  WorkbenchEvent,
+} from './model';
 import type { SettingsSaveResult } from './settings/settings';
 import type { DispatchRequest } from './dispatch';
 import type { Delivery } from './settings/workflows';
-import type { DirectAction, DirectActionResult, IssueDetailResult, PullRequestDetailResult, IssuePage, ListQuery, PullRequestPage, RepositoryChoices } from './forge/forge';
+import type {
+  DirectAction,
+  DirectActionResult,
+  IssueDetailResult,
+  PullRequestDetailResult,
+  IssuePage,
+  ListQuery,
+  PullRequestPage,
+  RepositoryChoices,
+} from './forge/forge';
 
 export interface DesktopAPI {
   snapshot(): Promise<Snapshot>;
@@ -48,4 +71,8 @@ export interface DesktopAPI {
   /** Starts the same confirmed quit as the application menu. */
   quit(): Promise<void>;
 }
-declare global { interface Window { workbench: DesktopAPI } }
+declare global {
+  interface Window {
+    workbench: DesktopAPI;
+  }
+}

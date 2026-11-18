@@ -8,14 +8,25 @@ export const panelViews = (snapshot: Snapshot): PanelView[] => snapshot.projects
 /** The current run of every panel that has one, in panel order. */
 export const runsOf = (snapshot: Snapshot): Run[] => panelViews(snapshot).flatMap(panel => panel.run ?? []);
 /** The processing state the panel currently running this run displays. */
-export const statusOf = (snapshot: Snapshot, runId: string) => panelViews(snapshot).find(panel => panel.run?.id === runId)?.status;
+export const statusOf = (snapshot: Snapshot, runId: string) =>
+  panelViews(snapshot).find(panel => panel.run?.id === runId)?.status;
 /** The project's panels displaying this processing state, as [panel ID, run ID]: resident panels, then tray panels. */
 export const showing = (snapshot: Snapshot, projectId: string, state: ProcessingState) => {
   const project = snapshot.projects.find(project => project.id === projectId);
-  return (project ? projectPanels(project) : []).flatMap(panel => panel.status === state ? [[panel.id, panel.run!.id]] : []);
+  return (project ? projectPanels(project) : []).flatMap(panel =>
+    panel.status === state ? [[panel.id, panel.run!.id]] : [],
+  );
 };
 /** The snapshot's projects in their stored shape: resident panels without run and processing state, no tray, no Repository Binding,
  * no Forge and no Dispatch Records. */
-export const storedProjects = (snapshot: Snapshot): Project[] => snapshot.projects.map(({
-  tray: _tray, repository: _repository, forge: _forge, capabilities: _capabilities, dispatches: _dispatches, ...project
-}) => ({ ...project, panels: project.panels.map(({ run: _run, status: _status, ...panel }) => panel) }));
+export const storedProjects = (snapshot: Snapshot): Project[] =>
+  snapshot.projects.map(
+    ({
+      tray: _tray,
+      repository: _repository,
+      forge: _forge,
+      capabilities: _capabilities,
+      dispatches: _dispatches,
+      ...project
+    }) => ({ ...project, panels: project.panels.map(({ run: _run, status: _status, ...panel }) => panel) }),
+  );

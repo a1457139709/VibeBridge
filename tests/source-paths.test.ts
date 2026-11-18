@@ -14,8 +14,12 @@ async function fixture(context: TestContext) {
       await writeFile(`${directory}/${file}`, source);
     },
     read: (file: string) => readFile(`${directory}/${file}`, 'utf8'),
-    run: () => spawnSync(process.env.VIBEBRIDGE_TEST_NODE ?? process.execPath,
-      [resolve('scripts/check-source-paths.mjs')], { cwd: directory, encoding: 'utf8', timeout: 10000 }),
+    run: () =>
+      spawnSync(process.env.VIBEBRIDGE_TEST_NODE ?? process.execPath, [resolve('scripts/check-source-paths.mjs')], {
+        cwd: directory,
+        encoding: 'utf8',
+        timeout: 10000,
+      }),
   };
 }
 
@@ -44,14 +48,17 @@ test('source path checks reject task-named files and path literals, including te
 test('source path checks allow feature names, issue links, comments and validation issue fields', async context => {
   const f = await fixture(context);
   const task = ['issue', 123].join('-');
-  await f.write('tests/navigation.test.ts', [
-    `// Regression from ${task}; the old path was work/${task}/.`,
-    `const link = 'https://example.test/${task}';`,
-    `const templateLink = \`https://\${host}/${task}/\${name}\`;`,
-    `const description = 'Regression for ${task}';`,
-    "const data = 'work/navigation-';",
-    "const result = { issues: [{ field: 'shortcuts.nextPanel' }] };",
-  ].join('\n'));
+  await f.write(
+    'tests/navigation.test.ts',
+    [
+      `// Regression from ${task}; the old path was work/${task}/.`,
+      `const link = 'https://example.test/${task}';`,
+      `const templateLink = \`https://\${host}/${task}/\${name}\`;`,
+      `const description = 'Regression for ${task}';`,
+      "const data = 'work/navigation-';",
+      "const result = { issues: [{ field: 'shortcuts.nextPanel' }] };",
+    ].join('\n'),
+  );
   const result = f.run();
   assert.equal(result.status, 0, result.stderr);
   assert.equal(result.stderr, '');

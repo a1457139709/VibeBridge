@@ -6,8 +6,15 @@ export type Payload = Record<string, unknown>;
 export type Transition = ProcessingState | 'keep';
 /** Discard: an identifiable stale, duplicate or child fact; it cannot change state. */
 export type Outcome = Transition | 'discard';
-export interface Launch { command: AgentCommand; directory: string; resourceDirectory: string }
-export interface PreparedLaunch { command: AgentCommand; cleanup?: () => Promise<void> }
+export interface Launch {
+  command: AgentCommand;
+  directory: string;
+  resourceDirectory: string;
+}
+export interface PreparedLaunch {
+  command: AgentCommand;
+  cleanup?: () => Promise<void>;
+}
 
 /** One per Agent Type, held in ProcessingStatus's closed table.
  * See docs/processing-status.md for the rules every adapter shares.
@@ -35,4 +42,5 @@ export interface StatusInterpreter {
 const quote = (value: string) => `'${value.replaceAll("'", "'\\''")}'`;
 
 /** Shell command running a bundled Status Reporter with the Workbench's own runtime. */
-export const reporterCommand = (file: string) => `ELECTRON_RUN_AS_NODE=1 ${quote(process.execPath)} ${quote(join(__dirname, file))}`;
+export const reporterCommand = (file: string) =>
+  `ELECTRON_RUN_AS_NODE=1 ${quote(process.execPath)} ${quote(join(__dirname, file))}`;

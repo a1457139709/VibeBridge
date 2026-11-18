@@ -17,18 +17,27 @@ async function storedWorkbench(context: TestContext, scope: string, change: (dat
   const file = join(directory, 'projects.sqlite');
   const database = new DatabaseSync(file);
   try {
-    database.prepare('INSERT INTO projects VALUES (?,?,?,?)').run(project.id, project.name, directory, JSON.stringify(layout));
+    database
+      .prepare('INSERT INTO projects VALUES (?,?,?,?)')
+      .run(project.id, project.name, directory, JSON.stringify(layout));
     database.prepare('INSERT INTO panels VALUES (?,?,?,?)').run('panel-a', project.id, 'codex', 0);
     database.prepare('INSERT INTO panels VALUES (?,?,?,?)').run('panel-b', project.id, 'claude', 1);
     change(database);
-  } finally { database.close(); }
+  } finally {
+    database.close();
+  }
   return { directory, file };
 }
 
 /** Opening fails with the given message, which names the database and each expected detail, and the database is unchanged. */
 async function assertRejected(directory: string, file: string, reason: RegExp, details: string[]) {
   const before = await readFile(file);
-  const error = await Workbench.open(directory).then(async workbench => { await workbench.quit(); }, (error: unknown) => error);
+  const error = await Workbench.open(directory).then(
+    async workbench => {
+      await workbench.quit();
+    },
+    (error: unknown) => error,
+  );
   assert.ok(error instanceof WorkbenchOpenError, 'the workbench opened');
   assert.match(error.message, reason);
   for (const text of [file, ...details]) assert.ok(error.message.includes(text), `${text} in ${error.message}`);
@@ -44,7 +53,12 @@ test('projects without panels and navigation that was never saved reopen as stor
     await workbench.saveSettings({ agents });
     await workbench.createProject({ name: 'Arranged', directory, total: 2, counts: { codex: 2, claude: 0, pi: 0 } });
     await mkdir(join(directory, 'empty'));
-    const { project: empty } = await workbench.createProject({ name: 'Empty', directory: join(directory, 'empty'), total: 1, counts: { codex: 1, claude: 0, pi: 0 } });
+    const { project: empty } = await workbench.createProject({
+      name: 'Empty',
+      directory: join(directory, 'empty'),
+      total: 1,
+      counts: { codex: 1, claude: 0, pi: 0 },
+    });
     await workbench.closePanel(empty.id, empty.panels[0].id);
     const stored = storedProjects(workbench.snapshot());
     assert.equal(stored[1].layout, null);
@@ -53,12 +67,15 @@ test('projects without panels and navigation that was never saved reopen as stor
     assert.deepEqual(storedProjects(workbench.snapshot()), stored);
     assert.equal(workbench.snapshot().activeProjectId, empty.id);
     assert.deepEqual(workbench.snapshot().navigation, { visible: true, width: 212 });
-  } finally { await workbench.quit(); }
+  } finally {
+    await workbench.quit();
+  }
 });
 
 test('a stored panel with an unknown Agent type keeps the workbench closed and the database unchanged', async context => {
   const { directory, file } = await storedWorkbench(context, 'stored-unknown-agent', database =>
-    database.prepare('UPDATE panels SET agent=? WHERE id=?').run('gemini', 'panel-b'));
+    database.prepare('UPDATE panels SET agent=? WHERE id=?').run('gemini', 'panel-b'),
+  );
   await assertRejected(directory, file, /projectDataInvalid/, ['panels.agent', project.id, project.name]);
 });
 
@@ -70,7 +87,8 @@ for (const [behavior, stored] of [
 ]) {
   test(`a stored layout that ${behavior} keeps the workbench closed and the database unchanged`, async context => {
     const { directory, file } = await storedWorkbench(context, 'stored-invalid-layout', database =>
-      database.prepare('UPDATE projects SET layout=? WHERE id=?').run(stored, project.id));
+      database.prepare('UPDATE projects SET layout=? WHERE id=?').run(stored, project.id),
+    );
     await assertRejected(directory, file, /projectDataInvalid/, ['layout', project.id, project.name]);
   });
 }
@@ -81,7 +99,8 @@ for (const [behavior, stored] of [
 ]) {
   test(`stored navigation preferences that ${behavior} keep the workbench closed and the database unchanged`, async context => {
     const { directory, file } = await storedWorkbench(context, 'stored-invalid-navigation', database =>
-      database.prepare('INSERT INTO workspace (id, navigation) VALUES (1,?)').run(stored));
+      database.prepare('INSERT INTO workspace (id, navigation) VALUES (1,?)').run(stored),
+    );
     await assertRejected(directory, file, /sidebarDataInvalid/, ['navigation']);
   });
 }
@@ -95,26 +114,38 @@ for (const [behavior, row, field] of [
 ] as const) {
   test(`a stored Repository Binding that ${behavior} keeps the workbench closed and the database unchanged`, async context => {
     const { directory, file } = await storedWorkbench(context, 'stored-invalid-binding', database =>
-      database.prepare('INSERT INTO bound_repositories VALUES (?,?,?,?,?)').run(project.id, ...row));
+      database.prepare('INSERT INTO bound_repositories VALUES (?,?,?,?,?)').run(project.id, ...row),
+    );
     await assertRejected(directory, file, /projectDataInvalid/, [field, project.id, project.name]);
   });
 }
 
 test('a stored Repository Binding with a nested repository path reopens as stored', async context => {
   const { directory } = await storedWorkbench(context, 'stored-binding', database =>
-    database.prepare('INSERT INTO bound_repositories VALUES (?,?,?,?,?)').run(project.id, ...storedBinding));
+    database.prepare('INSERT INTO bound_repositories VALUES (?,?,?,?,?)').run(project.id, ...storedBinding),
+  );
   const workbench = await Workbench.open(directory);
-  try { assert.deepEqual(workbench.snapshot().projects[0].repository, { forge: 'github', host: 'github.com', id: '42', path: 'group/sub/repo' }); }
-  finally { await workbench.quit(); }
+  try {
+    assert.deepEqual(workbench.snapshot().projects[0].repository, {
+      forge: 'github',
+      host: 'github.com',
+      id: '42',
+      path: 'group/sub/repo',
+    });
+  } finally {
+    await workbench.quit();
+  }
 });
 
 test('bindings and dispatches stored without the repository ID are dropped: the project reopens unbound and can be deleted', async context => {
-  const { directory } = await storedWorkbench(context, 'stored-without-repository-id', database => database.exec(`
+  const { directory } = await storedWorkbench(context, 'stored-without-repository-id', database =>
+    database.exec(`
     CREATE TABLE repository_bindings (project_id TEXT PRIMARY KEY REFERENCES projects(id), forge TEXT NOT NULL, path TEXT NOT NULL);
     CREATE TABLE dispatch_records (project_id TEXT NOT NULL REFERENCES projects(id), forge TEXT NOT NULL, path TEXT NOT NULL,
       issue INTEGER NOT NULL, dispatched_at TEXT NOT NULL, agent TEXT NOT NULL, text TEXT NOT NULL, session_id TEXT NOT NULL);
     INSERT INTO repository_bindings VALUES ('${project.id}', 'github', 'octo/tools');
-    INSERT INTO dispatch_records VALUES ('${project.id}', 'github', 'octo/tools', 7, '2026-01-01T00:00:00Z', 'claude', '/implement', 'session-a');`));
+    INSERT INTO dispatch_records VALUES ('${project.id}', 'github', 'octo/tools', 7, '2026-01-01T00:00:00Z', 'claude', '/implement', 'session-a');`),
+  );
   let workbench = await Workbench.open(directory);
   try {
     const [stored] = workbench.snapshot().projects;
@@ -123,5 +154,7 @@ test('bindings and dispatches stored without the repository ID are dropped: the 
     await workbench.quit();
     workbench = await Workbench.open(directory);
     assert.deepEqual(workbench.snapshot().projects, []);
-  } finally { await workbench.quit(); }
+  } finally {
+    await workbench.quit();
+  }
 });

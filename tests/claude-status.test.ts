@@ -37,10 +37,24 @@ test('Claude waits survive unrelated tools and resolve only with matching result
   check({ hook_event_name: 'PreToolUse', tool_name: 'Read', tool_use_id: 'read' }, 'needs-input');
   check({ hook_event_name: 'PostToolUse', tool_name: 'Read', tool_use_id: 'read' }, 'needs-input');
   check({ hook_event_name: 'PostToolUse', tool_name: 'AskUserQuestion', tool_use_id: 'question' }, 'busy');
-  check({ hook_event_name: 'PreToolUse', tool_name: 'Bash', tool_use_id: 'approved', tool_input_hash: 'approved-input' }, 'busy');
+  check(
+    { hook_event_name: 'PreToolUse', tool_name: 'Bash', tool_use_id: 'approved', tool_input_hash: 'approved-input' },
+    'busy',
+  );
   check({ hook_event_name: 'PermissionRequest', tool_name: 'Bash', tool_input_hash: 'approved-input' }, 'needs-input');
-  check({ hook_event_name: 'PostToolUse', tool_name: 'Bash', tool_use_id: 'other', tool_input_hash: 'other-input' }, 'needs-input');
-  check({ hook_event_name: 'PostToolUseFailure', tool_name: 'Bash', tool_use_id: 'approved', tool_input_hash: 'approved-input' }, 'busy');
+  check(
+    { hook_event_name: 'PostToolUse', tool_name: 'Bash', tool_use_id: 'other', tool_input_hash: 'other-input' },
+    'needs-input',
+  );
+  check(
+    {
+      hook_event_name: 'PostToolUseFailure',
+      tool_name: 'Bash',
+      tool_use_id: 'approved',
+      tool_input_hash: 'approved-input',
+    },
+    'busy',
+  );
   check({ hook_event_name: 'Elicitation', mcp_server_name: 'forms', elicitation_id: 'one' }, 'needs-input');
   check({ hook_event_name: 'Elicitation', mcp_server_name: 'forms', elicitation_id: 'two' }, 'needs-input');
   check({ hook_event_name: 'ElicitationResult', mcp_server_name: 'forms', elicitation_id: 'one' }, 'needs-input');
@@ -76,7 +90,10 @@ test('an Error discards tools in progress, so a later permission request matches
   check({ hook_event_name: 'PreToolUse', tool_name: 'Bash', tool_use_id: 'after', tool_input_hash: 'same' }, 'busy');
   check({ hook_event_name: 'PermissionRequest', tool_name: 'Bash', tool_input_hash: 'same' }, 'needs-input');
   // The result of a tool from before the Error cannot answer the new request.
-  check({ hook_event_name: 'PostToolUse', tool_name: 'Bash', tool_use_id: 'before', tool_input_hash: 'same' }, 'needs-input');
+  check(
+    { hook_event_name: 'PostToolUse', tool_name: 'Bash', tool_use_id: 'before', tool_input_hash: 'same' },
+    'needs-input',
+  );
   check({ hook_event_name: 'PostToolUse', tool_name: 'Bash', tool_use_id: 'after', tool_input_hash: 'same' }, 'busy');
 });
 
@@ -102,7 +119,10 @@ test('Claude child activity and identifiable old session, prompt and tool events
   check({ hook_event_name: 'UserPromptSubmit', session_id: 'current', prompt_id: 'new' }, 'busy');
   check({ hook_event_name: 'Stop', session_id: 'current', agent_id: 'child' }, 'busy');
   check({ hook_event_name: 'StopFailure', session_id: 'current', agent_id: 'child' }, 'busy');
-  check({ hook_event_name: 'PreToolUse', tool_name: 'AskUserQuestion', agent_id: 'child', session_id: 'current' }, 'busy');
+  check(
+    { hook_event_name: 'PreToolUse', tool_name: 'AskUserQuestion', agent_id: 'child', session_id: 'current' },
+    'busy',
+  );
   check({ hook_event_name: 'SubagentStop', session_id: 'current' }, 'busy');
   check({ hook_event_name: 'Stop', session_id: 'current', prompt_id: 'old' }, 'busy');
   check({ hook_event_name: 'PostToolUse', session_id: 'current', prompt_id: 'new', tool_use_id: 'tool' }, 'busy');
@@ -120,7 +140,13 @@ test('a Claude main Stop with any running Spawned Task stays Busy; the turn ends
   check({ hook_event_name: 'UserPromptSubmit' }, 'busy');
   check(stop([{ type: 'subagent', status: 'running' }]), 'busy');
   check(stop([{ type: 'shell', status: 'running' }]), 'busy');
-  check(stop([{ type: 'shell', status: 'completed' }, { type: 'subagent', status: 'running' }]), 'busy');
+  check(
+    stop([
+      { type: 'shell', status: 'completed' },
+      { type: 'subagent', status: 'running' },
+    ]),
+    'busy',
+  );
   check(stop([]), 'done');
   check({ hook_event_name: 'UserPromptSubmit' }, 'busy');
   check(stop([{ type: 'shell', status: 'completed' }]), 'done');
@@ -138,8 +164,14 @@ test('a Claude turn woken by its finished Spawned Task stays Busy, and blocking 
   check({ hook_event_name: 'PreToolUse', agent_id: 'child', tool_name: 'Read', tool_use_id: 'child-read' }, 'busy');
   check({ hook_event_name: 'Stop', agent_id: 'child' }, 'busy');
   check({ hook_event_name: 'SubagentStop', agent_id: 'child' }, 'busy');
-  check({ hook_event_name: 'PreToolUse', prompt_id: 'asked', tool_name: 'AskUserQuestion', tool_use_id: 'question' }, 'needs-input');
-  check({ hook_event_name: 'PostToolUse', prompt_id: 'asked', tool_name: 'AskUserQuestion', tool_use_id: 'question' }, 'busy');
+  check(
+    { hook_event_name: 'PreToolUse', prompt_id: 'asked', tool_name: 'AskUserQuestion', tool_use_id: 'question' },
+    'needs-input',
+  );
+  check(
+    { hook_event_name: 'PostToolUse', prompt_id: 'asked', tool_name: 'AskUserQuestion', tool_use_id: 'question' },
+    'busy',
+  );
   check({ hook_event_name: 'PermissionRequest', prompt_id: 'asked', tool_use_id: 'approval' }, 'needs-input');
   check({ hook_event_name: 'Stop', prompt_id: 'asked', background_tasks: running }, 'busy');
   check({ hook_event_name: 'UserPromptSubmit', prompt_id: 'woken' }, 'busy');
@@ -159,7 +191,10 @@ test('resuming the current Claude session keeps tracking it when its own Session
 test('switching Claude sessions with /clear, /resume or a fork shows Ready and drops the old session', () => {
   const check = started();
   check({ hook_event_name: 'UserPromptSubmit', prompt_id: 'work' }, 'busy');
-  check({ hook_event_name: 'Stop', prompt_id: 'work', background_tasks: [{ type: 'shell', status: 'running' }] }, 'busy');
+  check(
+    { hook_event_name: 'Stop', prompt_id: 'work', background_tasks: [{ type: 'shell', status: 'running' }] },
+    'busy',
+  );
   check({ hook_event_name: 'SessionEnd', source: 'clear', prompt_id: 'clear' }, 'busy');
   check({ hook_event_name: 'SessionStart', source: 'clear', session_id: 'cleared', prompt_id: 'clear' }, 'ready');
   check({ hook_event_name: 'Stop', prompt_id: 'work' }, 'ready');
@@ -201,15 +236,24 @@ test('a Claude run whose hooks were trusted after startup reports the session of
 test('Claude launch preparation keeps invocation settings, existing hooks and files, including relative paths', async () => {
   const directory = await mkdtemp(resolve("work/claude-status-'$-"));
   try {
-    const resources = join(directory, 'resources'); await mkdir(resources);
-    const original = { model: 'fixture-model', permissions: { allow: ['Read'] }, hooks: {
-      UserPromptSubmit: [{ hooks: [{ type: 'command', command: 'printf "EXISTING-HOOK\\n"' }] }],
-    } };
+    const resources = join(directory, 'resources');
+    await mkdir(resources);
+    const original = {
+      model: 'fixture-model',
+      permissions: { allow: ['Read'] },
+      hooks: {
+        UserPromptSubmit: [{ hooks: [{ type: 'command', command: 'printf "EXISTING-HOOK\\n"' }] }],
+      },
+    };
     const file = join(directory, 'settings with spaces.json');
     await writeFile(file, JSON.stringify(original));
     for (const option of [['--settings', JSON.stringify(original)], ['--settings=./settings with spaces.json']]) {
       const args = [...option, '--', '--settings=literal-prompt'];
-      const prepared = await claude.prepare({ command: { command: 'claude', args }, directory, resourceDirectory: resources });
+      const prepared = await claude.prepare({
+        command: { command: 'claude', args },
+        directory,
+        resourceDirectory: resources,
+      });
       const launched = prepared.command.args;
       assert.deepEqual(launched.slice(-2), ['--', '--settings=literal-prompt']);
       const value = launched[launched.lastIndexOf('--settings', launched.indexOf('--')) + 1];
@@ -223,7 +267,16 @@ test('Claude launch preparation keeps invocation settings, existing hooks and fi
       assert.deepEqual(await readdir(resources), []);
     }
     for (const value of ['{"hooks":{"Stop":42}}', './missing-settings.json']) {
-      await assert.rejects(claude.prepare({ command: { command: 'claude', args: ['--settings', value] }, directory, resourceDirectory: resources }), value);
+      await assert.rejects(
+        claude.prepare({
+          command: { command: 'claude', args: ['--settings', value] },
+          directory,
+          resourceDirectory: resources,
+        }),
+        value,
+      );
     }
-  } finally { await rm(directory, { recursive: true, force: true }); }
+  } finally {
+    await rm(directory, { recursive: true, force: true });
+  }
 });

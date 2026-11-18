@@ -7,9 +7,15 @@ import { testDirectory } from './directory';
  * issue and pull request numbers of the same repository, and a blocker may instead be an issue of another repository;
  * what an issue blocks follows from the others' `blockedBy`. */
 export interface GhIssue {
-  number: number; title: string; state: 'OPEN' | 'CLOSED'; stateReason?: 'COMPLETED' | 'NOT_PLANNED' | 'DUPLICATE' | 'REOPENED';
-  createdAt: string; labels: { name: string; color: string }[];
-  author?: string | null; assignees?: string[]; bodyHTML?: string;
+  number: number;
+  title: string;
+  state: 'OPEN' | 'CLOSED';
+  stateReason?: 'COMPLETED' | 'NOT_PLANNED' | 'DUPLICATE' | 'REOPENED';
+  createdAt: string;
+  labels: { name: string; color: string }[];
+  author?: string | null;
+  assignees?: string[];
+  bodyHTML?: string;
   comments?: { author: string | null; createdAt: string; bodyHTML: string }[];
   parent?: number;
   blockedBy?: (number | { path: string; number: number; title: string; state: 'OPEN' | 'CLOSED' })[];
@@ -21,20 +27,43 @@ export interface GhIssue {
  * absent or null. Without `author` the account wrote it; without `createdAt` it was created on 2026-01-01. Its detail
  * merges `head` (default feature) into `base` (default main) and closes the issues numbered in `closes`. */
 export interface GhPullRequest {
-  number: number; title: string; state: 'OPEN' | 'MERGED' | 'CLOSED'; isDraft?: boolean;
-  createdAt?: string; author?: string | null; labels?: { name: string; color: string }[];
+  number: number;
+  title: string;
+  state: 'OPEN' | 'MERGED' | 'CLOSED';
+  isDraft?: boolean;
+  createdAt?: string;
+  author?: string | null;
+  labels?: { name: string; color: string }[];
   checks?: 'SUCCESS' | 'FAILURE' | 'ERROR' | 'PENDING' | 'EXPECTED' | null;
-  head?: string; base?: string; bodyHTML?: string; closes?: number[];
+  head?: string;
+  base?: string;
+  bodyHTML?: string;
+  closes?: number[];
   comments?: { author: string | null; createdAt: string; bodyHTML: string }[];
   /** `codeComments` counts the review's comments on lines of code. */
-  reviews?: { author: string | null; state: 'PENDING' | 'COMMENTED' | 'APPROVED' | 'CHANGES_REQUESTED' | 'DISMISSED'; submittedAt: string | null; bodyHTML: string; codeComments?: number }[];
+  reviews?: {
+    author: string | null;
+    state: 'PENDING' | 'COMMENTED' | 'APPROVED' | 'CHANGES_REQUESTED' | 'DISMISSED';
+    submittedAt: string | null;
+    bodyHTML: string;
+    codeComments?: number;
+  }[];
   /** The review decision (null when no review is required) and the approvals the base branch requires (none without). */
-  reviewDecision?: 'APPROVED' | 'CHANGES_REQUESTED' | 'REVIEW_REQUIRED' | null; requiredApprovals?: number | null;
+  reviewDecision?: 'APPROVED' | 'CHANGES_REQUESTED' | 'REVIEW_REQUIRED' | null;
+  requiredApprovals?: number | null;
   /** Default MERGEABLE. */
-  mergeable?: 'MERGEABLE' | 'CONFLICTING' | 'UNKNOWN'; mergeQueue?: boolean;
+  mergeable?: 'MERGEABLE' | 'CONFLICTING' | 'UNKNOWN';
+  mergeQueue?: boolean;
   /** The latest commit's check runs and commit statuses; a required one is required for this pull request. */
-  checkRuns?: ({ name: string; status: string; conclusion: string | null; required?: boolean }
-    | { context: string; state: 'SUCCESS' | 'FAILURE' | 'ERROR' | 'PENDING' | 'EXPECTED'; targetUrl: string | null; required?: boolean })[];
+  checkRuns?: (
+    | { name: string; status: string; conclusion: string | null; required?: boolean }
+    | {
+        context: string;
+        state: 'SUCCESS' | 'FAILURE' | 'ERROR' | 'PENDING' | 'EXPECTED';
+        targetUrl: string | null;
+        required?: boolean;
+      }
+  )[];
 }
 
 export interface GhState {
@@ -60,20 +89,32 @@ export interface GhState {
  * `uninstall` leaves PATH with no `gh` at all. PATH is restored after the test. */
 export async function ghDouble(context: TestContext, state: GhState) {
   const directory = await testDirectory(context, 'gh-double');
-  const bin = join(directory, 'bin'), empty = join(directory, 'empty');
-  await mkdir(bin); await mkdir(empty);
+  const bin = join(directory, 'bin'),
+    empty = join(directory, 'empty');
+  await mkdir(bin);
+  await mkdir(empty);
   const file = join(directory, 'state.json');
   const program = join(bin, 'gh');
-  await writeFile(program, `#!/bin/sh\nexec '${process.env.VIBEBRIDGE_TEST_NODE}' '${resolve('tests/fixtures/gh-cli.cjs')}' "$@"\n`);
+  await writeFile(
+    program,
+    `#!/bin/sh\nexec '${process.env.VIBEBRIDGE_TEST_NODE}' '${resolve('tests/fixtures/gh-cli.cjs')}' "$@"\n`,
+  );
   await chmod(program, 0o755);
-  const path = process.env.PATH, stateFile = process.env.VIBEBRIDGE_GH_DOUBLE;
+  const path = process.env.PATH,
+    stateFile = process.env.VIBEBRIDGE_GH_DOUBLE;
   context.after(() => {
     process.env.PATH = path;
-    if (stateFile === undefined) delete process.env.VIBEBRIDGE_GH_DOUBLE; else process.env.VIBEBRIDGE_GH_DOUBLE = stateFile;
+    if (stateFile === undefined) delete process.env.VIBEBRIDGE_GH_DOUBLE;
+    else process.env.VIBEBRIDGE_GH_DOUBLE = stateFile;
   });
   process.env.PATH = `${bin}:${path}`;
   process.env.VIBEBRIDGE_GH_DOUBLE = file;
   const set = (next: GhState) => writeFile(file, JSON.stringify(next));
   await set(state);
-  return { set, uninstall() { process.env.PATH = empty; } };
+  return {
+    set,
+    uninstall() {
+      process.env.PATH = empty;
+    },
+  };
 }

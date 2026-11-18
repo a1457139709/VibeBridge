@@ -16,7 +16,11 @@ interface Options {
  * and are saved; a failed save returns to the stored preferences. A newer operation replaces a pending one,
  * and snapshots never replace the preview of a pending operation. Keep it in the main window's lifetime. */
 export function useSidebarPreferences(options: Options) {
-  const { sidebar, snapshot, api: { subscribe } } = options;
+  const {
+    sidebar,
+    snapshot,
+    api: { subscribe },
+  } = options;
   const { defaults } = sidebars[sidebar];
   const latest = useRef(options);
   latest.current = options;
@@ -45,7 +49,11 @@ export function useSidebarPreferences(options: Options) {
         setPreferences(confirmed.current);
       }
     });
-    return () => { unsubscribe(); pending.current = undefined; cancelResize.current?.(); };
+    return () => {
+      unsubscribe();
+      pending.current = undefined;
+      cancelResize.current?.();
+    };
   }, [subscribe]);
 
   function replaceOperation() {
@@ -55,18 +63,21 @@ export function useSidebarPreferences(options: Options) {
     return operation;
   }
   function save(operation: object, next: SidebarPreferences) {
-    void latest.current.api.saveSidebar(latest.current.sidebar, next).then(() => {
-      if (pending.current !== operation) return;
-      pending.current = undefined;
-      confirmed.current = knownSaved.current = next;
-      setPreferences(next);
-    }).catch(error => {
-      if (pending.current !== operation) return;
-      pending.current = undefined;
-      confirmed.current = knownSaved.current;
-      setPreferences(confirmed.current);
-      latest.current.report(error.message);
-    });
+    void latest.current.api
+      .saveSidebar(latest.current.sidebar, next)
+      .then(() => {
+        if (pending.current !== operation) return;
+        pending.current = undefined;
+        confirmed.current = knownSaved.current = next;
+        setPreferences(next);
+      })
+      .catch(error => {
+        if (pending.current !== operation) return;
+        pending.current = undefined;
+        confirmed.current = knownSaved.current;
+        setPreferences(confirmed.current);
+        latest.current.report(error.message);
+      });
   }
   /** Shows or hides the sidebar; returns whether it is now visible. */
   function toggle() {
@@ -84,7 +95,8 @@ export function useSidebarPreferences(options: Options) {
     const bounded = sidebars[current].width;
     const operation = replaceOperation();
     const base = confirmed.current;
-    const element = event.currentTarget, start = event.clientX;
+    const element = event.currentTarget,
+      start = event.clientX;
     const width = element.parentElement!.getBoundingClientRect().width;
     let next = bounded(width);
     const move = (pointer: globalThis.PointerEvent) => {
@@ -92,7 +104,8 @@ export function useSidebarPreferences(options: Options) {
       setPreferences({ ...base, width: next });
     };
     const finish = (commit: boolean) => {
-      window.removeEventListener('blur', cancel); cancelResize.current = undefined;
+      window.removeEventListener('blur', cancel);
+      cancelResize.current = undefined;
       if (pending.current !== operation) return;
       if (commit) save(operation, { ...base, width: next });
       else {

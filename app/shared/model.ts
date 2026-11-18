@@ -9,15 +9,37 @@ import type { ForgeCapabilities, ForgePresentation, RepositoryReference } from '
 import type { DispatchRecordView } from './dispatch';
 
 export const agentTypes = ['codex', 'claude', 'pi'] as const;
-export type AgentType = typeof agentTypes[number];
+export type AgentType = (typeof agentTypes)[number];
 export const agentTypeSchema = z.enum(agentTypes);
 export const agentNames: Record<AgentType, string> = { codex: 'Codex', claude: 'Claude Code', pi: 'pi' };
-export interface ProjectDraft { name: string; directory: string; total: number; counts: Record<AgentType, number> }
-export const newDraft = (): ProjectDraft => ({ name: '', directory: '', total: 3, counts: { codex: 0, claude: 0, pi: 0 } });
-export interface Panel { id: string; agent: AgentType }
+export interface ProjectDraft {
+  name: string;
+  directory: string;
+  total: number;
+  counts: Record<AgentType, number>;
+}
+export const newDraft = (): ProjectDraft => ({
+  name: '',
+  directory: '',
+  total: 3,
+  counts: { codex: 0, claude: 0, pi: 0 },
+});
+export interface Panel {
+  id: string;
+  agent: AgentType;
+}
 export type Layout = { panel: string } | { axis: 'row' | 'column'; ratio: number; first: Layout; second: Layout };
-export interface Project { id: string; name: string; directory: string; panels: Panel[]; layout: Layout | null }
-export interface AgentCommand { command: string; args: string[] }
+export interface Project {
+  id: string;
+  name: string;
+  directory: string;
+  panels: Panel[];
+  layout: Layout | null;
+}
+export interface AgentCommand {
+  command: string;
+  args: string[];
+}
 export type DefaultLayout = 'auto' | 'row' | 'column';
 export type Language = 'en' | 'zh-CN';
 /** Whether the open forge sidebar squeezes the layout area or overlays it. */
@@ -25,24 +47,55 @@ export type SidebarCoexistence = 'squeeze' | 'overlay';
 /** Whether an open issue or pull request detail overlays the layout area or squeezes it. */
 export type DetailCoexistence = 'overlay' | 'squeeze';
 export interface Settings {
-  language: Language; theme: 'system' | 'dark' | 'light'; defaultLayout: DefaultLayout;
-  sidebarCoexistence: SidebarCoexistence; detailCoexistence: DetailCoexistence;
-  agents: Record<AgentType, AgentCommand>; shortcuts: Shortcuts; workflows: Record<WorkflowId, WorkflowSettings>;
+  language: Language;
+  theme: 'system' | 'dark' | 'light';
+  defaultLayout: DefaultLayout;
+  sidebarCoexistence: SidebarCoexistence;
+  detailCoexistence: DetailCoexistence;
+  agents: Record<AgentType, AgentCommand>;
+  shortcuts: Shortcuts;
+  workflows: Record<WorkflowId, WorkflowSettings>;
 }
 export type CommandCheck = { available: true; path: string } | { available: false; message: string };
-export interface Run { id: string; projectId: string; panelId: string; state: 'running' | 'starting' | 'failed' | 'stopped'; pid?: number; title?: string }
+export interface Run {
+  id: string;
+  projectId: string;
+  panelId: string;
+  state: 'running' | 'starting' | 'failed' | 'stopped';
+  pid?: number;
+  title?: string;
+}
 /** A run that is starting or running; it has not failed or stopped. */
 export const liveRun = (run?: Run) => run?.state === 'running' || run?.state === 'starting';
 // An unconfirmed launch may still be running; only a failed one is known not to have started.
-export type LaunchResult = { outcome: 'started'; run: Run; agent: AgentType } | { outcome: 'failed'; run: Run; agent: AgentType }
+export type LaunchResult =
+  | { outcome: 'started'; run: Run; agent: AgentType }
+  | { outcome: 'failed'; run: Run; agent: AgentType }
   | { outcome: 'unconfirmed'; run: Run; agent: AgentType; reason: string };
-export interface ProjectCreation { project: Project; launches: LaunchResult[] }
+export interface ProjectCreation {
+  project: Project;
+  launches: LaunchResult[];
+}
 /** Everything the edit-project form saves: `repository` is the Repository Binding the project has afterwards, null for none. */
-export interface ProjectEdit { name: string; directory: string; repository: RepositoryReference | null }
-export interface ProjectEditResult { project: Project; launches: LaunchResult[]; error?: string }
-export interface PanelCreation { panel: Panel; launch: LaunchResult }
+export interface ProjectEdit {
+  name: string;
+  directory: string;
+  repository: RepositoryReference | null;
+}
+export interface ProjectEditResult {
+  project: Project;
+  launches: LaunchResult[];
+  error?: string;
+}
+export interface PanelCreation {
+  panel: Panel;
+  launch: LaunchResult;
+}
 /** A sidebar's open state and width, one for the whole app. */
-export interface SidebarPreferences { visible: boolean; width: number }
+export interface SidebarPreferences {
+  visible: boolean;
+  width: number;
+}
 export const sidebarPreferencesSchema = z.strictObject({ visible: z.boolean(), width: z.number() });
 const widthWithin = (min: number, max: number) => (width: number) => Math.max(min, Math.min(max, width));
 /** The app's sidebars, each named by its key in the snapshot: its preferences before any are saved, the width an
@@ -50,7 +103,11 @@ const widthWithin = (min: number, max: number) => (width: number) => Math.max(mi
  * interaction that sets them, not to the stored format. */
 export const sidebars = {
   navigation: { defaults: { visible: true, width: 212 }, width: widthWithin(168, 420), invalid: 'navigationInvalid' },
-  forgeSidebar: { defaults: { visible: false, width: 380 }, width: widthWithin(300, 560), invalid: 'forgeSidebarInvalid' },
+  forgeSidebar: {
+    defaults: { visible: false, width: 380 },
+    width: widthWithin(300, 560),
+    invalid: 'forgeSidebarInvalid',
+  },
 } as const satisfies Record<string, { defaults: SidebarPreferences; width(width: number): number; invalid: MessageId }>;
 export type Sidebar = keyof typeof sidebars;
 /** A panel with its current run, whatever that run's state, and the processing state it displays. */
@@ -62,16 +119,40 @@ export type PanelView = Panel & { run?: Run; status?: ProcessingState };
  * Forge its forge sidebar shows: the bound one, else the one an unbound project binds from; `capabilities` are
  * the features that Forge declares, and the sidebar shows only those. `dispatches` are its Dispatch Records for the bound
  * repository, oldest first; records for other repositories stay stored but are not shown. */
-export type ProjectView = Omit<Project, 'panels'> & { panels: PanelView[]; tray: PanelView[]; repository: RepositoryReference | null;
-  forge: ForgePresentation; capabilities: ForgeCapabilities; dispatches: DispatchRecordView[] };
+export type ProjectView = Omit<Project, 'panels'> & {
+  panels: PanelView[];
+  tray: PanelView[];
+  repository: RepositoryReference | null;
+  forge: ForgePresentation;
+  capabilities: ForgeCapabilities;
+  dispatches: DispatchRecordView[];
+};
 export interface Snapshot extends Record<Sidebar, SidebarPreferences> {
-  projects: ProjectView[]; activeProjectId: string | null; settings: Settings; settingsConflicts: SettingsIssue[];
-  startupTheme: Settings['theme']; resolvedTheme: 'dark' | 'light'; errors: string[];
+  projects: ProjectView[];
+  activeProjectId: string | null;
+  settings: Settings;
+  settingsConflicts: SettingsIssue[];
+  startupTheme: Settings['theme'];
+  resolvedTheme: 'dark' | 'light';
+  errors: string[];
 }
-export type TerminalEvent = { kind: 'title'; runId: string; title: string } | { kind: 'output'; runId: string; data: string }
-  | { kind: 'started'; run: Run } | { kind: 'stopping'; runId: string } | { kind: 'exit'; runId: string };
-export type WorkbenchEvent = Extract<TerminalEvent, { kind: 'started' | 'output' | 'exit' }> | { kind: 'snapshot'; snapshot: Snapshot } | { kind: 'error'; message: string };
-export interface DirectoryResult { valid: boolean; directory?: string; name?: string; existingProjectId?: string; existingProjectName?: string }
+export type TerminalEvent =
+  | { kind: 'title'; runId: string; title: string }
+  | { kind: 'output'; runId: string; data: string }
+  | { kind: 'started'; run: Run }
+  | { kind: 'stopping'; runId: string }
+  | { kind: 'exit'; runId: string };
+export type WorkbenchEvent =
+  | Extract<TerminalEvent, { kind: 'started' | 'output' | 'exit' }>
+  | { kind: 'snapshot'; snapshot: Snapshot }
+  | { kind: 'error'; message: string };
+export interface DirectoryResult {
+  valid: boolean;
+  directory?: string;
+  name?: string;
+  existingProjectId?: string;
+  existingProjectName?: string;
+}
 
 export function assignedAgents(draft: ProjectDraft): AgentType[] {
   return agentTypes.flatMap(type => Array.from({ length: draft.counts[type] }, () => type));
@@ -80,43 +161,77 @@ export function assignedAgents(draft: ProjectDraft): AgentType[] {
 export function validateDraft(draft: ProjectDraft): void {
   const nameError = projectNameError(draft.name);
   if (nameError) throw new Error(nameError);
-  if (!Number.isInteger(draft.total) || draft.total < 1 || draft.total > 10) throw new Error(message('windowCountInvalid'));
-  if (agentTypes.some(type => !Number.isInteger(draft.counts[type]) || draft.counts[type] < 0 || draft.counts[type] > 10)
-    || agentTypes.reduce((sum, type) => sum + draft.counts[type], 0) !== draft.total) throw new Error(message('assignmentInvalid'));
+  if (!Number.isInteger(draft.total) || draft.total < 1 || draft.total > 10)
+    throw new Error(message('windowCountInvalid'));
+  if (
+    agentTypes.some(
+      type => !Number.isInteger(draft.counts[type]) || draft.counts[type] < 0 || draft.counts[type] > 10,
+    ) ||
+    agentTypes.reduce((sum, type) => sum + draft.counts[type], 0) !== draft.total
+  )
+    throw new Error(message('assignmentInvalid'));
 }
 
 export function arrange(ids: string[], preference: DefaultLayout = 'auto'): Layout | null {
   if (!ids.length) return null;
   if (ids.length === 1) return { panel: ids[0] };
-  if (preference !== 'auto') return { axis: preference, ratio: 1 / ids.length, first: { panel: ids[0] }, second: arrange(ids.slice(1), preference)! };
-  if (ids.length === 3) return { axis: 'column', ratio: 0.58, first: { panel: ids[0] }, second: { axis: 'row', ratio: 0.5, first: { panel: ids[1] }, second: { panel: ids[2] } } };
+  if (preference !== 'auto')
+    return {
+      axis: preference,
+      ratio: 1 / ids.length,
+      first: { panel: ids[0] },
+      second: arrange(ids.slice(1), preference)!,
+    };
+  if (ids.length === 3)
+    return {
+      axis: 'column',
+      ratio: 0.58,
+      first: { panel: ids[0] },
+      second: { axis: 'row', ratio: 0.5, first: { panel: ids[1] }, second: { panel: ids[2] } },
+    };
   const half = Math.ceil(ids.length / 2);
-  return { axis: ids.length > 2 ? 'column' : 'row', ratio: half / ids.length, first: arrange(ids.slice(0, half))!, second: arrange(ids.slice(half))! };
+  return {
+    axis: ids.length > 2 ? 'column' : 'row',
+    ratio: half / ids.length,
+    first: arrange(ids.slice(0, half))!,
+    second: arrange(ids.slice(half))!,
+  };
 }
 
 export function removeFromLayout(layout: Layout | null, panelId: string): Layout | null {
   if (!layout) return null;
   if ('panel' in layout) return layout.panel === panelId ? null : layout;
-  const first = removeFromLayout(layout.first, panelId), second = removeFromLayout(layout.second, panelId);
-  return first && second ? { ...layout, first, second } : first ?? second;
+  const first = removeFromLayout(layout.first, panelId),
+    second = removeFromLayout(layout.second, panelId);
+  return first && second ? { ...layout, first, second } : (first ?? second);
 }
 
-const layoutNodeSchema: z.ZodType<Layout> = z.lazy(() => z.union([
-  z.strictObject({ panel: z.string() }),
-  z.strictObject({ axis: z.enum(['row', 'column']), ratio: z.number().gt(0).lt(1), first: layoutNodeSchema, second: layoutNodeSchema }),
-]));
-const layoutDepth = (node: Layout): number => 'panel' in node ? 0 : 1 + Math.max(layoutDepth(node.first), layoutDepth(node.second));
-const panelIds = (node: Layout): string[] => 'panel' in node ? [node.panel] : [...panelIds(node.first), ...panelIds(node.second)];
+const layoutNodeSchema: z.ZodType<Layout> = z.lazy(() =>
+  z.union([
+    z.strictObject({ panel: z.string() }),
+    z.strictObject({
+      axis: z.enum(['row', 'column']),
+      ratio: z.number().gt(0).lt(1),
+      first: layoutNodeSchema,
+      second: layoutNodeSchema,
+    }),
+  ]),
+);
+const layoutDepth = (node: Layout): number =>
+  'panel' in node ? 0 : 1 + Math.max(layoutDepth(node.first), layoutDepth(node.second));
+const panelIds = (node: Layout): string[] =>
+  'panel' in node ? [node.panel] : [...panelIds(node.first), ...panelIds(node.second)];
 const layoutSchema = layoutNodeSchema.refine(layout => layoutDepth(layout) <= 10).nullable();
 
 /** The panel IDs a layout places, in order. */
-export const layoutPanelIds = (layout: Layout | null): string[] => layout ? panelIds(layout) : [];
+export const layoutPanelIds = (layout: Layout | null): string[] => (layout ? panelIds(layout) : []);
 
 /** A project holds at most this many panels, resident and tray together. */
 export const panelLimit = 10;
 /** Every panel of a project: its resident panels, then its tray panels in tray order. */
 export const projectPanels = <P extends Panel>({ panels, tray }: { panels: P[]; tray: P[] }) => [...panels, ...tray];
-export const panelLimitReached = (project: { panels: Panel[]; tray: Panel[] }) => projectPanels(project).length >= panelLimit;
+export const panelLimitReached = (project: { panels: Panel[]; tray: Panel[] }) =>
+  projectPanels(project).length >= panelLimit;
 
 /** The branch path from the root to a panel in a layout, or null when the layout does not place it. */
 export function panelPosition(layout: Layout | null, panelId: string): ('first' | 'second')[] | null {
@@ -139,6 +254,7 @@ export function layoutStructure(value: unknown): Layout | null {
 export function parseLayout(value: unknown, panels: Panel[]): Layout | null {
   const layout = layoutStructure(value);
   const ids = layoutPanelIds(layout);
-  if (ids.length !== panels.length || new Set(ids).size !== ids.length || panels.some(p => !ids.includes(p.id))) throw new Error(message('layoutMismatch'));
+  if (ids.length !== panels.length || new Set(ids).size !== ids.length || panels.some(p => !ids.includes(p.id)))
+    throw new Error(message('layoutMismatch'));
   return layout;
 }

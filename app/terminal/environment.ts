@@ -9,7 +9,10 @@ const execute = promisify(execFile);
 export async function commandEnvironment(): Promise<Record<string, string>> {
   const shell = process.env.SHELL || '/bin/zsh';
   // A login shell is used only to read the user's environment. Agents never run through it.
-  const { stdout } = await execute(shell, ['-ilc', "printf '\\0VIBEBRIDGE_ENV\\0'; /usr/bin/env -0"], { timeout: 5000, maxBuffer: 1024 * 1024 });
+  const { stdout } = await execute(shell, ['-ilc', "printf '\\0VIBEBRIDGE_ENV\\0'; /usr/bin/env -0"], {
+    timeout: 5000,
+    maxBuffer: 1024 * 1024,
+  });
   const marker = '\0VIBEBRIDGE_ENV\0';
   if (!stdout.includes(marker)) throw new Error(message('environmentFailed'));
   const environment: Record<string, string> = {};
@@ -29,9 +32,21 @@ export async function commandEnvironment(): Promise<Record<string, string>> {
 }
 
 export async function executable(command: string, environment: Record<string, string>): Promise<string> {
-  const paths = isAbsolute(command) ? [command] : command.includes('/') ? [] : (environment.PATH || '').split(':').filter(isAbsolute).map(path => join(path, command));
+  const paths = isAbsolute(command)
+    ? [command]
+    : command.includes('/')
+      ? []
+      : (environment.PATH || '')
+          .split(':')
+          .filter(isAbsolute)
+          .map(path => join(path, command));
   for (const path of paths) {
-    try { await access(path, constants.X_OK); if ((await stat(path)).isFile()) return path; } catch { /* next PATH entry */ }
+    try {
+      await access(path, constants.X_OK);
+      if ((await stat(path)).isFile()) return path;
+    } catch {
+      /* next PATH entry */
+    }
   }
   throw new Error(message('launchFailed'));
 }

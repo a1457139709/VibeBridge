@@ -10,11 +10,16 @@ import type { ProjectStore } from '../persistence/storage';
  * writes it with `follow` here. */
 export class RepositoryBindings {
   private bindings: Map<string, RepositoryReference>;
-  constructor(stored: Record<string, RepositoryReference>, private store: Pick<ProjectStore, 'bind'>) {
+  constructor(
+    stored: Record<string, RepositoryReference>,
+    private store: Pick<ProjectStore, 'bind'>,
+  ) {
     this.bindings = new Map(Object.entries(stored));
   }
   /** The project's Repository Binding, or null when it has none. */
-  get(projectId: string) { return this.bindings.get(projectId) ?? null; }
+  get(projectId: string) {
+    return this.bindings.get(projectId) ?? null;
+  }
   /** The forge fields of a project's view: its binding, and the Forge its sidebar shows with that Forge's capabilities. */
   view(projectId: string) {
     const repository = this.get(projectId);
@@ -33,7 +38,11 @@ export class RepositoryBindings {
   }
   /** The repositories the project can bind, with the one that `origin` of `directory` (the directory as the user is
    * editing it) points at; calls `follow` when the list shows the bound repository at another path. */
-  async choices(projectId: string, directory: string, follow: (found: RepositoryReference) => void): Promise<RepositoryChoices> {
+  async choices(
+    projectId: string,
+    directory: string,
+    follow: (found: RepositoryReference) => void,
+  ): Promise<RepositoryChoices> {
     const bound = this.get(projectId);
     const choices = await repositoryChoices(bound, directory);
     const listed = choices.ok && choices.repositories.find(item => sameRepository(item, bound));
@@ -48,10 +57,13 @@ export class RepositoryBindings {
   }
   /** Records the binding a project edit has written. */
   edited(projectId: string, repository: RepositoryReference | null) {
-    if (repository) this.bindings.set(projectId, repository); else this.bindings.delete(projectId);
+    if (repository) this.bindings.set(projectId, repository);
+    else this.bindings.delete(projectId);
   }
   /** Drops the binding of a deleted project. */
-  forget(projectId: string) { this.bindings.delete(projectId); }
+  forget(projectId: string) {
+    this.bindings.delete(projectId);
+  }
   /** Stores the binding at the path the forge found its repository at and returns true; returns false when the project
    * was rebound, unbound or deleted meanwhile, or the path is unchanged. Runs in the Workbench's operation queue. */
   async follow(projectId: string, found: RepositoryReference) {
