@@ -1,13 +1,15 @@
-import type {
-  ForgePresentation,
-  IssueDetailResult,
-  IssuePage,
-  ListFilter,
-  ListQuery,
-  Page,
-  PullRequestDetailResult,
-  PullRequestPage,
-  RepositoryChoices,
+import { z } from 'zod';
+import {
+  itemNumberSchema,
+  type ForgePresentation,
+  type IssueDetailResult,
+  type IssuePage,
+  type ListFilter,
+  type ListQuery,
+  type Page,
+  type PullRequestDetailResult,
+  type PullRequestPage,
+  type RepositoryChoices,
 } from '../../shared/forge/forge';
 import {
   detailItemSchema,
@@ -40,6 +42,10 @@ export interface ForgeSidebarSources {
 interface ShownList {
   view: ForgeListView;
   lists: ForgeLists;
+  /** Where each page loaded ends in each tab's rows: the count of rows through it. */
+  pageEnds: Record<ForgeListTab, number[]>;
+  /** The numbers of the shown tab's rows the sidebar renders. */
+  rows: number[];
   request: object | null;
 }
 
@@ -68,11 +74,20 @@ export class ForgeSidebarData {
     const shown = this.lists.get(projectId) ?? {
       view: declared,
       lists: { issues: noRows, pullRequests: noRows, loading: false },
+      pageEnds: { issues: [], pullRequests: [] },
+      rows: [],
       request: null,
     };
     shown.view = declared;
+    shown.rows = [];
     this.lists.set(projectId, shown);
-    return this.load(projectId, shown, declared.tab, declared.filter, null);
+    return this.load(projectId, shown, declared.tab, declared.filter, null, 1);
+  }
+  /** Declares the numbers of the shown tab's rows the sidebar renders: a refresh reloads through the page holding
+   * them. */
+  async showRows(projectId: string, numbers: number[]) {
+    const shown = this.lists.get(projectId);
+    if (shown) shown.rows = z.array(itemNumberSchema).parse(numbers);
   }
   /** The sidebar no longer shows the project's lists: they are dropped with its detail, and any answer still on its
    * way. */
@@ -85,14 +100,15 @@ export class ForgeSidebarData {
     const shown = this.lists.get(projectId);
     const loaded = shown?.lists[shown.view.tab].loaded;
     if (!shown || !loaded?.cursor) return;
-    return this.load(projectId, shown, shown.view.tab, loaded.filter, loaded.cursor);
+    return this.load(projectId, shown, shown.view.tab, loaded.filter, loaded.cursor, 1);
   }
-  /** Loads the shown tab's first page and the open detail again; the detail keeps showing until its new answer. */
+  /** Reloads the shown tab from its first page through the page holding the last row shown, replacing its rows, and
+   * the open detail; the rows and the detail keep showing until their new answers. */
   async refresh(projectId: string) {
     const shown = this.lists.get(projectId);
     const detail = this.details.get(projectId);
     await Promise.all([
-      shown && this.load(projectId, shown, shown.view.tab, shown.view.filter, null),
+      shown && this.load(projectId, shown, shown.view.tab, shown.view.filter, null, pagesThroughRows(shown)),
       detail && this.loadDetail(projectId, detail.item),
     ]);
   }
@@ -133,45 +149,60 @@ export class ForgeSidebarData {
     this.choices.delete(projectId);
   }
 
+  /** Loads up to `pages` pages of `tab` in `filter` from `cursor` on, one after another, and settles the lists once
+   * they are all in: from the first page they replace the tab's rows, from a cursor they are appended. */
   private async load<T extends ForgeListTab>(
     projectId: string,
     shown: ShownList,
     tab: T,
     filter: ListFilter,
     cursor: string | null,
+    pages: number,
   ) {
     const request = {};
     shown.request = request;
     this.settle(projectId, shown, { ...shown.lists, loading: true });
-    let page: Page<ForgeListItems[T]>;
-    // A failure outside the forge (the request itself) is reported like a transient one, with its reason.
+    const previous = shown.lists[tab] as TabList<ForgeListItems[T]>;
+    const appending = cursor !== null && previous.loaded !== null;
+    const items: ForgeListItems[T][] = appending ? [...previous.loaded!.items] : [];
+    const pageEnds = appending ? [...shown.pageEnds[tab]] : [];
+    let page: Page<ForgeListItems[T]> | undefined;
+    for (let next = cursor; pages > 0; pages--) {
+      page = await this.readPage(projectId, tab, { filter, cursor: next });
+      if (shown.request !== request || this.lists.get(projectId) !== shown) return;
+      if (!page.ok) break;
+      items.push(...page.items);
+      pageEnds.push(items.length);
+      if (!(next = page.cursor)) break;
+    }
+    let tabList: TabList<ForgeListItems[T]>;
+    if (!page!.ok) tabList = { ...previous, failed: page! };
+    else {
+      const { ok: _, ...rows } = page!;
+      tabList = { failed: null, loaded: { ...rows, filter, items } };
+      shown.pageEnds[tab] = pageEnds;
+    }
+    this.settle(projectId, shown, { ...shown.lists, [tab]: tabList, loading: false });
+  }
+  /** Asks the forge for a page of `tab`; a failure outside the forge (the request itself) is reported like a transient
+   * one, with its reason. */
+  private async readPage<T extends ForgeListTab>(
+    projectId: string,
+    tab: T,
+    query: ListQuery,
+  ): Promise<Page<ForgeListItems[T]>> {
     try {
-      page = (await (tab === 'issues' ? this.sources.issuePage : this.sources.pullRequestPage)(projectId, {
-        filter,
-        cursor,
-      })) as Page<ForgeListItems[T]>;
+      return (await (tab === 'issues' ? this.sources.issuePage : this.sources.pullRequestPage)(
+        projectId,
+        query,
+      )) as Page<ForgeListItems[T]>;
     } catch (error) {
-      page = {
+      return {
         ok: false,
         failure: { kind: 'transient', detail: (error as Error).message, forge: this.sources.forge(projectId) },
         account: null,
       };
     }
-    if (shown.request !== request || this.lists.get(projectId) !== shown) return;
-    const previous = shown.lists[tab] as TabList<ForgeListItems[T]>;
-    let next: TabList<ForgeListItems[T]>;
-    if (!page.ok) next = { ...previous, failed: page };
-    else {
-      const { ok: _, ...rows } = page;
-      next = {
-        failed: null,
-        loaded:
-          cursor !== null && previous.loaded
-            ? { ...rows, filter, items: [...previous.loaded.items, ...rows.items] }
-            : { ...rows, filter },
-      };
-    }
-    this.settle(projectId, shown, { ...shown.lists, [tab]: next, loading: false });
   }
   /** Asks the forge for the detail's item; its answer is pushed unless another request was made since. */
   private async loadDetail(projectId: string, item: DetailItem) {
@@ -197,4 +228,13 @@ export class ForgeSidebarData {
     shown.lists = lists;
     this.sources.emit({ kind: 'forgeLists', projectId, lists });
   }
+}
+
+/** How many pages of the shown tab, from the first, hold every row the sidebar renders; at least one. */
+function pagesThroughRows(shown: ShownList) {
+  const { tab } = shown.view;
+  const items: { number: number }[] = shown.lists[tab].loaded?.items ?? [];
+  const shownRows = new Set(shown.rows);
+  const last = items.findLastIndex(item => shownRows.has(item.number));
+  return Math.max(shown.pageEnds[tab].findIndex(end => end > last) + 1, 1);
 }

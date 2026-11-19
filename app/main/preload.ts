@@ -14,6 +14,7 @@ const api: DesktopAPI = {
   showForgeList: (id, view) => ipcRenderer.invoke('workbench:show-forge-list', id, view),
   hideForgeList: id => ipcRenderer.invoke('workbench:hide-forge-list', id),
   loadMoreForgeList: id => ipcRenderer.invoke('workbench:load-more-forge-list', id),
+  showForgeRows: (id, numbers) => ipcRenderer.invoke('workbench:show-forge-rows', id, numbers),
   refreshForgeList: id => ipcRenderer.invoke('workbench:refresh-forge-list', id),
   showRepositoryChoices: id => ipcRenderer.invoke('workbench:show-repository-choices', id),
   showForgeDetail: (id, item) => ipcRenderer.invoke('workbench:show-forge-detail', id, item),

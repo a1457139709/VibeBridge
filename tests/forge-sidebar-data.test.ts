@@ -52,8 +52,17 @@ function sidebarData() {
     answer(value: unknown): void;
     fail(error: Error): void;
   }[] = [];
+  const waiting: (() => void)[] = [];
   const read = (projectId: string, query?: ListQuery, item?: DetailItem) =>
-    new Promise<never>((answer, fail) => reads.push({ projectId, query, item, answer: answer as never, fail }));
+    new Promise<never>((answer, fail) => {
+      reads.push({ projectId, query, item, answer: answer as never, fail });
+      for (const wake of waiting.splice(0)) wake();
+    });
+  /** The `count`th read, once it is made. */
+  const readNumber = async (count: number) => {
+    while (reads.length < count) await new Promise<void>(wake => waiting.push(wake));
+    return reads[count - 1];
+  };
   const events: ForgeSidebarEvent[] = [];
   const data = new ForgeSidebarData({
     issuePage: read,
@@ -79,7 +88,7 @@ function sidebarData() {
       (event): event is Extract<ForgeSidebarEvent, { kind: 'forgeDetail' }> =>
         event.kind === 'forgeDetail' && event.projectId === projectId,
     )?.detail;
-  return { data, reads, events, lists, choices, shownDetail };
+  return { data, reads, readNumber, events, lists, choices, shownDetail };
 }
 const numbers = (lists: ForgeLists | undefined) => lists?.issues.loaded?.items.map(item => item.number);
 
@@ -278,4 +287,48 @@ test('hiding the lists or forgetting the project drops the detail with its answe
     await data.refresh('alpha');
     assert.equal(reads.length, 1, `a detail dropped by ${drop} is not reloaded`);
   }
+});
+
+test('a refresh reloads every page from the first through the one holding the last row shown, and drops rows the filter no longer matches', async () => {
+  const { data, reads, readNumber, lists } = sidebarData();
+  const shown = data.showList('alpha', { tab: 'issues', filter: openNoFilter });
+  reads[0].answer(page([1, 2], 'p2'));
+  await shown;
+  for (const [index, numbers, cursor] of [
+    [1, [3, 4], 'p3'],
+    [2, [5, 6], null],
+  ] as const) {
+    const more = data.loadMore('alpha');
+    reads[index].answer(page([...numbers], cursor));
+    await more;
+  }
+  await data.showRows('alpha', [3, 4]);
+  const refreshed = data.refresh('alpha');
+  assert.deepEqual(reads[3].query, { filter: openNoFilter, cursor: null });
+  reads[3].answer(page([1, 2], 'p2'));
+  const second = await readNumber(5);
+  assert.deepEqual(second.query, { filter: openNoFilter, cursor: 'p2' });
+  assert.deepEqual(numbers(lists()), [1, 2, 3, 4, 5, 6], 'the old rows stay until the reload settles');
+  assert.equal(lists()?.loading, true);
+  second.answer(page([4], 'p3'));
+  await refreshed;
+  assert.equal(reads.length, 5, 'no page after the one shown is read');
+  assert.deepEqual(numbers(lists()), [1, 2, 4], 'issue 3 no longer matches, and the rows after the page shown go');
+  assert.equal(lists()?.issues.loaded?.cursor, 'p3', 'Load more continues after the pages reloaded');
+  assert.equal(lists()?.loading, false);
+});
+
+test('with no rows shown a refresh reloads the first page only', async () => {
+  const { data, reads, lists } = sidebarData();
+  const shown = data.showList('alpha', { tab: 'issues', filter: openNoFilter });
+  reads[0].answer(page([1], 'p2'));
+  await shown;
+  const more = data.loadMore('alpha');
+  reads[1].answer(page([2]));
+  await more;
+  const refreshed = data.refresh('alpha');
+  reads[2].answer(page([1], 'p2'));
+  await refreshed;
+  assert.equal(reads.length, 3);
+  assert.deepEqual(numbers(lists()), [1]);
 });

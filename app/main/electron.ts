@@ -190,6 +190,7 @@ void app.whenReady().then(async () => {
     await loginPath;
     return service.forgeSidebar.loadMore(id);
   });
+  handle('show-forge-rows', (service, id, numbers) => service.forgeSidebar.showRows(id, numbers));
   handle('refresh-forge-list', async (service, id) => {
     await loginPath;
     return service.forgeSidebar.refresh(id);

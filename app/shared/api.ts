@@ -42,7 +42,10 @@ export interface DesktopAPI {
   hideForgeList(projectId: string): Promise<void>;
   /** Appends the next page of the rows shown, in the filter that produced them. */
   loadMoreForgeList(projectId: string): Promise<void>;
-  /** Loads the shown tab's first page and the open detail again. */
+  /** Declares the numbers of the shown tab's rows the Forge sidebar renders. */
+  showForgeRows(projectId: string, numbers: number[]): Promise<void>;
+  /** Reloads the shown tab from its first page through the page holding the last row the sidebar renders, replacing
+   * its rows, and the open detail. */
   refreshForgeList(projectId: string): Promise<void>;
   /** Declares that a binding page of the Forge sidebar shows the repositories the project can bind; they are read once
    * per call and pushed as `repositoryChoices` events. */
