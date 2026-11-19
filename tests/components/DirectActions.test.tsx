@@ -15,6 +15,7 @@ import type {
   PullRequestDetail,
 } from '../../app/shared/forge/forge';
 import { deferred, provideWorkbench } from './support/workbench';
+import { forgeSidebarData, workbenchEvents } from './support/forge-sidebar-data';
 import { githubForge, githubView, githubRepository } from './support/forge';
 import { issue as listedIssue, pullRequest as listedPullRequest, stubSidebarApis } from './support/forge-lists';
 
@@ -119,33 +120,39 @@ function renderWorkbench(forge: Forge) {
   };
   const actions: ActionRequest[] = [];
   const reads = { issue: 0, pullRequest: 0, pages: 0 };
+  const events = workbenchEvents();
   provideWorkbench({
     snapshot: async () => structuredClone(snapshot),
     ready: async () => {},
-    subscribe: () => () => {},
+    subscribe: events.subscribe,
     saveSidebar: async () => {},
     activateProject: async () => {},
     saveLayout: async () => {},
-    issuePage: async () => {
-      reads.pages++;
-      return {
-        ok: true,
-        items: [listedIssue(3, { title: 'Spec' })],
-        cursor: null,
-        labels: [],
-        counts: { open: 1, closed: 0 },
-      };
-    },
-    pullRequestPage: async () => {
-      reads.pages++;
-      return {
-        ok: true,
-        items: [listedPullRequest(12, { title: 'Read-only detail' })],
-        cursor: null,
-        labels: [],
-        counts: { open: 1, closed: 0 },
-      };
-    },
+    ...forgeSidebarData(
+      {
+        issuePage: async () => {
+          reads.pages++;
+          return {
+            ok: true,
+            items: [listedIssue(3, { title: 'Spec' })],
+            cursor: null,
+            labels: [],
+            counts: { open: 1, closed: 0 },
+          };
+        },
+        pullRequestPage: async () => {
+          reads.pages++;
+          return {
+            ok: true,
+            items: [listedPullRequest(12, { title: 'Read-only detail' })],
+            cursor: null,
+            labels: [],
+            counts: { open: 1, closed: 0 },
+          };
+        },
+      },
+      events.emit,
+    ),
     issueDetail: async () => {
       reads.issue++;
       return { ok: true, issue: structuredClone(forge.issue!) };

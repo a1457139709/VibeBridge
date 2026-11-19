@@ -15,6 +15,7 @@ import type {
   PullRequestReference,
 } from '../../app/shared/forge/forge';
 import { deferred, provideWorkbench } from './support/workbench';
+import { forgeSidebarData, workbenchEvents } from './support/forge-sidebar-data';
 import { githubCapabilities, githubView, githubRepository } from './support/forge';
 import { issue as listedIssue, pullRequest as listedPullRequest, stubSidebarApis } from './support/forge-lists';
 
@@ -98,27 +99,33 @@ function renderWorkbench({
     requests.push({ kind, number, answer: answer.resolve });
     return answer.promise;
   };
+  const events = workbenchEvents();
   provideWorkbench({
     snapshot: async () => structuredClone(snapshot),
     ready: async () => {},
-    subscribe: () => () => {},
+    subscribe: events.subscribe,
     saveSidebar: async () => {},
     activateProject: async () => {},
     saveLayout: async () => {},
-    issuePage: async () => ({
-      ok: true,
-      items: [listedIssue(3, { title: 'Spec' })],
-      cursor: null,
-      labels: [],
-      counts: { open: 1, closed: 0 },
-    }),
-    pullRequestPage: async () => ({
-      ok: true,
-      items: [listedPullRequest(12, { title: 'Read-only detail' })],
-      cursor: null,
-      labels: [],
-      counts: { open: 1, closed: 0 },
-    }),
+    ...forgeSidebarData(
+      {
+        issuePage: async () => ({
+          ok: true,
+          items: [listedIssue(3, { title: 'Spec' })],
+          cursor: null,
+          labels: [],
+          counts: { open: 1, closed: 0 },
+        }),
+        pullRequestPage: async () => ({
+          ok: true,
+          items: [listedPullRequest(12, { title: 'Read-only detail' })],
+          cursor: null,
+          labels: [],
+          counts: { open: 1, closed: 0 },
+        }),
+      },
+      events.emit,
+    ),
     issueDetail: async (_, number) => {
       const result = (await ask('issue', number)) as IssueDetailResult;
       return result.ok ? { ...result, issue: { ...result.issue, closingPullRequests } } : result;

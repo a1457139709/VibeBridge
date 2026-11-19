@@ -11,6 +11,7 @@ import type { DesktopAPI } from '../../app/shared/api';
 import { detail, message } from '../../app/shared/messages';
 import { stubLayoutApis } from './support/no-layout';
 import { provideWorkbench } from './support/workbench';
+import { forgeSidebarData, type ForgeAnswers } from './support/forge-sidebar-data';
 import { githubForge, githubView, githubRepository } from './support/forge';
 
 afterEach(cleanup);
@@ -40,7 +41,7 @@ const project = (id: string, name: string, repository: ProjectView['repository']
 
 function renderWorkbench(
   forgeSidebar: SidebarPreferences = { visible: false, width: 380 },
-  api: Partial<DesktopAPI> = {},
+  api: Partial<DesktopAPI> & ForgeAnswers = {},
 ) {
   const snapshot: Snapshot = {
     navigation: { visible: true, width: 212 },
@@ -68,6 +69,7 @@ function renderWorkbench(
     origin: null,
     repositories: [githubRepository('octo/unbound')],
   };
+  const { repositoryChoices, ...calls } = api;
   provideWorkbench({
     snapshot: async () => structuredClone(snapshot),
     ready: async () => {},
@@ -88,10 +90,17 @@ function renderWorkbench(
     },
     saveLayout: async () => {},
     inspectDirectory: async directory => ({ valid: true, directory }),
-    repositoryChoices: async () => choices,
-    // A bound project's lists stay loading: these tests are about what the sidebar shows around them.
-    issuePage: () => new Promise(() => {}),
-    ...api,
+    ...forgeSidebarData(
+      {
+        repositoryChoices: repositoryChoices ?? (async () => choices),
+        // A bound project's lists stay loading: these tests are about what the sidebar shows around them.
+        issuePage: () => new Promise(() => {}),
+      },
+      event => {
+        for (const listener of listeners) listener(event);
+      },
+    ),
+    ...calls,
   });
   render(<App />);
   return { user: userEvent.setup(), saved, snapshot, publish };

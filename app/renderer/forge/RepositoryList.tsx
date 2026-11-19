@@ -1,45 +1,13 @@
 import { useEffect, useId, useState } from 'react';
 import { useLocalization } from '../common/Localization';
 import { detail } from '../../shared/messages';
-import { sameRepository, type RepositoryChoices, type RepositoryReference } from '../../shared/forge/forge';
+import { sameRepository, type RepositoryReference } from '../../shared/forge/forge';
+import type { ShownRepositoryChoices } from '../../shared/forge/sidebar-data';
 import './repository-list.css';
 
-export type LoadedChoices = RepositoryChoices | { ok: false; error: string };
-
-/** The repositories the project can bind, with the one `origin` of `directory` points at; loaded when the project or
- * directory changes, and again on `retry`. Undefined while loading, and for a null directory, which loads nothing. */
-export function useRepositoryChoices(projectId: string, directory: string | null) {
-  const [choices, setChoices] = useState<LoadedChoices>();
-  const [attempt, setAttempt] = useState(0);
-  useEffect(() => {
-    setChoices(undefined);
-    if (directory === null) return;
-    let live = true;
-    void window.workbench.repositoryChoices(projectId, directory).then(
-      result => {
-        if (live) setChoices(result);
-      },
-      error => {
-        if (live) setChoices({ ok: false, error: (error as Error).message });
-      },
-    );
-    return () => {
-      live = false;
-    };
-  }, [projectId, directory, attempt]);
-  return {
-    choices,
-    /** The loaded list, or undefined while loading or after a failure. */
-    listed: choices?.ok ? choices : undefined,
-    retry() {
-      setChoices(undefined);
-      setAttempt(value => value + 1);
-    },
-  };
-}
-
 interface Props {
-  choices: LoadedChoices | undefined;
+  /** The repositories as the main process pushes them; null while they are being read. */
+  choices: ShownRepositoryChoices;
   retry(): void;
   /** The project's binding, marked current and kept in the list even when the account no longer lists it. */
   bound: RepositoryReference | null;

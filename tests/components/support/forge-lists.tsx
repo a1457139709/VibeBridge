@@ -18,6 +18,7 @@ import type {
 import { deferred, provideWorkbench } from './workbench';
 import { githubCapabilities, githubForge, githubView, githubRepository } from './forge';
 import { stubLayoutApis } from './no-layout';
+import { forgeSidebarData, type ForgeAnswers } from './forge-sidebar-data';
 
 const project = (id: string, name: string, capabilities: ForgeCapabilities): ProjectView => ({
   id,
@@ -85,7 +86,7 @@ export function stubSidebarApis() {
   window.HTMLElement.prototype.checkVisibility = () => true;
 }
 
-/** A list page request; `list` names the list it is for. */
+/** A list page the main process asks the forge for; `list` names the list it is for. */
 interface Request {
   list: 'issues' | 'pullRequests';
   projectId: string;
@@ -94,9 +95,10 @@ interface Request {
   fail(error: Error): void;
 }
 
-/** The Workbench with two bound projects and the sidebar open. Every list page request waits until the test answers it.
- * `api` adds or replaces Workbench calls; `publish` sends the snapshot as the test changed it. */
-export function renderWorkbench(capabilities = githubCapabilities, api: Partial<DesktopAPI> = {}) {
+/** The Workbench with two bound projects and the sidebar open. The sidebar's data is the main process's own module, and
+ * every list page it asks the forge for waits until the test answers it. `api` adds or replaces Workbench calls and
+ * forge answers; `publish` sends the snapshot as the test changed it. */
+export function renderWorkbench(capabilities = githubCapabilities, api: Partial<DesktopAPI> & ForgeAnswers = {}) {
   const snapshot: Snapshot = {
     navigation: { visible: true, width: 212 },
     forgeSidebar: { visible: true, width: 380 },
@@ -118,6 +120,7 @@ export function renderWorkbench(capabilities = githubCapabilities, api: Partial<
     requests.push({ list, projectId, query: structuredClone(query), answer: answer.resolve, fail: answer.reject });
     return answer.promise;
   };
+  const { issuePage, pullRequestPage, repositoryChoices, ...calls } = api;
   provideWorkbench({
     snapshot: async () => structuredClone(snapshot),
     ready: async () => {},
@@ -137,17 +140,27 @@ export function renderWorkbench(capabilities = githubCapabilities, api: Partial<
     },
     saveLayout: async () => {},
     inspectDirectory: async directory => ({ valid: true, directory }),
-    repositoryChoices: async () => ({
-      ok: true,
-      forge: githubForge,
-      account: 'octo',
-      origin: null,
-      repositories: [githubRepository('octo/alpha')],
-    }),
-    issuePage: (projectId, query) => listRequest('issues', projectId, query) as Promise<IssuePage>,
-    pullRequestPage: (projectId, query) =>
-      listRequest('pullRequests', projectId, query) as Promise<Page<PullRequestSummary>>,
-    ...api,
+    ...forgeSidebarData(
+      {
+        repositoryChoices:
+          repositoryChoices ??
+          (async () => ({
+            ok: true,
+            forge: githubForge,
+            account: 'octo',
+            origin: null,
+            repositories: [githubRepository('octo/alpha')],
+          })),
+        issuePage: issuePage ?? ((projectId, query) => listRequest('issues', projectId, query) as Promise<IssuePage>),
+        pullRequestPage:
+          pullRequestPage ??
+          ((projectId, query) => listRequest('pullRequests', projectId, query) as Promise<Page<PullRequestSummary>>),
+      },
+      event => {
+        for (const listener of listeners) listener(event);
+      },
+    ),
+    ...calls,
   });
   render(<App />);
   /** The latest request, once it is made. */
