@@ -10,6 +10,7 @@ import type {
 import { BlockedMark, IssueIcon, Label, OpenChecks, Progress, PullRequestIcon, RelativeTime } from './ForgeDisplay';
 import type { DetailItem } from '../../shared/forge/sidebar-data';
 import { withoutCommandModifier } from '../../shared/settings/shortcuts';
+import { VirtualRows, type VirtualRowsHost } from './VirtualRows';
 
 /** A list row's title is the button that opens its item; the row names its item in an attribute. */
 const rowTitleClass = 'forge-row-title',
@@ -48,8 +49,10 @@ export function moveOrOpenRow(event: React.KeyboardEvent<HTMLElement>) {
 /** The loaded issues as a tree, when the forge has sub-issues: an issue sits under its parent when the parent is
  * loaded, else at the top level. Parents start collapsed; their progress button expands them without fetching.
  * An expanded parent shows the sub-issues in the listed state; listing open ones, it folds the closed ones after them.
- * A parent shows the button only when it has sub-issues to show, as the list holds them. */
+ * A parent shows the button only when it has sub-issues to show, as the list holds them. Only the top-level issues in
+ * view render, each with the sub-issues it shows. */
 export function IssueTree({
+  rowsHost,
   issues,
   state,
   capabilities,
@@ -58,6 +61,7 @@ export function IssueTree({
   addLabel,
   action,
 }: {
+  rowsHost: VirtualRowsHost;
   issues: ListedIssue[];
   state: ListState;
   capabilities: ForgeCapabilities;
@@ -159,9 +163,14 @@ export function IssueTree({
     else rowTitleIn(item.parentElement!.closest('li')?.querySelector(':scope > .forge-row'))?.focus();
   };
   return (
-    <ul className="forge-rows" aria-label={t('issuesTab')} onKeyDown={keydown}>
-      {top.map(row)}
-    </ul>
+    <VirtualRows
+      host={rowsHost}
+      keys={top.map(issue => issue.number)}
+      row={index => row(top[index])}
+      className="forge-rows"
+      aria-label={t('issuesTab')}
+      onKeyDown={keydown}
+    />
   );
 }
 
