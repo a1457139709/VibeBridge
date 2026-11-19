@@ -200,7 +200,7 @@ test('an unbound project whose origin points at a listed repository offers to bi
   assert.ok(within(sidebar()!).getByRole('button', { name: 'Change binding' }), 'the bound lists show');
 });
 
-test('Choose another repository… lists origin first and picked, Bind Y binds the one picked, and Back returns to the origin card', async () => {
+test('Choose another repository… lists origin first and picked, Bind Y binds the one picked, and Back returns focus to the origin card', async () => {
   const { user, binds, opened } = await unboundSidebar(async () => listed('octo/unbound'));
   await user.click(await within(opened).findByRole('button', { name: 'Choose another repository…' }));
   const search = await within(opened).findByRole('searchbox', { name: 'Search repositories' });
@@ -220,7 +220,9 @@ test('Choose another repository… lists origin first and picked, Bind Y binds t
   );
   assert.ok(within(opened).getByRole('button', { name: 'Bind octo/unbound' }));
   await user.click(within(opened).getByRole('button', { name: '← Back' }));
-  await user.click(await within(opened).findByRole('button', { name: 'Choose another repository…' }));
+  const chooseOther = await within(opened).findByRole('button', { name: 'Choose another repository…' });
+  await waitFor(() => assert.equal(document.activeElement, chooseOther));
+  await user.click(chooseOther);
   await user.click(await within(opened).findByRole('option', { name: 'acme/forge' }));
   await user.click(within(opened).getByRole('button', { name: 'Bind acme/forge' }));
   assert.deepEqual(binds, [['unbound', githubRepository('acme/forge')]]);
@@ -239,6 +241,21 @@ test('without an origin on the list, the list shows with nothing picked and Bind
   await user.click(within(opened).getByRole('option', { name: 'octo/tools' }));
   await user.click(within(opened).getByRole('button', { name: 'Bind octo/tools' }));
   assert.deepEqual(binds, [['unbound', githubRepository('octo/tools')]]);
+});
+
+test('a list that fails after a pick binds nothing: Bind is unavailable until the list shows again', async () => {
+  const answers: RepositoryChoices[] = [
+    listed(null),
+    { ok: false, failure: { kind: 'transient', detail: 'HTTP 502', forge: githubForge } },
+  ];
+  const { user, binds, opened, snapshot, publish } = await unboundSidebar(async () => answers.shift()!);
+  await user.click(await within(opened).findByRole('option', { name: 'octo/tools' }));
+  assert.ok(within(opened).getByRole('button', { name: 'Bind octo/tools' }));
+  snapshot.projects.find(item => item.id === 'unbound')!.directory = '/elsewhere';
+  publish();
+  await within(opened).findByText('Could not read the repository list: HTTP 502');
+  assert.equal((within(opened).getByRole('button', { name: 'Bind' }) as HTMLButtonElement).disabled, true);
+  assert.deepEqual(binds, []);
 });
 
 test('a forge failure takes the place of the list with its reason and Retry, and nothing can be bound', async () => {

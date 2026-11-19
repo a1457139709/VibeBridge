@@ -216,7 +216,7 @@ async function changeBindingPage(choices?: () => Promise<RepositoryChoices>) {
   return { ...rendered, calls };
 }
 
-test('Change binding turns the sidebar to its change-binding page, and ← Back returns to the lists', async () => {
+test('Change binding turns the sidebar to its change-binding page, and ← Back returns to the lists with focus in the sidebar', async () => {
   const { user, request } = await changeBindingPage();
   assert.equal(screen.queryByRole('dialog'), null, 'no dialog opens');
   assert.equal(within(sidebar()).getByText('Currently bound:').querySelector('b')?.textContent, 'octo/alpha');
@@ -229,6 +229,7 @@ test('Change binding turns the sidebar to its change-binding page, and ← Back 
   await user.click(within(sidebar()).getByRole('button', { name: '← Back' }));
   (await request(2)).answer(page([issue(1)]));
   await waitFor(() => assert.deepEqual(rows(), ['Issue 1']));
+  await waitFor(() => assert.ok(sidebar().contains(document.activeElement), 'focus stays in the sidebar'));
 });
 
 test('picking another repository states what rebinding does, and Rebind to Y rebinds at once and returns to the lists', async () => {
@@ -265,8 +266,12 @@ test('Unbind states what unbinding does before its own Unbind carries it out, Ca
   await user.click(within(sidebar()).getByRole('button', { name: 'Unbind' }));
   const consequence = 'Unbinding: Dispatch records are kept; the sidebar shows the project as unbound.';
   assert.ok(within(sidebar()).getByText(consequence));
-  await user.click(within(sidebar()).getByRole('button', { name: 'Cancel' }));
+  const cancel = within(sidebar()).getByRole('button', { name: 'Cancel' });
+  await waitFor(() => assert.equal(document.activeElement, cancel, 'focus moves to Cancel'));
+  await user.click(cancel);
   assert.equal(within(sidebar()).queryByText(consequence), null);
+  const unbind = within(sidebar()).getByRole('button', { name: 'Unbind' });
+  await waitFor(() => assert.equal(document.activeElement, unbind, 'focus returns to Unbind'));
   assert.deepEqual(calls, []);
   await user.click(within(sidebar()).getByRole('button', { name: 'Unbind' }));
   await user.click(within(sidebar()).getByRole('button', { name: 'Unbind' }));

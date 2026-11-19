@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type ReactNode } from 'react';
+import { useState, type ReactNode } from 'react';
 import { useLocalization } from '../common/Localization';
 import type { ProjectView } from '../../shared/model';
 import { sameRepository, type RepositoryReference } from '../../shared/forge/forge';
@@ -52,17 +52,6 @@ type RepositoryFieldState = ReturnType<typeof useRepositoryField>;
 /** Bound: the repository with 更换 and 解绑, and the list only after 更换. Unbound: the list, with what saving binds. */
 export function RepositoryField({ field, disabled }: { field: RepositoryFieldState; disabled: boolean }) {
   const { t } = useLocalization();
-  const element = useRef<HTMLDivElement>(null);
-  const focusPending = useRef(false);
-  // The list shown by Change: focus goes to its first control once it is drawn, the search box or Retry.
-  useEffect(() => {
-    if (!focusPending.current) return;
-    const target = element.current!.querySelector<HTMLElement>('.repository-picker input, .repository-error button');
-    if (target) {
-      target.focus();
-      focusPending.current = false;
-    }
-  });
   const { bound, repository } = field;
   const changed = !sameRepository(repository, bound);
   let summary: ReactNode;
@@ -87,14 +76,7 @@ export function RepositoryField({ field, disabled }: { field: RepositoryFieldSta
             </button>
           ) : (
             <>
-              <button
-                type="button"
-                disabled={disabled}
-                onClick={() => {
-                  focusPending.current = true;
-                  field.change();
-                }}
-              >
+              <button type="button" disabled={disabled} onClick={field.change}>
                 {t('changeRepository')}
               </button>
               <button type="button" className="danger" disabled={disabled} onClick={field.unbind}>
@@ -122,7 +104,7 @@ export function RepositoryField({ field, disabled }: { field: RepositoryFieldSta
     );
   const listShown = bound ? field.changing : true;
   return (
-    <div className="repository-field" ref={element}>
+    <div className="repository-field">
       <span id="edit-project-repository" className="repository-label">
         {t('repository')}
       </span>
@@ -135,6 +117,7 @@ export function RepositoryField({ field, disabled }: { field: RepositoryFieldSta
           selection={field.selection}
           pick={field.pick}
           disabled={disabled}
+          autoFocus={field.changing}
         />
       )}
     </div>

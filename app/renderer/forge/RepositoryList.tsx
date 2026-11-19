@@ -68,28 +68,28 @@ export function RepositoryList({ choices, retry, bound, selection, pick, disable
     </button>
   );
   if (!choices) return <span className="muted">{t('loadingRepositories')}</span>;
-  if (!choices.ok && 'error' in choices)
-    return (
-      <div className="repository-error">
-        <span>{t('repositoryListFailed', { reason: detail(choices.error) })}</span>
-        {retryButton}
-      </div>
-    );
   if (!choices.ok) {
-    const { kind, detail: reason, forge } = choices.failure;
+    // A rejected call carries only its message; a forge failure says which kind it is.
+    const failure = 'error' in choices ? null : choices.failure;
+    const reason =
+      'error' in choices
+        ? detail(choices.error)
+        : choices.failure.detail
+          ? detail(choices.failure.detail)
+          : choices.failure.kind;
     return (
       <div className="repository-error">
-        {kind === 'notInstalled' ? (
+        {failure?.kind === 'notInstalled' ? (
           <>
-            <span>{t('forgeNotInstalled', { cli: forge.cli })}</span>
-            <a href={forge.installUrl} target="_blank" rel="noreferrer">
+            <span>{t('forgeNotInstalled', { cli: failure.forge.cli })}</span>
+            <a href={failure.forge.installUrl} target="_blank" rel="noreferrer">
               {t('installInstructions')}
             </a>
           </>
-        ) : kind === 'loggedOut' ? (
-          <span>{t('forgeLoggedOut', { cli: forge.cli, command: forge.loginCommand })}</span>
+        ) : failure?.kind === 'loggedOut' ? (
+          <span>{t('forgeLoggedOut', { cli: failure.forge.cli, command: failure.forge.loginCommand })}</span>
         ) : (
-          <span>{t('repositoryListFailed', { reason: reason ? detail(reason) : kind })}</span>
+          <span>{t('repositoryListFailed', { reason })}</span>
         )}
         {retryButton}
       </div>

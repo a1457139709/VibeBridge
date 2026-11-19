@@ -1,7 +1,7 @@
-import { message } from '../../shared/messages';
+import { detail, message } from '../../shared/messages';
 import { sameRepository, type RepositoryChoices, type RepositoryReference } from '../../shared/forge/forge';
 import type { Bound } from './results';
-import { listedRepository, repositoryChoices } from './repositories';
+import { listedRepository, repositoryChoices, RepositoryListUnreadable } from './repositories';
 import { defaultForge, forges } from './forges';
 import type { ProjectStore } from '../persistence/storage';
 
@@ -53,7 +53,8 @@ export class RepositoryBindings {
    * as a fresh list from its forge shows it. */
   async chosen(projectId: string, repository: RepositoryReference | null) {
     const bound = this.get(projectId);
-    return sameRepository(repository, bound) ? bound : listedRepository(repository, 'projectEditListFailed');
+    if (sameRepository(repository, bound)) return bound;
+    return repository && listedRepository(repository).catch(explainUnreadable('projectEditListFailed'));
   }
   /** Records the binding a project edit has written. */
   edited(projectId: string, repository: RepositoryReference | null) {
@@ -63,7 +64,7 @@ export class RepositoryBindings {
   /** The repository as a fresh list from its forge shows it, for `bind`; throws when the list cannot be read or does
    * not show it. */
   async findListed(repository: RepositoryReference) {
-    return (await listedRepository(repository, 'bindListFailed'))!;
+    return listedRepository(repository).catch(explainUnreadable('bindListFailed'));
   }
   /** Binds the project to a repository `findListed` returned, replacing any binding it has. Runs in the Workbench's
    * operation queue. */
@@ -89,4 +90,12 @@ export class RepositoryBindings {
     this.bindings.set(projectId, found);
     return true;
   }
+}
+
+/** Rethrows a list that could not be read as the caller's message, naming the forge's reason. */
+function explainUnreadable(key: 'projectEditListFailed' | 'bindListFailed') {
+  return (error: unknown): never => {
+    if (error instanceof RepositoryListUnreadable) throw new Error(message(key, { reason: detail(error.reason) }));
+    throw error;
+  };
 }

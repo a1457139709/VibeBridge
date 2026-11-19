@@ -1,4 +1,4 @@
-import { useState, type ReactNode } from 'react';
+import { useRef, useState, type ReactNode } from 'react';
 import { useLocalization } from '../common/Localization';
 import type { ProjectView } from '../../shared/model';
 import { sameRepository, type RepositoryReference } from '../../shared/forge/forge';
@@ -34,6 +34,22 @@ function useBindingCall() {
   };
 }
 
+/** Focus for a control drawn in place of the one just pressed, which unmounts with it: call `request` before the
+ * swap and put `ref` on the control that takes over. */
+function useFocusHandoff() {
+  const pending = useRef(false);
+  return {
+    request() {
+      pending.current = true;
+    },
+    ref(element: HTMLElement | null) {
+      if (!element || !pending.current) return;
+      pending.current = false;
+      element.focus();
+    },
+  };
+}
+
 /** An unbound project's sidebar body. When `origin` of its directory points at a listed repository, a card offers to
  * bind that one, and Choose another repository… opens the list with that one picked; otherwise the list shows with nothing picked. Each
  * Bind button binds at once; the sidebar then shows the bound repository's lists. */
@@ -44,7 +60,9 @@ export function UnboundRepository({ project }: { project: ProjectView }) {
   const [choosingOther, setChoosingOther] = useState(false);
   const [picked, setPicked] = useState<RepositoryReference>();
   const call = useBindingCall();
-  const selection = picked ?? listed?.origin ?? null;
+  const backToCard = useFocusHandoff();
+  // A list that failed to load offers nothing to bind, whatever was picked before.
+  const selection = listed ? (picked ?? listed.origin ?? null) : null;
   const bind = (repository: RepositoryReference) =>
     void call.run(() => window.workbench.bindRepository(project.id, repository));
   const origin = listed?.origin;
@@ -66,7 +84,7 @@ export function UnboundRepository({ project }: { project: ProjectView }) {
         <button className="primary" disabled={call.busy} onClick={() => bind(origin)}>
           {call.busy ? t('binding') : t('bindTo', { repository: origin.path })}
         </button>
-        <button className="binding-link" onClick={() => setChoosingOther(true)}>
+        <button className="binding-link" ref={backToCard.ref} onClick={() => setChoosingOther(true)}>
           {t('chooseOtherRepository')}
         </button>
       </div>
@@ -81,6 +99,7 @@ export function UnboundRepository({ project }: { project: ProjectView }) {
         <button
           className="binding-link"
           onClick={() => {
+            backToCard.request();
             setChoosingOther(false);
             setPicked(undefined);
           }}
@@ -119,11 +138,12 @@ export function ChangeBinding({
 }) {
   const { t } = useLocalization();
   const bound = project.repository;
-  const { choices, retry } = useRepositoryChoices(project.id, project.directory);
+  const { choices, listed, retry } = useRepositoryChoices(project.id, project.directory);
   const [picked, setPicked] = useState<RepositoryReference>();
   const [unbinding, setUnbinding] = useState(false);
   const call = useBindingCall();
-  const rebindTarget = picked && !sameRepository(picked, bound) ? picked : undefined;
+  const toggleUnbinding = useFocusHandoff();
+  const rebindTarget = listed && picked && !sameRepository(picked, bound) ? picked : undefined;
   let consequence: ReactNode = null;
   if (unbinding)
     consequence = (
@@ -166,7 +186,14 @@ export function ChangeBinding({
         {unbinding ? (
           <>
             <span className="binding-spacer" />
-            <button disabled={call.busy} onClick={() => setUnbinding(false)}>
+            <button
+              ref={toggleUnbinding.ref}
+              disabled={call.busy}
+              onClick={() => {
+                toggleUnbinding.request();
+                setUnbinding(false);
+              }}
+            >
               {t('cancel')}
             </button>
             <button
@@ -181,8 +208,10 @@ export function ChangeBinding({
           <>
             <button
               className="binding-link danger"
+              ref={toggleUnbinding.ref}
               disabled={call.busy}
               onClick={() => {
+                toggleUnbinding.request();
                 setPicked(undefined);
                 setUnbinding(true);
               }}

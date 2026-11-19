@@ -38,7 +38,7 @@ export function useForgeSidebar(host: Host, api: Pick<DesktopAPI, 'saveSidebar' 
   const focusOnOpen = useRef(false);
   /** The project and binding whose change-binding page the sidebar shows in place of the lists; a binding changed in
    * any way leaves it. */
-  const [changingBinding, setChangingBinding] = useState<string>();
+  const [changingBindingOf, setChangingBindingOf] = useState<string>();
   const [detailOpen, setDetailOpen] = useState(false);
   const [width, setWidth] = useState(detailWidth.initial);
   /** The target each command last went to, kept only while the app runs. */
@@ -121,13 +121,17 @@ export function useForgeSidebar(host: Host, api: Pick<DesktopAPI, 'saveSidebar' 
           aria-label={t('resizeForgeSidebar', { forge: project.forge.name })}
           onPointerDown={resize}
         />
-        {project.repository && changingBinding === bindingKey ? (
+        {project.repository && changingBindingOf === bindingKey ? (
           <>
             <SidebarHead title={project.repository.path} />
             <ChangeBinding
               key={project.id}
               project={{ ...project, repository: project.repository }}
-              back={() => setChangingBinding(undefined)}
+              back={() => {
+                setChangingBindingOf(undefined);
+                // The page's controls leave with it; focus stays in the sidebar.
+                element.current!.focus();
+              }}
             />
           </>
         ) : project.repository ? (
@@ -136,7 +140,7 @@ export function useForgeSidebar(host: Host, api: Pick<DesktopAPI, 'saveSidebar' 
             ref={listsActions}
             key={bindingKey}
             project={{ ...project, repository: project.repository }}
-            changeBinding={() => setChangingBinding(bindingKey)}
+            changeBinding={() => setChangingBindingOf(bindingKey)}
             detailHost={detail}
             dispatchHost={{
               workflows: snapshot!.settings.workflows,

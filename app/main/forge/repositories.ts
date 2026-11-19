@@ -1,4 +1,4 @@
-import { message, detail } from '../../shared/messages';
+import { message } from '../../shared/messages';
 import { repositoryReferenceSchema, type RepositoryChoices, type RepositoryReference } from '../../shared/forge/forge';
 import { forges, defaultForge } from './forges';
 import { ForgeError } from './forge';
@@ -40,13 +40,16 @@ export async function repositoryChoices(
   }
 }
 
-/** The repository as its forge currently lists it, found by its ID, at its listed path; null stays null and needs no list.
- * A list that cannot be read throws `listFailed` with the forge's reason. */
-export async function listedRepository(
-  repository: RepositoryReference | null,
-  listFailed: 'projectEditListFailed' | 'bindListFailed',
-): Promise<RepositoryReference | null> {
-  if (repository === null) return null;
+/** The forge could not list repositories; `reason` is the forge's own text. */
+export class RepositoryListUnreadable extends Error {
+  constructor(readonly reason: string) {
+    super(reason);
+  }
+}
+
+/** The repository as its forge currently lists it, found by its ID, at its listed path. A list that cannot be read
+ * throws `RepositoryListUnreadable`; a repository the list does not show throws `repositoryNotListed`. */
+export async function listedRepository(repository: RepositoryReference): Promise<RepositoryReference> {
   const parsed = repositoryReferenceSchema.safeParse(repository);
   if (!parsed.success) throw new Error(message('repositoryNotListed'));
   const { forge: id, host } = parsed.data;
@@ -56,11 +59,7 @@ export async function listedRepository(
     listed = await forge.repositories(host);
   } catch (error) {
     if (error instanceof ForgeError)
-      throw new Error(
-        message(listFailed, {
-          reason: detail(error.detail || message('forgeNotInstalled', { cli: forge.presentation.cli })),
-        }),
-      );
+      throw new RepositoryListUnreadable(error.detail || message('forgeNotInstalled', { cli: forge.presentation.cli }));
     throw error;
   }
   const found = listed.find(item => item.id === parsed.data.id);
