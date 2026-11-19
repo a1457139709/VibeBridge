@@ -26,6 +26,7 @@ import type {
   ListQuery,
   PullRequestPage,
   RepositoryChoices,
+  RepositoryReference,
 } from './forge/forge';
 
 export interface DesktopAPI {
@@ -37,6 +38,11 @@ export interface DesktopAPI {
   inspectDirectory(directory: string): Promise<DirectoryResult>;
   /** The repositories the project can bind, with the one the origin of `directory` points at; or a forge failure. */
   repositoryChoices(projectId: string, directory: string): Promise<RepositoryChoices>;
+  /** Binds or rebinds the project to a repository its forge lists; the list is read again first, and when it cannot be
+   * read or does not show the repository, nothing is written and it rejects with the reason. */
+  bindRepository(projectId: string, repository: RepositoryReference): Promise<void>;
+  /** Unbinds the project; it needs no forge CLI. */
+  unbindRepository(projectId: string): Promise<void>;
   /** One page of the issues of the project's bound repository, filtered by the forge; or a forge failure. */
   issuePage(projectId: string, query: ListQuery): Promise<IssuePage>;
   /** One page of the pull requests of the project's bound repository, filtered by the forge; or a forge failure. */

@@ -318,11 +318,7 @@ test('restarting a panel revokes old report credentials and never inherits Done'
     const context = JSON.parse(f.output(run.id).match(/CONTEXT:([^\r\n]+)/)![1]);
     const target = join(f.directory, 'restart');
     await mkdir(target);
-    const result = await f.workbench.editProject(
-      project.id,
-      { name: project.name, directory: target, repository: null },
-      true,
-    );
+    const result = await f.workbench.editProject(project.id, { name: project.name, directory: target }, true);
     const fresh = result.launches[0].run;
     await until(() => f.output(fresh.id).includes('STATUS-CLI-READY'));
     assert.notEqual(fresh.id, run.id);

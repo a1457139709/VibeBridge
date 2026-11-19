@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import test, { afterEach, before } from 'node:test';
 import { cleanup, screen, waitFor, within } from '@testing-library/react';
 import { githubForge, githubRepository } from './support/forge';
+import type { RepositoryChoices } from '../../app/shared/forge/forge';
 import {
   bug,
   failed,
@@ -154,7 +155,7 @@ test('a logged-out forge CLI offers to copy the login command and Retry', async 
   await request(2);
 });
 
-test('an inaccessible repository names the account and offers Retry and Change binding', async () => {
+test('an inaccessible repository names the account and offers Retry and Change binding, which opens the change-binding page', async () => {
   const { user, request } = renderWorkbench();
   (await request(1)).answer(failed('inaccessible', 'GraphQL: Could not resolve to a Repository', 'octo'));
   await waitFor(() =>
@@ -178,53 +179,123 @@ test('an inaccessible repository names the account and offers Retry and Change b
       .getAllByRole('button', { name: 'Change binding' })
       .find(button => !button.closest('header'))!,
   );
-  const dialog = await screen.findByRole('dialog', { name: 'Change binding' });
+  const search = await within(sidebar()).findByRole('searchbox', { name: 'Search repositories' });
   await waitFor(() =>
-    assert.equal(
-      document.activeElement,
-      within(dialog).getByRole('button', { name: 'Change' }),
-      'focus is on the repository field',
-    ),
+    assert.equal(document.activeElement, search, 'the change-binding page opens with focus in its search'),
   );
 });
 
-test('Change binding beside Refresh opens the repository field alone, and saves the binding with the name and directory as they are', async () => {
-  const edits: unknown[] = [];
-  const { user, request, snapshot } = renderWorkbench(undefined, {
-    repositoryChoices: async () => ({
-      ok: true,
-      forge: githubForge,
-      account: 'octo',
-      origin: null,
-      repositories: ['octo/alpha', 'octo/renamed'].map(path => githubRepository(path)),
-    }),
-    editProject: async (id, edit, restart) => {
-      edits.push({ id, edit, restart });
-      return { project: { ...snapshot.projects[0], ...edit }, launches: [] };
+/** The bound project alpha's sidebar on its change-binding page, with octo/alpha listed and octo/renamed the origin;
+ * binding and unbinding record their calls and take effect. */
+async function changeBindingPage(choices?: () => Promise<RepositoryChoices>) {
+  const calls: unknown[] = [];
+  const rendered = renderWorkbench(undefined, {
+    repositoryChoices:
+      choices ??
+      (async () => ({
+        ok: true,
+        forge: githubForge,
+        account: 'octo',
+        origin: githubRepository('octo/renamed'),
+        repositories: ['octo/alpha', 'octo/renamed'].map(path => githubRepository(path)),
+      })),
+    bindRepository: async (id, repository) => {
+      calls.push(['bind', id, repository]);
+      rendered.snapshot.projects[0].repository = repository;
+      rendered.publish();
+    },
+    unbindRepository: async id => {
+      calls.push(['unbind', id]);
+      rendered.snapshot.projects[0].repository = null;
+      rendered.publish();
     },
   });
-  (await request(1)).answer(page([issue(1)]));
-  await user.click(within(sidebar().querySelector('header')!).getByRole('button', { name: 'Change binding' }));
-  const dialog = await screen.findByRole('dialog', { name: 'Change binding' });
-  assert.equal(within(dialog).queryByRole('textbox'), null, 'neither the name nor the directory is shown');
-  const change = within(dialog).getByRole('button', { name: 'Change' });
-  await waitFor(() => assert.equal(document.activeElement, change, 'focus is on Change, as in Edit project'));
-  await user.click(change);
-  const search = await within(dialog).findByRole('searchbox', { name: 'Search repositories' });
-  await waitFor(() => assert.equal(document.activeElement, search));
-  await user.keyboard('{ArrowDown}{ArrowDown}{Enter}');
-  assert.ok(
-    within(within(dialog).getByRole('region', { name: 'After saving' })).getByText('octo/alpha → octo/renamed'),
+  (await rendered.request(1)).answer(page([issue(1)]));
+  await rendered.user.click(within(sidebar().querySelector('header')!).getByRole('button', { name: 'Change binding' }));
+  await within(sidebar()).findByRole('button', { name: '← Back' });
+  return { ...rendered, calls };
+}
+
+test('Change binding turns the sidebar to its change-binding page, and ← Back returns to the lists with focus in the sidebar', async () => {
+  const { user, request } = await changeBindingPage();
+  assert.equal(screen.queryByRole('dialog'), null, 'no dialog opens');
+  assert.equal(within(sidebar()).getByText('Currently bound:').querySelector('b')?.textContent, 'octo/alpha');
+  const options = await within(sidebar()).findAllByRole('option');
+  assert.deepEqual(
+    options.map(option => option.textContent),
+    ['octo/renamedorigin', 'octo/alphacurrent'],
+    'origin first, and the current binding marked',
   );
-  await user.click(within(dialog).getByRole('button', { name: 'Save changes' }));
-  await waitFor(() => assert.equal(screen.queryByRole('dialog'), null));
-  assert.deepEqual(edits, [
-    {
-      id: 'alpha',
-      edit: { name: 'Alpha', directory: '/work/alpha', repository: githubRepository('octo/renamed') },
-      restart: false,
-    },
-  ]);
+  await user.click(within(sidebar()).getByRole('button', { name: '← Back' }));
+  (await request(2)).answer(page([issue(1)]));
+  await waitFor(() => assert.deepEqual(rows(), ['Issue 1']));
+  await waitFor(() => assert.ok(sidebar().contains(document.activeElement), 'focus stays in the sidebar'));
+});
+
+test('picking another repository states what rebinding does, and Rebind to Y rebinds at once and returns to the lists', async () => {
+  const { user, calls, request } = await changeBindingPage();
+  assert.equal((within(sidebar()).getByRole('button', { name: 'Rebind' }) as HTMLButtonElement).disabled, true);
+  await user.click(await within(sidebar()).findByRole('option', { name: /octo\/renamed/ }));
+  assert.ok(
+    within(sidebar()).getByText(
+      'Rebinding to octo/renamed: Dispatch records for the old repository are hidden but kept, and show again if you switch back.',
+    ),
+  );
+  await user.click(within(sidebar()).getByRole('button', { name: 'Rebind to octo/renamed' }));
+  assert.deepEqual(calls, [['bind', 'alpha', githubRepository('octo/renamed')]]);
+  const next = await request(2);
+  assert.equal(next.projectId, 'alpha');
+  await waitFor(() => assert.ok(within(sidebar()).getByText('octo/renamed', { selector: 'header *' })));
+});
+
+test('a bound repository the forge lists at a new path is listed once, there, as the current one, and Rebind stays unavailable', async () => {
+  await changeBindingPage(async () => ({
+    ok: true,
+    forge: githubForge,
+    account: 'octo',
+    origin: githubRepository('octo/renamed'),
+    repositories: [
+      githubRepository('octo/alpha-x', githubRepository('octo/alpha').id),
+      githubRepository('octo/renamed'),
+    ],
+  }));
+  const options = await within(sidebar()).findAllByRole('option');
+  assert.deepEqual(
+    options.map(option => option.textContent),
+    ['octo/renamedorigin', 'octo/alpha-xcurrent'],
+  );
+  assert.equal((within(sidebar()).getByRole('button', { name: 'Rebind' }) as HTMLButtonElement).disabled, true);
+});
+
+test('a binding changed elsewhere while the change-binding page shows returns the sidebar to the lists', async () => {
+  const { snapshot, publish, request } = await changeBindingPage();
+  snapshot.projects[0].repository = githubRepository('octo/renamed');
+  publish();
+  (await request(2)).answer(page([issue(1)]));
+  await waitFor(() => assert.deepEqual(rows(), ['Issue 1']));
+  assert.equal(within(sidebar()).queryByRole('button', { name: '← Back' }), null);
+});
+
+test('Unbind states what unbinding does before its own Unbind carries it out, Cancel steps back, and it works without gh', async () => {
+  const { user, calls } = await changeBindingPage(async () => ({
+    ok: false,
+    failure: { kind: 'notInstalled', detail: '', forge: githubForge },
+  }));
+  await within(sidebar()).findByText('Could not find gh; install it to bind a repository.');
+  await user.click(within(sidebar()).getByRole('button', { name: 'Unbind' }));
+  const consequence = 'Unbinding: Dispatch records are kept; the sidebar shows the project as unbound.';
+  assert.ok(within(sidebar()).getByText(consequence));
+  const cancel = within(sidebar()).getByRole('button', { name: 'Cancel' });
+  await waitFor(() => assert.equal(document.activeElement, cancel, 'focus moves to Cancel'));
+  await user.click(cancel);
+  assert.equal(within(sidebar()).queryByText(consequence), null);
+  const unbind = within(sidebar()).getByRole('button', { name: 'Unbind' });
+  await waitFor(() => assert.equal(document.activeElement, unbind, 'focus returns to Unbind'));
+  assert.deepEqual(calls, []);
+  await user.click(within(sidebar()).getByRole('button', { name: 'Unbind' }));
+  await user.click(within(sidebar()).getByRole('button', { name: 'Unbind' }));
+  assert.deepEqual(calls, [['unbind', 'alpha']]);
+  await waitFor(() => assert.ok(within(sidebar()).getByText('No repository bound')));
 });
 
 test('a transient failure keeps the rows under a stale notice, and fills the sidebar when there were none', async () => {

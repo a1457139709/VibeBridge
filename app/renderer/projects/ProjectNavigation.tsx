@@ -18,6 +18,8 @@ interface Host {
   page: 'workbench' | 'setup' | 'settings';
   view: PanelLocation['view'];
   openProject(id: string): void;
+  /** Opens the forge sidebar where the project's binding is made or changed. */
+  openBinding(project: ProjectView): void;
   locatePanel(projectId: string, panelId: string): void;
   createProject(): void;
   toggleSettings(): void;
@@ -78,7 +80,7 @@ export function useProjectNavigation(
             const count = projectPanels(project).length;
             return (
               <section key={project.id} className="project-group" data-project-id={project.id}>
-                <ProjectNavigationItem project={project} openProject={host.openProject}>
+                <ProjectNavigationItem project={project} openProject={host.openProject} openBinding={host.openBinding}>
                   <button
                     className="project-disclosure"
                     aria-label={t(expanded ? 'collapseProject' : 'expandProject', { name: project.name })}

@@ -6,7 +6,7 @@ import {
   type PointerEvent as ReactPointerEvent,
   type Ref,
 } from 'react';
-import { ArrowSwitchIcon, SyncIcon } from '@primer/octicons-react';
+import { SyncIcon } from '@primer/octicons-react';
 import { useLocalization } from '../common/Localization';
 import { detail } from '../../shared/messages';
 import type {
@@ -78,30 +78,25 @@ const pageOf: {
   pullRequests: (projectId, query) => window.workbench.pullRequestPage(projectId, query),
 };
 
-/** The sidebar's header: the repository, or that none is bound, with Change binding for a bound one, and the persistent Refresh. */
+/** The sidebar's header: the repository, or that none is bound, with Change binding for a bound one's lists, and the persistent Refresh. */
 export function SidebarHead({
   title,
   refresh,
   loading = false,
-  editBinding,
+  changeBinding,
 }: {
   title: string;
   refresh?(): void;
   loading?: boolean;
-  editBinding?(): void;
+  changeBinding?(): void;
 }) {
   const { t } = useLocalization();
   return (
     <header className="forge-sidebar-head">
       <span className="forge-sidebar-repository">{title}</span>
-      {editBinding && (
-        <button
-          className="forge-head-action"
-          aria-label={t('changeBinding')}
-          data-hint={t('changeBinding')}
-          onClick={editBinding}
-        >
-          <ArrowSwitchIcon size={14} />
+      {changeBinding && (
+        <button className="forge-head-text" onClick={changeBinding}>
+          {t('changeBinding')}
         </button>
       )}
       <button
@@ -127,8 +122,8 @@ export interface DetailHost {
 
 interface Props {
   project: ProjectView & { repository: RepositoryReference };
-  /** Opens Edit project with focus on the repository field. */
-  editBinding(): void;
+  /** Turns the sidebar to its change-binding page. */
+  changeBinding(): void;
   detailHost: DetailHost;
   /** Dispatching from an issue row or its detail; the lists add what happens once a dispatch went through. */
   dispatchHost: Omit<DispatchHost, 'dispatched'>;
@@ -148,7 +143,7 @@ export interface ForgeListsActions {
  * project and repository: opening the sidebar or returning to a project starts from open with no filter, and refreshes.
  * Only the current tab is fetched, each time it shows. There is no timed refresh. Clicking a row opens its detail
  * beside the list; links followed inside the detail stack up, so Back returns to the item before. */
-export function ForgeLists({ project, editBinding, detailHost, dispatchHost, ref }: Props) {
+export function ForgeLists({ project, changeBinding, detailHost, dispatchHost, ref }: Props) {
   const { t, text } = useLocalization();
   const [tab, setTab] = useState<Tab>('issues');
   const [filters, setFilters] = useState<Record<Tab, ListFilter>>({ issues: openNoFilter, pullRequests: openNoFilter });
@@ -314,7 +309,7 @@ export function ForgeLists({ project, editBinding, detailHost, dispatchHost, ref
     </button>
   );
   const head = (
-    <SidebarHead title={project.repository.path} refresh={refresh} loading={loading} editBinding={editBinding} />
+    <SidebarHead title={project.repository.path} refresh={refresh} loading={loading} changeBinding={changeBinding} />
   );
   const fill = (body: React.ReactNode) => (
     <>
@@ -356,7 +351,7 @@ export function ForgeLists({ project, editBinding, detailHost, dispatchHost, ref
               })}
         </p>
         {retry}
-        <button onClick={editBinding}>{t('changeBinding')}</button>
+        <button onClick={changeBinding}>{t('changeBinding')}</button>
       </>,
     );
   const texts = tabText[tab];

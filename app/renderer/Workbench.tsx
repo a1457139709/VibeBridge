@@ -115,6 +115,12 @@ function WorkbenchView({ state, setState }: { state?: Snapshot; setState(snapsho
     page: settingsOpen ? 'settings' : setup ? 'setup' : 'workbench',
     view: location.view,
     openProject: activate,
+    // The sidebar shows the current project, so the project whose binding it opens on becomes current.
+    openBinding: project =>
+      navigate(() => {
+        if (state?.activeProjectId !== project.id) location.openProject(project.id);
+        forgeSidebar.openBinding(project);
+      }),
     locatePanel,
     createProject: create,
     toggleSettings,

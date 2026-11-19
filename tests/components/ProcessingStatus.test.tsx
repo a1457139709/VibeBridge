@@ -88,6 +88,7 @@ test("navigation reads each panel view's state, exposes all five states to keybo
       page: 'workbench',
       view: () => ({ selected: 'done' }),
       openProject: () => {},
+      openBinding: () => {},
       locatePanel: (_project, panel) => located.push(panel),
       createProject: () => {},
       toggleSettings: () => {},
