@@ -39,12 +39,12 @@ test('navigation preferences default open and survive project deletion and reope
   }
 });
 
-test('navigation remains usable for out-of-range widths and invalid requests do not replace saved preferences', async context => {
+test('the navigation width is at least 168px with no upper bound, and an invalid request keeps the saved preferences', async context => {
   const directory = await testDirectory(context, 'navigation-validation');
   const workbench = await Workbench.open(directory);
   try {
     await workbench.saveSidebar('navigation', { visible: false, width: 10000 });
-    assert.deepEqual(workbench.snapshot().navigation, { visible: false, width: 420 });
+    assert.deepEqual(workbench.snapshot().navigation, { visible: false, width: 10000 });
     await workbench.saveSidebar('navigation', { visible: true, width: 0 });
     assert.deepEqual(workbench.snapshot().navigation, { visible: true, width: 168 });
     await assert.rejects(workbench.saveSidebar('navigation', { visible: true, width: NaN }), /navigationInvalid/);

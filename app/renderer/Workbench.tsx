@@ -6,6 +6,7 @@ import type {} from '../shared/api';
 import { newDraft, type Snapshot } from '../shared/model';
 import { useProjectNavigation } from './projects/ProjectNavigation';
 import { useForgeSidebar } from './forge/ForgeSidebar';
+import { fitRegions, useWindowWidth, type Region, type RegionFit } from './common/region-widths';
 import { Setup } from './projects/Setup';
 import { Workspace, type WorkspaceActions } from './workspace/Workspace';
 import { usePanelLocation } from './panels/panel-location';
@@ -110,6 +111,14 @@ function WorkbenchView({ state, setState }: { state?: Snapshot; setState(snapsho
   const create = () => navigate(() => location.leaveWorkbench(() => setSetup(true)));
   const locatePanel = (projectId: string, panelId: string, runId?: string) =>
     navigate(() => location.locatePanel(projectId, panelId, runId));
+  const windowWidth = useWindowWidth();
+  const [lastResized, setLastResized] = useState<Region>('navigation');
+  /** How each region was last drawn: a drag starts from it. */
+  const drawn = useRef<Record<Region, RegionFit>>(undefined);
+  const beginResize = (region: Region) => {
+    setLastResized(region);
+    return drawn.current![region].widest;
+  };
   const navigation = useProjectNavigation({
     snapshot: state,
     page: settingsOpen ? 'settings' : setup ? 'setup' : 'workbench',
@@ -124,11 +133,29 @@ function WorkbenchView({ state, setState }: { state?: Snapshot; setState(snapsho
     locatePanel,
     createProject: create,
     toggleSettings,
+    beginResize,
     report,
   });
   const active = state?.projects.find(project => project.id === state.activeProjectId);
   // The forge sidebar shows the current project, on the workbench and on the settings page.
-  const forgeSidebar = useForgeSidebar({ snapshot: state, project: setup ? undefined : active, locatePanel, report });
+  const forgeSidebar = useForgeSidebar({
+    snapshot: state,
+    project: setup ? undefined : active,
+    locatePanel,
+    beginResize,
+    report,
+  });
+  // The window bounds how the regions are drawn, never their remembered widths.
+  const fits = fitRegions(
+    windowWidth,
+    {
+      navigation: navigation.width,
+      forgeSidebar: forgeSidebar.shown ? forgeSidebar.width : 0,
+      detail: forgeSidebar.detail.shown ? forgeSidebar.detail.width : 0,
+    },
+    lastResized,
+  );
+  drawn.current = fits;
   const conflictCategory = state?.settingsConflicts[0]?.category;
   useEffect(() => {
     const keydown = (event: KeyboardEvent) => {
@@ -176,9 +203,9 @@ function WorkbenchView({ state, setState }: { state?: Snapshot; setState(snapsho
         className={`app-body ${forgeSidebar.shown && forgeSidebar.overlay ? 'forge-sidebar-yield' : ''} ${forgeSidebar.detail.squeeze ? 'forge-detail-squeeze' : ''}`}
         style={
           {
-            '--navigation-extent': `${navigation.extent}px`,
-            '--forge-sidebar-width': `${forgeSidebar.width}px`,
-            '--forge-detail-width': `${forgeSidebar.detail.width}px`,
+            '--navigation-width': `${fits.navigation.width}px`,
+            '--forge-sidebar-width': `${fits.forgeSidebar.width}px`,
+            '--forge-detail-width': `${fits.detail.width}px`,
           } as CSSProperties
         }
       >
