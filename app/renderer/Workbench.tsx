@@ -6,7 +6,7 @@ import type {} from '../shared/api';
 import { newDraft, type Snapshot } from '../shared/model';
 import { useProjectNavigation } from './projects/ProjectNavigation';
 import { useForgeSidebar } from './forge/ForgeSidebar';
-import { fitRegions, useWindowWidth, type Region, type RegionFit } from './common/region-widths';
+import { fitRegions, useWindowWidth, type Region, type RegionFit, type WidestOnResize } from './common/region-widths';
 import { Setup } from './projects/Setup';
 import { Workspace, type WorkspaceActions } from './workspace/Workspace';
 import { usePanelLocation } from './panels/panel-location';
@@ -115,7 +115,7 @@ function WorkbenchView({ state, setState }: { state?: Snapshot; setState(snapsho
   const [lastResized, setLastResized] = useState<Region>('navigation');
   /** How each region was last drawn: a drag starts from it. */
   const drawn = useRef<Record<Region, RegionFit>>(undefined);
-  const beginResize = (region: Region) => {
+  const widestOnResize: WidestOnResize = region => {
     setLastResized(region);
     return drawn.current![region].widest;
   };
@@ -133,7 +133,7 @@ function WorkbenchView({ state, setState }: { state?: Snapshot; setState(snapsho
     locatePanel,
     createProject: create,
     toggleSettings,
-    beginResize,
+    widestOnResize,
     report,
   });
   const active = state?.projects.find(project => project.id === state.activeProjectId);
@@ -142,7 +142,7 @@ function WorkbenchView({ state, setState }: { state?: Snapshot; setState(snapsho
     snapshot: state,
     project: setup ? undefined : active,
     locatePanel,
-    beginResize,
+    widestOnResize,
     report,
   });
   // The window bounds how the regions are drawn, never their remembered widths.

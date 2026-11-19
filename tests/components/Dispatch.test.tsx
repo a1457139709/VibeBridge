@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import test, { afterEach, before } from 'node:test';
 import { cleanup, screen, waitFor, within } from '@testing-library/react';
 import { localize } from '../../app/shared/localization/localization';
+import { defaultShortcuts, displayShortcut } from '../../app/shared/settings/shortcuts';
 import { sidebar, stubSidebarApis } from './support/forge-lists';
 import { dispatchButton, hoursAgo, listed, menu, panelOf, record, row } from './support/dispatch';
 
@@ -178,7 +179,11 @@ test("an issue row shows only its latest dispatch's skill: a link to its panel w
   const skill = within(row(9)).getByRole('button', { name: 'grill-me' });
   assert.equal(
     skill.getAttribute('data-hint'),
-    t('dispatchSkillLocatable', { skill: 'grill-me', age: t('hoursAgo', { count: 2 }), shortcut: '⌘ L' }),
+    t('dispatchSkillLocatable', {
+      skill: 'grill-me',
+      age: t('hoursAgo', { count: 2 }),
+      shortcut: displayShortcut(defaultShortcuts().locateDispatchedPanel),
+    }),
   );
   assert.equal(within(row(9)).queryByText('to-spec'), null, 'earlier dispatches do not show');
   assert.equal(within(row(8)).queryByText('implement'), null, 'a closed issue shows no dispatch');

@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { fitRegions } from '../app/renderer/common/region-widths';
+import { draggedWidth, fitRegions } from '../app/renderer/common/region-widths';
 
 const roomy = { navigation: 212, forgeSidebar: 380, detail: 640 };
 
@@ -61,4 +61,10 @@ test('a narrower window draws the regions narrower, and a wider one draws them a
   const remembered = { navigation: 212, forgeSidebar: 700, detail: 0 };
   assert.equal(fitRegions(800, remembered, 'navigation').forgeSidebar.width, 588);
   assert.equal(fitRegions(1400, remembered, 'navigation').forgeSidebar.width, 700);
+});
+
+test('a dragged width is a whole pixel between the narrowest and the widest', () => {
+  assert.equal(draggedWidth(250.6, 168, 400), 251);
+  assert.equal(draggedWidth(100, 168, 400), 168);
+  assert.equal(draggedWidth(900, 168, 400), 400);
 });

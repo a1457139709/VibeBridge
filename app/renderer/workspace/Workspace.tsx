@@ -26,7 +26,7 @@ import type { ShortcutAction } from '../../shared/settings/shortcuts';
 import { useWorkspacePanelLocation, type PanelLocation } from '../panels/panel-location';
 import { ProcessingStatusIcon } from '../common/ProcessingStatusIcon';
 import { PanelTray } from './PanelTray';
-import { canFly, flyIntoCard, growFromCard } from './tray-flight';
+import { useTrayFlight } from './tray-flight';
 import { ProjectSummary } from './ProjectSummary';
 
 export interface WorkspaceActions {
@@ -147,41 +147,7 @@ export function Workspace({
   const { selected: focused, maximized } = viewing;
   const openTrayPanel = project.tray.find(panel => panel.id === maximized);
   const full = panelLimitReached(project);
-  const [landedPanelId, setLandedPanelId] = useState<string>();
-  const shownTrayPanelId = useRef<string>(undefined);
-  const flyingPanelId = useRef<string>(undefined);
-  const slotOf = (panelId: string) => canvas.current?.querySelector(`[data-panel-id="${CSS.escape(panelId)}"]`);
-  const cardOf = (panelId: string) => tray.current?.querySelector(`[data-tray-panel-id="${CSS.escape(panelId)}"]`);
-  // A tray panel that opens grows out of its card.
-  useLayoutEffect(() => {
-    const opened = openTrayPanel?.id;
-    if (opened && opened !== shownTrayPanelId.current) {
-      const slot = slotOf(opened),
-        card = cardOf(opened);
-      if (card && canFly(slot)) growFromCard(slot, card);
-    }
-    shownTrayPanelId.current = opened;
-  });
-  /** Collapses the open tray panel by flying it into its card, which then flashes; with reduced motion, at once. */
-  const collapseIntoTray = () => {
-    const panelId = openTrayPanel?.id;
-    if (!panelId) return;
-    const slot = slotOf(panelId),
-      card = cardOf(panelId);
-    if (!card || !canFly(slot)) {
-      viewing.collapse();
-      return;
-    }
-    if (flyingPanelId.current === panelId) return;
-    flyingPanelId.current = panelId;
-    void flyIntoCard(slot, card).then(() => {
-      flyingPanelId.current = undefined;
-      // Another panel may have taken the layout area during the flight.
-      if (shownTrayPanelId.current !== panelId) return;
-      viewing.collapse();
-      setLandedPanelId(panelId);
-    });
-  };
+  const flight = useTrayFlight({ openPanelId: openTrayPanel?.id, canvas, tray, collapse: viewing.collapse });
   const persist = (next: Layout) => {
     void window.workbench.saveLayout(project.id, next).catch(error => report(error.message));
   };
@@ -261,7 +227,7 @@ export function Workspace({
       }
       // Panel keys follow the resident layout: an open tray panel returns to the tray first.
       if (action === 'maximizePanel') {
-        if (openTrayPanel) collapseIntoTray();
+        if (openTrayPanel) flight.collapseIntoCard();
         else if (focused) viewing.toggleMaximize(focused);
         return !!(openTrayPanel || focused);
       }
@@ -331,7 +297,7 @@ export function Workspace({
             openTrayPanel,
             maximizedPosition,
             true,
-            <PanelAction label={t('collapsePanel')} run={collapseIntoTray}>
+            <PanelAction label={t('collapsePanel')} run={flight.collapseIntoCard}>
               ⌄
             </PanelAction>,
           )}
@@ -372,10 +338,10 @@ export function Workspace({
         ref={tray}
         panels={project.tray}
         openPanelId={openTrayPanel?.id}
-        landedPanelId={landedPanelId}
+        landedPanelId={flight.landedPanelId}
         open={viewing.openTrayPanel}
-        collapse={collapseIntoTray}
-        landingEnded={() => setLandedPanelId(undefined)}
+        collapse={flight.collapseIntoCard}
+        landingEnded={flight.landingEnded}
         cardPointerDown={(event, panelId) =>
           interactions.current?.startDrag(event.nativeEvent, event.currentTarget, panelId)
         }

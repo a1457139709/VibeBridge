@@ -10,13 +10,13 @@
     0 0 0 10px var(--forge-graph-plate),
     0 0 0 11px var(--line);
 }
-.forge-graph :is([data-column='blockedBy'], [data-relation='blockedBy']) {
+.forge-graph [data-relation='blockedBy'] {
   --forge-relation: var(--forge-failed);
 }
-.forge-graph :is([data-column='self'], [data-relation='self']) {
+.forge-graph [data-relation='self'] {
   --forge-relation: var(--forge-open);
 }
-.forge-graph :is([data-column='blocking'], [data-relation='blocking']) {
+.forge-graph [data-relation='blocking'] {
   --forge-relation: var(--forge-pending);
 }
 .forge-graph > svg {
@@ -30,9 +30,6 @@
   top: 0;
   font-size: 10px;
   font-weight: 600;
-  color: var(--muted);
-}
-.forge-graph-head:not([data-relation='self']) {
   color: var(--forge-relation);
 }
 .forge-node {

@@ -76,9 +76,13 @@ test("Dispatch records list the issue's dispatches newest first, one line each: 
       record(8, null),
     ];
   });
+  const counted = within(pane()).getByRole('region', { name: t('dispatchRecords', { count: 3 }) });
   assert.equal(
-    within(records()).getByRole('button', { name: /Dispatch records/ }).textContent,
-    '▾ Dispatch records (3)',
+    within(counted)
+      .getByRole('button', { name: t('dispatchRecords', { count: 3 }) })
+      .getAttribute('aria-expanded'),
+    'true',
+    'an open issue shows its records unfolded',
   );
   const shown = within(records()).getAllByRole('listitem');
   assert.deepEqual(shown.map(line), [
@@ -132,8 +136,7 @@ test("a closed issue's Dispatch records fold to their count and unfold on click"
   const f = await opened(detail(8, { state: 'closed', closedAs: 'completed' }), snapshot => {
     snapshot.projects[0].dispatches = [record(8, null), record(8, { projectId: 'alpha', panelId: 'tray' })];
   });
-  const toggle = within(records()).getByRole('button', { name: /Dispatch records/ });
-  assert.equal(toggle.textContent, '▸ Dispatch records (2)');
+  const toggle = within(records()).getByRole('button', { name: t('dispatchRecords', { count: 2 }) });
   assert.equal(toggle.getAttribute('aria-expanded'), 'false');
   assert.deepEqual(within(records()).queryAllByRole('listitem'), []);
   await f.user.click(toggle);
