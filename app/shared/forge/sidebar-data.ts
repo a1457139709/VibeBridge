@@ -2,6 +2,7 @@ import { z } from 'zod';
 import {
   itemNumberSchema,
   listQuerySchema,
+  type ForgeFailure,
   type IssueDetailResult,
   type ListFilter,
   type ListPage,
@@ -48,10 +49,12 @@ export const detailItemSchema = z.object({ kind: z.enum(['issue', 'pullRequest']
 export type DetailItem = z.infer<typeof detailItemSchema>;
 /** What the forge answered for the detail's item: the issue or pull request, or the forge failure. */
 export type DetailResult = IssueDetailResult | PullRequestDetailResult;
-/** An item the sidebar's detail shows, and the forge's answer for it. */
+/** An item the sidebar's detail shows, the forge's answer for it, and the failure of a later read, which leaves that
+ * answer showing: the data may be stale. */
 export interface ShownDetail {
   item: DetailItem;
   result: DetailResult;
+  failed: ForgeFailure | null;
 }
 
 /** What the main process pushes about the Forge sidebar's data of a project. */

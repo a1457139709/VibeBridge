@@ -11,10 +11,20 @@ import {
   type ForgeListView,
   type ForgeLists,
   type ForgeSidebarPresence,
+  type ShownDetail,
   type ShownRepositoryChoices,
   type TabList,
 } from '../../shared/forge/sidebar-data';
 import { KeptDetails } from './kept-details';
+import {
+  emptyLists,
+  joinedPages,
+  pagesThroughRows,
+  replacedInPlace,
+  sameFilter,
+  type Joining,
+  type KeptLists,
+} from './kept-lists';
 import { RowRest } from './row-rest';
 import { BackgroundUpdates } from './background-updates';
 import { readByNumber, readItem, readPage, type ForgeSidebarSources } from './sidebar-reads';
@@ -22,47 +32,14 @@ import { readByNumber, readItem, readPage, type ForgeSidebarSources } from './si
 /** The projects whose lists are kept, the most recently shown. */
 const projectsKept = 5;
 
-/** A project's lists, with the view the sidebar last declared, where each page a tab loaded ends in its rows (the count
- * of rows through it), the numbers of the shown tab's rows the sidebar renders, and the request that may settle them
- * while it runs. */
-interface CachedList {
-  view: ForgeListView;
-  lists: ForgeLists;
-  pageEnds: Record<ForgeListTab, number[]>;
-  rows: number[];
-  request: object | null;
-  settled: Promise<void>;
-}
-
 /** The item a project's detail shows, with the request that may settle it. */
 interface OpenDetail {
   item: DetailItem;
   request: object;
 }
 
-/** How a first page or the next one joins a tab's rows: `replace` shows the first page alone, `update` replaces the rows
- * it holds in place and keeps the others, and `append` adds the next page. */
-type Joining = 'replace' | 'update' | 'append';
-
-const noRows = { loaded: null, failed: null };
-const sameFilter = (a: ListFilter, b: ListFilter) =>
-  a.search === b.search && a.state === b.state && a.labels.join('\n') === b.labels.join('\n');
 const sameItem = (a: DetailItem, b: DetailItem) => a.kind === b.kind && a.number === b.number;
 const tabOf = (item: DetailItem): ForgeListTab => (item.kind === 'issue' ? 'issues' : 'pullRequests');
-
-/** `rows` with each one `fresh` also holds replaced in place, and each new one placed after the row before it in
- * `fresh`, or first. Rows `fresh` does not hold stay where they were. */
-export function updatedInPlace<Item extends { number: number }>(rows: Item[], fresh: Item[]) {
-  const answered = new Map(fresh.map(item => [item.number, item]));
-  const updated = rows.map(row => answered.get(row.number) ?? row);
-  const held = new Set(rows.map(row => row.number));
-  let at = 0;
-  for (const item of fresh) {
-    if (held.has(item.number)) at = updated.findIndex(row => row.number === item.number) + 1;
-    else updated.splice(at++, 0, item);
-  }
-  return updated;
-}
 
 /** The Forge sidebar's data (docs/adr/0008-forge-sidebar-data-lives-in-the-main-process.md): each project's lists, the
  * item its detail shows, and the repositories its binding pages offer. The renderer declares what it shows, reports
@@ -78,7 +55,7 @@ export function updatedInPlace<Item extends { number: number }>(rows: Item[], fr
  * sidebar shows its project in the foreground has its detail read ahead into the kept details, unless kept already, so
  * opening it shows at once. */
 export class ForgeSidebarData {
-  private lists = new Map<string, CachedList>();
+  private lists = new Map<string, KeptLists>();
   private openDetails = new Map<string, OpenDetail>();
   private details = new KeptDetails();
   private choices = new Map<string, { request: object; choices: ShownRepositoryChoices }>();
@@ -153,7 +130,8 @@ export class ForgeSidebarData {
     }
     const declared = detailItemSchema.parse(item);
     const kept = this.details.use(projectId, declared);
-    if (kept) this.sources.emit({ kind: 'forgeDetail', projectId, detail: { item: declared, result: kept } });
+    if (kept)
+      this.sources.emit({ kind: 'forgeDetail', projectId, detail: { item: declared, result: kept, failed: null } });
     if (kept && this.details.openUnopened(projectId, declared)) {
       this.openDetails.set(projectId, { item: declared, request: {} });
       return;
@@ -228,7 +206,7 @@ export class ForgeSidebarData {
   }
   /** Updates the shown tab's first page in place and reads the rows the sidebar renders by number, asked at once. A
    * failed read of the rows stands beside them once the first page settled, which would clear it. */
-  private async updateShownTab(projectId: string, shown: CachedList) {
+  private async updateShownTab(projectId: string, shown: KeptLists) {
     const { tab, filter } = shown.view;
     const [, failed] = await Promise.all([
       this.load(projectId, shown, tab, filter, 'update'),
@@ -238,7 +216,7 @@ export class ForgeSidebarData {
   }
   /** Reads again the rows of the tab with these numbers, those it holds, and replaces them in place; resolves with the
    * failure of the read, if any. An answer for rows no longer shown, in another filter or binding, is dropped. */
-  private async loadByNumber(projectId: string, shown: CachedList, tab: ForgeListTab, numbers: number[]) {
+  private async loadByNumber(projectId: string, shown: KeptLists, tab: ForgeListTab, numbers: number[]) {
     const before = shown.lists[tab].loaded;
     const held = new Set(before?.items.map(row => row.number));
     const asked = numbers.filter(number => held.has(number)).slice(0, itemsPerRead);
@@ -249,13 +227,12 @@ export class ForgeSidebarData {
     if (this.lists.get(projectId) !== shown || this.bindings.get(projectId) !== binding) return null;
     if (!loaded || !sameFilter(loaded.filter, before.filter)) return null;
     if (!read.ok) return read;
-    const answered = new Map<number, ForgeListItems[ForgeListTab]>(read.items.map(item => [item.number, item]));
-    const items = loaded.items.map(row => answered.get(row.number) ?? row);
+    const items = replacedInPlace<ForgeListItems[ForgeListTab]>(loaded.items, read.items);
     this.settle(projectId, shown, { ...shown.lists, [tab]: { ...shown.lists[tab], loaded: { ...loaded, items } } });
     return null;
   }
   /** Shows a failed read beside the tab's rows, unless the lists were dropped or the tab shows a failure already. */
-  private keepFailure(projectId: string, shown: CachedList, tab: ForgeListTab, failed: FailedPage) {
+  private keepFailure(projectId: string, shown: KeptLists, tab: ForgeListTab, failed: FailedPage) {
     if (this.lists.get(projectId) !== shown || shown.lists[tab].failed) return;
     this.settle(projectId, shown, { ...shown.lists, [tab]: { ...shown.lists[tab], failed } });
   }
@@ -270,14 +247,7 @@ export class ForgeSidebarData {
   }
   /** Keeps empty lists for the project on `view`, dropping the lists of the project shown longest ago beyond the limit. */
   private add(projectId: string, view: ForgeListView) {
-    const shown: CachedList = {
-      view,
-      lists: { issues: noRows, pullRequests: noRows, loading: false },
-      pageEnds: { issues: [], pullRequests: [] },
-      rows: [],
-      request: null,
-      settled: Promise.resolve(),
-    };
+    const shown = emptyLists(view);
     this.lists.set(projectId, shown);
     for (const oldest of this.lists.keys()) {
       if (this.lists.size <= projectsKept) break;
@@ -290,7 +260,7 @@ export class ForgeSidebarData {
    * are all in. */
   private load<T extends ForgeListTab>(
     projectId: string,
-    shown: CachedList,
+    shown: KeptLists,
     tab: T,
     filter: ListFilter,
     joining: Joining,
@@ -303,7 +273,7 @@ export class ForgeSidebarData {
   }
   private async loadPages<T extends ForgeListTab>(
     projectId: string,
-    shown: CachedList,
+    shown: KeptLists,
     request: object,
     tab: T,
     filter: ListFilter,
@@ -326,26 +296,9 @@ export class ForgeSidebarData {
     }
     shown.request = null;
     const previous = shown.lists[tab] as TabList<ForgeListItems[T]>;
-    let next: TabList<ForgeListItems[T]>;
-    if (!page!.ok) next = { ...previous, failed: page! };
-    else {
-      const { ok: _, ...rows } = page!;
-      const held = previous.loaded && sameFilter(previous.loaded.filter, filter) ? previous.loaded : null;
-      if (joining === 'append' && held) {
-        const numbers = new Set(held.items.map(item => item.number));
-        const joined = [...held.items, ...items.filter(item => !numbers.has(item.number))];
-        next = { failed: null, loaded: { ...rows, filter, items: joined } };
-        shown.pageEnds[tab] = [...shown.pageEnds[tab], joined.length];
-      } else if (joining === 'update' && held) {
-        const updated = updatedInPlace(held.items, items);
-        const cursor = shown.pageEnds[tab].length > 1 ? held.cursor : rows.cursor;
-        next = { failed: null, loaded: { ...rows, filter, items: updated, cursor } };
-      } else {
-        next = { failed: null, loaded: { ...rows, filter, items } };
-        shown.pageEnds[tab] = pageEnds;
-      }
-    }
-    this.settle(projectId, shown, { ...shown.lists, [tab]: next, loading: false });
+    const joined = joinedPages(previous, shown.pageEnds[tab], filter, joining, page!, items, pageEnds);
+    shown.pageEnds[tab] = joined.pageEnds;
+    this.settle(projectId, shown, { ...shown.lists, [tab]: joined.rows, loading: false });
   }
   /** Asks the forge for the item and keeps an answer that is not a failure, dropping the detail used longest ago beyond
    * the limit; an answer for an earlier binding is not kept. */
@@ -362,26 +315,20 @@ export class ForgeSidebarData {
     if (open && sameItem(open.item, item)) return;
     await this.details.readAhead(projectId, item, this.readDetail(projectId, item));
   }
-  /** Asks the forge for the detail's item; its answer is pushed unless another request was made since. */
+  /** Asks the forge for the detail's item; its answer is pushed unless another request was made since. A failure
+   * leaves the item's kept answer showing beside it, and shows alone when none is kept. */
   private async loadDetail(projectId: string, item: DetailItem) {
     const request = {};
     this.openDetails.set(projectId, { item, request });
     const result = await (this.details.takeReadAhead(projectId, item) ?? this.readDetail(projectId, item));
-    if (this.openDetails.get(projectId)?.request === request)
-      this.sources.emit({ kind: 'forgeDetail', projectId, detail: { item, result } });
-    return result;
+    if (this.openDetails.get(projectId)?.request !== request) return;
+    const kept = result.ok ? undefined : this.details.use(projectId, item);
+    const detail: ShownDetail =
+      kept && !result.ok ? { item, result: kept, failed: result.failure } : { item, result, failed: null };
+    this.sources.emit({ kind: 'forgeDetail', projectId, detail });
   }
-  private settle(projectId: string, shown: CachedList, lists: ForgeLists) {
+  private settle(projectId: string, shown: KeptLists, lists: ForgeLists) {
     shown.lists = lists;
     this.sources.emit({ kind: 'forgeLists', projectId, lists });
   }
-}
-
-/** How many pages of the shown tab, from the first, hold every row the sidebar renders; at least one. */
-function pagesThroughRows(shown: CachedList) {
-  const { tab } = shown.view;
-  const items: { number: number }[] = shown.lists[tab].loaded?.items ?? [];
-  const rendered = new Set(shown.rows);
-  const last = items.findLastIndex(item => rendered.has(item.number));
-  return Math.max(shown.pageEnds[tab].findIndex(end => end > last) + 1, 1);
 }
