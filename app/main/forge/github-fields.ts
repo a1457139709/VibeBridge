@@ -37,3 +37,11 @@ export const viewerPermission = z.enum(['ADMIN', 'MAINTAIN', 'WRITE', 'TRIAGE', 
 export const canWrite = (permission: z.infer<typeof viewerPermission>) =>
   permission === 'ADMIN' || permission === 'MAINTAIN' || permission === 'WRITE';
 export const repositoryLinks = (url: string) => ({ issues: `${url}/issues/`, pullRequests: `${url}/pull/` });
+/** The repository that answered a query at the path it named: its `databaseId`, which renames and transfers keep, and
+ * its current path. Every read asks for them beside its data, so the caller checks the repository in the same request. */
+export const answeringFields = 'databaseId nameWithOwner';
+export const answeringSchema = { databaseId: z.number(), nameWithOwner: z.string() };
+export const answeredBy = (repository: { databaseId: number; nameWithOwner: string }) => ({
+  id: String(repository.databaseId),
+  path: repository.nameWithOwner,
+});

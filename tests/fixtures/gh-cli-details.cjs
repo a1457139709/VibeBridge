@@ -1,7 +1,7 @@
 // The `gh api graphql` answers for one issue or pull request, read from the gh double's state (see gh-cli.cjs).
 
 /** One issue with its comments and relations, as GitHub's `repository.issue` answers; NOT_FOUND for a number with no issue. */
-function issueDetail(state, path, number) {
+function issueDetail(state, path, number, answering) {
   const issues = state.issues ?? [],
     pulls = state.pullRequests ?? [];
   const url = `https://github.com/${path}`;
@@ -10,7 +10,7 @@ function issueDetail(state, path, number) {
     const message = `Could not resolve to an Issue with the number of ${number}.`;
     process.stdout.write(
       JSON.stringify({
-        data: { repository: { url, issue: null } },
+        data: { repository: { ...answering, url, issue: null } },
         errors: [{ type: 'NOT_FOUND', path: ['repository', 'issue'], message }],
       }),
     );
@@ -56,6 +56,7 @@ function issueDetail(state, path, number) {
     JSON.stringify({
       data: {
         repository: {
+          ...answering,
           url,
           viewerPermission: state.permission ?? 'WRITE',
           issue: {
@@ -98,14 +99,14 @@ function issueDetail(state, path, number) {
 }
 
 /** One pull request with its timeline and merge requirements, as GitHub's `repository.pullRequest` answers; NOT_FOUND for a number with no pull request. */
-function pullRequestDetail(state, path, number) {
+function pullRequestDetail(state, path, number, answering) {
   const url = `https://github.com/${path}`;
   const pull = (state.pullRequests ?? []).find(item => item.number === number);
   if (!pull) {
     const message = `Could not resolve to a PullRequest with the number of ${number}.`;
     process.stdout.write(
       JSON.stringify({
-        data: { repository: { url, pullRequest: null } },
+        data: { repository: { ...answering, url, pullRequest: null } },
         errors: [{ type: 'NOT_FOUND', path: ['repository', 'pullRequest'], message }],
       }),
     );
@@ -146,6 +147,7 @@ function pullRequestDetail(state, path, number) {
     JSON.stringify({
       data: {
         repository: {
+          ...answering,
           url,
           viewerPermission: state.permission ?? 'WRITE',
           mergeCommitAllowed: allowed.merge,
