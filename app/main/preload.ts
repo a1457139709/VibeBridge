@@ -18,6 +18,7 @@ const api: DesktopAPI = {
   refreshForgeList: id => ipcRenderer.invoke('workbench:refresh-forge-list', id),
   showRepositoryChoices: id => ipcRenderer.invoke('workbench:show-repository-choices', id),
   showForgeDetail: (id, item) => ipcRenderer.invoke('workbench:show-forge-detail', id, item),
+  reportForgeRowResting: (id, item) => ipcRenderer.invoke('workbench:report-forge-row-resting', id, item),
   reportForgeItemChanged: (id, item) => ipcRenderer.invoke('workbench:report-forge-item-changed', id, item),
   directAction: (id, action) => ipcRenderer.invoke('workbench:direct-action', id, action),
   dispatch: (id, request) => ipcRenderer.invoke('workbench:dispatch', id, request),

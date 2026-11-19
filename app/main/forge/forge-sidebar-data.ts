@@ -26,6 +26,8 @@ import {
   type ShownRepositoryChoices,
   type TabList,
 } from '../../shared/forge/sidebar-data';
+import { KeptDetails } from './kept-details';
+import { RowRest } from './row-rest';
 
 /** Where the Forge sidebar's data comes from, and where it goes. Each read is of a project's bound repository, or of the
  * repositories the project can bind. */
@@ -42,8 +44,6 @@ export interface ForgeSidebarSources {
 
 /** The projects whose lists are kept, the most recently shown. */
 const projectsKept = 5;
-/** The details kept across all projects, the most recently used. */
-const detailsKept = 50;
 
 /** A project's lists, with the view the sidebar last declared, where each page a tab loaded ends in its rows (the count
  * of rows through it), the numbers of the shown tab's rows the sidebar renders, and the request that may settle them
@@ -106,15 +106,19 @@ function rowWithDetail<Item extends ForgeListItems[ForgeListTab]>(row: Item, res
  * It keeps, in memory only, the lists of the 5 projects shown last (each tab with the rows of its latest filter) and the
  * 50 details used last. A declaration shows what is kept at once. When the sidebar comes to show a project in the
  * foreground, the shown tab's first page and the open detail update in the background, in place; nothing updates while
- * the sidebar is hidden. Only the latest request of a project settles its lists, and its detail. */
+ * the sidebar is hidden. Only the latest request of a project settles its lists, and its detail. A list row the
+ * pointer or focus rests on 150ms while the sidebar shows its project in the foreground has its detail read ahead into
+ * the kept details, unless kept already, so opening it shows at once. */
 export class ForgeSidebarData {
   private lists = new Map<string, CachedList>();
   private openDetails = new Map<string, OpenDetail>();
-  private details = new Map<string, DetailResult>();
+  private details = new KeptDetails();
   private choices = new Map<string, { request: object; choices: ShownRepositoryChoices }>();
   /** Each project's binding, counted up when it changes: an answer for an earlier one is not kept. */
   private bindings = new Map<string, number>();
   private presence: ForgeSidebarPresence | null = null;
+  /** The row the pointer or focus rests on, until its detail is read ahead. */
+  private rowRest = new RowRest();
   constructor(private sources: ForgeSidebarSources) {}
 
   /** Takes whether the sidebar shows the project's lists and whether its window is in the foreground. When the sidebar
@@ -169,16 +173,21 @@ export class ForgeSidebarData {
       detail && this.loadDetail(projectId, detail.item),
     ]);
   }
-  /** Shows `item` in the project's detail: a kept answer at once, then the forge's answer, asked on each call. Null
-   * closes the detail. */
+  /** Shows `item` in the project's detail: a kept answer at once, then the forge's answer, asked on each call. A
+   * detail read ahead and not opened since asks nothing more, and one still being read ahead waits for that answer.
+   * Null closes the detail. */
   async showDetail(projectId: string, item: DetailItem | null) {
     if (item === null) {
       this.openDetails.delete(projectId);
       return;
     }
     const declared = detailItemSchema.parse(item);
-    const kept = this.keptDetail(projectId, declared);
+    const kept = this.details.use(projectId, declared);
     if (kept) this.sources.emit({ kind: 'forgeDetail', projectId, detail: { item: declared, result: kept } });
+    if (kept && this.details.openUnopened(projectId, declared)) {
+      this.openDetails.set(projectId, { item: declared, request: {} });
+      return;
+    }
     await this.loadDetail(projectId, declared);
   }
   /** A direct action or dispatch changed `item`: reloads its detail alone, and shows what the forge then holds in the
@@ -198,6 +207,13 @@ export class ForgeSidebarData {
     if (!loaded.items.some(row => row.number === changed.number)) return;
     const items = loaded.items.map(row => (row.number === changed.number ? rowWithDetail(row, result) : row));
     this.settle(projectId, shown, { ...shown.lists, [tab]: { ...shown.lists[tab], loaded: { ...loaded, items } } });
+  }
+  /** Takes the list row the pointer or keyboard focus rests on, or null when it left the rows. Once it rested 150ms,
+   * the row's detail is read ahead into the kept details. Resolves once that read settled, or the rest ended without
+   * one. */
+  reportRestingOn(projectId: string, item: DetailItem | null) {
+    const rested = item && detailItemSchema.parse(item);
+    return this.rowRest.restOn(rested && (() => this.readAhead(projectId, rested)));
   }
   /** Reads the repositories the project can bind, once per call: a binding page shows them, and Retry reads again. */
   async showRepositoryChoices(projectId: string) {
@@ -221,7 +237,7 @@ export class ForgeSidebarData {
     this.lists.delete(projectId);
     this.openDetails.delete(projectId);
     this.choices.delete(projectId);
-    for (const key of this.details.keys()) if (key.startsWith(`${projectId}\n`)) this.details.delete(key);
+    this.details.forget(projectId);
   }
 
   /** The project the sidebar shows in the foreground, or null. */
@@ -347,19 +363,6 @@ export class ForgeSidebarData {
       };
     }
   }
-  private detailKey(projectId: string, { kind, number }: DetailItem) {
-    return `${projectId}\n${kind}\n${number}`;
-  }
-  /** The kept answer for the item, now the most recently used; undefined when none is kept. */
-  private keptDetail(projectId: string, item: DetailItem) {
-    const key = this.detailKey(projectId, item);
-    const kept = this.details.get(key);
-    if (kept) {
-      this.details.delete(key);
-      this.details.set(key, kept);
-    }
-    return kept;
-  }
   /** Asks the forge for the item and keeps an answer that is not a failure, dropping the detail used longest ago beyond
    * the limit; an answer for an earlier binding is not kept. */
   private async readDetail(projectId: string, item: DetailItem) {
@@ -377,22 +380,21 @@ export class ForgeSidebarData {
         failure: { kind: 'transient', detail: (error as Error).message, forge: this.sources.forge(projectId) },
       };
     }
-    if (result.ok && this.bindings.get(projectId) === binding) {
-      const key = this.detailKey(projectId, item);
-      this.details.delete(key);
-      this.details.set(key, result);
-      for (const oldest of this.details.keys()) {
-        if (this.details.size <= detailsKept) break;
-        this.details.delete(oldest);
-      }
-    }
+    if (result.ok && this.bindings.get(projectId) === binding) this.details.keep(projectId, item, result);
     return result;
+  }
+  /** Reads the item's detail ahead of its opening, into the kept details. */
+  private async readAhead(projectId: string, item: DetailItem) {
+    if (this.watched() !== projectId || this.details.holds(projectId, item)) return;
+    const open = this.openDetails.get(projectId);
+    if (open && sameItem(open.item, item)) return;
+    await this.details.readAhead(projectId, item, this.readDetail(projectId, item));
   }
   /** Asks the forge for the detail's item; its answer is pushed unless another request was made since. */
   private async loadDetail(projectId: string, item: DetailItem) {
     const request = {};
     this.openDetails.set(projectId, { item, request });
-    const result = await this.readDetail(projectId, item);
+    const result = await (this.details.takeReadAhead(projectId, item) ?? this.readDetail(projectId, item));
     if (this.openDetails.get(projectId)?.request === request)
       this.sources.emit({ kind: 'forgeDetail', projectId, detail: { item, result } });
     return result;

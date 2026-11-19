@@ -41,6 +41,8 @@ export function useScrolledRows(projectId: string, lists: ForgeLists, declare: (
   }, [lists]);
   return {
     scrollArea,
+    /** The scroll area once it mounted, for what listens to it. */
+    scrollElement,
     holdScrollArea,
     rowsHost,
     /** Notes where the list is being read, to return to once the refresh about to be asked for settles. */

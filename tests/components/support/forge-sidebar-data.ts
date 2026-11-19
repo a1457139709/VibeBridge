@@ -39,6 +39,7 @@ export function forgeSidebarData(
   | 'refreshForgeList'
   | 'showRepositoryChoices'
   | 'showForgeDetail'
+  | 'reportForgeRowResting'
   | 'reportForgeItemChanged'
 > {
   const data = new ForgeSidebarData({
@@ -60,6 +61,7 @@ export function forgeSidebarData(
     refreshForgeList: projectId => data.refresh(projectId),
     showRepositoryChoices: projectId => data.showRepositoryChoices(projectId),
     showForgeDetail: (projectId, item) => data.showDetail(projectId, item),
+    reportForgeRowResting: (projectId, item) => data.reportRestingOn(projectId, item),
     reportForgeItemChanged: (projectId, item) => data.reloadChanged(projectId, item),
   };
 }

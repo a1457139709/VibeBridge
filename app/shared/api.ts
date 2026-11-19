@@ -52,8 +52,13 @@ export interface DesktopAPI {
    * per call and pushed as `repositoryChoices` events. */
   showRepositoryChoices(projectId: string): Promise<void>;
   /** Declares the item the Forge sidebar's detail shows, or null when it closes; the main process pushes a kept answer
-   * at once, loads it on each call, and pushes it as `forgeDetail` events. Resolves once it settled. */
+   * at once, loads it on each call (unless it was read ahead and not opened since), and pushes it as `forgeDetail` events.
+   * Resolves once it settled. */
   showForgeDetail(projectId: string, item: DetailItem | null): Promise<void>;
+  /** Reports the list row the pointer or keyboard focus rests on, or null when it left the rows; once it rested 150ms
+   * while the sidebar shows the project in the foreground, the main process reads the row's detail ahead into the kept
+   * details. */
+  reportForgeRowResting(projectId: string, item: DetailItem | null): Promise<void>;
   /** Reports that a direct action or dispatch changed `item`; the main process reloads its detail and shows the new
    * state in the open detail and the item's list row. */
   reportForgeItemChanged(projectId: string, item: DetailItem): Promise<void>;

@@ -206,6 +206,10 @@ void app.whenReady().then(async () => {
     await loginPath;
     return service.forgeSidebar.showDetail(id, item);
   });
+  handle('report-forge-row-resting', async (service, id, item) => {
+    await loginPath;
+    return service.forgeSidebar.reportRestingOn(id, item);
+  });
   handle('report-forge-item-changed', async (service, id, item) => {
     await loginPath;
     return service.forgeSidebar.reloadChanged(id, item);

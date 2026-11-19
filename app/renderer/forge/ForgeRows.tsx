@@ -27,6 +27,17 @@ export function issueRowOf(element: Element | null | undefined) {
   return row ? { row, number: Number(row.dataset.issue) } : undefined;
 }
 
+/** The list row `element` is in, with its item; null outside the rows. */
+export function listRowOf(element: Element) {
+  const row = element.closest(`[${rowAttribute.issue}], [${rowAttribute.pullRequest}]`);
+  if (!row) return null;
+  const issue = row.getAttribute(rowAttribute.issue);
+  const item: DetailItem = issue
+    ? { kind: 'issue', number: Number(issue) }
+    : { kind: 'pullRequest', number: Number(row.getAttribute(rowAttribute.pullRequest)) };
+  return { row, item };
+}
+
 /** The row title a key was pressed on without a modifier, if any: a list's keys act only from a row. */
 const keyedRowTitle = (event: React.KeyboardEvent) => {
   const target = event.target as HTMLElement;
