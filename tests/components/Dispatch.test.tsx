@@ -88,8 +88,13 @@ test('submitting to a panel dispatches the issue, returns focus to Dispatch and 
   assert.deepEqual(again.query.cursor, null);
 });
 
-test('filling a panel closes the detail and keeps the sidebar open', async () => {
+test('filling a panel closes the detail, keeps the sidebar open and reloads the list but not the closed detail', async () => {
   const f = await listed(async (_, request) => ({ delivery: 'fill', panelId: panelOf(request) }));
+  const detailsAsked: number[] = [];
+  f.forge.issueDetail = (_, number) => {
+    detailsAsked.push(number);
+    return new Promise(() => {});
+  };
   await f.user.click(within(row(9)).getByRole('button', { name: 'Issue 9' }));
   await waitFor(() => assert.ok(document.querySelector('.forge-detail')));
   await f.user.click(dispatchButton(9));
@@ -103,6 +108,9 @@ test('filling a panel closes the detail and keeps the sidebar open', async () =>
   );
   await waitFor(() => assert.equal(document.querySelector('.forge-detail'), null));
   assert.ok(sidebar());
+  // The detail closes before the dispatch is reported, so the reload that report starts asks for the list alone.
+  assert.deepEqual((await f.request(2)).query.cursor, null);
+  assert.deepEqual(detailsAsked, [9]);
 });
 
 test('submitting to a new panel dispatches to its Agent type and returns focus to Dispatch', async () => {

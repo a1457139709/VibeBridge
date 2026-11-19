@@ -57,7 +57,7 @@ export class Workbench {
   };
   /** Runs of the projects' panels: their input, size, output flow and the commands that start them. */
   readonly runs: RunSupervision;
-  /** The Forge sidebar's lists and the repositories its binding pages offer. */
+  /** The Forge sidebar's lists, its detail, and the repositories its binding pages offer. */
   readonly forgeSidebar: ForgeSidebarData;
   private listeners = new Set<(event: WorkbenchEvent) => void>();
   private operations: Promise<unknown> = Promise.resolve();
@@ -77,6 +77,8 @@ export class Workbench {
       issuePage: (projectId, query) => issuePage(this.bound(projectId), query),
       pullRequestPage: (projectId, query) => pullRequestPage(this.bound(projectId), query),
       repositoryChoices: async projectId => this.repositoryChoices(projectId, this.project(projectId).directory),
+      issueDetail: (projectId, number) => issueDetail(this.bound(projectId), number),
+      pullRequestDetail: (projectId, number) => pullRequestDetail(this.bound(projectId), number),
       forge: projectId => this.bindings.view(projectId).forge,
       emit: event => this.emit(event),
     });
@@ -260,16 +262,10 @@ export class Workbench {
       if (activateNext && nextActive) await this.panels.start(this.project(nextActive));
     });
   }
-  // Reads from and direct actions on the project's bound repository; DesktopAPI documents each.
+  // The repositories a project can bind, and direct actions on its bound repository; DesktopAPI documents each.
   async repositoryChoices(projectId: string, directory: string) {
     this.project(projectId);
     return this.bindings.choices(projectId, directory, found => this.follow(projectId, found));
-  }
-  async issueDetail(projectId: string, number: number) {
-    return issueDetail(this.bound(projectId), number);
-  }
-  async pullRequestDetail(projectId: string, number: number) {
-    return pullRequestDetail(this.bound(projectId), number);
   }
   async directAction(projectId: string, action: DirectAction) {
     return directAction(this.bound(projectId), action);

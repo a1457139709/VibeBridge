@@ -123,14 +123,14 @@ function renderWorkbench({
           labels: [],
           counts: { open: 1, closed: 0 },
         }),
+        issueDetail: async (_, number) => {
+          const result = (await ask('issue', number)) as IssueDetailResult;
+          return result.ok ? { ...result, issue: { ...result.issue, closingPullRequests } } : result;
+        },
+        pullRequestDetail: (_, number) => ask('pullRequest', number) as Promise<PullRequestDetailResult>,
       },
       events.emit,
     ),
-    issueDetail: async (_, number) => {
-      const result = (await ask('issue', number)) as IssueDetailResult;
-      return result.ok ? { ...result, issue: { ...result.issue, closingPullRequests } } : result;
-    },
-    pullRequestDetail: (_, number) => ask('pullRequest', number) as Promise<PullRequestDetailResult>,
   });
   render(<App />);
   const request = (count: number) =>

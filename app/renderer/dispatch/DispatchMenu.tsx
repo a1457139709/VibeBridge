@@ -34,7 +34,7 @@ export interface DispatchHost extends DispatchRecordsHost {
   lastTargets: ReadonlyMap<string, DispatchTarget>;
   /** Remembers the target a command was dispatched to. */
   rememberLastTarget(commandKey: string, target: DispatchTarget): void;
-  /** A dispatch went through: the sidebar refreshes once; `fill` also closes the detail. */
+  /** A dispatch went through: the sidebar reports the issue changed; `fill` also closes the detail. */
   dispatched(delivery: Delivery): void;
 }
 

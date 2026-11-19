@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { ghDouble, type GhIssue } from './support/gh-double';
-import { boundWorkbench, day, forgeAccount } from './support/bound-workbench';
+import { boundWorkbench, day, forgeAccount, issueDetail } from './support/bound-workbench';
 
 const issueUrl = (n: number) => `https://github.com/octo/tools/issues/${n}`;
 const bug = { name: 'bug', color: 'd73a4a' };
@@ -35,7 +35,7 @@ test('an issue detail carries the forge-rendered body and comments with their au
   });
   const f = await boundWorkbench('issue-detail-body');
   try {
-    const result = await f.workbench.issueDetail(f.projectId, 7);
+    const result = await issueDetail(f.workbench, f.projectId, 7);
     assert.ok(result.ok);
     const { issue } = result;
     assert.deepEqual(
@@ -98,7 +98,7 @@ test('an issue detail names its parent, its sub-issues in number order, its bloc
   });
   const f = await boundWorkbench('issue-detail-relations');
   try {
-    const result = await f.workbench.issueDetail(f.projectId, 5);
+    const result = await issueDetail(f.workbench, f.projectId, 5);
     assert.ok(result.ok);
     const ref = (number: number, title: string, closedAs: 'notPlanned' | null = null) => ({
       number,
@@ -128,7 +128,7 @@ test('an issue detail names its parent, its sub-issues in number order, its bloc
       pull(42, 'Merged, checks failed', 'merged', 'failed'),
       pull(43, 'Closed without checks', 'closed', 'none'),
     ]);
-    const root = await f.workbench.issueDetail(f.projectId, 1);
+    const root = await issueDetail(f.workbench, f.projectId, 1);
     assert.ok(root.ok);
     assert.equal(root.issue.parent, null);
     assert.deepEqual(root.issue.closingPullRequests, []);
@@ -140,7 +140,7 @@ test('an issue detail names its parent, its sub-issues in number order, its bloc
 test('a missing issue and forge CLI failures come back as forge failures with the forge text', async context => {
   const double = await ghDouble(context, { ...forgeAccount, issues: [plain(1)] });
   const f = await boundWorkbench('issue-detail-failures');
-  const detail = (number: number) => f.workbench.issueDetail(f.projectId, number);
+  const detail = (number: number) => issueDetail(f.workbench, f.projectId, number);
   try {
     const missing = await detail(99);
     assert.ok(!missing.ok);
@@ -159,7 +159,7 @@ test('a missing issue and forge CLI failures come back as forge failures with th
     const missingCli = await detail(1);
     assert.ok(!missingCli.ok);
     assert.equal(missingCli.failure.kind, 'notInstalled');
-    await assert.rejects(f.workbench.issueDetail(f.projectId, 0), 'only a positive issue number is asked for');
+    await assert.rejects(issueDetail(f.workbench, f.projectId, 0), 'only a positive issue number is asked for');
   } finally {
     await f.close();
   }

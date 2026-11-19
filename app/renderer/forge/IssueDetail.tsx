@@ -25,8 +25,8 @@ import {
   Progress,
   PullRequestIcon,
   RelativeTime,
-  type DetailItem,
 } from './ForgeDisplay';
+import type { DetailItem } from '../../shared/forge/sidebar-data';
 
 interface DocumentProps {
   project: ProjectView & { repository: RepositoryReference };

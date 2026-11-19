@@ -1,10 +1,13 @@
 import { z } from 'zod';
 import {
+  itemNumberSchema,
   listQuerySchema,
+  type IssueDetailResult,
   type ListFilter,
   type ListPage,
   type ListedIssue,
   type Page,
+  type PullRequestDetailResult,
   type PullRequestSummary,
   type RepositoryChoices,
 } from './forge';
@@ -40,7 +43,19 @@ export type ForgeLists = { [T in ForgeListTab]: TabList<ForgeListItems[T]> } & {
  * read itself failed; null while it is being read. */
 export type ShownRepositoryChoices = RepositoryChoices | { ok: false; error: string } | null;
 
+/** An issue or pull request of the bound repository, as the detail opens it. */
+export const detailItemSchema = z.object({ kind: z.enum(['issue', 'pullRequest']), number: itemNumberSchema });
+export type DetailItem = z.infer<typeof detailItemSchema>;
+/** What the forge answered for the detail's item: the issue or pull request, or the forge failure. */
+export type DetailResult = IssueDetailResult | PullRequestDetailResult;
+/** An item the sidebar's detail shows, and the forge's answer for it. */
+export interface ShownDetail {
+  item: DetailItem;
+  result: DetailResult;
+}
+
 /** What the main process pushes about the Forge sidebar's data of a project. */
 export type ForgeSidebarEvent =
   | { kind: 'forgeLists'; projectId: string; lists: ForgeLists }
-  | { kind: 'repositoryChoices'; projectId: string; choices: ShownRepositoryChoices };
+  | { kind: 'repositoryChoices'; projectId: string; choices: ShownRepositoryChoices }
+  | { kind: 'forgeDetail'; projectId: string; detail: ShownDetail };

@@ -178,7 +178,7 @@ test("in an issue's detail Tab reaches its Dispatch and dispatch records, and Es
   const f = await listed(undefined, snapshot => {
     snapshot.projects[0].dispatches = [record(9, { projectId: 'alpha', panelId: 'alpha-panel' })];
   });
-  window.workbench.issueDetail = async (_, number) => ({ ok: true, issue: issueDetail(number) });
+  f.forge.issueDetail = async (_, number) => ({ ok: true, issue: issueDetail(number) });
   titleButton('Issue 9').focus();
   await f.user.keyboard('{Enter}');
   const pane = await waitFor(() => within(sidebar()).getByRole('region', { name: 'Issue detail' }));

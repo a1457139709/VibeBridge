@@ -97,7 +97,8 @@ interface Request {
 
 /** The Workbench with two bound projects and the sidebar open. The sidebar's data is the main process's own module, and
  * every list page it asks the forge for waits until the test answers it. `api` adds or replaces Workbench calls and
- * forge answers; `publish` sends the snapshot as the test changed it. */
+ * forge answers; `forge` holds the forge answers, for a test to change as it goes; `publish` sends the snapshot as the
+ * test changed it. */
 export function renderWorkbench(capabilities = githubCapabilities, api: Partial<DesktopAPI> & ForgeAnswers = {}) {
   const snapshot: Snapshot = {
     navigation: { visible: true, width: 212 },
@@ -120,7 +121,24 @@ export function renderWorkbench(capabilities = githubCapabilities, api: Partial<
     requests.push({ list, projectId, query: structuredClone(query), answer: answer.resolve, fail: answer.reject });
     return answer.promise;
   };
-  const { issuePage, pullRequestPage, repositoryChoices, ...calls } = api;
+  const { issuePage, pullRequestPage, repositoryChoices, issueDetail, pullRequestDetail, ...calls } = api;
+  const forge: ForgeAnswers = {
+    repositoryChoices:
+      repositoryChoices ??
+      (async () => ({
+        ok: true,
+        forge: githubForge,
+        account: 'octo',
+        origin: null,
+        repositories: [githubRepository('octo/alpha')],
+      })),
+    issuePage: issuePage ?? ((projectId, query) => listRequest('issues', projectId, query) as Promise<IssuePage>),
+    pullRequestPage:
+      pullRequestPage ??
+      ((projectId, query) => listRequest('pullRequests', projectId, query) as Promise<Page<PullRequestSummary>>),
+    issueDetail,
+    pullRequestDetail,
+  };
   provideWorkbench({
     snapshot: async () => structuredClone(snapshot),
     ready: async () => {},
@@ -140,26 +158,9 @@ export function renderWorkbench(capabilities = githubCapabilities, api: Partial<
     },
     saveLayout: async () => {},
     inspectDirectory: async directory => ({ valid: true, directory }),
-    ...forgeSidebarData(
-      {
-        repositoryChoices:
-          repositoryChoices ??
-          (async () => ({
-            ok: true,
-            forge: githubForge,
-            account: 'octo',
-            origin: null,
-            repositories: [githubRepository('octo/alpha')],
-          })),
-        issuePage: issuePage ?? ((projectId, query) => listRequest('issues', projectId, query) as Promise<IssuePage>),
-        pullRequestPage:
-          pullRequestPage ??
-          ((projectId, query) => listRequest('pullRequests', projectId, query) as Promise<Page<PullRequestSummary>>),
-      },
-      event => {
-        for (const listener of listeners) listener(event);
-      },
-    ),
+    ...forgeSidebarData(forge, event => {
+      for (const listener of listeners) listener(event);
+    }),
     ...calls,
   });
   render(<App />);
@@ -169,7 +170,7 @@ export function renderWorkbench(capabilities = githubCapabilities, api: Partial<
       assert.equal(requests.length, count, 'requests made');
       return requests[count - 1];
     });
-  return { user: userEvent.setup(), requests, request, snapshot, publish };
+  return { user: userEvent.setup(), requests, request, snapshot, publish, forge };
 }
 
 export const sidebar = () => screen.getByRole('complementary', { name: 'GitHub' });
