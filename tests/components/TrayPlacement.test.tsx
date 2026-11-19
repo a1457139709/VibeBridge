@@ -1,7 +1,7 @@
 import './support/dom';
 import assert from 'node:assert/strict';
 import test, { afterEach, before } from 'node:test';
-import { act, cleanup, fireEvent, render, screen, within } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { userEvent } from '@testing-library/user-event';
 import { App } from '../../app/renderer/Workbench';
 import { defaultSettings } from '../../app/shared/settings/settings';
@@ -170,4 +170,79 @@ test('moving the maximized resident panel to the tray leaves it collapsed in the
     ['false', 'false'],
   );
   assert.equal(screen.queryByRole('button', { name: 'Collapse panel' }), null);
+});
+
+/** Records the animations the workbench starts; each finishes when the test says so. */
+function recordAnimations(reducedMotion: boolean) {
+  const started: { target: Element; keyframes: Keyframe[]; options: KeyframeAnimationOptions; finish(): void }[] = [];
+  const slot = new window.DOMRect(0, 0, 800, 600),
+    card = new window.DOMRect(8, 566, 200, 30);
+  Object.assign(window.HTMLElement.prototype, {
+    getBoundingClientRect(this: HTMLElement) {
+      return this.matches('.tray-card') ? card : slot;
+    },
+    animate(this: HTMLElement, keyframes: Keyframe[], options: KeyframeAnimationOptions) {
+      const finished = deferred<void>();
+      started.push({ target: this, keyframes, options, finish: () => finished.resolve() });
+      return { finished: finished.promise, cancel() {} };
+    },
+  });
+  const matchMedia = (query: string) => ({
+    matches: reducedMotion && query === '(prefers-reduced-motion: reduce)',
+    addEventListener() {},
+    removeEventListener() {},
+  });
+  Object.assign(globalThis, { matchMedia });
+  Object.assign(window, { matchMedia });
+  return started;
+}
+afterEach(() => {
+  delete (window.HTMLElement.prototype as Partial<HTMLElement>).animate;
+  const area = new window.DOMRect(0, 0, 800, 600);
+  Object.assign(window.HTMLElement.prototype, { getBoundingClientRect: () => area });
+  stubLayoutApis();
+});
+
+const toCard = { transform: 'translate(8px, 566px) scale(0.25, 0.05)', opacity: 0.35, transformOrigin: '0 0' },
+  inPlace = { transform: 'none', opacity: 1, transformOrigin: '0 0' };
+
+test('an open tray panel grows from its card, and collapsing it flies it back into the card, which then flashes', async () => {
+  const started = recordAnimations(false);
+  const { user } = renderWorkbench();
+  const tray = await screen.findByRole('region', { name: 'Ephemeral panel tray' });
+  const card = within(tray).getByRole('button', { name: /Session ephemeral/ });
+  const slot = () => document.querySelector('.canvas [data-panel-id="ephemeral"]');
+  await user.click(card);
+  assert.deepEqual(
+    started.map(({ target, keyframes, options }) => [target.getAttribute('data-panel-id'), keyframes, options]),
+    [['ephemeral', [toCard, inPlace], { duration: 260, easing: 'cubic-bezier(.2,0,.2,1)' }]],
+  );
+
+  await user.click(screen.getByRole('button', { name: 'Collapse panel' }));
+  assert.equal(started.length, 2);
+  assert.deepEqual(
+    [started[1].target.getAttribute('data-panel-id'), started[1].keyframes, started[1].options],
+    ['ephemeral', [inPlace, toCard], { duration: 260, easing: 'cubic-bezier(.4,0,.7,1)', fill: 'forwards' }],
+  );
+  assert.equal(card.getAttribute('aria-pressed'), 'true', 'the panel stays open while it flies');
+  await act(async () => started[1].finish());
+  await waitFor(() => assert.equal(card.getAttribute('aria-pressed'), 'false'));
+  assert.equal(slot(), null);
+  assert.ok(card.classList.contains('landed'), 'the card flashes once the panel lands');
+  fireEvent.animationEnd(card);
+  assert.ok(!card.classList.contains('landed'));
+});
+
+test('with reduced motion the tray panel opens and collapses at once, and its card does not flash', async () => {
+  const started = recordAnimations(true);
+  const { user } = renderWorkbench();
+  const tray = await screen.findByRole('region', { name: 'Ephemeral panel tray' });
+  const card = within(tray).getByRole('button', { name: /Session ephemeral/ });
+  await user.click(card);
+  assert.ok(screen.getByRole('button', { name: 'Collapse panel' }));
+  await user.click(screen.getByRole('button', { name: 'Collapse panel' }));
+  assert.equal(card.getAttribute('aria-pressed'), 'false');
+  assert.equal(screen.queryByRole('button', { name: 'Collapse panel' }), null);
+  assert.ok(!card.classList.contains('landed'));
+  assert.equal(started.length, 0, 'nothing animates');
 });

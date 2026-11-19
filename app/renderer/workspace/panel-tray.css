@@ -51,6 +51,21 @@
     inset 3px 0 var(--brand),
     0 0 0 1px var(--brand);
 }
+/* The card a collapsed panel has just flown into flashes once (tray-flight.ts). */
+.tray-card.landed {
+  animation: tray-card-landed 1s ease-out;
+}
+@keyframes tray-card-landed {
+  0%,
+  30% {
+    box-shadow: 0 0 0 3px var(--brand);
+    transform: translateY(-2px);
+  }
+  100% {
+    box-shadow: inset 3px 0 var(--brand);
+    transform: none;
+  }
+}
 .tray-card:focus-visible {
   outline: 2px solid var(--brand);
   outline-offset: 1px;

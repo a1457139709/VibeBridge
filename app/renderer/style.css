@@ -16,6 +16,7 @@
   --primary-background: #303030;
   --primary-foreground: #fff;
   --primary-hover: #474747;
+  --switch-on: #1a7f37;
   color-scheme: light;
 }
 :root[data-theme='dark'] {
@@ -39,6 +40,7 @@
   --primary-background: #e5e5e5;
   --primary-foreground: #202020;
   --primary-hover: #fff;
+  --switch-on: #3fb950;
   --error: #f19989;
   --modal-backdrop: #0009;
   scrollbar-color: #484848 var(--surface);
@@ -100,6 +102,41 @@ input {
 }
 .primary:hover:not(:disabled) {
   background: var(--primary-hover, var(--focus));
+}
+/* The app's one boolean control: a pill switch (role="switch"), its state also written beside it. */
+.switch {
+  position: relative;
+  flex-shrink: 0;
+  width: 34px;
+  height: 20px;
+  min-height: 0;
+  padding: 0;
+  border: 0;
+  border-radius: 10px;
+  background: var(--line);
+}
+.switch[aria-checked='true'] {
+  background: var(--switch-on);
+}
+.switch:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--line) 80%, var(--accent));
+}
+.switch[aria-checked='true']:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--switch-on) 85%, #000);
+}
+.switch-knob {
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: #fff;
+  box-shadow: 0 1px 2px #0005;
+  transition: transform 140ms;
+}
+.switch[aria-checked='true'] .switch-knob {
+  transform: translateX(14px);
 }
 .muted,
 small {

@@ -11,6 +11,7 @@ import type { ProjectView } from '../../shared/model';
 import type { DispatchRecordView } from '../../shared/dispatch';
 import { IssueActions, type Actions } from './DirectActions';
 import { DispatchRecords } from '../dispatch/DispatchRecords';
+import './relation-graph.css';
 import {
   BlockedMark,
   IssueIcon,
@@ -154,7 +155,8 @@ function StatePill({ issue }: { issue: IssueDetail }) {
 }
 
 /** The small graph at the top of the detail, only of issues and only of live blocking: the open blockers on the left, the issue
- * in the middle, and on the right the open issues it still blocks while it is open. Nothing to draw, no graph. */
+ * in the middle, and on the right the open issues it still blocks while it is open. It sits on its own plate, each column
+ * coloured by its relation. Nothing to draw, no graph. */
 function RelationGraph({
   issue,
   blockers: left,
@@ -205,7 +207,13 @@ function Graph({
     y: headHeight + (row + (rows - columns[column].nodes.length) / 2) * rowHeight,
   });
   const height = headHeight + rows * rowHeight + 4;
-  const edge = (from: { x: number; y: number }, to: { x: number; y: number }, key: string) => {
+  // An edge, its arrow and its column head take the colour of the relation's column.
+  const edge = (
+    from: { x: number; y: number },
+    to: { x: number; y: number },
+    column: 'blockedBy' | 'blocking',
+    key: string,
+  ) => {
     const x1 = from.x + columnWidth,
       y1 = from.y + rowHeight / 2 - 2,
       x2 = to.x,
@@ -215,8 +223,9 @@ function Graph({
       <path
         key={key}
         className="forge-edge"
+        data-relation={column}
         d={`M${x1} ${y1} C${middle} ${y1} ${middle} ${y2} ${x2 - 1} ${y2}`}
-        markerEnd="url(#forge-arrow)"
+        markerEnd={`url(#forge-arrow-${column})`}
       />
     );
   };
@@ -227,6 +236,7 @@ function Graph({
         <span
           key={column.name}
           className="forge-graph-head"
+          data-relation={column.name}
           style={{ left: padding + index * (columnWidth + gap), width: columnWidth }}
         >
           {column.head}
@@ -234,12 +244,24 @@ function Graph({
       ))}
       <svg width={width} height={height} aria-hidden>
         <defs>
-          <marker id="forge-arrow" viewBox="0 0 8 8" refX="7" refY="4" markerWidth="6" markerHeight="6" orient="auto">
-            <path d="M0 0L8 4L0 8z" />
-          </marker>
+          {(['blockedBy', 'blocking'] as const).map(column => (
+            <marker
+              key={column}
+              id={`forge-arrow-${column}`}
+              data-relation={column}
+              viewBox="0 0 8 8"
+              refX="7"
+              refY="4"
+              markerWidth="6"
+              markerHeight="6"
+              orient="auto"
+            >
+              <path d="M0 0L8 4L0 8z" />
+            </marker>
+          ))}
         </defs>
-        {left.map((blocker, row) => edge(at(0, row), self, `left-${blocker.number}`))}
-        {right.map((blocked, row) => edge(self, at(2, row), `right-${blocked.number}`))}
+        {left.map((blocker, row) => edge(at(0, row), self, 'blockedBy', `left-${blocker.number}`))}
+        {right.map((blocked, row) => edge(self, at(2, row), 'blocking', `right-${blocked.number}`))}
       </svg>
       {columns.map((column, index) =>
         column.nodes.map((node, row) => {
