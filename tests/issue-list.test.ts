@@ -2,7 +2,15 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { ghDouble, type GhIssue } from './support/gh-double';
 import type { ListFilter } from '../app/shared/forge/forge';
-import { boundWorkbench, day, forgeAccount, openNoFilter, showList, shownLists } from './support/bound-workbench';
+import {
+  boundWorkbench,
+  day,
+  forgeAccount,
+  openNoFilter,
+  refreshList,
+  showList,
+  shownLists,
+} from './support/bound-workbench';
 
 /** 30 open issues, #1 the oldest, created a day apart. */
 const thirtyIssues: GhIssue[] = Array.from({ length: 30 }, (_, index) => ({
@@ -253,8 +261,9 @@ test('list failures fall into the four kinds with the forge text, and an inacces
   const double = await ghDouble(context, { ...forgeAccount, issues: thirtyIssues });
   const f = await boundWorkbench('issue-failures');
   const forge = { name: 'GitHub', cli: 'gh', installUrl: 'https://cli.github.com', loginCommand: 'gh auth login' };
-  const page = async () => (await showList(f.workbench, f.projectId)).issues.failed;
+  const page = async () => (await refreshList(f.workbench, f.projectId)).issues.failed;
   try {
+    await showList(f.workbench, f.projectId);
     await double.set({ account: 'octo', repositories: [] });
     assert.deepEqual(await page(), {
       ok: false,

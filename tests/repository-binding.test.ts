@@ -11,7 +11,8 @@ import {
   type RepositoryReference,
 } from '../app/shared/forge/forge';
 import { ghDouble } from './support/gh-double';
-import { bindListed, showList } from './support/bound-workbench';
+import { bindListed, openNoFilter, refreshList, showList } from './support/bound-workbench';
+import type { ForgeLists } from '../app/shared/forge/sidebar-data';
 import { interactiveWorkbench, until } from './support/interactive-workbench';
 
 const account = { account: 'octo', repositories: ['octo/tools', 'Octo/VibeBridge', 'acme/forge'] };
@@ -379,4 +380,33 @@ test("Edit project's note names the new directory's origin only when it points a
     ['the list cannot be read', tools, { ok: false, failure: { kind: 'notInstalled', detail: '', forge } }],
   ] as const)
     assert.equal(originElsewhereThanBinding(bound, choices), null, state);
+});
+
+test("following a renamed repository keeps the project's kept rows; rebinding or unbinding drops them at once", async context => {
+  const { double, f, projectId, id } = await boundToTools(context, 'kept-rows-binding');
+  /** The lists the sidebar shows at once on declaring the project's issues, before the forge answers. */
+  const shownAtOnce = async () => {
+    let first: ForgeLists | undefined;
+    const stop = f.workbench.subscribe(event => {
+      if (event.kind === 'forgeLists' && event.projectId === projectId) first ??= event.lists;
+    });
+    try {
+      await f.workbench.forgeSidebar.showList(projectId, { tab: 'issues', filter: openNoFilter });
+    } finally {
+      stop();
+    }
+    return first?.issues.loaded?.filter;
+  };
+  try {
+    await showList(f.workbench, projectId);
+    await double.set({ ...account, repositories: [{ id: Number(id), path: 'octo/tools-x' }, 'acme/forge'] });
+    await refreshList(f.workbench, projectId);
+    assert.deepEqual(await shownAtOnce(), openNoFilter, 'the rows stay kept once the binding follows the rename');
+    await bindListed(f.workbench, projectId, 'acme/forge');
+    assert.equal(await shownAtOnce(), undefined, 'no rows of the repository bound before show');
+    await f.workbench.unbindRepository(projectId);
+    assert.equal(await shownAtOnce(), undefined, 'no rows show once unbound');
+  } finally {
+    await f.close();
+  }
 });

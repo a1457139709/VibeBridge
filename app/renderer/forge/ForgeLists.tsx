@@ -74,6 +74,32 @@ function usePushedLists(projectId: string, settled: () => void) {
   return lists;
 }
 
+/** Whether the window is in the foreground, following it as it comes to the front or goes behind. */
+function useWindowForeground() {
+  const [foreground, setForeground] = useState(() => document.hasFocus());
+  useEffect(() => {
+    const toFront = () => setForeground(true),
+      behind = () => setForeground(false);
+    window.addEventListener('focus', toFront);
+    window.addEventListener('blur', behind);
+    return () => {
+      window.removeEventListener('focus', toFront);
+      window.removeEventListener('blur', behind);
+    };
+  }, []);
+  return foreground;
+}
+
+/** The tab the lists show and each tab's filter, which the sidebar keeps per project and binding while the app runs. */
+export interface ListsView {
+  tab: ForgeListTab;
+  filters: Record<ForgeListTab, ListFilter>;
+}
+export const openListsView: ListsView = {
+  tab: 'issues',
+  filters: { issues: openNoFilter, pullRequests: openNoFilter },
+};
+
 /** The sidebar's header: the repository, or that none is bound, with Change binding for a bound one's lists, and the persistent Refresh. */
 export function SidebarHead({
   title,
@@ -122,6 +148,9 @@ interface Props {
   detailHost: DetailHost;
   /** Dispatching from an issue row or its detail; the lists add what happens once a dispatch went through. */
   dispatchHost: Omit<DispatchHost, 'dispatched'>;
+  /** The tab and filters the lists last showed for this project and binding, and where they report a change. */
+  view: ListsView;
+  rememberView(view: ListsView): void;
   ref?: Ref<ForgeListsActions>;
 }
 
@@ -136,17 +165,15 @@ export interface ForgeListsActions {
 /** The bound repository's lists: a persistent Refresh, the Issues and Pull requests tabs, each with its own
  * search, filters, rows and failure, and the forge failure states. The main process holds the rows
  * (docs/adr/0008-forge-sidebar-data-lives-in-the-main-process.md); this view declares the tab and filter it shows and
- * renders what is pushed. The owner mounts it per project and repository: opening the sidebar or returning to a project
- * starts from open with no filter, and refreshes. Only the current tab is fetched, each time it shows. There is no timed
- * refresh. Clicking a row opens its detail beside the list, which this view declares too; links followed inside the
+ * renders what is pushed. The owner mounts it per project and repository, on the tab and filters it last showed: opening
+ * the sidebar or returning to a project shows the rows the main process kept at once. It reports whether it shows and
+ * whether the window is in the foreground, and the main process updates the rows in the background. Clicking a row opens its detail beside the list, which this view declares too; links followed inside the
  * detail stack up, so Back returns to the item before. */
-export function ForgeLists({ project, changeBinding, detailHost, dispatchHost, ref }: Props) {
+export function ForgeLists({ project, changeBinding, detailHost, dispatchHost, view, rememberView, ref }: Props) {
   const { t, text } = useLocalization();
-  const [tab, setTab] = useState<ForgeListTab>('issues');
-  const [filters, setFilters] = useState<Record<ForgeListTab, ListFilter>>({
-    issues: openNoFilter,
-    pullRequests: openNoFilter,
-  });
+  const [tab, setTab] = useState<ForgeListTab>(view.tab);
+  const [filters, setFilters] = useState<Record<ForgeListTab, ListFilter>>(view.filters);
+  useEffect(() => rememberView({ tab, filters }), [tab, filters]);
   /** A forge failure the detail met; it stands for the current tab's failure until a request settles the lists. */
   const [detailFailure, setDetailFailure] = useState<FailedPage | null>(null);
   const lists = usePushedLists(project.id, () => setDetailFailure(null));
@@ -292,7 +319,22 @@ export function ForgeLists({ project, changeBinding, detailHost, dispatchHost, r
     );
     return () => clearTimeout(timer);
   }, [tab, filters[tab]]);
-  useEffect(() => () => declare(window.workbench.hideForgeList(project.id)), []);
+  const foreground = useWindowForeground();
+  useEffect(
+    () => declare(window.workbench.reportForgeSidebarPresence({ visible: true, foreground, projectId: project.id })),
+    [foreground],
+  );
+  useEffect(
+    () => () =>
+      declare(
+        window.workbench.reportForgeSidebarPresence({
+          visible: false,
+          foreground: document.hasFocus(),
+          projectId: project.id,
+        }),
+      ),
+    [],
+  );
 
   const { forge } = project;
   const { loaded } = lists[tab];

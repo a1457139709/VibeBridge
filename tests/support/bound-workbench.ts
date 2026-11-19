@@ -49,6 +49,10 @@ export const showList = (
   filter: ListFilter = openNoFilter,
 ) => shownLists(workbench, projectId, () => workbench.forgeSidebar.showList(projectId, { tab, filter }));
 
+/** The project's lists once the sidebar's Refresh reloads the shown tab's first page. */
+export const refreshList = (workbench: Workbench, projectId: string) =>
+  shownLists(workbench, projectId, () => workbench.forgeSidebar.refresh(projectId));
+
 /** What the detail shows of `item` as the main process pushes it once `declare`, a declaration on the Forge sidebar,
  * settles. */
 export async function shownDetail(

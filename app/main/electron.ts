@@ -185,7 +185,10 @@ void app.whenReady().then(async () => {
     await loginPath;
     return service.forgeSidebar.showList(id, view);
   });
-  handle('hide-forge-list', (service, id) => service.forgeSidebar.hideList(id));
+  handle('report-forge-sidebar-presence', async (service, presence) => {
+    await loginPath;
+    return service.forgeSidebar.reportPresence(presence);
+  });
   handle('load-more-forge-list', async (service, id) => {
     await loginPath;
     return service.forgeSidebar.loadMore(id);
