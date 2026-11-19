@@ -1,5 +1,12 @@
 import { ForgeSidebarData } from '../../app/main/forge/forge-sidebar-data';
-import type { IssueDetail, IssueDetailResult, IssuePage, ListQuery, ListedIssue } from '../../app/shared/forge/forge';
+import type {
+  IssueDetail,
+  IssueDetailResult,
+  IssuePage,
+  IssuesByNumber,
+  ListQuery,
+  ListedIssue,
+} from '../../app/shared/forge/forge';
 import type { DetailItem, ForgeLists, ForgeSidebarEvent, ShownDetail } from '../../app/shared/forge/sidebar-data';
 import { openNoFilter } from './bound-workbench';
 
@@ -32,6 +39,10 @@ export const page = (numbers: number[], cursor: string | null = null): IssuePage
   labels: [],
   counts: { open: numbers.length, closed: 0 },
 });
+/** The forge's answer to a read of issues by number. */
+export const byNumber = (items: ListedIssue[]): IssuesByNumber => ({ ok: true, items });
+/** Resolves once the answers given so far are taken in: every promise callback they set off has run. */
+export const answersTakenIn = () => new Promise<void>(resolve => setImmediate(resolve));
 
 /** The module over sources whose every read waits until the test answers it. */
 export function sidebarData() {
@@ -39,13 +50,20 @@ export function sidebarData() {
     projectId: string;
     query?: ListQuery;
     item?: DetailItem;
+    /** The numbers a read by number asks for, of `item`'s kind. */
+    byNumber?: { kind: DetailItem['kind']; numbers: number[] };
     answer(value: unknown): void;
     fail(error: Error): void;
   }[] = [];
   const waiting: (() => void)[] = [];
-  const read = (projectId: string, query?: ListQuery, item?: DetailItem) =>
+  const read = (
+    projectId: string,
+    query?: ListQuery,
+    item?: DetailItem,
+    byNumber?: { kind: DetailItem['kind']; numbers: number[] },
+  ) =>
     new Promise<never>((answer, fail) => {
-      reads.push({ projectId, query, item, answer: answer as never, fail });
+      reads.push({ projectId, query, item, byNumber, answer: answer as never, fail });
       for (const wake of waiting.splice(0)) wake();
     });
   /** The `count`th read, once it is made. */
@@ -57,6 +75,9 @@ export function sidebarData() {
   const data = new ForgeSidebarData({
     issuePage: read,
     pullRequestPage: read,
+    issuesByNumber: (projectId, numbers) => read(projectId, undefined, undefined, { kind: 'issue', numbers }),
+    pullRequestsByNumber: (projectId, numbers) =>
+      read(projectId, undefined, undefined, { kind: 'pullRequest', numbers }),
     repositoryChoices: projectId => read(projectId),
     issueDetail: (projectId, number) => read(projectId, undefined, { kind: 'issue', number }),
     pullRequestDetail: (projectId, number) => read(projectId, undefined, { kind: 'pullRequest', number }),

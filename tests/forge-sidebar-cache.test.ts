@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import type { ForgeSidebarPresence } from '../app/shared/forge/sidebar-data';
 import { openNoFilter } from './support/bound-workbench';
 import {
+  byNumber,
   detail,
   detailTitle,
   forge,
@@ -78,6 +79,7 @@ test('forgetting a project, as a binding change does, drops its kept rows and de
   const reloading = data.reloadChanged('alpha', { kind: 'issue', number: 1 });
   data.forget('alpha');
   reads[2].answer(detail(1, 'Old repository again'));
+  reads[3].answer(byNumber([{ ...issue(1), title: 'Old repository again' }]));
   await reloading;
   const count = events.length;
   void data.showList('alpha', { tab: 'issues', filter: openNoFilter });
@@ -91,7 +93,7 @@ test('forgetting a project, as a binding change does, drops its kept rows and de
   assert.equal(detailTitle(shownDetail()), 'Old repository');
 });
 
-test('a direct action or dispatch reported on an item reloads its detail alone, and its row shows the new state where it was', async () => {
+test('a direct action or dispatch reported on an item reads its row by number and its open detail, and its row shows the new state where it was', async () => {
   const sidebar = sidebarData();
   const { data, reads, lists, shownDetail } = sidebar;
   await shownIssues(sidebar, [4, 3, 2]);
@@ -100,11 +102,16 @@ test('a direct action or dispatch reported on an item reloads its detail alone, 
   await opened;
   const reloaded = data.reloadChanged('alpha', { kind: 'issue', number: 3 });
   assert.deepEqual(
-    reads.slice(2).map(({ query, item }) => query ?? item),
-    [{ kind: 'issue', number: 3 }],
-    'no page is read',
+    reads.slice(2).map(({ query, item, byNumber }) => query ?? item ?? byNumber),
+    [
+      { kind: 'issue', number: 3 },
+      { kind: 'issue', numbers: [3] },
+    ],
+    'no page is read; the detail and the row are asked at once',
   );
-  reads[2].answer(detail(3, 'Closed', { state: 'closed', closedAs: 'completed' }));
+  const closed = { state: 'closed', closedAs: 'completed' } as const;
+  reads[2].answer(detail(3, 'Closed', closed));
+  reads[3].answer(byNumber([{ ...issue(3), title: 'Closed', ...closed }]));
   await reloaded;
   assert.equal(detailTitle(shownDetail()), 'Closed');
   assert.deepEqual(
@@ -117,8 +124,12 @@ test('a direct action or dispatch reported on an item reloads its detail alone, 
     'the row no longer open stays in place with its new state',
   );
   const dispatched = data.reloadChanged('alpha', { kind: 'issue', number: 2 });
-  assert.deepEqual(reads[3].item, { kind: 'issue', number: 2 }, 'an item not open in the detail is read too');
-  reads[3].answer(detail(2, 'Dispatched'));
+  assert.deepEqual(
+    reads.slice(4).map(({ item, byNumber }) => item ?? byNumber),
+    [{ kind: 'issue', numbers: [2] }],
+    'an item not open in the detail has only its row read',
+  );
+  reads[4].answer(byNumber([{ ...issue(2), title: 'Dispatched' }]));
   await dispatched;
   assert.equal(detailTitle(shownDetail()), 'Closed', 'the open detail stays on its item');
   assert.equal(lists()?.issues.loaded?.items[2].title, 'Dispatched');
