@@ -48,6 +48,18 @@ Review each new or changed name by reading its call site alone and asking whethe
 
 Each test creates the data it needs and cleans it up, so a clean checkout passes without artifacts left by earlier tasks. Fixtures are named by the behaviour they stand for.
 
+### Assertions
+
+A test confirms the program's **behaviour**: the state it ends in, the data it produces, the requests it sends. Wording is presentation and confirms nothing.
+
+- Assert structured values: a pure function's return value, the `Workbench`'s state or `window.workbench.snapshot()`, the arguments a main-process call received.
+- Logic that derives what a view shows (whether a change happened, whether saving is allowed, which problem applies) lives in a pure function beside the view, a **presentation model** that returns structured values; the component renders its result. Unit tests import it directly, from `app/renderer` as from `app/shared`.
+- A failure is a discriminated union whose `kind` names it and whose fields carry its data. A mapping function turns it into a message id and values where it is shown, so derived results carry the failure rather than translated text. Across processes a failure the caller branches on is returned as such a union; a thrown error carries the `message()` envelope.
+- Component tests confirm the wiring between view and program. They locate elements by role, with the accessible name from the locale: `{ name: t('localDirectory') }`, where `t` is `localize('en').t`.
+- When the behaviour is that the view shows something, the test asserts which message it shows and with which values, built with `t(id, values)`. Localization tests own the wording itself.
+
+The reasoning is in `docs/adr/0009-tests-confirm-behaviour-not-wording.md`.
+
 ### Waits
 
 A test waits on the **settled state** of the behaviour under test: the observable values it ends in, checked so that a state reached before the wait began still passes.
