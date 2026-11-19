@@ -320,13 +320,13 @@ export class Workbench {
   saveLayout(projectId: string, layout: Layout | null) {
     return this.operation(() => this.panels.saveLayout(this.project(projectId), layout));
   }
-  /** Saves a sidebar's preferences with its width within the bounds the sidebar allows. */
+  /** Saves a sidebar's preferences with its width at least the sidebar's narrowest. */
   saveSidebar(sidebar: Sidebar, preferences: SidebarPreferences) {
     return this.operation(async () => {
-      const { width, invalid } = sidebars[sidebar];
+      const { minWidth, invalid } = sidebars[sidebar];
       const parsed = sidebarPreferencesSchema.safeParse(preferences);
       if (!parsed.success) throw new Error(message(invalid));
-      const value = { ...parsed.data, width: width(parsed.data.width) };
+      const value = { ...parsed.data, width: Math.max(minWidth, parsed.data.width) };
       await this.store.sidebar(sidebar, value);
       this.state[sidebar] = value;
       this.changed();

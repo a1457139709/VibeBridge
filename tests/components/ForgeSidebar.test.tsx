@@ -1,7 +1,7 @@
 import './support/dom';
 import assert from 'node:assert/strict';
 import test, { afterEach, before } from 'node:test';
-import { cleanup, render, screen, waitFor, within } from '@testing-library/react';
+import { act, cleanup, render, screen, waitFor, within } from '@testing-library/react';
 import { userEvent } from '@testing-library/user-event';
 import { App } from '../../app/renderer/Workbench';
 import { defaultSettings } from '../../app/shared/settings/settings';
@@ -146,16 +146,40 @@ test('Command+Alt+B opens the sidebar with focus inside wherever focus is, and c
   );
 });
 
+/** The width a region is drawn at, as the app body hands it to the region's CSS. */
+const drawnWidth = (region: 'navigation' | 'forge-sidebar') =>
+  document.querySelector<HTMLElement>('.app-body')!.style.getPropertyValue(`--${region}-width`);
+function resizeWindow(width: number) {
+  Object.defineProperty(window, 'innerWidth', { configurable: true, value: width });
+  act(() => void window.dispatchEvent(new Event('resize')));
+}
+
 test('the sidebar follows the current project and stays on the settings page', async () => {
   const { user } = renderWorkbench({ visible: true, width: 420 });
   assert.ok(within(await shownSidebar()).getByText('octo/bound'));
-  assert.equal(sidebar()!.style.width, '420px');
+  assert.equal(drawnWidth('forge-sidebar'), '420px');
   await user.click(screen.getByRole('button', { name: 'Unbound project' }));
   await waitFor(() => assert.ok(within(sidebar()!).getByText('No repository bound')));
   assert.equal(within(sidebar()!).queryByText('octo/bound'), null);
   await user.click(screen.getByRole('button', { name: 'Global settings' }));
   await screen.findByRole('button', { name: '‹ Back' });
   assert.ok(within(sidebar()!).getByText('No repository bound'));
+});
+
+test('a narrower window draws the sidebar narrower without changing its remembered width, and a wider one restores it', async t => {
+  t.after(() => resizeWindow(1024));
+  resizeWindow(1400);
+  const { saved, snapshot } = renderWorkbench({ visible: true, width: 700 });
+  await shownSidebar();
+  await waitFor(() => assert.equal(drawnWidth('forge-sidebar'), '700px'));
+  resizeWindow(800);
+  assert.equal(drawnWidth('forge-sidebar'), '588px', 'the sidebar narrows to end at the navigation');
+  assert.equal(drawnWidth('navigation'), '212px');
+  assert.deepEqual(saved, [], 'resizing the window saves no width');
+  assert.deepEqual(snapshot.navigation, { visible: true, width: 212 });
+  resizeWindow(1400);
+  assert.equal(drawnWidth('forge-sidebar'), '700px');
+  assert.deepEqual(saved, []);
 });
 
 const listed = (origin: string | null, paths = ['octo/tools', 'octo/unbound', 'acme/forge']): RepositoryChoices => ({

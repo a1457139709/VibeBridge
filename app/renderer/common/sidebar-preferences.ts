@@ -9,6 +9,8 @@ interface Options {
   api: Pick<DesktopAPI, 'saveSidebar' | 'subscribe'>;
   /** Which way dragging the resize edge to the right changes the width: 1 for an edge on the right, -1 for one on the left. */
   edge: 1 | -1;
+  /** Records the sidebar as the region last resized and returns the widest a drag may make it. */
+  beginResize(): number;
   report(message: string): void;
 }
 
@@ -92,7 +94,9 @@ export function useSidebarPreferences(options: Options) {
     if (!latest.current.snapshot || event.button !== 0) return;
     event.preventDefault();
     const { sidebar: current, edge } = latest.current;
-    const bounded = sidebars[current].width;
+    const { minWidth } = sidebars[current];
+    const widest = latest.current.beginResize();
+    const bounded = (width: number) => Math.round(Math.max(minWidth, Math.min(widest, width)));
     const operation = replaceOperation();
     const base = confirmed.current;
     const element = event.currentTarget,

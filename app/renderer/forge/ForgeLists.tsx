@@ -113,9 +113,8 @@ export function SidebarHead({
   );
 }
 
-/** The detail's width and resize edge, owned by the sidebar, and where it reports whether a detail is open. */
+/** The detail's resize edge, owned by the sidebar, and where it reports whether a detail is open. */
 export interface DetailHost {
-  width: number;
   resize(event: ReactPointerEvent<HTMLDivElement>): void;
   shown(open: boolean): void;
 }
@@ -440,7 +439,6 @@ export function ForgeLists({ project, changeBinding, detailHost, dispatchHost, r
         <ForgeDetailPane
           project={project}
           item={shown}
-          width={detailHost.width}
           resize={detailHost.resize}
           canBack={opened.length > 1}
           back={() => setOpened(stack => stack.slice(0, -1))}
