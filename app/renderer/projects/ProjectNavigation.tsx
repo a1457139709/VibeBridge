@@ -1,11 +1,12 @@
 import { useLocalization } from '../common/Localization';
-import { useEffect, useState, type CSSProperties } from 'react';
+import { useEffect, useState } from 'react';
 import type { DesktopAPI } from '../../shared/api';
 import { projectPanels, type PanelView, type ProjectView, type Snapshot } from '../../shared/model';
 import type { ProcessingState } from '../../shared/processing-status';
 import { agentIcons } from '../common/agent-icons';
 import type { PanelLocation } from '../panels/panel-location';
 import { useSidebarPreferences } from '../common/sidebar-preferences';
+import type { Region } from '../common/region-widths';
 import { ProjectNavigationItem } from './ProjectManagement';
 import { ProcessingStatusIcon } from '../common/ProcessingStatusIcon';
 
@@ -23,6 +24,8 @@ interface Host {
   locatePanel(projectId: string, panelId: string): void;
   createProject(): void;
   toggleSettings(): void;
+  /** Records `region` as the region last resized and returns the widest a drag may make it. */
+  beginResize(region: Region): number;
   report(message: string): void;
 }
 
@@ -40,6 +43,7 @@ export function useProjectNavigation(
     snapshot,
     api,
     edge: 1,
+    beginResize: () => host.beginResize('navigation'),
     report: host.report,
   });
   const [expandedProjects, setExpandedProjects] = useState<Record<string, boolean>>({});
@@ -51,8 +55,8 @@ export function useProjectNavigation(
   }, [snapshot?.activeProjectId]);
   const collapsed = !preferences.visible;
   return {
-    /** The width the navigation takes from the window: none while collapsed. */
-    extent: collapsed ? 0 : preferences.width,
+    /** The navigation's remembered width, or none while collapsed. */
+    width: collapsed ? 0 : preferences.width,
     toggle: (
       <button
         aria-label={collapsed ? t('expandNavigation') : t('collapseNavigation')}
@@ -64,11 +68,7 @@ export function useProjectNavigation(
       </button>
     ),
     sidebar: (
-      <nav
-        className={`navigation ${collapsed ? 'collapsed' : ''}`}
-        aria-label={t('projectNavigation')}
-        style={{ '--navigation-width': `${preferences.width}px` } as CSSProperties}
-      >
+      <nav className={`navigation ${collapsed ? 'collapsed' : ''}`} aria-label={t('projectNavigation')}>
         <div className="navigation-projects">
           <div className="nav-heading">{t('projects')}</div>
           {snapshot?.projects.map(project => {

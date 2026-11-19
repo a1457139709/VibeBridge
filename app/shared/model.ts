@@ -96,18 +96,13 @@ export interface SidebarPreferences {
   width: number;
 }
 export const sidebarPreferencesSchema = z.strictObject({ visible: z.boolean(), width: z.number() });
-const widthWithin = (min: number, max: number) => (width: number) => Math.max(min, Math.min(max, width));
-/** The app's sidebars, each named by its key in the snapshot: its preferences before any are saved, the width an
- * interaction may set, and the message for preferences that cannot be saved. Width bounds belong to the
- * interaction that sets them, not to the stored format. */
+/** The app's sidebars, each named by its key in the snapshot: its preferences before any are saved, the narrowest
+ * width that keeps its content whole, and the message for preferences that cannot be saved. A sidebar has no widest
+ * width: the window bounds how it is drawn and dragged, never what is stored. */
 export const sidebars = {
-  navigation: { defaults: { visible: true, width: 212 }, width: widthWithin(168, 420), invalid: 'navigationInvalid' },
-  forgeSidebar: {
-    defaults: { visible: false, width: 380 },
-    width: widthWithin(300, 560),
-    invalid: 'forgeSidebarInvalid',
-  },
-} as const satisfies Record<string, { defaults: SidebarPreferences; width(width: number): number; invalid: MessageId }>;
+  navigation: { defaults: { visible: true, width: 212 }, minWidth: 168, invalid: 'navigationInvalid' },
+  forgeSidebar: { defaults: { visible: false, width: 380 }, minWidth: 300, invalid: 'forgeSidebarInvalid' },
+} as const satisfies Record<string, { defaults: SidebarPreferences; minWidth: number; invalid: MessageId }>;
 export type Sidebar = keyof typeof sidebars;
 /** A panel with its current run, whatever that run's state, and the processing state it displays. */
 export type PanelView = Panel & { run?: Run; status?: ProcessingState };
