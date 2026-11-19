@@ -375,13 +375,19 @@
 .forge-row {
   cursor: pointer;
 }
-.forge-row.selected,
-.forge-row:has(> .forge-row-main > .forge-row-title:focus-visible) {
+/* One highlight per row, carried by the whole row: faint for the open item's row, strong for the row focus is on;
+ * the title draws no focus ring of its own. */
+.forge-row.selected {
   background: var(--hover);
   box-shadow: var(--selection-marker, inset 2px 0 var(--focus));
 }
+.forge-row:has(> .forge-row-main > .forge-row-title:focus) {
+  background: color-mix(in srgb, var(--accent) 13%, var(--canvas));
+  box-shadow: inset 3px 0 var(--accent);
+}
 .forge-sidebar .forge-row-title {
   display: block;
+  outline: none;
   padding: 0;
   border: 0;
   border-radius: 0;
@@ -854,60 +860,6 @@
 }
 
 /* The relation graph: open blockers, this issue, what it blocks. */
-.forge-graph {
-  position: relative;
-  margin-bottom: 14px;
-}
-.forge-graph > svg {
-  position: absolute;
-  inset: 0;
-  pointer-events: none;
-  overflow: visible;
-}
-.forge-graph-head {
-  position: absolute;
-  top: 0;
-  font-size: 10px;
-  font-weight: 600;
-  color: var(--muted);
-}
-.forge-node {
-  position: absolute;
-  display: flex;
-  align-items: center;
-  gap: 5px;
-  height: 22px;
-  padding: 0 8px;
-  border: 1px solid var(--line);
-  border-radius: 6px;
-  background: var(--surface);
-  font-size: 11px;
-  text-align: left;
-  z-index: 1;
-}
-.forge-node:hover {
-  border-color: var(--forge-link);
-}
-.forge-node.self {
-  border-color: var(--accent);
-  box-shadow: 0 0 0 1px var(--accent);
-  font-weight: 600;
-}
-.forge-node .forge-icon {
-  margin-top: 0;
-}
-.forge-node .forge-row-number {
-  flex-shrink: 0;
-}
-.forge-edge {
-  fill: none;
-  stroke-width: 1.4;
-  stroke: var(--forge-pending);
-}
-.forge-graph marker path {
-  fill: var(--forge-pending);
-}
-
 /* The pull requests that close the issue on merge: drawn as pull requests, apart from the issue graph. */
 .forge-closing-pulls {
   margin: 0 0 14px;

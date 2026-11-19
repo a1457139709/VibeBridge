@@ -1,5 +1,6 @@
 import './support/dom';
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
 import test, { afterEach, before } from 'node:test';
 import { cleanup, screen, waitFor, within } from '@testing-library/react';
 import { githubForge, githubRepository } from './support/forge';
@@ -338,4 +339,31 @@ test('a request that fails outside the forge fills the sidebar with its reason a
   await user.click(within(sidebar()).getByRole('button', { name: 'Retry' }));
   (await request(2)).answer(page([issue(1)]));
   await waitFor(() => assert.deepEqual(rows(), ['Issue 1']));
+});
+
+test('the current issue row is the one highlight: strong while the list has focus, faint once it does not, and its title has no focus ring', async () => {
+  const style = document.createElement('style');
+  style.textContent = ['app/renderer/style.css', 'app/renderer/forge/forge-sidebar.css']
+    .map(file => readFileSync(file, 'utf8'))
+    .join('\n');
+  document.head.append(style);
+  try {
+    const { user, request } = renderWorkbench(undefined, { issueDetail: () => new Promise(() => {}) });
+    (await request(1)).answer(page([issue(9), issue(8)]));
+    await waitFor(() => assert.deepEqual(rows(), ['Issue 9', 'Issue 8']));
+    const title = (name: string) => within(sidebar()).getByRole('button', { name });
+    const highlight = (name: string) => window.getComputedStyle(title(name).closest('.forge-row')!).boxShadow;
+    const unhighlighted = highlight('Issue 8');
+    title('Issue 9').focus();
+    assert.equal(window.getComputedStyle(title('Issue 9')).outline, 'none', 'the title draws no focus ring of its own');
+    const strong = highlight('Issue 9');
+    assert.notEqual(strong, unhighlighted, 'the row focus is on is highlighted');
+    await user.click(title('Issue 9'));
+    await waitFor(() => assert.ok(!sidebar().querySelector('.forge-rows')?.contains(document.activeElement)));
+    const faint = highlight('Issue 9');
+    assert.notEqual(faint, unhighlighted, "the open issue's row stays highlighted once focus leaves the list");
+    assert.notEqual(faint, strong, 'and its highlight fades');
+  } finally {
+    style.remove();
+  }
 });
