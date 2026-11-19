@@ -97,14 +97,6 @@
   border-radius: 6px;
   font-size: 12px;
 }
-.repository-current small {
-  color: var(--muted);
-}
-.repository-current.changed {
-  border-style: solid;
-  border-color: color-mix(in srgb, var(--accent) 55%, var(--line));
-  background: color-mix(in srgb, var(--accent) 8%, transparent);
-}
 .repository-current-actions {
   display: flex;
   gap: 6px;
