@@ -34,6 +34,7 @@ import { IssueTree, issueRowOf, moveOrOpenRow, PullRequestRow, rowTitleIn } from
 import { VirtualRows } from './VirtualRows';
 import { useScrolledRows } from './scrolled-rows';
 import { SidebarHead } from './SidebarHead';
+import { useRowResting } from './row-resting';
 
 /** Each tab's own texts. */
 const tabText = {
@@ -166,7 +167,7 @@ export function ForgeLists({ project, changeBinding, detailHost, dispatchHost, v
   /** Sends a declaration to the main process; one that is refused is reported. */
   const declare = (declaration: Promise<void>) =>
     void declaration.catch((error: Error) => dispatchHost.report(error.message));
-  const { scrollArea, holdScrollArea, rowsHost, keepReadingPosition, rowTitle } = useScrolledRows(
+  const { scrollArea, scrollElement, holdScrollArea, rowsHost, keepReadingPosition, rowTitle } = useScrolledRows(
     project.id,
     lists,
     declare,
@@ -189,6 +190,7 @@ export function ForgeLists({ project, changeBinding, detailHost, dispatchHost, v
     const last = declaredDetail.current;
     if (item?.kind !== last?.kind || item?.number !== last?.number) showDetail(item);
   }, [shown?.kind, shown?.number]);
+  useRowResting(scrollElement, item => declare(window.workbench.reportForgeRowResting(project.id, item)));
   /** Reports that a direct action or dispatch changed `item`; the main process reloads what shows it. */
   const reportChanged = (item: DetailItem) => declare(window.workbench.reportForgeItemChanged(project.id, item));
   /** The Dispatch whose menu is open, on an issue's list row or in the detail; one menu opens at a time. */
