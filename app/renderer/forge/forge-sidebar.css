@@ -134,6 +134,12 @@
   background: none;
   color: var(--muted);
 }
+.forge-head-text {
+  min-height: 24px;
+  margin-right: 2px;
+  padding: 0 8px;
+  font-size: 12px;
+}
 .forge-head-action svg {
   fill: currentColor;
 }

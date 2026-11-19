@@ -173,16 +173,11 @@ parentPort!.on('message', ({ id, operation, value }) => {
         activeProjectId: workspace?.active_project ?? null,
       };
     } else if (operation === 'save') transaction(() => saveProject(value as Project));
-    else if (operation === 'edit') {
-      const { project, repository } = value as { project: Project; repository: RepositoryReference | null };
-      transaction(() => {
-        saveProject(project);
-        if (repository) bind(project.id, repository);
-        else db.prepare('DELETE FROM bound_repositories WHERE project_id=?').run(project.id);
-      });
-    } else if (operation === 'bind') {
+    else if (operation === 'bind') {
       const { projectId, repository } = value as { projectId: string; repository: RepositoryReference };
       bind(projectId, repository);
+    } else if (operation === 'unbind') {
+      db.prepare('DELETE FROM bound_repositories WHERE project_id=?').run(value as string);
     } else if (operation === 'dispatch') {
       const record = value as DispatchRecord;
       const { forge, host, id: repositoryId, path } = record.repository;

@@ -54,13 +54,13 @@ export class ProjectStore {
   save(project: Project) {
     return this.request<void>('save', project);
   }
-  /** Saves an edited project and its Repository Binding (null for none) in one transaction. */
-  edit(project: Project, repository: RepositoryReference | null) {
-    return this.request<void>('edit', { project, repository });
-  }
-  /** Stores a project's Repository Binding at the path its forge now shows it at. */
+  /** Stores a project's Repository Binding, replacing any it has. */
   bind(projectId: string, repository: RepositoryReference) {
     return this.request<void>('bind', { projectId, repository });
+  }
+  /** Removes a project's Repository Binding. */
+  unbind(projectId: string) {
+    return this.request<void>('unbind', projectId);
   }
   /** Appends a Dispatch Record. */
   dispatch(record: DispatchRecord) {

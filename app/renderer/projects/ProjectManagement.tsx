@@ -2,19 +2,22 @@ import { useLocalization } from '../common/Localization';
 import { message } from '../../shared/messages';
 import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from 'react';
 import { type DirectoryResult, type Project, type ProjectEditResult, type ProjectView } from '../../shared/model';
-import { sameRepository, type RepositoryReference } from '../../shared/forge/forge';
+import { originElsewhereThanBinding } from '../../shared/forge/forge';
 import { projectNameError, projectNameHasControls } from '../../shared/project-name';
 import { LaunchResults } from './LaunchResults';
-import { BindingImpact, RepositoryField, useRepositoryField } from '../forge/RepositoryField';
+import { useRepositoryChoices } from '../forge/RepositoryList';
 import './project-management.css';
 
 export function ProjectNavigationItem({
   project,
   openProject,
+  openBinding,
   children,
 }: {
   project: ProjectView;
   openProject(id: string): void;
+  /** Opens the forge sidebar where the project's binding is made or changed. */
+  openBinding(project: ProjectView): void;
   children: ReactNode;
 }) {
   const { t } = useLocalization();
@@ -96,6 +99,10 @@ export function ProjectNavigationItem({
             setAction(undefined);
             openProject(id);
           }}
+          openBinding={() => {
+            setAction(undefined);
+            openBinding(project);
+          }}
         />
       )}
       {action === 'delete' && <DeleteProject project={project} close={() => setAction(undefined)} />}
@@ -103,15 +110,19 @@ export function ProjectNavigationItem({
   );
 }
 
-/** The edit-project dialog. */
+/** The edit-project dialog. It edits name and directory; the Repository Binding shows read-only, with a link to the
+ * forge sidebar where it is made or changed. */
 export function ProjectEditor({
   project,
   close,
   openProject,
+  openBinding,
 }: {
   project: ProjectView;
   close(): void;
   openProject(id: string): void;
+  /** Closes the dialog and opens the forge sidebar on the project's binding. */
+  openBinding(): void;
 }) {
   const { t, text } = useLocalization();
   const dialog = useRef<HTMLDialogElement>(null);
@@ -127,18 +138,8 @@ export function ProjectEditor({
   const [busy, setBusy] = useState(false),
     [choosing, setChoosing] = useState(false),
     [error, setError] = useState('');
-  const [result, setResult] = useState<{
-    outcome: ProjectEditResult;
-    repository: { from: RepositoryReference | null; to: RepositoryReference | null };
-  }>();
-  // The default repository follows the directory being edited once it has been inspected.
-  const field = useRepositoryField(
-    project,
-    inspection.result.valid ? inspection.result.directory! : original.directory,
-  );
-  const bound = field.bound,
-    repository = field.repository;
-  const bindingChanged = !sameRepository(repository, bound);
+  const [result, setResult] = useState<ProjectEditResult>();
+  const bound = project.repository;
   const directory = inspection.path === path ? inspection.result : undefined;
   const checking = !!path && !directory;
   const duplicate = directory?.existingProjectId && directory.existingProjectId !== project.id;
@@ -153,7 +154,10 @@ export function ProjectEditor({
           ? t('duplicateEdit', { name: directory.existingProjectName! })
           : '';
   const changedDirectory = !!directory?.valid && !duplicate && directory.directory !== original.directory;
-  const edited = name.trim() !== original.name || path !== original.directory || bindingChanged;
+  const edited = name.trim() !== original.name || path !== original.directory;
+  // A bound project's new directory may have an origin that points elsewhere; the binding does not follow it.
+  const { listed } = useRepositoryChoices(project.id, bound && changedDirectory ? directory.directory! : null);
+  const originElsewhere = originElsewhereThanBinding(bound, listed);
   const canSave = !busy && !choosing && !checking && !nameError && !directoryError;
   // Open before the fields' effects run: a field can take focus only inside an open dialog.
   useLayoutEffect(() => {
@@ -182,14 +186,13 @@ export function ProjectEditor({
       clearTimeout(timer);
     };
   }, [path]);
-  // The only save: name, directory and binding go in one call, which saves all of them or none.
   async function save(restart: boolean) {
     if (!canSave) return;
     setBusy(true);
     setError('');
     try {
-      const outcome = await window.workbench.editProject(project.id, { name, directory: path, repository }, restart);
-      if (outcome.error || outcome.launches.length) setResult({ outcome, repository: { from: bound, to: repository } });
+      const outcome = await window.workbench.editProject(project.id, { name, directory: path }, restart);
+      if (outcome.error || outcome.launches.length) setResult(outcome);
       else close();
     } catch (error) {
       setError((error as Error).message);
@@ -197,7 +200,6 @@ export function ProjectEditor({
       setBusy(false);
     }
   }
-  const impact = changedDirectory || (!!bound && bindingChanged);
   return (
     <dialog
       ref={dialog}
@@ -211,28 +213,21 @@ export function ProjectEditor({
       <h2>{result ? t('projectEditResult') : t('editProject')}</h2>
       {result ? (
         <>
-          <p>{t('projectSaved', { name: result.outcome.project.name })}</p>
-          <p className="project-path">{result.outcome.project.directory}</p>
-          {!sameRepository(result.repository.from, result.repository.to) && (
-            <p className="project-path">
-              {result.repository.to
-                ? t('repositoryBound', { repository: result.repository.to.path })
-                : t('repositoryUnbound', { repository: result.repository.from!.path })}
-            </p>
-          )}
-          {result.outcome.error && (
+          <p>{t('projectSaved', { name: result.project.name })}</p>
+          <p className="project-path">{result.project.directory}</p>
+          {result.error && (
             <p className="error-text" role="alert">
-              {text(result.outcome.error)}
+              {text(result.error)}
             </p>
           )}
-          {!!result.outcome.launches.length && (
+          {!!result.launches.length && (
             <>
               <p>
-                {result.outcome.launches.every(launch => launch.outcome === 'started')
+                {result.launches.every(launch => launch.outcome === 'started')
                   ? t('panelsRestarted')
                   : t('panelsRestartUnconfirmed')}
               </p>
-              <LaunchResults launches={result.outcome.launches} />
+              <LaunchResults launches={result.launches} />
             </>
           )}
           <div className="project-dialog-actions">
@@ -317,33 +312,48 @@ export function ProjectEditor({
               )}
             </div>
           )}
-          <RepositoryField field={field} disabled={busy} focus={false} />
+          <div className="repository-field">
+            <span className="repository-label">{t('repository')}</span>
+            <div className="repository-current">
+              <span className="repository-path">{bound ? <b>{bound.path}</b> : t('notBound')}</span>
+              <span className="repository-current-actions">
+                <button type="button" className="text-link" disabled={busy} onClick={openBinding}>
+                  {t(bound ? 'changeBindingInSidebar' : 'bindInSidebar', { forge: project.forge.name })}
+                </button>
+              </span>
+            </div>
+          </div>
           {/* Every consequence of saving is listed here, above the buttons that save; this is the confirmation. */}
-          {impact && (
+          {changedDirectory && (
             <section className="save-impact" aria-label={t('afterSave')}>
               <b>{t('afterSave')}</b>
               <dl>
-                {changedDirectory && (
+                <dt>{t('directory')}</dt>
+                <dd>
+                  <span className="project-path">
+                    {original.directory} → {directory!.directory}
+                  </span>
+                  <p>{t('currentRuns', { count: running })}</p>
+                  <p>
+                    <strong>{t('changeAndRestart')}: </strong>
+                    {t('restartImpact')}
+                  </p>
+                  <p>
+                    <strong>{t('changeWithoutRestart')}: </strong>
+                    {t('noRestartImpact')}
+                  </p>
+                  <p>{t('directoryHistory')}</p>
+                </dd>
+                {originElsewhere && (
                   <>
-                    <dt>{t('directory')}</dt>
+                    <dt>{t('repository')}</dt>
                     <dd>
-                      <span className="project-path">
-                        {original.directory} → {directory!.directory}
-                      </span>
-                      <p>{t('currentRuns', { count: running })}</p>
                       <p>
-                        <strong>{t('changeAndRestart')}: </strong>
-                        {t('restartImpact')}
+                        {t('originElsewhereThanBinding', { origin: originElsewhere.path, repository: bound!.path })}
                       </p>
-                      <p>
-                        <strong>{t('changeWithoutRestart')}: </strong>
-                        {t('noRestartImpact')}
-                      </p>
-                      <p>{t('directoryHistory')}</p>
                     </dd>
                   </>
                 )}
-                <BindingImpact field={field} />
               </dl>
             </section>
           )}

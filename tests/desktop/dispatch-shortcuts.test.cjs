@@ -26,15 +26,10 @@ module.exports = {
     const context = await require('./support/terminal-waits.cjs')(base);
     const { window, evaluate, until, click } = context;
     const project = snapshot.projects[0];
-    // Bound as picking octo/desktop from the repository field binds it.
-    assert.equal(
-      (
-        await evaluate(`(async () => window.workbench.editProject(${JSON.stringify(project.id)}, { name: ${JSON.stringify(project.name)},
-      directory: ${JSON.stringify(project.directory)}, repository: (await window.workbench.repositoryChoices(${JSON.stringify(project.id)},
-      ${JSON.stringify(project.directory)})).repositories.find(item => item.path === 'octo/desktop') }, false))()`)
-      ).error,
-      undefined,
-    );
+    // Bound as Bind in the Forge sidebar binds octo/desktop.
+    await evaluate(`(async () => window.workbench.bindRepository(${JSON.stringify(project.id)},
+      (await window.workbench.repositoryChoices(${JSON.stringify(project.id)}, ${JSON.stringify(project.directory)}))
+        .repositories.find(item => item.path === 'octo/desktop')))()`);
     await click('Show the GitHub sidebar');
     await until(
       () => evaluate('document.querySelector(".forge-row-title")?.textContent === "Dispatched issue"'),

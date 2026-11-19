@@ -176,6 +176,11 @@ void app.whenReady().then(async () => {
     await loginPath;
     return service.repositoryChoices(id, directory);
   });
+  handle('bind-repository', async (service, id, repository) => {
+    await loginPath;
+    return service.bindRepository(id, repository);
+  });
+  handle('unbind-repository', (service, id) => service.unbindRepository(id));
   handle('issue-page', async (service, id, query) => {
     await loginPath;
     return service.issuePage(id, query);
