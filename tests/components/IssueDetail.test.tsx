@@ -13,11 +13,14 @@ import type {
   IssueReference,
   ListedIssue,
 } from '../../app/shared/forge/forge';
+import { localize } from '../../app/shared/localization/localization';
 import { stubLayoutApis } from './support/no-layout';
 import { deferred, provideWorkbench } from './support/workbench';
 import { forgeSidebarData } from './support/forge-sidebar-data';
 import { githubCapabilities, githubForge, githubView, githubRepository } from './support/forge';
 import { issue as listedIssue } from './support/forge-lists';
+
+const { t } = localize('en');
 
 afterEach(cleanup);
 before(() => {
@@ -433,4 +436,22 @@ test('a detail that fails to load says why and Retry asks again', async () => {
   assert.equal(again.number, 5);
   again.fail(new Error('No repository bound'));
   await within(pane()).findByText('Could not load #5: No repository bound');
+});
+
+test('a refresh of a shown detail that fails keeps it showing with a stale notice, and Retry asks again', async () => {
+  const { user, request } = renderWorkbench([summary(5)]);
+  await user.click(await row('Issue 5'));
+  (await request(1)).answer({ ok: true, issue: detail(5) });
+  await within(pane()).findByRole('heading', { name: 'Issue 5 #5' });
+  await user.click(within(sidebar()).getByRole('button', { name: t('refresh') }));
+  (await request(2)).answer({
+    ok: false,
+    failure: { kind: 'transient', detail: 'HTTP 502: Bad Gateway', forge: githubForge },
+  });
+  await within(pane()).findByText(t('dataMayBeStale'));
+  assert.ok(within(pane()).getByRole('heading', { name: 'Issue 5 #5' }), 'the shown detail stays');
+  await user.click(within(pane()).getByRole('button', { name: t('retry') }));
+  (await request(3)).answer({ ok: true, issue: detail(5, { title: 'Renamed' }) });
+  await within(pane()).findByRole('heading', { name: 'Renamed #5' });
+  assert.equal(within(pane()).queryByText(t('dataMayBeStale')), null, 'the new answer clears the notice');
 });

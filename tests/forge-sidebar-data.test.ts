@@ -114,6 +114,7 @@ test('the detail pushes the answer for the item declared, and only the latest de
   assert.deepEqual(shownDetail(), {
     item: { kind: 'pullRequest', number: 12 },
     result: { ok: false, failure: { kind: 'transient', detail: 'No repository bound', forge } },
+    failed: null,
   });
   const closed = data.showDetail('alpha', { kind: 'issue', number: 4 });
   await data.showDetail('alpha', null);
@@ -208,4 +209,36 @@ test('with no rows shown a refresh reloads the first page only', async () => {
   await refreshed;
   assert.equal(reads.length, 3);
   assert.deepEqual(numbers(lists()), [1]);
+});
+
+test('a failed reread of the open detail keeps its shown answer beside the failure; with none shown the failure shows', async () => {
+  const { data, reads, shownDetail } = sidebarData();
+  const item = { kind: 'issue', number: 3 } as const;
+  const failure = { kind: 'transient', detail: 'HTTP 502', forge } as const;
+  const failing = data.showDetail('alpha', item);
+  reads[0].answer({ ok: false, failure });
+  await failing;
+  assert.deepEqual(shownDetail(), { item, result: { ok: false, failure }, failed: null }, 'nothing is kept to show');
+  const opened = data.showDetail('alpha', item);
+  reads[1].answer(detail(3, 'Before'));
+  await opened;
+  const rereads = {
+    refresh: () => data.refresh('alpha'),
+    'direct action': () => data.reloadChanged('alpha', item),
+    'reopening the kept detail': () => data.showDetail('alpha', item),
+  };
+  for (const [reread, start] of Object.entries(rereads)) {
+    const settled = start();
+    reads.at(-1)!.answer({ ok: false, failure });
+    await settled;
+    assert.deepEqual(
+      shownDetail(),
+      { item, result: detail(3, 'Before'), failed: failure },
+      `after a failed ${reread} the shown answer stays, and may be stale`,
+    );
+  }
+  const updated = data.refresh('alpha');
+  reads.at(-1)!.answer(detail(3, 'After'));
+  await updated;
+  assert.deepEqual(shownDetail(), { item, result: detail(3, 'After'), failed: null }, 'the next answer clears it');
 });
