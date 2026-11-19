@@ -175,13 +175,9 @@ export const englishForgeSidebar = {
   ephemeralPanel: 'Ephemeral',
   dispatchCommandUnavailable: 'This command is not in an enabled workflow',
   dispatchTargetUnavailable: 'The target panel has no running Agent',
-  dispatched: 'Dispatched ·',
-  dispatchedGone: '{agent} · {when} · {text} → its session is not in any open panel',
-  dispatchedGoneLocatable:
-    '{agent} · {when} · {text} → its session is not in any open panel (click to locate the latest dispatch a panel is on)',
-  dispatchStatusHint: '{status} · {agent} · {when} · {text} → {title} (click to locate the panel)',
+  dispatchSkillLocatable: '{skill} · {age} · click to locate the panel ({shortcut})',
+  dispatchSkillGone: '{skill} · {age} · the session it went to is not in any open panel',
   dispatchRecords: 'Dispatch records ({count})',
-  noPanelOnSession: 'No panel is on this session',
-  locateSessionPanel: 'Locate the panel on this session',
-  hideCommand: 'Hide command',
+  copySessionId: 'Copy session ID {id}',
+  sessionIdCopied: 'Session ID copied',
 } as const;

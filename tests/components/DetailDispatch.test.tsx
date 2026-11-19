@@ -5,6 +5,7 @@ import { cleanup, screen, waitFor, within } from '@testing-library/react';
 import type { IssueDetail } from '../../app/shared/forge/forge';
 import type { DispatchRecordView } from '../../app/shared/dispatch';
 import type { Snapshot } from '../../app/shared/model';
+import { localize } from '../../app/shared/localization/localization';
 import { sidebar, stubSidebarApis } from './support/forge-lists';
 import { issueDetail as detail, listed, record, row } from './support/dispatch';
 
@@ -21,8 +22,6 @@ async function opened(issue: IssueDetail, change: (snapshot: Snapshot) => void =
 }
 const pane = () => within(sidebar()).getByRole('region', { name: 'Issue detail' });
 const records = () => within(pane()).getByRole('region', { name: /^Dispatch records/ });
-/** The text sent of a record, while it shows. */
-const sentText = (item: HTMLElement) => item.querySelector('code')?.textContent ?? null;
 /** A record that is `hours` old. */
 const aged = (hours: number, location: DispatchRecordView['location'], extra: Partial<DispatchRecordView> = {}) =>
   record(9, location, { dispatchedAt: new Date(Date.now() - hours * 3600e3).toISOString(), ...extra });
@@ -61,50 +60,41 @@ test("a closed issue's detail has no Dispatch", async () => {
   assert.equal(within(pane()).queryByRole('button', { name: 'Dispatch' }), null);
 });
 
-test("Dispatch records list the issue's dispatches newest first: when, the Agent type, the session title that locates its panel, its status, and the text sent folded", async () => {
+const { t } = localize('en');
+/** The parts of a record's one line as the user reads them: its text, and each image's name. */
+const line = (item: HTMLElement) =>
+  [...item.querySelectorAll<HTMLElement>(':scope > *')].map(part =>
+    part.getAttribute('role') === 'img' ? part.getAttribute('aria-label') : part.textContent,
+  );
+
+test("Dispatch records list the issue's dispatches newest first, one line each: when, the Agent type, the skill and the session ID", async () => {
   const f = await opened(detail(9), snapshot => {
     snapshot.projects[0].dispatches = [
-      aged(5, null, { agent: 'claude', text: '/to-spec 9' }),
-      aged(
-        2,
-        { projectId: 'beta', panelId: 'beta-panel', status: 'ready', title: 'Beta session' },
-        { text: '$implement https://github.com/octo/alpha/issues/9' },
-      ),
+      aged(50, null, { agent: 'claude', skill: 'to-spec', sessionId: 'aaaabbbb-1111-2222-3333-444455556666' }),
+      aged(2, { projectId: 'beta', panelId: 'beta-panel' }, { skill: 'grill-me', sessionId: 'ccccdddd-1111' }),
+      aged(1, { projectId: 'alpha', panelId: 'tray' }, { skill: 'tdd', sessionId: undefined }),
       record(8, null),
     ];
   });
-  const shown = within(records()).getAllByRole('listitem');
   assert.equal(
     within(records()).getByRole('button', { name: /Dispatch records/ }).textContent,
-    '▾ Dispatch records (2)',
+    '▾ Dispatch records (3)',
   );
-  assert.equal(shown.length, 2);
-  assert.ok(within(shown[0]).getByText('2h ago'));
-  assert.ok(within(shown[0]).getByRole('img', { name: 'Codex' }));
-  assert.ok(within(shown[0]).getByRole('button', { name: 'Beta session' }), 'the session title is the link');
-  assert.ok(
-    within(shown[0]).getByRole('button', { name: 'Ready · Beta session' }),
-    'the status shows apart from the title',
-  );
-  assert.ok(within(shown[1]).getByText('5h ago'));
-  assert.ok(within(shown[1]).getByRole('img', { name: 'Claude Code' }));
-  assert.ok(
-    within(shown[1]).getByText('No panel is on this session'),
-    'a session no panel is on is named without a link',
+  const shown = within(records()).getAllByRole('listitem');
+  assert.deepEqual(shown.map(line), [
+    [t('hoursAgo', { count: 1 }), 'Codex', 'tdd'],
+    [t('hoursAgo', { count: 2 }), 'Codex', 'grill-me', 'ccccdddd'],
+    [t('daysAgo', { count: 2 }), 'Claude Code', 'to-spec', 'aaaabbbb'],
+  ]);
+  assert.deepEqual(
+    shown.map(item => !!within(item).queryByRole('button', { name: /^(tdd|grill-me|to-spec)$/ })),
+    [true, true, false],
+    'the skill locates only when a panel is on its session',
   );
   assert.equal(
-    within(shown[1])
-      .queryAllByRole('button')
-      .map(button => button.textContent)
-      .join(),
-    '/to-spec ▸',
+    within(shown[2]).getByText('to-spec').getAttribute('data-hint'),
+    t('dispatchSkillGone', { skill: 'to-spec', age: t('daysAgo', { count: 2 }) }),
   );
-
-  assert.equal(sentText(shown[0]), null, 'the text sent starts folded');
-  await f.user.click(within(shown[0]).getByRole('button', { name: '$implement ▸' }));
-  await waitFor(() => assert.equal(sentText(shown[0]), '$implement https://github.com/octo/alpha/issues/9'));
-  await f.user.click(within(shown[0]).getByRole('button', { name: 'Hide command' }));
-  await waitFor(() => assert.equal(sentText(shown[0]), null));
 
   const activated: string[] = [];
   window.workbench.activateProject = async id => {
@@ -112,8 +102,25 @@ test("Dispatch records list the issue's dispatches newest first: when, the Agent
     f.snapshot.activeProjectId = id;
     f.publish();
   };
-  await f.user.click(within(shown[0]).getByRole('button', { name: 'Beta session' }));
+  await f.user.click(within(shown[1]).getByRole('button', { name: 'grill-me' }));
   await waitFor(() => assert.deepEqual(activated, ['beta']));
+});
+
+test("clicking a record's session ID copies the full ID and says so briefly, whether or not a panel is on it", async () => {
+  const sessionId = 'aaaabbbb-1111-2222-3333-444455556666';
+  const f = await opened(detail(9), snapshot => {
+    snapshot.projects[0].dispatches = [aged(50, null, { sessionId })];
+  });
+  const copied: string[] = [];
+  Object.defineProperty(navigator, 'clipboard', {
+    configurable: true,
+    value: { writeText: async (text: string) => void copied.push(text) },
+  });
+  const id = within(records()).getByRole('button', { name: t('copySessionId', { id: sessionId }) });
+  assert.equal(id.getAttribute('data-hint'), sessionId, 'the hint gives the full ID');
+  await f.user.click(id);
+  await waitFor(() => assert.deepEqual(copied, [sessionId]));
+  await screen.findByText(t('sessionIdCopied'));
 });
 
 test('an issue with no dispatches has no Dispatch records', async () => {
@@ -123,10 +130,7 @@ test('an issue with no dispatches has no Dispatch records', async () => {
 
 test("a closed issue's Dispatch records fold to their count and unfold on click", async () => {
   const f = await opened(detail(8, { state: 'closed', closedAs: 'completed' }), snapshot => {
-    snapshot.projects[0].dispatches = [
-      record(8, null),
-      record(8, { projectId: 'alpha', panelId: 'tray', status: 'busy', title: 'Fix it' }),
-    ];
+    snapshot.projects[0].dispatches = [record(8, null), record(8, { projectId: 'alpha', panelId: 'tray' })];
   });
   const toggle = within(records()).getByRole('button', { name: /Dispatch records/ });
   assert.equal(toggle.textContent, '▸ Dispatch records (2)');

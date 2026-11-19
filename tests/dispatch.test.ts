@@ -66,12 +66,11 @@ async function dispatching(context: test.TestContext, { lateSession = false } = 
   return { ...f, gh, projectId: project.id, run, session, typed, records, dispatch, dispatchNew, start };
 }
 
-test('submitting to an existing panel pastes the command for its Agent type, then presses Enter, and records the dispatch on its session', async context => {
+test('submitting to an existing panel pastes the command for its Agent type, then presses Enter, and records the dispatch with its skill on its session', async context => {
   const f = await dispatching(context);
   try {
     await f.dispatch(7);
-    const text = '/implement https://github.com/octo/tools/issues/7';
-    assert.equal(await f.typed(), `${paste(text)}\r`);
+    assert.equal(await f.typed(), `${paste('/implement https://github.com/octo/tools/issues/7')}\r`);
     await until(() => f.records().length === 1);
     const [record] = f.records();
     assert.deepEqual(
@@ -79,9 +78,10 @@ test('submitting to an existing panel pastes the command for its Agent type, the
       {
         issue: 7,
         agent: 'claude',
-        text,
+        skill: 'implement',
+        sessionId: f.session,
         dispatchedAt: undefined,
-        location: { projectId: f.projectId, panelId: f.run.panelId, status: 'ready' },
+        location: { projectId: f.projectId, panelId: f.run.panelId },
       },
     );
     assert.ok(!Number.isNaN(Date.parse(record.dispatchedAt)));
@@ -116,10 +116,10 @@ test('a fill-only command is pasted after what the input holds without pressing 
     );
     await until(() => f.records().length === 2);
     assert.deepEqual(
-      f.records().map(record => [record.issue, record.text]),
+      f.records().map(record => [record.issue, record.skill]),
       [
-        [7, '/to-spec https://github.com/octo/tools/issues/7'],
-        [8, '/triage look at https://github.com/octo/tools/issues/8'],
+        [7, 'to-spec'],
+        [8, 'triage'],
       ],
     );
   } finally {
@@ -265,7 +265,20 @@ test("a new panel's dispatch locates its panel at once, and is recorded on the f
   try {
     const run = await f.dispatchNew(7);
     assert.deepEqual(located(f.workbench), [[7, run.panelId]], 'shown before the panel reports a session');
+    const [waiting] = f.records();
+    assert.deepEqual(
+      { ...waiting, dispatchedAt: undefined },
+      {
+        issue: 7,
+        agent: 'claude',
+        skill: 'implement',
+        dispatchedAt: undefined,
+        location: { projectId: f.projectId, panelId: run.panelId },
+      },
+      'no session ID until the panel reports one',
+    );
     await f.start(run.id);
+    await until(() => f.records()[0]?.sessionId === `session-${run.pid}`);
     // Once recorded, the dispatch follows its session rather than the panel.
     await f.send(run.id, { hook_event_name: 'SessionStart', source: 'clear', session_id: 'cleared' });
     await until(() => located(f.workbench)[0]?.[1] === null);
