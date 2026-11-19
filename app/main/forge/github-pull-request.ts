@@ -13,7 +13,11 @@ import {
   repositoryLinks,
   canWrite,
   viewerPermission,
+  answeredBy,
+  answeringFields,
+  answeringSchema,
 } from './github-fields';
+import type { Answered } from './forge';
 
 // One pull request's read-only detail from GitHub: its timeline and what stands between it and a merge.
 
@@ -36,6 +40,7 @@ const checkContextSchema = z.discriminatedUnion('__typename', [
 ]);
 const pullRequestDetailSchema = z.object({
   repository: z.object({
+    ...answeringSchema,
     url: z.string(),
     viewerPermission,
     mergeCommitAllowed: z.boolean(),
@@ -90,7 +95,7 @@ const pullRequestDetailSchema = z.object({
 // Closing issues may be in other repositories; their URLs say where.
 // `refUpdateRule` is the base branch's protection as the viewer may read it; `isRequired` asks whether a check is required for this pull request.
 const pullRequestDetailQuery = `query($owner: String!, $name: String!, $number: Int!) {
-  repository(owner: $owner, name: $name) { url viewerPermission mergeCommitAllowed squashMergeAllowed rebaseMergeAllowed pullRequest(number: $number) {
+  repository(owner: $owner, name: $name) { ${answeringFields} url viewerPermission mergeCommitAllowed squashMergeAllowed rebaseMergeAllowed pullRequest(number: $number) {
     number title state isDraft createdAt url bodyHTML author { login } headRefName baseRefName
     labels(first: 20) { nodes { name color } }
     closingIssuesReferences(first: ${relatedLimit}) { nodes { ${issueReferenceFields} } }
@@ -146,11 +151,12 @@ const reviewVerdict = {
   DISMISSED: 'dismissed',
 } as const;
 
-/** One pull request of the repository with its rendered body, timeline and merge requirements. */
+/** One pull request of the repository with its rendered body, timeline and merge requirements, and the repository that
+ * answered at its path. */
 export async function pullRequestDetail(
   { host, path }: RepositoryReference,
   number: number,
-): Promise<PullRequestDetail> {
+): Promise<Answered<PullRequestDetail>> {
   const [owner, name] = path.split('/');
   const { repository } = await graphql(host, pullRequestDetailQuery, { owner, name, number }, pullRequestDetailSchema);
   const { pullRequest: pull } = repository;
@@ -174,7 +180,7 @@ export async function pullRequestDetail(
         verdict: reviewVerdict[review.state],
       })),
   ].sort((a, b) => a.createdAt.localeCompare(b.createdAt));
-  return {
+  const detail: PullRequestDetail = {
     number: pull.number,
     title: pull.title,
     state: pullRequestState(pull.state, pull.isDraft),
@@ -211,4 +217,5 @@ export async function pullRequestDetail(
     },
     canWrite: canWrite(repository.viewerPermission),
   };
+  return { answeredBy: answeredBy(repository), data: detail };
 }
