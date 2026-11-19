@@ -176,7 +176,7 @@ test('opening the sidebar puts focus on the first row of its list once the list 
 
 test("in an issue's detail Tab reaches its Dispatch and dispatch records, and Esc in its dispatch menu closes only the menu", async () => {
   const f = await listed(undefined, snapshot => {
-    snapshot.projects[0].dispatches = [record(9, { projectId: 'alpha', panelId: 'alpha-panel', status: 'ready' })];
+    snapshot.projects[0].dispatches = [record(9, { projectId: 'alpha', panelId: 'alpha-panel' })];
   });
   window.workbench.issueDetail = async (_, number) => ({ ok: true, issue: issueDetail(number) });
   titleButton('Issue 9').focus();
@@ -190,7 +190,7 @@ test("in an issue's detail Tab reaches its Dispatch and dispatch records, and Es
     reached.push(document.activeElement?.getAttribute('aria-label') ?? document.activeElement?.textContent ?? '');
   }
   assert.ok(reached.includes('Dispatch ▾'), `Dispatch is reached: ${reached.join(' | ')}`);
-  assert.ok(reached.includes('Untitled task'), `the record's session link is reached: ${reached.join(' | ')}`);
+  assert.ok(reached.includes('implement'), `the record's skill link is reached: ${reached.join(' | ')}`);
   await f.user.click(
     within(pane.querySelector<HTMLElement>('.forge-doc-head')!).getByRole('button', { name: 'Dispatch' }),
   );
@@ -202,10 +202,10 @@ test("in an issue's detail Tab reaches its Dispatch and dispatch records, and Es
 
 test('locating a panel from the sidebar on the settings page goes back to the workspace', async () => {
   const f = await listed(undefined, snapshot => {
-    snapshot.projects[0].dispatches = [record(9, { projectId: 'alpha', panelId: 'alpha-panel', status: 'ready' })];
+    snapshot.projects[0].dispatches = [record(9, { projectId: 'alpha', panelId: 'alpha-panel' })];
   });
   await f.user.click(screen.getByRole('button', { name: 'Global settings' }));
   await screen.findByRole('button', { name: '‹ Back' });
-  await f.user.click(within(row(9)).getByRole('button', { name: 'Ready · Untitled task' }));
+  await f.user.click(within(row(9)).getByRole('button', { name: 'implement' }));
   await waitFor(() => assert.equal(screen.queryByRole('button', { name: '‹ Back' }), null));
 });

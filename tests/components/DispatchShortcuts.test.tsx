@@ -43,7 +43,7 @@ test("⌘D opens the dispatch menu of the issue focused in the list, or the deta
 
 test("from a detail whose list row is not showing, ⌘D opens the detail's dispatch menu, a submit returns focus to its Dispatch, and ⌘L locates", async () => {
   const f = await listed(undefined, snapshot => {
-    snapshot.projects[0].dispatches = [record(9, { projectId: 'beta', panelId: 'beta-panel', status: 'ready' })];
+    snapshot.projects[0].dispatches = [record(9, { projectId: 'beta', panelId: 'beta-panel' })];
   });
   window.workbench.issueDetail = async (_, number) => ({ ok: true, issue: issueDetail(number) });
   const activated: string[] = [];
@@ -68,7 +68,7 @@ test("from a detail whose list row is not showing, ⌘D opens the detail's dispa
 
 test('⌘L locates the dispatched panel of a closed issue', async () => {
   const f = await listed(undefined, snapshot => {
-    snapshot.projects[0].dispatches = [record(8, { projectId: 'beta', panelId: 'beta-panel', status: 'ready' })];
+    snapshot.projects[0].dispatches = [record(8, { projectId: 'beta', panelId: 'beta-panel' })];
   });
   const activated: string[] = [];
   window.workbench.activateProject = async id => {
@@ -83,10 +83,7 @@ test('⌘L locates the dispatched panel of a closed issue', async () => {
 
 test("⌘L locates the panel of the focused issue's latest dispatch a panel is on", async () => {
   const f = await listed(undefined, snapshot => {
-    snapshot.projects[0].dispatches = [
-      record(9, { projectId: 'beta', panelId: 'beta-panel', status: 'ready' }),
-      record(9, null),
-    ];
+    snapshot.projects[0].dispatches = [record(9, { projectId: 'beta', panelId: 'beta-panel' }), record(9, null)];
   });
   const activated: string[] = [];
   window.workbench.activateProject = async id => {

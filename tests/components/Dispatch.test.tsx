@@ -2,9 +2,9 @@ import './support/dom';
 import assert from 'node:assert/strict';
 import test, { afterEach, before } from 'node:test';
 import { cleanup, screen, waitFor, within } from '@testing-library/react';
-import type { DispatchRecordView } from '../../app/shared/dispatch';
+import { localize } from '../../app/shared/localization/localization';
 import { sidebar, stubSidebarApis } from './support/forge-lists';
-import { dispatchButton, listed, menu, panelOf, record, row } from './support/dispatch';
+import { dispatchButton, hoursAgo, listed, menu, panelOf, record, row } from './support/dispatch';
 
 afterEach(cleanup);
 before(stubSidebarApis);
@@ -165,68 +165,46 @@ test('filling a new panel opens it as the temporary maximize once it joins the t
   assert.ok(sidebar());
 });
 
-/** A record's time as the hint shows it. */
-const when = (record: DispatchRecordView) => new Date(record.dispatchedAt).toLocaleString('en');
+const { t } = localize('en');
 
-test("an issue row shows its latest dispatch: the panel's state and session title with ×N, or grey when no panel is on its session", async () => {
+test("an issue row shows only its latest dispatch's skill: a link to its panel with its age in the hint", async () => {
   const f = await listed(undefined, snapshot => {
     snapshot.projects[0].dispatches = [
-      record(9, null),
-      record(
-        9,
-        { projectId: 'alpha', panelId: 'tray', status: 'busy', title: 'Fix it' },
-        { text: '/implement 9 again' },
-      ),
-      record(8, { projectId: 'alpha', panelId: 'tray', status: 'busy', title: 'Fix it' }),
+      record(9, null, { skill: 'to-spec' }),
+      record(9, { projectId: 'beta', panelId: 'beta-panel' }, { skill: 'grill-me', dispatchedAt: hoursAgo(2) }),
+      record(8, { projectId: 'beta', panelId: 'beta-panel' }),
     ];
   });
-  const status = within(row(9)).getByRole('button', { name: 'Busy · Fix it' });
-  assert.equal(status.textContent, 'Fix it ×2');
+  const skill = within(row(9)).getByRole('button', { name: 'grill-me' });
   assert.equal(
-    status.getAttribute('data-hint'),
-    `Busy · Codex · ${when(f.snapshot.projects[0].dispatches[1])} · /implement 9 again → Fix it (click to locate the panel)`,
+    skill.getAttribute('data-hint'),
+    t('dispatchSkillLocatable', { skill: 'grill-me', age: t('hoursAgo', { count: 2 }), shortcut: '⌘ L' }),
   );
-  assert.equal(within(row(8)).queryByText('Fix it'), null, 'a closed issue shows no dispatch');
-});
-
-test('a dispatch whose session no panel is on shows grey with its age, and clicking a located one goes to its panel', async () => {
-  const f = await listed(undefined, snapshot => {
-    snapshot.projects[0].dispatches = [record(9, null)];
-  });
-  assert.equal(within(row(9)).getByText(/^Dispatched ·/).textContent, 'Dispatched · 3h ago');
-  f.snapshot.projects[0].dispatches = [record(9, { projectId: 'beta', panelId: 'beta-panel', status: 'ready' })];
-  f.publish();
+  assert.equal(within(row(9)).queryByText('to-spec'), null, 'earlier dispatches do not show');
+  assert.equal(within(row(8)).queryByText('implement'), null, 'a closed issue shows no dispatch');
   const activated: string[] = [];
   window.workbench.activateProject = async id => {
     activated.push(id);
     f.snapshot.activeProjectId = id;
     f.publish();
   };
-  await f.user.click(await waitFor(() => within(row(9)).getByRole('button', { name: 'Ready · Untitled task' })));
+  await f.user.click(skill);
   await waitFor(() => assert.deepEqual(activated, ['beta']));
 });
 
-test('a grey latest dispatch locates the latest earlier dispatch a panel is on, and its hint gives the record in full', async () => {
-  const f = await listed(undefined, snapshot => {
+test('an issue row shows a latest dispatch whose session no panel is on as grey text that locates nothing', async () => {
+  await listed(undefined, snapshot => {
     snapshot.projects[0].dispatches = [
-      record(9, { projectId: 'beta', panelId: 'beta-panel', status: 'ready' }),
-      record(9, null, { agent: 'claude' }),
+      record(9, { projectId: 'beta', panelId: 'beta-panel' }, { skill: 'to-spec' }),
+      record(9, null, { skill: 'grill-me', dispatchedAt: hoursAgo(72) }),
     ];
   });
-  const activated: string[] = [];
-  window.workbench.activateProject = async id => {
-    activated.push(id);
-    f.snapshot.activeProjectId = id;
-    f.publish();
-  };
-  const status = await waitFor(() => within(row(9)).getByRole('button', { name: /^Dispatched ·/ }));
+  assert.equal(within(row(9)).queryByRole('button', { name: 'grill-me' }), null);
+  const skill = within(row(9)).getByText('grill-me');
   assert.equal(
-    status.getAttribute('data-hint'),
-    `Claude Code · ${when(f.snapshot.projects[0].dispatches[1])} · /implement 9` +
-      ' → its session is not in any open panel (click to locate the latest dispatch a panel is on)',
+    skill.getAttribute('data-hint'),
+    t('dispatchSkillGone', { skill: 'grill-me', age: t('daysAgo', { count: 3 }) }),
   );
-  await f.user.click(status);
-  await waitFor(() => assert.deepEqual(activated, ['beta']));
 });
 
 /** The implement command's item, whichever delivery it shows. */

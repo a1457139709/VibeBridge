@@ -58,6 +58,8 @@ export const row = (number: number) =>
     .getAllByRole('listitem')
     .find(item => within(item).queryByText(`#${number}`))!;
 export const dispatchButton = (number: number) => within(row(number)).getByRole('button', { name: 'Dispatch' });
+/** The time `hours` hours ago, as a record stores it. */
+export const hoursAgo = (hours: number) => new Date(Date.now() - hours * 3600e3).toISOString();
 /** A dispatch record of an issue, located on a panel or on none. */
 export const record = (
   issue: number,
@@ -65,9 +67,10 @@ export const record = (
   extra: Partial<DispatchRecordView> = {},
 ): DispatchRecordView => ({
   issue,
-  dispatchedAt: new Date(Date.now() - 3 * 3600e3).toISOString(),
+  dispatchedAt: hoursAgo(3),
   agent: 'codex',
-  text: `/implement ${issue}`,
+  skill: 'implement',
+  sessionId: `019a7c2e-${issue}000-7d1f-9b3e-5c6a2f8e4d10`,
   location,
   ...extra,
 });
