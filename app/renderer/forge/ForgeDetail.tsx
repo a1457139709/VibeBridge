@@ -14,11 +14,11 @@ import type {
   ForgeFailure,
   ForgeLinks,
   IssueDetail,
-  PullRequestDetail,
   RepositoryReference,
 } from '../../shared/forge/forge';
+import type { DetailItem, ShownDetail } from '../../shared/forge/sidebar-data';
 import type { ProjectView } from '../../shared/model';
-import { linkedItem, type DetailItem } from './ForgeDisplay';
+import { linkedItem } from './ForgeDisplay';
 import { idleActions, type Actions, type ActionState } from './DirectActions';
 import { IssueDocument, type IssueDispatch } from './IssueDetail';
 import { PullRequestDocument } from './PullRequestDetail';
@@ -35,24 +35,16 @@ interface Props {
   close(): void;
   /** Opens an issue or pull request of the bound repository in this detail. */
   open(item: DetailItem): void;
-  /** Counts the sidebar's refreshes; each one reloads the detail. */
-  generation: number;
-  /** The sidebar's one refresh, of the list and this detail. */
-  refresh(): void;
+  /** Loads the item again, after its load failed. */
+  retry(): void;
+  /** Reports that a direct action changed `item`; the main process reloads what shows it. */
+  reportChanged(item: DetailItem): void;
   /** Puts the sidebar in the failure state of a forge CLI found missing or logged out. */
   forgeFailed(failure: ForgeFailure): void;
   /** An issue's Dispatch and Dispatch Records, as its detail shows them. */
   issueDispatch(issue: IssueDetail): IssueDispatch;
 }
 
-type Loaded =
-  | { ok: true; issue: IssueDetail }
-  | { ok: true; pullRequest: PullRequestDetail }
-  | { ok: false; failure: ForgeFailure };
-const load = (projectId: string, { kind, number }: DetailItem): Promise<Loaded> =>
-  kind === 'issue'
-    ? window.workbench.issueDetail(projectId, number)
-    : window.workbench.pullRequestDetail(projectId, number);
 /** Each kind's own texts. */
 const kindText = {
   issue: { region: 'issueDetail', crumb: 'issueCrumb' },
@@ -61,8 +53,9 @@ const kindText = {
 
 /** The detail of one issue or pull request of the bound repository, opening leftwards from the sidebar's edge,
  * in one column like the forge. Issue and pull request links of the bound repository open here; every other link opens
- * in the browser. A direct action that succeeds refreshes the sidebar, and what the forge then holds shows; there is no
- * optimistic update. Each reload clears the actions' state, so a failure stays until dismissed or the next refresh. */
+ * in the browser. The sidebar declares the item it shows, and the main process pushes what the forge answers. A direct
+ * action that succeeds is reported, and what the forge then holds shows; there is no optimistic update. Each answer
+ * pushed clears the actions' state, so a failure stays until dismissed or the next refresh. */
 export function ForgeDetailPane({
   project,
   item,
@@ -71,38 +64,30 @@ export function ForgeDetailPane({
   back,
   close,
   open,
-  generation,
-  refresh,
+  retry,
+  reportChanged,
   forgeFailed,
   issueDispatch,
 }: Props) {
   const { t, text } = useLocalization();
-  const [loaded, setLoaded] = useState<{ item: DetailItem; result: Loaded } | null>(null);
-  const [attempt, setAttempt] = useState(0);
+  /** The last answer the main process pushed (docs/adr/0008-forge-sidebar-data-lives-in-the-main-process.md); it shows
+   * while it is for the item shown, as when Back returns to it, until a new answer arrives. */
+  const [loaded, setLoaded] = useState<ShownDetail | null>(null);
   const [actionState, setActionState] = useState<ActionState>(idleActions);
+  useEffect(
+    () =>
+      window.workbench.subscribe(event => {
+        if (event.kind !== 'forgeDetail' || event.projectId !== project.id) return;
+        setLoaded(event.detail);
+        setActionState(idleActions);
+      }),
+    [project.id],
+  );
   const scroller = useRef<HTMLDivElement>(null);
   const { kind, number } = item;
   // The item shown now: an action's answer for an item no longer shown is dropped.
   const shownItem = useRef(item);
   shownItem.current = item;
-  useEffect(() => {
-    let current = true;
-    // A failure outside the forge (the request itself) is shown like a transient one, with its reason and Retry.
-    load(project.id, item)
-      .catch((error: Error): Loaded => ({
-        ok: false,
-        failure: { kind: 'transient', detail: text(error.message), forge: project.forge },
-      }))
-      .then(result => {
-        if (current) {
-          setLoaded({ item, result });
-          setActionState(idleActions);
-        }
-      });
-    return () => {
-      current = false;
-    };
-  }, [project.id, kind, number, attempt, generation]);
   // Focus moves into each item the detail opens, on its body: ↑/↓ scroll it there, and Tab walks its links and buttons.
   useLayoutEffect(() => {
     scroller.current?.focus({ preventScroll: true });
@@ -124,10 +109,6 @@ export function ForgeDetailPane({
   };
   const result = loaded?.item.kind === kind && loaded.item.number === number ? loaded.result : null;
   const shown = result?.ok ? ('issue' in result ? result.issue : result.pullRequest) : null;
-  const retry = () => {
-    setLoaded(null);
-    setAttempt(count => count + 1);
-  };
   const run = async (action: DirectAction) => {
     setActionState({ running: action, failed: null });
     let result: DirectActionResult;
@@ -141,8 +122,8 @@ export function ForgeDetailPane({
       };
     }
     if (shownItem.current.kind !== kind || shownItem.current.number !== number) return;
-    // On success the action stays running until the refreshed detail arrives.
-    if (result.ok) refresh();
+    // On success the action stays running until the reloaded detail arrives.
+    if (result.ok) reportChanged(item);
     else if (result.failure.kind === 'notInstalled' || result.failure.kind === 'loggedOut') forgeFailed(result.failure);
     else setActionState({ running: null, failed: { action, detail: result.failure.detail } });
   };
@@ -190,7 +171,14 @@ export function ForgeDetailPane({
         ) : !result.ok ? (
           <div className="forge-sidebar-state">
             <p>{t('detailLoadFailed', { number, reason: reason(result.failure.detail || result.failure.kind) })}</p>
-            <button onClick={retry}>{t('retry')}</button>
+            <button
+              onClick={() => {
+                setLoaded(null);
+                retry();
+              }}
+            >
+              {t('retry')}
+            </button>
           </div>
         ) : 'issue' in result ? (
           <IssueDocument

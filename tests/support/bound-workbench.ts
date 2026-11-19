@@ -1,5 +1,5 @@
-import type { ListFilter } from '../../app/shared/forge/forge';
-import type { ForgeListTab, ForgeLists } from '../../app/shared/forge/sidebar-data';
+import type { IssueDetailResult, ListFilter, PullRequestDetailResult } from '../../app/shared/forge/forge';
+import type { DetailItem, DetailResult, ForgeListTab, ForgeLists } from '../../app/shared/forge/sidebar-data';
 import type { Workbench } from '../../app/main/workbench';
 import { interactiveWorkbench } from './interactive-workbench';
 
@@ -48,3 +48,32 @@ export const showList = (
   tab: ForgeListTab = 'issues',
   filter: ListFilter = openNoFilter,
 ) => shownLists(workbench, projectId, () => workbench.forgeSidebar.showList(projectId, { tab, filter }));
+
+/** What the detail shows of `item` as the main process pushes it once `declare`, a declaration on the Forge sidebar,
+ * settles. */
+export async function shownDetail(
+  workbench: Workbench,
+  projectId: string,
+  item: DetailItem,
+  declare: () => Promise<void> = () => workbench.forgeSidebar.showDetail(projectId, item),
+): Promise<DetailResult> {
+  let shown: DetailResult | null = null;
+  const stop = workbench.subscribe(event => {
+    if (event.kind === 'forgeDetail' && event.projectId === projectId)
+      shown =
+        event.detail.item.kind === item.kind && event.detail.item.number === item.number ? event.detail.result : null;
+  });
+  try {
+    await declare();
+  } finally {
+    stop();
+  }
+  if (!shown) throw new Error('The detail did not settle');
+  return shown;
+}
+/** The issue the detail shows once the sidebar opens it. */
+export const issueDetail = (workbench: Workbench, projectId: string, number: number) =>
+  shownDetail(workbench, projectId, { kind: 'issue', number }) as Promise<IssueDetailResult>;
+/** The pull request the detail shows once the sidebar opens it. */
+export const pullRequestDetail = (workbench: Workbench, projectId: string, number: number) =>
+  shownDetail(workbench, projectId, { kind: 'pullRequest', number }) as Promise<PullRequestDetailResult>;

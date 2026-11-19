@@ -1,8 +1,20 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { ForgeSidebarData } from '../app/main/forge/forge-sidebar-data';
-import type { IssuePage, ListQuery, ListedIssue, RepositoryChoices } from '../app/shared/forge/forge';
-import type { ForgeLists, ForgeSidebarEvent, ShownRepositoryChoices } from '../app/shared/forge/sidebar-data';
+import type {
+  IssueDetail,
+  IssueDetailResult,
+  IssuePage,
+  ListQuery,
+  ListedIssue,
+  RepositoryChoices,
+} from '../app/shared/forge/forge';
+import type {
+  DetailItem,
+  ForgeLists,
+  ForgeSidebarEvent,
+  ShownRepositoryChoices,
+} from '../app/shared/forge/sidebar-data';
 import { openNoFilter } from './support/bound-workbench';
 
 const forge = { name: 'GitHub', cli: 'gh', installUrl: 'https://cli.github.com', loginCommand: 'gh auth login' };
@@ -18,6 +30,11 @@ const issue = (number: number): ListedIssue => ({
   parent: null,
   subIssues: { closed: 0, total: 0, issues: [] },
 });
+/** An issue's detail as the forge answers it, titled `title`. */
+const detail = (number: number, title = `Issue ${number}`): IssueDetailResult => ({
+  ok: true,
+  issue: { ...issue(number), title } as unknown as IssueDetail,
+});
 const page = (numbers: number[], cursor: string | null = null): IssuePage => ({
   ok: true,
   items: numbers.map(issue),
@@ -28,14 +45,22 @@ const page = (numbers: number[], cursor: string | null = null): IssuePage => ({
 
 /** The module over sources whose every read waits until the test answers it. */
 function sidebarData() {
-  const reads: { projectId: string; query?: ListQuery; answer(value: unknown): void; fail(error: Error): void }[] = [];
-  const read = (projectId: string, query?: ListQuery) =>
-    new Promise<never>((answer, fail) => reads.push({ projectId, query, answer: answer as never, fail }));
+  const reads: {
+    projectId: string;
+    query?: ListQuery;
+    item?: DetailItem;
+    answer(value: unknown): void;
+    fail(error: Error): void;
+  }[] = [];
+  const read = (projectId: string, query?: ListQuery, item?: DetailItem) =>
+    new Promise<never>((answer, fail) => reads.push({ projectId, query, item, answer: answer as never, fail }));
   const events: ForgeSidebarEvent[] = [];
   const data = new ForgeSidebarData({
     issuePage: read,
     pullRequestPage: read,
     repositoryChoices: projectId => read(projectId),
+    issueDetail: (projectId, number) => read(projectId, undefined, { kind: 'issue', number }),
+    pullRequestDetail: (projectId, number) => read(projectId, undefined, { kind: 'pullRequest', number }),
     forge: () => forge,
     emit: event => events.push(event),
   });
@@ -49,7 +74,12 @@ function sidebarData() {
       (event): event is Extract<ForgeSidebarEvent, { kind: 'repositoryChoices' }> =>
         event.kind === 'repositoryChoices' && event.projectId === projectId,
     )?.choices;
-  return { data, reads, events, lists, choices };
+  const shownDetail = (projectId = 'alpha') =>
+    events.findLast(
+      (event): event is Extract<ForgeSidebarEvent, { kind: 'forgeDetail' }> =>
+        event.kind === 'forgeDetail' && event.projectId === projectId,
+    )?.detail;
+  return { data, reads, events, lists, choices, shownDetail };
 }
 const numbers = (lists: ForgeLists | undefined) => lists?.issues.loaded?.items.map(item => item.number);
 
@@ -165,4 +195,87 @@ test('forgetting a project, as a binding change does, drops its lists and choice
   await data.refresh('alpha');
   await data.loadMore('alpha');
   assert.equal(reads.length, 2, 'a list not shown is not read');
+});
+
+test('the detail pushes the answer for the item declared, and only the latest declaration settles it', async () => {
+  const { data, reads, shownDetail } = sidebarData();
+  const first = data.showDetail('alpha', { kind: 'issue', number: 3 });
+  const second = data.showDetail('alpha', { kind: 'pullRequest', number: 12 });
+  assert.deepEqual(reads[1].item, { kind: 'pullRequest', number: 12 });
+  reads[0].answer(detail(3));
+  await first;
+  assert.equal(shownDetail(), undefined, 'the answer for an item no longer declared is dropped');
+  reads[1].fail(new Error('No repository bound'));
+  await second;
+  assert.deepEqual(shownDetail(), {
+    item: { kind: 'pullRequest', number: 12 },
+    result: { ok: false, failure: { kind: 'transient', detail: 'No repository bound', forge } },
+  });
+  const closed = data.showDetail('alpha', { kind: 'issue', number: 3 });
+  await data.showDetail('alpha', null);
+  reads[2].answer(detail(3));
+  await closed;
+  assert.equal(shownDetail()?.item.kind, 'pullRequest', 'nothing is pushed for a closed detail');
+  await data.refresh('alpha');
+  assert.equal(reads.length, 3, 'a closed detail is not reloaded');
+  await assert.rejects(data.showDetail('alpha', { kind: 'issue', number: 0 }), 'only a positive number is shown');
+});
+
+test('a refresh reloads the first page and the open detail', async () => {
+  const { data, reads, lists, shownDetail } = sidebarData();
+  const shown = data.showList('alpha', { tab: 'issues', filter: openNoFilter });
+  reads[0].answer(page([3]));
+  await shown;
+  const opened = data.showDetail('alpha', { kind: 'issue', number: 3 });
+  reads[1].answer(detail(3, 'Before'));
+  await opened;
+  const refreshed = data.refresh('alpha');
+  assert.deepEqual(
+    reads.slice(2).map(({ query, item }) => query ?? item),
+    [
+      { filter: openNoFilter, cursor: null },
+      { kind: 'issue', number: 3 },
+    ],
+  );
+  reads[2].answer(page([3, 4]));
+  reads[3].answer(detail(3, 'After'));
+  await refreshed;
+  assert.deepEqual(numbers(lists()), [3, 4]);
+  assert.deepEqual(shownDetail()?.result, detail(3, 'After'));
+});
+
+test('a direct action or dispatch reported on an item reloads the first page and the open detail', async () => {
+  const { data, reads, shownDetail } = sidebarData();
+  const shown = data.showList('alpha', { tab: 'issues', filter: openNoFilter });
+  reads[0].answer(page([3]));
+  await shown;
+  const opened = data.showDetail('alpha', { kind: 'issue', number: 3 });
+  reads[1].answer(detail(3, 'Open'));
+  await opened;
+  const reloaded = data.reloadChanged('alpha', { kind: 'issue', number: 3 });
+  assert.deepEqual(
+    reads.slice(2).map(({ query, item }) => query ?? item),
+    [
+      { filter: openNoFilter, cursor: null },
+      { kind: 'issue', number: 3 },
+    ],
+  );
+  reads[2].answer(page([]));
+  reads[3].answer(detail(3, 'Closed'));
+  await reloaded;
+  assert.deepEqual(shownDetail()?.result, detail(3, 'Closed'));
+});
+
+test('hiding the lists or forgetting the project drops the detail with its answer still on its way', async () => {
+  for (const drop of ['hideList', 'forget'] as const) {
+    const { data, reads, events } = sidebarData();
+    const opened = data.showDetail('alpha', { kind: 'issue', number: 3 });
+    data[drop]('alpha');
+    const count = events.length;
+    reads[0].answer(detail(3));
+    await opened;
+    assert.equal(events.length, count, `nothing is pushed for a detail dropped by ${drop}`);
+    await data.refresh('alpha');
+    assert.equal(reads.length, 1, `a detail dropped by ${drop} is not reloaded`);
+  }
 });

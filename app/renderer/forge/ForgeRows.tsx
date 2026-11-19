@@ -7,16 +7,8 @@ import type {
   ListedIssue,
   PullRequestSummary,
 } from '../../shared/forge/forge';
-import {
-  BlockedMark,
-  IssueIcon,
-  Label,
-  OpenChecks,
-  Progress,
-  PullRequestIcon,
-  RelativeTime,
-  type DetailItem,
-} from './ForgeDisplay';
+import { BlockedMark, IssueIcon, Label, OpenChecks, Progress, PullRequestIcon, RelativeTime } from './ForgeDisplay';
+import type { DetailItem } from '../../shared/forge/sidebar-data';
 import { withoutCommandModifier } from '../../shared/settings/shortcuts';
 
 /** A list row's title is the button that opens its item; the row names its item in an attribute. */

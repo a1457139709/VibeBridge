@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { ghDouble, type GhPullRequest } from './support/gh-double';
-import { boundWorkbench, day, forgeAccount } from './support/bound-workbench';
+import { boundWorkbench, day, forgeAccount, pullRequestDetail } from './support/bound-workbench';
 
 const repositoryUrl = 'https://github.com/octo/tools';
 const bug = { name: 'bug', color: 'd73a4a' };
@@ -34,7 +34,7 @@ test('a pull request detail carries its branches, labels, the issues it closes o
   });
   const f = await boundWorkbench('pull-request-detail-head');
   try {
-    const result = await f.workbench.pullRequestDetail(f.projectId, 12);
+    const result = await pullRequestDetail(f.workbench, f.projectId, 12);
     assert.ok(result.ok);
     const { pullRequest } = result;
     assert.deepEqual(
@@ -110,7 +110,7 @@ test('a pull request detail lists comments and review summaries in time order, e
   });
   const f = await boundWorkbench('pull-request-detail-timeline');
   try {
-    const result = await f.workbench.pullRequestDetail(f.projectId, 12);
+    const result = await pullRequestDetail(f.workbench, f.projectId, 12);
     assert.ok(result.ok);
     assert.deepEqual(
       result.pullRequest.timeline,
@@ -157,7 +157,7 @@ test('a pull request detail says what stands between it and a merge: the review,
   });
   const f = await boundWorkbench('pull-request-detail-merge');
   const detail = async (number: number) => {
-    const result = await f.workbench.pullRequestDetail(f.projectId, number);
+    const result = await pullRequestDetail(f.workbench, f.projectId, number);
     assert.ok(result.ok);
     return result.pullRequest;
   };
@@ -197,7 +197,7 @@ test('a pull request detail says what stands between it and a merge: the review,
 test('a missing pull request and forge CLI failures come back as forge failures with the forge text', async context => {
   const double = await ghDouble(context, { ...forgeAccount, pullRequests: [change(1)] });
   const f = await boundWorkbench('pull-request-detail-failures');
-  const detail = (number: number) => f.workbench.pullRequestDetail(f.projectId, number);
+  const detail = (number: number) => pullRequestDetail(f.workbench, f.projectId, number);
   try {
     const missing = await detail(99);
     assert.ok(!missing.ok);
@@ -212,7 +212,7 @@ test('a missing pull request and forge CLI failures come back as forge failures 
     const loggedOut = await detail(1);
     assert.ok(!loggedOut.ok);
     assert.equal(loggedOut.failure.kind, 'loggedOut');
-    await assert.rejects(f.workbench.pullRequestDetail(f.projectId, 0), 'only a positive number is asked for');
+    await assert.rejects(pullRequestDetail(f.workbench, f.projectId, 0), 'only a positive number is asked for');
   } finally {
     await f.close();
   }

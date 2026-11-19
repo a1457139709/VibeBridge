@@ -20,7 +20,7 @@ async function detailOf(number: number) {
 
 test("⌘D opens the dispatch menu of the issue focused in the list, or the detail's own of the issue it shows, and is left alone elsewhere", async () => {
   const f = await listed();
-  window.workbench.issueDetail = async (_, number) => ({ ok: true, issue: issueDetail(number) });
+  f.forge.issueDetail = async (_, number) => ({ ok: true, issue: issueDetail(number) });
   within(row(9)).getByRole('button', { name: 'Issue 9' }).focus();
   assert.equal(pressCommandKey('KeyD'), false);
   await waitFor(() => assert.equal(document.activeElement, menu()));
@@ -45,7 +45,7 @@ test("from a detail whose list row is not showing, ⌘D opens the detail's dispa
   const f = await listed(undefined, snapshot => {
     snapshot.projects[0].dispatches = [record(9, { projectId: 'beta', panelId: 'beta-panel' })];
   });
-  window.workbench.issueDetail = async (_, number) => ({ ok: true, issue: issueDetail(number) });
+  f.forge.issueDetail = async (_, number) => ({ ok: true, issue: issueDetail(number) });
   const activated: string[] = [];
   window.workbench.activateProject = async id => {
     activated.push(id);

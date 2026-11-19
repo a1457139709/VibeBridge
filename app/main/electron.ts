@@ -198,15 +198,15 @@ void app.whenReady().then(async () => {
     await loginPath;
     return service.forgeSidebar.showRepositoryChoices(id);
   });
-  handle('issue-detail', async (service, id, number) => {
+  handle('show-forge-detail', async (service, id, item) => {
     await loginPath;
-    return service.issueDetail(id, number);
+    return service.forgeSidebar.showDetail(id, item);
+  });
+  handle('report-forge-item-changed', async (service, id, item) => {
+    await loginPath;
+    return service.forgeSidebar.reloadChanged(id, item);
   });
   handle('dispatch', (service, id, request) => service.dispatch(id, request));
-  handle('pull-request-detail', async (service, id, number) => {
-    await loginPath;
-    return service.pullRequestDetail(id, number);
-  });
   handle('direct-action', async (service, id, action) => {
     await loginPath;
     return service.directAction(id, action);
