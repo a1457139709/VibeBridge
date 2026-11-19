@@ -14,12 +14,14 @@ import type {
   IssueDetail,
   IssueSummary,
   ListFilter,
-  ListPage,
-  ListedIssue,
-  Page,
-  PullRequestSummary,
   RepositoryReference,
 } from '../../shared/forge/forge';
+import {
+  forgeListTabs,
+  type FailedPage,
+  type ForgeListTab,
+  type ForgeLists as ListsData,
+} from '../../shared/forge/sidebar-data';
 import type { ProjectView } from '../../shared/model';
 import { latestLocatable } from '../../shared/dispatch';
 import type { IssueShortcutAction } from '../../shared/settings/shortcuts';
@@ -31,13 +33,6 @@ import { LatestDispatchSkill } from '../dispatch/DispatchRecords';
 import type { DetailItem } from './ForgeDisplay';
 import { IssueTree, issueRowOf, moveOrOpenRow, PullRequestRow, rowTitleIn, rowTitleOf } from './ForgeRows';
 
-/** The sidebar's lists, each a tab. */
-interface Items {
-  issues: ListedIssue;
-  pullRequests: PullRequestSummary;
-}
-type Tab = keyof Items;
-const tabs: Tab[] = ['issues', 'pullRequests'];
 /** Each tab's own texts. */
 const tabText = {
   issues: {
@@ -56,27 +51,28 @@ const tabText = {
   },
 } as const;
 const openNoFilter: ListFilter = { search: '', state: 'open', labels: [] };
-type FailedPage = Extract<Page<unknown>, { ok: false }>;
-/** A tab's rows, with the filter that produced them: Load more continues that filter. */
-type Loaded<T extends Tab> = ListPage<Items[T]> & { filter: ListFilter };
-/** What a tab last loaded, and its failure since then. */
-interface TabList<T extends Tab> {
-  loaded: Loaded<T> | null;
-  failed: FailedPage | null;
-}
-type Lists = { [T in Tab]: TabList<T> };
-const empty = { loaded: null, failed: null };
+const noRows = { loaded: null, failed: null };
+const nothingLoaded: ListsData = { issues: noRows, pullRequests: noRows, loading: false };
 /** Where an issue's open dispatch menu is: on its list row or in the detail. */
 interface OpenMenu {
   issue: number;
   place: 'row' | 'detail';
 }
-const pageOf: {
-  [T in Tab]: (projectId: string, query: { filter: ListFilter; cursor: string | null }) => Promise<Page<Items[T]>>;
-} = {
-  issues: (projectId, query) => window.workbench.issuePage(projectId, query),
-  pullRequests: (projectId, query) => window.workbench.pullRequestPage(projectId, query),
-};
+/** The project's lists as the main process pushes them; nothing loaded until the first push. A push that settles a
+ * request calls `settled`. */
+function usePushedLists(projectId: string, settled: () => void) {
+  const [lists, setLists] = useState<ListsData>(nothingLoaded);
+  useEffect(
+    () =>
+      window.workbench.subscribe(event => {
+        if (event.kind !== 'forgeLists' || event.projectId !== projectId) return;
+        setLists(event.lists);
+        if (!event.lists.loading) settled();
+      }),
+    [projectId],
+  );
+  return lists;
+}
 
 /** The sidebar's header: the repository, or that none is bound, with Change binding for a bound one's lists, and the persistent Refresh. */
 export function SidebarHead({
@@ -138,21 +134,27 @@ export interface ForgeListsActions {
 }
 
 /** The bound repository's lists: a persistent Refresh, the Issues and Pull requests tabs, each with its own
- * search, filters, rows and failure, and the forge failure states. It holds its own state, so the owner mounts it per
- * project and repository: opening the sidebar or returning to a project starts from open with no filter, and refreshes.
- * Only the current tab is fetched, each time it shows. There is no timed refresh. Clicking a row opens its detail
- * beside the list; links followed inside the detail stack up, so Back returns to the item before. */
+ * search, filters, rows and failure, and the forge failure states. The main process holds the rows
+ * (docs/adr/0008-forge-sidebar-data-lives-in-the-main-process.md); this view declares the tab and filter it shows and
+ * renders what is pushed. The owner mounts it per project and repository: opening the sidebar or returning to a project
+ * starts from open with no filter, and refreshes. Only the current tab is fetched, each time it shows. There is no timed
+ * refresh. Clicking a row opens its detail beside the list; links followed inside the detail stack up, so Back returns
+ * to the item before. */
 export function ForgeLists({ project, changeBinding, detailHost, dispatchHost, ref }: Props) {
   const { t, text } = useLocalization();
-  const [tab, setTab] = useState<Tab>('issues');
-  const [filters, setFilters] = useState<Record<Tab, ListFilter>>({ issues: openNoFilter, pullRequests: openNoFilter });
-  const [lists, setLists] = useState<Lists>({ issues: empty, pullRequests: empty });
-  const [loading, setLoading] = useState(false);
+  const [tab, setTab] = useState<ForgeListTab>('issues');
+  const [filters, setFilters] = useState<Record<ForgeListTab, ListFilter>>({
+    issues: openNoFilter,
+    pullRequests: openNoFilter,
+  });
+  /** A forge failure the detail met; it stands for the current tab's failure until a request settles the lists. */
+  const [detailFailure, setDetailFailure] = useState<FailedPage | null>(null);
+  const lists = usePushedLists(project.id, () => setDetailFailure(null));
+  const { loading } = lists;
   /** Counts refreshes; the detail reloads on each. */
   const [generation, setGeneration] = useState(0);
-  // Only the latest request may settle a list; an older answer is for a filter or tab no longer shown.
-  const latest = useRef(0);
-  const requested = useRef<Record<Tab, ListFilter | null>>({ issues: null, pullRequests: null });
+  /** The filter each tab last declared, to tell typing in its search from another change. */
+  const declared = useRef<Record<ForgeListTab, ListFilter | null>>({ issues: null, pullRequests: null });
   /** The items opened in the detail, the shown one last; empty when the detail is closed. */
   const [opened, setOpened] = useState<DetailItem[]>([]);
   const shown = opened.at(-1);
@@ -168,38 +170,12 @@ export function ForgeLists({ project, changeBinding, detailHost, dispatchHost, r
   /** The number of the item of `kind` the detail shows, if any. */
   const selected = (kind: DetailItem['kind']) => (shown?.kind === kind ? shown.number : undefined);
 
-  async function load<T extends Tab>(list: T, filter: ListFilter, cursor: string | null) {
-    const request = ++latest.current;
-    requested.current[list] = filter;
-    setLoading(true);
-    let page: Page<Items[T]>;
-    // A failure outside the forge (the request itself) is shown like a transient one, with its reason and Retry.
-    try {
-      page = await pageOf[list](project.id, { filter, cursor });
-    } catch (error) {
-      page = {
-        ok: false,
-        failure: { kind: 'transient', detail: text((error as Error).message), forge: project.forge },
-        account: null,
-      };
-    }
-    if (request !== latest.current) return;
-    setLoading(false);
-    const settle = (update: (state: TabList<T>) => TabList<T>) =>
-      setLists(all => ({ ...all, [list]: update(all[list] as TabList<T>) }));
-    if (!page.ok) return settle(state => ({ ...state, failed: page }));
-    const { ok: _, ...next } = page;
-    settle(({ loaded: previous }) => ({
-      failed: null,
-      loaded:
-        cursor !== null && previous
-          ? { ...next, filter, items: [...previous.items, ...next.items] }
-          : { ...next, filter },
-    }));
-  }
+  /** Sends a declaration to the main process; one that is refused is reported. */
+  const declare = (declaration: Promise<void>) =>
+    void declaration.catch((error: Error) => dispatchHost.report(error.message));
   /** The sidebar's one refresh: the current tab's first page and the open detail. */
   const refresh = () => {
-    void load(tab, filters[tab], null);
+    declare(window.workbench.refreshForgeList(project.id));
     setGeneration(count => count + 1);
   };
   // A dispatch refreshes the sidebar once; filling a panel also closes the detail, as focus moves into that panel.
@@ -288,20 +264,27 @@ export function ForgeLists({ project, changeBinding, detailHost, dispatchHost, r
     if (only?.kind === item.kind && only.number === item.number) closeDetail();
     else setOpened([item]);
   };
-  const forgeFailed = (failure: ForgeFailure) =>
-    setLists(all => ({ ...all, [tab]: { ...all[tab], failed: { ok: false, failure, account: null } } }));
+  const forgeFailed = (failure: ForgeFailure) => setDetailFailure({ ok: false, failure, account: null });
 
-  // The current tab fetches when it shows and whenever its filter changes; typing in the search settles first.
+  // The current tab is declared when it shows and whenever its filter changes; typing in the search settles first.
   useEffect(() => {
     const filter = filters[tab],
-      last = requested.current[tab];
+      last = declared.current[tab];
     const typing = last !== null && last.search !== filter.search;
-    const timer = setTimeout(() => void load(tab, filter, null), typing ? 300 : 0);
+    const timer = setTimeout(
+      () => {
+        declared.current[tab] = filter;
+        declare(window.workbench.showForgeList(project.id, { tab, filter }));
+      },
+      typing ? 300 : 0,
+    );
     return () => clearTimeout(timer);
   }, [tab, filters[tab]]);
+  useEffect(() => () => declare(window.workbench.hideForgeList(project.id)), []);
 
   const { forge } = project;
-  const { loaded, failed } = lists[tab];
+  const { loaded } = lists[tab];
+  const failed = detailFailure ?? lists[tab].failed;
   const retry = (
     <button onClick={refresh} disabled={loading}>
       {t('retry')}
@@ -371,13 +354,13 @@ export function ForgeLists({ project, changeBinding, detailHost, dispatchHost, r
     <>
       {head}
       {failed && (
-        <div className="forge-stale" title={failed.failure.detail}>
+        <div className="forge-stale" title={text(failed.failure.detail)}>
           <span>{t('dataMayBeStale')}</span>
           {retry}
         </div>
       )}
       <nav className="forge-tabs" role="tablist" aria-label={t('sidebarTabs')}>
-        {tabs.map(item => (
+        {forgeListTabs.map(item => (
           <button
             key={item}
             role="tab"
@@ -429,7 +412,7 @@ export function ForgeLists({ project, changeBinding, detailHost, dispatchHost, r
           <button
             className="forge-more"
             disabled={loading}
-            onClick={() => void load(tab, loaded.filter, loaded.cursor)}
+            onClick={() => declare(window.workbench.loadMoreForgeList(project.id))}
           >
             {t('loadMore')}
           </button>

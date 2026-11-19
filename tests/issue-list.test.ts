@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { ghDouble, type GhIssue } from './support/gh-double';
 import type { ListFilter } from '../app/shared/forge/forge';
-import { boundWorkbench, day, forgeAccount, openNoFilter } from './support/bound-workbench';
+import { boundWorkbench, day, forgeAccount, openNoFilter, showList, shownLists } from './support/bound-workbench';
 
 /** 30 open issues, #1 the oldest, created a day apart. */
 const thirtyIssues: GhIssue[] = Array.from({ length: 30 }, (_, index) => ({
@@ -13,17 +13,19 @@ const thirtyIssues: GhIssue[] = Array.from({ length: 30 }, (_, index) => ({
   labels: [],
 }));
 
-test('a refresh returns one page of 25 issues, newest first, and the cursor loads the rest', async context => {
+test('showing the list loads one page of 25 issues, newest first, and Load more appends the rest', async context => {
   await ghDouble(context, { ...forgeAccount, issues: thirtyIssues });
   const f = await boundWorkbench('issue-page');
   try {
-    const first = await f.workbench.issuePage(f.projectId, { filter: openNoFilter, cursor: null });
-    assert.ok(first.ok);
+    const { issues: first } = await showList(f.workbench, f.projectId);
+    assert.equal(first.failed, null);
+    assert.ok(first.loaded);
+    assert.deepEqual(first.loaded.filter, openNoFilter, 'the rows carry the filter that produced them');
     assert.deepEqual(
-      first.items.map(issue => issue.number),
+      first.loaded.items.map(issue => issue.number),
       Array.from({ length: 25 }, (_, index) => 30 - index),
     );
-    assert.deepEqual(first.items[0], {
+    assert.deepEqual(first.loaded.items[0], {
       number: 30,
       title: 'Issue 30',
       state: 'open',
@@ -35,14 +37,15 @@ test('a refresh returns one page of 25 issues, newest first, and the cursor load
       parent: null,
       subIssues: { closed: 0, total: 0, issues: [] },
     });
-    assert.ok(first.cursor);
-    const rest = await f.workbench.issuePage(f.projectId, { filter: openNoFilter, cursor: first.cursor });
-    assert.ok(rest.ok);
-    assert.deepEqual(
-      rest.items.map(issue => issue.number),
-      [5, 4, 3, 2, 1],
+    assert.ok(first.loaded.cursor);
+    const { issues: all } = await shownLists(f.workbench, f.projectId, () =>
+      f.workbench.forgeSidebar.loadMore(f.projectId),
     );
-    assert.equal(rest.cursor, null, 'the last page has no cursor');
+    assert.deepEqual(
+      all.loaded?.items.map(issue => issue.number),
+      Array.from({ length: 30 }, (_, index) => 30 - index),
+    );
+    assert.equal(all.loaded?.cursor, null, 'the last page has no cursor');
   } finally {
     await f.close();
   }
@@ -71,9 +74,9 @@ test('the search, open or closed state and labels all narrow the page, and a clo
   const f = await boundWorkbench('issue-filters');
   try {
     const numbers = async (filter: Partial<ListFilter>) => {
-      const page = await f.workbench.issuePage(f.projectId, { filter: { ...openNoFilter, ...filter }, cursor: null });
-      assert.ok(page.ok);
-      return page.items.map(issue => issue.number);
+      const { issues } = await showList(f.workbench, f.projectId, 'issues', { ...openNoFilter, ...filter });
+      assert.ok(issues.loaded);
+      return issues.loaded.items.map(issue => issue.number);
     };
     assert.deepEqual(await numbers({}), [12, 2, 1]);
     assert.deepEqual(await numbers({ search: 'sidebar' }), [2, 1], 'words match titles');
@@ -81,11 +84,9 @@ test('the search, open or closed state and labels all narrow the page, and a clo
     assert.deepEqual(await numbers({ search: '12' }), [12]);
     assert.deepEqual(await numbers({ labels: ['bug', 'good first issue'] }), [1], 'every chosen label must be present');
     assert.deepEqual(await numbers({ state: 'closed' }), [3]);
-    const closed = await f.workbench.issuePage(f.projectId, {
-      filter: { ...openNoFilter, state: 'closed' },
-      cursor: null,
-    });
-    assert.ok(closed.ok);
+    const closed = (await showList(f.workbench, f.projectId, 'issues', { ...openNoFilter, state: 'closed' })).issues
+      .loaded;
+    assert.ok(closed);
     assert.deepEqual(closed.items[0], {
       number: 3,
       title: 'Dispatch menu',
@@ -100,11 +101,10 @@ test('the search, open or closed state and labels all narrow the page, and a clo
     });
     assert.deepEqual(closed.labels, [bug, ui], 'the page carries the labels the repository defines');
     assert.deepEqual(closed.counts, { open: 3, closed: 1 });
-    const labelled = await f.workbench.issuePage(f.projectId, {
-      filter: { ...openNoFilter, labels: ['good first issue'] },
-      cursor: null,
-    });
-    assert.ok(labelled.ok);
+    const labelled = (
+      await showList(f.workbench, f.projectId, 'issues', { ...openNoFilter, labels: ['good first issue'] })
+    ).issues.loaded;
+    assert.ok(labelled);
     assert.deepEqual(labelled.counts, { open: 1, closed: 1 }, 'the counts follow the search and labels, not the state');
     assert.equal(closed.cursor, null);
   } finally {
@@ -157,8 +157,8 @@ test("a page carries each issue's parent, its sub-issues with their progress, an
       },
       'the project declares the features GitHub has',
     );
-    const page = await f.workbench.issuePage(f.projectId, { filter: openNoFilter, cursor: null });
-    assert.ok(page.ok);
+    const page = (await showList(f.workbench, f.projectId)).issues.loaded;
+    assert.ok(page);
     const blockers = [
       { path: null, number: 4, title: 'Blocker' },
       { path: 'octo/other', number: 7, title: 'Upstream fix' },
@@ -237,8 +237,8 @@ test('an issue blocked by more issues than GitHub lists counts the open blockers
   });
   const f = await boundWorkbench('issue-blockers-window');
   try {
-    const page = await f.workbench.issuePage(f.projectId, { filter: openNoFilter, cursor: null });
-    assert.ok(page.ok);
+    const page = (await showList(f.workbench, f.projectId)).issues.loaded;
+    assert.ok(page);
     assert.deepEqual(
       [page.items[0].blockedBy, page.items[0].unlistedBlockers],
       [[], 2],
@@ -253,7 +253,7 @@ test('list failures fall into the four kinds with the forge text, and an inacces
   const double = await ghDouble(context, { ...forgeAccount, issues: thirtyIssues });
   const f = await boundWorkbench('issue-failures');
   const forge = { name: 'GitHub', cli: 'gh', installUrl: 'https://cli.github.com', loginCommand: 'gh auth login' };
-  const page = () => f.workbench.issuePage(f.projectId, { filter: openNoFilter, cursor: null });
+  const page = async () => (await showList(f.workbench, f.projectId)).issues.failed;
   try {
     await double.set({ account: 'octo', repositories: [] });
     assert.deepEqual(await page(), {

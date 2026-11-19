@@ -7,6 +7,7 @@ import type { SettingsIssue } from './settings/settings';
 import type { WorkflowId, WorkflowSettings } from './settings/workflows';
 import type { ForgeCapabilities, ForgePresentation, RepositoryReference } from './forge/forge';
 import type { DispatchRecordView } from './dispatch';
+import type { ForgeSidebarEvent } from './forge/sidebar-data';
 
 export const agentTypes = ['codex', 'claude', 'pi'] as const;
 export type AgentType = (typeof agentTypes)[number];
@@ -139,7 +140,8 @@ export type TerminalEvent =
 export type WorkbenchEvent =
   | Extract<TerminalEvent, { kind: 'started' | 'output' | 'exit' }>
   | { kind: 'snapshot'; snapshot: Snapshot }
-  | { kind: 'error'; message: string };
+  | { kind: 'error'; message: string }
+  | ForgeSidebarEvent;
 export interface DirectoryResult {
   valid: boolean;
   directory?: string;

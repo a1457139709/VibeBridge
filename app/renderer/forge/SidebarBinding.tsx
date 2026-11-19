@@ -1,9 +1,36 @@
-import { useRef, useState, type ReactNode } from 'react';
+import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { useLocalization } from '../common/Localization';
 import type { ProjectView } from '../../shared/model';
 import { sameRepository, type RepositoryReference } from '../../shared/forge/forge';
-import { RepositoryList, useRepositoryChoices } from './RepositoryList';
+import type { ShownRepositoryChoices } from '../../shared/forge/sidebar-data';
+import { RepositoryList } from './RepositoryList';
 import './sidebar-binding.css';
+
+/** The repositories the project can bind, as the main process pushes them once this page declares it shows them;
+ * null while they are being read. The page declares it again when the project moves to another directory, whose
+ * `origin` may point elsewhere, and on Retry; each declaration reads them again. */
+function useShownRepositoryChoices(projectId: string, directory: string) {
+  const [choices, setChoices] = useState<ShownRepositoryChoices>(null);
+  // A declaration the main process refuses shows its reason in the list's place, with Retry.
+  const show = () =>
+    void window.workbench
+      .showRepositoryChoices(projectId)
+      .catch((error: Error) => setChoices({ ok: false, error: error.message }));
+  useEffect(() => {
+    setChoices(null);
+    const stop = window.workbench.subscribe(event => {
+      if (event.kind === 'repositoryChoices' && event.projectId === projectId) setChoices(event.choices);
+    });
+    show();
+    return stop;
+  }, [projectId, directory]);
+  return {
+    choices,
+    /** The loaded list, or undefined while loading or after a failure. */
+    listed: choices?.ok ? choices : undefined,
+    retry: show,
+  };
+}
 
 /** A binding call from a button: whether one is running, and the reason the last one failed, shown where it was made. */
 function useBindingCall() {
@@ -55,7 +82,7 @@ function useFocusHandoff() {
  * Bind button binds at once; the sidebar then shows the bound repository's lists. */
 export function UnboundRepository({ project }: { project: ProjectView }) {
   const { t } = useLocalization();
-  const { choices, listed, retry } = useRepositoryChoices(project.id, project.directory);
+  const { choices, listed, retry } = useShownRepositoryChoices(project.id, project.directory);
   /** Whether Choose another repository… turned the origin card into the list. */
   const [choosingOther, setChoosingOther] = useState(false);
   const [picked, setPicked] = useState<RepositoryReference>();
@@ -138,7 +165,7 @@ export function ChangeBinding({
 }) {
   const { t } = useLocalization();
   const bound = project.repository;
-  const { choices, listed, retry } = useRepositoryChoices(project.id, project.directory);
+  const { choices, listed, retry } = useShownRepositoryChoices(project.id, project.directory);
   const [picked, setPicked] = useState<RepositoryReference>();
   const [unbinding, setUnbinding] = useState(false);
   const call = useBindingCall();

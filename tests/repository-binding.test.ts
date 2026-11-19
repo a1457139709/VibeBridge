@@ -11,7 +11,7 @@ import {
   type RepositoryReference,
 } from '../app/shared/forge/forge';
 import { ghDouble } from './support/gh-double';
-import { bindListed, openNoFilter } from './support/bound-workbench';
+import { bindListed, showList } from './support/bound-workbench';
 import { interactiveWorkbench, until } from './support/interactive-workbench';
 
 const account = { account: 'octo', repositories: ['octo/tools', 'Octo/VibeBridge', 'acme/forge'] };
@@ -304,8 +304,8 @@ for (const [move, redirects] of [
         repositories: [{ id: Number(id), path: 'octo/tools-x' }, 'acme/forge'],
         redirects,
       });
-      const page = await f.workbench.issuePage(projectId, { filter: openNoFilter, cursor: null });
-      assert.ok(page.ok, 'the list loads from the new path');
+      const { issues } = await showList(f.workbench, projectId);
+      assert.ok(issues.loaded && !issues.failed, 'the list loads from the new path');
       await until(() => bound()?.path === 'octo/tools-x');
       assert.deepEqual(bound(), github('octo/tools-x', id));
       const choices = await f.workbench.repositoryChoices(projectId, f.directory);
@@ -349,10 +349,9 @@ test("a new repository at a deleted bound repository's path is not the bound one
   const { double, f, projectId, id, bound } = await boundToTools(context, 'repository-replaced');
   try {
     await double.set({ ...account, repositories: [{ id: Number(id) + 1, path: 'octo/tools' }] });
-    const page = await f.workbench.issuePage(projectId, { filter: openNoFilter, cursor: null });
-    assert.ok(!page.ok);
-    assert.equal(page.failure.kind, 'inaccessible');
-    assert.equal(page.account, 'octo');
+    const { failed } = (await showList(f.workbench, projectId)).issues;
+    assert.equal(failed?.failure.kind, 'inaccessible');
+    assert.equal(failed?.account, 'octo');
     assert.deepEqual(bound(), github('octo/tools', id));
   } finally {
     await f.close();

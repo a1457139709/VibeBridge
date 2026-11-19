@@ -27,8 +27,9 @@ import { settingsConflicts, type SettingsSaveResult } from '../shared/settings/s
 import { RunSupervision } from './runs/run-supervision';
 import { ProjectPanels } from './projects/project-panels';
 import { inspectDirectory } from './projects/project-directory';
-import { type DirectAction, type ListQuery, type RepositoryReference } from '../shared/forge/forge';
+import { type DirectAction, type RepositoryReference } from '../shared/forge/forge';
 import { RepositoryBindings } from './forge/repository-bindings';
+import { ForgeSidebarData } from './forge/forge-sidebar-data';
 import { directAction, issueDetail, issuePage, pullRequestDetail, pullRequestPage } from './forge/results';
 import { Dispatches, type DispatchRecord } from './dispatch';
 import type { DispatchRequest } from '../shared/dispatch';
@@ -56,6 +57,8 @@ export class Workbench {
   };
   /** Runs of the projects' panels: their input, size, output flow and the commands that start them. */
   readonly runs: RunSupervision;
+  /** The Forge sidebar's lists and the repositories its binding pages offer. */
+  readonly forgeSidebar: ForgeSidebarData;
   private listeners = new Set<(event: WorkbenchEvent) => void>();
   private operations: Promise<unknown> = Promise.resolve();
   private panels: ProjectPanels;
@@ -70,6 +73,13 @@ export class Workbench {
     stored: { repositories: Record<string, RepositoryReference>; dispatches: DispatchRecord[] },
   ) {
     this.bindings = new RepositoryBindings(stored.repositories, store);
+    this.forgeSidebar = new ForgeSidebarData({
+      issuePage: (projectId, query) => issuePage(this.bound(projectId), query),
+      pullRequestPage: (projectId, query) => pullRequestPage(this.bound(projectId), query),
+      repositoryChoices: async projectId => this.repositoryChoices(projectId, this.project(projectId).directory),
+      forge: projectId => this.bindings.view(projectId).forge,
+      emit: event => this.emit(event),
+    });
     this.runs = new RunSupervision(directory, {
       changed: () => this.changed(),
       emit: event => this.emit(event),
@@ -214,6 +224,7 @@ export class Workbench {
     return this.operation(async () => {
       this.project(projectId);
       await this.bindings.bind(projectId, listed);
+      this.forgeSidebar.forget(projectId);
       this.changed();
     });
   }
@@ -222,6 +233,7 @@ export class Workbench {
     return this.operation(async () => {
       this.project(projectId);
       await this.bindings.unbind(projectId);
+      this.forgeSidebar.forget(projectId);
       this.changed();
     });
   }
@@ -240,6 +252,7 @@ export class Workbench {
       this.state.projects = this.state.projects.filter(item => item.id !== id);
       this.panels.forget(project);
       this.bindings.forget(id);
+      this.forgeSidebar.forget(id);
       this.dispatches.forget(id);
       const activateNext = this.state.activeProjectId === id;
       this.state.activeProjectId = nextActive;
@@ -251,12 +264,6 @@ export class Workbench {
   async repositoryChoices(projectId: string, directory: string) {
     this.project(projectId);
     return this.bindings.choices(projectId, directory, found => this.follow(projectId, found));
-  }
-  async issuePage(projectId: string, query: ListQuery) {
-    return issuePage(this.bound(projectId), query);
-  }
-  async pullRequestPage(projectId: string, query: ListQuery) {
-    return pullRequestPage(this.bound(projectId), query);
   }
   async issueDetail(projectId: string, number: number) {
     return issueDetail(this.bound(projectId), number);
