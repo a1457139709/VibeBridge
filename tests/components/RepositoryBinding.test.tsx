@@ -110,33 +110,13 @@ test('a moved directory whose origin points elsewhere than the binding says so a
   assert.deepEqual(edits, [{ edit: { name: 'Project', directory: '/work/moved' }, restart: true }]);
 });
 
-for (const [state, repository] of [
-  ['an unbound project', null],
-  ['a project bound to what the new origin points at', github('acme/forge')],
-] as const)
-  test(`for ${state}, a moved directory lists no binding note after saving`, async () => {
-    let asked = 0;
-    editor(repository, async directory => {
-      if (directory === '/work/moved') asked++;
-      return listed(directory);
-    });
-    const user = await openEditor();
-    const impact = await moveDirectory(user);
-    await impact.findByText('/work/project → /work/moved');
-    if (repository) await waitFor(() => assert.equal(asked, 1, 'the new origin was read'));
-    assert.equal(impact.queryByText(/origin points at/), null);
-    assert.equal(impact.queryByText('Repository'), null);
-  });
-
-test('a moved directory whose repositories cannot be listed lists no binding note, and still saves', async () => {
+test('a moved directory whose repositories cannot be listed still saves', async () => {
   const { edits } = editor(github('octo/tools'), async () => ({
     ok: false,
     failure: { kind: 'notInstalled', detail: '', forge: githubForge },
   }));
   const user = await openEditor();
-  const impact = await moveDirectory(user);
-  await impact.findByText('/work/project → /work/moved');
-  assert.equal(impact.queryByText(/origin points at/), null);
+  await moveDirectory(user);
   await user.click(screen.getByRole('button', { name: 'Change without restarting' }));
   await closed();
   assert.deepEqual(edits, [{ edit: { name: 'Project', directory: '/work/moved' }, restart: false }]);

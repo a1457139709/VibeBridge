@@ -25,6 +25,13 @@ export const repositoryReferenceSchema = z.object({
 export const sameRepository = (a: RepositoryReference | null, b: RepositoryReference | null) =>
   a === b || (!!a && !!b && a.forge === b.forge && a.host === b.host && a.id === b.id);
 
+/** The repository `origin` points at in `choices` when it is another one than `bound`; null when the project is
+ * unbound, the list was not read, or `origin` points at the bound repository or at none the list shows. */
+export const originElsewhereThanBinding = (
+  bound: RepositoryReference | null,
+  choices: RepositoryChoices | undefined,
+) => (bound && choices?.ok && choices.origin && !sameRepository(choices.origin, bound) ? choices.origin : null);
+
 /** Features that differ between forges. The UI shows a feature only when the bound forge declares it. */
 export interface ForgeCapabilities {
   /** Issues nest under a parent issue, and a parent reports its sub-issues' progress. */

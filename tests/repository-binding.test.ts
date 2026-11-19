@@ -4,7 +4,12 @@ import { execFileSync } from 'node:child_process';
 import { mkdtemp } from 'node:fs/promises';
 import { join } from 'node:path';
 import { Workbench } from '../app/main/workbench';
-import type { RepositoryReference } from '../app/shared/forge/forge';
+import {
+  originElsewhereThanBinding,
+  type ForgePresentation,
+  type RepositoryChoices,
+  type RepositoryReference,
+} from '../app/shared/forge/forge';
 import { ghDouble } from './support/gh-double';
 import { bindListed, openNoFilter } from './support/bound-workbench';
 import { interactiveWorkbench, until } from './support/interactive-workbench';
@@ -352,4 +357,27 @@ test("a new repository at a deleted bound repository's path is not the bound one
   } finally {
     await f.close();
   }
+});
+
+test("Edit project's note names the new directory's origin only when it points at another repository than the binding", () => {
+  const forge: ForgePresentation = { name: 'GitHub', cli: 'gh', installUrl: '', loginCommand: '' };
+  const tools = github('octo/tools', '1');
+  const other = github('acme/forge', '2');
+  const listing = (origin: RepositoryReference | null): RepositoryChoices => ({
+    ok: true,
+    forge,
+    account: 'octo',
+    origin,
+    repositories: [tools, other],
+  });
+  assert.deepEqual(originElsewhereThanBinding(tools, listing(other)), other, 'origin points at another repository');
+  for (const [state, bound, choices] of [
+    ['unbound', null, listing(other)],
+    ['origin points at the binding', tools, listing(tools)],
+    ['origin points at the binding at a new path', tools, listing(github('octo/renamed', '1'))],
+    ['origin points at no listed repository', tools, listing(null)],
+    ['the list is loading', tools, undefined],
+    ['the list cannot be read', tools, { ok: false, failure: { kind: 'notInstalled', detail: '', forge } }],
+  ] as const)
+    assert.equal(originElsewhereThanBinding(bound, choices), null, state);
 });
