@@ -70,6 +70,12 @@ export interface Forge {
   issues(repository: RepositoryReference, query: ListQuery): Promise<Answered<ListPage<ListedIssue>>>;
   /** One page of the repository's pull requests, newest created first, filtered on the forge's side. */
   pullRequests(repository: RepositoryReference, query: ListQuery): Promise<Answered<ListPage<PullRequestSummary>>>;
+  /** The repository's issues with these numbers, in one request and with no search, as a list page holds them; a number
+   * the repository has no issue for is left out. */
+  issuesByNumber(repository: RepositoryReference, numbers: number[]): Promise<Answered<ListedIssue[]>>;
+  /** The repository's pull requests with these numbers, in one request and with no search, as a list page holds them;
+   * a number the repository has no pull request for is left out. */
+  pullRequestsByNumber(repository: RepositoryReference, numbers: number[]): Promise<Answered<PullRequestSummary[]>>;
   /** One issue of the repository with its rendered body, comments and relations. */
   issue(repository: RepositoryReference, number: number): Promise<Answered<IssueDetail>>;
   /** One pull request of the repository with its rendered body, timeline and merge requirements. */

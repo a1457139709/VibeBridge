@@ -1,15 +1,17 @@
 /** A repository's issues and pull requests read from its forge and changed by direct actions: the data, or the forge failure.
  * What the renderer asks for is checked here before the forge sees it. */
-import { directActionSchema, itemNumberSchema, listQuerySchema } from '../../shared/forge/forge';
+import { directActionSchema, itemNumberSchema, itemNumbersSchema, listQuerySchema } from '../../shared/forge/forge';
 import type {
   DirectAction,
   DirectActionResult,
   ForgeFailure,
   IssueDetailResult,
   IssuePage,
+  IssuesByNumber,
   ListQuery,
   PullRequestDetailResult,
   PullRequestPage,
+  PullRequestsByNumber,
   RepositoryReference,
 } from '../../shared/forge/forge';
 import { forges } from './forges';
@@ -87,6 +89,30 @@ export async function pullRequestPage(bound: Bound, query: ListQuery): Promise<P
   return fromForge(
     bound,
     forge => readChecked(forge, bound, repository => forge.pullRequests(repository, asked)),
+    listFailure,
+  );
+}
+
+/** The repository's issues with these numbers from its forge, as a list page holds them, read with no search; or the
+ * forge failure. A number the repository has no issue for is left out. */
+export async function issuesByNumber(bound: Bound, numbers: number[]): Promise<IssuesByNumber> {
+  const asked = itemNumbersSchema.parse(numbers);
+  return fromForge(
+    bound,
+    async forge => ({ items: await readChecked(forge, bound, repository => forge.issuesByNumber(repository, asked)) }),
+    listFailure,
+  );
+}
+
+/** The repository's pull requests with these numbers from its forge, as a list page holds them, read with no search;
+ * or the forge failure. A number the repository has no pull request for is left out. */
+export async function pullRequestsByNumber(bound: Bound, numbers: number[]): Promise<PullRequestsByNumber> {
+  const asked = itemNumbersSchema.parse(numbers);
+  return fromForge(
+    bound,
+    async forge => ({
+      items: await readChecked(forge, bound, repository => forge.pullRequestsByNumber(repository, asked)),
+    }),
     listFailure,
   );
 }

@@ -30,7 +30,15 @@ import { inspectDirectory } from './projects/project-directory';
 import { type DirectAction, type RepositoryReference } from '../shared/forge/forge';
 import { RepositoryBindings } from './forge/repository-bindings';
 import { ForgeSidebarData } from './forge/forge-sidebar-data';
-import { directAction, issueDetail, issuePage, pullRequestDetail, pullRequestPage } from './forge/results';
+import {
+  directAction,
+  issueDetail,
+  issuePage,
+  issuesByNumber,
+  pullRequestDetail,
+  pullRequestPage,
+  pullRequestsByNumber,
+} from './forge/results';
 import { Dispatches, type DispatchRecord } from './dispatch';
 import type { DispatchRequest } from '../shared/dispatch';
 
@@ -76,6 +84,8 @@ export class Workbench {
     this.forgeSidebar = new ForgeSidebarData({
       issuePage: (projectId, query) => issuePage(this.bound(projectId), query),
       pullRequestPage: (projectId, query) => pullRequestPage(this.bound(projectId), query),
+      issuesByNumber: (projectId, numbers) => issuesByNumber(this.bound(projectId), numbers),
+      pullRequestsByNumber: (projectId, numbers) => pullRequestsByNumber(this.bound(projectId), numbers),
       repositoryChoices: async projectId => this.repositoryChoices(projectId, this.project(projectId).directory),
       issueDetail: (projectId, number) => issueDetail(this.bound(projectId), number),
       pullRequestDetail: (projectId, number) => pullRequestDetail(this.bound(projectId), number),

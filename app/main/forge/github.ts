@@ -5,12 +5,15 @@ import type {
   ForgeLabel,
   ListFilter,
   IssueSummary,
+  ListedIssue,
+  PullRequestSummary,
   RepositoryReference,
 } from '../../shared/forge/forge';
 import { ForgeError, type Forge } from './forge';
-import { gh, ghOutput, graphql } from './github-cli';
+import { gh, ghOutput, graphql, graphqlAllowingMissing } from './github-cli';
 import {
   checksState,
+  latestChecks,
   issueReference,
   issueReferenceFields,
   issueReferenceSchema,
@@ -27,6 +30,7 @@ import {
   answeringFields,
   answeringSchema,
 } from './github-fields';
+import { issueDetail } from './github-issue';
 import { pullRequestDetail } from './github-pull-request';
 
 const pageSize = 25;
@@ -56,29 +60,26 @@ const listPageSchema = <Node extends z.ZodType>(node: Node) =>
       nodes: z.array(node),
     }),
   });
-const issuePageSchema = listPageSchema(
-  issueSchema.extend({
-    parent: z.object({ number: z.number(), repository: repositorySchema }).nullable(),
-    subIssuesSummary: z.object({ total: z.number(), completed: z.number() }),
-    subIssues: z.object({ nodes: z.array(issueSchema) }),
+/** An issue as a list holds it, with its place in the issue tree. */
+const listedIssueSchema = issueSchema.extend({
+  parent: z.object({ number: z.number(), repository: repositorySchema }).nullable(),
+  subIssuesSummary: z.object({ total: z.number(), completed: z.number() }),
+  subIssues: z.object({ nodes: z.array(issueSchema) }),
+});
+const listedPullRequestSchema = z.object({
+  number: z.number(),
+  title: z.string(),
+  state: z.enum(['OPEN', 'MERGED', 'CLOSED']),
+  isDraft: z.boolean(),
+  createdAt: z.string(),
+  author: z.object({ login: z.string() }).nullable(),
+  labels: z.object({ nodes: z.array(labelSchema) }),
+  commits: z.object({
+    nodes: z.array(z.object({ commit: z.object({ statusCheckRollup: z.object({ state: checksState }).nullable() }) })),
   }),
-);
-const pullRequestPageSchema = listPageSchema(
-  z.object({
-    number: z.number(),
-    title: z.string(),
-    state: z.enum(['OPEN', 'MERGED', 'CLOSED']),
-    isDraft: z.boolean(),
-    createdAt: z.string(),
-    author: z.object({ login: z.string() }).nullable(),
-    labels: z.object({ nodes: z.array(labelSchema) }),
-    commits: z.object({
-      nodes: z.array(
-        z.object({ commit: z.object({ statusCheckRollup: z.object({ state: checksState }).nullable() }) }),
-      ),
-    }),
-  }),
-);
+});
+const issuePageSchema = listPageSchema(listedIssueSchema);
+const pullRequestPageSchema = listPageSchema(listedPullRequestSchema);
 // Sub-issues and blockers come from their own fields (`parent`, `subIssues`, `blockedBy`), not search qualifiers.
 // `blockedBy` lists open and closed blockers alike; `issueDependenciesSummary.blockedBy` counts the open ones, also those past the listed window.
 const issueFields = `number title state stateReason createdAt labels(first: 20) { nodes { name color } } repository { nameWithOwner }
@@ -95,75 +96,24 @@ const listPageQuery = (
     nodes { ${nodes} }
   }
 }`;
-const issuePageQuery = listPageQuery(`... on Issue { ${issueFields}
+const listedIssueFields = `${issueFields}
       parent { number repository { nameWithOwner } }
       subIssuesSummary { total completed }
-      subIssues(first: 50) { nodes { ${issueFields} } } }`);
+      subIssues(first: 50) { nodes { ${issueFields} } }`;
 // The checks conclusion is the status check rollup of the latest commit.
-const pullRequestPageQuery = listPageQuery(`... on PullRequest { number title state isDraft createdAt author { login }
+const listedPullRequestFields = `number title state isDraft createdAt author { login }
       labels(first: 20) { nodes { name color } }
-      commits(last: 1) { nodes { commit { statusCheckRollup { state } } } } }`);
+      commits(last: 1) { nodes { commit { statusCheckRollup { state } } } }`;
+const issuePageQuery = listPageQuery(`... on Issue { ${listedIssueFields} }`);
+const pullRequestPageQuery = listPageQuery(`... on PullRequest { ${listedPullRequestFields} }`);
 
-const issueDetailSchema = z.object({
-  repository: z.object({
-    ...answeringSchema,
-    url: z.string(),
-    viewerPermission,
-    issue: z.object({
-      number: z.number(),
-      title: z.string(),
-      ...issueStateFields,
-      createdAt: z.string(),
-      url: z.string(),
-      bodyHTML: z.string(),
-      author: loginSchema,
-      assignees: z.object({ nodes: z.array(z.object({ login: z.string() })) }),
-      labels: z.object({ nodes: z.array(labelSchema) }),
-      comments: z.object({
-        totalCount: z.number(),
-        nodes: z.array(z.object({ author: loginSchema, createdAt: z.string(), bodyHTML: z.string() })),
-      }),
-      parent: issueReferenceSchema
-        .extend({ subIssuesSummary: z.object({ total: z.number(), completed: z.number() }) })
-        .nullable(),
-      subIssues: z.object({ nodes: z.array(issueReferenceSchema) }),
-      blockedBy: z.object({ nodes: z.array(issueReferenceSchema) }),
-      blocking: z.object({ nodes: z.array(issueReferenceSchema) }),
-      closedByPullRequestsReferences: z.object({
-        nodes: z.array(
-          z.object({
-            number: z.number(),
-            title: z.string(),
-            url: z.string(),
-            state: z.enum(['OPEN', 'CLOSED', 'MERGED']),
-            isDraft: z.boolean(),
-            commits: z.object({
-              nodes: z.array(
-                z.object({ commit: z.object({ statusCheckRollup: z.object({ state: checksState }).nullable() }) }),
-              ),
-            }),
-          }),
-        ),
-      }),
-    }),
-  }),
-});
-// The first 100 comments are listed; `totalCount` counts them all.
-const issueDetailQuery = `query($owner: String!, $name: String!, $number: Int!) {
-  repository(owner: $owner, name: $name) { ${answeringFields} url viewerPermission issue(number: $number) {
-    number title state stateReason createdAt url bodyHTML author { login }
-    assignees(first: 20) { nodes { login } }
-    labels(first: 20) { nodes { name color } }
-    comments(first: 100) { totalCount nodes { author { login } createdAt bodyHTML } }
-    parent { ${issueReferenceFields} subIssuesSummary { total completed } }
-    subIssues(first: ${relatedLimit}) { nodes { ${issueReferenceFields} } }
-    blockedBy(first: ${relatedLimit}) { nodes { ${issueReferenceFields} } }
-    blocking(first: ${relatedLimit}) { nodes { ${issueReferenceFields} } }
-    closedByPullRequestsReferences(first: ${relatedLimit}, includeClosedPrs: true) {
-      nodes { number title url state isDraft commits(last: 1) { nodes { commit { statusCheckRollup { state } } } } }
-    }
-  } }
-}`;
+/** A query for the repository's issues or pull requests with these numbers, each under its own field, with no search. */
+const byNumberQuery = (item: 'issue' | 'pullRequest', fields: string, numbers: number[]) =>
+  `query($owner: String!, $name: String!) { repository(owner: $owner, name: $name) { ${answeringFields}
+    ${numbers.map(number => `n${number}: ${item}(number: ${number}) { ${fields} }`).join('\n    ')} } }`;
+/** The answer to a query by number: the repository, and each number's item, or null when it has none. */
+const byNumberSchema = <Node extends z.ZodType>(node: Node) =>
+  z.object({ repository: z.object(answeringSchema).catchall(node.nullable()) });
 
 /** GitHub repository paths are case-insensitive. */
 const samePath = (a: string, b: string) => a.toLowerCase() === b.toLowerCase();
@@ -186,6 +136,52 @@ function issueSummary(issue: z.infer<typeof issueSchema>, path: string): IssueSu
     blockedBy,
     unlistedBlockers: Math.max(0, issue.issueDependenciesSummary.blockedBy - blockedBy.length),
   };
+}
+
+/** An issue as a list holds it: its own fields, and its parent and sub-issues in the same repository. */
+function listedIssue(issue: z.infer<typeof listedIssueSchema>, path: string): ListedIssue {
+  return {
+    ...issueSummary(issue, path),
+    parent: issue.parent && samePath(issue.parent.repository.nameWithOwner, path) ? issue.parent.number : null,
+    subIssues: {
+      closed: issue.subIssuesSummary.completed,
+      total: issue.subIssuesSummary.total,
+      issues: issue.subIssues.nodes
+        .filter(child => samePath(child.repository.nameWithOwner, path))
+        .map(child => issueSummary(child, path)),
+    },
+  };
+}
+
+/** A pull request as a list holds it. */
+const listedPullRequest = (pull: z.infer<typeof listedPullRequestSchema>): PullRequestSummary => ({
+  number: pull.number,
+  title: pull.title,
+  state: pullRequestState(pull.state, pull.isDraft),
+  createdAt: pull.createdAt,
+  author: pull.author?.login ?? null,
+  checks: latestChecks(pull.commits),
+  labels: pull.labels.nodes,
+});
+
+/** Reads the repository's items with these numbers in one request, as `schema` reads each; a number with no item of
+ * the kind asked is left out. */
+async function byNumber<Node extends z.ZodType>(
+  { host, path }: RepositoryReference,
+  item: 'issue' | 'pullRequest',
+  fields: string,
+  node: Node,
+  numbers: number[],
+) {
+  const [owner, name] = path.split('/');
+  const { repository } = await graphqlAllowingMissing(
+    host,
+    byNumberQuery(item, fields, numbers),
+    { owner, name },
+    byNumberSchema(node),
+  );
+  const found = numbers.map(number => repository[`n${number}`] as z.infer<Node> | null);
+  return { repository, items: found.filter(item => item !== null && item !== undefined) as z.infer<Node>[] };
 }
 
 /** GitHub search text for the filter, of issues or pull requests. A number (with or without #) matches the number;
@@ -242,21 +238,6 @@ const pageFrame = (data: {
   labels: data.repository.labels.nodes,
   counts: { open: data.open.issueCount, closed: data.closed.issueCount },
 });
-
-const checksConclusion: Record<z.infer<typeof checksState>, ChecksConclusion> = {
-  SUCCESS: 'passed',
-  FAILURE: 'failed',
-  ERROR: 'failed',
-  PENDING: 'pending',
-  EXPECTED: 'pending',
-};
-/** The checks conclusion of a pull request's latest commit, from its status check rollup. */
-const latestChecks = (commits: {
-  nodes: { commit: { statusCheckRollup: { state: z.infer<typeof checksState> } | null } }[];
-}): ChecksConclusion => {
-  const rollup = commits.nodes[0]?.commit.statusCheckRollup;
-  return rollup ? checksConclusion[rollup.state] : 'none';
-};
 
 /** The `gh` subcommand for each direct action; writes go through `gh issue` and `gh pr`, not the API. With a method flag and
  * no message, `gh pr merge` merges at once with GitHub's default commit message and keeps the branch. */
@@ -362,76 +343,28 @@ export const github: Forge = {
     }
   },
   async issues(repository, query) {
-    const { path } = repository;
     const data = await listPage(issuePageQuery, issuePageSchema, repository, 'issue', query);
     return answered(data.repository, {
-      items: data.search.nodes.map(issue => ({
-        ...issueSummary(issue, path),
-        parent: issue.parent && samePath(issue.parent.repository.nameWithOwner, path) ? issue.parent.number : null,
-        subIssues: {
-          closed: issue.subIssuesSummary.completed,
-          total: issue.subIssuesSummary.total,
-          issues: issue.subIssues.nodes
-            .filter(child => samePath(child.repository.nameWithOwner, path))
-            .map(child => issueSummary(child, path)),
-        },
-      })),
+      items: data.search.nodes.map(issue => listedIssue(issue, repository.path)),
       ...pageFrame(data),
     });
   },
   async pullRequests(repository, query) {
     const data = await listPage(pullRequestPageQuery, pullRequestPageSchema, repository, 'pr', query);
-    return answered(data.repository, {
-      items: data.search.nodes.map(pull => ({
-        number: pull.number,
-        title: pull.title,
-        state: pullRequestState(pull.state, pull.isDraft),
-        createdAt: pull.createdAt,
-        author: pull.author?.login ?? null,
-        checks: latestChecks(pull.commits),
-        labels: pull.labels.nodes,
-      })),
-      ...pageFrame(data),
-    });
+    return answered(data.repository, { items: data.search.nodes.map(listedPullRequest), ...pageFrame(data) });
   },
-  async issue({ host, path }, number) {
-    const [owner, name] = path.split('/');
-    const { repository } = await graphql(host, issueDetailQuery, { owner, name, number }, issueDetailSchema);
-    const { issue } = repository;
-    return answered(repository, {
-      number: issue.number,
-      title: issue.title,
-      ...issueState(issue),
-      createdAt: issue.createdAt,
-      labels: issue.labels.nodes,
-      url: issue.url,
-      author: issue.author?.login ?? null,
-      assignees: issue.assignees.nodes.map(assignee => assignee.login),
-      body: issue.bodyHTML,
-      comments: issue.comments.nodes.map(comment => ({
-        author: comment.author?.login ?? null,
-        createdAt: comment.createdAt,
-        html: comment.bodyHTML,
-      })),
-      commentCount: issue.comments.totalCount,
-      parent: issue.parent && {
-        ...issueReference(issue.parent),
-        progress: { closed: issue.parent.subIssuesSummary.completed, total: issue.parent.subIssuesSummary.total },
-      },
-      subIssues: issue.subIssues.nodes.map(issueReference).sort((a, b) => a.number - b.number),
-      blockedBy: issue.blockedBy.nodes.map(issueReference),
-      blocking: issue.blocking.nodes.map(issueReference),
-      closingPullRequests: issue.closedByPullRequestsReferences.nodes.map(pull => ({
-        number: pull.number,
-        title: pull.title,
-        url: pull.url,
-        state: pullRequestState(pull.state, pull.isDraft),
-        checks: latestChecks(pull.commits),
-      })),
-      links: repositoryLinks(repository.url),
-      canWrite: canWrite(repository.viewerPermission),
-    });
+  async issuesByNumber(repository, numbers) {
+    const read = await byNumber(repository, 'issue', listedIssueFields, listedIssueSchema, numbers);
+    return answered(
+      read.repository,
+      read.items.map(issue => listedIssue(issue, repository.path)),
+    );
   },
+  async pullRequestsByNumber(repository, numbers) {
+    const read = await byNumber(repository, 'pullRequest', listedPullRequestFields, listedPullRequestSchema, numbers);
+    return answered(read.repository, read.items.map(listedPullRequest));
+  },
+  issue: issueDetail,
   pullRequest: pullRequestDetail,
   async act({ host, path }, action) {
     const { stdout, stderr } = await ghOutput(host, [...actionArgs(action), '--repo', path]);
