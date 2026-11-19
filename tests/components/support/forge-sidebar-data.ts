@@ -33,7 +33,7 @@ export function forgeSidebarData(
 ): Pick<
   DesktopAPI,
   | 'showForgeList'
-  | 'hideForgeList'
+  | 'reportForgeSidebarPresence'
   | 'loadMoreForgeList'
   | 'showForgeRows'
   | 'refreshForgeList'
@@ -54,7 +54,7 @@ export function forgeSidebarData(
   });
   return {
     showForgeList: (projectId, view) => data.showList(projectId, view),
-    hideForgeList: async projectId => data.hideList(projectId),
+    reportForgeSidebarPresence: presence => data.reportPresence(presence),
     loadMoreForgeList: projectId => data.loadMore(projectId),
     showForgeRows: (projectId, numbers) => data.showRows(projectId, numbers),
     refreshForgeList: projectId => data.refresh(projectId),

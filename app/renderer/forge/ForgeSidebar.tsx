@@ -6,7 +6,8 @@ import type { DesktopAPI } from '../../shared/api';
 import type { ProjectView, Snapshot } from '../../shared/model';
 import { useSidebarPreferences } from '../common/sidebar-preferences';
 import { ChangeBinding, UnboundRepository } from './SidebarBinding';
-import { ForgeLists, SidebarHead, type DetailHost, type ForgeListsActions } from './ForgeLists';
+import { ForgeLists, openListsView, type DetailHost, type ForgeListsActions, type ListsView } from './ForgeLists';
+import { SidebarHead } from './SidebarHead';
 import type { DispatchTarget } from '../../shared/dispatch';
 import { capturePointer } from '../common/pointer-capture';
 import type { ReportNotice } from '../common/Notices';
@@ -56,6 +57,8 @@ export function useForgeSidebar(host: Host, api: Pick<DesktopAPI, 'saveSidebar' 
   /** The target each command last went to, kept only while the app runs. */
   const [lastTargets, setLastTargets] = useState<ReadonlyMap<string, DispatchTarget>>(new Map());
   const listsActions = useRef<ForgeListsActions>(null);
+  /** The tab and filters the lists last showed, per project and binding, kept while the app runs. */
+  const listsViews = useRef(new Map<string, ListsView>());
   const detail: DetailHost = {
     shown: setDetailOpen,
     resize(event: ReactPointerEvent<HTMLDivElement>) {
@@ -160,10 +163,13 @@ export function useForgeSidebar(host: Host, api: Pick<DesktopAPI, 'saveSidebar' 
             />
           </>
         ) : project.repository ? (
-          // Mounted per project and repository: returning to a project or rebinding starts the lists afresh.
+          // Mounted per project and repository: returning to a project shows the tab and filters it last showed, and
+          // rebinding starts from open with no filter.
           <ForgeLists
             ref={listsActions}
             key={bindingKey}
+            view={listsViews.current.get(bindingKey!) ?? openListsView}
+            rememberView={view => void listsViews.current.set(bindingKey!, view)}
             project={{ ...project, repository: project.repository }}
             changeBinding={() => setChangingBindingOf(bindingKey)}
             detailHost={detail}

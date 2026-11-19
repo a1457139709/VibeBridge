@@ -58,7 +58,7 @@ test('closing an issue as completed or not planned and reopening it carry back t
   }
 });
 
-test('a direct action reported on an issue reloads the first page and the open detail with what the forge then holds', async context => {
+test('a direct action reported on an issue reloads its detail, and its row shows the new state where it was', async context => {
   await ghDouble(context, { ...forgeAccount, issues: [issue(3), issue(4)] });
   const f = await boundWorkbench('direct-actions-reload');
   const item = { kind: 'issue', number: 3 } as const;
@@ -77,9 +77,12 @@ test('a direct action reported on an issue reloads the first page and the open d
       );
     });
     assert.deepEqual(
-      lists?.issues.loaded?.items.map(row => row.number),
-      [4],
-      'the closed issue leaves the open issues',
+      lists?.issues.loaded?.items.map(row => [row.number, row.state]),
+      [
+        [4, 'open'],
+        [3, 'closed'],
+      ],
+      'the closed issue stays in place among the open issues, showing its new state',
     );
     assert.ok(detail.ok && 'issue' in detail);
     assert.deepEqual([detail.issue.state, detail.issue.closedAs], ['closed', 'completed']);

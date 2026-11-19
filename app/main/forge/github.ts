@@ -23,6 +23,9 @@ import {
   repositoryLinks,
   canWrite,
   viewerPermission,
+  answeredBy,
+  answeringFields,
+  answeringSchema,
 } from './github-fields';
 import { pullRequestDetail } from './github-pull-request';
 
@@ -45,7 +48,7 @@ const issueSchema = z.object({
 /** A list page: the repository's labels, the open and closed counts, and one page of search results. */
 const listPageSchema = <Node extends z.ZodType>(node: Node) =>
   z.object({
-    repository: z.object({ labels: z.object({ nodes: z.array(labelSchema) }) }),
+    repository: z.object({ ...answeringSchema, labels: z.object({ nodes: z.array(labelSchema) }) }),
     open: z.object({ issueCount: z.number() }),
     closed: z.object({ issueCount: z.number() }),
     search: z.object({
@@ -84,7 +87,7 @@ const issueFields = `number title state stateReason createdAt labels(first: 20) 
 const listPageQuery = (
   nodes: string,
 ) => `query($owner: String!, $name: String!, $search: String!, $openSearch: String!, $closedSearch: String!, $after: String) {
-  repository(owner: $owner, name: $name) { labels(first: 100, orderBy: { field: NAME, direction: ASC }) { nodes { name color } } }
+  repository(owner: $owner, name: $name) { ${answeringFields} labels(first: 100, orderBy: { field: NAME, direction: ASC }) { nodes { name color } } }
   open: search(query: $openSearch, type: ISSUE, first: 0) { issueCount }
   closed: search(query: $closedSearch, type: ISSUE, first: 0) { issueCount }
   search(query: $search, type: ISSUE, first: ${pageSize}, after: $after) {
@@ -103,6 +106,7 @@ const pullRequestPageQuery = listPageQuery(`... on PullRequest { number title st
 
 const issueDetailSchema = z.object({
   repository: z.object({
+    ...answeringSchema,
     url: z.string(),
     viewerPermission,
     issue: z.object({
@@ -146,7 +150,7 @@ const issueDetailSchema = z.object({
 });
 // The first 100 comments are listed; `totalCount` counts them all.
 const issueDetailQuery = `query($owner: String!, $name: String!, $number: Int!) {
-  repository(owner: $owner, name: $name) { url viewerPermission issue(number: $number) {
+  repository(owner: $owner, name: $name) { ${answeringFields} url viewerPermission issue(number: $number) {
     number title state stateReason createdAt url bodyHTML author { login }
     assignees(first: 20) { nodes { login } }
     labels(first: 20) { nodes { name color } }
@@ -279,8 +283,13 @@ const outputLines = (text: string) =>
     .filter(Boolean);
 const escapeRegExp = (text: string) => text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 
-const locateQuery = `query($owner: String!, $name: String!) { repository(owner: $owner, name: $name) { databaseId nameWithOwner } }`;
-const locatedSchema = z.object({ repository: z.object({ databaseId: z.number(), nameWithOwner: z.string() }) });
+/** The data of a read, and the repository that answered it at the path the read named. */
+const answered = <T>(repository: { databaseId: number; nameWithOwner: string }, data: T) => ({
+  answeredBy: answeredBy(repository),
+  data,
+});
+const locateQuery = `query($owner: String!, $name: String!) { repository(owner: $owner, name: $name) { ${answeringFields} } }`;
+const locatedSchema = z.object({ repository: z.object(answeringSchema) });
 
 export const github: Forge = {
   id: 'github',
@@ -355,7 +364,7 @@ export const github: Forge = {
   async issues(repository, query) {
     const { path } = repository;
     const data = await listPage(issuePageQuery, issuePageSchema, repository, 'issue', query);
-    return {
+    return answered(data.repository, {
       items: data.search.nodes.map(issue => ({
         ...issueSummary(issue, path),
         parent: issue.parent && samePath(issue.parent.repository.nameWithOwner, path) ? issue.parent.number : null,
@@ -368,11 +377,11 @@ export const github: Forge = {
         },
       })),
       ...pageFrame(data),
-    };
+    });
   },
   async pullRequests(repository, query) {
     const data = await listPage(pullRequestPageQuery, pullRequestPageSchema, repository, 'pr', query);
-    return {
+    return answered(data.repository, {
       items: data.search.nodes.map(pull => ({
         number: pull.number,
         title: pull.title,
@@ -383,13 +392,13 @@ export const github: Forge = {
         labels: pull.labels.nodes,
       })),
       ...pageFrame(data),
-    };
+    });
   },
   async issue({ host, path }, number) {
     const [owner, name] = path.split('/');
     const { repository } = await graphql(host, issueDetailQuery, { owner, name, number }, issueDetailSchema);
     const { issue } = repository;
-    return {
+    return answered(repository, {
       number: issue.number,
       title: issue.title,
       ...issueState(issue),
@@ -421,7 +430,7 @@ export const github: Forge = {
       })),
       links: repositoryLinks(repository.url),
       canWrite: canWrite(repository.viewerPermission),
-    };
+    });
   },
   pullRequest: pullRequestDetail,
   async act({ host, path }, action) {

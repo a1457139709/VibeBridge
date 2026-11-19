@@ -1,4 +1,4 @@
-const { readFileSync, writeFileSync } = require('node:fs');
+const { appendFileSync, readFileSync, writeFileSync } = require('node:fs');
 const { issueDetail, pullRequestDetail } = require('./gh-cli-details.cjs');
 
 // A `gh` CLI double. The test writes the account's state to the JSON file named by VIBEBRIDGE_GH_DOUBLE:
@@ -10,9 +10,12 @@ const { issueDetail, pullRequestDetail } = require('./gh-cli-details.cjs');
 // A failure answers every command the way `gh` fails, with that exit code and output. `gh api graphql` answers
 // like GitHub: a repository the account does not list is NOT_FOUND unless a redirect leads from its path to one it lists, the search reads the qualifiers it is given,
 // listing pull requests for is:pr and issues otherwise, and `repository.issue` answers one issue with its relations, or NOT_FOUND.
+// A query asking for `repository { databaseId nameWithOwner }` is told the ID and current path of the repository answering at the asked path.
 // `gh issue close|reopen` and `gh pr merge|close|reopen` change the state file and answer with GitHub's text.
 const state = JSON.parse(readFileSync(process.env.VIBEBRIDGE_GH_DOUBLE, 'utf8'));
 const args = process.argv.slice(2);
+// Every command is logged, one JSON array of its arguments per line, for the test to count what was asked.
+appendFileSync(`${process.env.VIBEBRIDGE_GH_DOUBLE}.calls`, `${JSON.stringify(args)}\n`);
 /** The listed repositories with their IDs: one named by its path alone has an ID that follows from the path. */
 const repositories = state.repositories.map(entry =>
   typeof entry === 'string'
@@ -151,13 +154,11 @@ function graphql({ query, owner, name, search, openSearch, closedSearch, after, 
     process.exit(1);
   }
   const path = repository.path;
-  if (/databaseId/.test(query))
-    return process.stdout.write(
-      JSON.stringify({ data: { repository: { databaseId: repository.id, nameWithOwner: path } } }),
-    );
-  if (/issue\(number:/.test(query)) return issueDetail(state, path, Number(number));
-  if (/pullRequest\(number:/.test(query)) return pullRequestDetail(state, path, Number(number));
-  if (!/search\(/.test(query)) unsupported();
+  // Every read names the repository answering at the asked path, by its ID and current path, when it asks for them.
+  const answering = /databaseId nameWithOwner/.test(query) ? { databaseId: repository.id, nameWithOwner: path } : {};
+  if (/issue\(number:/.test(query)) return issueDetail(state, path, Number(number), answering);
+  if (/pullRequest\(number:/.test(query)) return pullRequestDetail(state, path, Number(number), answering);
+  if (!/search\(/.test(query)) return process.stdout.write(JSON.stringify({ data: { repository: answering } }));
   const found = searchIssues(search);
   const offset = after ? Number(Buffer.from(after, 'base64').toString().replace('cursor:', '')) : 0;
   const page = found.slice(offset, offset + 25);
@@ -165,7 +166,7 @@ function graphql({ query, owner, name, search, openSearch, closedSearch, after, 
   process.stdout.write(
     JSON.stringify({
       data: {
-        repository: { labels: { nodes: state.labels ?? [] } },
+        repository: { ...answering, labels: { nodes: state.labels ?? [] } },
         open: { issueCount: searchIssues(openSearch).length },
         closed: { issueCount: searchIssues(closedSearch).length },
         search: {

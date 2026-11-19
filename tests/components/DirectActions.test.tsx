@@ -207,7 +207,7 @@ async function openPullRequest(forge: Forge) {
   return view;
 }
 
-test('Close issue closes it as completed, shows it working meanwhile, and on success refreshes once to show what the forge holds', async () => {
+test('Close issue closes it as completed, shows it working meanwhile, and on success reloads the issue to show what the forge holds in its detail and its row', async () => {
   const forge: Forge = { issue: issueDetail(3) };
   const { user, action, reads } = await openIssue(forge);
   const pagesBefore = reads.pages,
@@ -226,10 +226,12 @@ test('Close issue closes it as completed, shows it working meanwhile, and on suc
   await waitFor(() =>
     assert.deepEqual(
       [reads.issue - detailsBefore, reads.pages - pagesBefore],
-      [1, 1],
-      'one refresh of the detail and the list',
+      [1, 0],
+      'one reload of the detail alone',
     ),
   );
+  const row = within(sidebar()).getByRole('listitem');
+  assert.ok(within(row).getByLabelText('Closed as completed'), 'the row stays, showing the new state');
   assert.equal(within(issuePane()).queryByRole('button', { name: 'Close issue' }), null);
 });
 
