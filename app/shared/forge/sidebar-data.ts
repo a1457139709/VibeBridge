@@ -59,3 +59,12 @@ export type ForgeSidebarEvent =
   | { kind: 'forgeLists'; projectId: string; lists: ForgeLists }
   | { kind: 'repositoryChoices'; projectId: string; choices: ShownRepositoryChoices }
   | { kind: 'forgeDetail'; projectId: string; detail: ShownDetail };
+
+/** Whether the Forge sidebar shows a project's lists, and whether its window is in the foreground: the main process
+ * updates the data in the background when they come to show (docs/adr/0008-forge-sidebar-data-lives-in-the-main-process.md). */
+export const forgeSidebarPresenceSchema = z.object({
+  visible: z.boolean(),
+  foreground: z.boolean(),
+  projectId: z.string().min(1),
+});
+export type ForgeSidebarPresence = z.infer<typeof forgeSidebarPresenceSchema>;

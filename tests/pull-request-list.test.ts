@@ -2,7 +2,15 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { ghDouble, type GhPullRequest } from './support/gh-double';
 import type { ListFilter } from '../app/shared/forge/forge';
-import { boundWorkbench, day, forgeAccount, openNoFilter, showList, shownLists } from './support/bound-workbench';
+import {
+  boundWorkbench,
+  day,
+  forgeAccount,
+  openNoFilter,
+  refreshList,
+  showList,
+  shownLists,
+} from './support/bound-workbench';
 
 test('showing the tab loads one page of 25 pull requests, newest first, and Load more appends the rest', async context => {
   const thirty: GhPullRequest[] = Array.from({ length: 30 }, (_, index) => ({
@@ -203,7 +211,7 @@ test("pull request list failures are reported like the issue list's", async cont
       },
     });
     double.uninstall();
-    assert.deepEqual((await showList(f.workbench, f.projectId, 'pullRequests')).pullRequests.failed, {
+    assert.deepEqual((await refreshList(f.workbench, f.projectId)).pullRequests.failed, {
       ok: false,
       account: null,
       failure: { kind: 'notInstalled', forge, detail: '' },
