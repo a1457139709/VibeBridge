@@ -7,11 +7,13 @@ import './repository-list.css';
 export type LoadedChoices = RepositoryChoices | { ok: false; error: string };
 
 /** The repositories the project can bind, with the one `origin` of `directory` points at; loaded when the project or
- * directory changes, and again on `retry`. Undefined while loading. */
-export function useRepositoryChoices(projectId: string, directory: string) {
+ * directory changes, and again on `retry`. Undefined while loading, and for a null directory, which loads nothing. */
+export function useRepositoryChoices(projectId: string, directory: string | null) {
   const [choices, setChoices] = useState<LoadedChoices>();
   const [attempt, setAttempt] = useState(0);
   useEffect(() => {
+    setChoices(undefined);
+    if (directory === null) return;
     let live = true;
     void window.workbench.repositoryChoices(projectId, directory).then(
       result => {

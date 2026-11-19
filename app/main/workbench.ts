@@ -27,7 +27,7 @@ import { settingsConflicts, type SettingsSaveResult } from '../shared/settings/s
 import { RunSupervision } from './runs/run-supervision';
 import { ProjectPanels } from './projects/project-panels';
 import { inspectDirectory } from './projects/project-directory';
-import { type DirectAction, sameRepository, type ListQuery, type RepositoryReference } from '../shared/forge/forge';
+import { type DirectAction, type ListQuery, type RepositoryReference } from '../shared/forge/forge';
 import { RepositoryBindings } from './forge/repository-bindings';
 import { directAction, issueDetail, issuePage, pullRequestDetail, pullRequestPage } from './forge/results';
 import { Dispatches, type DispatchRecord } from './dispatch';
@@ -185,12 +185,8 @@ export class Workbench {
       return { project: structuredClone(project), launches };
     });
   }
-  /** Saves name, directory and Repository Binding together. Everything is checked first (a new repository against
-   * a fresh list from its forge), then written in one transaction, so a failed check saves nothing. */
-  async editProject(id: string, edit: ProjectEdit, restart: boolean): Promise<ProjectEditResult> {
-    this.project(id);
-    // Listing waits on the forge CLI, so it runs before the edit joins the operation queue. A kept binding stays as stored.
-    const repository = await this.bindings.chosen(id, edit.repository);
+  /** Saves name and directory; the Repository Binding stays as it is. */
+  editProject(id: string, edit: ProjectEdit, restart: boolean): Promise<ProjectEditResult> {
     return this.operation(async () => {
       const project = this.project(id);
       const nameError = projectNameError(edit.name);
@@ -201,11 +197,9 @@ export class Workbench {
         throw new Error(message('projectDuplicate', { name: directory.existingProjectName! }));
       const next = { ...project, name: edit.name.trim(), directory: directory.directory! };
       const changedDirectory = project.directory !== next.directory;
-      if (!changedDirectory && project.name === next.name && sameRepository(repository, this.bindings.get(id)))
-        return { project: structuredClone(project), launches: [] };
-      await this.store.edit(next, repository);
+      if (!changedDirectory && project.name === next.name) return { project: structuredClone(project), launches: [] };
+      await this.store.save(next);
       Object.assign(project, next);
-      this.bindings.edited(id, repository);
       this.changed();
       const result: ProjectEditResult = { project: structuredClone(project), launches: [] };
       if (changedDirectory && restart) Object.assign(result, await this.panels.restart(project));

@@ -248,6 +248,25 @@ test('picking another repository states what rebinding does, and Rebind to Y reb
   await waitFor(() => assert.ok(within(sidebar()).getByText('octo/renamed', { selector: 'header *' })));
 });
 
+test('a bound repository the forge lists at a new path is listed once, there, as the current one, and Rebind stays unavailable', async () => {
+  await changeBindingPage(async () => ({
+    ok: true,
+    forge: githubForge,
+    account: 'octo',
+    origin: githubRepository('octo/renamed'),
+    repositories: [
+      githubRepository('octo/alpha-x', githubRepository('octo/alpha').id),
+      githubRepository('octo/renamed'),
+    ],
+  }));
+  const options = await within(sidebar()).findAllByRole('option');
+  assert.deepEqual(
+    options.map(option => option.textContent),
+    ['octo/renamedorigin', 'octo/alpha-xcurrent'],
+  );
+  assert.equal((within(sidebar()).getByRole('button', { name: 'Rebind' }) as HTMLButtonElement).disabled, true);
+});
+
 test('a binding changed elsewhere while the change-binding page shows returns the sidebar to the lists', async () => {
   const { snapshot, publish, request } = await changeBindingPage();
   snapshot.projects[0].repository = githubRepository('octo/renamed');

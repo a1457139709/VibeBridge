@@ -54,10 +54,6 @@ export class ProjectStore {
   save(project: Project) {
     return this.request<void>('save', project);
   }
-  /** Saves an edited project and its Repository Binding (null for none) in one transaction. */
-  edit(project: Project, repository: RepositoryReference | null) {
-    return this.request<void>('edit', { project, repository });
-  }
   /** Stores a project's Repository Binding, replacing any it has. */
   bind(projectId: string, repository: RepositoryReference) {
     return this.request<void>('bind', { projectId, repository });

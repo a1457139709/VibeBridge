@@ -49,22 +49,14 @@ export class RepositoryBindings {
     if (listed && listed.path !== bound!.path) follow(listed);
     return choices;
   }
-  /** The binding a project edit saves: the stored binding when it is still the same repository, otherwise `repository`
-   * as a fresh list from its forge shows it. */
-  async chosen(projectId: string, repository: RepositoryReference | null) {
-    const bound = this.get(projectId);
-    if (sameRepository(repository, bound)) return bound;
-    return repository && listedRepository(repository).catch(explainUnreadable('projectEditListFailed'));
-  }
-  /** Records the binding a project edit has written. */
-  edited(projectId: string, repository: RepositoryReference | null) {
-    if (repository) this.bindings.set(projectId, repository);
-    else this.bindings.delete(projectId);
-  }
   /** The repository as a fresh list from its forge shows it, for `bind`; throws when the list cannot be read or does
    * not show it. */
   async findListed(repository: RepositoryReference) {
-    return listedRepository(repository).catch(explainUnreadable('bindListFailed'));
+    return listedRepository(repository).catch((error: unknown): never => {
+      if (error instanceof RepositoryListUnreadable)
+        throw new Error(message('bindListFailed', { reason: detail(error.reason) }));
+      throw error;
+    });
   }
   /** Binds the project to a repository `findListed` returned, replacing any binding it has. Runs in the Workbench's
    * operation queue. */
@@ -90,12 +82,4 @@ export class RepositoryBindings {
     this.bindings.set(projectId, found);
     return true;
   }
-}
-
-/** Rethrows a list that could not be read as the caller's message, naming the forge's reason. */
-function explainUnreadable(key: 'projectEditListFailed' | 'bindListFailed') {
-  return (error: unknown): never => {
-    if (error instanceof RepositoryListUnreadable) throw new Error(message(key, { reason: detail(error.reason) }));
-    throw error;
-  };
 }

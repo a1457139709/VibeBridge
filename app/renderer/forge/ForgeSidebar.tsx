@@ -36,6 +36,8 @@ export function useForgeSidebar(host: Host, api: Pick<DesktopAPI, 'saveSidebar' 
   } = useSidebarPreferences({ sidebar: 'forgeSidebar', snapshot, api, edge: -1, report: host.report });
   const element = useRef<HTMLElement>(null);
   const focusOnOpen = useRef(false);
+  /** Asks for focus in the sidebar while it is already shown. */
+  const [focusRequest, setFocusRequest] = useState(0);
   /** The project and binding whose change-binding page the sidebar shows in place of the lists; a binding changed in
    * any way leaves it. */
   const [changingBindingOf, setChangingBindingOf] = useState<string>();
@@ -62,13 +64,11 @@ export function useForgeSidebar(host: Host, api: Pick<DesktopAPI, 'saveSidebar' 
   };
   const shown = preferences.visible && !!project;
   /** The project with its binding: the lists are mounted per this, and the change-binding page shows only for it. */
-  const bindingKey = project?.repository
-    ? `${project.id} ${project.repository.forge} ${project.repository.host} ${project.repository.id}`
-    : undefined;
+  const bindingKey = project && keyOfBinding(project);
   useLayoutEffect(() => {
     if (shown && focusOnOpen.current) element.current!.focus();
     focusOnOpen.current = false;
-  }, [shown]);
+  }, [shown, focusRequest]);
   // The intent is set first: the snapshot of the save may already draw the open sidebar.
   /** Shows or hides the sidebar. Without a current project there is no sidebar to show: nothing toggles, and it returns false. */
   function toggle() {
@@ -76,6 +76,17 @@ export function useForgeSidebar(host: Host, api: Pick<DesktopAPI, 'saveSidebar' 
     focusOnOpen.current = !preferences.visible;
     if (!togglePreferences()) focusOnOpen.current = false;
     return true;
+  }
+  /** Shows the sidebar on `target`'s binding for when `target` is the current project: a bound project's change-binding
+   * page, whose search takes focus, or an unbound project's state, with focus in the sidebar. */
+  function openBinding(target: ProjectView) {
+    const key = keyOfBinding(target);
+    setChangingBindingOf(key);
+    if (!key) {
+      focusOnOpen.current = true;
+      setFocusRequest(request => request + 1);
+    }
+    if (!preferences.visible) togglePreferences();
   }
   /** The issue shortcuts act only while focus is in the sidebar; elsewhere their keys go on, to a terminal. */
   const handleIssueShortcut = (action: IssueShortcutAction) =>
@@ -88,6 +99,7 @@ export function useForgeSidebar(host: Host, api: Pick<DesktopAPI, 'saveSidebar' 
   const overlay = snapshot?.settings.sidebarCoexistence === 'overlay';
   return {
     toggle,
+    openBinding,
     handleIssueShortcut,
     shown,
     overlay,
@@ -161,3 +173,7 @@ export function useForgeSidebar(host: Host, api: Pick<DesktopAPI, 'saveSidebar' 
     ),
   };
 }
+
+/** A bound project with its binding, or undefined for an unbound one. */
+const keyOfBinding = ({ id, repository }: ProjectView) =>
+  repository ? `${id} ${repository.forge} ${repository.host} ${repository.id}` : undefined;

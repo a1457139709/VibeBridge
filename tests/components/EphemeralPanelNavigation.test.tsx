@@ -82,6 +82,7 @@ function renderNavigation(language: 'en' | 'zh-CN', state = snapshot()) {
       page: 'workbench',
       view: () => ({ selected: 'resident', maximized: 'finished' }),
       openProject: () => {},
+      openBinding: () => {},
       locatePanel: (project, panelId) => located.push(`${project}/${panelId}`),
       createProject: () => {},
       toggleSettings: () => {},

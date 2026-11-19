@@ -193,6 +193,41 @@ test('unbinding keeps the project and works without gh', async context => {
   }
 });
 
+test('saving a project edit leaves its binding as it was, without gh: an unbound project whose origin is listed stays unbound', async context => {
+  const double = await ghDouble(context, account);
+  const f = await interactiveWorkbench('repository-edit-keeps-binding');
+  try {
+    setOrigin(f.directory, 'git@github.com:octo/vibebridge.git');
+    const unbound = (await f.create('Unbound')).project;
+    const boundDirectory = await mkdtemp(join(f.directory, 'bound-'));
+    const bound = (await f.create('Bound', boundDirectory)).project;
+    await bindListed(f.workbench, bound.id, 'octo/tools');
+    const tools = f.workbench.snapshot().projects[1].repository;
+    const moved = await mkdtemp(join(f.directory, 'moved-'));
+    setOrigin(moved, 'https://github.com/acme/forge.git');
+    double.uninstall();
+
+    await f.workbench.editProject(unbound.id, { name: 'Renamed', directory: f.directory }, false);
+    await f.workbench.editProject(bound.id, { name: 'Moved', directory: moved }, false);
+    const expected = [
+      ['Renamed', f.directory, null],
+      ['Moved', moved, tools],
+    ];
+    const saved = (workbench: Workbench) =>
+      workbench.snapshot().projects.map(item => [item.name, item.directory, item.repository]);
+    assert.deepEqual(saved(f.workbench), expected);
+    await f.workbench.quit();
+    const reopened = await Workbench.open(f.directory);
+    try {
+      assert.deepEqual(saved(reopened), expected, 'the bindings are stored as they were');
+    } finally {
+      await reopened.quit();
+    }
+  } finally {
+    await f.close();
+  }
+});
+
 test('deleting a bound project removes it for good', async context => {
   await ghDouble(context, account);
   const f = await interactiveWorkbench('repository-delete');
@@ -292,7 +327,7 @@ for (const [move, redirects] of [
   });
 }
 
-test('a bound repository transferred to another owner follows from the list of repositories the edit dialog opens with', async context => {
+test('a bound repository transferred to another owner follows from the list of repositories the change-binding page opens with', async context => {
   const { double, f, projectId, id, bound } = await boundToTools(context, 'repository-transferred');
   try {
     await double.set({ ...account, repositories: [{ id: Number(id), path: 'acme/tools' }] });

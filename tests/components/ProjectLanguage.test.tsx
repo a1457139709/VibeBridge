@@ -8,7 +8,7 @@ import { Localization } from '../../app/renderer/common/Localization';
 import { message } from '../../app/shared/messages';
 import type { ProjectView } from '../../app/shared/model';
 import { provideWorkbench } from './support/workbench';
-import { githubForge, githubView } from './support/forge';
+import { githubView } from './support/forge';
 
 afterEach(cleanup);
 
@@ -27,7 +27,6 @@ for (const language of ['en', 'zh-CN'] as const) {
     const calls: unknown[] = [];
     provideWorkbench({
       inspectDirectory: async directory => ({ valid: true, directory }),
-      repositoryChoices: async () => ({ ok: false, failure: { kind: 'notInstalled', detail: '', forge: githubForge } }),
       editProject: async (id, edit, restart) => {
         calls.push([id, edit, restart]);
         return {
@@ -44,7 +43,7 @@ for (const language of ['en', 'zh-CN'] as const) {
     });
     render(
       <Localization language={language}>
-        <ProjectNavigationItem project={project} openProject={() => {}}>
+        <ProjectNavigationItem project={project} openProject={() => {}} openBinding={() => {}}>
           <span>{project.name}</span>
         </ProjectNavigationItem>
       </Localization>,
@@ -57,11 +56,12 @@ for (const language of ['en', 'zh-CN'] as const) {
     await user.clear(path);
     await user.type(path, '/原样/new');
     await screen.findByRole('region', { name: en ? 'After saving' : '保存后' });
-    assert.ok(
-      screen.getByText(en ? 'Could not find gh; install it to bind a repository.' : '没有找到 gh，安装后才能绑定。'),
+    assert.equal(
+      document.querySelector('.repository-current')!.textContent,
+      en ? 'Not boundBind in the GitHub sidebar' : '未绑定在 GitHub 侧边栏绑定',
     );
     await user.click(screen.getByRole('button', { name: en ? 'Change and restart' : '更改并重启' }));
-    assert.deepEqual(calls, [['project', { name: project.name, directory: '/原样/new', repository: null }, true]]);
+    assert.deepEqual(calls, [['project', { name: project.name, directory: '/原样/new' }, true]]);
     assert.ok(
       screen.getByText(
         en ? 'Saved project name and directory: Untitled task 原样' : '已保存项目名称和目录：Untitled task 原样',

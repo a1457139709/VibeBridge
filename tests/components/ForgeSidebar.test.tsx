@@ -228,6 +228,43 @@ test('Choose another repository… lists origin first and picked, Bind Y binds t
   assert.deepEqual(binds, [['unbound', githubRepository('acme/forge')]]);
 });
 
+test('from the search box ↑/↓ move through the listed repositories, Enter or Space picks the one reached, and picking with the pointer keeps focus there', async () => {
+  const { user, opened } = await unboundSidebar(async () => listed('octo/unbound'));
+  await user.click(await within(opened).findByRole('button', { name: 'Choose another repository…' }));
+  const search = (await within(opened).findByRole('searchbox', { name: 'Search repositories' })) as HTMLInputElement;
+  const reached = () => document.getElementById(search.getAttribute('aria-activedescendant') ?? '')?.dataset.path;
+  const picked = () =>
+    within(opened)
+      .getAllByRole('option', { selected: true })
+      .map(option => option.dataset.path);
+  await waitFor(() => assert.equal(document.activeElement, search));
+  assert.equal(reached(), undefined, 'no repository is reached before a key moves');
+  await user.keyboard('{ArrowDown}');
+  assert.equal(reached(), 'octo/unbound', 'the repository origin points at is listed first');
+  await user.keyboard('{ArrowUp}');
+  assert.equal(reached(), 'octo/unbound', 'the first repository stays reached');
+  await user.keyboard('{ArrowDown}{ArrowDown}{ArrowDown}');
+  assert.equal(reached(), 'acme/forge', 'the last repository stays reached');
+  await user.keyboard('{Enter}');
+  assert.deepEqual(picked(), ['acme/forge']);
+  await user.keyboard('{ArrowUp} ');
+  assert.deepEqual(picked(), ['octo/tools']);
+  assert.equal(search.value, '', 'Space picks without typing');
+
+  await user.hover(within(opened).getByRole('option', { name: /^octo\/unbound/ }));
+  assert.equal(reached(), 'octo/unbound', 'pointing reaches a repository');
+  await user.keyboard('{ArrowDown}');
+  assert.equal(reached(), 'octo/tools', 'the keys go on from where the pointer reached');
+  await user.click(within(opened).getByRole('option', { name: 'acme/forge' }));
+  assert.deepEqual(picked(), ['acme/forge']);
+  assert.equal(document.activeElement, search, 'picking with the pointer keeps focus in the search box');
+
+  await user.type(search, 'tools');
+  assert.equal(reached(), undefined, 'a new search reaches nothing yet');
+  await user.keyboard('{ArrowDown}{Enter}');
+  assert.deepEqual(picked(), ['octo/tools']);
+});
+
 test('without an origin on the list, the list shows with nothing picked and Bind is unavailable until one is', async () => {
   const { user, binds, opened } = await unboundSidebar(async () => listed(null));
   await within(opened).findByRole('option', { name: 'octo/tools' });
@@ -296,4 +333,37 @@ test('a bind whose list check fails writes nothing, says why in place, and can b
   await user.click(within(opened).getByRole('button', { name: 'Bind octo/unbound' }));
   await waitFor(() => assert.ok(within(sidebar()!).getByText('octo/unbound', { selector: 'header *' })));
   assert.equal(binds.length, 2);
+});
+
+async function editProject(user: ReturnType<typeof userEvent.setup>, name: string) {
+  await user.click(await screen.findByRole('button', { name: `Project menu: ${name}` }));
+  await user.click(screen.getByRole('menuitem', { name: 'Edit project' }));
+  return screen.getByRole('dialog', { name: 'Edit project' });
+}
+
+test("Edit project's link on a bound project closes the dialog and opens the sidebar on its change-binding page", async () => {
+  const { user } = renderWorkbench();
+  const dialog = await editProject(user, 'Bound project');
+  assert.equal(
+    dialog.querySelector('.repository-current')!.textContent,
+    'octo/boundChange or unbind in the GitHub sidebar',
+  );
+  await user.click(within(dialog).getByRole('button', { name: 'Change or unbind in the GitHub sidebar' }));
+  await waitFor(() => assert.equal(screen.queryByRole('dialog'), null));
+  const opened = await shownSidebar();
+  assert.equal(within(opened).getByText('Currently bound:').querySelector('b')?.textContent, 'octo/bound');
+  const search = await within(opened).findByRole('searchbox', { name: 'Search repositories' });
+  await waitFor(() => assert.equal(document.activeElement, search));
+});
+
+test("Edit project's link on an unbound project makes it current and opens the sidebar on its unbound state", async () => {
+  const { user, snapshot } = renderWorkbench();
+  const dialog = await editProject(user, 'Unbound project');
+  assert.equal(dialog.querySelector('.repository-current')!.textContent, 'Not boundBind in the GitHub sidebar');
+  await user.click(within(dialog).getByRole('button', { name: 'Bind in the GitHub sidebar' }));
+  await waitFor(() => assert.equal(screen.queryByRole('dialog'), null));
+  await waitFor(() => assert.equal(snapshot.activeProjectId, 'unbound'));
+  const opened = await shownSidebar();
+  await waitFor(() => within(opened).getByText('No repository bound'));
+  assert.equal(within(opened).queryByRole('button', { name: '← Back' }), null);
 });

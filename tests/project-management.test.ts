@@ -16,21 +16,17 @@ test('editing a name or the same real directory preserves panels, layout and the
     const before = f.workbench.snapshot();
     const link = join(f.directory, 'alias');
     await symlink(f.directory, link);
-    const edited = await f.workbench.editProject(
-      project.id,
-      { name: ' Renamed ', directory: link, repository: null },
-      true,
-    );
+    const edited = await f.workbench.editProject(project.id, { name: ' Renamed ', directory: link }, true);
     assert.deepEqual(edited.project, { ...project, name: 'Renamed' });
     assert.deepEqual(edited.launches, []);
     assert.deepEqual(runsOf(f.workbench.snapshot()), runsOf(before));
     await f.workbench.runs.input(runsOf(before)[0].id, 'rename-survives');
     await until(() => f.output(runsOf(before)[0].id).includes('INPUT:rename-survives'));
-    await f.workbench.editProject(project.id, { name: 'Renamed', directory: link, repository: null }, false);
+    await f.workbench.editProject(project.id, { name: 'Renamed', directory: link }, false);
     assert.deepEqual(runsOf(f.workbench.snapshot()), runsOf(before));
     for (const name of ['', '  ', 'line\nbreak', 'bad\u001bname']) {
       await assert.rejects(
-        f.workbench.editProject(project.id, { name, directory: f.directory, repository: null }, false),
+        f.workbench.editProject(project.id, { name, directory: f.directory }, false),
         /nameRequired|nameControls/,
       );
     }
@@ -38,7 +34,7 @@ test('editing a name or the same real directory preserves panels, layout and the
     await writeFile(file, 'keep');
     for (const directory of ['', file, join(f.directory, 'missing')]) {
       await assert.rejects(
-        f.workbench.editProject(project.id, { name: 'Invalid', directory, repository: null }, false),
+        f.workbench.editProject(project.id, { name: 'Invalid', directory }, false),
         /projectDirectoryInvalid|projectDuplicate/,
       );
     }
@@ -70,11 +66,7 @@ test('directory restart saves first, cleans descendants and preserves project la
     await f.workbench.runs.input(oldRuns[0].id, 'child');
     await until(() => /CHILD:(\d+)/.test(f.output(oldRuns[0].id)));
     const child = Number(f.output(oldRuns[0].id).match(/CHILD:(\d+)/)![1]);
-    const result = await f.workbench.editProject(
-      project.id,
-      { name: 'New directory', directory: target, repository: null },
-      true,
-    );
+    const result = await f.workbench.editProject(project.id, { name: 'New directory', directory: target }, true);
     assert.equal(result.error, undefined);
     assert.equal(result.launches.length, 2);
     assert.ok(result.launches.every(launch => launch.outcome === 'started'));
@@ -107,15 +99,8 @@ test('changing directory without restart keeps original cwd and identity and use
     const old = runsOf(f.workbench.snapshot())[0];
     await until(() => f.output(old.id).includes(`:${f.directory}`));
     const { project: second } = await f.create('Other', other);
-    await assert.rejects(
-      f.workbench.editProject(project.id, { name: 'Duplicate', directory: other, repository: null }, false),
-      /Other/,
-    );
-    const result = await f.workbench.editProject(
-      project.id,
-      { name: 'Moved', directory: target, repository: null },
-      false,
-    );
+    await assert.rejects(f.workbench.editProject(project.id, { name: 'Duplicate', directory: other }, false), /Other/);
+    const result = await f.workbench.editProject(project.id, { name: 'Moved', directory: target }, false);
     assert.deepEqual(result.launches, []);
     await f.workbench.activateProject(project.id);
     await f.workbench.activateProject(second.id);
@@ -144,11 +129,7 @@ test('changing directory without restart keeps original cwd and identity and use
     try {
       // A project which has not been visited this app run must only save.
       const before = reopened.snapshot().projects.find(item => item.id === project.id)!;
-      const saved = await reopened.editProject(
-        project.id,
-        { name: 'Unvisited', directory: f.directory, repository: null },
-        true,
-      );
+      const saved = await reopened.editProject(project.id, { name: 'Unvisited', directory: f.directory }, true);
       assert.deepEqual(saved.launches, []);
       assert.deepEqual(runsOf(reopened.snapshot()), []);
       assert.deepEqual(saved.project.panels, before.panels);
@@ -227,11 +208,7 @@ test('restart reports each failed launch without falling back and a zero-panel p
     });
     settings.agents.claude.command = '/vibebridge-test/missing-agent';
     await f.workbench.saveSettings(settings);
-    const result = await f.workbench.editProject(
-      project.id,
-      { name: 'Mixed moved', directory: target, repository: null },
-      true,
-    );
+    const result = await f.workbench.editProject(project.id, { name: 'Mixed moved', directory: target }, true);
     assert.deepEqual(
       result.launches.map(launch => launch.outcome),
       ['started', 'failed'],
@@ -243,11 +220,7 @@ test('restart reports each failed launch without falling back and a zero-panel p
     assert.equal(f.workbench.snapshot().projects[0].directory, target);
     await until(() => f.output(result.launches[0].run.id).includes(`:${target}`));
     for (const panel of project.panels) await f.workbench.closePanel(project.id, panel.id);
-    const empty = await f.workbench.editProject(
-      project.id,
-      { name: 'Empty', directory: f.directory, repository: null },
-      true,
-    );
+    const empty = await f.workbench.editProject(project.id, { name: 'Empty', directory: f.directory }, true);
     assert.deepEqual(empty.project.panels, []);
     assert.equal(empty.project.layout, null);
     assert.deepEqual(empty.launches, []);
@@ -269,12 +242,12 @@ test('failed saves do not mutate names or stop runs and failed deletion keeps al
     database.exec('BEGIN IMMEDIATE'); // External filesystem/database fault, never a mocked collaborator.
     const unchanged = await f.workbench.editProject(
       project.id,
-      { name: project.name, directory: project.directory, repository: null },
+      { name: project.name, directory: project.directory },
       false,
     );
     assert.deepEqual(unchanged.project, project);
     await assert.rejects(
-      f.workbench.editProject(project.id, { name: 'Unsaved', directory: target, repository: null }, true),
+      f.workbench.editProject(project.id, { name: 'Unsaved', directory: target }, true),
       /projectStorageFailed/,
     );
     assert.deepEqual(storedProjects(f.workbench.snapshot()), [project]);
@@ -319,7 +292,7 @@ test('a terminal stop timeout reports a saved edit and leaves panel records inta
     process.kill(host, 'SIGSTOP');
     const result = await f.workbench.editProject(
       project.id,
-      { name: 'Saved with stop failure', directory: target, repository: null },
+      { name: 'Saved with stop failure', directory: target },
       true,
     );
     assert.match(result.error!, /projectRestartFailed/);
@@ -385,7 +358,7 @@ test('a start response timeout returns an explicit per-panel uncertain result wh
     try {
       const result = await f.workbench.editProject(
         project.id,
-        { name: 'Saved before start timeout', directory: target, repository: null },
+        { name: 'Saved before start timeout', directory: target },
         true,
       );
       assert.equal(result.project.directory, target);
