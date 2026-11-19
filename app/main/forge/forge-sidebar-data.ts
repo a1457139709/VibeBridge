@@ -79,7 +79,6 @@ export class ForgeSidebarData {
       request: null,
     };
     shown.view = declared;
-    shown.rows = [];
     this.lists.set(projectId, shown);
     return this.load(projectId, shown, declared.tab, declared.filter, null, 1);
   }
