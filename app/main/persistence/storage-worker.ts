@@ -16,7 +16,12 @@ import type { DispatchRecord } from '../dispatch';
 
 const file: string = workerData.file;
 const db = new DatabaseSync(file);
-db.exec(`PRAGMA journal_mode=WAL; PRAGMA foreign_keys=ON;
+db.exec('PRAGMA journal_mode=WAL; PRAGMA foreign_keys=ON;');
+// Dispatch Records stored without the skill dispatched cannot show it: they are dropped, and nothing else with them.
+const dispatchColumns = db.prepare("SELECT name FROM pragma_table_info('dispatches')").all();
+if (dispatchColumns.length && !dispatchColumns.some(column => column.name === 'skill'))
+  db.exec('DROP TABLE dispatches');
+db.exec(`
   CREATE TABLE IF NOT EXISTS projects (id TEXT PRIMARY KEY, name TEXT NOT NULL, directory TEXT NOT NULL UNIQUE, layout TEXT);
   CREATE TABLE IF NOT EXISTS panels (id TEXT PRIMARY KEY, project_id TEXT NOT NULL REFERENCES projects(id), agent TEXT NOT NULL, position INTEGER NOT NULL);
   CREATE TABLE IF NOT EXISTS workspace (id INTEGER PRIMARY KEY CHECK(id=1), active_project TEXT, navigation TEXT);
@@ -24,8 +29,8 @@ db.exec(`PRAGMA journal_mode=WAL; PRAGMA foreign_keys=ON;
     repository_id TEXT NOT NULL, path TEXT NOT NULL);
   CREATE TABLE IF NOT EXISTS forge_sidebar (id INTEGER PRIMARY KEY CHECK(id=1), preferences TEXT NOT NULL);
   CREATE TABLE IF NOT EXISTS dispatches (project_id TEXT NOT NULL REFERENCES projects(id), forge TEXT NOT NULL, host TEXT NOT NULL,
-    repository_id TEXT NOT NULL, path TEXT NOT NULL, issue INTEGER NOT NULL, dispatched_at TEXT NOT NULL, agent TEXT NOT NULL, text TEXT NOT NULL,
-    session_id TEXT NOT NULL);
+    repository_id TEXT NOT NULL, path TEXT NOT NULL, issue INTEGER NOT NULL, dispatched_at TEXT NOT NULL, agent TEXT NOT NULL, skill TEXT NOT NULL,
+    text TEXT NOT NULL, session_id TEXT NOT NULL);
   -- Bindings and dispatches stored without the repository's ID cannot name it: their projects are bound again
   -- (docs/adr/0006-forges-sit-behind-an-interface.md).
   DROP TABLE IF EXISTS repository_bindings;
@@ -98,6 +103,7 @@ function readDispatchRecords(projects: Project[]): DispatchRecord[] {
         issue: row.issue as number,
         dispatchedAt: row.dispatched_at as string,
         agent: agent.data,
+        skill: row.skill as string,
         text: row.text as string,
         sessionId: row.session_id as string,
       };
@@ -181,7 +187,7 @@ parentPort!.on('message', ({ id, operation, value }) => {
     } else if (operation === 'dispatch') {
       const record = value as DispatchRecord;
       const { forge, host, id: repositoryId, path } = record.repository;
-      db.prepare('INSERT INTO dispatches VALUES (?,?,?,?,?,?,?,?,?,?)').run(
+      db.prepare('INSERT INTO dispatches VALUES (?,?,?,?,?,?,?,?,?,?,?)').run(
         record.projectId,
         forge,
         host,
@@ -190,6 +196,7 @@ parentPort!.on('message', ({ id, operation, value }) => {
         record.issue,
         record.dispatchedAt,
         record.agent,
+        record.skill,
         record.text,
         record.sessionId,
       );

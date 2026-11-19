@@ -167,43 +167,22 @@
   font-size: 11px;
   color: var(--muted);
 }
-.dispatch-status {
-  display: flex;
-  align-items: center;
-  gap: 4px;
-  max-width: 96px;
+.dispatch-skill {
   border: 0;
   background: none;
   padding: 0;
+  min-height: 0;
+  height: auto;
   font-size: 11px;
-  color: inherit;
-}
-.dispatch-status .processing-status {
-  width: 12px;
-  height: 12px;
-  flex: 0 0 12px;
-}
-.dispatch-session {
-  max-width: 80px;
-  overflow: hidden;
-  text-overflow: ellipsis;
+  font-weight: normal;
+  color: var(--forge-link);
   white-space: nowrap;
-  color: var(--muted);
 }
-button.dispatch-status:hover .dispatch-session {
-  color: inherit;
+button.dispatch-skill:hover {
   text-decoration: underline;
 }
-.dispatch-times {
+.dispatch-skill.gone {
   color: var(--muted);
-  font-size: 10px;
-  flex-shrink: 0;
-  white-space: pre;
-}
-.dispatch-status.gone {
-  color: var(--muted);
-  font-size: 10px;
-  white-space: nowrap;
 }
 .dispatch-records {
   margin-bottom: 14px;
@@ -211,8 +190,7 @@ button.dispatch-status:hover .dispatch-session {
 .dispatch-records > header {
   padding: 4px 12px;
 }
-.dispatch-records-toggle,
-.dispatch-record-toggle {
+.dispatch-records-toggle {
   border: 0;
   background: none;
   padding: 0;
@@ -221,8 +199,7 @@ button.dispatch-status:hover .dispatch-session {
   font-size: 12px;
   color: var(--muted);
 }
-.dispatch-records-toggle:hover,
-.dispatch-record-toggle:hover {
+.dispatch-records-toggle:hover {
   color: inherit;
 }
 .dispatch-records ul {
@@ -233,50 +210,36 @@ button.dispatch-status:hover .dispatch-session {
 .dispatch-record {
   display: flex;
   align-items: center;
-  flex-wrap: wrap;
   gap: 6px;
   padding: 6px 12px;
   border-top: 1px solid var(--line);
   font-size: 11px;
+  white-space: nowrap;
 }
 .dispatch-records ul .dispatch-record:first-child {
   border-top: 0;
 }
-.dispatch-record-when,
-.dispatch-record-gone {
+/* The parts of a record's line read `when · Agent type · skill · session ID`. */
+.dispatch-record > * + *::before {
+  content: '·';
+  margin-right: 6px;
+  color: var(--muted);
+  text-decoration: none;
+  display: inline-block;
+}
+.dispatch-record-when {
   color: var(--muted);
 }
-.dispatch-record-gone,
-.dispatch-record-session {
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-.dispatch-record-session {
+.dispatch-session-id {
   border: 0;
   background: none;
   padding: 0;
   min-height: 0;
   height: auto;
+  font-family: Menlo, monospace;
   font-size: 11px;
+  color: var(--muted);
+}
+.dispatch-session-id:hover {
   color: inherit;
-  text-align: left;
-}
-.dispatch-record-session:hover {
-  color: var(--forge-link);
-  text-decoration: underline;
-}
-.dispatch-record > .dispatch-record-toggle {
-  margin-left: auto;
-  font-size: 11px;
-}
-.dispatch-record-text {
-  flex-basis: 100%;
-  font-size: 11px;
-  padding: 4px 6px;
-  border-radius: 4px;
-  background: color-mix(in srgb, var(--muted) 12%, transparent);
-  white-space: pre-wrap;
-  word-break: break-all;
 }

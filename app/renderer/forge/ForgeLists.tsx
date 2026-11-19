@@ -27,7 +27,7 @@ import { ForgeDetailPane } from './ForgeDetail';
 import type { IssueDispatch } from './IssueDetail';
 import { FilterBar } from './ForgeFilterBar';
 import { DispatchButton, holdsDispatch, type DispatchHost } from '../dispatch/DispatchMenu';
-import { DispatchStatus } from '../dispatch/DispatchRecords';
+import { LatestDispatchSkill } from '../dispatch/DispatchRecords';
 import type { DetailItem } from './ForgeDisplay';
 import { IssueTree, issueRowOf, moveOrOpenRow, PullRequestRow, rowTitleIn, rowTitleOf } from './ForgeRows';
 
@@ -113,9 +113,8 @@ export function SidebarHead({
   );
 }
 
-/** The detail's width and resize edge, owned by the sidebar, and where it reports whether a detail is open. */
+/** The detail's resize edge, owned by the sidebar, and where it reports whether a detail is open. */
 export interface DetailHost {
-  width: number;
   resize(event: ReactPointerEvent<HTMLDivElement>): void;
   shown(open: boolean): void;
 }
@@ -231,18 +230,18 @@ export function ForgeLists({ project, changeBinding, detailHost, dispatchHost, r
   /** The rows: where focus returns from the detail, and where it rests when no row of the detail's items shows. */
   const scrollArea = useRef<HTMLDivElement>(null);
   const dispatchRecordsOf = (issueNumber: number) => project.dispatches.filter(record => record.issue === issueNumber);
-  /** An open issue's dispatch action and where its latest dispatch is now. */
+  /** An open issue's dispatch action and the skill of its latest dispatch. */
   const issueAction = (issue: IssueSummary) => (
     <>
       {dispatchButton(issue, 'row')}
-      <DispatchStatus records={dispatchRecordsOf(issue.number)} locate={dispatchHost.locate} />
+      <LatestDispatchSkill records={dispatchRecordsOf(issue.number)} host={dispatchHost} />
     </>
   );
   /** The detail's Dispatch and Dispatch Records of an issue. */
   const issueDispatch = (issue: IssueDetail): IssueDispatch => ({
     button: dispatchButton(issue, 'detail'),
     records: dispatchRecordsOf(issue.number),
-    locate: dispatchHost.locate,
+    host: dispatchHost,
   });
   useImperativeHandle(ref, () => ({
     handleIssueShortcut(action) {
@@ -440,7 +439,6 @@ export function ForgeLists({ project, changeBinding, detailHost, dispatchHost, r
         <ForgeDetailPane
           project={project}
           item={shown}
-          width={detailHost.width}
           resize={detailHost.resize}
           canBack={opened.length > 1}
           back={() => setOpened(stack => stack.slice(0, -1))}

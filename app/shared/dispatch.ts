@@ -1,7 +1,6 @@
 import { z } from 'zod';
 import { itemNumberSchema } from './forge/forge';
 import { agentTypes, type AgentType } from './model';
-import type { ProcessingState } from './processing-status';
 
 /** Where a dispatch goes: a panel of the project that has a run, or a new ephemeral panel of an Agent type. */
 export const dispatchTargetSchema = z.discriminatedUnion('kind', [
@@ -21,21 +20,23 @@ export const dispatchRequestSchema = z.object({
 });
 export type DispatchRequest = z.infer<typeof dispatchRequestSchema>;
 
-/** The panel on a dispatch record's session now, with its processing state and session title when it has them. */
+/** The open panel on a dispatch record's session now. */
 export interface DispatchLocation {
   projectId: string;
   panelId: string;
-  status?: ProcessingState;
-  title?: string;
 }
 
-/** A Dispatch Record as the sidebar shows it: the issue, when, the Agent type, the full text sent, and the panel on its
- * session now, or null when no open panel is on it (docs/adr/0003-dispatch-records-point-to-sessions.md). */
+/** A Dispatch Record as the sidebar shows it: the issue, when, the Agent type, the skill dispatched, the session that
+ * took it, and the panel on that session now, or null when no open panel is on it
+ * (docs/adr/0003-dispatch-records-point-to-sessions.md). A dispatch still waiting for its new panel's first session has
+ * no session ID yet and shows that panel. */
 export interface DispatchRecordView {
   issue: number;
   dispatchedAt: string;
   agent: AgentType;
-  text: string;
+  /** The skill's name, without any Agent type's invocation syntax, e.g. `grill-me`. */
+  skill: string;
+  sessionId?: string;
   location: DispatchLocation | null;
 }
 

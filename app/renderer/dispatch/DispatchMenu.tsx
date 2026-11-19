@@ -22,10 +22,11 @@ import {
 import type { DispatchRequest, DispatchTarget } from '../../shared/dispatch';
 import { displayShortcut } from '../../shared/settings/shortcuts';
 import type { IssueSummary } from '../../shared/forge/forge';
+import type { DispatchRecordsHost } from './DispatchRecords';
 import './dispatch.css';
 
 /** What dispatching needs from the sidebar around it. */
-export interface DispatchHost {
+export interface DispatchHost extends DispatchRecordsHost {
   workflows: Settings['workflows'];
   /** The binding that opens the dispatch menu from the sidebar. */
   openMenuBinding: string;
@@ -33,11 +34,8 @@ export interface DispatchHost {
   lastTargets: ReadonlyMap<string, DispatchTarget>;
   /** Remembers the target a command was dispatched to. */
   rememberLastTarget(commandKey: string, target: DispatchTarget): void;
-  /** Locates a panel; an ephemeral one opens as its temporary maximize. */
-  locate(projectId: string, panelId: string): void;
   /** A dispatch went through: the sidebar refreshes once; `fill` also closes the detail. */
   dispatched(delivery: Delivery): void;
-  report(message: string): void;
 }
 
 const dispatchClass = 'dispatch';

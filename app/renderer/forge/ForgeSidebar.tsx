@@ -9,6 +9,8 @@ import { ChangeBinding, UnboundRepository } from './SidebarBinding';
 import { ForgeLists, SidebarHead, type DetailHost, type ForgeListsActions } from './ForgeLists';
 import type { DispatchTarget } from '../../shared/dispatch';
 import { capturePointer } from '../common/pointer-capture';
+import type { ReportNotice } from '../common/Notices';
+import type { Region } from '../common/region-widths';
 import './forge-sidebar.css';
 
 interface Host {
@@ -17,11 +19,13 @@ interface Host {
   project?: ProjectView;
   /** Locates a panel; an ephemeral one opens as its temporary maximize. */
   locatePanel(projectId: string, panelId: string): void;
-  report(message: string): void;
+  /** Records `region` as the region last resized and returns the widest a drag may make it. */
+  beginResize(region: Region): number;
+  report: ReportNotice;
 }
 
-/** The detail's width while the app runs: dragging its left edge sets it within these bounds. */
-const detailWidth = { initial: 640, min: 420, max: 1100 };
+/** The detail's width while the app runs, and the narrowest that keeps its content whole. */
+const detailWidth = { initial: 640, min: 420 };
 
 // Keep this hook in the main window's lifetime. The forge sidebar's open state and width are one for the
 // whole app; what it shows is the current project's. Opening it moves focus inside; closing leaves focus alone.
@@ -33,7 +37,14 @@ export function useForgeSidebar(host: Host, api: Pick<DesktopAPI, 'saveSidebar' 
     preferences,
     toggle: togglePreferences,
     resize,
-  } = useSidebarPreferences({ sidebar: 'forgeSidebar', snapshot, api, edge: -1, report: host.report });
+  } = useSidebarPreferences({
+    sidebar: 'forgeSidebar',
+    snapshot,
+    api,
+    edge: -1,
+    beginResize: () => host.beginResize('forgeSidebar'),
+    report: host.report,
+  });
   const element = useRef<HTMLElement>(null);
   const focusOnOpen = useRef(false);
   /** Asks for focus in the sidebar while it is already shown. */
@@ -47,17 +58,17 @@ export function useForgeSidebar(host: Host, api: Pick<DesktopAPI, 'saveSidebar' 
   const [lastTargets, setLastTargets] = useState<ReadonlyMap<string, DispatchTarget>>(new Map());
   const listsActions = useRef<ForgeListsActions>(null);
   const detail: DetailHost = {
-    width,
     shown: setDetailOpen,
     resize(event: ReactPointerEvent<HTMLDivElement>) {
       if (event.button !== 0) return;
       event.preventDefault();
       // The detail's right edge is the sidebar's left edge: dragging its left edge leftwards widens it.
       const start = event.clientX,
-        from = event.currentTarget.parentElement!.getBoundingClientRect().width;
+        from = event.currentTarget.parentElement!.getBoundingClientRect().width,
+        widest = host.beginResize('detail');
       capturePointer(event.currentTarget, event.pointerId, {
         move: pointer =>
-          setWidth(Math.round(Math.max(detailWidth.min, Math.min(detailWidth.max, from - (pointer.clientX - start))))),
+          setWidth(Math.round(Math.max(detailWidth.min, Math.min(widest, from - (pointer.clientX - start))))),
         finish: () => {},
       });
     },
@@ -103,9 +114,14 @@ export function useForgeSidebar(host: Host, api: Pick<DesktopAPI, 'saveSidebar' 
     handleIssueShortcut,
     shown,
     overlay,
+    /** The sidebar's remembered width. */
     width: preferences.width,
-    /** Whether an open detail squeezes the layout area, and its width. */
-    detail: { squeeze: shown && detailOpen && snapshot?.settings.detailCoexistence === 'squeeze', width },
+    /** Whether a detail is open, whether it squeezes the layout area, and its remembered width. */
+    detail: {
+      shown: shown && detailOpen,
+      squeeze: shown && detailOpen && snapshot?.settings.detailCoexistence === 'squeeze',
+      width,
+    },
     button: (
       <button
         className="forge-sidebar-toggle"
@@ -124,7 +140,6 @@ export function useForgeSidebar(host: Host, api: Pick<DesktopAPI, 'saveSidebar' 
         tabIndex={-1}
         className={`forge-sidebar ${overlay ? 'overlay' : ''}`}
         aria-label={project.forge.name}
-        style={{ width: preferences.width }}
       >
         <div
           className="forge-sidebar-resize"
@@ -159,6 +174,7 @@ export function useForgeSidebar(host: Host, api: Pick<DesktopAPI, 'saveSidebar' 
               openMenuBinding: snapshot!.settings.shortcuts.openDispatchMenu,
               lastTargets,
               locate: host.locatePanel,
+              locateBinding: snapshot!.settings.shortcuts.locateDispatchedPanel,
               report: host.report,
               rememberLastTarget: (command, target) => setLastTargets(targets => new Map(targets).set(command, target)),
             }}

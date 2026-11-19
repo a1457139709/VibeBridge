@@ -193,7 +193,7 @@ small {
 }
 .navigation {
   position: relative;
-  width: min(var(--navigation-width), max(0px, calc(100vw - 160px)));
+  width: var(--navigation-width);
   flex-shrink: 0;
   padding: 0;
   border-right: 1px solid var(--line);

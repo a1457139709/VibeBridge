@@ -92,6 +92,7 @@ test("navigation reads each panel view's state, exposes all five states to keybo
       locatePanel: (_project, panel) => located.push(panel),
       createProject: () => {},
       toggleSettings: () => {},
+      beginResize: () => Infinity,
       report: () => {},
     });
     return (

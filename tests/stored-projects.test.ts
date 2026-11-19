@@ -137,6 +137,27 @@ test('a stored Repository Binding with a nested repository path reopens as store
   }
 });
 
+test('dispatch records stored without their skill are dropped; the project and its binding stay', async context => {
+  const repository = { forge: 'github', host: 'github.com', id: '42', path: 'octo/tools' };
+  const { directory } = await storedWorkbench(context, 'stored-without-skill', database =>
+    database.exec(`
+    DROP TABLE dispatches;
+    CREATE TABLE dispatches (project_id TEXT NOT NULL REFERENCES projects(id), forge TEXT NOT NULL, host TEXT NOT NULL,
+      repository_id TEXT NOT NULL, path TEXT NOT NULL, issue INTEGER NOT NULL, dispatched_at TEXT NOT NULL, agent TEXT NOT NULL,
+      text TEXT NOT NULL, session_id TEXT NOT NULL);
+    INSERT INTO bound_repositories VALUES ('${project.id}', 'github', 'github.com', '42', 'octo/tools');
+    INSERT INTO dispatches VALUES ('${project.id}', 'github', 'github.com', '42', 'octo/tools', 7, '2026-01-01T00:00:00Z',
+      'claude', '/implement', 'session-a');`),
+  );
+  const workbench = await Workbench.open(directory);
+  try {
+    const [stored] = workbench.snapshot().projects;
+    assert.deepEqual([stored.name, stored.repository, stored.dispatches], [project.name, repository, []]);
+  } finally {
+    await workbench.quit();
+  }
+});
+
 test('bindings and dispatches stored without the repository ID are dropped: the project reopens unbound and can be deleted', async context => {
   const { directory } = await storedWorkbench(context, 'stored-without-repository-id', database =>
     database.exec(`

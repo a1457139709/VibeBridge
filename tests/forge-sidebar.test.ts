@@ -24,12 +24,12 @@ test('the forge sidebar starts closed, and its open state and width are shared b
   }
 });
 
-test('the forge sidebar width stays within 300–560px and an invalid request keeps the saved preferences', async context => {
+test('the forge sidebar width is at least 300px with no upper bound, and an invalid request keeps the saved preferences', async context => {
   const directory = await testDirectory(context, 'forge-sidebar-validation');
   const workbench = await Workbench.open(directory);
   try {
     await workbench.saveSidebar('forgeSidebar', { visible: true, width: 10000 });
-    assert.deepEqual(workbench.snapshot().forgeSidebar, { visible: true, width: 560 });
+    assert.deepEqual(workbench.snapshot().forgeSidebar, { visible: true, width: 10000 });
     await workbench.saveSidebar('forgeSidebar', { visible: false, width: 0 });
     assert.deepEqual(workbench.snapshot().forgeSidebar, { visible: false, width: 300 });
     await assert.rejects(workbench.saveSidebar('forgeSidebar', { visible: true, width: NaN }), /forgeSidebarInvalid/);

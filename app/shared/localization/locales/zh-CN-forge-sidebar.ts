@@ -174,13 +174,9 @@ export const chineseForgeSidebar: Record<keyof typeof englishForgeSidebar, strin
   ephemeralPanel: '临时',
   dispatchCommandUnavailable: '这条指令不在已开启的工作流中',
   dispatchTargetUnavailable: '目标面板没有运行中的 Agent',
-  dispatched: '已派发 ·',
-  dispatchedGone: '{agent} · {when} · {text} → 派发去的会话已不在任何打开的面板上',
-  dispatchedGoneLocatable:
-    '{agent} · {when} · {text} → 派发去的会话已不在任何打开的面板上（点击定位最近一次仍在面板上的派发）',
-  dispatchStatusHint: '{status} · {agent} · {when} · {text} → {title}（点击定位面板）',
+  dispatchSkillLocatable: '{skill} · {age} · 点击定位面板（{shortcut}）',
+  dispatchSkillGone: '{skill} · {age} · 派发去的会话已不在任何打开的面板上',
   dispatchRecords: '派发记录 ({count})',
-  noPanelOnSession: '没有面板处在这个会话上',
-  locateSessionPanel: '定位到正处在这个会话上的面板',
-  hideCommand: '收起指令',
+  copySessionId: '复制会话 ID {id}',
+  sessionIdCopied: '已复制会话 ID',
 };

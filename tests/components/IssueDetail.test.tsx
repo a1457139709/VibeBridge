@@ -389,26 +389,24 @@ test('the pull requests that close the issue on merge sit in their own block, cl
 test('an overlaying detail leaves the layout area as it was, and a squeezing one narrows it until it closes', async () => {
   for (const detailCoexistence of ['overlay', 'squeeze'] as const) {
     const { user, request } = renderWorkbench([summary(7)], githubCapabilities, { detailCoexistence });
-    const layoutArea = () => document.querySelector('.app-body')!;
-    const before = [layoutArea().className, layoutArea().getAttribute('style')];
-    await user.click(await row('Issue 7'));
+    // What the layout area is laid out by: whether a detail squeezes it, and the widths of the regions beside it.
+    const layoutArea = () => {
+      const body = document.querySelector<HTMLElement>('.app-body')!;
+      return [
+        body.className,
+        ...['--navigation-width', '--forge-sidebar-width'].map(name => body.style.getPropertyValue(name)),
+      ];
+    };
+    const issue = await row('Issue 7');
+    const before = layoutArea();
+    await user.click(issue);
     (await request(1)).answer({ ok: true, issue: detail(7) });
     await within(pane()).findByRole('heading', { name: 'Issue 7 #7' });
     if (detailCoexistence === 'overlay')
-      assert.deepEqual(
-        [layoutArea().className, layoutArea().getAttribute('style')],
-        before,
-        'overlay changes nothing the layout area lays out by',
-      );
-    else assert.ok(layoutArea().classList.contains('forge-detail-squeeze'), 'squeeze narrows the layout area');
+      assert.deepEqual(layoutArea(), before, 'overlay changes nothing the layout area lays out by');
+    else assert.ok(layoutArea()[0].includes('forge-detail-squeeze'), 'squeeze narrows the layout area');
     await user.click(within(pane()).getByRole('button', { name: 'Close' }));
-    await waitFor(() =>
-      assert.deepEqual(
-        [layoutArea().className, layoutArea().getAttribute('style')],
-        before,
-        'closing the detail restores the layout area',
-      ),
-    );
+    await waitFor(() => assert.deepEqual(layoutArea(), before, 'closing the detail restores the layout area'));
     cleanup();
   }
 });
