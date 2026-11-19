@@ -170,6 +170,12 @@ function RelationGraph({
   return <Graph issue={issue} left={left} right={right} follow={follow} />;
 }
 
+/** A blocking relation the graph draws as an edge: an open blocker of the issue, or an open issue it blocks. */
+type BlockingRelation = 'blockedBy' | 'blocking';
+const blockingRelations: readonly BlockingRelation[] = ['blockedBy', 'blocking'];
+/** A graph column, named by its nodes' relation to the issue; the issue itself is `self`. */
+type Relation = BlockingRelation | 'self';
+
 const rowHeight = 28,
   headHeight = 20,
   padding = 8,
@@ -193,7 +199,7 @@ function Graph({
     observer.observe(host.current!);
     return () => observer.disconnect();
   }, []);
-  const columns: { name: 'blockedBy' | 'self' | 'blocking'; head: string; nodes: IssueReference[] }[] = [
+  const columns: { name: Relation; head: string; nodes: IssueReference[] }[] = [
     { name: 'blockedBy', head: t('blockedByColumn'), nodes: left },
     { name: 'self', head: t('thisIssue'), nodes: [issue] },
     { name: 'blocking', head: t('blockingColumn'), nodes: right },
@@ -210,7 +216,7 @@ function Graph({
   const edge = (
     from: { x: number; y: number },
     to: { x: number; y: number },
-    column: 'blockedBy' | 'blocking',
+    column: BlockingRelation,
     key: string,
   ) => {
     const x1 = from.x + columnWidth,
@@ -243,7 +249,7 @@ function Graph({
       ))}
       <svg width={width} height={height} aria-hidden>
         <defs>
-          {(['blockedBy', 'blocking'] as const).map(column => (
+          {blockingRelations.map(column => (
             <marker
               key={column}
               id={`forge-arrow-${column}`}
@@ -274,14 +280,14 @@ function Graph({
           );
           const style = { left: x, top: y, width: columnWidth };
           return column.name === 'self' ? (
-            <div key={node.number} className="forge-node self" data-column={column.name} style={style}>
+            <div key={node.number} className="forge-node self" data-relation={column.name} style={style}>
               {content}
             </div>
           ) : (
             <button
               key={node.number}
               className="forge-node"
-              data-column={column.name}
+              data-relation={column.name}
               style={style}
               data-hint={`#${node.number} ${node.title}`}
               onClick={() => follow(node)}

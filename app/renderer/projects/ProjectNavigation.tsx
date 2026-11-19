@@ -6,7 +6,7 @@ import type { ProcessingState } from '../../shared/processing-status';
 import { agentIcons } from '../common/agent-icons';
 import type { PanelLocation } from '../panels/panel-location';
 import { useSidebarPreferences } from '../common/sidebar-preferences';
-import type { Region } from '../common/region-widths';
+import type { WidestOnResize } from '../common/region-widths';
 import { ProjectNavigationItem } from './ProjectManagement';
 import { ProcessingStatusIcon } from '../common/ProcessingStatusIcon';
 
@@ -24,8 +24,7 @@ interface Host {
   locatePanel(projectId: string, panelId: string): void;
   createProject(): void;
   toggleSettings(): void;
-  /** Records `region` as the region last resized and returns the widest a drag may make it. */
-  beginResize(region: Region): number;
+  widestOnResize: WidestOnResize;
   report(message: string): void;
 }
 
@@ -43,7 +42,7 @@ export function useProjectNavigation(
     snapshot,
     api,
     edge: 1,
-    beginResize: () => host.beginResize('navigation'),
+    widestOnResize: host.widestOnResize,
     report: host.report,
   });
   const [expandedProjects, setExpandedProjects] = useState<Record<string, boolean>>({});

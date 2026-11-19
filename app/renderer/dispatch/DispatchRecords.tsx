@@ -91,7 +91,7 @@ export function DispatchRecords({
     <section className="forge-box dispatch-records" aria-label={heading}>
       <header>
         <button className="dispatch-records-toggle" aria-expanded={open} onClick={() => setOpen(!open)}>
-          {open ? '▾' : '▸'} {heading}
+          <span aria-hidden>{open ? '▾' : '▸'}</span> {heading}
         </button>
       </header>
       {open && (

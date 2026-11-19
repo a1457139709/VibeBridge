@@ -86,7 +86,7 @@ function renderNavigation(language: 'en' | 'zh-CN', state = snapshot()) {
       locatePanel: (project, panelId) => located.push(`${project}/${panelId}`),
       createProject: () => {},
       toggleSettings: () => {},
-      beginResize: () => Infinity,
+      widestOnResize: () => Infinity,
       report: () => {},
     });
     return navigation.sidebar;

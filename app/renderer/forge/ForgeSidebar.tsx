@@ -10,7 +10,7 @@ import { ForgeLists, SidebarHead, type DetailHost, type ForgeListsActions } from
 import type { DispatchTarget } from '../../shared/dispatch';
 import { capturePointer } from '../common/pointer-capture';
 import type { ReportNotice } from '../common/Notices';
-import type { Region } from '../common/region-widths';
+import { draggedWidth, type WidestOnResize } from '../common/region-widths';
 import './forge-sidebar.css';
 
 interface Host {
@@ -19,8 +19,7 @@ interface Host {
   project?: ProjectView;
   /** Locates a panel; an ephemeral one opens as its temporary maximize. */
   locatePanel(projectId: string, panelId: string): void;
-  /** Records `region` as the region last resized and returns the widest a drag may make it. */
-  beginResize(region: Region): number;
+  widestOnResize: WidestOnResize;
   report: ReportNotice;
 }
 
@@ -42,7 +41,7 @@ export function useForgeSidebar(host: Host, api: Pick<DesktopAPI, 'saveSidebar' 
     snapshot,
     api,
     edge: -1,
-    beginResize: () => host.beginResize('forgeSidebar'),
+    widestOnResize: host.widestOnResize,
     report: host.report,
   });
   const element = useRef<HTMLElement>(null);
@@ -65,10 +64,9 @@ export function useForgeSidebar(host: Host, api: Pick<DesktopAPI, 'saveSidebar' 
       // The detail's right edge is the sidebar's left edge: dragging its left edge leftwards widens it.
       const start = event.clientX,
         from = event.currentTarget.parentElement!.getBoundingClientRect().width,
-        widest = host.beginResize('detail');
+        widest = host.widestOnResize('detail');
       capturePointer(event.currentTarget, event.pointerId, {
-        move: pointer =>
-          setWidth(Math.round(Math.max(detailWidth.min, Math.min(widest, from - (pointer.clientX - start))))),
+        move: pointer => setWidth(draggedWidth(from - (pointer.clientX - start), detailWidth.min, widest)),
         finish: () => {},
       });
     },

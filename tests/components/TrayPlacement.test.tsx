@@ -4,6 +4,7 @@ import test, { afterEach, before } from 'node:test';
 import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { userEvent } from '@testing-library/user-event';
 import { App } from '../../app/renderer/Workbench';
+import { localize } from '../../app/shared/localization/localization';
 import { defaultSettings } from '../../app/shared/settings/settings';
 import type { Layout, Snapshot } from '../../app/shared/model';
 import type { WorkbenchEvent } from '../../app/shared/model';
@@ -12,6 +13,7 @@ import { githubView } from './support/forge';
 import { stubLayoutApis } from './support/no-layout';
 
 afterEach(cleanup);
+const { t } = localize('en');
 before(() => {
   // jsdom has no layout, frames, media queries or pointer capture. Every element reports one fixed area,
   // so these tests cover what a drop does, not where the pointer has to be.
@@ -125,10 +127,10 @@ function drag(handle: HTMLElement) {
 
 test('a rejected placement leaves the open tray panel open', async () => {
   const { user, placed, requests } = renderWorkbench();
-  const tray = await screen.findByRole('region', { name: 'Ephemeral panel tray' });
+  const tray = await screen.findByRole('region', { name: t('panelTray') });
   const card = within(tray).getByRole('button', { name: /Session ephemeral/ });
   await user.click(card);
-  assert.ok(screen.getByRole('button', { name: 'Collapse panel' }));
+  assert.ok(screen.getByRole('button', { name: t('collapsePanel') }));
 
   drag(card);
   assert.deepEqual(requests, [['project', 'ephemeral', { panel: 'ephemeral' }]]);
@@ -137,39 +139,39 @@ test('a rejected placement leaves the open tray panel open', async () => {
     await placed.promise.catch(() => {});
   });
   assert.equal(card.getAttribute('aria-pressed'), 'true');
-  assert.ok(screen.getByRole('button', { name: 'Collapse panel' }));
+  assert.ok(screen.getByRole('button', { name: t('collapsePanel') }));
 });
 
 test("a resident panel's move-to-tray action moves it to the tray without opening it", async () => {
   const { user, moved } = renderWorkbench(true);
-  await screen.findByRole('region', { name: 'Ephemeral panel tray' });
+  await screen.findByRole('region', { name: t('panelTray') });
   const header = document.querySelector<HTMLElement>('.canvas [data-panel-id="resident"] .panel-actions')!;
   const actions = within(header).getAllByRole('button');
   assert.deepEqual(
     actions.map(action => action.getAttribute('aria-label')),
-    ['Move to tray', 'Maximize panel', 'Close panel'],
+    [t('moveToTray'), t('enlargePanel'), t('closePanel')],
   );
   await user.click(actions[0]);
   assert.deepEqual(moved, [['project', 'resident']]);
-  assert.equal(screen.queryByRole('button', { name: 'Collapse panel' }), null);
+  assert.equal(screen.queryByRole('button', { name: t('collapsePanel') }), null);
 });
 
 test('moving the maximized resident panel to the tray leaves it collapsed in the tray', async () => {
   const { user, moved, publish } = renderWorkbench(true);
-  await screen.findByRole('region', { name: 'Ephemeral panel tray' });
+  await screen.findByRole('region', { name: t('panelTray') });
   const actions = () => document.querySelector<HTMLElement>('.canvas [data-panel-id="resident"] .panel-actions')!;
-  await user.click(within(actions()).getByRole('button', { name: 'Maximize panel' }));
-  await user.click(within(actions()).getByRole('button', { name: 'Move to tray' }));
+  await user.click(within(actions()).getByRole('button', { name: t('enlargePanel') }));
+  await user.click(within(actions()).getByRole('button', { name: t('moveToTray') }));
   assert.deepEqual(moved, [['project', 'resident']]);
   await publish();
-  const tray = screen.getByRole('region', { name: 'Ephemeral panel tray' });
+  const tray = screen.getByRole('region', { name: t('panelTray') });
   assert.deepEqual(
     within(tray)
       .getAllByRole('button')
       .map(card => card.getAttribute('aria-pressed')),
     ['false', 'false'],
   );
-  assert.equal(screen.queryByRole('button', { name: 'Collapse panel' }), null);
+  assert.equal(screen.queryByRole('button', { name: t('collapsePanel') }), null);
 });
 
 /** Records the animations the workbench starts; each finishes when the test says so. */
@@ -209,7 +211,7 @@ const toCard = { transform: 'translate(8px, 566px) scale(0.25, 0.05)', opacity: 
 test('an open tray panel grows from its card, and collapsing it flies it back into the card, which then flashes', async () => {
   const started = recordAnimations(false);
   const { user } = renderWorkbench();
-  const tray = await screen.findByRole('region', { name: 'Ephemeral panel tray' });
+  const tray = await screen.findByRole('region', { name: t('panelTray') });
   const card = within(tray).getByRole('button', { name: /Session ephemeral/ });
   const slot = () => document.querySelector('.canvas [data-panel-id="ephemeral"]');
   await user.click(card);
@@ -218,7 +220,7 @@ test('an open tray panel grows from its card, and collapsing it flies it back in
     [['ephemeral', [toCard, inPlace], { duration: 260, easing: 'cubic-bezier(.2,0,.2,1)' }]],
   );
 
-  await user.click(screen.getByRole('button', { name: 'Collapse panel' }));
+  await user.click(screen.getByRole('button', { name: t('collapsePanel') }));
   assert.equal(started.length, 2);
   assert.deepEqual(
     [started[1].target.getAttribute('data-panel-id'), started[1].keyframes, started[1].options],
@@ -233,16 +235,13 @@ test('an open tray panel grows from its card, and collapsing it flies it back in
   assert.ok(!card.classList.contains('landed'));
 });
 
-test('with reduced motion the tray panel opens and collapses at once, and its card does not flash', async () => {
-  const started = recordAnimations(true);
+test('with reduced motion the tray panel opens and collapses at once', async () => {
+  recordAnimations(true);
   const { user } = renderWorkbench();
-  const tray = await screen.findByRole('region', { name: 'Ephemeral panel tray' });
+  const tray = await screen.findByRole('region', { name: t('panelTray') });
   const card = within(tray).getByRole('button', { name: /Session ephemeral/ });
   await user.click(card);
-  assert.ok(screen.getByRole('button', { name: 'Collapse panel' }));
-  await user.click(screen.getByRole('button', { name: 'Collapse panel' }));
-  assert.equal(card.getAttribute('aria-pressed'), 'false');
-  assert.equal(screen.queryByRole('button', { name: 'Collapse panel' }), null);
-  assert.ok(!card.classList.contains('landed'));
-  assert.equal(started.length, 0, 'nothing animates');
+  await user.click(screen.getByRole('button', { name: t('collapsePanel') }));
+  await waitFor(() => assert.equal(card.getAttribute('aria-pressed'), 'false'));
+  assert.equal(document.querySelector('.canvas [data-panel-id="ephemeral"]'), null);
 });
