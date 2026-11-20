@@ -2,9 +2,11 @@ import type { DesktopAPI } from '../../../app/shared/api';
 import type {
   IssueDetailResult,
   IssuePage,
+  IssuesByNumber,
   ListQuery,
   PullRequestDetailResult,
   PullRequestPage,
+  PullRequestsByNumber,
   RepositoryChoices,
 } from '../../../app/shared/forge/forge';
 import type { ForgeSidebarEvent } from '../../../app/shared/forge/sidebar-data';
@@ -17,6 +19,8 @@ import { githubForge } from './forge';
 export interface ForgeAnswers {
   issuePage?(projectId: string, query: ListQuery): Promise<IssuePage>;
   pullRequestPage?(projectId: string, query: ListQuery): Promise<PullRequestPage>;
+  issuesByNumber?(projectId: string, numbers: number[]): Promise<IssuesByNumber>;
+  pullRequestsByNumber?(projectId: string, numbers: number[]): Promise<PullRequestsByNumber>;
   repositoryChoices?(projectId: string, directory: string): Promise<RepositoryChoices>;
   issueDetail?(projectId: string, number: number): Promise<IssueDetailResult>;
   pullRequestDetail?(projectId: string, number: number): Promise<PullRequestDetailResult>;
@@ -45,6 +49,10 @@ export function forgeSidebarData(
   const data = new ForgeSidebarData({
     issuePage: (projectId, query) => answers.issuePage?.(projectId, query) ?? unanswered('issuePage'),
     pullRequestPage: (projectId, query) => answers.pullRequestPage?.(projectId, query) ?? unanswered('pullRequestPage'),
+    issuesByNumber: (projectId, numbers) =>
+      answers.issuesByNumber?.(projectId, numbers) ?? unanswered('issuesByNumber'),
+    pullRequestsByNumber: (projectId, numbers) =>
+      answers.pullRequestsByNumber?.(projectId, numbers) ?? unanswered('pullRequestsByNumber'),
     repositoryChoices: projectId =>
       answers.repositoryChoices?.(projectId, directoryOf(projectId)) ?? unanswered('repositoryChoices'),
     issueDetail: (projectId, number) => answers.issueDetail?.(projectId, number) ?? unanswered('issueDetail'),

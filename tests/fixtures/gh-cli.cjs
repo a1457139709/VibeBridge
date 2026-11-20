@@ -11,11 +11,16 @@ const { issueDetail, pullRequestDetail } = require('./gh-cli-details.cjs');
 // like GitHub: a repository the account does not list is NOT_FOUND unless a redirect leads from its path to one it lists, the search reads the qualifiers it is given,
 // listing pull requests for is:pr and issues otherwise, and `repository.issue` answers one issue with its relations, or NOT_FOUND.
 // A query asking for `repository { databaseId nameWithOwner }` is told the ID and current path of the repository answering at the asked path.
+// A query asking for issues or pull requests by number, each under its own field (`n12: issue(number: 12)`), answers
+// each as a list page holds it; a number with none of that kind answers null beside a NOT_FOUND error, and gh fails.
+// With answerOnceAsked, each command answers only once that many commands were asked, and fails when they are not.
 // `gh issue close|reopen` and `gh pr merge|close|reopen` change the state file and answer with GitHub's text.
 const state = JSON.parse(readFileSync(process.env.VIBEBRIDGE_GH_DOUBLE, 'utf8'));
 const args = process.argv.slice(2);
 // Every command is logged, one JSON array of its arguments per line, for the test to count what was asked.
-appendFileSync(`${process.env.VIBEBRIDGE_GH_DOUBLE}.calls`, `${JSON.stringify(args)}\n`);
+const log = `${process.env.VIBEBRIDGE_GH_DOUBLE}.calls`;
+appendFileSync(log, `${JSON.stringify(args)}\n`);
+if (state.answerOnceAsked) awaitAsked(state.answerOnceAsked);
 /** The listed repositories with their IDs: one named by its path alone has an ID that follows from the path. */
 const repositories = state.repositories.map(entry =>
   typeof entry === 'string'
@@ -135,6 +140,20 @@ function byId(id) {
   process.exit(1);
 }
 
+/** Waits until `count` commands were asked since the test last read them; commands asked one after another, each waiting
+ * for the one before to answer, never get there, and fail. */
+function awaitAsked(count) {
+  const asked = () => readFileSync(log, 'utf8').split('\n').filter(Boolean).length;
+  const pause = new Int32Array(new SharedArrayBuffer(4));
+  for (let polls = 0; asked() < count; polls++) {
+    if (polls === 500) {
+      process.stderr.write(`gh double: only ${asked()} of ${count} commands were asked at once\n`);
+      process.exit(1);
+    }
+    Atomics.wait(pause, 0, 0, 10);
+  }
+}
+
 function unsupported() {
   process.stderr.write(`gh double: unsupported command ${args.join(' ')}\n`);
   process.exit(1);
@@ -156,6 +175,8 @@ function graphql({ query, owner, name, search, openSearch, closedSearch, after, 
   const path = repository.path;
   // Every read names the repository answering at the asked path, by its ID and current path, when it asks for them.
   const answering = /databaseId nameWithOwner/.test(query) ? { databaseId: repository.id, nameWithOwner: path } : {};
+  const byNumber = [...query.matchAll(/(n\d+): (issue|pullRequest)\(number: (\d+)\)/g)];
+  if (byNumber.length) return itemsByNumber(byNumber, path, answering, blockerWindow);
   if (/issue\(number:/.test(query)) return issueDetail(state, path, Number(number), answering);
   if (/pullRequest\(number:/.test(query)) return pullRequestDetail(state, path, Number(number), answering);
   if (!/search\(/.test(query)) return process.stdout.write(JSON.stringify({ data: { repository: answering } }));
@@ -174,25 +195,56 @@ function graphql({ query, owner, name, search, openSearch, closedSearch, after, 
             hasNextPage: end < found.length,
             endCursor: page.length ? Buffer.from(`cursor:${end}`).toString('base64') : null,
           },
-          nodes: page.map(issue => {
-            if (isPullRequestSearch(search)) return pullRequestNode(issue);
-            const children = (state.issues ?? [])
-              .filter(child => child.parent === issue.number)
-              .sort((a, b) => a.number - b.number);
-            return {
-              ...node(issue, path, blockerWindow),
-              parent: issue.parent === undefined ? null : { number: issue.parent, repository: { nameWithOwner: path } },
-              subIssuesSummary: {
-                total: children.length,
-                completed: children.filter(child => child.state === 'CLOSED').length,
-              },
-              subIssues: { nodes: children.map(child => node(child, path, blockerWindow)) },
-            };
-          }),
+          nodes: page.map(issue =>
+            isPullRequestSearch(search) ? pullRequestNode(issue) : listedIssueNode(issue, path, blockerWindow),
+          ),
         },
       },
     }),
   );
+}
+
+/** The issues or pull requests asked by number, each under its field; a number with none answers null and a NOT_FOUND
+ * error, and gh fails as GitHub's answer has errors. */
+function itemsByNumber(fields, path, answering, blockerWindow) {
+  const repository = { ...answering };
+  const errors = [];
+  for (const [, field, kind, number] of fields) {
+    const items = kind === 'issue' ? (state.issues ?? []) : (state.pullRequests ?? []);
+    const item = items.find(candidate => candidate.number === Number(number));
+    repository[field] = item
+      ? kind === 'issue'
+        ? listedIssueNode(item, path, blockerWindow)
+        : pullRequestNode({ createdAt: '2026-01-01T00:00:00Z', labels: [], ...item })
+      : null;
+    if (!item)
+      errors.push({
+        type: 'NOT_FOUND',
+        path: ['repository', field],
+        message: `Could not resolve to ${kind === 'issue' ? 'an Issue' : 'a PullRequest'} with the number of ${number}.`,
+      });
+  }
+  process.stdout.write(JSON.stringify(errors.length ? { data: { repository }, errors } : { data: { repository } }));
+  if (errors.length) {
+    process.stderr.write(errors.map(error => `GraphQL: ${error.message} (repository.${error.path[1]})\n`).join(''));
+    process.exit(1);
+  }
+}
+
+/** An issue as a list page holds it: its own fields, its parent and its sub-issues. */
+function listedIssueNode(issue, path, blockerWindow) {
+  const children = (state.issues ?? [])
+    .filter(child => child.parent === issue.number)
+    .sort((a, b) => a.number - b.number);
+  return {
+    ...node(issue, path, blockerWindow),
+    parent: issue.parent === undefined ? null : { number: issue.parent, repository: { nameWithOwner: path } },
+    subIssuesSummary: {
+      total: children.length,
+      completed: children.filter(child => child.state === 'CLOSED').length,
+    },
+    subIssues: { nodes: children.map(child => node(child, path, blockerWindow)) },
+  };
 }
 
 /** A pull request's fields as GitHub's GraphQL API names them. */

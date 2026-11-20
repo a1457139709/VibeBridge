@@ -43,7 +43,7 @@ export interface DesktopAPI {
   reportForgeSidebarPresence(presence: ForgeSidebarPresence): Promise<void>;
   /** Appends the next page of the rows shown, in the filter that produced them. */
   loadMoreForgeList(projectId: string): Promise<void>;
-  /** Declares the numbers of the shown tab's rows the Forge sidebar renders. */
+  /** Declares the numbers of the shown tab's rows the Forge sidebar renders: a background update reads them by number. */
   showForgeRows(projectId: string, numbers: number[]): Promise<void>;
   /** Reloads the shown tab from its first page through the page holding the last row the sidebar renders, replacing
    * its rows, and the open detail. */
@@ -59,8 +59,8 @@ export interface DesktopAPI {
    * while the sidebar shows the project in the foreground, the main process reads the row's detail ahead into the kept
    * details. */
   reportForgeRowResting(projectId: string, item: DetailItem | null): Promise<void>;
-  /** Reports that a direct action or dispatch changed `item`; the main process reloads its detail and shows the new
-   * state in the open detail and the item's list row. */
+  /** Reports that a direct action or dispatch changed `item`; the main process reads its list row by number and its
+   * open detail again, and shows the new state in both. */
   reportForgeItemChanged(projectId: string, item: DetailItem): Promise<void>;
   /** Closes, reopens or merges an issue or pull request of the project's bound repository; the forge's text comes back either way. */
   directAction(projectId: string, action: DirectAction): Promise<DirectActionResult>;

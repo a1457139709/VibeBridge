@@ -81,6 +81,9 @@ export interface GhState {
   mergeMethods?: { merge?: boolean; squash?: boolean; rebase?: boolean };
   /** The account's permission on every repository; default WRITE. With READ or TRIAGE, GitHub refuses closing, reopening and merging. */
   permission?: 'ADMIN' | 'MAINTAIN' | 'WRITE' | 'TRIAGE' | 'READ';
+  /** Each command answers only once this many commands were asked since the last `calls`, and fails when they are not
+   * asked within a few seconds: commands asked one after another never get there. */
+  answerOnceAsked?: number;
   /** `gh` fails every command with this exit code and output. */
   failure?: { code: number; stdout?: string; stderr?: string };
 }
