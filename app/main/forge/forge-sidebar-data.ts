@@ -306,20 +306,12 @@ export class ForgeSidebarData {
     shown.pageEnds[tab] = joined.pageEnds;
     this.settle(projectId, shown, { ...shown.lists, [tab]: joined.rows, loading: false });
   }
-  /** Asks the forge for the item and keeps an answer that is not a failure, dropping the detail used longest ago beyond
-   * the limit; an answer for an earlier binding is not kept. */
-  private async readDetail(projectId: string, item: DetailItem) {
-    const binding = this.bindings.get(projectId);
-    const result = await readItem(this.sources, projectId, item);
-    if (result.ok && this.bindings.get(projectId) === binding) this.details.keep(projectId, item, result);
-    return result;
-  }
   /** Reads the item's detail ahead of its opening, into the kept details. */
   private async readAhead(projectId: string, item: DetailItem) {
     if (this.watched() !== projectId || this.details.holds(projectId, item)) return;
     const open = this.openDetails.get(projectId);
     if (open && sameItem(open.item, item)) return;
-    await this.details.readAhead(projectId, item, this.readDetail(projectId, item));
+    await this.details.readAhead(projectId, item, readItem(this.sources, projectId, item));
   }
   /** Opens the detail on `item` and asks the forge for it; resolves once the answer settled. */
   private loadDetail(projectId: string, item: DetailItem) {
@@ -328,11 +320,15 @@ export class ForgeSidebarData {
     open.reading = this.readOpenDetail(projectId, open).finally(() => (open.reading = null));
     return open.reading;
   }
-  /** Asks the forge for the open detail's item; its answer is pushed unless the detail was opened again since. A
-   * failure leaves the item's kept answer showing beside it, and shows alone when none is kept. */
+  /** Asks the forge for the open detail's item, or takes its read ahead on its way, and keeps an answer that is not a
+   * failure. The answer is pushed unless the detail was opened again since; a failure leaves the item's kept answer
+   * showing beside it, and shows alone when none is kept. */
   private async readOpenDetail(projectId: string, open: OpenDetail) {
     const { item } = open;
-    const result = await (this.details.takeReadAhead(projectId, item) ?? this.readDetail(projectId, item));
+    const binding = this.bindings.get(projectId);
+    const result = await (this.details.takeReadAhead(projectId, item) ?? readItem(this.sources, projectId, item));
+    // An answer for an earlier binding is not kept.
+    if (result.ok && this.bindings.get(projectId) === binding) this.details.keep(projectId, item, result);
     if (this.openDetails.get(projectId) !== open) return;
     const kept = result.ok ? undefined : this.details.use(projectId, item);
     const detail: ShownDetail =

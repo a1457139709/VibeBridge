@@ -39,15 +39,17 @@ export class KeptDetails {
       this.unopened.delete(oldest);
     }
   }
-  /** Holds `read`, a read ahead of the item, so opening the item waits for it; once it settles, the answer it kept counts
-   * as not opened. */
+  /** Holds `read`, a read ahead of the item, so opening the item waits for it. Its answer is kept as not opened, unless
+   * it is a failure or the read was taken or dropped meanwhile. */
   async readAhead(projectId: string, item: DetailItem, read: Promise<DetailResult>) {
     const key = keyOf(projectId, item);
     this.readsAhead.set(key, read);
-    await read;
+    const result = await read;
     if (this.readsAhead.get(key) !== read) return;
     this.readsAhead.delete(key);
-    if (this.answers.has(key)) this.unopened.add(key);
+    if (!result.ok) return;
+    this.keep(projectId, item, result);
+    this.unopened.add(key);
   }
   /** The item is opened: true when its kept answer was read ahead and not opened since, so it needs no read. */
   openUnopened(projectId: string, item: DetailItem) {
