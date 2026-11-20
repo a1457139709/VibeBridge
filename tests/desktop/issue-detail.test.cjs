@@ -74,25 +74,53 @@ module.exports = {
     await closeDetail();
     await until(async () => !(await rect(evaluate, '.forge-detail')), 'detail closed');
 
-    // Squeeze: the layout area ends where the detail begins, and the terminal and its PTY follow.
+    // Squeeze: the layout area gives up the detail's width. A detail wider than the room beside the navigation covers the
+    // navigation (in a 1024px window, as on the CI runner) and leaves the layout area no width. The PTY then keeps its
+    // size until the area has width again (#234): a "does not happen" claim the desktop suite cannot prove (ADR 0005).
     assert.ok((await evaluate('window.workbench.saveSettings({ detailCoexistence: "squeeze" })')).ok);
     await click('Desktop issue');
-    await until(
-      async () => (await rect(evaluate, '.canvas'))?.right <= (await rect(evaluate, '.forge-detail'))?.left,
-      'squeezing detail ends the layout area at its left edge',
-    );
+    await until(async () => {
+      const [area, detail] = [await rect(evaluate, '.canvas'), await rect(evaluate, '.forge-detail')];
+      return !!area && !!detail && (area.right <= detail.left || area.right === area.left);
+    }, 'squeezing detail ends the layout area at its left edge, or leaves it no width');
     await until(between, 'the squeezing detail also sits between the workspace toolbar and the tray');
+
+    // The narrowest sidebar and detail leave the layout area width beside the navigation in any window the app opens in:
+    // it ends where the detail begins, and the terminal and its PTY follow it.
+    await evaluate(`window.workbench.saveSidebar('forgeSidebar', { visible: true, width: 300 })`);
+    await until(async () => {
+      const sidebar = await rect(evaluate, '.forge-sidebar');
+      return sidebar.right - sidebar.left === 300;
+    }, 'sidebar drawn 300px wide');
+    const edge = await rect(evaluate, '.forge-detail-resize');
+    const from = { x: Math.round((edge.left + edge.right) / 2), y: Math.round((edge.top + edge.bottom) / 2) };
+    const held = { button: 'left', modifiers: ['leftbuttondown'] };
+    base.window.webContents.sendInputEvent({ type: 'mouseDown', ...from, ...held, clickCount: 1 });
+    base.window.webContents.sendInputEvent({ type: 'mouseMove', x: from.x + 1000, y: from.y, ...held });
+    base.window.webContents.sendInputEvent({
+      type: 'mouseUp',
+      x: from.x + 1000,
+      y: from.y,
+      button: 'left',
+      clickCount: 1,
+    });
+    await until(async () => {
+      const [area, detail] = [await rect(evaluate, '.canvas'), await rect(evaluate, '.forge-detail')];
+      return area.right > area.left && area.right <= detail.left;
+    }, 'the narrowest squeezing detail ends the layout area, with width, at its left edge');
     await until(
       async () => (await reportedSize(run.id)).cols < initial.cols,
       'squeezing the layout area resizes the PTY to fewer columns',
     );
     await closeDetail();
+    // xterm measures the character width again as the terminal resizes, and a fraction of a pixel can move a width that
+    // holds a whole number of columns one column down, so the columns given back may be one fewer.
     await until(
-      async () => (await reportedSize(run.id)).cols === initial.cols,
+      async () => (await reportedSize(run.id)).cols >= initial.cols - 1,
       'closing the squeezing detail gives the PTY its columns back',
     );
     console.log(
-      'An overlaying detail lay between the toolbar and tray over the layout area; a squeezing one narrowed it and resized the PTY.',
+      'An overlaying detail lay between the toolbar and tray over the layout area; a squeezing one ended it at its left edge or left it no width, and a narrower one left it width the PTY followed.',
     );
   },
 };

@@ -5,8 +5,9 @@
 }
 .forge-sidebar {
   position: relative;
-  flex-shrink: 0;
-  max-width: max(0px, calc(100vw - 160px));
+  /* Drawn at the width the window leaves it; it gives up only what a navigation drawn at no width still takes. */
+  min-width: 0;
+  width: var(--forge-sidebar-width);
   display: flex;
   flex-direction: column;
   min-height: 0;
@@ -514,18 +515,12 @@
 
 /* The issue detail opens leftwards from the sidebar's edge. On the workspace it sits only between the toolbar (32px) and
    the tray (41px; an empty tray lies over the layout area, so then it reaches the bottom). Overlay: it covers the layout area.
-   Squeeze: the layout area also gives up the detail's width. Its width always leaves the layout area at least 160px beside the navigation, so a squeeze can give it up. */
-.app-body {
-  --forge-detail-extent: min(
-    var(--forge-detail-width),
-    max(0px, calc(100vw - var(--navigation-extent, 0px) - var(--forge-sidebar-width) - 160px))
-  );
-}
+   Squeeze: the layout area also gives up the detail's width, down to none. */
 .app-body.forge-detail-squeeze .canvas {
-  margin-right: calc(var(--forge-detail-extent) + 4px);
+  margin-right: calc(var(--forge-detail-width) + 4px);
 }
 .app-body.forge-sidebar-yield.forge-detail-squeeze .canvas {
-  margin-right: calc(var(--forge-sidebar-width) + var(--forge-detail-extent) + 4px);
+  margin-right: calc(var(--forge-sidebar-width) + var(--forge-detail-width) + 4px);
 }
 /* Above every panel, including a maximized one. */
 .forge-sidebar:has(.forge-detail) {
@@ -533,11 +528,12 @@
 }
 .forge-detail {
   position: absolute;
-  right: 100%;
+  /* Ends at the sidebar's border, not inside it: the detail and the sidebar together take their widths of the window. */
+  right: calc(100% + 1px);
   top: 0;
   bottom: 0;
   z-index: 30;
-  max-width: var(--forge-detail-extent);
+  width: var(--forge-detail-width);
   display: flex;
   flex-direction: column;
   background: var(--canvas);

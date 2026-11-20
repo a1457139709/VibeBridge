@@ -27,7 +27,6 @@ import { withoutCommandModifier } from '../../shared/settings/shortcuts';
 interface Props {
   project: ProjectView & { repository: RepositoryReference };
   item: DetailItem;
-  width: number;
   /** Starts dragging the detail's left edge. */
   resize(event: ReactPointerEvent<HTMLDivElement>): void;
   canBack: boolean;
@@ -67,7 +66,6 @@ const kindText = {
 export function ForgeDetailPane({
   project,
   item,
-  width,
   resize,
   canBack,
   back,
@@ -163,7 +161,7 @@ export function ForgeDetailPane({
   };
 
   return (
-    <section className="forge-detail" aria-label={t(kindText[kind].region)} style={{ width }} onKeyDown={keydown}>
+    <section className="forge-detail" aria-label={t(kindText[kind].region)} onKeyDown={keydown}>
       <div
         className="forge-detail-resize"
         role="separator"
