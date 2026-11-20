@@ -1,6 +1,7 @@
 /** English texts of the forge sidebar: its lists, details and direct actions. */
 export const englishForgeSidebar = {
   noRepositoryBound: 'No repository bound',
+  otherRepositoryAnswers: 'Another repository answers at {path}',
   projectUnbound: 'This project has no {forge} repository bound.',
   originPointsAt: "The project directory's origin points at",
   bindTo: 'Bind {repository}',

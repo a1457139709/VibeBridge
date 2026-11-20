@@ -14,6 +14,7 @@ import type {
   PullRequestsByNumber,
   RepositoryReference,
 } from '../../shared/forge/forge';
+import { message } from '../../shared/messages';
 import { forges } from './forges';
 import { ForgeError, type Answered, type Forge } from './forge';
 
@@ -39,6 +40,9 @@ async function fromForge<T, F extends object>(
   }
 }
 
+/** The forge answered at `path` as another repository than the bound one. */
+const otherRepositoryAt = (path: string) => new ForgeError('inaccessible', message('otherRepositoryAnswers', { path }));
+
 /** Reads the bound repository at its bound path, checking by ID in the same request that the repository answering there
  * is the bound one (docs/adr/0006-forges-sit-behind-an-interface.md). At another path (renamed or transferred, its former path
  * redirecting) the binding follows it there. With no repository or another one at the path, the forge locates it by ID
@@ -59,11 +63,12 @@ async function readChecked<T>(
   const same = answered?.answeredBy.id === repository.id;
   if (same && answered.answeredBy.path === repository.path) return answered.data;
   const moved = { ...repository, path: same ? answered.answeredBy.path : await forge.locate(repository) };
-  // Located at its bound path, the repository is there and the read failed on something else: that failure stands.
-  if (moved.path === repository.path) throw notFound ?? new ForgeError('inaccessible', '');
+  // Located at its bound path, the repository is there and the read failed on something else: that failure stands, or,
+  // when the forge answered as another repository there, that answer.
+  if (moved.path === repository.path) throw notFound ?? otherRepositoryAt(repository.path);
   bound.follow(moved);
   const again = await read(moved);
-  if (again.answeredBy.id !== repository.id) throw new ForgeError('inaccessible', '');
+  if (again.answeredBy.id !== repository.id) throw otherRepositoryAt(moved.path);
   return again.data;
 }
 
@@ -93,28 +98,29 @@ export async function pullRequestPage(bound: Bound, query: ListQuery): Promise<P
   );
 }
 
-/** The repository's issues with these numbers from its forge, as a list page holds them, read with no search; or the
- * forge failure. A number the repository has no issue for is left out. */
-export async function issuesByNumber(bound: Bound, numbers: number[]): Promise<IssuesByNumber> {
+/** The repository's items with these numbers that `read` asks of its forge, as a list page holds them, read with no
+ * search; or the forge failure. A number the repository has no such item for is left out. */
+function itemsByNumber<Item>(
+  bound: Bound,
+  numbers: number[],
+  read: (forge: Forge, repository: RepositoryReference, numbers: number[]) => Promise<Answered<Item[]>>,
+) {
   const asked = itemNumbersSchema.parse(numbers);
   return fromForge(
     bound,
-    async forge => ({ items: await readChecked(forge, bound, repository => forge.issuesByNumber(repository, asked)) }),
+    async forge => ({ items: await readChecked(forge, bound, repository => read(forge, repository, asked)) }),
     listFailure,
   );
 }
 
-/** The repository's pull requests with these numbers from its forge, as a list page holds them, read with no search;
- * or the forge failure. A number the repository has no pull request for is left out. */
-export async function pullRequestsByNumber(bound: Bound, numbers: number[]): Promise<PullRequestsByNumber> {
-  const asked = itemNumbersSchema.parse(numbers);
-  return fromForge(
-    bound,
-    async forge => ({
-      items: await readChecked(forge, bound, repository => forge.pullRequestsByNumber(repository, asked)),
-    }),
-    listFailure,
-  );
+/** The repository's issues with these numbers from its forge, as a list page holds them; or the forge failure. */
+export function issuesByNumber(bound: Bound, numbers: number[]): Promise<IssuesByNumber> {
+  return itemsByNumber(bound, numbers, (forge, repository, asked) => forge.issuesByNumber(repository, asked));
+}
+
+/** The repository's pull requests with these numbers from its forge, as a list page holds them; or the forge failure. */
+export function pullRequestsByNumber(bound: Bound, numbers: number[]): Promise<PullRequestsByNumber> {
+  return itemsByNumber(bound, numbers, (forge, repository, asked) => forge.pullRequestsByNumber(repository, asked));
 }
 
 /** One issue of the repository from its forge, with its rendered body, comments and relations; or the forge failure. */
