@@ -1,0 +1,70 @@
+/* The relation graph sits on a bordered plate, apart from the detail's text. Each column takes its relation's colour, on its
+ * nodes' tint and border and on its edges, arrows and head: blocked by in red, blocks in amber, this issue in green. */
+.forge-graph {
+  --forge-graph-plate: color-mix(in srgb, var(--accent) 6%, var(--canvas));
+  position: relative;
+  margin: 12px 10px 24px;
+  border-radius: 6px;
+  background: var(--forge-graph-plate);
+  box-shadow:
+    0 0 0 10px var(--forge-graph-plate),
+    0 0 0 11px var(--line);
+}
+.forge-graph [data-relation='blockedBy'] {
+  --forge-relation: var(--forge-failed);
+}
+.forge-graph [data-relation='self'] {
+  --forge-relation: var(--forge-open);
+}
+.forge-graph [data-relation='blocking'] {
+  --forge-relation: var(--forge-pending);
+}
+.forge-graph > svg {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  overflow: visible;
+}
+.forge-graph-head {
+  position: absolute;
+  top: 0;
+  font-size: 10px;
+  font-weight: 600;
+  color: var(--forge-relation);
+}
+.forge-node {
+  position: absolute;
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  height: 22px;
+  padding: 0 8px;
+  border: 1px solid var(--forge-relation);
+  border-radius: 6px;
+  background: color-mix(in srgb, var(--forge-relation) 14%, var(--surface));
+  font-size: 11px;
+  text-align: left;
+  z-index: 1;
+}
+.forge-node:hover:not(.self) {
+  background: color-mix(in srgb, var(--forge-relation) 22%, var(--surface));
+}
+.forge-node.self {
+  border-width: 2px;
+  background: color-mix(in srgb, var(--forge-relation) 16%, var(--surface));
+  font-weight: 700;
+}
+.forge-node .forge-icon {
+  margin-top: 0;
+}
+.forge-node .forge-row-number {
+  flex-shrink: 0;
+}
+.forge-edge {
+  fill: none;
+  stroke-width: 1.6;
+  stroke: var(--forge-relation);
+}
+.forge-graph marker path {
+  fill: var(--forge-relation);
+}

@@ -377,8 +377,9 @@ test('Workflows sits between Agent and Appearance, and saves the workflow switch
     ['General', 'Agent', 'Workflows', 'Appearance', 'Keyboard shortcuts'],
   );
   await click(user, 'Workflows');
-  const enabled = screen.getByRole<HTMLInputElement>('checkbox', { name: "Matt's workflow" });
-  assert.equal(enabled.checked, true, "Matt's workflow is on by default");
+  assert.equal(screen.queryByRole('checkbox'), null, 'the workflow switch is not a checkbox');
+  const enabled = screen.getByRole('switch', { name: "Matt's workflow" });
+  assert.equal(enabled.getAttribute('aria-checked'), 'true', "Matt's workflow is on by default");
   const commands = screen.getAllByRole('radiogroup').map(group => group.getAttribute('aria-label'));
   assert.deepEqual(commands, [
     'grill-with-docs {url}',
@@ -403,6 +404,7 @@ test('Workflows sits between Agent and Appearance, and saves the workflow switch
     within(screen.getByRole('radiogroup', { name: 'tdd {url}' })).getByRole('radio', { name: 'Fill only' }),
   );
   await user.click(enabled);
+  assert.equal(enabled.getAttribute('aria-checked'), 'false', 'clicking the switch turns the workflow off');
   await user.click(screen.getByRole('button', { name: "Show the commands of Matt's workflow" }));
   assert.equal(screen.queryAllByRole('radiogroup').length, 0, 'collapsing hides the commands');
   await click(user, 'Save');

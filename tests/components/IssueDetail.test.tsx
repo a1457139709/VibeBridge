@@ -269,7 +269,8 @@ test('the relation graph draws open blockers and the open issues this one blocks
     }),
   });
   const graph = await within(pane()).findByRole('group', { name: 'Relations' });
-  const column = (name: string) => [...graph.querySelectorAll(`[data-column="${name}"]`)].map(node => node.textContent);
+  const column = (name: string) =>
+    [...graph.querySelectorAll(`.forge-node[data-relation="${name}"]`)].map(node => node.textContent);
   assert.deepEqual(column('blockedBy'), ['#2Open blocker'], 'only open blockers are drawn');
   assert.deepEqual(column('self'), ['#5Detail']);
   assert.deepEqual(column('blocking'), ['#8Waits on detail']);

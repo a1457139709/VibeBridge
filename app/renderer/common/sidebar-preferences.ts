@@ -2,6 +2,7 @@ import { useLayoutEffect, useRef, useState, type PointerEvent } from 'react';
 import type { DesktopAPI } from '../../shared/api';
 import { sidebars, type Sidebar, type SidebarPreferences, type Snapshot } from '../../shared/model';
 import { capturePointer } from './pointer-capture';
+import { draggedWidth, type WidestOnResize } from './region-widths';
 
 interface Options {
   sidebar: Sidebar;
@@ -9,8 +10,7 @@ interface Options {
   api: Pick<DesktopAPI, 'saveSidebar' | 'subscribe'>;
   /** Which way dragging the resize edge to the right changes the width: 1 for an edge on the right, -1 for one on the left. */
   edge: 1 | -1;
-  /** Records the sidebar as the region last resized and returns the widest a drag may make it. */
-  beginResize(): number;
+  widestOnResize: WidestOnResize;
   report(message: string): void;
 }
 
@@ -95,8 +95,8 @@ export function useSidebarPreferences(options: Options) {
     event.preventDefault();
     const { sidebar: current, edge } = latest.current;
     const { minWidth } = sidebars[current];
-    const widest = latest.current.beginResize();
-    const bounded = (width: number) => Math.round(Math.max(minWidth, Math.min(widest, width)));
+    const widest = latest.current.widestOnResize(current);
+    const bounded = (width: number) => draggedWidth(width, minWidth, widest);
     const operation = replaceOperation();
     const base = confirmed.current;
     const element = event.currentTarget,

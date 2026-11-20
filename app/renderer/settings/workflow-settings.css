@@ -19,17 +19,15 @@
 .workflow-text span {
   font-size: 11px;
 }
+.workflow-switch {
+  font-size: 12px;
+}
 .workflow-switch,
 .delivery-toggle label {
   position: relative;
   display: flex;
   align-items: center;
   gap: 8px;
-  margin: 0;
-}
-.workflow-switch input {
-  width: auto;
-  height: auto;
   margin: 0;
 }
 .workflow-commands {

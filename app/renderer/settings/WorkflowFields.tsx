@@ -34,16 +34,22 @@ export function WorkflowFields({
             {t('workflowSummary', { count: workflow.commands.length, placeholder: '{url}' })}
           </span>
         </div>
-        <label className="workflow-switch">
-          <input
-            type="checkbox"
+        <span className="workflow-switch">
+          <span className={value.enabled ? '' : 'muted'}>
+            {t(value.enabled ? 'workflowEnabled' : 'workflowDisabled')}
+          </span>
+          <button
+            type="button"
+            role="switch"
+            className="switch"
             data-settings-field={`workflows.${workflow.id}.enabled`}
             aria-labelledby={`workflow-${workflow.id}`}
-            checked={value.enabled}
-            onChange={event => change({ ...value, enabled: event.target.checked })}
-          />
-          <span>{t(value.enabled ? 'workflowEnabled' : 'workflowDisabled')}</span>
-        </label>
+            aria-checked={value.enabled}
+            onClick={() => change({ ...value, enabled: !value.enabled })}
+          >
+            <span className="switch-knob" />
+          </button>
+        </span>
       </div>
       {expanded && (
         <div className={`workflow-commands ${value.enabled ? '' : 'off'}`}>

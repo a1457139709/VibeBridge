@@ -9,6 +9,11 @@ export interface RegionFit {
   width: number;
   widest: number;
 }
+/** Records `region` as the region last resized and returns the widest a drag of its edge may make it. */
+export type WidestOnResize = (region: Region) => number;
+/** The whole-pixel width a drag sets: `width` kept between `narrowest` and `widest`. */
+export const draggedWidth = (width: number, narrowest: number, widest: number) =>
+  Math.round(Math.max(narrowest, Math.min(widest, width)));
 
 /** Fits the regions' remembered widths into the window. The navigation and the sidebar share the window's width, and so
  * do the detail and the sidebar; the detail may cover the navigation. The region last resized keeps its width up to

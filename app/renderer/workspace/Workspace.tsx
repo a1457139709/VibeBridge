@@ -26,6 +26,7 @@ import type { ShortcutAction } from '../../shared/settings/shortcuts';
 import { useWorkspacePanelLocation, type PanelLocation } from '../panels/panel-location';
 import { ProcessingStatusIcon } from '../common/ProcessingStatusIcon';
 import { PanelTray } from './PanelTray';
+import { useTrayFlight } from './tray-flight';
 import { ProjectSummary } from './ProjectSummary';
 
 export interface WorkspaceActions {
@@ -146,6 +147,7 @@ export function Workspace({
   const { selected: focused, maximized } = viewing;
   const openTrayPanel = project.tray.find(panel => panel.id === maximized);
   const full = panelLimitReached(project);
+  const flight = useTrayFlight({ openPanelId: openTrayPanel?.id, canvas, tray, collapse: viewing.collapse });
   const persist = (next: Layout) => {
     void window.workbench.saveLayout(project.id, next).catch(error => report(error.message));
   };
@@ -225,7 +227,7 @@ export function Workspace({
       }
       // Panel keys follow the resident layout: an open tray panel returns to the tray first.
       if (action === 'maximizePanel') {
-        if (openTrayPanel) viewing.collapse();
+        if (openTrayPanel) flight.collapseIntoCard();
         else if (focused) viewing.toggleMaximize(focused);
         return !!(openTrayPanel || focused);
       }
@@ -295,7 +297,7 @@ export function Workspace({
             openTrayPanel,
             maximizedPosition,
             true,
-            <PanelAction label={t('collapsePanel')} run={viewing.collapse}>
+            <PanelAction label={t('collapsePanel')} run={flight.collapseIntoCard}>
               ⌄
             </PanelAction>,
           )}
@@ -336,8 +338,10 @@ export function Workspace({
         ref={tray}
         panels={project.tray}
         openPanelId={openTrayPanel?.id}
+        landedPanelId={flight.landedPanelId}
         open={viewing.openTrayPanel}
-        collapse={viewing.collapse}
+        collapse={flight.collapseIntoCard}
+        landingEnded={flight.landingEnded}
         cardPointerDown={(event, panelId) =>
           interactions.current?.startDrag(event.nativeEvent, event.currentTarget, panelId)
         }
