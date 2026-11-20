@@ -41,11 +41,16 @@ export async function ghOutput(host: string, args: string[]): Promise<{ stdout: 
   });
 }
 
-/** Exit code 4 is gh's "authentication required"; 401 and 404 come from the REST API, NOT_FOUND from GraphQL. */
+/** Exit code 4 is gh's "authentication required"; 401 and 404 come from the REST API, NOT_FOUND from GraphQL. A write
+ * subcommand prints only GraphQL's message, which names a repository the account cannot see. */
 function classifyFailure(code: number | null, stdout: string, stderr: string) {
   const detail = stderr.trim() || stdout.trim();
   if (code === 4 || /\bHTTP 401\b/.test(stderr)) return new ForgeError('loggedOut', detail);
-  if (/\bHTTP 404\b/.test(stderr) || /"type"\s*:\s*"NOT_FOUND"/.test(stdout + stderr))
+  if (
+    /\bHTTP 404\b/.test(stderr) ||
+    /"type"\s*:\s*"NOT_FOUND"/.test(stdout + stderr) ||
+    /^GraphQL: Could not resolve to a Repository\b/m.test(stderr)
+  )
     return new ForgeError('inaccessible', detail);
   return new ForgeError('transient', detail);
 }

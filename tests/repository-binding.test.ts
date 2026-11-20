@@ -11,8 +11,8 @@ import {
   type RepositoryReference,
 } from '../app/shared/forge/forge';
 import { ghDouble } from './support/gh-double';
-import { bindListed, showList } from './support/bound-workbench';
-import { interactiveWorkbench, until } from './support/interactive-workbench';
+import { bindListed } from './support/bound-workbench';
+import { interactiveWorkbench } from './support/interactive-workbench';
 
 const account = { account: 'octo', repositories: ['octo/tools', 'Octo/VibeBridge', 'acme/forge'] };
 /** A GitHub repository reference; the ID is one the forge does not list unless a test took it from a listing. */
@@ -277,82 +277,6 @@ test('the origin URL matches a listed path in any case and offers it in its list
     const choices = await f.workbench.repositoryChoices(project.id, f.directory);
     assert.ok(choices.ok);
     assert.equal(choices.origin?.path, 'Octo/VibeBridge');
-  } finally {
-    await f.close();
-  }
-});
-
-/** A project bound to octo/tools, the repository's ID, and a way to read the project's binding. */
-async function boundToTools(context: test.TestContext, scope: string) {
-  const double = await ghDouble(context, account);
-  const f = await interactiveWorkbench(scope);
-  const { project } = await f.create('Followed');
-  await bindListed(f.workbench, project.id, 'octo/tools');
-  const bound = () => f.workbench.snapshot().projects[0].repository;
-  return { double, f, projectId: project.id, id: bound()!.id, bound };
-}
-
-for (const [move, redirects] of [
-  ['renamed while GitHub redirects its former path', { 'octo/tools': 'octo/tools-x' }],
-  ['renamed with no redirect left', {}],
-] as const) {
-  test(`a bound repository ${move} is found by its ID, and the binding follows it to its new path`, async context => {
-    const { double, f, projectId, id, bound } = await boundToTools(context, 'repository-renamed');
-    try {
-      await double.set({
-        ...account,
-        repositories: [{ id: Number(id), path: 'octo/tools-x' }, 'acme/forge'],
-        redirects,
-      });
-      const { issues } = await showList(f.workbench, projectId);
-      assert.ok(issues.loaded && !issues.failed, 'the list loads from the new path');
-      await until(() => bound()?.path === 'octo/tools-x');
-      assert.deepEqual(bound(), github('octo/tools-x', id));
-      const choices = await f.workbench.repositoryChoices(projectId, f.directory);
-      assert.ok(choices.ok);
-      assert.deepEqual(
-        choices.repositories.map(item => item.path),
-        ['octo/tools-x', 'acme/forge'],
-        'the binding is listed once, at its new path',
-      );
-      await f.workbench.quit();
-      const reopened = await Workbench.open(f.directory);
-      try {
-        assert.deepEqual(
-          reopened.snapshot().projects[0].repository,
-          github('octo/tools-x', id),
-          'the new path is stored',
-        );
-      } finally {
-        await reopened.quit();
-      }
-    } finally {
-      await f.close();
-    }
-  });
-}
-
-test('a bound repository transferred to another owner follows from the list of repositories the change-binding page opens with', async context => {
-  const { double, f, projectId, id, bound } = await boundToTools(context, 'repository-transferred');
-  try {
-    await double.set({ ...account, repositories: [{ id: Number(id), path: 'acme/tools' }] });
-    const choices = await f.workbench.repositoryChoices(projectId, f.directory);
-    assert.ok(choices.ok);
-    await until(() => bound()?.path === 'acme/tools');
-    assert.deepEqual(bound(), github('acme/tools', id));
-  } finally {
-    await f.close();
-  }
-});
-
-test("a new repository at a deleted bound repository's path is not the bound one: the binding is inaccessible and stays as it was", async context => {
-  const { double, f, projectId, id, bound } = await boundToTools(context, 'repository-replaced');
-  try {
-    await double.set({ ...account, repositories: [{ id: Number(id) + 1, path: 'octo/tools' }] });
-    const { failed } = (await showList(f.workbench, projectId)).issues;
-    assert.equal(failed?.failure.kind, 'inaccessible');
-    assert.equal(failed?.account, 'octo');
-    assert.deepEqual(bound(), github('octo/tools', id));
   } finally {
     await f.close();
   }

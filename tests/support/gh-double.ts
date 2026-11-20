@@ -1,4 +1,4 @@
-import { chmod, mkdir, writeFile } from 'node:fs/promises';
+import { chmod, mkdir, readFile, writeFile } from 'node:fs/promises';
 import { join, resolve } from 'node:path';
 import type { TestContext } from 'node:test';
 import { testDirectory } from './directory';
@@ -86,7 +86,8 @@ export interface GhState {
 }
 
 /** Puts tests/fixtures/gh-cli.cjs first on PATH as `gh` for this test; `set` changes the account's state.
- * `uninstall` leaves PATH with no `gh` at all. PATH is restored after the test. */
+ * `uninstall` leaves PATH with no `gh` at all. `calls` counts what `gh` was asked: it returns the arguments of every
+ * command run since the last `calls`. PATH is restored after the test. */
 export async function ghDouble(context: TestContext, state: GhState) {
   const directory = await testDirectory(context, 'gh-double');
   const bin = join(directory, 'bin'),
@@ -111,8 +112,17 @@ export async function ghDouble(context: TestContext, state: GhState) {
   process.env.VIBEBRIDGE_GH_DOUBLE = file;
   const set = (next: GhState) => writeFile(file, JSON.stringify(next));
   await set(state);
+  const log = `${file}.calls`;
   return {
     set,
+    async calls(): Promise<string[][]> {
+      const lines = await readFile(log, 'utf8').catch(() => '');
+      await writeFile(log, '');
+      return lines
+        .split('\n')
+        .filter(Boolean)
+        .map(line => JSON.parse(line) as string[]);
+    },
     uninstall() {
       process.env.PATH = empty;
     },
