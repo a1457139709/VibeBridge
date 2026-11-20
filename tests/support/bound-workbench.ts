@@ -1,4 +1,5 @@
 import type { ListFilter } from '../../app/shared/forge/forge';
+import type { ForgeListTab, ForgeLists } from '../../app/shared/forge/sidebar-data';
 import type { Workbench } from '../../app/main/workbench';
 import { interactiveWorkbench } from './interactive-workbench';
 
@@ -24,3 +25,26 @@ export async function boundWorkbench(scope: string) {
   await bindListed(f.workbench, project.id, 'octo/tools');
   return { ...f, projectId: project.id };
 }
+
+/** The project's lists as the main process pushes them once `declare`, a declaration on the Forge sidebar, settles. */
+export async function shownLists(workbench: Workbench, projectId: string, declare: () => Promise<void>) {
+  let shown: ForgeLists | undefined;
+  const stop = workbench.subscribe(event => {
+    if (event.kind === 'forgeLists' && event.projectId === projectId) shown = event.lists;
+  });
+  try {
+    await declare();
+  } finally {
+    stop();
+  }
+  if (!shown || shown.loading) throw new Error('The lists did not settle');
+  return shown;
+}
+
+/** The project's lists once the sidebar shows `tab` with `filter`. */
+export const showList = (
+  workbench: Workbench,
+  projectId: string,
+  tab: ForgeListTab = 'issues',
+  filter: ListFilter = openNoFilter,
+) => shownLists(workbench, projectId, () => workbench.forgeSidebar.showList(projectId, { tab, filter }));

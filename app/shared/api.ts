@@ -22,12 +22,10 @@ import type {
   DirectActionResult,
   IssueDetailResult,
   PullRequestDetailResult,
-  IssuePage,
-  ListQuery,
-  PullRequestPage,
   RepositoryChoices,
   RepositoryReference,
 } from './forge/forge';
+import type { ForgeListView } from './forge/sidebar-data';
 
 export interface DesktopAPI {
   snapshot(): Promise<Snapshot>;
@@ -36,17 +34,26 @@ export interface DesktopAPI {
   editProject(id: string, edit: ProjectEdit, restart: boolean): Promise<ProjectEditResult>;
   deleteProject(id: string): Promise<void>;
   inspectDirectory(directory: string): Promise<DirectoryResult>;
-  /** The repositories the project can bind, with the one the origin of `directory` points at; or a forge failure. */
+  /** The repositories the project can bind, with the one the origin of `directory` points at; or a forge failure. The
+   * edit-project dialog reads them for a directory being edited; the Forge sidebar uses `showRepositoryChoices`. */
   repositoryChoices(projectId: string, directory: string): Promise<RepositoryChoices>;
   /** Binds or rebinds the project to a repository its forge lists; the list is read again first, and when it cannot be
    * read or does not show the repository, nothing is written and it rejects with the reason. */
   bindRepository(projectId: string, repository: RepositoryReference): Promise<void>;
   /** Unbinds the project; it needs no forge CLI. */
   unbindRepository(projectId: string): Promise<void>;
-  /** One page of the issues of the project's bound repository, filtered by the forge; or a forge failure. */
-  issuePage(projectId: string, query: ListQuery): Promise<IssuePage>;
-  /** One page of the pull requests of the project's bound repository, filtered by the forge; or a forge failure. */
-  pullRequestPage(projectId: string, query: ListQuery): Promise<PullRequestPage>;
+  /** Declares that the Forge sidebar shows the project's lists on `view`; the main process loads its first page and
+   * pushes the lists as `forgeLists` events. Resolves once that page settled. */
+  showForgeList(projectId: string, view: ForgeListView): Promise<void>;
+  /** Declares that the Forge sidebar no longer shows the project's lists. */
+  hideForgeList(projectId: string): Promise<void>;
+  /** Appends the next page of the rows shown, in the filter that produced them. */
+  loadMoreForgeList(projectId: string): Promise<void>;
+  /** Loads the shown tab's first page again. */
+  refreshForgeList(projectId: string): Promise<void>;
+  /** Declares that a binding page of the Forge sidebar shows the repositories the project can bind; they are read once
+   * per call and pushed as `repositoryChoices` events. */
+  showRepositoryChoices(projectId: string): Promise<void>;
   /** One issue of the project's bound repository with its rendered body, comments and relations; or a forge failure. */
   issueDetail(projectId: string, number: number): Promise<IssueDetailResult>;
   pullRequestDetail(projectId: string, number: number): Promise<PullRequestDetailResult>;

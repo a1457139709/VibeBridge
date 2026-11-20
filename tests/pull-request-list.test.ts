@@ -2,9 +2,9 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { ghDouble, type GhPullRequest } from './support/gh-double';
 import type { ListFilter } from '../app/shared/forge/forge';
-import { boundWorkbench, day, forgeAccount, openNoFilter } from './support/bound-workbench';
+import { boundWorkbench, day, forgeAccount, openNoFilter, showList, shownLists } from './support/bound-workbench';
 
-test('a refresh returns one page of 25 pull requests, newest first, and the cursor loads the rest', async context => {
+test('showing the tab loads one page of 25 pull requests, newest first, and Load more appends the rest', async context => {
   const thirty: GhPullRequest[] = Array.from({ length: 30 }, (_, index) => ({
     number: index + 1,
     title: `Change ${index + 1}`,
@@ -20,8 +20,8 @@ test('a refresh returns one page of 25 pull requests, newest first, and the curs
   });
   const f = await boundWorkbench('pull-request-page');
   try {
-    const first = await f.workbench.pullRequestPage(f.projectId, { filter: openNoFilter, cursor: null });
-    assert.ok(first.ok);
+    const first = (await showList(f.workbench, f.projectId, 'pullRequests')).pullRequests.loaded;
+    assert.ok(first);
     assert.deepEqual(
       first.items.map(item => item.number),
       Array.from({ length: 25 }, (_, index) => 30 - index),
@@ -37,13 +37,13 @@ test('a refresh returns one page of 25 pull requests, newest first, and the curs
       labels: [],
     });
     assert.ok(first.cursor);
-    const rest = await f.workbench.pullRequestPage(f.projectId, { filter: openNoFilter, cursor: first.cursor });
-    assert.ok(rest.ok);
+    const all = (await shownLists(f.workbench, f.projectId, () => f.workbench.forgeSidebar.loadMore(f.projectId)))
+      .pullRequests.loaded;
     assert.deepEqual(
-      rest.items.map(item => item.number),
-      [5, 4, 3, 2, 1],
+      all?.items.map(item => item.number),
+      Array.from({ length: 30 }, (_, index) => 30 - index),
     );
-    assert.equal(rest.cursor, null, 'the last page has no cursor');
+    assert.equal(all?.cursor, null, 'the last page has no cursor');
   } finally {
     await f.close();
   }
@@ -107,11 +107,9 @@ test('a pull request is open, draft, merged or closed with its checks conclusion
   const f = await boundWorkbench('pull-request-filters');
   try {
     const list = async (filter: Partial<ListFilter>) => {
-      const page = await f.workbench.pullRequestPage(f.projectId, {
-        filter: { ...openNoFilter, ...filter },
-        cursor: null,
-      });
-      assert.ok(page.ok);
+      const page = (await showList(f.workbench, f.projectId, 'pullRequests', { ...openNoFilter, ...filter }))
+        .pullRequests.loaded;
+      assert.ok(page);
       return page;
     };
     const open = await list({});
@@ -195,7 +193,7 @@ test("pull request list failures are reported like the issue list's", async cont
   const forge = { name: 'GitHub', cli: 'gh', installUrl: 'https://cli.github.com', loginCommand: 'gh auth login' };
   try {
     await double.set({ account: 'octo', repositories: [] });
-    assert.deepEqual(await f.workbench.pullRequestPage(f.projectId, { filter: openNoFilter, cursor: null }), {
+    assert.deepEqual((await showList(f.workbench, f.projectId, 'pullRequests')).pullRequests.failed, {
       ok: false,
       account: 'octo',
       failure: {
@@ -205,7 +203,7 @@ test("pull request list failures are reported like the issue list's", async cont
       },
     });
     double.uninstall();
-    assert.deepEqual(await f.workbench.pullRequestPage(f.projectId, { filter: openNoFilter, cursor: null }), {
+    assert.deepEqual((await showList(f.workbench, f.projectId, 'pullRequests')).pullRequests.failed, {
       ok: false,
       account: null,
       failure: { kind: 'notInstalled', forge, detail: '' },

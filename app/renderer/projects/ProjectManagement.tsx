@@ -2,10 +2,9 @@ import { useLocalization } from '../common/Localization';
 import { message } from '../../shared/messages';
 import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from 'react';
 import { type DirectoryResult, type Project, type ProjectEditResult, type ProjectView } from '../../shared/model';
-import { originElsewhereThanBinding } from '../../shared/forge/forge';
+import { originElsewhereThanBinding, type RepositoryChoices } from '../../shared/forge/forge';
 import { projectNameError, projectNameHasControls } from '../../shared/project-name';
 import { LaunchResults } from './LaunchResults';
-import { useRepositoryChoices } from '../forge/RepositoryList';
 import './project-management.css';
 
 export function ProjectNavigationItem({
@@ -110,6 +109,27 @@ export function ProjectNavigationItem({
   );
 }
 
+/** The repositories the project can bind as listed for `directory`, the directory being edited, so its `origin` can be
+ * told; undefined while they are read, when they cannot be, and for a null directory, which reads nothing. */
+function useListedForDirectory(projectId: string, directory: string | null) {
+  const [listed, setListed] = useState<Extract<RepositoryChoices, { ok: true }>>();
+  useEffect(() => {
+    setListed(undefined);
+    if (directory === null) return;
+    let live = true;
+    void window.workbench.repositoryChoices(projectId, directory).then(
+      choices => {
+        if (live && choices.ok) setListed(choices);
+      },
+      () => {},
+    );
+    return () => {
+      live = false;
+    };
+  }, [projectId, directory]);
+  return listed;
+}
+
 /** The edit-project dialog. It edits name and directory; the Repository Binding shows read-only, with a link to the
  * forge sidebar where it is made or changed. */
 export function ProjectEditor({
@@ -156,7 +176,7 @@ export function ProjectEditor({
   const changedDirectory = !!directory?.valid && !duplicate && directory.directory !== original.directory;
   const edited = name.trim() !== original.name || path !== original.directory;
   // A bound project's new directory may have an origin that points elsewhere; the binding does not follow it.
-  const { listed } = useRepositoryChoices(project.id, bound && changedDirectory ? directory.directory! : null);
+  const listed = useListedForDirectory(project.id, bound && changedDirectory ? directory.directory! : null);
   const originElsewhere = originElsewhereThanBinding(bound, listed);
   const canSave = !busy && !choosing && !checking && !nameError && !directoryError;
   // Open before the fields' effects run: a field can take focus only inside an open dialog.

@@ -15,6 +15,7 @@ import type {
 } from '../../app/shared/forge/forge';
 import { stubLayoutApis } from './support/no-layout';
 import { deferred, provideWorkbench } from './support/workbench';
+import { forgeSidebarData } from './support/forge-sidebar-data';
 import { githubCapabilities, githubForge, githubView, githubRepository } from './support/forge';
 import { issue as listedIssue } from './support/forge-lists';
 
@@ -109,13 +110,20 @@ function renderWorkbench(
     saveSidebar: async () => {},
     activateProject: async () => {},
     saveLayout: async () => {},
-    issuePage: async () => ({
-      ok: true,
-      items: issues,
-      cursor: null,
-      labels: [],
-      counts: { open: issues.length, closed: 0 },
-    }),
+    ...forgeSidebarData(
+      {
+        issuePage: async () => ({
+          ok: true,
+          items: issues,
+          cursor: null,
+          labels: [],
+          counts: { open: issues.length, closed: 0 },
+        }),
+      },
+      event => {
+        for (const listener of listeners) listener(event);
+      },
+    ),
     issueDetail: (projectId, number) => {
       assert.equal(projectId, 'alpha');
       const answer = deferred<IssueDetailResult>();

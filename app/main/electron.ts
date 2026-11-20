@@ -181,9 +181,22 @@ void app.whenReady().then(async () => {
     return service.bindRepository(id, repository);
   });
   handle('unbind-repository', (service, id) => service.unbindRepository(id));
-  handle('issue-page', async (service, id, query) => {
+  handle('show-forge-list', async (service, id, view) => {
     await loginPath;
-    return service.issuePage(id, query);
+    return service.forgeSidebar.showList(id, view);
+  });
+  handle('hide-forge-list', (service, id) => service.forgeSidebar.hideList(id));
+  handle('load-more-forge-list', async (service, id) => {
+    await loginPath;
+    return service.forgeSidebar.loadMore(id);
+  });
+  handle('refresh-forge-list', async (service, id) => {
+    await loginPath;
+    return service.forgeSidebar.refresh(id);
+  });
+  handle('show-repository-choices', async (service, id) => {
+    await loginPath;
+    return service.forgeSidebar.showRepositoryChoices(id);
   });
   handle('issue-detail', async (service, id, number) => {
     await loginPath;
@@ -197,10 +210,6 @@ void app.whenReady().then(async () => {
   handle('direct-action', async (service, id, action) => {
     await loginPath;
     return service.directAction(id, action);
-  });
-  handle('pull-request-page', async (service, id, query) => {
-    await loginPath;
-    return service.pullRequestPage(id, query);
   });
   handle('activate', (service, id) => service.activateProject(id));
   handle('add', (service, project, agent) => service.addPanel(project, agent));
