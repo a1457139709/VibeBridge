@@ -6,7 +6,7 @@
 - `RepositoryBindings`（`app/main/forge/repository-bindings.ts`）：仓库绑定，以及绑定按 ID 跟随仓库。
 - `RunSupervision`（`app/main/runs/run-supervision.ts`）：面板的运行、输入、尺寸和输出流。
 - `Dispatches`（`app/main/dispatch.ts`）：派发和派发记录。
-- `ForgeSidebarData`（`app/main/forge/forge-sidebar-data.ts`）：Forge 侧边栏的列表，以及绑定页可选的仓库（ADR 0008）；IPC 通过 `workbench.forgeSidebar` 调它。
+- `ForgeSidebarData`（`app/main/forge/forge-sidebar-data.ts`）：Forge 侧边栏的列表、详情，以及绑定页可选的仓库（ADR 0008）；IPC 通过 `workbench.forgeSidebar` 调它。
 
 `Workbench` 只做跨模块的事：
 

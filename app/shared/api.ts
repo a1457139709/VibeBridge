@@ -17,15 +17,8 @@ import type {
 import type { SettingsSaveResult } from './settings/settings';
 import type { DispatchRequest } from './dispatch';
 import type { Delivery } from './settings/workflows';
-import type {
-  DirectAction,
-  DirectActionResult,
-  IssueDetailResult,
-  PullRequestDetailResult,
-  RepositoryChoices,
-  RepositoryReference,
-} from './forge/forge';
-import type { ForgeListView } from './forge/sidebar-data';
+import type { DirectAction, DirectActionResult, RepositoryChoices, RepositoryReference } from './forge/forge';
+import type { DetailItem, ForgeListView } from './forge/sidebar-data';
 
 export interface DesktopAPI {
   snapshot(): Promise<Snapshot>;
@@ -49,14 +42,16 @@ export interface DesktopAPI {
   hideForgeList(projectId: string): Promise<void>;
   /** Appends the next page of the rows shown, in the filter that produced them. */
   loadMoreForgeList(projectId: string): Promise<void>;
-  /** Loads the shown tab's first page again. */
+  /** Loads the shown tab's first page and the open detail again. */
   refreshForgeList(projectId: string): Promise<void>;
   /** Declares that a binding page of the Forge sidebar shows the repositories the project can bind; they are read once
    * per call and pushed as `repositoryChoices` events. */
   showRepositoryChoices(projectId: string): Promise<void>;
-  /** One issue of the project's bound repository with its rendered body, comments and relations; or a forge failure. */
-  issueDetail(projectId: string, number: number): Promise<IssueDetailResult>;
-  pullRequestDetail(projectId: string, number: number): Promise<PullRequestDetailResult>;
+  /** Declares the item the Forge sidebar's detail shows, or null when it closes; the main process loads it on each call
+   * and pushes it as `forgeDetail` events. Resolves once it settled. */
+  showForgeDetail(projectId: string, item: DetailItem | null): Promise<void>;
+  /** Reports that a direct action or dispatch changed `item`; the main process reloads what shows it. */
+  reportForgeItemChanged(projectId: string, item: DetailItem): Promise<void>;
   /** Closes, reopens or merges an issue or pull request of the project's bound repository; the forge's text comes back either way. */
   directAction(projectId: string, action: DirectAction): Promise<DirectActionResult>;
   /** Dispatches an issue of the project's bound repository to a panel with a run, or to a new panel that joins the tray:

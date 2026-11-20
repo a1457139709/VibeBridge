@@ -1,18 +1,28 @@
 import type { DesktopAPI } from '../../../app/shared/api';
-import type { IssuePage, ListQuery, PullRequestPage, RepositoryChoices } from '../../../app/shared/forge/forge';
+import type {
+  IssueDetailResult,
+  IssuePage,
+  ListQuery,
+  PullRequestDetailResult,
+  PullRequestPage,
+  RepositoryChoices,
+} from '../../../app/shared/forge/forge';
 import type { ForgeSidebarEvent } from '../../../app/shared/forge/sidebar-data';
 import type { WorkbenchEvent } from '../../../app/shared/model';
 import { ForgeSidebarData } from '../../../app/main/forge/forge-sidebar-data';
 import { githubForge } from './forge';
 
-/** What the forge answers the main process's Forge sidebar data with, per project. A read the test does not answer fails. */
+/** What the forge answers the main process's Forge sidebar data with, per project. A read the test does not answer
+ * fails. Each read asks the answer the object holds then, so a test may change it as it goes. */
 export interface ForgeAnswers {
   issuePage?(projectId: string, query: ListQuery): Promise<IssuePage>;
   pullRequestPage?(projectId: string, query: ListQuery): Promise<PullRequestPage>;
   repositoryChoices?(projectId: string, directory: string): Promise<RepositoryChoices>;
+  issueDetail?(projectId: string, number: number): Promise<IssueDetailResult>;
+  pullRequestDetail?(projectId: string, number: number): Promise<PullRequestDetailResult>;
 }
 
-const unanswered = (read: string) => () => Promise.reject(new Error(`Unexpected forge read: ${read}`));
+const unanswered = (read: string) => Promise.reject(new Error(`Unexpected forge read: ${read}`));
 
 /** The Workbench calls of the Forge sidebar's data, backed by the main process's own module over `answers`; what it
  * pushes goes to `emit`. `directoryOf` names each project's directory. */
@@ -22,13 +32,22 @@ export function forgeSidebarData(
   directoryOf: (projectId: string) => string = projectId => `/work/${projectId}`,
 ): Pick<
   DesktopAPI,
-  'showForgeList' | 'hideForgeList' | 'loadMoreForgeList' | 'refreshForgeList' | 'showRepositoryChoices'
+  | 'showForgeList'
+  | 'hideForgeList'
+  | 'loadMoreForgeList'
+  | 'refreshForgeList'
+  | 'showRepositoryChoices'
+  | 'showForgeDetail'
+  | 'reportForgeItemChanged'
 > {
   const data = new ForgeSidebarData({
-    issuePage: answers.issuePage ?? unanswered('issuePage'),
-    pullRequestPage: answers.pullRequestPage ?? unanswered('pullRequestPage'),
+    issuePage: (projectId, query) => answers.issuePage?.(projectId, query) ?? unanswered('issuePage'),
+    pullRequestPage: (projectId, query) => answers.pullRequestPage?.(projectId, query) ?? unanswered('pullRequestPage'),
     repositoryChoices: projectId =>
-      (answers.repositoryChoices ?? unanswered('repositoryChoices'))(projectId, directoryOf(projectId)),
+      answers.repositoryChoices?.(projectId, directoryOf(projectId)) ?? unanswered('repositoryChoices'),
+    issueDetail: (projectId, number) => answers.issueDetail?.(projectId, number) ?? unanswered('issueDetail'),
+    pullRequestDetail: (projectId, number) =>
+      answers.pullRequestDetail?.(projectId, number) ?? unanswered('pullRequestDetail'),
     forge: () => githubForge,
     emit,
   });
@@ -38,6 +57,8 @@ export function forgeSidebarData(
     loadMoreForgeList: projectId => data.loadMore(projectId),
     refreshForgeList: projectId => data.refresh(projectId),
     showRepositoryChoices: projectId => data.showRepositoryChoices(projectId),
+    showForgeDetail: (projectId, item) => data.showDetail(projectId, item),
+    reportForgeItemChanged: (projectId, item) => data.reloadChanged(projectId, item),
   };
 }
 

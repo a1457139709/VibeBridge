@@ -150,17 +150,17 @@ function renderWorkbench(forge: Forge) {
             counts: { open: 1, closed: 0 },
           };
         },
+        issueDetail: async () => {
+          reads.issue++;
+          return { ok: true, issue: structuredClone(forge.issue!) };
+        },
+        pullRequestDetail: async () => {
+          reads.pullRequest++;
+          return { ok: true, pullRequest: structuredClone(forge.pullRequest!) };
+        },
       },
       events.emit,
     ),
-    issueDetail: async () => {
-      reads.issue++;
-      return { ok: true, issue: structuredClone(forge.issue!) };
-    },
-    pullRequestDetail: async () => {
-      reads.pullRequest++;
-      return { ok: true, pullRequest: structuredClone(forge.pullRequest!) };
-    },
     directAction: (_, action) => {
       const answer = deferred<DirectActionResult>();
       actions.push({ action, answer: answer.resolve });

@@ -15,7 +15,7 @@ before(stubSidebarApis);
 /** The Workbench with Alpha's issues listed and the detail of `issue` open; `change` sets up the snapshot. */
 async function opened(issue: IssueDetail, change: (snapshot: Snapshot) => void = () => {}) {
   const f = await listed(undefined, change);
-  window.workbench.issueDetail = async () => ({ ok: true, issue });
+  f.forge.issueDetail = async () => ({ ok: true, issue });
   await f.user.click(within(row(issue.number)).getByRole('button', { name: `Issue ${issue.number}` }));
   await within(pane()).findByRole('heading', { name: `Issue ${issue.number} #${issue.number}` });
   return f;

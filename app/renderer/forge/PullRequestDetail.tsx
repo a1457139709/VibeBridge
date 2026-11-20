@@ -18,8 +18,8 @@ import {
   PullRequestPill,
   RelativeTime,
   withElements,
-  type DetailItem,
 } from './ForgeDisplay';
+import type { DetailItem } from '../../shared/forge/sidebar-data';
 import './pull-request-detail.css';
 
 interface Props {

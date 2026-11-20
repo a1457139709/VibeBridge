@@ -119,17 +119,17 @@ function renderWorkbench(
           labels: [],
           counts: { open: issues.length, closed: 0 },
         }),
+        issueDetail: (projectId, number) => {
+          assert.equal(projectId, 'alpha');
+          const answer = deferred<IssueDetailResult>();
+          requests.push({ number, answer: answer.resolve, fail: answer.reject });
+          return answer.promise;
+        },
       },
       event => {
         for (const listener of listeners) listener(event);
       },
     ),
-    issueDetail: (projectId, number) => {
-      assert.equal(projectId, 'alpha');
-      const answer = deferred<IssueDetailResult>();
-      requests.push({ number, answer: answer.resolve, fail: answer.reject });
-      return answer.promise;
-    },
   });
   render(<App />);
   const request = (count: number) =>

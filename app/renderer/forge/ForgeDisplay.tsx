@@ -19,15 +19,11 @@ import type {
   PullRequestState,
   SubIssueProgress,
 } from '../../shared/forge/forge';
+import type { DetailItem } from '../../shared/forge/sidebar-data';
 
 // How the forge sidebar's lists and details show an issue's state, labels, age, sub-issue progress and blockers,
 // a pull request's state and checks, and the posts and links of a detail.
 
-/** An issue or pull request of the bound repository, as the detail opens it. */
-export interface DetailItem {
-  kind: 'issue' | 'pullRequest';
-  number: number;
-}
 /** The item a link to `url` names when it is an issue or pull request of the bound repository, else null. */
 export function linkedItem(url: string, links: ForgeLinks): DetailItem | null {
   for (const kind of ['issue', 'pullRequest'] as const) {

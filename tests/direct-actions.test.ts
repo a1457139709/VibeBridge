@@ -1,7 +1,17 @@
 import test from 'node:test';
+import type { ForgeLists } from '../app/shared/forge/sidebar-data';
 import assert from 'node:assert/strict';
 import { ghDouble, type GhPullRequest } from './support/gh-double';
-import { boundWorkbench, day, forgeAccount } from './support/bound-workbench';
+import {
+  boundWorkbench,
+  day,
+  forgeAccount,
+  issueDetail,
+  pullRequestDetail,
+  shownDetail,
+  shownLists,
+  showList,
+} from './support/bound-workbench';
 
 const issue = (number: number, extra: object = {}) => ({
   number,
@@ -23,7 +33,7 @@ test('closing an issue as completed or not planned and reopening it carry back t
   await ghDouble(context, { ...forgeAccount, issues: [issue(3), issue(4)] });
   const f = await boundWorkbench('direct-actions-issue');
   const read = async (number: number) => {
-    const result = await f.workbench.issueDetail(f.projectId, number);
+    const result = await issueDetail(f.workbench, f.projectId, number);
     assert.ok(result.ok);
     return [result.issue.state, result.issue.closedAs];
   };
@@ -48,11 +58,41 @@ test('closing an issue as completed or not planned and reopening it carry back t
   }
 });
 
+test('a direct action reported on an issue reloads the first page and the open detail with what the forge then holds', async context => {
+  await ghDouble(context, { ...forgeAccount, issues: [issue(3), issue(4)] });
+  const f = await boundWorkbench('direct-actions-reload');
+  const item = { kind: 'issue', number: 3 } as const;
+  try {
+    const listed = await showList(f.workbench, f.projectId);
+    assert.deepEqual(
+      listed.issues.loaded?.items.map(row => row.number),
+      [4, 3],
+    );
+    await issueDetail(f.workbench, f.projectId, 3);
+    assert.ok((await f.workbench.directAction(f.projectId, { kind: 'closeIssue', number: 3, reason: 'completed' })).ok);
+    let lists: ForgeLists | undefined;
+    const detail = await shownDetail(f.workbench, f.projectId, item, async () => {
+      lists = await shownLists(f.workbench, f.projectId, () =>
+        f.workbench.forgeSidebar.reloadChanged(f.projectId, item),
+      );
+    });
+    assert.deepEqual(
+      lists?.issues.loaded?.items.map(row => row.number),
+      [4],
+      'the closed issue leaves the open issues',
+    );
+    assert.ok(detail.ok && 'issue' in detail);
+    assert.deepEqual([detail.issue.state, detail.issue.closedAs], ['closed', 'completed']);
+  } finally {
+    await f.close();
+  }
+});
+
 test('merging with a method, closing and reopening a pull request carry back the forge text, and the pull request reads back changed', async context => {
   await ghDouble(context, { ...forgeAccount, pullRequests: [change(12), change(13)] });
   const f = await boundWorkbench('direct-actions-pull-request');
   const read = async (number: number) => {
-    const result = await f.workbench.pullRequestDetail(f.projectId, number);
+    const result = await pullRequestDetail(f.workbench, f.projectId, number);
     assert.ok(result.ok);
     return result.pullRequest.state;
   };
@@ -136,8 +176,8 @@ test('a detail says whether the active account may write to the repository', asy
   const f = await boundWorkbench('direct-actions-permission');
   const canWrite = async () => {
     const [issueResult, pullResult] = [
-      await f.workbench.issueDetail(f.projectId, 3),
-      await f.workbench.pullRequestDetail(f.projectId, 12),
+      await issueDetail(f.workbench, f.projectId, 3),
+      await pullRequestDetail(f.workbench, f.projectId, 12),
     ];
     assert.ok(issueResult.ok && pullResult.ok);
     return [issueResult.issue.canWrite, pullResult.pullRequest.canWrite];
