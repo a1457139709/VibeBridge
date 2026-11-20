@@ -7,6 +7,7 @@ import {
   answersTakenIn,
   byNumber,
   detail,
+  detailTitle,
   forge,
   issue,
   numbers,
@@ -94,6 +95,66 @@ test('an update reported while one runs joins it: no read is asked twice, and th
   assert.equal(lists()?.issues.loaded?.items[1].title, 'Updated');
   t.mock.timers.tick(updateInterval);
   assert.equal(reads.length, count + 3, 'the next scheduled update asks again');
+});
+
+test('an update reported while a refresh or a newly shown filter loads joins it, the read of the open detail too', async () => {
+  const sidebar = sidebarData();
+  const { data, reads, shownDetail } = sidebar;
+  await shownIssues(sidebar, [3]);
+  const opened = data.showDetail('alpha', { kind: 'issue', number: 3 });
+  reads[1].answer(detail(3));
+  await opened;
+  await data.reportPresence({ ...inFront, foreground: false });
+  const refreshed = data.refresh('alpha');
+  const joined = data.reportPresence(inFront);
+  assert.deepEqual(
+    asked(reads.slice(2)),
+    [
+      { filter: openNoFilter, cursor: null },
+      { kind: 'issue', number: 3 },
+    ],
+    'the update joins the refresh: no part is asked twice',
+  );
+  reads[2].answer(page([3]));
+  reads[3].answer(detail(3, 'Refreshed'));
+  await Promise.all([refreshed, joined]);
+  assert.equal(detailTitle(shownDetail()), 'Refreshed');
+
+  await data.reportPresence({ ...inFront, foreground: false });
+  const searched = { ...openNoFilter, search: 'x' };
+  const loading = data.showList('alpha', { tab: 'issues', filter: searched });
+  const updated = data.reportPresence(inFront);
+  assert.deepEqual(
+    asked(reads.slice(4)),
+    [
+      { filter: searched, cursor: null },
+      { kind: 'issue', number: 3 },
+    ],
+    'the update joins the load, and reads the open detail no read was asking',
+  );
+  reads[4].answer(page([3]));
+  reads[5].answer(detail(3));
+  await Promise.all([loading, updated]);
+});
+
+test('a refresh asked while a background update runs joins the read of the open detail', async () => {
+  const sidebar = sidebarData();
+  const { data, reads, shownDetail } = sidebar;
+  await shownIssues(sidebar, [3]);
+  const opened = data.showDetail('alpha', { kind: 'issue', number: 3 });
+  reads[1].answer(detail(3));
+  await opened;
+  await data.reportPresence({ ...inFront, foreground: false });
+  const updated = data.reportPresence(inFront);
+  const refreshed = data.refresh('alpha');
+  assert.deepEqual(
+    reads.slice(2).flatMap(read => read.item ?? []),
+    [{ kind: 'issue', number: 3 }],
+    'the open detail is asked once',
+  );
+  for (const read of reads.slice(2)) read.answer(read.item ? detail(3, 'Updated') : page([3]));
+  await Promise.all([updated, refreshed]);
+  assert.equal(detailTitle(shownDetail()), 'Updated');
 });
 
 test('a background update asks the first page, the rendered rows by number and the open detail at once, and a row past the first page shows its new state where it is', async () => {
