@@ -172,6 +172,27 @@ test('the lists of the 5 projects shown last are kept; showing a sixth drops tho
   );
 });
 
+test('a project whose lists were dropped for a sixth updates afresh once shown again, not joining its update from before', async () => {
+  const sidebar = sidebarData();
+  const { data, reads } = sidebar;
+  const behind = { visible: true, foreground: false, projectId: 'p1' };
+  await shownIssues(sidebar, [1], 'p1');
+  await data.reportPresence(behind);
+  void data.reportPresence({ ...behind, foreground: true });
+  for (const projectId of ['p2', 'p3', 'p4', 'p5', 'p6']) await shownIssues(sidebar, [1], projectId);
+  await shownIssues(sidebar, [1], 'p1');
+  await data.reportPresence(behind);
+  const count = reads.length;
+  const updated = data.reportPresence({ ...behind, foreground: true });
+  assert.deepEqual(
+    reads.slice(count).map(read => [read.projectId, read.query]),
+    [['p1', { filter: openNoFilter, cursor: null }]],
+    'the update reads its first page',
+  );
+  reads.at(-1)!.answer(page([1]));
+  await updated;
+});
+
 test("each tab keeps only its latest filter's rows, and switching to a kept tab shows them at once while they update", async () => {
   const sidebar = sidebarData();
   const { data, reads, lists } = sidebar;

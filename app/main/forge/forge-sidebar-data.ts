@@ -251,7 +251,8 @@ export class ForgeSidebarData {
     }
     return shown;
   }
-  /** Keeps empty lists for the project on `view`, dropping the lists of the project shown longest ago beyond the limit. */
+  /** Keeps empty lists for the project on `view`, dropping the lists, open detail and running update of the project
+   * shown longest ago beyond the limit. */
   private add(projectId: string, view: ForgeListView) {
     const shown = emptyLists(view);
     this.lists.set(projectId, shown);
@@ -259,6 +260,7 @@ export class ForgeSidebarData {
       if (this.lists.size <= projectsKept) break;
       this.lists.delete(oldest);
       this.openDetails.delete(oldest);
+      this.updates.forget(oldest);
     }
     return shown;
   }
