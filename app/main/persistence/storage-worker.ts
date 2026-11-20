@@ -23,13 +23,13 @@ db.exec(`PRAGMA journal_mode=WAL; PRAGMA foreign_keys=ON;
   CREATE TABLE IF NOT EXISTS bound_repositories (project_id TEXT PRIMARY KEY REFERENCES projects(id), forge TEXT NOT NULL, host TEXT NOT NULL,
     repository_id TEXT NOT NULL, path TEXT NOT NULL);
   CREATE TABLE IF NOT EXISTS forge_sidebar (id INTEGER PRIMARY KEY CHECK(id=1), preferences TEXT NOT NULL);
-  -- Dispatch Records with the skill dispatched. Earlier versions stored their records without the skill in \`dispatches\`;
-  -- that table is neither read nor dropped, so an earlier version opened on this file still has its records. This table
-  -- has no foreign key because an earlier version deletes projects without knowing it: its rows are read only for
-  -- projects that exist.
+  -- Dispatch Records with the skill dispatched. Records earlier versions stored without the skill, in \`dispatches\`,
+  -- cannot show it: that table is dropped, and nothing else with it. This table has no foreign key because an earlier
+  -- version deletes projects without knowing it: its rows are read only for projects that exist.
   CREATE TABLE IF NOT EXISTS dispatches_with_skill (project_id TEXT NOT NULL, forge TEXT NOT NULL, host TEXT NOT NULL,
     repository_id TEXT NOT NULL, path TEXT NOT NULL, issue INTEGER NOT NULL, dispatched_at TEXT NOT NULL, agent TEXT NOT NULL,
     skill TEXT NOT NULL, text TEXT NOT NULL, session_id TEXT NOT NULL);
+  DROP TABLE IF EXISTS dispatches;
   -- Bindings and dispatches stored without the repository's ID cannot name it: their projects are bound again
   -- (docs/adr/0006-forges-sit-behind-an-interface.md).
   DROP TABLE IF EXISTS repository_bindings;
@@ -208,9 +208,6 @@ parentPort!.on('message', ({ id, operation, value }) => {
       transaction(() => {
         db.prepare('DELETE FROM panels WHERE project_id=?').run(value.id);
         db.prepare('DELETE FROM dispatches_with_skill WHERE project_id=?').run(value.id);
-        // An earlier version's records point at the project with a foreign key, so they go with it.
-        if (db.prepare("SELECT 1 FROM sqlite_master WHERE type='table' AND name='dispatches'").get())
-          db.prepare('DELETE FROM dispatches WHERE project_id=?').run(value.id);
         db.prepare('DELETE FROM bound_repositories WHERE project_id=?').run(value.id);
         db.prepare('DELETE FROM projects WHERE id=?').run(value.id);
         db.prepare(
