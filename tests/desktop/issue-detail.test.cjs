@@ -24,6 +24,11 @@ module.exports = {
     const snapshot = await require('./support/project.cjs')(base, 'Detail project', { Codex: 1 });
     const context = await require('./support/terminal-waits.cjs')(base);
     const { evaluate, until, click, reportedSize } = context;
+    // The screen may draw the window narrower than it opens (1024px on the CI runner), and a detail wider than the room
+    // beside the navigation covers the navigation. At 1280px the detail fits beside it, so a squeezed layout area ends
+    // at the detail's left edge.
+    base.window.setContentSize(1280, base.window.getContentSize()[1]);
+    await until(() => evaluate('document.documentElement.clientWidth === 1280'), 'window content is 1280px wide');
     const closeDetail = () => evaluate('document.querySelector(".forge-detail-bar button[aria-label=Close]").click()');
     const project = snapshot.projects[0];
     const [run] = runsOf(snapshot);
