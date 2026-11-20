@@ -1,4 +1,5 @@
 import './support/dom';
+import { localize } from '../../app/shared/localization/localization';
 import assert from 'node:assert/strict';
 import test, { afterEach, before } from 'node:test';
 import { act, cleanup, waitFor, within } from '@testing-library/react';
@@ -13,6 +14,8 @@ import {
   sidebar,
   stubSidebarApis,
 } from './support/forge-lists';
+
+const { t } = localize('en');
 
 afterEach(cleanup);
 before(stubSidebarApis);
@@ -38,7 +41,7 @@ test('the pointer resting on a row reports its item once, moving to another repo
   await user.hover(within(sidebar()).getByText('#9'));
   await user.hover(titleOf('Issue 8'));
   await user.unhover(titleOf('Issue 8'));
-  await user.hover(within(sidebar()).getByRole('tab', { name: 'Issues' }));
+  await user.hover(within(sidebar()).getByRole('tab', { name: t('issuesTab') }));
   assert.deepEqual(reported, [{ kind: 'issue', number: 9 }, { kind: 'issue', number: 8 }, null]);
 });
 
@@ -47,7 +50,9 @@ test('keyboard focus on a row reports its item, and focus leaving the rows repor
   titleOf('Issue 9').focus();
   await user.keyboard('{ArrowDown}');
   await waitFor(() => assert.equal(document.activeElement, titleOf('Issue 8')));
-  within(sidebar()).getByRole('tab', { name: 'Issues' }).focus();
+  within(sidebar())
+    .getByRole('tab', { name: t('issuesTab') })
+    .focus();
   assert.deepEqual(reported, [{ kind: 'issue', number: 9 }, { kind: 'issue', number: 8 }, null]);
 });
 
@@ -62,7 +67,7 @@ test('a rested row that unmounts, as a refresh drops it, reports none', async ()
 
 test('a pull request row reports its item', async () => {
   const { user, reported, request } = await restingRows();
-  await user.click(within(sidebar()).getByRole('tab', { name: 'Pull requests' }));
+  await user.click(within(sidebar()).getByRole('tab', { name: t('pullRequestsTab') }));
   (await request(2)).answer(page([pullRequest(4)]));
   await waitFor(() => assert.deepEqual(rows(), ['Change 4']));
   await user.hover(titleOf('Change 4'));
