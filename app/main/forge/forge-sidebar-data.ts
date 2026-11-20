@@ -4,6 +4,7 @@ import {
   detailItemSchema,
   forgeListViewSchema,
   forgeSidebarPresenceSchema,
+  sameItem,
   type DetailItem,
   type FailedPage,
   type ForgeListItems,
@@ -39,7 +40,6 @@ interface OpenDetail {
   reading: Promise<void> | null;
 }
 
-const sameItem = (a: DetailItem, b: DetailItem) => a.kind === b.kind && a.number === b.number;
 const tabOf = (item: DetailItem): ForgeListTab => (item.kind === 'issue' ? 'issues' : 'pullRequests');
 
 /** The Forge sidebar's data (docs/adr/0008-forge-sidebar-data-lives-in-the-main-process.md): each project's lists, the
@@ -64,7 +64,7 @@ export class ForgeSidebarData {
   /** Each project's binding, counted up when it changes: an answer for an earlier one is not kept. */
   private bindings = new Map<string, number>();
   private presence: ForgeSidebarPresence | null = null;
-  private updates = new BackgroundUpdates(projectId => this.update(projectId));
+  private updates = new BackgroundUpdates(projectId => this.updateShownData(projectId));
   /** The row the pointer or focus rests on, until its detail is read ahead. */
   private rowRest = new RowRest();
   constructor(private sources: ForgeSidebarSources) {}
@@ -88,12 +88,12 @@ export class ForgeSidebarData {
    * loads. Resolves once the lists settled. */
   showList(projectId: string, view: ForgeListView) {
     const declared = forgeListViewSchema.parse(view);
-    const cached = this.keep(projectId);
-    if (cached && cached.view.tab === declared.tab && sameFilter(cached.view.filter, declared.filter)) {
-      this.settle(projectId, cached, cached.lists);
-      return cached.settled;
+    const keptLists = this.useLists(projectId);
+    if (keptLists && keptLists.view.tab === declared.tab && sameFilter(keptLists.view.filter, declared.filter)) {
+      this.settle(projectId, keptLists, keptLists.lists);
+      return keptLists.settled;
     }
-    const shown = cached ?? this.add(projectId, declared);
+    const shown = keptLists ?? this.add(projectId, declared);
     shown.view = declared;
     const loaded = shown.lists[declared.tab].loaded;
     const kept = !!loaded && sameFilter(loaded.filter, declared.filter);
@@ -107,7 +107,7 @@ export class ForgeSidebarData {
   }
   /** Appends the next page of the rows shown, in the filter that produced them. */
   async loadMore(projectId: string) {
-    const shown = this.keep(projectId);
+    const shown = this.useLists(projectId);
     const loaded = shown?.lists[shown.view.tab].loaded;
     if (!shown || !loaded?.cursor) return;
     return this.load(projectId, shown, shown.view.tab, loaded.filter, 'append');
@@ -116,7 +116,7 @@ export class ForgeSidebarData {
    * its rows, and the open detail again, unless a read of it is on its way; the rows and the detail keep showing until
    * their new answers. */
   async refresh(projectId: string) {
-    const shown = this.keep(projectId);
+    const shown = this.useLists(projectId);
     await Promise.all([
       shown && this.load(projectId, shown, shown.view.tab, shown.view.filter, 'replace', pagesThroughRows(shown)),
       this.rereadOpenDetail(projectId),
@@ -193,8 +193,8 @@ export class ForgeSidebarData {
   }
   /** Updates the project's data in the background: the shown tab, unless a request of its lists is running, and the
    * open detail, unless a read of it is on its way; asked at once. */
-  private async update(projectId: string) {
-    const shown = this.keep(projectId);
+  private async updateShownData(projectId: string) {
+    const shown = this.useLists(projectId);
     await Promise.all([
       shown && (shown.request ? shown.settled : this.updateShownTab(projectId, shown)),
       this.rereadOpenDetail(projectId),
@@ -238,7 +238,7 @@ export class ForgeSidebarData {
     this.settle(projectId, shown, { ...shown.lists, [tab]: { ...shown.lists[tab], failed } });
   }
   /** The project's kept lists, now the most recently used; undefined when none are kept. */
-  private keep(projectId: string) {
+  private useLists(projectId: string) {
     const shown = this.lists.get(projectId);
     if (shown) {
       this.lists.delete(projectId);
