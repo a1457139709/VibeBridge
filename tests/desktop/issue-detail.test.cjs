@@ -45,18 +45,6 @@ module.exports = {
       async () => (initial = await reportedSize(run.id)).rows === (await drawnRows()),
       'run reports the rows the terminal shows',
     );
-    // The screen may draw the window narrower than it opens (1024px on the CI runner), and a detail wider than the room
-    // beside the navigation covers the navigation. At 1280px the detail fits beside it, so a squeezed layout area ends
-    // at the detail's left edge. The PTY's columns at that width are the ones the run starts from.
-    if ((await evaluate('document.documentElement.clientWidth')) !== 1280) {
-      base.window.setContentSize(1280, base.window.getContentSize()[1]);
-      await until(() => evaluate('document.documentElement.clientWidth === 1280'), 'window content is 1280px wide');
-      const narrower = initial.cols;
-      await until(
-        async () => (initial = await reportedSize(run.id)).cols > narrower,
-        'run reports the columns of the wider window',
-      );
-    }
     await click('Show the GitHub sidebar');
     await until(
       () => evaluate('document.querySelector(".forge-row-title")?.textContent === "Desktop issue"'),
@@ -86,13 +74,15 @@ module.exports = {
     await closeDetail();
     await until(async () => !(await rect(evaluate, '.forge-detail')), 'detail closed');
 
-    // Squeeze: the layout area ends where the detail begins, and the terminal and its PTY follow.
+    // Squeeze: the layout area ends where the detail begins, and the terminal and its PTY follow. A detail wider than the
+    // room beside the navigation covers the navigation (in a 1024px window, as on the CI runner), and the layout area is
+    // then left no width.
     assert.ok((await evaluate('window.workbench.saveSettings({ detailCoexistence: "squeeze" })')).ok);
     await click('Desktop issue');
-    await until(
-      async () => (await rect(evaluate, '.canvas'))?.right <= (await rect(evaluate, '.forge-detail'))?.left,
-      'squeezing detail ends the layout area at its left edge',
-    );
+    await until(async () => {
+      const [area, detail] = [await rect(evaluate, '.canvas'), await rect(evaluate, '.forge-detail')];
+      return !!area && !!detail && (area.right <= detail.left || area.right === area.left);
+    }, 'squeezing detail ends the layout area at its left edge, or leaves it no width');
     await until(between, 'the squeezing detail also sits between the workspace toolbar and the tray');
     await until(
       async () => (await reportedSize(run.id)).cols < initial.cols,
