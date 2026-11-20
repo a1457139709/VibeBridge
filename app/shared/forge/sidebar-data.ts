@@ -47,6 +47,8 @@ export type ShownRepositoryChoices = RepositoryChoices | null;
 /** An issue or pull request of the bound repository, as the detail opens it. */
 export const detailItemSchema = z.object({ kind: z.enum(['issue', 'pullRequest']), number: itemNumberSchema });
 export type DetailItem = z.infer<typeof detailItemSchema>;
+/** Whether two items are the same issue or pull request; no item is the same as no item. */
+export const sameItem = (a: DetailItem | null, b: DetailItem | null) => a?.kind === b?.kind && a?.number === b?.number;
 /** What the forge answered for the detail's item: the issue or pull request, or the forge failure. */
 export type DetailResult = IssueDetailResult | PullRequestDetailResult;
 /** An item the sidebar's detail shows, the forge's answer for it, and the failure of a later read, which leaves that

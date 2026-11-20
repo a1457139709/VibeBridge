@@ -17,13 +17,13 @@ export class BackgroundUpdates {
     if (this.schedule) clearInterval(this.schedule);
     this.schedule = null;
     if (projectId === null) return Promise.resolve();
-    this.schedule = setInterval(() => void this.update(projectId), updateInterval);
+    this.schedule = setInterval(() => void this.startOrJoin(projectId), updateInterval);
     // The schedule alone keeps no process running.
     this.schedule.unref();
-    return this.update(projectId);
+    return this.startOrJoin(projectId);
   }
-  /** Updates the project, or joins its update already running. */
-  update(projectId: string) {
+  /** Starts an update of the project, or joins its update already running. */
+  private startOrJoin(projectId: string) {
     const running = this.running.get(projectId);
     if (running) return running;
     const updating = this.updateNow(projectId).finally(() => {
