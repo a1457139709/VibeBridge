@@ -196,6 +196,41 @@ test('a refresh reloads every page from the first through the one holding the la
   assert.equal(lists()?.loading, false);
 });
 
+test('after a background update adds rows, a refresh still reloads through the page holding the last row shown', async () => {
+  const { data, reads, readNumber, lists } = sidebarData();
+  const behind = { visible: true, foreground: false, projectId: 'alpha' };
+  await data.reportPresence(behind);
+  const shown = data.showList('alpha', { tab: 'issues', filter: openNoFilter });
+  reads[0].answer(page([1, 2], 'p2'));
+  await shown;
+  for (const [index, numbers, cursor] of [
+    [1, [3, 4], 'p3'],
+    [2, [5, 6], null],
+  ] as const) {
+    const more = data.loadMore('alpha');
+    reads[index].answer(page([...numbers], cursor));
+    await more;
+  }
+  const updated = data.reportPresence({ ...behind, foreground: true });
+  reads[3].answer(page([8, 7], 'p2'));
+  await updated;
+  await data.showRows('alpha', [5, 6]);
+  const refreshed = data.refresh('alpha');
+  // The rows the update added push each row after them down the forge's pages: rows 5 and 6 now sit on a fourth.
+  for (const [count, cursor, answer] of [
+    [5, null, page([8, 7], 'p2')],
+    [6, 'p2', page([1, 2], 'p3')],
+    [7, 'p3', page([3, 4], 'p4')],
+    [8, 'p4', page([5, 6], null)],
+  ] as const) {
+    const read = await readNumber(count);
+    assert.deepEqual(read.query, { filter: openNoFilter, cursor }, `page ${count - 4} is reloaded`);
+    read.answer(answer);
+  }
+  await refreshed;
+  assert.deepEqual(numbers(lists()), [8, 7, 1, 2, 3, 4, 5, 6], 'the rows shown are reloaded');
+});
+
 test('with no rows shown a refresh reloads the first page only', async () => {
   const { data, reads, lists } = sidebarData();
   const shown = data.showList('alpha', { tab: 'issues', filter: openNoFilter });
