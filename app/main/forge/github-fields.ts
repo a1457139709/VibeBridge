@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import type { PullRequestState } from '../../shared/forge/forge';
+import type { ChecksConclusion, PullRequestState } from '../../shared/forge/forge';
 
 // GitHub's GraphQL fields that the adapter's issue and pull request reads share, and how they map to domain shapes.
 
@@ -45,3 +45,18 @@ export const answeredBy = (repository: { databaseId: number; nameWithOwner: stri
   id: String(repository.databaseId),
   path: repository.nameWithOwner,
 });
+
+const checksConclusion: Record<z.infer<typeof checksState>, ChecksConclusion> = {
+  SUCCESS: 'passed',
+  FAILURE: 'failed',
+  ERROR: 'failed',
+  PENDING: 'pending',
+  EXPECTED: 'pending',
+};
+/** The checks conclusion of a pull request's latest commit, from its status check rollup. */
+export const latestChecks = (commits: {
+  nodes: { commit: { statusCheckRollup: { state: z.infer<typeof checksState> } | null } }[];
+}): ChecksConclusion => {
+  const rollup = commits.nodes[0]?.commit.statusCheckRollup;
+  return rollup ? checksConclusion[rollup.state] : 'none';
+};
