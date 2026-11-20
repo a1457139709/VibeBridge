@@ -83,7 +83,7 @@ test('the repositories a project can bind are read once per call, only the lates
   const failing = data.showRepositoryChoices('alpha');
   reads[2].fail(new Error('Project missing'));
   await failing;
-  assert.deepEqual(choices(), { ok: false, error: 'Project missing' });
+  assert.deepEqual(choices(), { ok: false, failure: { kind: 'transient', detail: 'Project missing', forge } });
 });
 
 test('forgetting a project, as a binding change does, drops its lists and choices with the answers still on their way', async () => {

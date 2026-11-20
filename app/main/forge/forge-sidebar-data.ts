@@ -27,7 +27,7 @@ import {
 } from './kept-lists';
 import { RowRest } from './row-rest';
 import { BackgroundUpdates } from './background-updates';
-import { readByNumber, readItem, readPage, type ForgeSidebarSources } from './sidebar-reads';
+import { readByNumber, readItem, readPage, readRepositoryChoices, type ForgeSidebarSources } from './sidebar-reads';
 
 /** The projects whose lists are kept, the most recently shown. */
 const projectsKept = 5;
@@ -170,12 +170,7 @@ export class ForgeSidebarData {
     const request = {};
     this.choices.set(projectId, { request, choices: null });
     this.sources.emit({ kind: 'repositoryChoices', projectId, choices: null });
-    let choices: ShownRepositoryChoices;
-    try {
-      choices = await this.sources.repositoryChoices(projectId);
-    } catch (error) {
-      choices = { ok: false, error: (error as Error).message };
-    }
+    const choices = await readRepositoryChoices(this.sources, projectId);
     if (this.choices.get(projectId)?.request !== request) return;
     this.choices.set(projectId, { request, choices });
     this.sources.emit({ kind: 'repositoryChoices', projectId, choices });

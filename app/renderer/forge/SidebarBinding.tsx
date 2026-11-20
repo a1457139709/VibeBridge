@@ -9,13 +9,13 @@ import './sidebar-binding.css';
 /** The repositories the project can bind, as the main process pushes them once this page declares it shows them;
  * null while they are being read. The page declares it again when the project moves to another directory, whose
  * `origin` may point elsewhere, and on Retry; each declaration reads them again. */
-function useShownRepositoryChoices(projectId: string, directory: string) {
+function useShownRepositoryChoices({ id: projectId, directory, forge }: ProjectView) {
   const [choices, setChoices] = useState<ShownRepositoryChoices>(null);
-  // A declaration the main process refuses shows its reason in the list's place, with Retry.
+  // A declaration the main process refuses shows its reason in the list's place, with Retry, like a transient failure.
   const show = () =>
     void window.workbench
       .showRepositoryChoices(projectId)
-      .catch((error: Error) => setChoices({ ok: false, error: error.message }));
+      .catch((error: Error) => setChoices({ ok: false, failure: { kind: 'transient', detail: error.message, forge } }));
   useEffect(() => {
     setChoices(null);
     const stop = window.workbench.subscribe(event => {
@@ -82,7 +82,7 @@ function useFocusHandoff() {
  * Bind button binds at once; the sidebar then shows the bound repository's lists. */
 export function UnboundRepository({ project }: { project: ProjectView }) {
   const { t } = useLocalization();
-  const { choices, listed, retry } = useShownRepositoryChoices(project.id, project.directory);
+  const { choices, listed, retry } = useShownRepositoryChoices(project);
   /** Whether Choose another repository… turned the origin card into the list. */
   const [choosingOther, setChoosingOther] = useState(false);
   const [picked, setPicked] = useState<RepositoryReference>();
@@ -165,7 +165,7 @@ export function ChangeBinding({
 }) {
   const { t } = useLocalization();
   const bound = project.repository;
-  const { choices, listed, retry } = useShownRepositoryChoices(project.id, project.directory);
+  const { choices, listed, retry } = useShownRepositoryChoices(project);
   const [picked, setPicked] = useState<RepositoryReference>();
   const [unbinding, setUnbinding] = useState(false);
   const call = useBindingCall();

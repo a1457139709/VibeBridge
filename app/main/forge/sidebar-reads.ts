@@ -35,54 +35,70 @@ export interface ForgeSidebarSources {
   emit(event: ForgeSidebarEvent): void;
 }
 
-// Each read of the Forge sidebar's data reports a failure outside the forge (the request itself) like a transient one,
-// with its reason.
-
-const outsideForge = (sources: ForgeSidebarSources, projectId: string, error: unknown): ForgeFailure => ({
-  kind: 'transient',
-  detail: (error as Error).message,
-  forge: sources.forge(projectId),
-});
+/** Asks `read` of the sources; a failure outside the forge (the request itself) is reported like a transient one, with
+ * its reason, as `failed` shapes it. */
+async function fromSources<T>(
+  sources: ForgeSidebarSources,
+  projectId: string,
+  read: () => Promise<T>,
+  failed: (failure: ForgeFailure) => T,
+): Promise<T> {
+  try {
+    return await read();
+  } catch (error) {
+    return failed({ kind: 'transient', detail: (error as Error).message, forge: sources.forge(projectId) });
+  }
+}
 
 /** Asks the forge for a page of `tab`. */
-export async function readPage<T extends ForgeListTab>(
+export function readPage<T extends ForgeListTab>(
   sources: ForgeSidebarSources,
   projectId: string,
   tab: T,
   query: ListQuery,
 ): Promise<Page<ForgeListItems[T]>> {
-  try {
-    return (await (tab === 'issues' ? sources.issuePage : sources.pullRequestPage)(projectId, query)) as Page<
-      ForgeListItems[T]
-    >;
-  } catch (error) {
-    return { ok: false, failure: outsideForge(sources, projectId, error), account: null };
-  }
+  const read = tab === 'issues' ? sources.issuePage : sources.pullRequestPage;
+  return fromSources(
+    sources,
+    projectId,
+    () => read(projectId, query) as Promise<Page<ForgeListItems[T]>>,
+    failure => ({ ok: false, failure, account: null }),
+  );
 }
 
 /** Asks the forge for the items of `tab` with these numbers, with no search. */
-export async function readByNumber(
+export function readByNumber(
   sources: ForgeSidebarSources,
   projectId: string,
   tab: ForgeListTab,
   numbers: number[],
 ): Promise<ItemsByNumber<ForgeListItems[ForgeListTab]>> {
-  try {
-    return await (tab === 'issues' ? sources.issuesByNumber : sources.pullRequestsByNumber)(projectId, numbers);
-  } catch (error) {
-    return { ok: false, failure: outsideForge(sources, projectId, error), account: null };
-  }
+  const read = tab === 'issues' ? sources.issuesByNumber : sources.pullRequestsByNumber;
+  return fromSources<ItemsByNumber<ForgeListItems[ForgeListTab]>>(
+    sources,
+    projectId,
+    () => read(projectId, numbers),
+    failure => ({ ok: false, failure, account: null }),
+  );
 }
 
 /** Asks the forge for the item's detail. */
-export async function readItem(
-  sources: ForgeSidebarSources,
-  projectId: string,
-  item: DetailItem,
-): Promise<DetailResult> {
-  try {
-    return await (item.kind === 'issue' ? sources.issueDetail : sources.pullRequestDetail)(projectId, item.number);
-  } catch (error) {
-    return { ok: false, failure: outsideForge(sources, projectId, error) };
-  }
+export function readItem(sources: ForgeSidebarSources, projectId: string, item: DetailItem): Promise<DetailResult> {
+  const read = item.kind === 'issue' ? sources.issueDetail : sources.pullRequestDetail;
+  return fromSources<DetailResult>(
+    sources,
+    projectId,
+    () => read(projectId, item.number),
+    failure => ({ ok: false, failure }),
+  );
+}
+
+/** Asks the forge for the repositories the project can bind. */
+export function readRepositoryChoices(sources: ForgeSidebarSources, projectId: string): Promise<RepositoryChoices> {
+  return fromSources<RepositoryChoices>(
+    sources,
+    projectId,
+    () => sources.repositoryChoices(projectId),
+    failure => ({ ok: false, failure }),
+  );
 }

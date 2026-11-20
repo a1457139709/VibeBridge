@@ -40,9 +40,9 @@ export interface TabList<Item> {
  * each tab's rows and failure, and whether a request is running. */
 export type ForgeLists = { [T in ForgeListTab]: TabList<ForgeListItems[T]> } & { loading: boolean };
 
-/** The repositories a project can bind as the sidebar's binding pages show them: the forge's answer, or the reason the
- * read itself failed; null while it is being read. */
-export type ShownRepositoryChoices = RepositoryChoices | { ok: false; error: string } | null;
+/** The repositories a project can bind as the sidebar's binding pages show them: the forge's answer, a failure of the
+ * read itself standing as a transient one; null while it is being read. */
+export type ShownRepositoryChoices = RepositoryChoices | null;
 
 /** An issue or pull request of the bound repository, as the detail opens it. */
 export const detailItemSchema = z.object({ kind: z.enum(['issue', 'pullRequest']), number: itemNumberSchema });
