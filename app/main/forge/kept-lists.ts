@@ -81,11 +81,17 @@ export function joinedPages<Item extends { number: number }>(
   return { rows: { failed: null, loaded: { ...page, filter, items } }, pageEnds };
 }
 
-/** How many pages of the shown tab, from the first, hold every row the sidebar renders; at least one. */
+/** How many pages of the shown tab, from the first, hold every row the sidebar renders; at least one. The forge's pages
+ * hold the rows by position: a row an update pushed past the pages loaded, by the rows it added above, sits on the pages
+ * after them, each as long as the first. */
 export function pagesThroughRows(kept: KeptLists) {
   const { tab } = kept.view;
   const items: { number: number }[] = kept.lists[tab].loaded?.items ?? [];
   const rendered = new Set(kept.rows);
   const last = items.findLastIndex(item => rendered.has(item.number));
-  return Math.max(kept.pageEnds[tab].findIndex(end => end > last) + 1, 1);
+  const ends = kept.pageEnds[tab];
+  const holding = ends.findIndex(end => end > last);
+  if (holding >= 0) return holding + 1;
+  const pastLoaded = last + 1 - (ends.at(-1) ?? 0);
+  return Math.max(ends.length + Math.ceil(pastLoaded / (ends[0] || 1)), 1);
 }
