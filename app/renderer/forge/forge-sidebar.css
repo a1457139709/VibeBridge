@@ -528,7 +528,8 @@
 }
 .forge-detail {
   position: absolute;
-  right: 100%;
+  /* Ends at the sidebar's border, not inside it: the detail and the sidebar together take their widths of the window. */
+  right: calc(100% + 1px);
   top: 0;
   bottom: 0;
   z-index: 30;
