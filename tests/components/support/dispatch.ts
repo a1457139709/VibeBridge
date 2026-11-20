@@ -43,6 +43,8 @@ export async function listed(
     },
     // The detail is only opened, never answered.
     issueDetail: () => new Promise(() => {}),
+    // Focus rests on the dispatched row; reading it ahead would add reads beside the ones these tests count.
+    reportForgeRowResting: async () => {},
   });
   const first = await f.request(1);
   // The app has subscribed once it asks for the list.
