@@ -30,7 +30,7 @@ module.exports = {
       (await window.workbench.repositoryChoices(${JSON.stringify(project.id)}, ${JSON.stringify(project.directory)}))
         .repositories.find(item => item.path === 'octo/desktop')))()`);
     const remembered = () =>
-      evaluate('(({ navigation, forgeSidebar }) => ({ navigation, forgeSidebar }))(window.workbench.snapshot())');
+      evaluate('window.workbench.snapshot().then(({ navigation, forgeSidebar }) => ({ navigation, forgeSidebar }))');
     const center = box => ({ x: Math.round(box.left + box.width / 2), y: 300 });
     // Drags the edge to x, which may lie beyond where the edge can go.
     const drag = async (selector, x) => {
