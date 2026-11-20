@@ -9,6 +9,7 @@ import { ChangeBinding, UnboundRepository } from './SidebarBinding';
 import { ForgeLists, SidebarHead, type DetailHost, type ForgeListsActions } from './ForgeLists';
 import type { DispatchTarget } from '../../shared/dispatch';
 import { capturePointer } from '../common/pointer-capture';
+import type { ReportNotice } from '../common/Notices';
 import './forge-sidebar.css';
 
 interface Host {
@@ -17,7 +18,7 @@ interface Host {
   project?: ProjectView;
   /** Locates a panel; an ephemeral one opens as its temporary maximize. */
   locatePanel(projectId: string, panelId: string): void;
-  report(message: string): void;
+  report: ReportNotice;
 }
 
 /** The detail's width while the app runs: dragging its left edge sets it within these bounds. */
@@ -159,6 +160,7 @@ export function useForgeSidebar(host: Host, api: Pick<DesktopAPI, 'saveSidebar' 
               openMenuBinding: snapshot!.settings.shortcuts.openDispatchMenu,
               lastTargets,
               locate: host.locatePanel,
+              locateBinding: snapshot!.settings.shortcuts.locateDispatchedPanel,
               report: host.report,
               rememberLastTarget: (command, target) => setLastTargets(targets => new Map(targets).set(command, target)),
             }}

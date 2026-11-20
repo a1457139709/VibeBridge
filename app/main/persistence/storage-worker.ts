@@ -23,9 +23,13 @@ db.exec(`PRAGMA journal_mode=WAL; PRAGMA foreign_keys=ON;
   CREATE TABLE IF NOT EXISTS bound_repositories (project_id TEXT PRIMARY KEY REFERENCES projects(id), forge TEXT NOT NULL, host TEXT NOT NULL,
     repository_id TEXT NOT NULL, path TEXT NOT NULL);
   CREATE TABLE IF NOT EXISTS forge_sidebar (id INTEGER PRIMARY KEY CHECK(id=1), preferences TEXT NOT NULL);
-  CREATE TABLE IF NOT EXISTS dispatches (project_id TEXT NOT NULL REFERENCES projects(id), forge TEXT NOT NULL, host TEXT NOT NULL,
-    repository_id TEXT NOT NULL, path TEXT NOT NULL, issue INTEGER NOT NULL, dispatched_at TEXT NOT NULL, agent TEXT NOT NULL, text TEXT NOT NULL,
-    session_id TEXT NOT NULL);
+  -- Dispatch Records with the skill dispatched. Earlier versions stored their records without the skill in \`dispatches\`;
+  -- that table is neither read nor dropped, so an earlier version opened on this file still has its records. This table
+  -- has no foreign key because an earlier version deletes projects without knowing it: its rows are read only for
+  -- projects that exist.
+  CREATE TABLE IF NOT EXISTS dispatches_with_skill (project_id TEXT NOT NULL, forge TEXT NOT NULL, host TEXT NOT NULL,
+    repository_id TEXT NOT NULL, path TEXT NOT NULL, issue INTEGER NOT NULL, dispatched_at TEXT NOT NULL, agent TEXT NOT NULL,
+    skill TEXT NOT NULL, text TEXT NOT NULL, session_id TEXT NOT NULL);
   -- Bindings and dispatches stored without the repository's ID cannot name it: their projects are bound again
   -- (docs/adr/0006-forges-sit-behind-an-interface.md).
   DROP TABLE IF EXISTS repository_bindings;
@@ -82,15 +86,20 @@ function readBindings(projects: Project[]): Record<string, RepositoryReference> 
 /** Every Dispatch Record, oldest first. The repository and Agent type must be ones the Workbench knows. */
 function readDispatchRecords(projects: Project[]): DispatchRecord[] {
   return db
-    .prepare('SELECT * FROM dispatches ORDER BY rowid')
+    .prepare('SELECT * FROM dispatches_with_skill WHERE project_id IN (SELECT id FROM projects) ORDER BY rowid')
     .all()
     .map(row => {
       const project = projects.find(project => project.id === row.project_id)!;
-      const repository = readRepository('dispatches', row, project);
+      const repository = readRepository('dispatches_with_skill', row, project);
       const agent = agentTypeSchema.safeParse(row.agent);
       if (!agent.success)
         throw new Error(
-          message('projectDataInvalid', { file, field: 'dispatches.agent', id: project.id, name: project.name }),
+          message('projectDataInvalid', {
+            file,
+            field: 'dispatches_with_skill.agent',
+            id: project.id,
+            name: project.name,
+          }),
         );
       return {
         projectId: project.id,
@@ -98,6 +107,7 @@ function readDispatchRecords(projects: Project[]): DispatchRecord[] {
         issue: row.issue as number,
         dispatchedAt: row.dispatched_at as string,
         agent: agent.data,
+        skill: row.skill as string,
         text: row.text as string,
         sessionId: row.session_id as string,
       };
@@ -181,7 +191,7 @@ parentPort!.on('message', ({ id, operation, value }) => {
     } else if (operation === 'dispatch') {
       const record = value as DispatchRecord;
       const { forge, host, id: repositoryId, path } = record.repository;
-      db.prepare('INSERT INTO dispatches VALUES (?,?,?,?,?,?,?,?,?,?)').run(
+      db.prepare('INSERT INTO dispatches_with_skill VALUES (?,?,?,?,?,?,?,?,?,?,?)').run(
         record.projectId,
         forge,
         host,
@@ -190,13 +200,17 @@ parentPort!.on('message', ({ id, operation, value }) => {
         record.issue,
         record.dispatchedAt,
         record.agent,
+        record.skill,
         record.text,
         record.sessionId,
       );
     } else if (operation === 'delete')
       transaction(() => {
         db.prepare('DELETE FROM panels WHERE project_id=?').run(value.id);
-        db.prepare('DELETE FROM dispatches WHERE project_id=?').run(value.id);
+        db.prepare('DELETE FROM dispatches_with_skill WHERE project_id=?').run(value.id);
+        // An earlier version's records point at the project with a foreign key, so they go with it.
+        if (db.prepare("SELECT 1 FROM sqlite_master WHERE type='table' AND name='dispatches'").get())
+          db.prepare('DELETE FROM dispatches WHERE project_id=?').run(value.id);
         db.prepare('DELETE FROM bound_repositories WHERE project_id=?').run(value.id);
         db.prepare('DELETE FROM projects WHERE id=?').run(value.id);
         db.prepare(

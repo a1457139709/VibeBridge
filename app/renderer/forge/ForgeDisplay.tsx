@@ -166,23 +166,26 @@ export function Label({ label, onClick }: { label: ForgeLabel; onClick?(): void 
   );
 }
 
-export function RelativeTime({ iso }: { iso: string }) {
-  const { t, language } = useLocalization();
+/** How long ago `iso` was, in words; a month or more gives the date. */
+export function relativeTime(iso: string, { t, language }: ReturnType<typeof useLocalization>) {
   const date = new Date(iso);
   const seconds = (Date.now() - date.getTime()) / 1000;
-  const text =
-    seconds < 60
-      ? t('justNow')
-      : seconds < 3600
-        ? t('minutesAgo', { count: Math.floor(seconds / 60) })
-        : seconds < 86400
-          ? t('hoursAgo', { count: Math.floor(seconds / 3600) })
-          : seconds < 86400 * 30
-            ? t('daysAgo', { count: Math.floor(seconds / 86400) })
-            : date.toLocaleDateString(language);
+  return seconds < 60
+    ? t('justNow')
+    : seconds < 3600
+      ? t('minutesAgo', { count: Math.floor(seconds / 60) })
+      : seconds < 86400
+        ? t('hoursAgo', { count: Math.floor(seconds / 3600) })
+        : seconds < 86400 * 30
+          ? t('daysAgo', { count: Math.floor(seconds / 86400) })
+          : date.toLocaleDateString(language);
+}
+
+export function RelativeTime({ iso }: { iso: string }) {
+  const localization = useLocalization();
   return (
-    <time dateTime={iso} data-hint={date.toLocaleString(language)}>
-      {text}
+    <time dateTime={iso} data-hint={new Date(iso).toLocaleString(localization.language)}>
+      {relativeTime(iso, localization)}
     </time>
   );
 }

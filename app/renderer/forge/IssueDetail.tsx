@@ -10,7 +10,7 @@ import type {
 import type { ProjectView } from '../../shared/model';
 import type { DispatchRecordView } from '../../shared/dispatch';
 import { IssueActions, type Actions } from './DirectActions';
-import { DispatchRecords } from '../dispatch/DispatchRecords';
+import { DispatchRecords, type DispatchRecordsHost } from '../dispatch/DispatchRecords';
 import {
   BlockedMark,
   IssueIcon,
@@ -42,8 +42,7 @@ interface DocumentProps {
 export interface IssueDispatch {
   button: ReactNode;
   records: DispatchRecordView[];
-  /** Locates a panel; an ephemeral one opens as its temporary maximize. */
-  locate(projectId: string, panelId: string): void;
+  host: DispatchRecordsHost;
 }
 
 /** One issue as its detail shows it: the parent, title, state, labels and Dispatch, its Dispatch Records, the relation graph, the pull requests
@@ -99,7 +98,7 @@ export function IssueDocument({ project, issue, open, followLink, actions, dispa
           key={`${issue.number} ${issue.state}`}
           records={dispatch.records}
           folded={issue.state === 'closed'}
-          locate={dispatch.locate}
+          host={dispatch.host}
         />
       )}
       {capabilities.blocking && <RelationGraph issue={issue} blockers={openBlockers} follow={follow} />}

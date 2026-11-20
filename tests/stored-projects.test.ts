@@ -137,6 +137,73 @@ test('a stored Repository Binding with a nested repository path reopens as store
   }
 });
 
+test('dispatch records an earlier version stored without their skill are not shown, and stay stored for it', async context => {
+  const repository = { forge: 'github', host: 'github.com', id: '42', path: 'octo/tools' };
+  const { directory, file } = await storedWorkbench(context, 'stored-without-skill', database =>
+    database.exec(`
+    CREATE TABLE dispatches (project_id TEXT NOT NULL REFERENCES projects(id), forge TEXT NOT NULL, host TEXT NOT NULL,
+      repository_id TEXT NOT NULL, path TEXT NOT NULL, issue INTEGER NOT NULL, dispatched_at TEXT NOT NULL, agent TEXT NOT NULL,
+      text TEXT NOT NULL, session_id TEXT NOT NULL);
+    INSERT INTO bound_repositories VALUES ('${project.id}', 'github', 'github.com', '42', 'octo/tools');
+    INSERT INTO dispatches VALUES ('${project.id}', 'github', 'github.com', '42', 'octo/tools', 7, '2026-01-01T00:00:00Z',
+      'claude', '/implement', 'session-a');`),
+  );
+  const workbench = await Workbench.open(directory);
+  try {
+    const [stored] = workbench.snapshot().projects;
+    assert.deepEqual([stored.name, stored.repository, stored.dispatches], [project.name, repository, []]);
+  } finally {
+    await workbench.quit();
+  }
+  const database = new DatabaseSync(file);
+  try {
+    assert.deepEqual(
+      database
+        .prepare('SELECT session_id FROM dispatches')
+        .all()
+        .map(row => row.session_id),
+      ['session-a'],
+    );
+  } finally {
+    database.close();
+  }
+});
+
+test('a project with dispatch records an earlier version stored can be deleted', async context => {
+  const { directory } = await storedWorkbench(context, 'delete-with-earlier-dispatches', database =>
+    database.exec(`
+    CREATE TABLE dispatches (project_id TEXT NOT NULL REFERENCES projects(id), forge TEXT NOT NULL, host TEXT NOT NULL,
+      repository_id TEXT NOT NULL, path TEXT NOT NULL, issue INTEGER NOT NULL, dispatched_at TEXT NOT NULL, agent TEXT NOT NULL,
+      text TEXT NOT NULL, session_id TEXT NOT NULL);
+    INSERT INTO dispatches VALUES ('${project.id}', 'github', 'github.com', '42', 'octo/tools', 7, '2026-01-01T00:00:00Z',
+      'claude', '/implement', 'session-a');`),
+  );
+  let workbench = await Workbench.open(directory);
+  try {
+    await workbench.deleteProject(project.id);
+    await workbench.quit();
+    workbench = await Workbench.open(directory);
+    assert.deepEqual(workbench.snapshot().projects, []);
+  } finally {
+    await workbench.quit();
+  }
+});
+
+test('dispatch records of a project an earlier version deleted are not read', async context => {
+  const { directory } = await storedWorkbench(context, 'dispatches-of-deleted-project', database =>
+    database.exec(`
+    INSERT INTO dispatches_with_skill VALUES ('project-gone', 'github', 'github.com', '42', 'octo/tools', 7,
+      '2026-01-01T00:00:00Z', 'claude', 'implement', '/implement', 'session-a');`),
+  );
+  const workbench = await Workbench.open(directory);
+  try {
+    const [stored] = workbench.snapshot().projects;
+    assert.deepEqual([stored.name, stored.dispatches], [project.name, []]);
+  } finally {
+    await workbench.quit();
+  }
+});
+
 test('bindings and dispatches stored without the repository ID are dropped: the project reopens unbound and can be deleted', async context => {
   const { directory } = await storedWorkbench(context, 'stored-without-repository-id', database =>
     database.exec(`

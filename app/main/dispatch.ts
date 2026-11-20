@@ -37,6 +37,9 @@ export interface DispatchRecord {
   /** ISO 8601. */
   dispatchedAt: string;
   agent: AgentType;
+  /** The skill dispatched, as the workflow command names it, without the Agent type's invocation syntax. */
+  skill: string;
+  /** The full text sent; kept in the store, not shown. */
   text: string;
   sessionId: string;
 }
@@ -75,34 +78,34 @@ export class Dispatches {
   ) {}
 
   /** Adds to each project its dispatches to its bound repository, oldest first, each with the panel on its session now:
-   * that panel may be in any project, and shows its processing state and session title. A dispatch still waiting for its
-   * new panel's first session shows that panel. */
+   * that panel may be in any project. A dispatch still waiting for its new panel's first session shows that panel. */
   withViews(projects: Omit<ProjectView, 'dispatches'>[]): ProjectView[] {
-    const where = ({ projectId, panelId }: PanelLocation): DispatchLocation | undefined => {
+    const where = ({ projectId, panelId }: PanelLocation): DispatchLocation | null => {
       const project = projects.find(project => project.id === projectId);
-      const panel = project && projectPanels(project).find(panel => panel.id === panelId);
-      return (
-        panel && {
-          projectId,
-          panelId,
-          ...(panel.status ? { status: panel.status } : {}),
-          ...(panel.run?.title ? { title: panel.run.title } : {}),
-        }
-      );
+      const open = project && projectPanels(project).some(panel => panel.id === panelId);
+      return open ? { projectId, panelId } : null;
     };
     const view = (
-      { issue, dispatchedAt, agent, text }: UnrecordedDispatch,
+      { issue, dispatchedAt, agent, skill }: UnrecordedDispatch,
+      sessionId: string | undefined,
       location: PanelLocation | undefined,
-    ): DispatchRecordView => ({ issue, dispatchedAt, agent, text, location: (location && where(location)) ?? null });
+    ): DispatchRecordView => ({
+      issue,
+      dispatchedAt,
+      agent,
+      skill,
+      ...(sessionId ? { sessionId } : {}),
+      location: location ? where(location) : null,
+    });
     const views = (project: Omit<ProjectView, 'dispatches'>) =>
       [
         ...this.records.map(record => ({
           record,
-          view: () => view(record, this.supervision.locate(record.sessionId)),
+          view: () => view(record, record.sessionId, this.supervision.locate(record.sessionId)),
         })),
         ...this.pending.map(({ panelId, dispatch }) => ({
           record: dispatch,
-          view: () => view(dispatch, { projectId: dispatch.projectId, panelId }),
+          view: () => view(dispatch, undefined, { projectId: dispatch.projectId, panelId }),
         })),
       ]
         .filter(
@@ -134,7 +137,15 @@ export class Dispatches {
         url: forges[repository.forge].issueUrl(repository, issue.number),
         ...issue,
       });
-      return { projectId, repository, issue: issue.number, dispatchedAt: new Date().toISOString(), agent, text };
+      return {
+        projectId,
+        repository,
+        issue: issue.number,
+        dispatchedAt: new Date().toISOString(),
+        agent,
+        skill: found.command.skill,
+        text,
+      };
     };
     const panelId =
       target.kind === 'new'
