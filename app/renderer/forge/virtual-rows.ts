@@ -22,7 +22,9 @@ export interface ReadingPosition {
   offset: number;
 }
 
-const sum = (heights: number[], end: number) => heights.slice(0, end).reduce((total, height) => total + height, 0);
+/** How far from the top of the list the row at `index` starts: the height of the rows before it. */
+export const heightBefore = (heights: number[], index: number) =>
+  heights.slice(0, index).reduce((total, height) => total + height, 0);
 
 /** The index of the row at `offset` from the top of the list: the last row when the list is shorter. */
 function rowAt(heights: number[], offset: number) {
@@ -41,14 +43,19 @@ export function rowWindow(heights: number[], { scrollTop, viewport, overscan }: 
   const last = viewport > 0 ? rowAt(heights, scrollTop + viewport - 1) : first;
   const start = Math.max(first - overscan, 0);
   const end = Math.min(last + 1 + overscan, heights.length);
-  return { start, end, before: sum(heights, start), after: sum(heights, heights.length) - sum(heights, end) };
+  return {
+    start,
+    end,
+    before: heightBefore(heights, start),
+    after: heightBefore(heights, heights.length) - heightBefore(heights, end),
+  };
 }
 
 /** The reading position of rows `keys`, `heights` high, scrolled to `scrollTop`; null with no rows. */
 export function readingPositionAt(keys: number[], heights: number[], scrollTop: number): ReadingPosition | null {
   if (!keys.length) return null;
   const index = rowAt(heights, scrollTop);
-  return { key: keys[index], index, offset: scrollTop - sum(heights, index) };
+  return { key: keys[index], index, offset: scrollTop - heightBefore(heights, index) };
 }
 
 /** Where to scroll rows `keys`, `heights` high, to return to `position`: to its row wherever it now is, or, when that
@@ -57,5 +64,5 @@ export function restoredScrollTop(position: ReadingPosition, keys: number[], hei
   if (!keys.length) return 0;
   const found = keys.indexOf(position.key);
   const index = found >= 0 ? found : Math.min(position.index, keys.length - 1);
-  return sum(heights, index) + position.offset;
+  return heightBefore(heights, index) + position.offset;
 }
