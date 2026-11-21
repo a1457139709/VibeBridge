@@ -26,7 +26,7 @@ import type { DispatchTargets } from '../dispatch';
 /** Each project's Agent panels: resident panels and their layout, the tray of ephemeral panels, and which projects
  * have started their panels. Callers find the project and serialize the work; this module only changes its panels. */
 export class ProjectPanels {
-  private visited = new Set<string>();
+  private startedProjects = new Set<string>();
   // Each project's tray: its ephemeral panels in the order they joined. Never stored.
   private trays = new Map<string, Panel[]>();
   constructor(
@@ -52,10 +52,10 @@ export class ProjectPanels {
     const command = this.agents()[panel.agent];
     return this.supervision.start(project, panel, { ...command, args: [...command.args, ...args] });
   }
-  /** Starts the project's resident panels the first time it opens; a visited project starts nothing. */
-  async start(project: Project): Promise<LaunchResult[]> {
-    if (this.visited.has(project.id)) return [];
-    this.visited.add(project.id);
+  /** Starts the project's resident panels the first time it opens; a project started before starts nothing. */
+  async startOnFirstOpen(project: Project): Promise<LaunchResult[]> {
+    if (this.startedProjects.has(project.id)) return [];
+    this.startedProjects.add(project.id);
     const launches: LaunchResult[] = [];
     for (const panel of project.panels) launches.push(await this.startPanel(project, panel));
     return launches;
@@ -66,10 +66,10 @@ export class ProjectPanels {
     const panelIds = launches.filter(launch => launch.outcome === 'failed').map(launch => launch.run.panelId);
     if (panelIds.length) await this.removePanels(project, panelIds);
   }
-  /** Restarts the resident panels of a visited project whose directory changed; an unvisited project starts nothing. */
+  /** Restarts the resident panels of a started project whose directory changed; a project not started yet starts nothing. */
   async restart(project: Project): Promise<{ launches: LaunchResult[]; error?: string }> {
     const launches: LaunchResult[] = [];
-    if (!this.visited.has(project.id)) return { launches };
+    if (!this.startedProjects.has(project.id)) return { launches };
     // Tray panels keep running in the directory they started in.
     const failures = await this.supervision.stopPanels(project.panels);
     if (failures.length) return { launches, error: message('projectRestartFailed', { reasons: failures.map(detail) }) };
@@ -77,7 +77,7 @@ export class ProjectPanels {
     return { launches };
   }
   /** Arranges and saves the resident panels of a project that has panels but no layout. */
-  async arrange(project: Project, defaultLayout: Settings['defaultLayout']) {
+  async arrangeIfUnlaid(project: Project, defaultLayout: Settings['defaultLayout']) {
     if (!project.layout && project.panels.length) {
       project.layout = arrange(
         project.panels.map(panel => panel.id),
@@ -190,10 +190,10 @@ export class ProjectPanels {
   stop(project: Project) {
     return this.supervision.stopPanels(this.all(project));
   }
-  /** Once the project's deletion is stored: releases its panels and drops its tray and visit. */
+  /** Once the project's deletion is stored: releases its panels and drops its tray and started mark. */
   forget(project: Project) {
     this.supervision.releasePanels(this.all(project).map(panel => panel.id));
     this.trays.delete(project.id);
-    this.visited.delete(project.id);
+    this.startedProjects.delete(project.id);
   }
 }

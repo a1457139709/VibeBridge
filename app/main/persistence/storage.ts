@@ -45,7 +45,7 @@ export class ProjectStore {
     return this.request<
       {
         projects: Project[];
-        repositories: Record<string, RepositoryReference>;
+        bindings: Record<string, RepositoryReference>;
         dispatches: DispatchRecord[];
         activeProjectId: string | null;
       } & Record<Sidebar, SidebarPreferences>
@@ -63,16 +63,16 @@ export class ProjectStore {
     return this.request<void>('unbind', projectId);
   }
   /** Appends a Dispatch Record. */
-  dispatch(record: DispatchRecord) {
+  appendDispatchRecord(record: DispatchRecord) {
     return this.request<void>('dispatch', record);
   }
-  sidebar(sidebar: Sidebar, preferences: SidebarPreferences) {
+  saveSidebar(sidebar: Sidebar, preferences: SidebarPreferences) {
     return this.request<void>('sidebar', { sidebar, preferences });
   }
-  delete(id: string, activeProjectId: string | null) {
-    return this.request<void>('delete', { id, activeProjectId });
+  deleteProject(id: string, nextActiveProjectId: string | null) {
+    return this.request<void>('delete', { id, activeProjectId: nextActiveProjectId });
   }
-  active(id: string) {
+  saveActiveProject(id: string) {
     return this.request<void>('active', id);
   }
   async close() {

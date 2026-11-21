@@ -25,7 +25,7 @@ export class SettingsFile {
       throw new Error(message('settingsReadFailed', { reason: detail((error as Error).message) }), { cause: error });
     }
   }
-  saveOnQuit(settings: Settings): Promise<void> {
+  writeUnchecked(settings: Settings): Promise<void> {
     return this.write(settings);
   }
   async commit(current: Settings, patch: Partial<Settings>): Promise<SettingsSaveResult> {

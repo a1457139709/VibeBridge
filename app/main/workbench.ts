@@ -75,51 +75,51 @@ export class Workbench {
   private quitting = false;
   private quitPromise?: Promise<void>;
   private constructor(
-    directory: string,
+    dataDirectory: string,
     private store: ProjectStore,
     private settingsFile: SettingsFile,
-    stored: { repositories: Record<string, RepositoryReference>; dispatches: DispatchRecord[] },
+    stored: { bindings: Record<string, RepositoryReference>; dispatches: DispatchRecord[] },
   ) {
-    this.bindings = new RepositoryBindings(stored.repositories, store);
+    this.bindings = new RepositoryBindings(stored.bindings, store);
     this.forgeSidebar = new ForgeSidebarData({
-      issuePage: (projectId, query) => issuePage(this.bound(projectId), query),
-      pullRequestPage: (projectId, query) => pullRequestPage(this.bound(projectId), query),
-      issuesByNumber: (projectId, numbers) => issuesByNumber(this.bound(projectId), numbers),
-      pullRequestsByNumber: (projectId, numbers) => pullRequestsByNumber(this.bound(projectId), numbers),
+      issuePage: (projectId, query) => issuePage(this.boundRepository(projectId), query),
+      pullRequestPage: (projectId, query) => pullRequestPage(this.boundRepository(projectId), query),
+      issuesByNumber: (projectId, numbers) => issuesByNumber(this.boundRepository(projectId), numbers),
+      pullRequestsByNumber: (projectId, numbers) => pullRequestsByNumber(this.boundRepository(projectId), numbers),
       repositoryChoices: async projectId => this.repositoryChoices(projectId, this.project(projectId).directory),
-      issueDetail: (projectId, number) => issueDetail(this.bound(projectId), number),
-      pullRequestDetail: (projectId, number) => pullRequestDetail(this.bound(projectId), number),
+      issueDetail: (projectId, number) => issueDetail(this.boundRepository(projectId), number),
+      pullRequestDetail: (projectId, number) => pullRequestDetail(this.boundRepository(projectId), number),
       forge: projectId => this.bindings.view(projectId).forge,
       emit: event => this.emit(event),
     });
-    this.runs = new RunSupervision(directory, {
-      onRunsChanged: () => this.changed(),
+    this.runs = new RunSupervision(dataDirectory, {
+      onRunsChanged: () => this.publishSnapshot(),
       onTerminalEvent: event => this.emit(event),
-      onFailure: message => this.report(message),
+      onFailure: message => this.reportError(message),
       onRunExited: run => {
         if (!this.quitting)
           void this.operation(async () => {
             if (!this.runs.isExpected(run)) return;
             await this.panels.remove(this.project(run.projectId), run.panelId);
-          }).catch(error => this.report(error.message));
+          }).catch(error => this.reportError(error.message));
       },
     });
     this.panels = new ProjectPanels(
       store,
       this.runs,
       () => this.state.settings.agents,
-      () => this.changed(),
+      () => this.publishSnapshot(),
     );
     this.dispatches = new Dispatches(
       stored.dispatches,
       store,
       this.runs,
-      () => this.changed(),
-      message => this.report(message),
+      () => this.publishSnapshot(),
+      message => this.reportError(message),
     );
   }
-  static async open(directory: string, systemDark = false) {
-    const settingsFile = new SettingsFile(directory);
+  static async open(dataDirectory: string, systemDark = false) {
+    const settingsFile = new SettingsFile(dataDirectory);
     let settings = defaultSettings();
     const errors: string[] = [];
     try {
@@ -129,9 +129,9 @@ export class Workbench {
     }
     let store: ProjectStore | undefined;
     try {
-      store = await ProjectStore.open(directory);
-      const { repositories, dispatches, ...projects } = await store.load();
-      const workbench = new Workbench(directory, store, settingsFile, { repositories, dispatches });
+      store = await ProjectStore.open(dataDirectory);
+      const { bindings, dispatches, ...projects } = await store.load();
+      const workbench = new Workbench(dataDirectory, store, settingsFile, { bindings, dispatches });
       Object.assign(workbench.state, projects, { settings, settingsConflicts: settingsConflicts(settings), errors });
       workbench.state.startupTheme = settings.theme;
       workbench.state.resolvedTheme =
@@ -148,7 +148,7 @@ export class Workbench {
       ...this.panels.view(project),
       ...this.bindings.view(project.id),
     }));
-    return structuredClone({ ...this.state, projects: this.dispatches.withViews(views) });
+    return structuredClone({ ...this.state, projects: this.dispatches.withDispatches(views) });
   }
   subscribe(listener: (event: WorkbenchEvent) => void) {
     this.listeners.add(listener);
@@ -159,10 +159,10 @@ export class Workbench {
   private emit(event: WorkbenchEvent) {
     for (const listener of this.listeners) listener(event);
   }
-  private changed() {
+  private publishSnapshot() {
     this.emit({ kind: 'snapshot', snapshot: this.snapshot() });
   }
-  private report(message: string) {
+  private reportError(message: string) {
     this.state.errors.push(message);
     this.emit({ kind: 'error', message });
   }
@@ -200,9 +200,9 @@ export class Workbench {
       await this.store.save(project);
       this.state.projects.push(project);
       this.state.activeProjectId = project.id;
-      await this.store.active(project.id);
-      this.changed();
-      const launches = await this.panels.start(project);
+      await this.store.saveActiveProject(project.id);
+      this.publishSnapshot();
+      const launches = await this.panels.startOnFirstOpen(project);
       await this.panels.withdraw(project, launches);
       return { project: structuredClone(project), launches };
     });
@@ -222,7 +222,7 @@ export class Workbench {
       if (!changedDirectory && project.name === next.name) return { project: structuredClone(project), launches: [] };
       await this.store.save(next);
       Object.assign(project, next);
-      this.changed();
+      this.publishSnapshot();
       const result: ProjectEditResult = { project: structuredClone(project), launches: [] };
       if (changedDirectory && restart) Object.assign(result, await this.panels.restart(project));
       return result;
@@ -237,7 +237,7 @@ export class Workbench {
       this.project(projectId);
       await this.bindings.bind(projectId, listed);
       this.forgeSidebar.forget(projectId);
-      this.changed();
+      this.publishSnapshot();
     });
   }
   /** Unbinds the project. It reads no list, so it works without the forge CLI. */
@@ -246,7 +246,7 @@ export class Workbench {
       this.project(projectId);
       await this.bindings.unbind(projectId);
       this.forgeSidebar.forget(projectId);
-      this.changed();
+      this.publishSnapshot();
     });
   }
   deleteProject(id: string) {
@@ -260,7 +260,7 @@ export class Workbench {
           ? (this.state.projects[index + 1]?.id ?? this.state.projects[index - 1]?.id ?? null)
           : this.state.activeProjectId;
       // Records and the active-project pointer are removed in the same transaction.
-      await this.store.delete(id, nextActive);
+      await this.store.deleteProject(id, nextActive);
       this.state.projects = this.state.projects.filter(item => item.id !== id);
       this.panels.forget(project);
       this.bindings.forget(id);
@@ -268,8 +268,8 @@ export class Workbench {
       this.dispatches.forget(id);
       const activateNext = this.state.activeProjectId === id;
       this.state.activeProjectId = nextActive;
-      this.changed();
-      if (activateNext && nextActive) await this.panels.start(this.project(nextActive));
+      this.publishSnapshot();
+      if (activateNext && nextActive) await this.panels.startOnFirstOpen(this.project(nextActive));
     });
   }
   // The repositories a project can bind, and direct actions on its bound repository; DesktopAPI documents each.
@@ -278,26 +278,26 @@ export class Workbench {
     return this.bindings.choices(projectId, directory, found => this.follow(projectId, found));
   }
   async directAction(projectId: string, action: DirectAction) {
-    return directAction(this.bound(projectId), action);
+    return directAction(this.boundRepository(projectId), action);
   }
   /** The project's bound repository for a forge call; where the forge finds it at another path, the binding follows. */
-  private bound(projectId: string) {
+  private boundRepository(projectId: string) {
     this.project(projectId);
-    return this.bindings.forCall(projectId, found => this.follow(projectId, found));
+    return this.bindings.forForgeCall(projectId, found => this.follow(projectId, found));
   }
   /** Writes a binding at the path its repository was found at, in the operation queue, unless the project was rebound,
    * unbound or deleted meanwhile. */
   private follow(projectId: string, found: RepositoryReference) {
     void this.operation(async () => {
-      if (await this.bindings.follow(projectId, found)) this.changed();
-    }).catch(error => this.report((error as Error).message));
+      if (await this.bindings.follow(projectId, found)) this.publishSnapshot();
+    }).catch(error => this.reportError((error as Error).message));
   }
   /** Dispatches an issue of the project's bound repository with a command of an enabled workflow to one of its panels
    * that has a run, or to a new panel that joins its tray, and records the dispatch on the session that takes it. */
   dispatch(projectId: string, request: DispatchRequest) {
     return this.operation(async () => {
       const project = this.project(projectId);
-      const repository = this.bindings.bound(projectId);
+      const repository = this.bindings.require(projectId);
       return this.dispatches.dispatch(
         projectId,
         repository,
@@ -310,11 +310,11 @@ export class Workbench {
   activateProject(id: string) {
     return this.operation(async () => {
       const project = this.project(id);
-      await this.panels.arrange(project, this.state.settings.defaultLayout);
+      await this.panels.arrangeIfUnlaid(project, this.state.settings.defaultLayout);
       this.state.activeProjectId = id;
-      this.changed();
-      await this.store.active(id);
-      await this.panels.start(project);
+      this.publishSnapshot();
+      await this.store.saveActiveProject(id);
+      await this.panels.startOnFirstOpen(project);
     });
   }
   /** Adds a panel to the end of the project's tray and starts its Agent. The layout is unchanged. */
@@ -340,9 +340,9 @@ export class Workbench {
       const parsed = sidebarPreferencesSchema.safeParse(preferences);
       if (!parsed.success) throw new Error(message(invalid));
       const value = { ...parsed.data, width: Math.max(minWidth, parsed.data.width) };
-      await this.store.sidebar(sidebar, value);
+      await this.store.saveSidebar(sidebar, value);
       this.state[sidebar] = value;
-      this.changed();
+      this.publishSnapshot();
     });
   }
   saveSettings(patch: Partial<Settings>): Promise<SettingsSaveResult> {
@@ -352,7 +352,7 @@ export class Workbench {
       if (result.ok) {
         this.state.settings = structuredClone(result.settings);
         this.state.settingsConflicts = settingsConflicts(result.settings);
-        this.changed();
+        this.publishSnapshot();
       }
       return result;
     }).catch(() => ({ ok: false, kind: 'unavailable', message: message('settingsUnavailable') }));
@@ -364,7 +364,7 @@ export class Workbench {
       await this.operations;
       let error: unknown;
       try {
-        await this.settingsFile.saveOnQuit(this.state.settings);
+        await this.settingsFile.writeUnchecked(this.state.settings);
       } catch (failure) {
         error = failure;
       }

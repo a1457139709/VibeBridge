@@ -6,7 +6,7 @@ import { defaultForge, forges } from './forges';
 import type { ProjectStore } from '../persistence/storage';
 
 /** Each project's Repository Binding as stored. A binding follows its repository wherever the forge shows it at another
- * path (renamed or transferred): `forCall` and `choices` hand such a path to the caller's `follow`, and the caller
+ * path (renamed or transferred): `forForgeCall` and `choices` hand such a path to the caller's `follow`, and the caller
  * writes it with `follow` here. */
 export class RepositoryBindings {
   private bindings: Map<string, RepositoryReference>;
@@ -27,14 +27,14 @@ export class RepositoryBindings {
     return { repository, forge: forge.presentation, capabilities: forge.capabilities };
   }
   /** The project's bound repository; it is an error to ask for a project without one. */
-  bound(projectId: string) {
+  require(projectId: string) {
     const repository = this.bindings.get(projectId);
     if (!repository) throw new Error(message('noRepositoryBound'));
     return repository;
   }
   /** The project's bound repository for a forge call, which calls `follow` when the forge finds it at another path. */
-  forCall(projectId: string, follow: (found: RepositoryReference) => void): Bound {
-    return { repository: this.bound(projectId), follow };
+  forForgeCall(projectId: string, follow: (found: RepositoryReference) => void): Bound {
+    return { repository: this.require(projectId), follow };
   }
   /** The repositories the project can bind, with the one that `origin` of `directory` (the directory as the user is
    * editing it) points at; calls `follow` when the list shows the bound repository at another path. */
