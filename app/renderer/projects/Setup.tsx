@@ -46,18 +46,18 @@ function Stepper({
 }
 export function Setup({
   draft,
-  change,
+  changeDraft,
   cancel,
-  created,
+  onSetupFinished,
   openProject,
   report,
   openAgentSettings,
   defaultLayout,
 }: {
   draft: ProjectDraft;
-  change: Dispatch<SetStateAction<ProjectDraft>>;
+  changeDraft: Dispatch<SetStateAction<ProjectDraft>>;
   cancel(): void;
-  created(id: string): void;
+  onSetupFinished(id: string): void;
   openProject(id: string): void;
   report(message: string): void;
   openAgentSettings(): void;
@@ -70,10 +70,10 @@ export function Setup({
   const [nameInputError, setNameInputError] = useState('');
   const [choosing, setChoosing] = useState(false);
   const [busy, setBusy] = useState(false);
-  const [launched, setLaunched] = useState<{ projectId: string; launches: LaunchResult[] }>();
+  const [launchReport, setLaunchReport] = useState<{ projectId: string; launches: LaunchResult[] }>();
   const pending = useRef(false);
-  const directory = inspection?.path === draft.directory ? inspection.result : undefined;
-  const checking = !!draft.directory && !directory;
+  const inspected = inspection?.path === draft.directory ? inspection.result : undefined;
+  const checking = !!draft.directory && !inspected;
   const nameError = text(projectNameError(draft.name));
   const nameMessage = text(nameInputError) || (nameTouched || draft.name.trim() ? nameError : '');
   const directoryMessage = !draft.directory
@@ -82,17 +82,17 @@ export function Setup({
       : ''
     : checking
       ? ''
-      : !directory?.valid
+      : !inspected?.valid
         ? t('directoryInvalid')
-        : directory.existingProjectId
-          ? t('duplicateCreate', { name: directory.existingProjectName! })
+        : inspected.existingProjectId
+          ? t('duplicateCreate', { name: inspected.existingProjectName! })
           : '';
   const assigned = agentTypes.reduce((sum, type) => sum + draft.counts[type], 0);
   const canCreate =
     !busy &&
     !choosing &&
-    !!directory?.valid &&
-    !directory.existingProjectId &&
+    !!inspected?.valid &&
+    !inspected.existingProjectId &&
     !nameError &&
     !nameInputError &&
     assigned === draft.total;
@@ -123,7 +123,7 @@ export function Setup({
     try {
       const path = await window.workbench.chooseDirectory();
       if (path === null) return;
-      change(current => ({
+      changeDraft(current => ({
         ...current,
         directory: path,
         name: current.name.trim() ? current.name : projectNameFromDirectory(path),
@@ -152,8 +152,8 @@ export function Setup({
     try {
       // Failed launches are already withdrawn from the project.
       const { project, launches } = await window.workbench.createProject(draft);
-      if (launches.every(launch => launch.outcome === 'started')) created(project.id);
-      else setLaunched({ projectId: project.id, launches });
+      if (launches.every(launch => launch.outcome === 'started')) onSetupFinished(project.id);
+      else setLaunchReport({ projectId: project.id, launches });
     } catch (error) {
       report((error as Error).message);
     } finally {
@@ -161,27 +161,27 @@ export function Setup({
       setBusy(false);
     }
   }
-  if (launched) {
-    const failed = launched.launches.some(launch => launch.outcome === 'failed');
+  if (launchReport) {
+    const failed = launchReport.launches.some(launch => launch.outcome === 'failed');
     return (
       <div className="setup-scroll">
         <section className="setup">
           <h1>{t('createProject')}</h1>
           {failed && <p role="status">{t('setupLaunchFailed')}</p>}
-          <LaunchResults launches={launched.launches} />
+          <LaunchResults launches={launchReport.launches} />
           <div className="setup-actions">
             {failed && (
               <button
                 type="button"
                 onClick={() => {
-                  created(launched.projectId);
+                  onSetupFinished(launchReport.projectId);
                   openAgentSettings();
                 }}
               >
                 {t('openAgentSettings')}
               </button>
             )}
-            <button type="button" className="primary" autoFocus onClick={() => created(launched.projectId)}>
+            <button type="button" className="primary" autoFocus onClick={() => onSetupFinished(launchReport.projectId)}>
               {t('finish')}
             </button>
           </div>
@@ -209,7 +209,7 @@ export function Setup({
           onBlur={() => setNameTouched(true)}
           onChange={event => {
             setNameInputError('');
-            change({ ...draft, name: event.target.value });
+            changeDraft({ ...draft, name: event.target.value });
           }}
           onPaste={event => {
             const text = event.clipboardData.getData('text');
@@ -231,7 +231,7 @@ export function Setup({
             aria-invalid={!!directoryMessage}
             aria-describedby="project-directory-status"
             onBlur={() => setDirectoryTouched(true)}
-            onChange={event => change({ ...draft, directory: event.target.value })}
+            onChange={event => changeDraft({ ...draft, directory: event.target.value })}
             placeholder="/Users/you/Projects/my-project"
             autoComplete="off"
           />
@@ -247,17 +247,17 @@ export function Setup({
         <div
           id="project-directory-status"
           className="directory-status field-status"
-          hidden={!checking && !directoryMessage && !directory?.existingProjectId}
+          hidden={!checking && !directoryMessage && !inspected?.existingProjectId}
           aria-live="polite"
         >
           {checking
             ? t('checkingDirectory')
             : directoryMessage && <span className="error-text">{directoryMessage}</span>}
-          {directory?.existingProjectId && (
+          {inspected?.existingProjectId && (
             <button
               type="button"
               className="open-existing-project"
-              onClick={() => openProject(directory.existingProjectId!)}
+              onClick={() => openProject(inspected.existingProjectId!)}
             >
               {t('openExisting')}
             </button>
@@ -293,8 +293,8 @@ export function Setup({
           <Stepper
             label={t('windowCount')}
             value={draft.total}
-            decrease={() => change({ ...draft, total: draft.total - 1 })}
-            increase={() => change({ ...draft, total: draft.total + 1 })}
+            decrease={() => changeDraft({ ...draft, total: draft.total - 1 })}
+            increase={() => changeDraft({ ...draft, total: draft.total + 1 })}
             canDecrease={draft.total > 1}
             canIncrease={draft.total < 10}
           />
@@ -309,8 +309,8 @@ export function Setup({
             <Stepper
               label={agentNames[type]}
               value={draft.counts[type]}
-              decrease={() => change({ ...draft, counts: { ...draft.counts, [type]: draft.counts[type] - 1 } })}
-              increase={() => change({ ...draft, counts: { ...draft.counts, [type]: draft.counts[type] + 1 } })}
+              decrease={() => changeDraft({ ...draft, counts: { ...draft.counts, [type]: draft.counts[type] - 1 } })}
+              increase={() => changeDraft({ ...draft, counts: { ...draft.counts, [type]: draft.counts[type] + 1 } })}
               canDecrease={draft.counts[type] > 0}
               canIncrease={assigned < draft.total}
             />

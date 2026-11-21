@@ -137,7 +137,7 @@ export function UnboundRepository({ project }: { project: ProjectView }) {
       <RepositoryList
         choices={choices}
         retry={retry}
-        bound={null}
+        boundRepository={null}
         selection={selection}
         pick={setPicked}
         disabled={call.busy}
@@ -164,13 +164,13 @@ export function ChangeBinding({
   back(): void;
 }) {
   const { t } = useLocalization();
-  const bound = project.repository;
+  const boundRepository = project.repository;
   const { choices, listed, retry } = useShownRepositoryChoices(project);
   const [picked, setPicked] = useState<RepositoryReference>();
   const [unbinding, setUnbinding] = useState(false);
   const call = useBindingCall();
   const toggleUnbinding = useFocusHandoff();
-  const rebindTarget = listed && picked && !sameRepository(picked, bound) ? picked : undefined;
+  const rebindTarget = listed && picked && !sameRepository(picked, boundRepository) ? picked : undefined;
   let consequence: ReactNode = null;
   if (unbinding)
     consequence = (
@@ -193,12 +193,12 @@ export function ChangeBinding({
       </button>
       <div className="binding-now">
         {t('currentBinding')}
-        <b>{bound.path}</b>
+        <b>{boundRepository.path}</b>
       </div>
       <RepositoryList
         choices={choices}
         retry={retry}
-        bound={bound}
+        boundRepository={boundRepository}
         selection={picked ?? null}
         pick={repository => {
           setPicked(repository);

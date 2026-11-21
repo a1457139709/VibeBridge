@@ -6,21 +6,21 @@ import { agentIcons } from '../common/agent-icons';
 
 export function AgentPicker({
   projectId,
-  full,
+  atPanelLimit,
   close,
-  added,
+  onPanelAdded,
   openAgentSettings,
 }: {
   projectId: string;
-  full: boolean;
+  atPanelLimit: boolean;
   close(): void;
-  added(panelId: string): void;
+  onPanelAdded(panelId: string): void;
   openAgentSettings(): void;
 }) {
   const { t, text } = useLocalization();
   const dialog = useRef<HTMLDialogElement>(null);
   const [busy, setBusy] = useState(false);
-  const [failure, setFailure] = useState<{ error: string; settings: boolean }>();
+  const [failure, setFailure] = useState<{ error: string; offerAgentSettings: boolean }>();
   useEffect(() => {
     const element = dialog.current!;
     element.showModal();
@@ -44,18 +44,19 @@ export function AgentPicker({
           key={type}
           autoFocus={type === 'codex'}
           className={`agent-option ${type}`}
-          disabled={busy || full}
+          disabled={busy || atPanelLimit}
           onClick={async () => {
             setBusy(true);
             setFailure(undefined);
             try {
               const result = await window.workbench.addPanel(projectId, type);
               const { launch } = result;
-              if (launch.outcome === 'started') added(result.panel.id);
-              else if (launch.outcome === 'failed') setFailure({ error: message('launchFailed'), settings: true });
-              else setFailure({ error: launch.reason, settings: false });
+              if (launch.outcome === 'started') onPanelAdded(result.panel.id);
+              else if (launch.outcome === 'failed')
+                setFailure({ error: message('launchFailed'), offerAgentSettings: true });
+              else setFailure({ error: launch.reason, offerAgentSettings: false });
             } catch (error) {
-              setFailure({ error: (error as Error).message, settings: false });
+              setFailure({ error: (error as Error).message, offerAgentSettings: false });
             } finally {
               setBusy(false);
             }
@@ -70,7 +71,7 @@ export function AgentPicker({
           {text(failure.error)}
         </p>
       )}
-      {failure?.settings && (
+      {failure?.offerAgentSettings && (
         <button
           className="picker-settings"
           onClick={() => {

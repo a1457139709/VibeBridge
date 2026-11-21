@@ -18,7 +18,7 @@ import { deferred, provideWorkbench } from './support/workbench';
 afterEach(cleanup);
 
 function renderSetup(initial = newDraft()) {
-  const created = mock.fn(),
+  const onSetupFinished = mock.fn(),
     cancel = mock.fn(),
     openProject = mock.fn(),
     report = mock.fn(),
@@ -28,14 +28,14 @@ function renderSetup(initial = newDraft()) {
     return (
       <Setup
         draft={draft}
-        change={change}
-        {...{ created, cancel, openProject, report, openAgentSettings }}
+        changeDraft={change}
+        {...{ onSetupFinished, cancel, openProject, report, openAgentSettings }}
         defaultLayout="auto"
       />
     );
   }
   render(<Form />);
-  return { user: userEvent.setup(), created, cancel, openProject, report, openAgentSettings };
+  return { user: userEvent.setup(), onSetupFinished, cancel, openProject, report, openAgentSettings };
 }
 
 const validDraft: ProjectDraft = {
@@ -53,9 +53,9 @@ test('choosing a directory uses the latest handwritten project name and cancella
     return (
       <Setup
         draft={draft}
-        change={change}
+        changeDraft={change}
         cancel={() => {}}
-        created={() => {}}
+        onSetupFinished={() => {}}
         openProject={() => {}}
         report={() => {}}
         openAgentSettings={() => {}}
@@ -80,7 +80,7 @@ test('creation submits once while pending, retains a failed draft and retries su
   const pending = deferred<ProjectCreation>();
   const createProject = mock.fn(() => pending.promise);
   provideWorkbench({ inspectDirectory: async () => ({ valid: true }), createProject });
-  const { user, created, report } = renderSetup(validDraft);
+  const { user, onSetupFinished, report } = renderSetup(validDraft);
   const create = screen.getByRole<HTMLButtonElement>('button', { name: 'Create and start' });
   await waitFor(() => assert.equal(create.disabled, false));
   act(() => {
@@ -91,7 +91,7 @@ test('creation submits once while pending, retains a failed draft and retries su
   assert.deepEqual(createProject.mock.calls[0].arguments, [validDraft]);
   assert.equal(screen.getByRole<HTMLButtonElement>('button', { name: 'Creating…' }).disabled, true);
   await act(async () => pending.reject(new Error('创建失败')));
-  assert.equal(created.mock.callCount(), 0);
+  assert.equal(onSetupFinished.mock.callCount(), 0);
   assert.deepEqual(report.mock.calls[0].arguments, ['创建失败']);
   assert.equal(screen.getByRole<HTMLInputElement>('textbox', { name: 'Project name' }).value, 'Project');
   const result: ProjectCreation = {
@@ -101,7 +101,7 @@ test('creation submits once while pending, retains a failed draft and retries su
   provideWorkbench({ createProject: async () => result });
   await user.click(screen.getByRole('button', { name: 'Create and start' }));
   assert.deepEqual(
-    created.mock.calls.map(call => call.arguments),
+    onSetupFinished.mock.calls.map(call => call.arguments),
     [['created']],
   );
 });
@@ -227,11 +227,11 @@ test('creation shows each panel launch result when some Agents cannot start, and
     launches: [launch('a', 'codex', 'started'), launch('b', 'codex', 'started'), launch('c', 'pi', 'failed')],
   };
   provideWorkbench({ inspectDirectory: async () => ({ valid: true }), createProject: async () => result });
-  const { user, created, openAgentSettings } = renderSetup(draft);
+  const { user, onSetupFinished, openAgentSettings } = renderSetup(draft);
   const create = screen.getByRole<HTMLButtonElement>('button', { name: 'Create and start' });
   await waitFor(() => assert.equal(create.disabled, false));
   await user.click(create);
-  assert.equal(created.mock.callCount(), 0);
+  assert.equal(onSetupFinished.mock.callCount(), 0);
   assert.ok(screen.getByText('Project created. Panels whose Agent could not start were not added.'));
   assert.deepEqual(
     screen.getAllByRole('listitem').map(item => item.textContent),
@@ -243,7 +243,7 @@ test('creation shows each panel launch result when some Agents cannot start, and
   );
   await user.click(screen.getByRole('button', { name: 'Open Agent settings' }));
   assert.deepEqual(
-    created.mock.calls.map(call => call.arguments),
+    onSetupFinished.mock.calls.map(call => call.arguments),
     [['created']],
   );
   assert.equal(openAgentSettings.mock.callCount(), 1);
@@ -256,7 +256,7 @@ test('creation where no Agent starts reports every panel and opens the empty pro
     launches: [launch('a', 'claude', 'failed'), launch('b', 'pi', 'failed')],
   };
   provideWorkbench({ inspectDirectory: async () => ({ valid: true }), createProject: async () => result });
-  const { user, created, openAgentSettings } = renderSetup(draft);
+  const { user, onSetupFinished, openAgentSettings } = renderSetup(draft);
   const create = screen.getByRole<HTMLButtonElement>('button', { name: 'Create and start' });
   await waitFor(() => assert.equal(create.disabled, false));
   await user.click(create);
@@ -266,7 +266,7 @@ test('creation where no Agent starts reports every panel and opens the empty pro
   );
   await user.click(screen.getByRole('button', { name: 'Done' }));
   assert.deepEqual(
-    created.mock.calls.map(call => call.arguments),
+    onSetupFinished.mock.calls.map(call => call.arguments),
     [['created']],
   );
   assert.equal(openAgentSettings.mock.callCount(), 0);

@@ -90,7 +90,7 @@ test("navigation reads each panel view's state, exposes all five states to keybo
       openProject: () => {},
       openBinding: () => {},
       locatePanel: (_project, panel) => located.push(panel),
-      createProject: () => {},
+      openSetup: () => {},
       toggleSettings: () => {},
       widestOnResize: () => Infinity,
       report: () => {},

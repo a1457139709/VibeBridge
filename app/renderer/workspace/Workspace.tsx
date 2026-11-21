@@ -30,7 +30,7 @@ import { useTrayFlight } from './tray-flight';
 import { ProjectSummary } from './ProjectSummary';
 
 export interface WorkspaceActions {
-  shortcut(action: ShortcutAction): boolean;
+  runShortcut(action: ShortcutAction): boolean;
 }
 
 function TerminalView({ run }: { run?: Run }) {
@@ -105,7 +105,7 @@ function AgentPanel({
   );
 }
 
-function PanelAction({ label, run, children }: { label: string; run(): void; children: ReactNode }) {
+function PanelAction({ label, perform, children }: { label: string; perform(): void; children: ReactNode }) {
   return (
     <button
       aria-label={label}
@@ -113,7 +113,7 @@ function PanelAction({ label, run, children }: { label: string; run(): void; chi
       onMouseDown={event => event.stopPropagation()}
       onClick={event => {
         event.stopPropagation();
-        run();
+        perform();
       }}
     >
       {children}
@@ -143,26 +143,26 @@ export function Workspace({
   const tray = useRef<HTMLElement>(null);
   const interactions = useRef<ReturnType<typeof createPanelInteractions> | null>(null);
   const positions = layoutBoxes(layout);
-  const viewing = useWorkspacePanelLocation(location, project, canvas, [...positions.panels.keys()]);
-  const { selected: focused, maximized } = viewing;
+  const panelLocation = useWorkspacePanelLocation(location, project, canvas, [...positions.panels.keys()]);
+  const { selected: focused, maximized } = panelLocation;
   const openTrayPanel = project.tray.find(panel => panel.id === maximized);
-  const full = panelLimitReached(project);
-  const flight = useTrayFlight({ openPanelId: openTrayPanel?.id, canvas, tray, collapse: viewing.collapse });
-  const persist = (next: Layout) => {
+  const atPanelLimit = panelLimitReached(project);
+  const flight = useTrayFlight({ openPanelId: openTrayPanel?.id, canvas, tray, collapse: panelLocation.collapse });
+  const saveLayout = (next: Layout) => {
     void window.workbench.saveLayout(project.id, next).catch(error => report(error.message));
   };
   const placeInLayout = (panelId: string, next: Layout) => {
     // The layout area returns to the resident layout, where the placed panel lives; a rejected placement changes nothing.
     const open = openTrayPanel?.id;
-    viewing.collapse();
+    panelLocation.collapse();
     void window.workbench.placeInLayout(project.id, panelId, next).catch(error => {
-      if (open) viewing.reopen(open);
+      if (open) panelLocation.reopen(open);
       report(error.message);
     });
   };
   const moveToTray = (panelId: string) => {
     // A panel moved to the tray waits there collapsed, so a maximized resident panel is restored first.
-    if (maximized === panelId) viewing.toggleMaximize(panelId);
+    if (maximized === panelId) panelLocation.toggleMaximize(panelId);
     void window.workbench.moveToTray(project.id, panelId).catch(error => report(error.message));
   };
   useLayoutEffect(() => {
@@ -176,7 +176,7 @@ export function Workspace({
       visible,
       maximizedPanelId: maximized,
       presentLayout: setLayout,
-      commitLayout: persist,
+      commitLayout: saveLayout,
       placeInLayout,
       moveToTray,
     };
@@ -200,14 +200,14 @@ export function Workspace({
       panel={panel}
       position={position}
       focused={isFocused}
-      select={() => viewing.select(panel.id)}
-      focusChanged={() => viewing.focusChanged(panel.id)}
-      headerClick={() => viewing.focus(panel.id)}
+      select={() => panelLocation.select(panel.id)}
+      focusChanged={() => panelLocation.focusChanged(panel.id)}
+      headerClick={() => panelLocation.focus(panel.id)}
       headerPointerDown={event => interactions.current?.startDrag(event.nativeEvent, event.currentTarget, panel.id)}
       actions={
         <>
           {action}
-          <PanelAction label={t('closePanel')} run={() => close(panel.id)}>
+          <PanelAction label={t('closePanel')} perform={() => close(panel.id)}>
             ×
           </PanelAction>
         </>
@@ -215,9 +215,9 @@ export function Workspace({
     />
   );
   useImperativeHandle(ref, () => ({
-    shortcut(action) {
+    runShortcut(action) {
       if (adding) return false;
-      if (action === 'addPanel' && !full) {
+      if (action === 'addPanel' && !atPanelLimit) {
         setAdding(true);
         return true;
       }
@@ -228,12 +228,12 @@ export function Workspace({
       // Panel keys follow the resident layout: an open tray panel returns to the tray first.
       if (action === 'maximizePanel') {
         if (openTrayPanel) flight.collapseIntoCard();
-        else if (focused) viewing.toggleMaximize(focused);
+        else if (focused) panelLocation.toggleMaximize(focused);
         return !!(openTrayPanel || focused);
       }
       if (action === 'nextPanel' || action === 'previousPanel') {
-        if (openTrayPanel) viewing.collapse();
-        if (focused) viewing.move(action === 'nextPanel' ? 1 : -1);
+        if (openTrayPanel) panelLocation.collapse();
+        if (focused) panelLocation.move(action === 'nextPanel' ? 1 : -1);
         return !!(openTrayPanel || focused);
       }
       return false;
@@ -248,7 +248,7 @@ export function Workspace({
             locate={panel => location.locatePanel(project.id, panel.id, panel.run?.id)}
           />
         )}
-        <button aria-label={t('addPanel')} disabled={full} onClick={() => setAdding(true)}>
+        <button aria-label={t('addPanel')} disabled={atPanelLimit} onClick={() => setAdding(true)}>
           ＋
         </button>
       </header>
@@ -256,7 +256,7 @@ export function Workspace({
         {!project.panels.length && !openTrayPanel && (
           <div className="empty">
             <p>{t('emptyProject')}</p>
-            <button disabled={full} onClick={() => setAdding(true)}>
+            <button disabled={atPanelLimit} onClick={() => setAdding(true)}>
               ＋ {t('addPanel')}
             </button>
           </div>
@@ -280,12 +280,12 @@ export function Workspace({
             position,
             focused === panel.id,
             <>
-              <PanelAction label={t('moveToTray')} run={() => moveToTray(panel.id)}>
+              <PanelAction label={t('moveToTray')} perform={() => moveToTray(panel.id)}>
                 ⇣
               </PanelAction>
               <PanelAction
                 label={maximized === panel.id ? t('restorePanel') : t('enlargePanel')}
-                run={() => viewing.toggleMaximize(panel.id)}
+                perform={() => panelLocation.toggleMaximize(panel.id)}
               >
                 ⤢
               </PanelAction>
@@ -297,7 +297,7 @@ export function Workspace({
             openTrayPanel,
             maximizedPosition,
             true,
-            <PanelAction label={t('collapsePanel')} run={flight.collapseIntoCard}>
+            <PanelAction label={t('collapsePanel')} perform={flight.collapseIntoCard}>
               ⌄
             </PanelAction>,
           )}
@@ -339,7 +339,7 @@ export function Workspace({
         panels={project.tray}
         openPanelId={openTrayPanel?.id}
         landedPanelId={flight.landedPanelId}
-        open={viewing.openTrayPanel}
+        open={panelLocation.openTrayPanel}
         collapse={flight.collapseIntoCard}
         landingEnded={flight.landingEnded}
         cardPointerDown={(event, panelId) =>
@@ -349,11 +349,11 @@ export function Workspace({
       {adding && (
         <AgentPicker
           projectId={project.id}
-          full={full}
+          atPanelLimit={atPanelLimit}
           close={() => setAdding(false)}
-          added={panelId => {
+          onPanelAdded={panelId => {
             setAdding(false);
-            viewing.panelAdded(panelId);
+            panelLocation.panelAdded(panelId);
           }}
           openAgentSettings={openAgentSettings}
         />
