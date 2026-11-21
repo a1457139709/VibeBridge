@@ -35,6 +35,7 @@ export function forgeSidebarData(
   | 'showForgeList'
   | 'reportForgeSidebarPresence'
   | 'loadMoreForgeList'
+  | 'showForgeRows'
   | 'refreshForgeList'
   | 'showRepositoryChoices'
   | 'showForgeDetail'
@@ -55,6 +56,7 @@ export function forgeSidebarData(
     showForgeList: (projectId, view) => data.showList(projectId, view),
     reportForgeSidebarPresence: presence => data.reportPresence(presence),
     loadMoreForgeList: projectId => data.loadMore(projectId),
+    showForgeRows: (projectId, numbers) => data.showRows(projectId, numbers),
     refreshForgeList: projectId => data.refresh(projectId),
     showRepositoryChoices: projectId => data.showRepositoryChoices(projectId),
     showForgeDetail: (projectId, item) => data.showDetail(projectId, item),

@@ -6,14 +6,8 @@ import type { DesktopAPI } from '../../shared/api';
 import type { ProjectView, Snapshot } from '../../shared/model';
 import { useSidebarPreferences } from '../common/sidebar-preferences';
 import { ChangeBinding, UnboundRepository } from './SidebarBinding';
-import {
-  ForgeLists,
-  openListsView,
-  SidebarHead,
-  type DetailHost,
-  type ForgeListsActions,
-  type ListsView,
-} from './ForgeLists';
+import { ForgeLists, openListsView, type DetailHost, type ForgeListsActions, type ListsView } from './ForgeLists';
+import { SidebarHead } from './SidebarHead';
 import type { DispatchTarget } from '../../shared/dispatch';
 import { capturePointer } from '../common/pointer-capture';
 import type { ReportNotice } from '../common/Notices';

@@ -79,9 +79,43 @@ export const failed = (kind: ForgeFailure['kind'], detail = '', account: string 
   account,
 });
 
+/** The size of the sidebar's scrolled rows, which the test DOM does not lay out: how tall the scroll area is, and each
+ * row in it. A test sets them; they start tall enough to show every row a test lists. */
+export const listGeometry = { viewport: 10_000, row: 40 };
+const scrollTops = new WeakMap<Element, number>();
+/** Lays out the sidebar's scroll area and its rows by `listGeometry`; any other element keeps the test DOM's no layout. */
+function stubListGeometry() {
+  const { prototype } = window.HTMLElement;
+  const scrollArea = (element: Element) => element.matches('.forge-scroll');
+  Object.defineProperties(prototype, {
+    clientHeight: {
+      configurable: true,
+      get(this: HTMLElement) {
+        return scrollArea(this) ? listGeometry.viewport : 0;
+      },
+    },
+    offsetHeight: {
+      configurable: true,
+      get(this: HTMLElement) {
+        return this.matches('.forge-rows > li') ? listGeometry.row : 0;
+      },
+    },
+    scrollTop: {
+      configurable: true,
+      get(this: HTMLElement) {
+        return scrollTops.get(this) ?? 0;
+      },
+      set(this: HTMLElement, value: number) {
+        scrollTops.set(this, value);
+      },
+    },
+  });
+}
+
 /** The browser APIs the Workbench needs that the test DOM lacks. */
 export function stubSidebarApis() {
   stubLayoutApis();
+  stubListGeometry();
   for (const target of [globalThis, window]) Object.assign(target, { KeyframeEffect: class {} });
   window.HTMLElement.prototype.checkVisibility = () => true;
 }
@@ -139,6 +173,11 @@ export function renderWorkbench(capabilities = githubCapabilities, api: Partial<
     issueDetail,
     pullRequestDetail,
   };
+  const sidebarCalls = forgeSidebarData(forge, event => {
+    for (const listener of listeners) listener(event);
+  });
+  /** The numbers of the rows the sidebar declared it renders, the latest last. */
+  const shownRows: number[][] = [];
   provideWorkbench({
     snapshot: async () => structuredClone(snapshot),
     ready: async () => {},
@@ -158,9 +197,11 @@ export function renderWorkbench(capabilities = githubCapabilities, api: Partial<
     },
     saveLayout: async () => {},
     inspectDirectory: async directory => ({ valid: true, directory }),
-    ...forgeSidebarData(forge, event => {
-      for (const listener of listeners) listener(event);
-    }),
+    ...sidebarCalls,
+    showForgeRows: (projectId, numbers) => {
+      shownRows.push(numbers);
+      return sidebarCalls.showForgeRows(projectId, numbers);
+    },
     ...calls,
   });
   render(<App />);
@@ -170,7 +211,7 @@ export function renderWorkbench(capabilities = githubCapabilities, api: Partial<
       assert.equal(requests.length, count, 'requests made');
       return requests[count - 1];
     });
-  return { user: userEvent.setup(), requests, request, snapshot, publish, forge };
+  return { user: userEvent.setup(), requests, request, snapshot, publish, forge, shownRows };
 }
 
 export const sidebar = () => screen.getByRole('complementary', { name: 'GitHub' });

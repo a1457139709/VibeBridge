@@ -1,13 +1,15 @@
-import type {
-  ForgePresentation,
-  IssueDetailResult,
-  IssuePage,
-  ListFilter,
-  ListQuery,
-  Page,
-  PullRequestDetailResult,
-  PullRequestPage,
-  RepositoryChoices,
+import { z } from 'zod';
+import {
+  itemNumberSchema,
+  type ForgePresentation,
+  type IssueDetailResult,
+  type IssuePage,
+  type ListFilter,
+  type ListQuery,
+  type Page,
+  type PullRequestDetailResult,
+  type PullRequestPage,
+  type RepositoryChoices,
 } from '../../shared/forge/forge';
 import {
   detailItemSchema,
@@ -43,12 +45,14 @@ const projectsKept = 5;
 /** The details kept across all projects, the most recently used. */
 const detailsKept = 50;
 
-/** A project's lists, with the view the sidebar last declared, how many pages each tab loaded, and the request that may
- * settle them while it runs. */
+/** A project's lists, with the view the sidebar last declared, where each page a tab loaded ends in its rows (the count
+ * of rows through it), the numbers of the shown tab's rows the sidebar renders, and the request that may settle them
+ * while it runs. */
 interface CachedList {
   view: ForgeListView;
   lists: ForgeLists;
-  pages: Record<ForgeListTab, number>;
+  pageEnds: Record<ForgeListTab, number[]>;
+  rows: number[];
   request: object | null;
   settled: Promise<void>;
 }
@@ -142,6 +146,12 @@ export class ForgeSidebarData {
     const kept = !!loaded && sameFilter(loaded.filter, declared.filter);
     return this.load(projectId, shown, declared.tab, declared.filter, kept ? 'update' : 'replace');
   }
+  /** Declares the numbers of the shown tab's rows the sidebar renders: a refresh reloads through the page holding
+   * them. */
+  async showRows(projectId: string, numbers: number[]) {
+    const shown = this.lists.get(projectId);
+    if (shown) shown.rows = z.array(itemNumberSchema).parse(numbers);
+  }
   /** Appends the next page of the rows shown, in the filter that produced them. */
   async loadMore(projectId: string) {
     const shown = this.keep(projectId);
@@ -149,13 +159,13 @@ export class ForgeSidebarData {
     if (!shown || !loaded?.cursor) return;
     return this.load(projectId, shown, shown.view.tab, loaded.filter, 'append');
   }
-  /** Loads the shown tab's first page in place of its rows, and the open detail again; the detail keeps showing until
-   * its new answer. */
+  /** Reloads the shown tab from its first page through the page holding the last row the sidebar renders, in place of
+   * its rows, and the open detail again; the rows and the detail keep showing until their new answers. */
   async refresh(projectId: string) {
     const shown = this.keep(projectId);
     const detail = this.openDetails.get(projectId);
     await Promise.all([
-      shown && this.load(projectId, shown, shown.view.tab, shown.view.filter, 'replace'),
+      shown && this.load(projectId, shown, shown.view.tab, shown.view.filter, 'replace', pagesThroughRows(shown)),
       detail && this.loadDetail(projectId, detail.item),
     ]);
   }
@@ -243,7 +253,8 @@ export class ForgeSidebarData {
     const shown: CachedList = {
       view,
       lists: { issues: noRows, pullRequests: noRows, loading: false },
-      pages: { issues: 0, pullRequests: 0 },
+      pageEnds: { issues: [], pullRequests: [] },
+      rows: [],
       request: null,
       settled: Promise.resolve(),
     };
@@ -255,66 +266,86 @@ export class ForgeSidebarData {
     }
     return shown;
   }
+  /** Loads `pages` pages of `tab` in `filter`, joined to its rows as `joining` says, and settles the lists once they
+   * are all in. */
   private load<T extends ForgeListTab>(
     projectId: string,
     shown: CachedList,
     tab: T,
     filter: ListFilter,
     joining: Joining,
+    pages = 1,
   ) {
     const request = {};
     shown.request = request;
-    shown.settled = this.loadPage(projectId, shown, request, tab, filter, joining);
+    shown.settled = this.loadPages(projectId, shown, request, tab, filter, joining, pages);
     return shown.settled;
   }
-  private async loadPage<T extends ForgeListTab>(
+  private async loadPages<T extends ForgeListTab>(
     projectId: string,
     shown: CachedList,
     request: object,
     tab: T,
     filter: ListFilter,
     joining: Joining,
+    pages: number,
   ) {
     const before = shown.lists[tab] as TabList<ForgeListItems[T]>;
-    const cursor = joining === 'append' ? before.loaded!.cursor : null;
     this.settle(projectId, shown, { ...shown.lists, loading: true });
-    let page: Page<ForgeListItems[T]>;
-    // A failure outside the forge (the request itself) is reported like a transient one, with its reason.
+    const items: ForgeListItems[T][] = [];
+    const pageEnds: number[] = [];
+    let page: Page<ForgeListItems[T]> | undefined;
+    // The pages follow one another: each asks from where the one before ended.
+    for (let cursor = joining === 'append' ? before.loaded!.cursor : null; pages > 0; pages--) {
+      page = await this.readPage(projectId, tab, { filter, cursor });
+      if (shown.request !== request || this.lists.get(projectId) !== shown) return;
+      if (!page.ok) break;
+      items.push(...page.items);
+      pageEnds.push(items.length);
+      if (!(cursor = page.cursor)) break;
+    }
+    shown.request = null;
+    const previous = shown.lists[tab] as TabList<ForgeListItems[T]>;
+    let next: TabList<ForgeListItems[T]>;
+    if (!page!.ok) next = { ...previous, failed: page! };
+    else {
+      const { ok: _, ...rows } = page!;
+      const held = previous.loaded && sameFilter(previous.loaded.filter, filter) ? previous.loaded : null;
+      if (joining === 'append' && held) {
+        const numbers = new Set(held.items.map(item => item.number));
+        const joined = [...held.items, ...items.filter(item => !numbers.has(item.number))];
+        next = { failed: null, loaded: { ...rows, filter, items: joined } };
+        shown.pageEnds[tab] = [...shown.pageEnds[tab], joined.length];
+      } else if (joining === 'update' && held) {
+        const updated = updatedInPlace(held.items, items);
+        const cursor = shown.pageEnds[tab].length > 1 ? held.cursor : rows.cursor;
+        next = { failed: null, loaded: { ...rows, filter, items: updated, cursor } };
+      } else {
+        next = { failed: null, loaded: { ...rows, filter, items } };
+        shown.pageEnds[tab] = pageEnds;
+      }
+    }
+    this.settle(projectId, shown, { ...shown.lists, [tab]: next, loading: false });
+  }
+  /** Asks the forge for a page of `tab`; a failure outside the forge (the request itself) is reported like a transient
+   * one, with its reason. */
+  private async readPage<T extends ForgeListTab>(
+    projectId: string,
+    tab: T,
+    query: ListQuery,
+  ): Promise<Page<ForgeListItems[T]>> {
     try {
-      page = (await (tab === 'issues' ? this.sources.issuePage : this.sources.pullRequestPage)(projectId, {
-        filter,
-        cursor,
-      })) as Page<ForgeListItems[T]>;
+      return (await (tab === 'issues' ? this.sources.issuePage : this.sources.pullRequestPage)(
+        projectId,
+        query,
+      )) as Page<ForgeListItems[T]>;
     } catch (error) {
-      page = {
+      return {
         ok: false,
         failure: { kind: 'transient', detail: (error as Error).message, forge: this.sources.forge(projectId) },
         account: null,
       };
     }
-    if (shown.request !== request || this.lists.get(projectId) !== shown) return;
-    shown.request = null;
-    const previous = shown.lists[tab] as TabList<ForgeListItems[T]>;
-    let next: TabList<ForgeListItems[T]>;
-    if (!page.ok) next = { ...previous, failed: page };
-    else {
-      const { ok: _, ...rows } = page;
-      const held = previous.loaded && sameFilter(previous.loaded.filter, filter) ? previous.loaded : null;
-      if (joining === 'append' && held) {
-        const numbers = new Set(held.items.map(item => item.number));
-        const items = [...held.items, ...rows.items.filter(item => !numbers.has(item.number))];
-        next = { failed: null, loaded: { ...rows, filter, items } };
-        shown.pages[tab]++;
-      } else if (joining === 'update' && held) {
-        const items = updatedInPlace(held.items, rows.items);
-        const cursor = shown.pages[tab] > 1 ? held.cursor : rows.cursor;
-        next = { failed: null, loaded: { ...rows, filter, items, cursor } };
-      } else {
-        next = { failed: null, loaded: { ...rows, filter } };
-        shown.pages[tab] = 1;
-      }
-    }
-    this.settle(projectId, shown, { ...shown.lists, [tab]: next, loading: false });
   }
   private detailKey(projectId: string, { kind, number }: DetailItem) {
     return `${projectId}\n${kind}\n${number}`;
@@ -370,4 +401,13 @@ export class ForgeSidebarData {
     shown.lists = lists;
     this.sources.emit({ kind: 'forgeLists', projectId, lists });
   }
+}
+
+/** How many pages of the shown tab, from the first, hold every row the sidebar renders; at least one. */
+function pagesThroughRows(shown: CachedList) {
+  const { tab } = shown.view;
+  const items: { number: number }[] = shown.lists[tab].loaded?.items ?? [];
+  const rendered = new Set(shown.rows);
+  const last = items.findLastIndex(item => rendered.has(item.number));
+  return Math.max(shown.pageEnds[tab].findIndex(end => end > last) + 1, 1);
 }

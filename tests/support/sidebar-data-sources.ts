@@ -42,8 +42,17 @@ export function sidebarData() {
     answer(value: unknown): void;
     fail(error: Error): void;
   }[] = [];
+  const waiting: (() => void)[] = [];
   const read = (projectId: string, query?: ListQuery, item?: DetailItem) =>
-    new Promise<never>((answer, fail) => reads.push({ projectId, query, item, answer: answer as never, fail }));
+    new Promise<never>((answer, fail) => {
+      reads.push({ projectId, query, item, answer: answer as never, fail });
+      for (const wake of waiting.splice(0)) wake();
+    });
+  /** The `count`th read, once it is made. */
+  const readNumber = async (count: number) => {
+    while (reads.length < count) await new Promise<void>(wake => waiting.push(wake));
+    return reads[count - 1];
+  };
   const events: ForgeSidebarEvent[] = [];
   const data = new ForgeSidebarData({
     issuePage: read,
@@ -69,7 +78,7 @@ export function sidebarData() {
       (event): event is Extract<ForgeSidebarEvent, { kind: 'forgeDetail' }> =>
         event.kind === 'forgeDetail' && event.projectId === projectId,
     )?.detail;
-  return { data, reads, events, lists, choices, shownDetail };
+  return { data, reads, readNumber, events, lists, choices, shownDetail };
 }
 export const numbers = (lists: ForgeLists | undefined) => lists?.issues.loaded?.items.map(item => item.number);
 /** The title of the issue the detail shows, as last pushed. */

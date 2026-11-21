@@ -6,7 +6,6 @@ import {
   type PointerEvent as ReactPointerEvent,
   type Ref,
 } from 'react';
-import { SyncIcon } from '@primer/octicons-react';
 import { useLocalization } from '../common/Localization';
 import { detail } from '../../shared/messages';
 import type {
@@ -31,7 +30,10 @@ import type { IssueDispatch } from './IssueDetail';
 import { FilterBar } from './ForgeFilterBar';
 import { DispatchButton, holdsDispatch, type DispatchHost } from '../dispatch/DispatchMenu';
 import { LatestDispatchSkill } from '../dispatch/DispatchRecords';
-import { IssueTree, issueRowOf, moveOrOpenRow, PullRequestRow, rowTitleIn, rowTitleOf } from './ForgeRows';
+import { IssueTree, issueRowOf, moveOrOpenRow, PullRequestRow, rowTitleIn } from './ForgeRows';
+import { VirtualRows } from './VirtualRows';
+import { useScrolledRows } from './scrolled-rows';
+import { SidebarHead } from './SidebarHead';
 
 /** Each tab's own texts. */
 const tabText = {
@@ -100,41 +102,6 @@ export const openListsView: ListsView = {
   filters: { issues: openNoFilter, pullRequests: openNoFilter },
 };
 
-/** The sidebar's header: the repository, or that none is bound, with Change binding for a bound one's lists, and the persistent Refresh. */
-export function SidebarHead({
-  title,
-  refresh,
-  loading = false,
-  changeBinding,
-}: {
-  title: string;
-  refresh?(): void;
-  loading?: boolean;
-  changeBinding?(): void;
-}) {
-  const { t } = useLocalization();
-  return (
-    <header className="forge-sidebar-head">
-      <span className="forge-sidebar-repository">{title}</span>
-      {changeBinding && (
-        <button className="forge-head-text" onClick={changeBinding}>
-          {t('changeBinding')}
-        </button>
-      )}
-      <button
-        className={`forge-head-action forge-refresh ${loading ? 'spinning' : ''}`}
-        aria-label={t('refresh')}
-        data-hint={t('refresh')}
-        aria-busy={loading}
-        disabled={loading || !refresh}
-        onClick={refresh}
-      >
-        <SyncIcon size={14} />
-      </button>
-    </header>
-  );
-}
-
 /** The detail's resize edge, owned by the sidebar, and where it reports whether a detail is open. */
 export interface DetailHost {
   resize(event: ReactPointerEvent<HTMLDivElement>): void;
@@ -165,10 +132,11 @@ export interface ForgeListsActions {
 /** The bound repository's lists: a persistent Refresh, the Issues and Pull requests tabs, each with its own
  * search, filters, rows and failure, and the forge failure states. The main process holds the rows
  * (docs/adr/0008-forge-sidebar-data-lives-in-the-main-process.md); this view declares the tab and filter it shows and
- * renders what is pushed. The owner mounts it per project and repository, on the tab and filters it last showed: opening
- * the sidebar or returning to a project shows the rows the main process kept at once. It reports whether it shows and
- * whether the window is in the foreground, and the main process updates the rows in the background. Clicking a row opens its detail beside the list, which this view declares too; links followed inside the
- * detail stack up, so Back returns to the item before. */
+ * renders what is pushed. Only the rows in view render, and it declares them too. The owner mounts it per project and
+ * repository, on the tab and filters it last showed: opening the sidebar or returning to a project shows the rows the
+ * main process kept at once. It reports whether it shows and whether the window is in the foreground, and the main
+ * process updates the rows in the background. Clicking a row opens its detail beside the list, which this view
+ * declares too; links followed inside the detail stack up, so Back returns to the item before. */
 export function ForgeLists({ project, changeBinding, detailHost, dispatchHost, view, rememberView, ref }: Props) {
   const { t, text } = useLocalization();
   const [tab, setTab] = useState<ForgeListTab>(view.tab);
@@ -198,8 +166,17 @@ export function ForgeLists({ project, changeBinding, detailHost, dispatchHost, v
   /** Sends a declaration to the main process; one that is refused is reported. */
   const declare = (declaration: Promise<void>) =>
     void declaration.catch((error: Error) => dispatchHost.report(error.message));
-  /** The sidebar's one refresh: the current tab's first page and the open detail. */
-  const refresh = () => declare(window.workbench.refreshForgeList(project.id));
+  const { scrollArea, holdScrollArea, rowsHost, keepReadingPosition, rowTitle } = useScrolledRows(
+    project.id,
+    lists,
+    declare,
+  );
+  /** The sidebar's one refresh: the current tab, from its first page through the page in view, and the open detail;
+   * the list then returns to where it was being read. */
+  const refresh = () => {
+    keepReadingPosition();
+    declare(window.workbench.refreshForgeList(project.id));
+  };
   /** The item the detail was last declared to show. */
   const declaredDetail = useRef<DetailItem | null>(null);
   /** Declares the item the detail shows, or that it is closed; the main process loads it on each declaration. */
@@ -242,8 +219,6 @@ export function ForgeLists({ project, changeBinding, detailHost, dispatchHost, v
       />
     );
   };
-  /** The rows: where focus returns from the detail, and where it rests when no row of the detail's items shows. */
-  const scrollArea = useRef<HTMLDivElement>(null);
   const dispatchRecordsOf = (issueNumber: number) => project.dispatches.filter(record => record.issue === issueNumber);
   /** An open issue's dispatch action and the skill of its latest dispatch. */
   const issueAction = (issue: IssueSummary) => (
@@ -288,11 +263,11 @@ export function ForgeLists({ project, changeBinding, detailHost, dispatchHost, v
       rowTitleIn(scrollArea.current)?.focus();
   }, [firstRowsLoaded]);
   /** Closes the detail and returns focus to the list row of the item it shows, or else of the one it opened from; with
-   * no such row showing, to the list itself, so focus stays in the sidebar. */
+   * no such row in the list, to the list itself, so focus stays in the sidebar. */
   const closeDetail = () => {
     const title = opened
       .toReversed()
-      .map(item => rowTitleOf(scrollArea.current, item))
+      .map(item => rowTitle(item, tab))
       .find(Boolean);
     setOpened([]);
     (title ?? scrollArea.current)?.focus();
@@ -434,9 +409,10 @@ export function ForgeLists({ project, changeBinding, detailHost, dispatchHost, v
         labels={loaded?.labels ?? []}
         counts={loaded?.counts ?? null}
       />
-      <div className="forge-scroll" ref={scrollArea} tabIndex={-1} onKeyDown={moveOrOpenRow}>
+      <div className="forge-scroll" ref={holdScrollArea} tabIndex={-1} onKeyDown={moveOrOpenRow}>
         {lists.issues.loaded && tab === 'issues' && (
           <IssueTree
+            rowsHost={rowsHost}
             issues={lists.issues.loaded.items}
             state={lists.issues.loaded.filter.state}
             capabilities={project.capabilities}
@@ -447,18 +423,25 @@ export function ForgeLists({ project, changeBinding, detailHost, dispatchHost, v
           />
         )}
         {lists.pullRequests.loaded && tab === 'pullRequests' && (
-          <ul className="forge-rows" aria-label={t(texts.name)}>
-            {lists.pullRequests.loaded.items.map(item => (
-              <li key={item.number}>
-                <PullRequestRow
-                  pullRequest={item}
-                  selected={item.number === selected('pullRequest')}
-                  open={() => openFromList({ kind: 'pullRequest', number: item.number })}
-                  addLabel={addLabel}
-                />
-              </li>
-            ))}
-          </ul>
+          <VirtualRows
+            host={rowsHost}
+            keys={lists.pullRequests.loaded.items.map(item => item.number)}
+            row={index => {
+              const item = lists.pullRequests.loaded!.items[index];
+              return (
+                <li key={item.number}>
+                  <PullRequestRow
+                    pullRequest={item}
+                    selected={item.number === selected('pullRequest')}
+                    open={() => openFromList({ kind: 'pullRequest', number: item.number })}
+                    addLabel={addLabel}
+                  />
+                </li>
+              );
+            }}
+            className="forge-rows"
+            aria-label={t(texts.name)}
+          />
         )}
         {loaded && !loaded.items.length && <p className="forge-empty">{t(texts.noMatches)}</p>}
         {!loaded && <p className="forge-empty">{t(texts.loading)}</p>}
