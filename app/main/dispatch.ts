@@ -79,7 +79,7 @@ export class Dispatches {
 
   /** Adds to each project its dispatches to its bound repository, oldest first, each with the panel on its session now:
    * that panel may be in any project. A dispatch still waiting for its new panel's first session shows that panel. */
-  withViews(projects: Omit<ProjectView, 'dispatches'>[]): ProjectView[] {
+  withDispatches(projects: Omit<ProjectView, 'dispatches'>[]): ProjectView[] {
     const where = ({ projectId, panelId }: PanelLocation): DispatchLocation | null => {
       const project = projects.find(project => project.id === projectId);
       const open = project && projectPanels(project).some(panel => panel.id === panelId);
@@ -132,7 +132,7 @@ export class Dispatches {
     const configured = commandDelivery(workflows, workflowId, commandId);
     const delivery: Delivery = invert ? invertedDelivery(configured) : configured;
     /** The command in the Agent type's syntax, and the record of sending it now. */
-    const command = (agent: AgentType): UnrecordedDispatch => {
+    const unrecordedDispatch = (agent: AgentType): UnrecordedDispatch => {
       const text = commandText(agent, found.command, {
         url: forges[repository.forge].issueUrl(repository, issue.number),
         ...issue,
@@ -149,8 +149,8 @@ export class Dispatches {
     };
     const panelId =
       target.kind === 'new'
-        ? await this.toNewPanel(command(target.agent), delivery, targets)
-        : await this.toPanel(target.panelId, command, delivery, targets);
+        ? await this.toNewPanel(unrecordedDispatch(target.agent), delivery, targets)
+        : await this.toPanel(target.panelId, unrecordedDispatch, delivery, targets);
     return { delivery, panelId };
   }
 
@@ -163,17 +163,17 @@ export class Dispatches {
     const runId = launch.run.id;
     const pending: PendingDispatch = { panelId: panel.id, dispatch };
     this.pending.push(pending);
-    const settle = () => {
+    const dropPending = () => {
       this.pending = this.pending.filter(item => item !== pending);
     };
     if (
       !this.supervision.awaitFirstSession(
         runId,
-        sessionId => void this.append({ ...dispatch, sessionId }, settle),
-        settle,
+        sessionId => void this.append({ ...dispatch, sessionId }, dropPending),
+        dropPending,
       )
     )
-      settle();
+      dropPending();
     if (delivery === 'fill')
       this.supervision.awaitFirstReady(
         runId,
@@ -189,7 +189,7 @@ export class Dispatches {
   /** A panel with a run has the command pasted after whatever its input holds, then Enter submits it. */
   private async toPanel(
     panelId: string,
-    command: (agent: AgentType) => UnrecordedDispatch,
+    unrecordedDispatch: (agent: AgentType) => UnrecordedDispatch,
     delivery: Delivery,
     targets: DispatchTargets,
   ) {
@@ -199,30 +199,30 @@ export class Dispatches {
     if (!run || !liveRun(run)) throw new Error(message('dispatchTargetUnavailable'));
     // The session is taken before writing, so a session switch during the write leaves the record on the one written to.
     let session: string | undefined;
-    let handOver: SessionReceiver = sessionId => {
+    let onSessionKnown: SessionReceiver = sessionId => {
       session = sessionId;
     };
-    if (!this.supervision.awaitFirstSession(run.id, sessionId => handOver(sessionId)))
+    if (!this.supervision.awaitFirstSession(run.id, sessionId => onSessionKnown(sessionId)))
       throw new Error(message('dispatchTargetUnavailable'));
-    const dispatch = command(panel.agent);
+    const dispatch = unrecordedDispatch(panel.agent);
     await this.supervision.input(run.id, bracketedPaste(dispatch.text));
     if (delivery === 'submit') await this.supervision.input(run.id, '\r');
     const written = { ...dispatch, dispatchedAt: new Date().toISOString() };
     if (session) await this.append({ ...written, sessionId: session });
-    else handOver = sessionId => void this.append({ ...written, sessionId });
+    else onSessionKnown = sessionId => void this.append({ ...written, sessionId });
     return panel.id;
   }
 
-  /** Stores a record, then shows it; `settled` runs once the store has answered, either way, before the snapshot changes. */
-  private async append(record: DispatchRecord, settled?: () => void) {
+  /** Stores a record, then shows it; `onStoreAnswered` runs once the store has answered, either way, before the snapshot changes. */
+  private async append(record: DispatchRecord, onStoreAnswered?: () => void) {
     let stored = true;
     try {
-      await this.store.dispatch(record);
+      await this.store.appendDispatchRecord(record);
     } catch (error) {
       stored = false;
       this.report((error as Error).message);
     }
-    settled?.();
+    onStoreAnswered?.();
     if (stored) this.records.push(record);
     this.changed();
   }

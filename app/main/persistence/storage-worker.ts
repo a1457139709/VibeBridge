@@ -114,16 +114,16 @@ function readDispatchRecords(projects: Project[]): DispatchRecord[] {
     });
 }
 
-/** Where each sidebar's preferences are stored; `field` names that place when what is stored there is invalid. */
-const sidebarStorage: Record<Sidebar, { read: string; write: string; field: string }> = {
+/** Where each sidebar's preferences are stored; `location` names that place when what is stored there is invalid. */
+const sidebarStorage: Record<Sidebar, { read: string; write: string; location: string }> = {
   navigation: {
-    field: 'navigation',
+    location: 'navigation',
     read: 'SELECT navigation AS preferences FROM workspace WHERE id=1',
     write:
       'INSERT INTO workspace (id, navigation) VALUES (1,?) ON CONFLICT(id) DO UPDATE SET navigation=excluded.navigation',
   },
   forgeSidebar: {
-    field: 'forge_sidebar',
+    location: 'forge_sidebar',
     read: 'SELECT preferences FROM forge_sidebar WHERE id=1',
     write: 'INSERT INTO forge_sidebar VALUES (1,?) ON CONFLICT(id) DO UPDATE SET preferences=excluded.preferences',
   },
@@ -131,7 +131,7 @@ const sidebarStorage: Record<Sidebar, { read: string; write: string; field: stri
 
 /** A sidebar's stored preferences, or its defaults when none are stored. */
 function readSidebar(sidebar: Sidebar): SidebarPreferences {
-  const { read, field } = sidebarStorage[sidebar];
+  const { read, location: field } = sidebarStorage[sidebar];
   const stored = db.prepare(read).get()?.preferences;
   if (stored === null || stored === undefined) return sidebars[sidebar].defaults;
   try {
@@ -176,7 +176,7 @@ parentPort!.on('message', ({ id, operation, value }) => {
       const projects = db.prepare('SELECT * FROM projects ORDER BY rowid').all().map(readProject);
       result = {
         projects,
-        repositories: readBindings(projects),
+        bindings: readBindings(projects),
         dispatches: readDispatchRecords(projects),
         navigation: readSidebar('navigation'),
         forgeSidebar: readSidebar('forgeSidebar'),
