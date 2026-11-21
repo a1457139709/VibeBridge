@@ -1,5 +1,5 @@
 import { createHash } from 'node:crypto';
-import { reportCommandHook } from '../reporter';
+import { runCommandHookReporter } from '../reporter';
 
 function canonical(value: unknown): string {
   if (Array.isArray(value)) return `[${value.map(canonical).join(',')}]`;
@@ -11,7 +11,7 @@ function canonical(value: unknown): string {
   return JSON.stringify(value);
 }
 
-reportCommandHook('claude', raw => {
+runCommandHookReporter('claude', raw => {
   const payload = Object.fromEntries(
     [
       'hook_event_name',

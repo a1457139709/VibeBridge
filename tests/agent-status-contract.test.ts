@@ -97,7 +97,7 @@ const contracts: Record<AgentType, Contract> = {
 
 /** Feeds facts the way ProcessingStatus does: every Error discards outcome evidence. */
 function observe(adapter: StatusAdapter) {
-  const interpreter = adapter.observe();
+  const interpreter = adapter.createInterpreter();
   const accept = (payload: Payload): Outcome => {
     const outcome = interpreter.accept(payload);
     if (outcome === 'error') interpreter.discardEvidence();
@@ -166,11 +166,11 @@ for (const [agent, contract] of Object.entries(contracts)) {
 
   test(`${agent}: the ready sample reports its session ID, which discarding evidence keeps`, () => {
     const run = observe(contract.adapter);
-    assert.equal(run.interpreter.session(), undefined);
+    assert.equal(run.interpreter.sessionId(), undefined);
     run.feed(contract.ready);
-    assert.equal(run.interpreter.session(), 'session');
+    assert.equal(run.interpreter.sessionId(), 'session');
     run.interpreter.discardEvidence();
-    assert.equal(run.interpreter.session(), 'session');
+    assert.equal(run.interpreter.sessionId(), 'session');
   });
 
   test(`${agent}: interpreters of two runs are independent`, () => {

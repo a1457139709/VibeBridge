@@ -37,7 +37,7 @@ function inline(value: unknown): string {
  * command-line handlers are retained when our event arrays are appended to that layer.
  * Trust stays in Codex's native /hooks UI. The stable command contains no run secrets.
  */
-function launch(command: AgentCommand): AgentCommand {
+function withReporterHooks(command: AgentCommand): AgentCommand {
   const hooks: Record<string, unknown> = {};
   const boundary = command.args.indexOf('--');
   const args = command.args.slice(0, boundary < 0 ? undefined : boundary);
@@ -74,7 +74,7 @@ function launch(command: AgentCommand): AgentCommand {
 
 class CodexInterpreter implements StatusInterpreter {
   private currentSession?: string;
-  private retired = new Set<string>();
+  private endedSessions = new Set<string>();
   private turn?: string;
   private oldTurns = new Set<string>();
   private seen = new Set<string>();
@@ -87,7 +87,7 @@ class CodexInterpreter implements StatusInterpreter {
       return 'discard';
     const session = event.session_id;
     if (typeof session !== 'string' || !session) return 'error';
-    const known = this.identify(event, session);
+    const known = this.admitFacts(event, session);
     return known ? this.classify(known) : 'discard';
   }
 
@@ -96,33 +96,33 @@ class CodexInterpreter implements StatusInterpreter {
     this.unansweredAsyncQuestion = false;
   }
 
-  session() {
+  sessionId() {
     return this.currentSession;
   }
 
   /** Interpret identity only after the outer run capability was authenticated.
-   * Only identifiable retired sessions, turns and repeated source boundaries
+   * Only identifiable ended sessions, turns and repeated source boundaries
    * are excluded.
    */
-  private identify(event: Payload, session: string): Payload | undefined {
+  private admitFacts(event: Payload, session: string): Payload | undefined {
     const name = event.hook_event_name;
     if (name === 'SessionStart') {
       if (this.currentSession !== session) {
-        if (this.currentSession) this.retired.add(this.currentSession);
+        if (this.currentSession) this.endedSessions.add(this.currentSession);
         this.currentSession = session;
-        this.retired.delete(session);
+        this.endedSessions.delete(session);
         this.turn = undefined;
         this.oldTurns.clear();
         this.seen.clear();
       }
       return event;
     }
-    if (this.retired.has(session) || (this.currentSession && this.currentSession !== session)) return;
+    if (this.endedSessions.has(session) || (this.currentSession && this.currentSession !== session)) return;
     // A user may trust hooks after startup. A fresh main event can establish the
     // association; directory, session ID and parent ID never authorize a run.
     this.currentSession ??= session;
     if (name === 'SessionEnd') {
-      this.retired.add(session);
+      this.endedSessions.add(session);
       this.currentSession = undefined;
       this.turn = undefined;
       return event;
@@ -204,7 +204,7 @@ class CodexInterpreter implements StatusInterpreter {
 
 export const codex: StatusAdapter = {
   async prepare({ command }) {
-    return { command: launch(command) };
+    return { command: withReporterHooks(command) };
   },
-  observe: () => new CodexInterpreter(),
+  createInterpreter: () => new CodexInterpreter(),
 };

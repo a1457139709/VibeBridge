@@ -11,13 +11,13 @@ app.setName('VibeBridge');
 // Also permits isolated local acceptance runs without touching the user's projects.
 if (process.env.VIBEBRIDGE_DATA_DIR) app.setPath('userData', process.env.VIBEBRIDGE_DATA_DIR);
 let window: BrowserWindow | undefined;
-let workbench: Promise<Workbench>;
+let opening: Promise<Workbench>;
 let exiting = false;
 let confirming = false;
 let language: Language = 'en';
 // An app opened from the Finder inherits a minimal PATH. Forge CLIs such as gh are looked up on the
 // inherited PATH first, then on the login shell's, where the Agents find them too.
-const loginPath = commandEnvironment()
+const loginPathMerged = commandEnvironment()
   .then(environment => {
     const entries = [...(process.env.PATH ?? '').split(':'), ...(environment.PATH ?? '').split(':')].filter(Boolean);
     process.env.PATH = [...new Set(entries)].join(':');
@@ -81,7 +81,7 @@ async function requestQuit() {
     return;
   }
   try {
-    await (await workbench).quit();
+    await (await opening).quit();
   } catch (error) {
     await dialog.showMessageBox(window!, {
       type: 'error',
@@ -131,19 +131,19 @@ void app.whenReady().then(async () => {
   });
   window.webContents.on('will-navigate', event => event.preventDefault());
   updateNativeLanguage(language);
-  workbench = Workbench.open(app.getPath('userData'), nativeTheme.shouldUseDarkColors);
-  void workbench
-    .then(service => {
-      updateNativeLanguage(service.snapshot().settings.language);
-      service.subscribe(event => {
+  opening = Workbench.open(app.getPath('userData'), nativeTheme.shouldUseDarkColors);
+  void opening
+    .then(workbench => {
+      updateNativeLanguage(workbench.snapshot().settings.language);
+      workbench.subscribe(event => {
         if (event.kind === 'snapshot' && event.snapshot.settings.language !== language)
           updateNativeLanguage(event.snapshot.settings.language);
       });
-      nativeTheme.themeSource = service.snapshot().resolvedTheme;
-      window?.setBackgroundColor(service.snapshot().resolvedTheme === 'dark' ? '#141414' : '#f5f5f5');
+      nativeTheme.themeSource = workbench.snapshot().resolvedTheme;
+      window?.setBackgroundColor(workbench.snapshot().resolvedTheme === 'dark' ? '#141414' : '#f5f5f5');
     })
     .catch(() => {});
-  void workbench.catch(error => {
+  void opening.catch(error => {
     if (error instanceof WorkbenchOpenError) updateNativeLanguage(error.language);
     return dialog.showMessageBox(window!, {
       type: 'error',
@@ -152,87 +152,87 @@ void app.whenReady().then(async () => {
     });
   });
   // Install handlers before showing the page, while disk work completes asynchronously.
-  const handle = (name: string, action: (service: Workbench, ...args: any[]) => unknown) => {
+  const handle = (name: string, action: (workbench: Workbench, ...args: any[]) => unknown) => {
     ipcMain.handle(`workbench:${name}`, async (event, ...args) => {
       if (event.sender !== window!.webContents || event.senderFrame?.url !== page)
         throw new Error(message('requestInvalid'));
       try {
-        return await action(await workbench, ...args);
+        return await action(await opening, ...args);
       } catch (error) {
         if (error instanceof WorkbenchOpenError) throw new Error(localize(error.language).text(error.message));
         throw error;
       }
     });
   };
-  handle('snapshot', service => service.snapshot());
-  handle('create', (service, draft) => service.createProject(draft));
-  handle('edit-project', async (service, id, edit, restart) => {
-    await loginPath;
-    return service.editProject(id, edit, restart);
+  handle('snapshot', workbench => workbench.snapshot());
+  handle('create', (workbench, draft) => workbench.createProject(draft));
+  handle('edit-project', async (workbench, id, edit, restart) => {
+    await loginPathMerged;
+    return workbench.editProject(id, edit, restart);
   });
-  handle('delete-project', (service, id) => service.deleteProject(id));
-  handle('directory', (service, directory) => service.inspectDirectory(directory));
-  handle('repository-choices', async (service, id, directory) => {
-    await loginPath;
-    return service.repositoryChoices(id, directory);
+  handle('delete-project', (workbench, id) => workbench.deleteProject(id));
+  handle('directory', (workbench, directory) => workbench.inspectDirectory(directory));
+  handle('repository-choices', async (workbench, id, directory) => {
+    await loginPathMerged;
+    return workbench.repositoryChoices(id, directory);
   });
-  handle('bind-repository', async (service, id, repository) => {
-    await loginPath;
-    return service.bindRepository(id, repository);
+  handle('bind-repository', async (workbench, id, repository) => {
+    await loginPathMerged;
+    return workbench.bindRepository(id, repository);
   });
-  handle('unbind-repository', (service, id) => service.unbindRepository(id));
-  handle('show-forge-list', async (service, id, view) => {
-    await loginPath;
-    return service.forgeSidebar.showList(id, view);
+  handle('unbind-repository', (workbench, id) => workbench.unbindRepository(id));
+  handle('show-forge-list', async (workbench, id, view) => {
+    await loginPathMerged;
+    return workbench.forgeSidebar.showList(id, view);
   });
-  handle('report-forge-sidebar-presence', async (service, presence) => {
-    await loginPath;
-    return service.forgeSidebar.reportPresence(presence);
+  handle('report-forge-sidebar-presence', async (workbench, presence) => {
+    await loginPathMerged;
+    return workbench.forgeSidebar.reportPresence(presence);
   });
-  handle('load-more-forge-list', async (service, id) => {
-    await loginPath;
-    return service.forgeSidebar.loadMore(id);
+  handle('load-more-forge-list', async (workbench, id) => {
+    await loginPathMerged;
+    return workbench.forgeSidebar.loadMore(id);
   });
-  handle('show-forge-rows', (service, id, numbers) => service.forgeSidebar.showRows(id, numbers));
-  handle('refresh-forge-list', async (service, id) => {
-    await loginPath;
-    return service.forgeSidebar.refresh(id);
+  handle('show-forge-rows', (workbench, id, numbers) => workbench.forgeSidebar.showRows(id, numbers));
+  handle('refresh-forge-list', async (workbench, id) => {
+    await loginPathMerged;
+    return workbench.forgeSidebar.refresh(id);
   });
-  handle('show-repository-choices', async (service, id) => {
-    await loginPath;
-    return service.forgeSidebar.showRepositoryChoices(id);
+  handle('show-repository-choices', async (workbench, id) => {
+    await loginPathMerged;
+    return workbench.forgeSidebar.showRepositoryChoices(id);
   });
-  handle('show-forge-detail', async (service, id, item) => {
-    await loginPath;
-    return service.forgeSidebar.showDetail(id, item);
+  handle('show-forge-detail', async (workbench, id, item) => {
+    await loginPathMerged;
+    return workbench.forgeSidebar.showDetail(id, item);
   });
-  handle('report-forge-row-resting', async (service, id, item) => {
-    await loginPath;
-    return service.forgeSidebar.reportRestingOn(id, item);
+  handle('report-forge-row-resting', async (workbench, id, item) => {
+    await loginPathMerged;
+    return workbench.forgeSidebar.reportRestingOn(id, item);
   });
-  handle('report-forge-item-changed', async (service, id, item) => {
-    await loginPath;
-    return service.forgeSidebar.reloadChanged(id, item);
+  handle('report-forge-item-changed', async (workbench, id, item) => {
+    await loginPathMerged;
+    return workbench.forgeSidebar.reloadChanged(id, item);
   });
-  handle('dispatch', (service, id, request) => service.dispatch(id, request));
-  handle('direct-action', async (service, id, action) => {
-    await loginPath;
-    return service.directAction(id, action);
+  handle('dispatch', (workbench, id, request) => workbench.dispatch(id, request));
+  handle('direct-action', async (workbench, id, action) => {
+    await loginPathMerged;
+    return workbench.directAction(id, action);
   });
-  handle('activate', (service, id) => service.activateProject(id));
-  handle('add', (service, project, agent) => service.addPanel(project, agent));
-  handle('close', (service, project, panel) => service.closePanel(project, panel));
-  handle('place', (service, project, panel, layout) => service.placeInLayout(project, panel, layout));
-  handle('tray', (service, project, panel) => service.moveToTray(project, panel));
-  handle('layout', (service, project, layout) => service.saveLayout(project, layout));
-  handle('sidebar', (service, sidebar, preferences) => service.saveSidebar(sidebar, preferences));
-  handle('settings', (service, settings) => service.saveSettings(settings));
-  handle('check-command', (service, command) => service.runs.checkCommand(command));
-  handle('input', (service, run, data) => service.runs.input(run, data));
-  handle('resize', (service, run, cols, rows) => service.runs.resize(run, cols, rows));
+  handle('activate', (workbench, id) => workbench.activateProject(id));
+  handle('add', (workbench, project, agent) => workbench.addPanel(project, agent));
+  handle('close', (workbench, project, panel) => workbench.closePanel(project, panel));
+  handle('place', (workbench, project, panel, layout) => workbench.placeInLayout(project, panel, layout));
+  handle('tray', (workbench, project, panel) => workbench.moveToTray(project, panel));
+  handle('layout', (workbench, project, layout) => workbench.saveLayout(project, layout));
+  handle('sidebar', (workbench, sidebar, preferences) => workbench.saveSidebar(sidebar, preferences));
+  handle('settings', (workbench, settings) => workbench.saveSettings(settings));
+  handle('check-command', (workbench, command) => workbench.runs.checkCommand(command));
+  handle('input', (workbench, run, data) => workbench.runs.input(run, data));
+  handle('resize', (workbench, run, cols, rows) => workbench.runs.resize(run, cols, rows));
   ipcMain.on('workbench:output-consumed', (event, run, characters) => {
     if (event.sender === window!.webContents && event.senderFrame?.url === page) {
-      void workbench.then(service => service.runs.acknowledgeOutput(run, characters));
+      void opening.then(workbench => workbench.runs.acknowledgeOutput(run, characters));
     }
   });
   handle('choose-directory', async () => {
@@ -248,14 +248,14 @@ void app.whenReady().then(async () => {
     void requestQuit();
   });
   let ready = false;
-  handle('ready', async service => {
+  handle('ready', async workbench => {
     if (ready) return;
     ready = true;
-    service.subscribe(event => {
+    workbench.subscribe(event => {
       if (window && !window.isDestroyed()) window.webContents.send('workbench:event', event);
     });
-    const active = service.snapshot().activeProjectId;
-    if (active) await service.activateProject(active);
+    const active = workbench.snapshot().activeProjectId;
+    if (active) await workbench.activateProject(active);
   });
   await window.loadURL(page);
 });

@@ -89,7 +89,7 @@ export class RunSupervision {
   }
   /** The panel whose run is on this session now, if any. */
   locate(sessionId: string): PanelLocation | undefined {
-    const run = this.runs.find(run => this.current(run) && this.processing.session(run.id) === sessionId);
+    const run = this.runs.find(run => this.current(run) && this.processing.sessionId(run.id) === sessionId);
     return run && { projectId: run.projectId, panelId: run.panelId };
   }
   /** Hands a current run's first session ID to `handOver`; at once if the run is already on a session.

@@ -130,7 +130,7 @@ class PiInterpreter implements StatusInterpreter {
     this.evidence = {};
   }
 
-  session() {
+  sessionId() {
     return this.currentSession;
   }
 }
@@ -151,5 +151,5 @@ export const pi: StatusAdapter = {
       },
     };
   },
-  observe: () => new PiInterpreter(),
+  createInterpreter: () => new PiInterpreter(),
 };

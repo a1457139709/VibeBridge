@@ -25,7 +25,7 @@ export interface StatusAdapter {
    */
   prepare(launch: Launch): Promise<PreparedLaunch>;
   /** A fresh interpreter for one Agent Run. */
-  observe(): StatusInterpreter;
+  createInterpreter(): StatusInterpreter;
 }
 
 export interface StatusInterpreter {
@@ -36,7 +36,7 @@ export interface StatusInterpreter {
   /** The ID of the session the run is on now, as its accepted facts establish it; undefined
    * before the first session and after the current one ends. Errors keep it.
    */
-  session(): string | undefined;
+  sessionId(): string | undefined;
 }
 
 const quote = (value: string) => `'${value.replaceAll("'", "'\\''")}'`;

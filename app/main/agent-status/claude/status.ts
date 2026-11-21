@@ -59,7 +59,8 @@ async function prepare({ command, directory, resourceDirectory }: Launch): Promi
     if (!Array.isArray(handlers)) throw new Error('Invalid Claude hook handlers');
     hooks[event] = [...handlers, { hooks: [{ type: 'command', command: reporter, timeout: 3 }] }];
   }
-  let merged = JSON.stringify({ ...settings, hooks });
+  const settingsJson = JSON.stringify({ ...settings, hooks });
+  let settingsArg = settingsJson;
   let cleanup: (() => Promise<void>) | undefined;
   if (value !== undefined && !value.trimStart().startsWith('{')) {
     // File settings can contain secrets. Preserve their file boundary rather
@@ -68,8 +69,8 @@ async function prepare({ command, directory, resourceDirectory }: Launch): Promi
     cleanup = () => rm(temporary, { recursive: true, force: true });
     try {
       const file = join(temporary, 'settings.json');
-      await writeFile(file, merged, { mode: 0o600, flag: 'wx' });
-      merged = file;
+      await writeFile(file, settingsJson, { mode: 0o600, flag: 'wx' });
+      settingsArg = file;
     } catch (error) {
       await cleanup();
       throw error;
@@ -78,7 +79,7 @@ async function prepare({ command, directory, resourceDirectory }: Launch): Promi
   return {
     command: {
       ...command,
-      args: [...args, '--settings', merged, ...(boundary < 0 ? [] : command.args.slice(boundary))],
+      args: [...args, '--settings', settingsArg, ...(boundary < 0 ? [] : command.args.slice(boundary))],
     },
     cleanup,
   };
@@ -87,7 +88,7 @@ async function prepare({ command, directory, resourceDirectory }: Launch): Promi
 class ClaudeInterpreter implements StatusInterpreter {
   private currentSession?: string;
   private sessionStartPromptId?: string;
-  private retired = new Set<string>();
+  private endedSessions = new Set<string>();
   private promptId?: string;
   private oldPromptIds = new Set<string>();
   private seen = new Set<string>();
@@ -102,7 +103,7 @@ class ClaudeInterpreter implements StatusInterpreter {
       return 'discard';
     const session = event.session_id;
     if (typeof session !== 'string' || !session) return 'error';
-    const known = this.identify(event, session);
+    const known = this.admitFacts(event, session);
     return known ? this.classify(known) : 'discard';
   }
 
@@ -111,7 +112,7 @@ class ClaudeInterpreter implements StatusInterpreter {
     this.activeTools.clear();
   }
 
-  session() {
+  sessionId() {
     return this.currentSession;
   }
 
@@ -124,14 +125,14 @@ class ClaudeInterpreter implements StatusInterpreter {
   /** Native identity checks run after capability authentication. Independent hook
    * processes share no order, so only recognizable stale facts drop.
    */
-  private identify(event: Payload, session: string): Payload | undefined {
+  private admitFacts(event: Payload, session: string): Payload | undefined {
     const name = event.hook_event_name;
     if (name === 'SessionStart') {
-      if (this.retired.has(session) && event.source !== 'resume') return;
+      if (this.endedSessions.has(session) && event.source !== 'resume') return;
       if (this.currentSession !== session) {
-        if (this.currentSession) this.retired.add(this.currentSession);
+        if (this.currentSession) this.endedSessions.add(this.currentSession);
         this.currentSession = session;
-        this.retired.delete(session);
+        this.endedSessions.delete(session);
         this.promptId = undefined;
         this.oldPromptIds.clear();
         this.seen.clear();
@@ -142,14 +143,14 @@ class ClaudeInterpreter implements StatusInterpreter {
         this.sessionStartPromptId = typeof event.prompt_id === 'string' ? event.prompt_id : undefined;
       return event;
     }
-    if (this.retired.has(session) || (this.currentSession && this.currentSession !== session)) return;
+    if (this.endedSessions.has(session) || (this.currentSession && this.currentSession !== session)) return;
     this.currentSession ??= session;
     if (name === 'SessionEnd') {
       // Resuming reports the old segment's SessionEnd and the new SessionStart under one
       // prompt_id. A SessionEnd processed after its paired start belongs to the segment
       // before it and keeps the session.
       if (this.sessionStartPromptId !== undefined && event.prompt_id === this.sessionStartPromptId) return event;
-      this.retired.add(session);
+      this.endedSessions.add(session);
       this.currentSession = undefined;
       this.sessionStartPromptId = undefined;
       return event;
@@ -262,4 +263,4 @@ class ClaudeInterpreter implements StatusInterpreter {
   }
 }
 
-export const claude: StatusAdapter = { prepare, observe: () => new ClaudeInterpreter() };
+export const claude: StatusAdapter = { prepare, createInterpreter: () => new ClaudeInterpreter() };

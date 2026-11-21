@@ -35,7 +35,7 @@ interface Observation {
   accepting: boolean;
   running: boolean;
   state?: ProcessingState;
-  session?: string;
+  sessionId?: string;
   interpreter: StatusInterpreter;
   /** Waits for the run's first session report; dropped with the observation. */
   sessionWaits: SessionWait[];
@@ -71,7 +71,7 @@ export class ProcessingStatus {
       sessionWaits: [],
       reportedReady: false,
       readyWaits: [],
-      interpreter: adapters[agent].observe(),
+      interpreter: adapters[agent].createInterpreter(),
     };
     this.observations.set(runId, observation);
     try {
@@ -115,8 +115,8 @@ export class ProcessingStatus {
   }
 
   /** The session the observed run is on now; none once its observation is released. */
-  session(runId: string) {
-    return this.observations.get(runId)?.session;
+  sessionId(runId: string) {
+    return this.observations.get(runId)?.sessionId;
   }
 
   /** Hands the run's session ID to `handOver` once it has one: at once if it already has, else on
@@ -126,7 +126,7 @@ export class ProcessingStatus {
   awaitFirstSession(runId: string, handOver: SessionReceiver, onReleased?: () => void) {
     const observation = this.observations.get(runId);
     if (!observation) return false;
-    if (observation.session) handOver(observation.session);
+    if (observation.sessionId) handOver(observation.sessionId);
     else observation.sessionWaits.push({ handOver, onReleased });
     return true;
   }
@@ -207,9 +207,9 @@ export class ProcessingStatus {
     if (!parsed.success) return 400;
     const payload = parsed.data;
     const state = 'observation' in payload ? 'error' : observation.interpreter.accept(payload);
-    const session = observation.interpreter.session();
-    let visible = session !== observation.session;
-    observation.session = session;
+    const session = observation.interpreter.sessionId();
+    let visible = session !== observation.sessionId;
+    observation.sessionId = session;
     if (state === 'error') observation.interpreter.discardEvidence();
     if (state !== 'keep' && state !== 'discard' && observation.state !== state) {
       observation.state = state;

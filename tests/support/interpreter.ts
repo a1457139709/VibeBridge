@@ -6,7 +6,7 @@ import type { ProcessingState } from '../../app/shared/processing-status';
  * `session()` is the current session ID the run reports.
  */
 export function observe(adapter: StatusAdapter, defaults: Payload = {}) {
-  const interpreter = adapter.observe();
+  const interpreter = adapter.createInterpreter();
   let state: ProcessingState | undefined;
   const accept = (payload: Payload) => {
     const outcome = interpreter.accept({ ...defaults, ...payload });
@@ -14,5 +14,5 @@ export function observe(adapter: StatusAdapter, defaults: Payload = {}) {
     if (outcome !== 'keep' && outcome !== 'discard') state = outcome;
     return state;
   };
-  return Object.assign(accept, { session: () => interpreter.session() });
+  return Object.assign(accept, { session: () => interpreter.sessionId() });
 }
