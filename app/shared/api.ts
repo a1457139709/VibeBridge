@@ -21,7 +21,7 @@ import type { DirectAction, DirectActionResult, RepositoryChoices, RepositoryRef
 import type { DetailItem, ForgeListView, ForgeSidebarPresence } from './forge/sidebar-data';
 
 export interface DesktopAPI {
-  snapshot(): Promise<Snapshot>;
+  fetchSnapshot(): Promise<Snapshot>;
   createProject(draft: ProjectDraft): Promise<ProjectCreation>;
   /** Saves name, directory and Repository Binding together, or none of them. */
   editProject(id: string, edit: ProjectEdit, restart: boolean): Promise<ProjectEditResult>;
@@ -29,7 +29,7 @@ export interface DesktopAPI {
   inspectDirectory(directory: string): Promise<DirectoryResult>;
   /** The repositories the project can bind, with the one the origin of `directory` points at; or a forge failure. The
    * edit-project dialog reads them for a directory being edited; the Forge sidebar uses `showRepositoryChoices`. */
-  repositoryChoices(projectId: string, directory: string): Promise<RepositoryChoices>;
+  fetchRepositoryChoices(projectId: string, directory: string): Promise<RepositoryChoices>;
   /** Binds or rebinds the project to a repository its forge lists; the list is read again first, and when it cannot be
    * read or does not show the repository, nothing is written and it rejects with the reason. */
   bindRepository(projectId: string, repository: RepositoryReference): Promise<void>;
@@ -64,7 +64,7 @@ export interface DesktopAPI {
    * open detail again, and shows the new state in both. */
   reportForgeItemChanged(projectId: string, item: DetailItem): Promise<void>;
   /** Closes, reopens or merges an issue or pull request of the project's bound repository; the forge's text comes back either way. */
-  directAction(projectId: string, action: DirectAction): Promise<DirectActionResult>;
+  performDirectAction(projectId: string, action: DirectAction): Promise<DirectActionResult>;
   /** Dispatches an issue of the project's bound repository to a panel with a run, or to a new panel that joins the tray:
    * the command goes into its terminal and a Dispatch Record joins the snapshot once the run is on a session. Resolves
    * with the delivery used and the panel that took the dispatch. */
@@ -86,7 +86,7 @@ export interface DesktopAPI {
   resizeRun(runId: string, cols: number, rows: number): Promise<void>;
   acknowledgeOutput(runId: string, characters: number): void;
   subscribe(listener: (event: WorkbenchEvent) => void): () => void;
-  ready(): Promise<void>;
+  reportRendererReady(): Promise<void>;
   /** Starts the same confirmed quit as the application menu. */
   quit(): Promise<void>;
 }

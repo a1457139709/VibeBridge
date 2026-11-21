@@ -27,10 +27,12 @@ module.exports = {
     const { window, evaluate, until, click } = base;
     const project = snapshot.projects[0];
     await evaluate(`(async () => window.workbench.bindRepository(${JSON.stringify(project.id)},
-      (await window.workbench.repositoryChoices(${JSON.stringify(project.id)}, ${JSON.stringify(project.directory)}))
+      (await window.workbench.fetchRepositoryChoices(${JSON.stringify(project.id)}, ${JSON.stringify(project.directory)}))
         .repositories.find(item => item.path === 'octo/desktop')))()`);
     const remembered = () =>
-      evaluate('window.workbench.snapshot().then(({ navigation, forgeSidebar }) => ({ navigation, forgeSidebar }))');
+      evaluate(
+        'window.workbench.fetchSnapshot().then(({ navigation, forgeSidebar }) => ({ navigation, forgeSidebar }))',
+      );
     const center = box => ({ x: Math.round(box.left + box.width / 2), y: 300 });
     // Drags the edge to x, which may lie beyond where the edge can go.
     const drag = async (selector, x) => {

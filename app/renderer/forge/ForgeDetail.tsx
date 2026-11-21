@@ -117,7 +117,7 @@ export function ForgeDetailPane({
     let result: DirectActionResult;
     // A failure outside the forge (the request itself) is shown like a transient one.
     try {
-      result = await window.workbench.directAction(project.id, action);
+      result = await window.workbench.performDirectAction(project.id, action);
     } catch (error) {
       result = {
         ok: false,

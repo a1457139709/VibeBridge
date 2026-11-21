@@ -12,7 +12,7 @@ export const day = (n: number) => new Date(Date.UTC(2026, 0, 1 + n)).toISOString
 /** Binds the project to the repository the forge lists at `path`, as picking it in the Forge sidebar does. */
 export async function bindListed(workbench: Workbench, projectId: string, path: string) {
   const project = workbench.snapshot().projects.find(item => item.id === projectId)!;
-  const choices = await workbench.repositoryChoices(projectId, project.directory);
+  const choices = await workbench.fetchRepositoryChoices(projectId, project.directory);
   const repository = choices.ok && choices.repositories.find(item => item.path === path);
   if (!repository) throw new Error(`The forge does not list ${path}`);
   return workbench.bindRepository(projectId, repository);

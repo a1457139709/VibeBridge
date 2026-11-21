@@ -39,16 +39,16 @@ test('closing an issue as completed or not planned and reopening it carry back t
   };
   try {
     assert.deepEqual(
-      await f.workbench.directAction(f.projectId, { kind: 'closeIssue', number: 3, reason: 'completed' }),
+      await f.workbench.performDirectAction(f.projectId, { kind: 'closeIssue', number: 3, reason: 'completed' }),
       { ok: true, detail: '✓ Closed issue octo/tools#3 (Issue 3)' },
     );
     assert.deepEqual(await read(3), ['closed', 'completed']);
     assert.deepEqual(
-      await f.workbench.directAction(f.projectId, { kind: 'closeIssue', number: 4, reason: 'notPlanned' }),
+      await f.workbench.performDirectAction(f.projectId, { kind: 'closeIssue', number: 4, reason: 'notPlanned' }),
       { ok: true, detail: '✓ Closed issue octo/tools#4 (Issue 4)' },
     );
     assert.deepEqual(await read(4), ['closed', 'notPlanned']);
-    assert.deepEqual(await f.workbench.directAction(f.projectId, { kind: 'reopenIssue', number: 3 }), {
+    assert.deepEqual(await f.workbench.performDirectAction(f.projectId, { kind: 'reopenIssue', number: 3 }), {
       ok: true,
       detail: '✓ Reopened issue octo/tools#3 (Issue 3)',
     });
@@ -69,7 +69,9 @@ test('a direct action reported on an issue reloads its detail, and its row shows
       [4, 3],
     );
     await issueDetail(f.workbench, f.projectId, 3);
-    assert.ok((await f.workbench.directAction(f.projectId, { kind: 'closeIssue', number: 3, reason: 'completed' })).ok);
+    assert.ok(
+      (await f.workbench.performDirectAction(f.projectId, { kind: 'closeIssue', number: 3, reason: 'completed' })).ok,
+    );
     let lists: ForgeLists | undefined;
     const detail = await shownDetail(f.workbench, f.projectId, item, async () => {
       lists = await shownLists(f.workbench, f.projectId, () =>
@@ -100,20 +102,23 @@ test('merging with a method, closing and reopening a pull request carry back the
     return result.pullRequest.state;
   };
   try {
-    assert.deepEqual(await f.workbench.directAction(f.projectId, { kind: 'closePullRequest', number: 13 }), {
+    assert.deepEqual(await f.workbench.performDirectAction(f.projectId, { kind: 'closePullRequest', number: 13 }), {
       ok: true,
       detail: '✓ Closed pull request octo/tools#13 (Change 13)',
     });
     assert.equal(await read(13), 'closed');
-    assert.deepEqual(await f.workbench.directAction(f.projectId, { kind: 'reopenPullRequest', number: 13 }), {
+    assert.deepEqual(await f.workbench.performDirectAction(f.projectId, { kind: 'reopenPullRequest', number: 13 }), {
       ok: true,
       detail: '✓ Reopened pull request octo/tools#13 (Change 13)',
     });
     assert.equal(await read(13), 'open');
-    assert.deepEqual(await f.workbench.directAction(f.projectId, { kind: 'merge', number: 12, method: 'squash' }), {
-      ok: true,
-      detail: '✓ Squashed and merged pull request octo/tools#12 (Change 12)',
-    });
+    assert.deepEqual(
+      await f.workbench.performDirectAction(f.projectId, { kind: 'merge', number: 12, method: 'squash' }),
+      {
+        ok: true,
+        detail: '✓ Squashed and merged pull request octo/tools#12 (Change 12)',
+      },
+    );
     assert.equal(await read(12), 'merged');
   } finally {
     await f.close();
@@ -128,8 +133,8 @@ test('a refused direct action comes back as a forge failure with the forge text 
     pullRequests: [change(12, { mergeable: 'CONFLICTING' }), change(13, { state: 'MERGED' }), change(14)],
   });
   const f = await boundWorkbench('direct-actions-refused');
-  const failure = async (action: Parameters<typeof f.workbench.directAction>[1]) => {
-    const result = await f.workbench.directAction(f.projectId, action);
+  const failure = async (action: Parameters<typeof f.workbench.performDirectAction>[1]) => {
+    const result = await f.workbench.performDirectAction(f.projectId, action);
     assert.ok(!result.ok);
     return [result.failure.kind, result.failure.detail];
   };
@@ -166,7 +171,7 @@ test('a refused direct action comes back as a forge failure with the forge text 
     double.uninstall();
     assert.deepEqual(await failure({ kind: 'reopenIssue', number: 3 }), ['notInstalled', '']);
     await assert.rejects(
-      f.workbench.directAction(f.projectId, { kind: 'merge', number: 14, method: 'octopus' } as never),
+      f.workbench.performDirectAction(f.projectId, { kind: 'merge', number: 14, method: 'octopus' } as never),
       'only a known action is carried out',
     );
   } finally {

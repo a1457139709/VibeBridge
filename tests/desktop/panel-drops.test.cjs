@@ -15,7 +15,7 @@ module.exports = {
     );
     await click('Drop project');
     const project = () =>
-      evaluate('window.workbench.snapshot()').then(snapshot =>
+      evaluate('window.workbench.fetchSnapshot()').then(snapshot =>
         snapshot.projects.find(project => project.name === 'Drop project'),
       );
     await until(
@@ -115,7 +115,7 @@ module.exports = {
     const { evaluate, until, directory } = context;
     const { geometry } = dragging(context);
     const { ids, layout, geometry: expected } = JSON.parse(await readFile(`${directory}/expected.json`, 'utf8'));
-    const project = (await evaluate('window.workbench.snapshot()')).projects.find(
+    const project = (await evaluate('window.workbench.fetchSnapshot()')).projects.find(
       project => project.name === 'Drop project',
     );
     assert.deepEqual(project.layout, layout);

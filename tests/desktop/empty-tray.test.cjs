@@ -8,7 +8,7 @@ module.exports = {
     const { rect, center, geometry, press, hover, release } = dragging(context);
     const created = await require('./support/project.cjs')(context, 'Empty tray', { Codex: 2 });
     const [a, b] = created.projects[0].panels.map(panel => panel.id);
-    const project = async () => (await evaluate('window.workbench.snapshot()')).projects[0];
+    const project = async () => (await evaluate('window.workbench.fetchSnapshot()')).projects[0];
     await until(
       async () => panelViews({ projects: [await project()] }).every(panel => panel.run?.state === 'running'),
       'every Empty tray run running',

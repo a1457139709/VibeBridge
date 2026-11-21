@@ -86,7 +86,7 @@ export class Workbench {
       pullRequestPage: (projectId, query) => pullRequestPage(this.boundRepository(projectId), query),
       issuesByNumber: (projectId, numbers) => issuesByNumber(this.boundRepository(projectId), numbers),
       pullRequestsByNumber: (projectId, numbers) => pullRequestsByNumber(this.boundRepository(projectId), numbers),
-      repositoryChoices: async projectId => this.repositoryChoices(projectId, this.project(projectId).directory),
+      repositoryChoices: async projectId => this.fetchRepositoryChoices(projectId, this.project(projectId).directory),
       issueDetail: (projectId, number) => issueDetail(this.boundRepository(projectId), number),
       pullRequestDetail: (projectId, number) => pullRequestDetail(this.boundRepository(projectId), number),
       forge: projectId => this.bindings.view(projectId).forge,
@@ -273,11 +273,11 @@ export class Workbench {
     });
   }
   // The repositories a project can bind, and direct actions on its bound repository; DesktopAPI documents each.
-  async repositoryChoices(projectId: string, directory: string) {
+  async fetchRepositoryChoices(projectId: string, directory: string) {
     this.project(projectId);
     return this.bindings.choices(projectId, directory, found => this.follow(projectId, found));
   }
-  async directAction(projectId: string, action: DirectAction) {
+  async performDirectAction(projectId: string, action: DirectAction) {
     return directAction(this.boundRepository(projectId), action);
   }
   /** The project's bound repository for a forge call; where the forge finds it at another path, the binding follows. */

@@ -5,7 +5,7 @@ const { showing } = require('./support/panel-views.cjs');
 module.exports = {
   async run({ window, evaluate, until, click, directory }) {
     const command = { command: process.env.VIBEBRIDGE_TEST_NODE, args: [resolve('tests/fixtures/claude-cli.cjs')] };
-    const settings = await evaluate('window.workbench.snapshot().then(snapshot => snapshot.settings)');
+    const settings = await evaluate('window.workbench.fetchSnapshot().then(snapshot => snapshot.settings)');
     await evaluate(
       `window.workbench.saveSettings(${JSON.stringify({ agents: { ...settings.agents, claude: command } })})`,
     );
@@ -40,7 +40,7 @@ module.exports = {
     await check(runs[1], 'Ready');
     await emit(runs[0], { hook_event_name: 'PreToolUse', tool_name: 'AskUserQuestion', tool_use_id: 'question' });
     await check(runs[0], 'Needs input');
-    const snapshot = await evaluate('window.workbench.snapshot()');
+    const snapshot = await evaluate('window.workbench.fetchSnapshot()');
     assert.deepEqual(showing(snapshot, project, 'needs-input'), [[runs[0].panelId, runs[0].id]]);
     await emit(runs[1], { hook_event_name: 'Stop' });
     await check(runs[1], 'Done');

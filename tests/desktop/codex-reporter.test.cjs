@@ -6,13 +6,13 @@ module.exports = {
   async run(context) {
     const { evaluate, until } = context;
     const command = { command: process.env.VIBEBRIDGE_TEST_NODE, args: [resolve('tests/fixtures/codex-cli.cjs')] };
-    const settings = await evaluate('window.workbench.snapshot().then(snapshot => snapshot.settings)');
+    const settings = await evaluate('window.workbench.fetchSnapshot().then(snapshot => snapshot.settings)');
     await evaluate(
       `window.workbench.saveSettings(${JSON.stringify({ agents: { ...settings.agents, codex: command } })})`,
     );
     const created = await require('./support/project.cjs')(context, 'Codex hook panels', { Codex: 2 });
     const project = created.activeProjectId;
-    const runs = runsOf(await evaluate('window.workbench.snapshot()'));
+    const runs = runsOf(await evaluate('window.workbench.fetchSnapshot()'));
     assert.equal(runs.length, 2);
     const label = (run, selector) =>
       `document.querySelector('[${selector}="${run.panelId}"] .processing-status')?.getAttribute('aria-label')`;
@@ -39,7 +39,7 @@ module.exports = {
       tool_name: 'Bash',
     });
     await check(runs[0], 'Needs input');
-    const snapshot = await evaluate('window.workbench.snapshot()');
+    const snapshot = await evaluate('window.workbench.fetchSnapshot()');
     assert.deepEqual(showing(snapshot, project, 'needs-input'), [[runs[0].panelId, runs[0].id]]);
     await emit(runs[1], { hook_event_name: 'UserPromptSubmit', turn_id: 'second' });
     await emit(runs[1], { hook_event_name: 'Stop', turn_id: 'second' });

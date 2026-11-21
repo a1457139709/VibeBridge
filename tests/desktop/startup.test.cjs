@@ -4,7 +4,7 @@ const { runsOf } = require('./support/panel-views.cjs');
 module.exports = {
   async run({ evaluate, directory }) {
     assert.equal(await evaluate('document.querySelector("h1").textContent'), 'Create project');
-    const snapshot = await evaluate('window.workbench.snapshot()');
+    const snapshot = await evaluate('window.workbench.fetchSnapshot()');
     assert.deepEqual(snapshot.projects, []);
     assert.deepEqual(runsOf(snapshot), []);
     assert.deepEqual(snapshot.errors, []);

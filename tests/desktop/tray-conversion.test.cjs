@@ -10,7 +10,7 @@ module.exports = {
     const created = await require('./support/project.cjs')(context, 'Tray conversion', { Codex: 2 });
     const projectId = created.projects[0].id;
     const [a, b] = created.projects[0].panels.map(panel => panel.id);
-    const project = async () => (await evaluate('window.workbench.snapshot()')).projects[0];
+    const project = async () => (await evaluate('window.workbench.fetchSnapshot()')).projects[0];
     const add = agent =>
       evaluate(`window.workbench.addPanel(${JSON.stringify(projectId)}, '${agent}')`).then(result => result.panel.id);
     const t1 = await add('pi'),
@@ -136,7 +136,7 @@ module.exports = {
   },
   async reopen({ evaluate, directory }) {
     const { resident } = JSON.parse(await readFile(`${directory}/expected.json`, 'utf8'));
-    const project = (await evaluate('window.workbench.snapshot()')).projects[0];
+    const project = (await evaluate('window.workbench.fetchSnapshot()')).projects[0];
     assert.deepEqual(project.layout, { panel: resident });
     assert.deepEqual(
       project.panels.map(panel => panel.id),

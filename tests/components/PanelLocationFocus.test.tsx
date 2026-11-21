@@ -112,8 +112,8 @@ async function renderWorkbench() {
   };
   let listener: (event: WorkbenchEvent) => void = () => {};
   provideWorkbench({
-    snapshot: async () => structuredClone(snapshot),
-    ready: async () => {},
+    fetchSnapshot: async () => structuredClone(snapshot),
+    reportRendererReady: async () => {},
     subscribe: next => {
       listener = next;
       return () => {};

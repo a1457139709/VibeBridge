@@ -68,7 +68,7 @@ void (async () => {
     input.dispatchEvent(new Event('input', { bubbles: true }));
   })()`);
   const result = await (reopen ? suite.reopen : suite.run)({ app, window, evaluate, click, fill, until, directory });
-  const runs = runsOf(await evaluate('window.workbench.snapshot()'));
+  const runs = runsOf(await evaluate('window.workbench.fetchSnapshot()'));
   app.once('will-quit', event => {
     event.preventDefault();
     void (async () => {

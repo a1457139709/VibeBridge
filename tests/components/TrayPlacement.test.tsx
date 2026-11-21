@@ -84,14 +84,14 @@ function renderWorkbench(resident = false) {
     ],
   };
   provideWorkbench({
-    snapshot: async () => structuredClone(snapshot),
+    fetchSnapshot: async () => structuredClone(snapshot),
     subscribe: listener => {
       listeners.add(listener);
       return () => {
         listeners.delete(listener);
       };
     },
-    ready: async () => {},
+    reportRendererReady: async () => {},
     activateProject: async () => {},
     saveSidebar: async () => {},
     saveLayout: async () => {},

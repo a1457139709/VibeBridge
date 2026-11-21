@@ -35,7 +35,7 @@ module.exports = {
     const project = snapshot.projects[0];
     // Bound as Bind in the Forge sidebar binds octo/desktop.
     await evaluate(`(async () => window.workbench.bindRepository(${JSON.stringify(project.id)},
-      (await window.workbench.repositoryChoices(${JSON.stringify(project.id)}, ${JSON.stringify(project.directory)}))
+      (await window.workbench.fetchRepositoryChoices(${JSON.stringify(project.id)}, ${JSON.stringify(project.directory)}))
         .repositories.find(item => item.path === 'octo/desktop')))()`);
     await click('Show the GitHub sidebar');
     await until(

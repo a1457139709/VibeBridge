@@ -52,7 +52,7 @@ function WorkbenchView({ state, setState }: { state?: Snapshot; setState(snapsho
   useEffect(() => {
     let unsubscribe = () => {};
     void window.workbench
-      .snapshot()
+      .fetchSnapshot()
       .then(async snapshot => {
         const dark = snapshot.resolvedTheme === 'dark';
         document.documentElement.dataset.theme = dark ? 'dark' : 'light';
@@ -70,7 +70,7 @@ function WorkbenchView({ state, setState }: { state?: Snapshot; setState(snapsho
           } else if (event.kind === 'error') report(event.message);
           terminalEvent(event);
         });
-        await window.workbench.ready();
+        await window.workbench.reportRendererReady();
       })
       .catch(error => report(error.message));
     return () => unsubscribe();

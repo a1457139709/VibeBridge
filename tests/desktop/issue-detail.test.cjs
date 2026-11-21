@@ -29,7 +29,7 @@ module.exports = {
     const [run] = runsOf(snapshot);
     // Bound as Bind in the Forge sidebar binds octo/desktop.
     await evaluate(`(async () => window.workbench.bindRepository(${JSON.stringify(project.id)},
-      (await window.workbench.repositoryChoices(${JSON.stringify(project.id)}, ${JSON.stringify(project.directory)}))
+      (await window.workbench.fetchRepositoryChoices(${JSON.stringify(project.id)}, ${JSON.stringify(project.directory)}))
         .repositories.find(item => item.path === 'octo/desktop')))()`);
     // A tray panel shows the tray, so the detail has a toolbar above it and a tray below it.
     await evaluate(`window.workbench.addPanel(${JSON.stringify(project.id)}, 'codex')`);

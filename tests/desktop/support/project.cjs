@@ -22,5 +22,5 @@ module.exports = async (
     () => evaluate(`document.querySelectorAll(".canvas .xterm-rows").length === ${total}`),
     `${total} panel terminals drawn in the layout area`,
   );
-  return evaluate('window.workbench.snapshot()');
+  return evaluate('window.workbench.fetchSnapshot()');
 };

@@ -58,7 +58,7 @@ function fixture() {
   const listeners = new Set<(event: WorkbenchEvent) => void>();
   const located: string[] = [];
   provideWorkbench({
-    snapshot: async () => structuredClone(snapshot),
+    fetchSnapshot: async () => structuredClone(snapshot),
     subscribe: listener => {
       listeners.add(listener);
       return () => {
@@ -69,7 +69,7 @@ function fixture() {
   function Summary() {
     const [state, setState] = useState<Snapshot>();
     useEffect(() => {
-      void window.workbench.snapshot().then(setState);
+      void window.workbench.fetchSnapshot().then(setState);
       return window.workbench.subscribe(event => {
         if (event.kind === 'snapshot') setState(event.snapshot);
       });

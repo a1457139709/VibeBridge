@@ -122,8 +122,8 @@ function renderWorkbench(forge: Forge) {
   const reads = { issue: 0, pullRequest: 0, pages: 0, rows: 0 };
   const events = workbenchEvents();
   provideWorkbench({
-    snapshot: async () => structuredClone(snapshot),
-    ready: async () => {},
+    fetchSnapshot: async () => structuredClone(snapshot),
+    reportRendererReady: async () => {},
     subscribe: events.subscribe,
     saveSidebar: async () => {},
     activateProject: async () => {},
@@ -166,7 +166,7 @@ function renderWorkbench(forge: Forge) {
       },
       events.emit,
     ),
-    directAction: (_, action) => {
+    performDirectAction: (_, action) => {
       const answer = deferred<DirectActionResult>();
       actions.push({ action, answer: answer.resolve });
       return answer.promise;

@@ -29,7 +29,7 @@ test('the repository origin points at is offered by default, and binding writes 
   try {
     setOrigin(f.directory, 'git@github.com:octo/vibebridge.git');
     const { project } = await f.create('Bound');
-    const choices = await f.workbench.repositoryChoices(project.id, f.directory);
+    const choices = await f.workbench.fetchRepositoryChoices(project.id, f.directory);
     assert.ok(choices.ok);
     assert.deepEqual(
       choices.repositories.map(item => [item.forge, item.host, item.path]),
@@ -106,7 +106,7 @@ test('forge failures are classified into the four kinds and carry the forge text
       ],
     ] as const) {
       await double.set({ ...account, failure });
-      const choices = await f.workbench.repositoryChoices(project.id, f.directory);
+      const choices = await f.workbench.fetchRepositoryChoices(project.id, f.directory);
       assert.deepEqual(
         choices,
         {
@@ -122,7 +122,7 @@ test('forge failures are classified into the four kinds and carry the forge text
       await assert.rejects(f.workbench.bindRepository(project.id, github('octo/tools')), /bindListFailed/);
     }
     double.uninstall();
-    const missing = await f.workbench.repositoryChoices(project.id, f.directory);
+    const missing = await f.workbench.fetchRepositoryChoices(project.id, f.directory);
     assert.ok(!missing.ok);
     assert.equal(missing.failure.kind, 'notInstalled');
     await assert.rejects(f.workbench.bindRepository(project.id, github('octo/tools')), /bindListFailed/);
@@ -137,11 +137,11 @@ test('an unbound project, or one whose directory has no origin on the forge, off
   const f = await interactiveWorkbench('repository-no-origin');
   try {
     const { project } = await f.create('Plain');
-    const plain = await f.workbench.repositoryChoices(project.id, f.directory);
+    const plain = await f.workbench.fetchRepositoryChoices(project.id, f.directory);
     assert.ok(plain.ok);
     assert.equal(plain.origin, null);
     setOrigin(f.directory, 'https://gitlab.com/octo/tools.git');
-    const elsewhere = await f.workbench.repositoryChoices(project.id, f.directory);
+    const elsewhere = await f.workbench.fetchRepositoryChoices(project.id, f.directory);
     assert.ok(elsewhere.ok);
     assert.equal(elsewhere.origin, null);
   } finally {
@@ -156,7 +156,7 @@ test('a failed list check leaves a bound project bound as it was', async context
     const { project } = await f.create('Rebinding');
     await bindListed(f.workbench, project.id, 'octo/tools');
     const bound = f.workbench.snapshot().projects[0].repository;
-    const choices = await f.workbench.repositoryChoices(project.id, f.directory);
+    const choices = await f.workbench.fetchRepositoryChoices(project.id, f.directory);
     assert.ok(choices.ok);
     const forge = choices.repositories.find(item => item.path === 'acme/forge')!;
     await double.set({ ...account, failure: { code: 1, stderr: 'HTTP 502: Bad Gateway\n' } });
@@ -260,7 +260,7 @@ test('the default comes from the origin of the directory the dialog shows, not o
     const { project } = await f.create('Moving');
     const moved = await mkdtemp(join(f.directory, 'moved-'));
     setOrigin(moved, 'https://github.com/acme/forge.git');
-    const choices = await f.workbench.repositoryChoices(project.id, moved);
+    const choices = await f.workbench.fetchRepositoryChoices(project.id, moved);
     assert.ok(choices.ok);
     assert.equal(choices.origin?.path, 'acme/forge');
   } finally {
@@ -274,7 +274,7 @@ test('the origin URL matches a listed path in any case and offers it in its list
   try {
     setOrigin(f.directory, 'https://github.com/OCTO/vibebridge');
     const { project } = await f.create('Cased');
-    const choices = await f.workbench.repositoryChoices(project.id, f.directory);
+    const choices = await f.workbench.fetchRepositoryChoices(project.id, f.directory);
     assert.ok(choices.ok);
     assert.equal(choices.origin?.path, 'Octo/VibeBridge');
   } finally {
