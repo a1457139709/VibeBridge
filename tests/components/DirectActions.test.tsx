@@ -23,7 +23,7 @@ afterEach(cleanup);
 before(stubSidebarApis);
 
 const repositoryUrl = 'https://github.com/octo/alpha';
-const links = { issues: `${repositoryUrl}/issues/`, pullRequests: `${repositoryUrl}/pull/` };
+const links = { issuePrefix: `${repositoryUrl}/issues/`, pullRequestPrefix: `${repositoryUrl}/pull/` };
 const issueDetail = (number: number, extra: Partial<IssueDetail> = {}): IssueDetail => {
   const {
     blockedBy: _,
@@ -61,13 +61,13 @@ const pullDetail = (number: number, extra: Partial<PullRequestDetail> = {}): Pul
     body: '',
     timeline: [],
     commentCount: 0,
-    codeComments: 0,
+    codeCommentCount: 0,
     closingIssues: [],
     links,
     review: { state: 'notRequired', requiredApprovals: null },
     checks: [],
     conflicts: 'none',
-    merge: { methods: ['merge', 'squash', 'rebase'], queue: false },
+    mergeOptions: { methods: ['merge', 'squash', 'rebase'], queue: false },
     canWrite: true,
     ...extra,
   };
@@ -135,7 +135,7 @@ function renderWorkbench(forge: Forge) {
           return {
             ok: true,
             items: [listedIssue(3, { title: 'Spec' })],
-            cursor: null,
+            nextCursor: null,
             labels: [],
             counts: { open: 1, closed: 0 },
           };
@@ -145,7 +145,7 @@ function renderWorkbench(forge: Forge) {
           return {
             ok: true,
             items: [listedPullRequest(12, { title: 'Read-only detail' })],
-            cursor: null,
+            nextCursor: null,
             labels: [],
             counts: { open: 1, closed: 0 },
           };
@@ -392,7 +392,7 @@ test('a blocked merge greys out the merge button and says why', async () => {
 });
 
 test('a repository that merges through a merge queue greys out merging and links the pull request on the forge', async () => {
-  const forge: Forge = { pullRequest: pullDetail(12, { merge: { methods: ['squash'], queue: true } }) };
+  const forge: Forge = { pullRequest: pullDetail(12, { mergeOptions: { methods: ['squash'], queue: true } }) };
   await openPullRequest(forge);
   const merge = within(pullPane()).getByRole('button', { name: 'Merge' });
   assert.ok(merge.hasAttribute('disabled'));
@@ -406,7 +406,9 @@ test('a repository that merges through a merge queue greys out merging and links
 
 // The chosen merge method is remembered for the rest of the app's run, so this test runs last.
 test('the method menu lists only the methods the repository allows and remembers the last one chosen', async () => {
-  const forge: Forge = { pullRequest: pullDetail(12, { merge: { methods: ['squash', 'rebase'], queue: false } }) };
+  const forge: Forge = {
+    pullRequest: pullDetail(12, { mergeOptions: { methods: ['squash', 'rebase'], queue: false } }),
+  };
   const { user, action } = await openPullRequest(forge);
   await user.click(within(pullPane()).getByRole('button', { name: 'Squash and merge' }));
   await user.click(within(pullPane()).getByRole('button', { name: 'Choose a merge method' }));

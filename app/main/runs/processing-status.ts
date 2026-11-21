@@ -7,7 +7,7 @@ import type { StatusAdapter, StatusInterpreter } from '../agent-status/adapter';
 import { codex } from '../agent-status/codex/status';
 import { claude } from '../agent-status/claude/status';
 import { pi } from '../agent-status/pi/status';
-import { message, detail } from '../../shared/messages';
+import { message, nestedMessage } from '../../shared/messages';
 
 // CLI protocol differences stay behind this closed table.
 const adapters: Record<AgentType, StatusAdapter> = { codex, claude, pi };
@@ -237,7 +237,7 @@ export class ProcessingStatus {
       throw new AggregateError(
         failures,
         message('statusCleanupFailed', {
-          reasons: failures.map(error => detail(error instanceof Error ? error.message : String(error))),
+          reasons: failures.map(error => nestedMessage(error instanceof Error ? error.message : String(error))),
         }),
       );
   }

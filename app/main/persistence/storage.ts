@@ -1,4 +1,4 @@
-import { message, detail } from '../../shared/messages';
+import { message, nestedMessage } from '../../shared/messages';
 import { Worker } from 'node:worker_threads';
 import { mkdir } from 'node:fs/promises';
 import { join } from 'node:path';
@@ -18,7 +18,7 @@ export class ProjectStore {
     this.worker.on('message', ({ id, result, error }) => {
       const request = this.pending.get(id);
       this.pending.delete(id);
-      if (error) request?.reject(new Error(message('projectStorageFailed', { reason: detail(error) })));
+      if (error) request?.reject(new Error(message('projectStorageFailed', { reason: nestedMessage(error) })));
       else request?.resolve(result);
     });
     const failed = (error: Error) => {

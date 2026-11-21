@@ -1,4 +1,4 @@
-import { message, detail } from '../../shared/messages';
+import { message, nestedMessage } from '../../shared/messages';
 import { readFile, writeFile, rename, mkdir, rm } from 'node:fs/promises';
 import { join } from 'node:path';
 import type { Settings } from '../../shared/model';
@@ -22,7 +22,9 @@ export class SettingsFile {
     } catch (error) {
       if ((error as NodeJS.ErrnoException).code === 'ENOENT') return defaultSettings();
       this.readable = false;
-      throw new Error(message('settingsReadFailed', { reason: detail((error as Error).message) }), { cause: error });
+      throw new Error(message('settingsReadFailed', { reason: nestedMessage((error as Error).message) }), {
+        cause: error,
+      });
     }
   }
   writeUnchecked(settings: Settings): Promise<void> {

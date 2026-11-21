@@ -1,4 +1,4 @@
-import { message, detail } from '../shared/messages';
+import { message, nestedMessage } from '../shared/messages';
 import { projectNameError } from '../shared/project-name';
 import type { Language, ProjectEdit, ProjectEditResult } from '../shared/model';
 import { randomUUID } from 'node:crypto';
@@ -253,7 +253,7 @@ export class Workbench {
     return this.operation(async () => {
       const project = this.project(id);
       const failures = await this.panels.stop(project);
-      if (failures.length) throw new Error(message('projectDeleteFailed', { reasons: failures.map(detail) }));
+      if (failures.length) throw new Error(message('projectDeleteFailed', { reasons: failures.map(nestedMessage) }));
       const index = this.state.projects.indexOf(project);
       const nextActive =
         this.state.activeProjectId === id
@@ -336,9 +336,9 @@ export class Workbench {
   /** Saves a sidebar's preferences with its width at least the sidebar's narrowest. */
   saveSidebar(sidebar: Sidebar, preferences: SidebarPreferences) {
     return this.operation(async () => {
-      const { minWidth, invalid } = sidebars[sidebar];
+      const { minWidth, invalidMessage } = sidebars[sidebar];
       const parsed = sidebarPreferencesSchema.safeParse(preferences);
-      if (!parsed.success) throw new Error(message(invalid));
+      if (!parsed.success) throw new Error(message(invalidMessage));
       const value = { ...parsed.data, width: Math.max(minWidth, parsed.data.width) };
       await this.store.saveSidebar(sidebar, value);
       this.state[sidebar] = value;

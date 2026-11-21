@@ -27,7 +27,7 @@ import type { DetailItem } from '../../shared/forge/sidebar-data';
 /** The item a link to `url` names when it is an issue or pull request of the bound repository, else null. */
 export function linkedItem(url: string, links: ForgeLinks): DetailItem | null {
   for (const kind of ['issue', 'pullRequest'] as const) {
-    const prefix = kind === 'issue' ? links.issues : links.pullRequests;
+    const prefix = kind === 'issue' ? links.issuePrefix : links.pullRequestPrefix;
     // Repository paths in a forge's URLs may differ in case from the bound one.
     if (!url.toLowerCase().startsWith(prefix.toLowerCase())) continue;
     const match = /^(\d+)(?:[?#].*)?$/.exec(url.slice(prefix.length));

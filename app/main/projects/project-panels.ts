@@ -1,12 +1,12 @@
 import { randomUUID } from 'node:crypto';
-import { message, detail } from '../../shared/messages';
+import { message, nestedMessage } from '../../shared/messages';
 import {
   arrange,
   removeFromLayout,
   parseLayout,
-  layoutStructure,
+  parseLayoutStructure,
   layoutPanelIds,
-  panelPosition,
+  panelPath,
   projectPanels,
   panelLimitReached,
   agentTypes,
@@ -72,7 +72,8 @@ export class ProjectPanels {
     if (!this.startedProjects.has(project.id)) return { launches };
     // Tray panels keep running in the directory they started in.
     const failures = await this.supervision.stopPanels(project.panels);
-    if (failures.length) return { launches, error: message('projectRestartFailed', { reasons: failures.map(detail) }) };
+    if (failures.length)
+      return { launches, error: message('projectRestartFailed', { reasons: failures.map(nestedMessage) }) };
     for (const panel of project.panels) launches.push(await this.startPanel(project, panel));
     return { launches };
   }
@@ -145,13 +146,13 @@ export class ProjectPanels {
   async place(project: Project, panelId: string, layout: Layout) {
     const panel = this.tray(project.id).find(p => p.id === panelId);
     if (!panel) throw new Error(message('panelMissing'));
-    const structure = layoutStructure(layout);
+    const structure = parseLayoutStructure(layout);
     const placed = layoutPanelIds(structure);
     const replaced = project.panels.filter(resident => !placed.includes(resident.id));
     // A swap is valid only when the placed panel takes the position of the one panel it replaces.
     const takesReplacedPosition =
       replaced.length === 1 &&
-      String(panelPosition(structure, panelId)) === String(panelPosition(project.layout, replaced[0].id));
+      String(panelPath(structure, panelId)) === String(panelPath(project.layout, replaced[0].id));
     if (replaced.length > 1 || (replaced.length === 1 && !takesReplacedPosition))
       throw new Error(message('layoutMismatch'));
     const panels = [...project.panels.filter(resident => !replaced.includes(resident)), panel];

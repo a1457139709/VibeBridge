@@ -69,7 +69,7 @@ export const pullRequest = (number: number, extra: Partial<PullRequestSummary> =
 export const page = <Item = ListedIssue,>(items: Item[], cursor: string | null = null): Page<Item> => ({
   ok: true,
   items,
-  cursor,
+  nextCursor: cursor,
   labels: [bug, docs],
   counts: { open: 7, closed: 2 },
 });

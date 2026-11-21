@@ -10,7 +10,7 @@ interface Screen {
   observers: (ResizeObserver | IntersectionObserver)[];
   inView: boolean;
   opened: boolean;
-  consumed: number;
+  unacknowledgedOutput: number;
 }
 const screens = new Map<string, Screen>();
 let theme: ITheme;
@@ -68,7 +68,7 @@ function ensure(runId: string): Screen {
     observers: [new ResizeObserver(fitInView), view],
     inView: false,
     opened: false,
-    consumed: 0,
+    unacknowledgedOutput: 0,
   };
   screens.set(runId, screen);
   // Input sent just before the run ended is rejected after its exit disposed this screen; only a live screen reports.
@@ -105,10 +105,10 @@ export function terminalEvent(event: WorkbenchEvent) {
     const screen = screens.get(event.runId);
     screen?.terminal.write(event.data, () => {
       if (screens.get(event.runId) !== screen) return;
-      screen.consumed += event.data.length;
-      if (screen.consumed >= 32 * 1024) {
-        window.workbench.acknowledgeOutput(event.runId, screen.consumed);
-        screen.consumed = 0;
+      screen.unacknowledgedOutput += event.data.length;
+      if (screen.unacknowledgedOutput >= 32 * 1024) {
+        window.workbench.acknowledgeOutput(event.runId, screen.unacknowledgedOutput);
+        screen.unacknowledgedOutput = 0;
       }
     });
   }

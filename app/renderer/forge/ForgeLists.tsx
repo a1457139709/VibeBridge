@@ -7,7 +7,7 @@ import {
   type Ref,
 } from 'react';
 import { useLocalization } from '../common/Localization';
-import { detail } from '../../shared/messages';
+import { nestedMessage } from '../../shared/messages';
 import type {
   ForgeFailure,
   IssueDetail,
@@ -23,7 +23,7 @@ import {
   type ForgeLists as ListsData,
 } from '../../shared/forge/sidebar-data';
 import type { ProjectView } from '../../shared/model';
-import { latestLocatable } from '../../shared/dispatch';
+import { latestLocatableRecord } from '../../shared/dispatch';
 import type { IssueShortcutAction } from '../../shared/settings/shortcuts';
 import { ForgeDetailPane } from './ForgeDetail';
 import type { IssueDispatch } from './IssueDetail';
@@ -221,7 +221,8 @@ export function ForgeLists({ project, changeBinding, detailHost, dispatchHost, v
       />
     );
   };
-  const dispatchRecordsOf = (issueNumber: number) => project.dispatches.filter(record => record.issue === issueNumber);
+  const dispatchRecordsOf = (issueNumber: number) =>
+    project.dispatches.filter(record => record.issueNumber === issueNumber);
   /** An open issue's dispatch action and the skill of its latest dispatch. */
   const issueAction = (issue: IssueSummary) => (
     <>
@@ -243,7 +244,7 @@ export function ForgeLists({ project, changeBinding, detailHost, dispatchHost, v
       const issueNumber = focusedRow?.number ?? (detailPane && shown?.kind === 'issue' ? shown.number : undefined);
       if (issueNumber === undefined) return false;
       if (action === 'locateDispatchedPanel') {
-        const location = latestLocatable(dispatchRecordsOf(issueNumber))?.location;
+        const location = latestLocatableRecord(dispatchRecordsOf(issueNumber))?.location;
         if (location) dispatchHost.locate(location.projectId, location.panelId);
         return true;
       }
@@ -371,7 +372,7 @@ export function ForgeLists({ project, changeBinding, detailHost, dispatchHost, v
   if (failed && !loaded)
     return fill(
       <>
-        <p>{t(texts.loadFailed, { reason: detail(failed.failure.detail || failed.failure.kind) })}</p>
+        <p>{t(texts.loadFailed, { reason: nestedMessage(failed.failure.detail || failed.failure.kind) })}</p>
         {retry}
       </>,
     );
@@ -447,7 +448,7 @@ export function ForgeLists({ project, changeBinding, detailHost, dispatchHost, v
         )}
         {loaded && !loaded.items.length && <p className="forge-empty">{t(texts.noMatches)}</p>}
         {!loaded && <p className="forge-empty">{t(texts.loading)}</p>}
-        {loaded?.cursor && (
+        {loaded?.nextCursor && (
           <button
             className="forge-more"
             disabled={loading}

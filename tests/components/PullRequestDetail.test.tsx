@@ -24,7 +24,7 @@ before(stubSidebarApis);
 
 const repositoryUrl = 'https://github.com/octo/alpha';
 const hoursAgo = (hours: number) => new Date(Date.now() - hours * 3600e3).toISOString();
-const links = { issues: `${repositoryUrl}/issues/`, pullRequests: `${repositoryUrl}/pull/` };
+const links = { issuePrefix: `${repositoryUrl}/issues/`, pullRequestPrefix: `${repositoryUrl}/pull/` };
 const detail = (number: number, extra: Partial<PullRequestDetail> = {}): PullRequestDetail => {
   const { checks: _, ...summary } = listedPullRequest(number, { createdAt: hoursAgo(50) });
   return {
@@ -36,13 +36,13 @@ const detail = (number: number, extra: Partial<PullRequestDetail> = {}): PullReq
     body: '',
     timeline: [],
     commentCount: 0,
-    codeComments: 0,
+    codeCommentCount: 0,
     closingIssues: [],
     links,
     review: { state: 'notRequired', requiredApprovals: null },
     checks: [],
     conflicts: 'none',
-    merge: { methods: ['merge', 'squash', 'rebase'], queue: false },
+    mergeOptions: { methods: ['merge', 'squash', 'rebase'], queue: false },
     canWrite: true,
     ...extra,
   };
@@ -112,14 +112,14 @@ function renderWorkbench({
         issuePage: async () => ({
           ok: true,
           items: [listedIssue(3, { title: 'Spec' })],
-          cursor: null,
+          nextCursor: null,
           labels: [],
           counts: { open: 1, closed: 0 },
         }),
         pullRequestPage: async () => ({
           ok: true,
           items: [listedPullRequest(12, { title: 'Read-only detail' })],
-          cursor: null,
+          nextCursor: null,
           labels: [],
           counts: { open: 1, closed: 0 },
         }),
@@ -210,7 +210,7 @@ test('the body, comments and review summaries follow in time order, reviews with
     detail(12, {
       title: 'Timeline',
       body: '<p>The body.</p>',
-      codeComments: 5,
+      codeCommentCount: 5,
       timeline: [
         { author: 'bob', createdAt: hoursAgo(4), html: '<p>Handle the draft row.</p>', verdict: 'changesRequested' },
         { author: 'hubot', createdAt: hoursAgo(3), html: '<p>Rebased.</p>', verdict: null },

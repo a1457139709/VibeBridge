@@ -54,7 +54,7 @@ const detail = (number: number, extra: Partial<IssueDetail> = {}): IssueDetail =
   blockedBy: [],
   blocking: [],
   closingPullRequests: [],
-  links: { issues: `${repositoryUrl}/issues/`, pullRequests: `${repositoryUrl}/pull/` },
+  links: { issuePrefix: `${repositoryUrl}/issues/`, pullRequestPrefix: `${repositoryUrl}/pull/` },
   canWrite: true,
   ...extra,
 });
@@ -118,7 +118,7 @@ function renderWorkbench(
         issuePage: async () => ({
           ok: true,
           items: issues,
-          cursor: null,
+          nextCursor: null,
           labels: [],
           counts: { open: issues.length, closed: 0 },
         }),

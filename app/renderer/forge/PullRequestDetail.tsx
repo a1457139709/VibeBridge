@@ -115,9 +115,9 @@ export function PullRequestDocument({ project, pullRequest: pull, open, followLi
             {t('moreComments', { count: pull.commentCount, forge })}
           </a>
         )}
-        {!!pull.codeComments && (
+        {!!pull.codeCommentCount && (
           <div className="forge-code-comments">
-            {pull.codeComments === 1 ? t('oneCodeComment') : t('codeComments', { count: pull.codeComments })}{' '}
+            {pull.codeCommentCount === 1 ? t('oneCodeComment') : t('codeComments', { count: pull.codeCommentCount })}{' '}
             <a href={pull.changesUrl} target="_blank" rel="noreferrer">
               {t('viewOnForge', { forge })}
             </a>

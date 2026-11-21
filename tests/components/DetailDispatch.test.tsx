@@ -48,7 +48,7 @@ test("an open issue's detail has a Dispatch beside its state and labels that ope
           workflowId: 'matt',
           commandId: 'implement',
           target: { kind: 'panel', panelId: 'tray' },
-          invert: false,
+          invertDelivery: false,
         },
       ],
     ]),

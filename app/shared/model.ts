@@ -67,7 +67,7 @@ export interface Run {
   title?: string;
 }
 /** A run that is starting or running; it has not failed or stopped. */
-export const liveRun = (run?: Run) => run?.state === 'running' || run?.state === 'starting';
+export const isLiveRun = (run?: Run) => run?.state === 'running' || run?.state === 'starting';
 // An unconfirmed launch may still be running; only a failed one is known not to have started.
 export type LaunchResult =
   | { outcome: 'started'; run: Run; agent: AgentType }
@@ -101,9 +101,9 @@ export const sidebarPreferencesSchema = z.strictObject({ visible: z.boolean(), w
  * width that keeps its content whole, and the message for preferences that cannot be saved. A sidebar has no widest
  * width: the window bounds how it is drawn and dragged, never what is stored. */
 export const sidebars = {
-  navigation: { defaults: { visible: true, width: 212 }, minWidth: 168, invalid: 'navigationInvalid' },
-  forgeSidebar: { defaults: { visible: false, width: 380 }, minWidth: 300, invalid: 'forgeSidebarInvalid' },
-} as const satisfies Record<string, { defaults: SidebarPreferences; minWidth: number; invalid: MessageId }>;
+  navigation: { defaults: { visible: true, width: 212 }, minWidth: 168, invalidMessage: 'navigationInvalid' },
+  forgeSidebar: { defaults: { visible: false, width: 380 }, minWidth: 300, invalidMessage: 'forgeSidebarInvalid' },
+} as const satisfies Record<string, { defaults: SidebarPreferences; minWidth: number; invalidMessage: MessageId }>;
 export type Sidebar = keyof typeof sidebars;
 /** A panel with its current run, whatever that run's state, and the processing state it displays. */
 export type PanelView = Panel & { run?: Run; status?: ProcessingState };
@@ -230,17 +230,17 @@ export const panelLimitReached = (project: { panels: Panel[]; tray: Panel[] }) =
   projectPanels(project).length >= panelLimit;
 
 /** The branch path from the root to a panel in a layout, or null when the layout does not place it. */
-export function panelPosition(layout: Layout | null, panelId: string): ('first' | 'second')[] | null {
+export function panelPath(layout: Layout | null, panelId: string): ('first' | 'second')[] | null {
   if (!layout) return null;
   if ('panel' in layout) return layout.panel === panelId ? [] : null;
-  const first = panelPosition(layout.first, panelId);
+  const first = panelPath(layout.first, panelId);
   if (first) return ['first', ...first];
-  const second = panelPosition(layout.second, panelId);
+  const second = panelPath(layout.second, panelId);
   return second && ['second', ...second];
 }
 
 /** A layout whose structure is valid, whichever panels it places. */
-export function layoutStructure(value: unknown): Layout | null {
+export function parseLayoutStructure(value: unknown): Layout | null {
   const parsed = layoutSchema.safeParse(value);
   if (!parsed.success) throw new Error(message('layoutInvalid'));
   return parsed.data;
@@ -248,7 +248,7 @@ export function layoutStructure(value: unknown): Layout | null {
 
 /** A layout of the given panels: its structure is valid and it places each panel exactly once. */
 export function parseLayout(value: unknown, panels: Panel[]): Layout | null {
-  const layout = layoutStructure(value);
+  const layout = parseLayoutStructure(value);
   const ids = layoutPanelIds(layout);
   if (ids.length !== panels.length || new Set(ids).size !== ids.length || panels.some(p => !ids.includes(p.id)))
     throw new Error(message('layoutMismatch'));

@@ -1,4 +1,4 @@
-import { message, detail } from '../messages';
+import { message, nestedMessage } from '../messages';
 export const shortcutActions = [
   'previousProject',
   'nextProject',
@@ -108,13 +108,14 @@ export function shortcutFormatError(binding: unknown): string | undefined {
 export interface ShortcutConflict {
   binding: string;
   actions: ShortcutAction[];
-  system?: string;
+  systemAction?: string;
 }
 export function shortcutConflictMessage(conflict: ShortcutConflict, excludedAction?: ShortcutAction): string {
   const actions = conflict.actions
     .filter(action => action !== excludedAction)
-    .map(action => detail(shortcutNames[action]));
-  if (conflict.system) actions.push(detail(message('systemShortcut', { action: detail(conflict.system) })));
+    .map(action => nestedMessage(shortcutNames[action]));
+  if (conflict.systemAction)
+    actions.push(nestedMessage(message('systemShortcut', { action: nestedMessage(conflict.systemAction) })));
   return message('shortcutConflict', { actions });
 }
 export function shortcutConflicts(shortcuts: Shortcuts): ShortcutConflict[] {
@@ -126,17 +127,17 @@ export function shortcutConflicts(shortcuts: Shortcuts): ShortcutConflict[] {
   }
   return [...groups]
     .filter(([binding, actions]) => actions.length > 1 || reserved[binding])
-    .map(([binding, actions]) => ({ binding, actions, system: reserved[binding] }));
+    .map(([binding, actions]) => ({ binding, actions, systemAction: reserved[binding] }));
 }
 
 /** Whether a key was pressed with none of ⌘, Ctrl and ⌥ held: a plain key, not a shortcut. */
-export const withoutCommandModifier = (event: Pick<KeyboardEvent, 'metaKey' | 'ctrlKey' | 'altKey'>) =>
+export const withoutShortcutModifier = (event: Pick<KeyboardEvent, 'metaKey' | 'ctrlKey' | 'altKey'>) =>
   !(event.metaKey || event.ctrlKey || event.altKey);
 
 export function shortcutFromEvent(
   event: Pick<KeyboardEvent, 'code' | 'metaKey' | 'ctrlKey' | 'altKey' | 'shiftKey' | 'isComposing'>,
 ): string | undefined {
-  if (event.isComposing || withoutCommandModifier(event)) return;
+  if (event.isComposing || withoutShortcutModifier(event)) return;
   const key =
     codeKeys[event.code] ??
     (/^(Key[A-Z]|Digit[0-9])$/.test(event.code) ? event.code.replace(/^(Key|Digit)/, '') : event.code);

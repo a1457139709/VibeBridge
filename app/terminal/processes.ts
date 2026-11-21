@@ -9,7 +9,7 @@ export interface ProcessIdentity {
   owner?: string;
 }
 const execute = promisify(execFile);
-export async function processTable(includeOwners = false): Promise<ProcessIdentity[]> {
+export async function readProcessTable(includeOwners = false): Promise<ProcessIdentity[]> {
   // macOS -E reads the launch environment, including inherited ownership after reparenting.
   // Only retain our marker; never log or send command lines or other environment values.
   const args = includeOwners
@@ -33,7 +33,11 @@ export async function processTable(includeOwners = false): Promise<ProcessIdenti
   });
 }
 
-export function descendants(table: ProcessIdentity[], known: ProcessIdentity[], owner?: string): ProcessIdentity[] {
+export function ownedProcessTree(
+  table: ProcessIdentity[],
+  known: ProcessIdentity[],
+  owner?: string,
+): ProcessIdentity[] {
   const result = table.filter(
     row =>
       known.some(p => p.pid === row.pid && p.started === row.started) ||
@@ -47,9 +51,13 @@ export function descendants(table: ProcessIdentity[], known: ProcessIdentity[], 
   return result;
 }
 
-export async function stopProcesses(known: ProcessIdentity[], owner?: string, afterForce?: () => void): Promise<void> {
+export async function stopProcesses(
+  known: ProcessIdentity[],
+  owner?: string,
+  onForceKilled?: () => void,
+): Promise<void> {
   const deadline = Date.now() + 2000;
-  let remaining = descendants(await processTable(!!owner), known, owner);
+  let remaining = ownedProcessTree(await readProcessTable(!!owner), known, owner);
   const signal = (processes: ProcessIdentity[], name: NodeJS.Signals) => {
     for (const processInfo of [...processes].reverse()) {
       try {
@@ -62,15 +70,15 @@ export async function stopProcesses(known: ProcessIdentity[], owner?: string, af
   signal(remaining, 'SIGTERM');
   while (remaining.length && Date.now() < deadline) {
     await new Promise(resolve => setTimeout(resolve, 40));
-    remaining = descendants(await processTable(!!owner), remaining, owner);
+    remaining = ownedProcessTree(await readProcessTable(!!owner), remaining, owner);
   }
   if (remaining.length) {
     signal(remaining, 'SIGKILL');
-    afterForce?.();
+    onForceKilled?.();
     const forcedDeadline = Date.now() + 1000;
     while (remaining.length && Date.now() < forcedDeadline) {
       await new Promise(resolve => setTimeout(resolve, 40));
-      remaining = descendants(await processTable(!!owner), remaining, owner);
+      remaining = ownedProcessTree(await readProcessTable(!!owner), remaining, owner);
     }
   }
   if (remaining.length) throw new Error(message('processStopFailed'));

@@ -43,7 +43,7 @@ async function dispatching(context: test.TestContext, { lateSession = false } = 
       workflowId: 'matt',
       commandId: 'implement',
       target: { kind: 'panel', panelId: run.panelId },
-      invert: false,
+      invertDelivery: false,
     });
   /** Dispatches /implement for the issue to a new Claude panel; `invert` makes it fill only. Returns the new panel's run. */
   const dispatchNew = async (number: number, invert = false) => {
@@ -52,7 +52,7 @@ async function dispatching(context: test.TestContext, { lateSession = false } = 
       workflowId: 'matt',
       commandId: 'implement',
       target: { kind: 'new', agent: 'claude' },
-      invert,
+      invertDelivery: invert,
     });
     const panel = f.workbench.snapshot().projects[0].tray.find(panel => panel.id === panelId)!;
     await until(
@@ -76,7 +76,7 @@ test('submitting to an existing panel pastes the command for its Agent type, the
     assert.deepEqual(
       { ...record, dispatchedAt: undefined },
       {
-        issue: 7,
+        issueNumber: 7,
         agent: 'claude',
         skill: 'implement',
         sessionId: f.session,
@@ -101,14 +101,14 @@ test('a fill-only command is pasted after what the input holds without pressing 
       workflowId: 'matt',
       commandId: 'to-spec',
       target: { kind: 'panel', panelId: f.run.panelId },
-      invert: false,
+      invertDelivery: false,
     });
     await f.workbench.dispatch(f.projectId, {
       issue: { number: 8, title: 'Issue 8' },
       workflowId: 'matt',
       commandId: 'triage',
       target: { kind: 'panel', panelId: f.run.panelId },
-      invert: false,
+      invertDelivery: false,
     });
     assert.equal(
       await f.typed(),
@@ -116,7 +116,7 @@ test('a fill-only command is pasted after what the input holds without pressing 
     );
     await until(() => f.records().length === 2);
     assert.deepEqual(
-      f.records().map(record => [record.issue, record.skill]),
+      f.records().map(record => [record.issueNumber, record.skill]),
       [
         [7, 'to-spec'],
         [8, 'triage'],
@@ -139,7 +139,7 @@ test("inverting a dispatch inverts the command's delivery for that dispatch only
         workflowId: 'matt',
         commandId,
         target: { kind: 'panel', panelId: f.run.panelId },
-        invert,
+        invertDelivery: invert,
       });
     assert.equal((await toPanel('implement', 7, true)).delivery, 'fill');
     assert.equal((await toPanel('to-spec', 8, true)).delivery, 'submit');
@@ -170,7 +170,7 @@ test('a record locates no panel once the panel switches session, and the panel a
 
 /** Each of the first project's records as its issue and the panel it locates, or null. */
 const located = (workbench: Workbench) =>
-  workbench.snapshot().projects[0].dispatches.map(record => [record.issue, record.location?.panelId ?? null]);
+  workbench.snapshot().projects[0].dispatches.map(record => [record.issueNumber, record.location?.panelId ?? null]);
 
 test('records stay after their panel closes and after the app reopens, where no panel is on their session', async context => {
   const f = await dispatching(context);
@@ -269,7 +269,7 @@ test("a new panel's dispatch locates its panel at once, and is recorded on the f
     assert.deepEqual(
       { ...waiting, dispatchedAt: undefined },
       {
-        issue: 7,
+        issueNumber: 7,
         agent: 'claude',
         skill: 'implement',
         dispatchedAt: undefined,
@@ -320,7 +320,7 @@ test('a new panel whose Agent fails to launch is withdrawn, fails the dispatch a
         workflowId: 'matt',
         commandId: 'implement',
         target: { kind: 'new', agent: 'codex' },
-        invert: false,
+        invertDelivery: false,
       }),
       { message: message('launchFailed') },
     );

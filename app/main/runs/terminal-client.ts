@@ -1,4 +1,4 @@
-import { message, detail } from '../../shared/messages';
+import { message, nestedMessage } from '../../shared/messages';
 import { fork, type ChildProcess } from 'node:child_process';
 import { join } from 'node:path';
 import { randomUUID } from 'node:crypto';
@@ -65,14 +65,14 @@ export class TerminalClient {
             onFailure((error as Error).message);
           }
           await recordFailure(faultFile, 'terminal', error.message, cleanupError);
-        })().catch(error => onFailure(message('failureRecordFailed', { reason: detail(error.message) })));
+        })().catch(error => onFailure(message('failureRecordFailed', { reason: nestedMessage(error.message) })));
       }
     };
     this.child.on('error', fail);
     this.child.on('exit', (code, signal) =>
       fail(
         new Error(
-          message('terminalHostExited', { reason: signal ?? detail(message('exitCode', { code: code ?? '' })) }),
+          message('terminalHostExited', { reason: signal ?? nestedMessage(message('exitCode', { code: code ?? '' })) }),
         ),
       ),
     );

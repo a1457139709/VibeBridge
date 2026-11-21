@@ -45,7 +45,7 @@ test('showing the list loads one page of 25 issues, newest first, and Load more 
       parent: null,
       subIssues: { closed: 0, total: 0, issues: [] },
     });
-    assert.ok(first.loaded.cursor);
+    assert.ok(first.loaded.nextCursor);
     const { issues: all } = await shownLists(f.workbench, f.projectId, () =>
       f.workbench.forgeSidebar.loadMore(f.projectId),
     );
@@ -53,7 +53,7 @@ test('showing the list loads one page of 25 issues, newest first, and Load more 
       all.loaded?.items.map(issue => issue.number),
       Array.from({ length: 30 }, (_, index) => 30 - index),
     );
-    assert.equal(all.loaded?.cursor, null, 'the last page has no cursor');
+    assert.equal(all.loaded?.nextCursor, null, 'the last page has no cursor');
   } finally {
     await f.close();
   }
@@ -114,7 +114,7 @@ test('the search, open or closed state and labels all narrow the page, and a clo
     ).issues.loaded;
     assert.ok(labelled);
     assert.deepEqual(labelled.counts, { open: 1, closed: 1 }, 'the counts follow the search and labels, not the state');
-    assert.equal(closed.cursor, null);
+    assert.equal(closed.nextCursor, null);
   } finally {
     await f.close();
   }

@@ -8,7 +8,7 @@ import { defaultSettings } from '../../app/shared/settings/settings';
 import type { SidebarPreferences, ProjectView, Snapshot, WorkbenchEvent } from '../../app/shared/model';
 import type { RepositoryChoices, RepositoryReference } from '../../app/shared/forge/forge';
 import type { DesktopAPI } from '../../app/shared/api';
-import { detail, message } from '../../app/shared/messages';
+import { nestedMessage, message } from '../../app/shared/messages';
 import { stubLayoutApis } from './support/no-layout';
 import { provideWorkbench } from './support/workbench';
 import { forgeSidebarData, type ForgeAnswers } from './support/forge-sidebar-data';
@@ -353,7 +353,7 @@ test('a bind whose list check fails writes nothing, says why in place, and can b
   const { user, binds, opened } = await unboundSidebar(
     async () => listed('octo/unbound'),
     async () => {
-      if (fail) throw new Error(message('bindListFailed', { reason: detail('HTTP 502 原样') }));
+      if (fail) throw new Error(message('bindListFailed', { reason: nestedMessage('HTTP 502 原样') }));
     },
   );
   await user.click(await within(opened).findByRole('button', { name: 'Bind octo/unbound' }));

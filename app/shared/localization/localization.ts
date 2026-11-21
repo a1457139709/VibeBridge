@@ -13,7 +13,7 @@ export function localize(language: Language) {
   const separator = language === 'zh-CN' ? '、' : ', ';
   const valueText = (value: MessageValue): string => {
     if (typeof value === 'string' || typeof value === 'number') return String(value);
-    if ('message' in value) return text(value.message);
+    if ('message' in value) return localizeText(value.message);
     return value.map(valueText).join(separator);
   };
   function format(id: MessageId, values: MessageValues = {}): string {
@@ -21,7 +21,7 @@ export function localize(language: Language) {
       valueText(values[key] ?? ''),
     );
   }
-  function text(value: string): string {
+  function localizeText(value: string): string {
     const input = value.replace(/^Error invoking remote method '[^']+': Error: /, '');
     if (!input.startsWith(messagePrefix)) return input;
     try {
@@ -32,5 +32,9 @@ export function localize(language: Language) {
     }
     return input;
   }
-  return { language, t: <K extends MessageId>(id: K, ...args: MessageArguments<K>) => format(id, args[0]), text };
+  return {
+    language,
+    t: <K extends MessageId>(id: K, ...args: MessageArguments<K>) => format(id, args[0]),
+    text: localizeText,
+  };
 }

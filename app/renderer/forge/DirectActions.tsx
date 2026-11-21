@@ -182,7 +182,7 @@ export function PullRequestActions({
   const [chosen, setChosen] = useState(lastMergeMethod);
   if (!pull.canWrite) return null;
   const busy = actions.running !== null;
-  const methods = pull.merge.methods.filter(method => capabilities.mergeMethods.includes(method));
+  const methods = pull.mergeOptions.methods.filter(method => capabilities.mergeMethods.includes(method));
   const method = chosen && methods.includes(chosen) ? chosen : (methods[0] ?? null);
   const reasons = mergeBlockedReasons(pull, capabilities, t);
   const blocked = !!reasons.length || !method;
@@ -209,7 +209,7 @@ export function PullRequestActions({
   return (
     <div className="forge-merge-actions">
       <div className="forge-merge-buttons">
-        {capabilities.mergeQueue && pull.merge.queue ? (
+        {capabilities.mergeQueue && pull.mergeOptions.queue ? (
           <span className="forge-merge-why">
             <button className="forge-btn" disabled>
               {t('mergeButton')}

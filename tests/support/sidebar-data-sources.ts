@@ -35,7 +35,7 @@ export const detail = (
 export const page = (numbers: number[], cursor: string | null = null): IssuePage => ({
   ok: true,
   items: numbers.map(issue),
-  cursor,
+  nextCursor: cursor,
   labels: [],
   counts: { open: numbers.length, closed: 0 },
 });

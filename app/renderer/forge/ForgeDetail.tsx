@@ -7,7 +7,7 @@ import {
   type PointerEvent as ReactPointerEvent,
 } from 'react';
 import { useLocalization } from '../common/Localization';
-import { detail as reason } from '../../shared/messages';
+import { nestedMessage } from '../../shared/messages';
 import type {
   DirectAction,
   DirectActionResult,
@@ -22,7 +22,7 @@ import { linkedItem } from './ForgeDisplay';
 import { idleActions, type Actions, type ActionState } from './DirectActions';
 import { IssueDocument, type IssueDispatch } from './IssueDetail';
 import { PullRequestDocument } from './PullRequestDetail';
-import { withoutCommandModifier } from '../../shared/settings/shortcuts';
+import { withoutShortcutModifier } from '../../shared/settings/shortcuts';
 
 interface Props {
   project: ProjectView & { repository: RepositoryReference };
@@ -102,7 +102,7 @@ export function ForgeDetailPane({
       )
     )
       return;
-    if (event.key === 'Escape' || (event.key === 'ArrowRight' && withoutCommandModifier(event))) {
+    if (event.key === 'Escape' || (event.key === 'ArrowRight' && withoutShortcutModifier(event))) {
       event.preventDefault();
       close();
     }
@@ -179,7 +179,9 @@ export function ForgeDetailPane({
           <p className="forge-empty">{t('loadingDetail', { number })}</p>
         ) : !result.ok ? (
           <div className="forge-sidebar-state">
-            <p>{t('detailLoadFailed', { number, reason: reason(result.failure.detail || result.failure.kind) })}</p>
+            <p>
+              {t('detailLoadFailed', { number, reason: nestedMessage(result.failure.detail || result.failure.kind) })}
+            </p>
             <button
               onClick={() => {
                 setLoaded(null);

@@ -109,7 +109,7 @@ export class ForgeSidebarData {
   async loadMore(projectId: string) {
     const shown = this.useLists(projectId);
     const loaded = shown?.lists[shown.view.tab].loaded;
-    if (!shown || !loaded?.cursor) return;
+    if (!shown || !loaded?.nextCursor) return;
     return this.load(projectId, shown, shown.view.tab, loaded.filter, 'append');
   }
   /** Reloads the shown tab from its first page through the page holding the last row the sidebar renders, in place of
@@ -289,13 +289,13 @@ export class ForgeSidebarData {
     const pageEnds: number[] = [];
     let page: Page<ForgeListItems[T]> | undefined;
     // The pages follow one another: each asks from where the one before ended.
-    for (let cursor = joining === 'append' ? before.loaded!.cursor : null; pages > 0; pages--) {
+    for (let cursor = joining === 'append' ? before.loaded!.nextCursor : null; pages > 0; pages--) {
       page = await readPage(this.sources, projectId, tab, { filter, cursor });
       if (shown.request !== request || this.lists.get(projectId) !== shown) return;
       if (!page.ok) break;
       items.push(...page.items);
       pageEnds.push(items.length);
-      if (!(cursor = page.cursor)) break;
+      if (!(cursor = page.nextCursor)) break;
     }
     shown.request = null;
     const previous = shown.lists[tab] as TabList<ForgeListItems[T]>;

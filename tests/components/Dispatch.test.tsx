@@ -82,7 +82,7 @@ test("submitting to a panel dispatches the issue, returns focus to Dispatch and 
           workflowId: 'matt',
           commandId: 'implement',
           target: { kind: 'panel', panelId: 'tray' },
-          invert: false,
+          invertDelivery: false,
         },
       ],
     ]),
@@ -142,7 +142,7 @@ test('submitting to a new panel dispatches to its Agent type and returns focus t
           workflowId: 'matt',
           commandId: 'implement',
           target: { kind: 'new', agent: 'codex' },
-          invert: false,
+          invertDelivery: false,
         },
       ],
     ]),
@@ -255,7 +255,7 @@ test('in the menu ↑/↓ move without wrapping, ← or Space enters the targets
   await f.user.keyboard(' ');
   await waitFor(() =>
     assert.deepEqual(
-      f.dispatches.map(([, request]) => [request.commandId, request.target, request.invert]),
+      f.dispatches.map(([, request]) => [request.commandId, request.target, request.invertDelivery]),
       [['implement', { kind: 'panel', panelId: 'tray' }, false]],
     ),
   );
@@ -282,7 +282,7 @@ test('holding ⌥ shows the inverted deliveries, and ⌥+Space or ⌥+click inve
   await f.user.keyboard(' {/Alt}');
   await waitFor(() =>
     assert.deepEqual(
-      f.dispatches.map(([, request]) => [request.target, request.invert]),
+      f.dispatches.map(([, request]) => [request.target, request.invertDelivery]),
       [[{ kind: 'new', agent: 'claude' }, true]],
     ),
   );
@@ -300,7 +300,7 @@ test('holding ⌥ shows the inverted deliveries, and ⌥+Space or ⌥+click inve
   await f.user.keyboard('{/Alt}');
   await waitFor(() =>
     assert.deepEqual(
-      f.dispatches.map(([, request]) => request.invert),
+      f.dispatches.map(([, request]) => request.invertDelivery),
       [true, true],
     ),
   );
@@ -311,7 +311,7 @@ test('holding ⌥ shows the inverted deliveries, and ⌥+Space or ⌥+click inve
   );
   await waitFor(() =>
     assert.deepEqual(
-      f.dispatches.map(([, request]) => request.invert),
+      f.dispatches.map(([, request]) => request.invertDelivery),
       [true, true, false],
     ),
   );
