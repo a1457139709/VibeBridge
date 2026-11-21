@@ -49,9 +49,9 @@ function renderWorkbench(change: (snapshot: Snapshot) => void = () => {}) {
   };
   change(snapshot);
   provideWorkbench({
-    snapshot: async () => structuredClone(snapshot),
+    fetchSnapshot: async () => structuredClone(snapshot),
     subscribe: () => () => {},
-    ready: async () => {},
+    reportRendererReady: async () => {},
     activateProject: async () => {},
     saveSidebar: async () => {},
     saveLayout: async () => {},

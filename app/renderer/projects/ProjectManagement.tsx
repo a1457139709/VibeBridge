@@ -117,7 +117,7 @@ function useListedForDirectory(projectId: string, directory: string | null) {
     setListed(undefined);
     if (directory === null) return;
     let live = true;
-    void window.workbench.repositoryChoices(projectId, directory).then(
+    void window.workbench.fetchRepositoryChoices(projectId, directory).then(
       choices => {
         if (live && choices.ok) setListed(choices);
       },

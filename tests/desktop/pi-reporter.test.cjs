@@ -5,7 +5,7 @@ const { showing } = require('./support/panel-views.cjs');
 module.exports = {
   async run({ window, evaluate, until, click, directory }) {
     const command = { command: process.env.VIBEBRIDGE_TEST_NODE, args: [resolve('tests/fixtures/pi-cli.cjs')] };
-    const settings = await evaluate('window.workbench.snapshot().then(snapshot => snapshot.settings)');
+    const settings = await evaluate('window.workbench.fetchSnapshot().then(snapshot => snapshot.settings)');
     await evaluate(`window.workbench.saveSettings(${JSON.stringify({ agents: { ...settings.agents, pi: command } })})`);
     const created = await evaluate(
       `window.workbench.createProject(${JSON.stringify({
@@ -39,7 +39,7 @@ module.exports = {
     await check(runs[0], 'Needs input');
     await emit(runs[0], { type: 'tool_execution_end', isError: true });
     await check(runs[0], 'Needs input');
-    const snapshot = await evaluate('window.workbench.snapshot()');
+    const snapshot = await evaluate('window.workbench.fetchSnapshot()');
     assert.deepEqual(showing(snapshot, created.project.id, 'needs-input'), [[runs[0].panelId, runs[0].id]]);
     await emit(runs[1], { type: 'agent_start' });
     await emit(runs[1], { type: 'message_end', message: { role: 'assistant', stopReason: 'stop' } });
@@ -57,7 +57,7 @@ module.exports = {
     await emit(runs[1], { type: 'session_compact', reason: 'manual', willRetry: false }, { idle: true });
     await check(runs[1], 'Done');
     await check(runs[0], 'Needs input');
-    const compacted = await evaluate('window.workbench.snapshot()');
+    const compacted = await evaluate('window.workbench.fetchSnapshot()');
     assert.deepEqual(showing(compacted, created.project.id, 'done'), [[runs[1].panelId, runs[1].id]]);
     await emit(runs[0], { type: 'ui_prompt_end' });
     await check(runs[0], 'Busy');

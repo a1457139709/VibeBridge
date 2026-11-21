@@ -155,7 +155,14 @@ export function renderWorkbench(capabilities = githubCapabilities, api: Partial<
     requests.push({ list, projectId, query: structuredClone(query), answer: answer.resolve, fail: answer.reject });
     return answer.promise;
   };
-  const { issuePage, pullRequestPage, repositoryChoices, issueDetail, pullRequestDetail, ...calls } = api;
+  const {
+    issuePage,
+    pullRequestPage,
+    fetchRepositoryChoices: repositoryChoices,
+    issueDetail,
+    pullRequestDetail,
+    ...calls
+  } = api;
   const forge: ForgeAnswers = {
     repositoryChoices:
       repositoryChoices ??
@@ -179,8 +186,8 @@ export function renderWorkbench(capabilities = githubCapabilities, api: Partial<
   /** The numbers of the rows the sidebar declared it renders, the latest last. */
   const shownRows: number[][] = [];
   provideWorkbench({
-    snapshot: async () => structuredClone(snapshot),
-    ready: async () => {},
+    fetchSnapshot: async () => structuredClone(snapshot),
+    reportRendererReady: async () => {},
     subscribe: listener => {
       listeners.add(listener);
       return () => {

@@ -13,7 +13,7 @@ module.exports = async context => {
   }); void 0;`);
   const created = await require('./project.cjs')(context, 'Summary project', { Codex: 3 });
   const projectId = created.activeProjectId;
-  const snapshot = () => evaluate('window.workbench.snapshot()');
+  const snapshot = () => evaluate('window.workbench.fetchSnapshot()');
   const runs = runsOf(await snapshot());
   let sequence = 0;
   // Every run reports one shared CLI session ID; a different session's facts are discarded.

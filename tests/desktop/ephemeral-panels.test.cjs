@@ -11,7 +11,7 @@ module.exports = {
     const project = created.projects[0];
     const residentRuns = runsOf(created);
     const layout = project.layout;
-    const snapshot = () => evaluate('window.workbench.snapshot()');
+    const snapshot = () => evaluate('window.workbench.fetchSnapshot()');
     const tray = async () => (await snapshot()).projects[0].tray;
     const nativeKey = keyCode => {
       window.webContents.sendInputEvent({ type: 'keyDown', keyCode });

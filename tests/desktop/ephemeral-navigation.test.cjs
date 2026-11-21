@@ -6,7 +6,7 @@ module.exports = {
     const { evaluate, until, click, directory } = context;
     const created = await require('./support/project.cjs')(context, 'Navigation tray project', { Codex: 1 });
     const project = created.projects[0];
-    const snapshot = () => evaluate('window.workbench.snapshot()');
+    const snapshot = () => evaluate('window.workbench.fetchSnapshot()');
     const added = await evaluate(`window.workbench.addPanel(${JSON.stringify(project.id)}, 'codex')`);
     const trayPanelId = added.panel.id;
     await until(async () => (await snapshot()).projects[0].tray.length === 1, 'added panel joined the tray');

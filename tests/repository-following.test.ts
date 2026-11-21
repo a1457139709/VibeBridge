@@ -67,7 +67,9 @@ test('a direct action is written at the bound path with one gh call, located by 
   try {
     await double.set({ ...account, ...toolsItems });
     await double.calls();
-    assert.ok((await f.workbench.directAction(projectId, { kind: 'closeIssue', number: 3, reason: 'completed' })).ok);
+    assert.ok(
+      (await f.workbench.performDirectAction(projectId, { kind: 'closeIssue', number: 3, reason: 'completed' })).ok,
+    );
     assert.deepEqual(asked(await double.calls()), ['issue close --repo octo/tools']);
   } finally {
     await f.close();
@@ -105,7 +107,7 @@ for (const [move, redirects, calls] of [
       );
       await until(() => bound()?.path === 'octo/tools-x');
       assert.deepEqual(bound(), github('octo/tools-x', id));
-      const choices = await f.workbench.repositoryChoices(projectId, f.directory);
+      const choices = await f.workbench.fetchRepositoryChoices(projectId, f.directory);
       assert.ok(choices.ok);
       assert.deepEqual(
         choices.repositories.map(item => item.path),
@@ -133,7 +135,7 @@ test('a bound repository transferred to another owner follows from the list of r
   const { double, f, projectId, id, bound } = await boundToTools(context, 'repository-transferred');
   try {
     await double.set({ ...account, repositories: [{ id: Number(id), path: 'acme/tools' }] });
-    const choices = await f.workbench.repositoryChoices(projectId, f.directory);
+    const choices = await f.workbench.fetchRepositoryChoices(projectId, f.directory);
     assert.ok(choices.ok);
     await until(() => bound()?.path === 'acme/tools');
     assert.deepEqual(bound(), github('acme/tools', id));
@@ -179,7 +181,7 @@ test('a deleted bound repository is inaccessible to reads and writes alike, and 
     const detail = await issueDetail(f.workbench, projectId, 3);
     assert.equal(!detail.ok && detail.failure.kind, 'inaccessible');
     await double.calls();
-    const written = await f.workbench.directAction(projectId, { kind: 'reopenIssue', number: 3 });
+    const written = await f.workbench.performDirectAction(projectId, { kind: 'reopenIssue', number: 3 });
     assert.equal(!written.ok && written.failure.kind, 'inaccessible');
     assert.deepEqual(asked(await double.calls()), ['issue reopen --repo octo/tools']);
     assert.deepEqual(bound(), github('octo/tools', id));

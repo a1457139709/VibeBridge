@@ -164,17 +164,17 @@ void app.whenReady().then(async () => {
       }
     });
   };
-  handle('snapshot', workbench => workbench.snapshot());
-  handle('create', (workbench, draft) => workbench.createProject(draft));
+  handle('fetch-snapshot', workbench => workbench.snapshot());
+  handle('create-project', (workbench, draft) => workbench.createProject(draft));
   handle('edit-project', async (workbench, id, edit, restart) => {
     await loginPathMerged;
     return workbench.editProject(id, edit, restart);
   });
   handle('delete-project', (workbench, id) => workbench.deleteProject(id));
-  handle('directory', (workbench, directory) => workbench.inspectDirectory(directory));
-  handle('repository-choices', async (workbench, id, directory) => {
+  handle('inspect-directory', (workbench, directory) => workbench.inspectDirectory(directory));
+  handle('fetch-repository-choices', async (workbench, id, directory) => {
     await loginPathMerged;
-    return workbench.repositoryChoices(id, directory);
+    return workbench.fetchRepositoryChoices(id, directory);
   });
   handle('bind-repository', async (workbench, id, repository) => {
     await loginPathMerged;
@@ -215,22 +215,22 @@ void app.whenReady().then(async () => {
     return workbench.forgeSidebar.reloadChanged(id, item);
   });
   handle('dispatch', (workbench, id, request) => workbench.dispatch(id, request));
-  handle('direct-action', async (workbench, id, action) => {
+  handle('perform-direct-action', async (workbench, id, action) => {
     await loginPathMerged;
-    return workbench.directAction(id, action);
+    return workbench.performDirectAction(id, action);
   });
-  handle('activate', (workbench, id) => workbench.activateProject(id));
-  handle('add', (workbench, project, agent) => workbench.addPanel(project, agent));
-  handle('close', (workbench, project, panel) => workbench.closePanel(project, panel));
-  handle('place', (workbench, project, panel, layout) => workbench.placeInLayout(project, panel, layout));
-  handle('tray', (workbench, project, panel) => workbench.moveToTray(project, panel));
-  handle('layout', (workbench, project, layout) => workbench.saveLayout(project, layout));
-  handle('sidebar', (workbench, sidebar, preferences) => workbench.saveSidebar(sidebar, preferences));
-  handle('settings', (workbench, settings) => workbench.saveSettings(settings));
+  handle('activate-project', (workbench, id) => workbench.activateProject(id));
+  handle('add-panel', (workbench, project, agent) => workbench.addPanel(project, agent));
+  handle('close-panel', (workbench, project, panel) => workbench.closePanel(project, panel));
+  handle('place-in-layout', (workbench, project, panel, layout) => workbench.placeInLayout(project, panel, layout));
+  handle('move-to-tray', (workbench, project, panel) => workbench.moveToTray(project, panel));
+  handle('save-layout', (workbench, project, layout) => workbench.saveLayout(project, layout));
+  handle('save-sidebar', (workbench, sidebar, preferences) => workbench.saveSidebar(sidebar, preferences));
+  handle('save-settings', (workbench, settings) => workbench.saveSettings(settings));
   handle('check-command', (workbench, command) => workbench.runs.checkCommand(command));
-  handle('input', (workbench, run, data) => workbench.runs.input(run, data));
-  handle('resize', (workbench, run, cols, rows) => workbench.runs.resize(run, cols, rows));
-  ipcMain.on('workbench:output-consumed', (event, run, characters) => {
+  handle('send-input', (workbench, run, data) => workbench.runs.input(run, data));
+  handle('resize-run', (workbench, run, cols, rows) => workbench.runs.resize(run, cols, rows));
+  ipcMain.on('workbench:acknowledge-output', (event, run, characters) => {
     if (event.sender === window!.webContents && event.senderFrame?.url === page) {
       void opening.then(workbench => workbench.runs.acknowledgeOutput(run, characters));
     }
@@ -248,7 +248,7 @@ void app.whenReady().then(async () => {
     void requestQuit();
   });
   let ready = false;
-  handle('ready', async workbench => {
+  handle('renderer-ready', async workbench => {
     if (ready) return;
     ready = true;
     workbench.subscribe(event => {

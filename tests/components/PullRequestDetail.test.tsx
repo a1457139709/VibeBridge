@@ -101,8 +101,8 @@ function renderWorkbench({
   };
   const events = workbenchEvents();
   provideWorkbench({
-    snapshot: async () => structuredClone(snapshot),
-    ready: async () => {},
+    fetchSnapshot: async () => structuredClone(snapshot),
+    reportRendererReady: async () => {},
     subscribe: events.subscribe,
     saveSidebar: async () => {},
     activateProject: async () => {},

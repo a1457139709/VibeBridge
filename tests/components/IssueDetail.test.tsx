@@ -102,8 +102,8 @@ function renderWorkbench(
   const listeners = new Set<(event: WorkbenchEvent) => void>();
   const requests: Request[] = [];
   provideWorkbench({
-    snapshot: async () => structuredClone(snapshot),
-    ready: async () => {},
+    fetchSnapshot: async () => structuredClone(snapshot),
+    reportRendererReady: async () => {},
     subscribe: listener => {
       listeners.add(listener);
       return () => {

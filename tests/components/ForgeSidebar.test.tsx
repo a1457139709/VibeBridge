@@ -69,10 +69,10 @@ function renderWorkbench(
     origin: null,
     repositories: [githubRepository('octo/unbound')],
   };
-  const { repositoryChoices, ...calls } = api;
+  const { fetchRepositoryChoices: repositoryChoices, ...calls } = api;
   provideWorkbench({
-    snapshot: async () => structuredClone(snapshot),
-    ready: async () => {},
+    fetchSnapshot: async () => structuredClone(snapshot),
+    reportRendererReady: async () => {},
     subscribe: listener => {
       listeners.add(listener);
       return () => {
@@ -205,7 +205,7 @@ async function unboundSidebar(choices: () => Promise<RepositoryChoices>, bind?: 
   const rendered = renderWorkbench(
     { visible: true, width: 380 },
     {
-      repositoryChoices: choices,
+      fetchRepositoryChoices: choices,
       bindRepository: async (id, repository) => {
         binds.push([id, repository]);
         await bind?.();

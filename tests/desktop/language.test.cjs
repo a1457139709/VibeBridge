@@ -178,7 +178,7 @@ module.exports = {
       () => evaluate('document.documentElement.lang === "zh-CN" && !!document.querySelector(".workspace")'),
       'reopened workspace drawn in zh-CN',
     );
-    assert.equal((await evaluate('window.workbench.snapshot()')).settings.language, 'zh-CN');
+    assert.equal((await evaluate('window.workbench.fetchSnapshot()')).settings.language, 'zh-CN');
     assert.deepEqual(
       Menu.getApplicationMenu().items.map(item => item.label),
       ['VibeBridge', '编辑', '窗口'],

@@ -118,7 +118,7 @@ module.exports = {
     process.kill(child, 0);
     await click('Close panel');
     await until(
-      async () => !runsOf(await evaluate('window.workbench.snapshot()')).length,
+      async () => !runsOf(await evaluate('window.workbench.fetchSnapshot()')).length,
       'closed panel run left the snapshot',
     );
     await until(

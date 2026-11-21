@@ -38,7 +38,7 @@ function editor(repository: RepositoryReference | null, choices = listed) {
   const edits: { edit: ProjectEdit; restart: boolean }[] = [];
   provideWorkbench({
     inspectDirectory: async directory => ({ valid: true, directory }),
-    repositoryChoices: async (_id, directory) => choices(directory),
+    fetchRepositoryChoices: async (_id, directory) => choices(directory),
     editProject: async (_id, edit, restart) => {
       edits.push({ edit, restart });
       return { project: { ...project, ...edit }, launches: [] };

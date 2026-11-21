@@ -23,7 +23,7 @@ module.exports = {
       () => evaluate(`!!document.querySelector('.panel-tray [data-tray-panel-id="${tray.panel.id}"]')`),
       `tray card for panel ${tray.panel.id} drawn`,
     );
-    const configured = (await evaluate('window.workbench.snapshot()')).projects[0];
+    const configured = (await evaluate('window.workbench.fetchSnapshot()')).projects[0];
     const [a, b] = configured.panels.map(panel => panel.id);
     const layout = { axis: 'row', ratio: 0.35, first: { panel: b }, second: { panel: a } };
     await evaluate(`window.workbench.saveLayout(${JSON.stringify(project.id)}, ${JSON.stringify(layout)})`);
@@ -45,7 +45,7 @@ module.exports = {
       async () => JSON.stringify(await renderedLayout(evaluate, configured)) === JSON.stringify(expected),
       'Saved project draws its non-default layout',
     );
-    const snapshot = await evaluate('window.workbench.snapshot()');
+    const snapshot = await evaluate('window.workbench.fetchSnapshot()');
     await writeFile(`${directory}/expected.json`, JSON.stringify({ snapshot, geometry: expected }));
     console.log('Saved two projects, distinct Agent panel configurations, a non-default layout and a tray panel.');
   },
@@ -54,11 +54,11 @@ module.exports = {
     const active = saved.projects.find(project => project.id === saved.activeProjectId);
     await until(
       async () =>
-        runsOf(await evaluate('window.workbench.snapshot()')).filter(run => run.state === 'running').length ===
+        runsOf(await evaluate('window.workbench.fetchSnapshot()')).filter(run => run.state === 'running').length ===
         active.panels.length,
       'reopened active project has a running run for every panel',
     );
-    const reopened = await evaluate('window.workbench.snapshot()');
+    const reopened = await evaluate('window.workbench.fetchSnapshot()');
     assert.equal(reopened.activeProjectId, saved.activeProjectId);
     assert.deepEqual(storedProjects(reopened), storedProjects(saved));
     assert.ok(

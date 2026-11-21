@@ -10,7 +10,7 @@ module.exports = {
     await require('./support/project.cjs')(base, 'Sidebar project', { Codex: 1 });
     const context = await require('./support/terminal-waits.cjs')(base);
     const { evaluate, until, click, reportedSize } = context;
-    const [run] = runsOf(await evaluate('window.workbench.snapshot()'));
+    const [run] = runsOf(await evaluate('window.workbench.fetchSnapshot()'));
     const drawnRows = () => evaluate('document.querySelector(".xterm-rows").children.length');
     let initial;
     await until(
@@ -82,7 +82,7 @@ module.exports = {
       clickCount: 1,
     });
     await until(
-      async () => (await evaluate('window.workbench.snapshot()')).forgeSidebar.width === 450,
+      async () => (await evaluate('window.workbench.fetchSnapshot()')).forgeSidebar.width === 450,
       'dragging the left edge saved a 450px width',
     );
     await until(
@@ -98,7 +98,7 @@ module.exports = {
       async () => (await evaluate(`document.querySelector('.forge-sidebar')?.getBoundingClientRect().width`)) === 450,
       'reopened sidebar drawn open at 450px',
     );
-    assert.deepEqual((await evaluate('window.workbench.snapshot()')).forgeSidebar, { visible: true, width: 450 });
+    assert.deepEqual((await evaluate('window.workbench.fetchSnapshot()')).forgeSidebar, { visible: true, width: 450 });
     assert.equal(
       await evaluate(`document.querySelector('.forge-sidebar-toggle').getAttribute('aria-expanded')`),
       'true',

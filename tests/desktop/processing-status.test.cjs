@@ -11,7 +11,7 @@ module.exports = {
     );
     const created = await require('./support/project.cjs')(context, 'Status panels', { Codex: 5 });
     const projectId = created.activeProjectId;
-    const runs = runsOf(await evaluate('window.workbench.snapshot()'));
+    const runs = runsOf(await evaluate('window.workbench.fetchSnapshot()'));
     const cases = [
       ['ready', 'Ready', { hook_event_name: 'SessionStart', source: 'startup' }],
       ['busy', 'Busy', { hook_event_name: 'UserPromptSubmit' }],
@@ -45,7 +45,7 @@ module.exports = {
     // Real keyboard focus must expose the same label, without clearing Done.
     await evaluate(`document.querySelector('[data-panel-id="${runs[3].panelId}"] .processing-status').focus()`);
     assert.equal(await evaluate('document.activeElement.getAttribute("aria-label")'), 'Done');
-    assert.equal(statusOf(await evaluate('window.workbench.snapshot()'), runs[3].id), 'done');
+    assert.equal(statusOf(await evaluate('window.workbench.fetchSnapshot()'), runs[3].id), 'done');
 
     // What keeps the status icons from their settled presentation, or nothing once they have it.
     const geometryProblems = async () => {
@@ -209,8 +209,8 @@ module.exports = {
         );
         await until(
           async () =>
-            (await evaluate('window.workbench.snapshot()')).projects.find(project => project.id === projectId).layout
-              .ratio < 0.49,
+            (await evaluate('window.workbench.fetchSnapshot()')).projects.find(project => project.id === projectId)
+              .layout.ratio < 0.49,
           'resized ratio saved',
         );
         await until(
@@ -249,10 +249,10 @@ module.exports = {
     window.webContents.sendInputEvent({ type: 'keyDown', keyCode: 'Enter' });
     window.webContents.sendInputEvent({ type: 'keyUp', keyCode: 'Enter' });
     await until(
-      async () => statusOf(await evaluate('window.workbench.snapshot()'), runs[3].id) === 'busy',
+      async () => statusOf(await evaluate('window.workbench.fetchSnapshot()'), runs[3].id) === 'busy',
       'typed prompt made the Done run Busy',
     );
-    assert.equal(statusOf(await evaluate('window.workbench.snapshot()'), runs[4].id), 'error');
+    assert.equal(statusOf(await evaluate('window.workbench.fetchSnapshot()'), runs[4].id), 'error');
     console.log(
       'Five status shapes agree between panels and navigation, Busy alone turns in one phase or rests under reduced motion; theme, narrow-window and native-input checks passed.',
     );

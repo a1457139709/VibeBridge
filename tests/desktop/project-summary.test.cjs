@@ -265,10 +265,10 @@ module.exports = {
     const saved = JSON.parse(await readFile(`${directory}/summary-expected.json`, 'utf8'));
     const active = saved.projects.find(project => project.id === saved.activeProjectId);
     await until(
-      async () => runsOf(await evaluate('window.workbench.snapshot()')).length === active.panels.length,
+      async () => runsOf(await evaluate('window.workbench.fetchSnapshot()')).length === active.panels.length,
       'reopened project has a run for every panel',
     );
-    const current = await evaluate('window.workbench.snapshot()');
+    const current = await evaluate('window.workbench.fetchSnapshot()');
     assert.deepEqual(storedProjects(current), storedProjects(saved));
     assert.ok(runsOf(current).every(run => !runsOf(saved).some(old => old.id === run.id)));
     await until(
