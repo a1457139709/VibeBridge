@@ -3,10 +3,13 @@ import type {
   ForgePresentation,
   IssueDetailResult,
   IssuePage,
+  IssuesByNumber,
+  ItemsByNumber,
   ListQuery,
   Page,
   PullRequestDetailResult,
   PullRequestPage,
+  PullRequestsByNumber,
   RepositoryChoices,
 } from '../../shared/forge/forge';
 import type {
@@ -22,6 +25,8 @@ import type {
 export interface ForgeSidebarSources {
   issuePage(projectId: string, query: ListQuery): Promise<IssuePage>;
   pullRequestPage(projectId: string, query: ListQuery): Promise<PullRequestPage>;
+  issuesByNumber(projectId: string, numbers: number[]): Promise<IssuesByNumber>;
+  pullRequestsByNumber(projectId: string, numbers: number[]): Promise<PullRequestsByNumber>;
   repositoryChoices(projectId: string): Promise<RepositoryChoices>;
   issueDetail(projectId: string, number: number): Promise<IssueDetailResult>;
   pullRequestDetail(projectId: string, number: number): Promise<PullRequestDetailResult>;
@@ -50,6 +55,20 @@ export async function readPage<T extends ForgeListTab>(
     return (await (tab === 'issues' ? sources.issuePage : sources.pullRequestPage)(projectId, query)) as Page<
       ForgeListItems[T]
     >;
+  } catch (error) {
+    return { ok: false, failure: outsideForge(sources, projectId, error), account: null };
+  }
+}
+
+/** Asks the forge for the items of `tab` with these numbers, with no search. */
+export async function readByNumber(
+  sources: ForgeSidebarSources,
+  projectId: string,
+  tab: ForgeListTab,
+  numbers: number[],
+): Promise<ItemsByNumber<ForgeListItems[ForgeListTab]>> {
+  try {
+    return await (tab === 'issues' ? sources.issuesByNumber : sources.pullRequestsByNumber)(projectId, numbers);
   } catch (error) {
     return { ok: false, failure: outsideForge(sources, projectId, error), account: null };
   }

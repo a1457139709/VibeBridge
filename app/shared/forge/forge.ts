@@ -163,6 +163,11 @@ export interface ListPage<Item> {
 export type Page<Item> = ({ ok: true } & ListPage<Item>) | { ok: false; failure: ForgeFailure; account: string | null };
 export type IssuePage = Page<ListedIssue>;
 export type PullRequestPage = Page<PullRequestSummary>;
+/** Items of the bound repository read by their numbers, in the shape a list page holds them: those the forge has, the
+ * others left out; or the forge failure. */
+export type ItemsByNumber<Item> = { ok: true; items: Item[] } | Extract<Page<Item>, { ok: false }>;
+export type IssuesByNumber = ItemsByNumber<ListedIssue>;
+export type PullRequestsByNumber = ItemsByNumber<PullRequestSummary>;
 
 /** Another issue as a detail names it. `url` is its page on the forge: one outside the bound repository opens in the browser. */
 export interface IssueReference {
@@ -219,6 +224,10 @@ export interface IssueDetail extends Omit<IssueSummary, 'blockedBy' | 'unlistedB
 }
 /** The number of an issue or pull request. */
 export const itemNumberSchema = z.number().int().positive();
+/** The most items one read by number asks for: more than a list renders at once. */
+export const itemsPerRead = 100;
+/** The numbers of the items one read asks for at once. */
+export const itemNumbersSchema = z.array(itemNumberSchema).max(itemsPerRead);
 /** An issue of the bound repository, or the forge failure. */
 export type IssueDetailResult = { ok: true; issue: IssueDetail } | { ok: false; failure: ForgeFailure };
 

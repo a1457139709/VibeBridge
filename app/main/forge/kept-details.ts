@@ -60,6 +60,13 @@ export class KeptDetails {
     this.readsAhead.delete(key);
     return read;
   }
+  /** Drops what is kept of the item, its read ahead still on its way too: what it holds changed. */
+  drop(projectId: string, item: DetailItem) {
+    const key = keyOf(projectId, item);
+    this.answers.delete(key);
+    this.unopened.delete(key);
+    this.readsAhead.delete(key);
+  }
   /** Drops everything kept of the project, with its reads ahead still on their way. */
   forget(projectId: string) {
     const ofProject = (key: string) => key.startsWith(`${projectId}\n`);

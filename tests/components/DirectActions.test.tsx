@@ -119,7 +119,7 @@ function renderWorkbench(forge: Forge) {
     projects: [project],
   };
   const actions: ActionRequest[] = [];
-  const reads = { issue: 0, pullRequest: 0, pages: 0 };
+  const reads = { issue: 0, pullRequest: 0, pages: 0, rows: 0 };
   const events = workbenchEvents();
   provideWorkbench({
     snapshot: async () => structuredClone(snapshot),
@@ -149,6 +149,11 @@ function renderWorkbench(forge: Forge) {
             labels: [],
             counts: { open: 1, closed: 0 },
           };
+        },
+        issuesByNumber: async (_, numbers) => {
+          reads.rows++;
+          const { title, state, closedAs } = forge.issue!;
+          return { ok: true, items: numbers.includes(3) ? [listedIssue(3, { title, state, closedAs })] : [] };
         },
         issueDetail: async () => {
           reads.issue++;
@@ -211,7 +216,8 @@ test('Close issue closes it as completed, shows it working meanwhile, and on suc
   const forge: Forge = { issue: issueDetail(3) };
   const { user, action, reads } = await openIssue(forge);
   const pagesBefore = reads.pages,
-    detailsBefore = reads.issue;
+    detailsBefore = reads.issue,
+    rowsBefore = reads.rows;
   await user.click(within(issuePane()).getByRole('button', { name: 'Close issue' }));
   const asked = await action(1);
   assert.deepEqual(asked.action, { kind: 'closeIssue', number: 3, reason: 'completed' });
@@ -225,9 +231,9 @@ test('Close issue closes it as completed, shows it working meanwhile, and on suc
   await within(issuePane()).findByRole('button', { name: 'Reopen issue' });
   await waitFor(() =>
     assert.deepEqual(
-      [reads.issue - detailsBefore, reads.pages - pagesBefore],
-      [1, 0],
-      'one reload of the detail alone',
+      [reads.issue - detailsBefore, reads.rows - rowsBefore, reads.pages - pagesBefore],
+      [1, 1, 0],
+      'one reload of the detail and the row by number, and no page',
     ),
   );
   const row = within(sidebar()).getByRole('listitem');

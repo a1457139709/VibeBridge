@@ -1,11 +1,11 @@
 import { z } from 'zod';
-import { itemNumberSchema, type ListFilter, type Page } from '../../shared/forge/forge';
+import { itemNumberSchema, itemsPerRead, type ListFilter, type Page } from '../../shared/forge/forge';
 import {
   detailItemSchema,
   forgeListViewSchema,
   forgeSidebarPresenceSchema,
   type DetailItem,
-  type DetailResult,
+  type FailedPage,
   type ForgeListItems,
   type ForgeListTab,
   type ForgeListView,
@@ -16,7 +16,7 @@ import {
 } from '../../shared/forge/sidebar-data';
 import { KeptDetails } from './kept-details';
 import { RowRest } from './row-rest';
-import { readItem, readPage, type ForgeSidebarSources } from './sidebar-reads';
+import { readByNumber, readItem, readPage, type ForgeSidebarSources } from './sidebar-reads';
 
 /** The projects whose lists are kept, the most recently shown. */
 const projectsKept = 5;
@@ -63,17 +63,6 @@ export function updatedInPlace<Item extends { number: number }>(rows: Item[], fr
   return updated;
 }
 
-/** A list row with what its item's detail now holds of it: title, state and labels. */
-function rowWithDetail<Item extends ForgeListItems[ForgeListTab]>(row: Item, result: DetailResult): Item {
-  if (!result.ok) return row;
-  if ('issue' in result) {
-    const { title, state, closedAs, labels } = result.issue;
-    return { ...row, title, state, closedAs, labels };
-  }
-  const { title, state, labels } = result.pullRequest;
-  return { ...row, title, state, labels };
-}
-
 /** The Forge sidebar's data (docs/adr/0008-forge-sidebar-data-lives-in-the-main-process.md): each project's lists, the
  * item its detail shows, and the repositories its binding pages offer. The renderer declares what it shows, reports
  * whether the sidebar shows a project in the foreground, and reports the direct actions and dispatches that changed an
@@ -81,10 +70,11 @@ function rowWithDetail<Item extends ForgeListItems[ForgeListTab]>(row: Item, res
  *
  * It keeps, in memory only, the lists of the 5 projects shown last (each tab with the rows of its latest filter) and the
  * 50 details used last. A declaration shows what is kept at once. When the sidebar comes to show a project in the
- * foreground, the shown tab's first page and the open detail update in the background, in place; nothing updates while
- * the sidebar is hidden. Only the latest request of a project settles its lists, and its detail. A list row the
- * pointer or focus rests on 150ms while the sidebar shows its project in the foreground has its detail read ahead into
- * the kept details, unless kept already, so opening it shows at once. */
+ * foreground, the data updates in the background, in place: the shown tab's first page, the rows the sidebar renders
+ * read by number, and the open detail, asked at once. Nothing updates while the sidebar is hidden or its window is
+ * behind. Only the latest request of a project settles its lists, and its detail. A list row the pointer or focus rests on 150ms while the
+ * sidebar shows its project in the foreground has its detail read ahead into the kept details, unless kept already, so
+ * opening it shows at once. */
 export class ForgeSidebarData {
   private lists = new Map<string, CachedList>();
   private openDetails = new Map<string, OpenDetail>();
@@ -99,7 +89,7 @@ export class ForgeSidebarData {
 
   /** Takes whether the sidebar shows the project's lists and whether its window is in the foreground. When the sidebar
    * comes to show a project in the foreground (shown, returned to, or the window back in front), its shown tab's first
-   * page and open detail update in the background; resolves once they settled. A hidden project's detail closes. */
+   * page, rendered rows and open detail update in the background; resolves once they settled. A hidden project's detail closes. */
   async reportPresence(presence: ForgeSidebarPresence) {
     const reported = forgeSidebarPresenceSchema.parse(presence);
     if (!reported.visible) this.openDetails.delete(reported.projectId);
@@ -127,7 +117,7 @@ export class ForgeSidebarData {
     return this.load(projectId, shown, declared.tab, declared.filter, kept ? 'update' : 'replace');
   }
   /** Declares the numbers of the shown tab's rows the sidebar renders: a refresh reloads through the page holding
-   * them. */
+   * them, and a background update reads them by number. */
   async showRows(projectId: string, numbers: number[]) {
     const shown = this.lists.get(projectId);
     if (shown) shown.rows = z.array(itemNumberSchema).parse(numbers);
@@ -166,23 +156,23 @@ export class ForgeSidebarData {
     }
     await this.loadDetail(projectId, declared);
   }
-  /** A direct action or dispatch changed `item`: reloads its detail alone, and shows what the forge then holds in the
-   * open detail and in the item's list row, which stays where it is. */
+  /** A direct action or dispatch changed `item`: reads it again alone, its list row by number and its detail when open,
+   * at once, and shows what the forge then holds; the row stays where it is. A detail kept for it while closed is
+   * dropped. */
   async reloadChanged(projectId: string, item: DetailItem) {
     const changed = detailItemSchema.parse(item);
-    const binding = this.bindings.get(projectId);
     const open = this.openDetails.get(projectId);
-    const result =
-      open && sameItem(open.item, changed)
-        ? await this.loadDetail(projectId, changed)
-        : await this.readDetail(projectId, changed);
+    const opened = !!open && sameItem(open.item, changed);
+    if (!opened) this.details.drop(projectId, changed);
     const shown = this.lists.get(projectId);
     const tab = tabOf(changed);
-    const loaded = shown?.lists[tab].loaded;
-    if (!result.ok || !shown || !loaded || this.bindings.get(projectId) !== binding) return;
-    if (!loaded.items.some(row => row.number === changed.number)) return;
-    const items = loaded.items.map(row => (row.number === changed.number ? rowWithDetail(row, result) : row));
-    this.settle(projectId, shown, { ...shown.lists, [tab]: { ...shown.lists[tab], loaded: { ...loaded, items } } });
+    await Promise.all([
+      opened && this.loadDetail(projectId, changed),
+      shown &&
+        this.loadByNumber(projectId, shown, tab, [changed.number]).then(
+          failed => failed && this.keepFailure(projectId, shown, tab, failed),
+        ),
+    ]);
   }
   /** Takes the list row the pointer or keyboard focus rests on, or null when it left the rows. Once it rested 150ms,
    * the row's detail is read ahead into the kept details. Resolves once that read settled, or the rest ended without
@@ -221,15 +211,48 @@ export class ForgeSidebarData {
     const presence = this.presence;
     return presence?.visible && presence.foreground ? presence.projectId : null;
   }
-  /** Updates the shown tab's first page in place, unless a request is running, and the open detail. */
+  /** Updates the project's data in the background: the shown tab, unless a request of its lists is running, and the
+   * open detail, asked at once. */
   private async update(projectId: string) {
     const shown = this.keep(projectId);
     const detail = this.openDetails.get(projectId);
     await Promise.all([
-      shown &&
-        (shown.request ? shown.settled : this.load(projectId, shown, shown.view.tab, shown.view.filter, 'update')),
+      shown && (shown.request ? shown.settled : this.updateShownTab(projectId, shown)),
       detail && this.loadDetail(projectId, detail.item),
     ]);
+  }
+  /** Updates the shown tab's first page in place and reads the rows the sidebar renders by number, asked at once. A
+   * failed read of the rows stands beside them once the first page settled, which would clear it. */
+  private async updateShownTab(projectId: string, shown: CachedList) {
+    const { tab, filter } = shown.view;
+    const [, failed] = await Promise.all([
+      this.load(projectId, shown, tab, filter, 'update'),
+      this.loadByNumber(projectId, shown, tab, shown.rows),
+    ]);
+    if (failed) this.keepFailure(projectId, shown, tab, failed);
+  }
+  /** Reads again the rows of the tab with these numbers, those it holds, and replaces them in place; resolves with the
+   * failure of the read, if any. An answer for rows no longer shown, in another filter or binding, is dropped. */
+  private async loadByNumber(projectId: string, shown: CachedList, tab: ForgeListTab, numbers: number[]) {
+    const before = shown.lists[tab].loaded;
+    const held = new Set(before?.items.map(row => row.number));
+    const asked = numbers.filter(number => held.has(number)).slice(0, itemsPerRead);
+    if (!before || !asked.length) return null;
+    const binding = this.bindings.get(projectId);
+    const read = await readByNumber(this.sources, projectId, tab, asked);
+    const loaded = shown.lists[tab].loaded;
+    if (this.lists.get(projectId) !== shown || this.bindings.get(projectId) !== binding) return null;
+    if (!loaded || !sameFilter(loaded.filter, before.filter)) return null;
+    if (!read.ok) return read;
+    const answered = new Map<number, ForgeListItems[ForgeListTab]>(read.items.map(item => [item.number, item]));
+    const items = loaded.items.map(row => answered.get(row.number) ?? row);
+    this.settle(projectId, shown, { ...shown.lists, [tab]: { ...shown.lists[tab], loaded: { ...loaded, items } } });
+    return null;
+  }
+  /** Shows a failed read beside the tab's rows, unless the lists were dropped or the tab shows a failure already. */
+  private keepFailure(projectId: string, shown: CachedList, tab: ForgeListTab, failed: FailedPage) {
+    if (this.lists.get(projectId) !== shown || shown.lists[tab].failed) return;
+    this.settle(projectId, shown, { ...shown.lists, [tab]: { ...shown.lists[tab], failed } });
   }
   /** The project's kept lists, now the most recently used; undefined when none are kept. */
   private keep(projectId: string) {
