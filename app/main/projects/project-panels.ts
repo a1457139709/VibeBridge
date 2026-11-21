@@ -123,7 +123,7 @@ export class ProjectPanels {
       projectId,
       this.tray(projectId).filter(panel => panel.id !== panelId),
     );
-    this.supervision.release([panelId]);
+    this.supervision.releasePanels([panelId]);
     this.changed();
   }
   private async removePanels(project: Project, panelIds: string[]) {
@@ -134,7 +134,7 @@ export class ProjectPanels {
     };
     await this.store.save(next);
     Object.assign(project, next);
-    this.supervision.release(panelIds);
+    this.supervision.releasePanels(panelIds);
     this.changed();
   }
   /**
@@ -192,7 +192,7 @@ export class ProjectPanels {
   }
   /** Once the project's deletion is stored: releases its panels and drops its tray and visit. */
   forget(project: Project) {
-    this.supervision.release(this.all(project).map(panel => panel.id));
+    this.supervision.releasePanels(this.all(project).map(panel => panel.id));
     this.trays.delete(project.id);
     this.visited.delete(project.id);
   }

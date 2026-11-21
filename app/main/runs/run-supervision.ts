@@ -12,7 +12,7 @@ import {
   type TerminalEvent,
   type WorkbenchEvent,
 } from '../../shared/model';
-import { ProcessingStatus, type HandOver } from './processing-status';
+import { ProcessingStatus, type SessionReceiver } from './processing-status';
 import { sessionTitle } from './session-title';
 import { TerminalClient } from './terminal-client';
 
@@ -33,10 +33,10 @@ export interface PanelLocation {
 
 export interface SupervisionCallbacks {
   /** A run, its session title, its processing state or the run list changed. */
-  changed(): void;
+  onRunsChanged(): void;
   /** An accepted terminal event of a current run that subscribers use. */
-  emit(event: WorkbenchEvent): void;
-  report(message: string): void;
+  onTerminalEvent(event: WorkbenchEvent): void;
+  onFailure(message: string): void;
   /** The run ended without the workbench stopping it. This includes the Agent finishing
    * normally, e.g. `/exit` in the CLI, so it signals neither a fault nor a failed task.
    * The run has already left the run list. */
@@ -52,80 +52,80 @@ export interface SupervisionCallbacks {
  * its exit, on host failure, when its panel is released, and on shutdown.
  */
 export class RunSupervision {
-  private list: Run[] = [];
+  private runs: Run[] = [];
   private processing: ProcessingStatus;
   private terminal: Terminal;
   private expectedRuns = new Map<string, { runId: string; agent: AgentType }>();
   private controlledStops = new Set<string>();
   private terminalFailure?: string;
   constructor(
-    directory: string,
+    dataDirectory: string,
     private callbacks: SupervisionCallbacks,
-    terminal: TerminalFactory = (onEvent, onFailure) => new TerminalClient(directory, onEvent, onFailure),
+    terminal: TerminalFactory = (onEvent, onFailure) => new TerminalClient(dataDirectory, onEvent, onFailure),
   ) {
-    this.processing = new ProcessingStatus(() => callbacks.changed(), directory);
+    this.processing = new ProcessingStatus(() => callbacks.onRunsChanged(), dataDirectory);
     this.terminal = terminal(
-      event => this.terminalEvent(event),
+      event => this.acceptTerminalEvent(event),
       (message, stopped) => {
         if (stopped) {
           this.terminalFailure = message;
-          for (const run of this.list)
+          for (const run of this.runs)
             if (liveRun(run)) {
               run.state = 'stopped';
-              this.processing.forget(run.id);
+              this.processing.release(run.id);
             }
-          callbacks.changed();
+          callbacks.onRunsChanged();
         }
-        callbacks.report(message);
+        callbacks.onFailure(message);
       },
     );
   }
   /** The panel with its current run, of any state, and the processing state that run displays. */
   panelView(panel: Panel): PanelView {
-    const run = this.list.find(run => run.panelId === panel.id);
+    const run = this.runs.find(run => run.panelId === panel.id);
     if (!run) return { ...panel };
     const status = this.processing.status(run);
     return status ? { ...panel, run, status } : { ...panel, run };
   }
   /** The panel whose run is on this session now, if any. */
   locate(sessionId: string): PanelLocation | undefined {
-    const run = this.list.find(run => this.current(run) && this.processing.session(run.id) === sessionId);
+    const run = this.runs.find(run => this.current(run) && this.processing.session(run.id) === sessionId);
     return run && { projectId: run.projectId, panelId: run.panelId };
   }
-  /** Holds a pending dispatch on a current run until it reports its first session ID, then hands
-   * that ID over; at once if the run is already on a session. The hold is dropped, unpersisted,
-   * when the run ends first, and `dropped` is told. False when the run can no longer report a session.
+  /** Hands a current run's first session ID to `handOver`; at once if the run is already on a session.
+   * The wait is dropped, unpersisted, when the run ends first, and `onReleased` is told. False when the
+   * run can no longer report a session.
    */
-  holdDispatch(runId: string, handOver: HandOver, dropped?: () => void) {
-    const run = this.list.find(run => run.id === runId);
-    return !!run && this.current(run) && this.processing.onFirstSessionReport(runId, handOver, dropped);
+  awaitFirstSession(runId: string, handOver: SessionReceiver, onReleased?: () => void) {
+    const run = this.runs.find(run => run.id === runId);
+    return !!run && this.current(run) && this.processing.awaitFirstSession(runId, handOver, onReleased);
   }
-  /** Calls `ready` once a current run first reports it is ready, at once if it has before; dropped,
-   * unpersisted, when the run ends first. False when the run can no longer report.
+  /** Calls `onFirstReady` once a current run first reports it is ready, at once if it has before;
+   * dropped, unpersisted, when the run ends first. False when the run can no longer report.
    */
-  afterFirstReady(runId: string, ready: () => void) {
-    const run = this.list.find(run => run.id === runId);
-    return !!run && this.current(run) && this.processing.onFirstReadyReport(runId, ready);
+  awaitFirstReady(runId: string, onFirstReady: () => void) {
+    const run = this.runs.find(run => run.id === runId);
+    return !!run && this.current(run) && this.processing.awaitFirstReady(runId, onFirstReady);
   }
   /** A live run its panel still expects. */
   private current(run: Run) {
-    return liveRun(run) && this.expects(run);
+    return liveRun(run) && this.isExpected(run);
   }
   /** Whether this run is still the one its panel expects. */
-  expects(run: Run) {
+  isExpected(run: Run) {
     return this.expectedRuns.get(run.panelId)?.runId === run.id;
   }
-  private terminalEvent(event: TerminalEvent) {
+  private acceptTerminalEvent(event: TerminalEvent) {
     if (event.kind === 'started') {
-      if (!this.expects(event.run)) return;
-      this.processing.lifecycle(event.run);
-      this.list = this.list.filter(run => run.panelId !== event.run.panelId).concat(event.run);
-      this.callbacks.changed();
+      if (!this.isExpected(event.run)) return;
+      this.processing.trackRunState(event.run);
+      this.runs = this.runs.filter(run => run.panelId !== event.run.panelId).concat(event.run);
+      this.callbacks.onRunsChanged();
     } else {
-      const run = this.list.find(run => run.id === event.runId);
-      if (!run || run.state !== 'running' || !this.expects(run)) return;
+      const run = this.runs.find(run => run.id === event.runId);
+      if (!run || run.state !== 'running' || !this.isExpected(run)) return;
       if (event.kind === 'stopping') {
-        this.processing.stopping(run.id);
+        this.processing.stopAccepting(run.id);
         return;
       }
       if (event.kind === 'title') {
@@ -134,19 +134,19 @@ export class RunSupervision {
         if (title === run.title) return;
         if (title) run.title = title;
         else delete run.title;
-        this.callbacks.changed();
+        this.callbacks.onRunsChanged();
         return;
       }
       if (event.kind === 'exit') {
-        this.processing.forget(run.id);
+        this.processing.release(run.id);
         const controlled = this.controlledStops.delete(run.id);
         if (controlled) run.state = 'stopped';
-        else this.list = this.list.filter(r => r.id !== run.id);
+        else this.runs = this.runs.filter(r => r.id !== run.id);
         if (!controlled) this.callbacks.onRunExited(run);
-        this.callbacks.changed();
+        this.callbacks.onRunsChanged();
       }
     }
-    this.callbacks.emit(event);
+    this.callbacks.onTerminalEvent(event);
   }
   async start(project: Project, panel: Panel, command: AgentCommand): Promise<LaunchResult> {
     const id = randomUUID();
@@ -165,14 +165,14 @@ export class RunSupervision {
       // A missing response is not proof that the process never started. Preserve any
       // observed run and keep accepting its later events instead of retrying implicitly.
       // A failed terminal host has already stopped everything it ran and reports nothing more.
-      const observed = this.list.find(run => run.id === id);
+      const observed = this.runs.find(run => run.id === id);
       const run = observed ?? {
         id,
         panelId: panel.id,
         projectId: project.id,
         state: this.terminalFailure ? ('stopped' as const) : ('starting' as const),
       };
-      if (!observed) this.terminalEvent({ kind: 'started', run });
+      if (!observed) this.acceptTerminalEvent({ kind: 'started', run });
       return {
         outcome: 'unconfirmed',
         run: structuredClone(run),
@@ -185,9 +185,9 @@ export class RunSupervision {
    * numbering panels by their position in the given list. */
   async stopPanels(panels: Panel[]): Promise<string[]> {
     const ids = panels.map(panel => panel.id);
-    if (this.terminalFailure && this.list.some(run => ids.includes(run.panelId))) return [this.terminalFailure];
+    if (this.terminalFailure && this.runs.some(run => ids.includes(run.panelId))) return [this.terminalFailure];
     const failures: string[] = [];
-    for (const run of this.list.filter(run => ids.includes(run.panelId) && liveRun(run))) {
+    for (const run of this.runs.filter(run => ids.includes(run.panelId) && liveRun(run))) {
       // Mark before requesting cleanup: its exit event can arrive before the response.
       this.controlledStops.add(run.id);
       try {
@@ -203,7 +203,7 @@ export class RunSupervision {
   /** Stops the panel's live run as a controlled stop. If the stop fails, a later exit
    * counts as the run ending on its own again. */
   async stopPanel(panelId: string) {
-    const run = this.list.find(r => r.panelId === panelId && liveRun(r));
+    const run = this.runs.find(r => r.panelId === panelId && liveRun(r));
     if (!run) return;
     this.controlledStops.add(run.id);
     try {
@@ -214,10 +214,10 @@ export class RunSupervision {
     }
   }
   /** Forgets runs of panels that no longer exist; their late events are ignored. */
-  release(panelIds: string[]) {
+  releasePanels(panelIds: string[]) {
     for (const id of panelIds) this.expectedRuns.delete(id);
-    for (const run of this.list) if (panelIds.includes(run.panelId)) this.processing.forget(run.id);
-    this.list = this.list.filter(r => !panelIds.includes(r.panelId));
+    for (const run of this.runs) if (panelIds.includes(run.panelId)) this.processing.release(run.id);
+    this.runs = this.runs.filter(r => !panelIds.includes(r.panelId));
   }
   input(runId: string, data: string) {
     return this.terminal.input(runId, data);

@@ -17,11 +17,11 @@ export class TerminalClient {
   private cleanup?: Promise<void>;
   private exited: Promise<void>;
   constructor(
-    directory: string,
+    dataDirectory: string,
     onEvent: (event: TerminalEvent) => void,
     onFailure: (message: string, stopped?: boolean) => void,
   ) {
-    const faultFile = join(directory, 'last-failure.json');
+    const faultFile = join(dataDirectory, 'last-failure.json');
     this.child = fork(join(__dirname, 'terminal.cjs'), [], {
       env: {
         ...process.env,
@@ -102,7 +102,7 @@ export class TerminalClient {
     projectId: string;
     directory: string;
     command: AgentCommand;
-    integration: Record<string, string>;
+    extraEnvironment: Record<string, string>;
   }) {
     return this.request<Run>('start', value);
   }

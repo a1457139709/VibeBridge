@@ -100,13 +100,13 @@ async function handle(operation: string, value: any) {
     }
   }
   if (operation === 'start') {
-    const { id, panelId, projectId, directory, command, integration } = value as {
+    const { id, panelId, projectId, directory, command, extraEnvironment } = value as {
       id: string;
       panelId: string;
       projectId: string;
       directory: string;
       command: AgentCommand;
-      integration: Record<string, string>;
+      extraEnvironment: Record<string, string>;
     };
     try {
       environment ??= commandEnvironment();
@@ -115,7 +115,7 @@ async function handle(operation: string, value: any) {
       if (closing) throw new Error(message('quitting'));
       const terminal = pty.spawn(program, command.args, {
         cwd: directory,
-        env: { ...env, ...integration, VIBEBRIDGE_RUN_OWNER: `${owner}:${id}` },
+        env: { ...env, ...extraEnvironment, VIBEBRIDGE_RUN_OWNER: `${owner}:${id}` },
         name: 'xterm-256color',
         cols: 80,
         rows: 24,
