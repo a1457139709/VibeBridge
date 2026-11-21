@@ -103,8 +103,8 @@ class ClaudeInterpreter implements StatusInterpreter {
       return 'discard';
     const session = event.session_id;
     if (typeof session !== 'string' || !session) return 'error';
-    const known = this.admitFacts(event, session);
-    return known ? this.classify(known) : 'discard';
+    const admitted = this.admitEvent(event, session);
+    return admitted ? this.classify(admitted) : 'discard';
   }
 
   discardEvidence() {
@@ -122,10 +122,11 @@ class ClaudeInterpreter implements StatusInterpreter {
     this.elicitations.clear();
   }
 
-  /** Native identity checks run after capability authentication. Independent hook
-   * processes share no order, so only recognizable stale facts drop.
+  /** The event as the current session takes it, or nothing when it is stale or a repeat. Independent hook
+   * processes share no order, so only recognizably stale events drop. A PermissionRequest without a tool
+   * gains the one active tool whose input it matches, if exactly one does.
    */
-  private admitFacts(event: Payload, session: string): Payload | undefined {
+  private admitEvent(event: Payload, session: string): Payload | undefined {
     const name = event.hook_event_name;
     if (name === 'SessionStart') {
       if (this.endedSessions.has(session) && event.source !== 'resume') return;

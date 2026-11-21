@@ -273,7 +273,13 @@ function createLocation(initial: Host, onViewChange: () => void) {
       }
     }
   }
-  function interact(projectId: string, panelId: string, intent: 'select' | 'focus' | 'maximize' = 'select') {
+  /** Applies a panel action to the active project's view; true when it applied. Selecting moves no input
+   * focus; focusing and toggling maximize also give the panel's terminal the input. */
+  function applyPanelAction(
+    projectId: string,
+    panelId: string,
+    action: 'select' | 'focus' | 'toggleMaximize' = 'select',
+  ) {
     const target = project(projectId);
     const ephemeral = inTray(target, panelId);
     if (
@@ -288,14 +294,14 @@ function createLocation(initial: Host, onViewChange: () => void) {
     focusProjectId = projectId;
     focusBlocked = false;
     const previous = view(target);
-    if (intent !== 'select' || inputTarget(previous) !== panelId) focusedKey = undefined;
+    if (action !== 'select' || inputTarget(previous) !== panelId) focusedKey = undefined;
     const maximized =
-      intent === 'maximize' ? (previous.maximized === panelId ? undefined : panelId) : previous.maximized;
+      action === 'toggleMaximize' ? (previous.maximized === panelId ? undefined : panelId) : previous.maximized;
     setView(projectId, { selected: ephemeral ? previous.selected : panelId, maximized });
     // Header/maximize actions accept input at once when their terminal is
     // already visible. Only an unmounted/hidden target needs a frame.
     const next = inputTarget(view(target));
-    if (intent !== 'select' && connection?.projectId === projectId && focus(projectId, next)) {
+    if (action !== 'select' && connection?.projectId === projectId && focus(projectId, next)) {
       focusedKey = focusKey(projectId, next);
     }
     schedule();
@@ -359,18 +365,19 @@ function createLocation(initial: Host, onViewChange: () => void) {
       if (frame !== undefined) cancelAnimationFrame(frame);
       frame = undefined;
     },
-    select: interact,
-    focus: (projectId: string, panelId: string) => interact(projectId, panelId, 'focus'),
+    select: (projectId: string, panelId: string) => applyPanelAction(projectId, panelId),
+    focus: (projectId: string, panelId: string) => applyPanelAction(projectId, panelId, 'focus'),
     selectFocusedPanel(projectId: string, panelId: string) {
-      if (!focusing && interact(projectId, panelId)) focusedKey = focusKey(projectId, panelId);
+      if (!focusing && applyPanelAction(projectId, panelId)) focusedKey = focusKey(projectId, panelId);
     },
     toggleMaximize(projectId: string, panelId: string) {
-      interact(projectId, panelId, 'maximize');
+      applyPanelAction(projectId, panelId, 'toggleMaximize');
     },
     /** Collapses the open tray panel, if any, back into the tray. */
     collapse(projectId: string) {
       const current = view(project(projectId));
-      if (inTray(project(projectId), current.maximized)) interact(projectId, current.maximized!, 'maximize');
+      if (inTray(project(projectId), current.maximized))
+        applyPanelAction(projectId, current.maximized!, 'toggleMaximize');
     },
     /** Opens a newly added tray panel; any open tray panel returns to the tray. The new panel
      * may not be in the snapshot yet, so the view is set without validation. */

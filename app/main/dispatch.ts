@@ -54,8 +54,16 @@ export interface DispatchTargets {
   add(agent: AgentType, args: string[]): Promise<PanelCreation>;
 }
 
-/** A dispatch not yet attached to a session. */
+/** What a dispatch sends, before it is sent. */
+type DispatchContent = Omit<DispatchRecord, 'sessionId' | 'dispatchedAt'>;
+
+/** A dispatch sent, not yet attached to a session. */
 type UnrecordedDispatch = Omit<DispatchRecord, 'sessionId'>;
+
+const sentNow = (content: DispatchContent): UnrecordedDispatch => ({
+  ...content,
+  dispatchedAt: new Date().toISOString(),
+});
 
 /** A dispatch to a new panel whose run has not reported a session yet: shown on that panel until it does. Never stored. */
 interface PendingDispatch {
@@ -131,8 +139,8 @@ export class Dispatches {
     if (!found || !settings?.enabled) throw new Error(message('dispatchCommandUnavailable'));
     const configured = commandDelivery(workflows, workflowId, commandId);
     const delivery: Delivery = invert ? invertedDelivery(configured) : configured;
-    /** The command in the Agent type's syntax, and the record of sending it now. */
-    const unrecordedDispatch = (agent: AgentType): UnrecordedDispatch => {
+    /** The command in the Agent type's syntax, and what its record holds. */
+    const dispatchContent = (agent: AgentType): DispatchContent => {
       const text = commandText(agent, found.command, {
         url: forges[repository.forge].issueUrl(repository, issue.number),
         ...issue,
@@ -141,7 +149,6 @@ export class Dispatches {
         projectId,
         repository,
         issue: issue.number,
-        dispatchedAt: new Date().toISOString(),
         agent,
         skill: found.command.skill,
         text,
@@ -149,14 +156,16 @@ export class Dispatches {
     };
     const panelId =
       target.kind === 'new'
-        ? await this.toNewPanel(unrecordedDispatch(target.agent), delivery, targets)
-        : await this.toPanel(target.panelId, unrecordedDispatch, delivery, targets);
+        ? await this.toNewPanel(dispatchContent(target.agent), delivery, targets)
+        : await this.toPanel(target.panelId, dispatchContent, delivery, targets);
     return { delivery, panelId };
   }
 
   /** A new panel is given the command to submit as a launch argument, or, to fill, starts without it and has it pasted
-   * once it first reports ready. The dispatch shows that panel until its run reports a session to record it on. */
-  private async toNewPanel(dispatch: UnrecordedDispatch, delivery: Delivery, targets: DispatchTargets) {
+   * once it first reports ready. It counts as sent when the panel is asked for. The dispatch shows that panel until its
+   * run reports a session to record it on. */
+  private async toNewPanel(content: DispatchContent, delivery: Delivery, targets: DispatchTargets) {
+    const dispatch = sentNow(content);
     const { panel, launch } = await targets.add(dispatch.agent, delivery === 'submit' ? [dispatch.text] : []);
     if (launch.outcome === 'failed') throw new Error(message('launchFailed'));
     if (launch.outcome === 'unconfirmed') this.report(launch.reason);
@@ -186,10 +195,11 @@ export class Dispatches {
     return panel.id;
   }
 
-  /** A panel with a run has the command pasted after whatever its input holds, then Enter submits it. */
+  /** A panel with a run has the command pasted after whatever its input holds, then Enter submits it. It counts as
+   * sent once the write is done. */
   private async toPanel(
     panelId: string,
-    unrecordedDispatch: (agent: AgentType) => UnrecordedDispatch,
+    dispatchContent: (agent: AgentType) => DispatchContent,
     delivery: Delivery,
     targets: DispatchTargets,
   ) {
@@ -204,10 +214,10 @@ export class Dispatches {
     };
     if (!this.supervision.awaitFirstSession(run.id, sessionId => onSessionKnown(sessionId)))
       throw new Error(message('dispatchTargetUnavailable'));
-    const dispatch = unrecordedDispatch(panel.agent);
-    await this.supervision.input(run.id, bracketedPaste(dispatch.text));
+    const content = dispatchContent(panel.agent);
+    await this.supervision.input(run.id, bracketedPaste(content.text));
     if (delivery === 'submit') await this.supervision.input(run.id, '\r');
-    const written = { ...dispatch, dispatchedAt: new Date().toISOString() };
+    const written = sentNow(content);
     if (session) await this.append({ ...written, sessionId: session });
     else onSessionKnown = sessionId => void this.append({ ...written, sessionId });
     return panel.id;
