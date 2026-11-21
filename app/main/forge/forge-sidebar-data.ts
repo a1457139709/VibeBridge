@@ -1,16 +1,5 @@
 import { z } from 'zod';
-import {
-  itemNumberSchema,
-  type ForgePresentation,
-  type IssueDetailResult,
-  type IssuePage,
-  type ListFilter,
-  type ListQuery,
-  type Page,
-  type PullRequestDetailResult,
-  type PullRequestPage,
-  type RepositoryChoices,
-} from '../../shared/forge/forge';
+import { itemNumberSchema, type ListFilter, type Page } from '../../shared/forge/forge';
 import {
   detailItemSchema,
   forgeListViewSchema,
@@ -21,26 +10,13 @@ import {
   type ForgeListTab,
   type ForgeListView,
   type ForgeLists,
-  type ForgeSidebarEvent,
   type ForgeSidebarPresence,
   type ShownRepositoryChoices,
   type TabList,
 } from '../../shared/forge/sidebar-data';
 import { KeptDetails } from './kept-details';
 import { RowRest } from './row-rest';
-
-/** Where the Forge sidebar's data comes from, and where it goes. Each read is of a project's bound repository, or of the
- * repositories the project can bind. */
-export interface ForgeSidebarSources {
-  issuePage(projectId: string, query: ListQuery): Promise<IssuePage>;
-  pullRequestPage(projectId: string, query: ListQuery): Promise<PullRequestPage>;
-  repositoryChoices(projectId: string): Promise<RepositoryChoices>;
-  issueDetail(projectId: string, number: number): Promise<IssueDetailResult>;
-  pullRequestDetail(projectId: string, number: number): Promise<PullRequestDetailResult>;
-  /** How the project's forge presents itself, for a failure outside the forge. */
-  forge(projectId: string): ForgePresentation;
-  emit(event: ForgeSidebarEvent): void;
-}
+import { readItem, readPage, type ForgeSidebarSources } from './sidebar-reads';
 
 /** The projects whose lists are kept, the most recently shown. */
 const projectsKept = 5;
@@ -313,7 +289,7 @@ export class ForgeSidebarData {
     let page: Page<ForgeListItems[T]> | undefined;
     // The pages follow one another: each asks from where the one before ended.
     for (let cursor = joining === 'append' ? before.loaded!.cursor : null; pages > 0; pages--) {
-      page = await this.readPage(projectId, tab, { filter, cursor });
+      page = await readPage(this.sources, projectId, tab, { filter, cursor });
       if (shown.request !== request || this.lists.get(projectId) !== shown) return;
       if (!page.ok) break;
       items.push(...page.items);
@@ -343,43 +319,11 @@ export class ForgeSidebarData {
     }
     this.settle(projectId, shown, { ...shown.lists, [tab]: next, loading: false });
   }
-  /** Asks the forge for a page of `tab`; a failure outside the forge (the request itself) is reported like a transient
-   * one, with its reason. */
-  private async readPage<T extends ForgeListTab>(
-    projectId: string,
-    tab: T,
-    query: ListQuery,
-  ): Promise<Page<ForgeListItems[T]>> {
-    try {
-      return (await (tab === 'issues' ? this.sources.issuePage : this.sources.pullRequestPage)(
-        projectId,
-        query,
-      )) as Page<ForgeListItems[T]>;
-    } catch (error) {
-      return {
-        ok: false,
-        failure: { kind: 'transient', detail: (error as Error).message, forge: this.sources.forge(projectId) },
-        account: null,
-      };
-    }
-  }
   /** Asks the forge for the item and keeps an answer that is not a failure, dropping the detail used longest ago beyond
    * the limit; an answer for an earlier binding is not kept. */
   private async readDetail(projectId: string, item: DetailItem) {
     const binding = this.bindings.get(projectId);
-    let result: DetailResult;
-    // A failure outside the forge (the request itself) is reported like a transient one, with its reason.
-    try {
-      result = await (item.kind === 'issue' ? this.sources.issueDetail : this.sources.pullRequestDetail)(
-        projectId,
-        item.number,
-      );
-    } catch (error) {
-      result = {
-        ok: false,
-        failure: { kind: 'transient', detail: (error as Error).message, forge: this.sources.forge(projectId) },
-      };
-    }
+    const result = await readItem(this.sources, projectId, item);
     if (result.ok && this.bindings.get(projectId) === binding) this.details.keep(projectId, item, result);
     return result;
   }

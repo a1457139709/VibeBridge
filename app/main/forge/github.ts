@@ -1,32 +1,19 @@
 import { z } from 'zod';
-import type {
-  ChecksConclusion,
-  DirectAction,
-  ForgeLabel,
-  ListFilter,
-  IssueSummary,
-  RepositoryReference,
-} from '../../shared/forge/forge';
+import type { DirectAction, ForgeLabel, ListFilter, IssueSummary, RepositoryReference } from '../../shared/forge/forge';
 import { ForgeError, type Forge } from './forge';
 import { gh, ghOutput, graphql } from './github-cli';
 import {
   checksState,
-  issueReference,
-  issueReferenceFields,
-  issueReferenceSchema,
+  latestChecks,
   issueState,
   issueStateFields,
   labelSchema,
-  loginSchema,
   pullRequestState,
-  relatedLimit,
-  repositoryLinks,
-  canWrite,
-  viewerPermission,
   answeredBy,
   answeringFields,
   answeringSchema,
 } from './github-fields';
+import { issueDetail } from './github-issue';
 import { pullRequestDetail } from './github-pull-request';
 
 const pageSize = 25;
@@ -103,67 +90,6 @@ const issuePageQuery = listPageQuery(`... on Issue { ${issueFields}
 const pullRequestPageQuery = listPageQuery(`... on PullRequest { number title state isDraft createdAt author { login }
       labels(first: 20) { nodes { name color } }
       commits(last: 1) { nodes { commit { statusCheckRollup { state } } } } }`);
-
-const issueDetailSchema = z.object({
-  repository: z.object({
-    ...answeringSchema,
-    url: z.string(),
-    viewerPermission,
-    issue: z.object({
-      number: z.number(),
-      title: z.string(),
-      ...issueStateFields,
-      createdAt: z.string(),
-      url: z.string(),
-      bodyHTML: z.string(),
-      author: loginSchema,
-      assignees: z.object({ nodes: z.array(z.object({ login: z.string() })) }),
-      labels: z.object({ nodes: z.array(labelSchema) }),
-      comments: z.object({
-        totalCount: z.number(),
-        nodes: z.array(z.object({ author: loginSchema, createdAt: z.string(), bodyHTML: z.string() })),
-      }),
-      parent: issueReferenceSchema
-        .extend({ subIssuesSummary: z.object({ total: z.number(), completed: z.number() }) })
-        .nullable(),
-      subIssues: z.object({ nodes: z.array(issueReferenceSchema) }),
-      blockedBy: z.object({ nodes: z.array(issueReferenceSchema) }),
-      blocking: z.object({ nodes: z.array(issueReferenceSchema) }),
-      closedByPullRequestsReferences: z.object({
-        nodes: z.array(
-          z.object({
-            number: z.number(),
-            title: z.string(),
-            url: z.string(),
-            state: z.enum(['OPEN', 'CLOSED', 'MERGED']),
-            isDraft: z.boolean(),
-            commits: z.object({
-              nodes: z.array(
-                z.object({ commit: z.object({ statusCheckRollup: z.object({ state: checksState }).nullable() }) }),
-              ),
-            }),
-          }),
-        ),
-      }),
-    }),
-  }),
-});
-// The first 100 comments are listed; `totalCount` counts them all.
-const issueDetailQuery = `query($owner: String!, $name: String!, $number: Int!) {
-  repository(owner: $owner, name: $name) { ${answeringFields} url viewerPermission issue(number: $number) {
-    number title state stateReason createdAt url bodyHTML author { login }
-    assignees(first: 20) { nodes { login } }
-    labels(first: 20) { nodes { name color } }
-    comments(first: 100) { totalCount nodes { author { login } createdAt bodyHTML } }
-    parent { ${issueReferenceFields} subIssuesSummary { total completed } }
-    subIssues(first: ${relatedLimit}) { nodes { ${issueReferenceFields} } }
-    blockedBy(first: ${relatedLimit}) { nodes { ${issueReferenceFields} } }
-    blocking(first: ${relatedLimit}) { nodes { ${issueReferenceFields} } }
-    closedByPullRequestsReferences(first: ${relatedLimit}, includeClosedPrs: true) {
-      nodes { number title url state isDraft commits(last: 1) { nodes { commit { statusCheckRollup { state } } } } }
-    }
-  } }
-}`;
 
 /** GitHub repository paths are case-insensitive. */
 const samePath = (a: string, b: string) => a.toLowerCase() === b.toLowerCase();
@@ -242,21 +168,6 @@ const pageFrame = (data: {
   labels: data.repository.labels.nodes,
   counts: { open: data.open.issueCount, closed: data.closed.issueCount },
 });
-
-const checksConclusion: Record<z.infer<typeof checksState>, ChecksConclusion> = {
-  SUCCESS: 'passed',
-  FAILURE: 'failed',
-  ERROR: 'failed',
-  PENDING: 'pending',
-  EXPECTED: 'pending',
-};
-/** The checks conclusion of a pull request's latest commit, from its status check rollup. */
-const latestChecks = (commits: {
-  nodes: { commit: { statusCheckRollup: { state: z.infer<typeof checksState> } | null } }[];
-}): ChecksConclusion => {
-  const rollup = commits.nodes[0]?.commit.statusCheckRollup;
-  return rollup ? checksConclusion[rollup.state] : 'none';
-};
 
 /** The `gh` subcommand for each direct action; writes go through `gh issue` and `gh pr`, not the API. With a method flag and
  * no message, `gh pr merge` merges at once with GitHub's default commit message and keeps the branch. */
@@ -394,44 +305,7 @@ export const github: Forge = {
       ...pageFrame(data),
     });
   },
-  async issue({ host, path }, number) {
-    const [owner, name] = path.split('/');
-    const { repository } = await graphql(host, issueDetailQuery, { owner, name, number }, issueDetailSchema);
-    const { issue } = repository;
-    return answered(repository, {
-      number: issue.number,
-      title: issue.title,
-      ...issueState(issue),
-      createdAt: issue.createdAt,
-      labels: issue.labels.nodes,
-      url: issue.url,
-      author: issue.author?.login ?? null,
-      assignees: issue.assignees.nodes.map(assignee => assignee.login),
-      body: issue.bodyHTML,
-      comments: issue.comments.nodes.map(comment => ({
-        author: comment.author?.login ?? null,
-        createdAt: comment.createdAt,
-        html: comment.bodyHTML,
-      })),
-      commentCount: issue.comments.totalCount,
-      parent: issue.parent && {
-        ...issueReference(issue.parent),
-        progress: { closed: issue.parent.subIssuesSummary.completed, total: issue.parent.subIssuesSummary.total },
-      },
-      subIssues: issue.subIssues.nodes.map(issueReference).sort((a, b) => a.number - b.number),
-      blockedBy: issue.blockedBy.nodes.map(issueReference),
-      blocking: issue.blocking.nodes.map(issueReference),
-      closingPullRequests: issue.closedByPullRequestsReferences.nodes.map(pull => ({
-        number: pull.number,
-        title: pull.title,
-        url: pull.url,
-        state: pullRequestState(pull.state, pull.isDraft),
-        checks: latestChecks(pull.commits),
-      })),
-      links: repositoryLinks(repository.url),
-      canWrite: canWrite(repository.viewerPermission),
-    });
-  },
+  issue: issueDetail,
   pullRequest: pullRequestDetail,
   async act({ host, path }, action) {
     const { stdout, stderr } = await ghOutput(host, [...actionArgs(action), '--repo', path]);
