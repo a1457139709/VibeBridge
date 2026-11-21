@@ -59,8 +59,13 @@ test("a command opens its targets: new panels of each Agent type, then the proje
   assert.ok(screen.getByText('/implement …#9'), 'the preview shows the text the pointed target would receive');
 });
 
-test('submitting to a panel dispatches the issue, returns focus to Dispatch and refreshes the list once', async () => {
+test("submitting to a panel dispatches the issue, returns focus to Dispatch and reloads that issue's detail for its row", async () => {
   const f = await listed();
+  const detailsAsked: number[] = [];
+  f.forge.issueDetail = (_, number) => {
+    detailsAsked.push(number);
+    return new Promise(() => {});
+  };
   await f.user.click(dispatchButton(9));
   await f.user.hover(
     within(screen.getByRole('menu', { name: 'Dispatch #9' })).getByRole('menuitem', { name: /^implement\s?Submit$/ }),
@@ -84,11 +89,10 @@ test('submitting to a panel dispatches the issue, returns focus to Dispatch and 
   );
   assert.equal(screen.queryByRole('menu'), null);
   await waitFor(() => assert.equal(document.activeElement, dispatchButton(9)));
-  const again = await f.request(2);
-  assert.deepEqual(again.query.cursor, null);
+  await waitFor(() => assert.deepEqual(detailsAsked, [9]));
 });
 
-test('filling a panel closes the detail, keeps the sidebar open and reloads the list but not the closed detail', async () => {
+test('filling a panel closes the detail, keeps the sidebar open and reloads the dispatched issue', async () => {
   const f = await listed(async (_, request) => ({ delivery: 'fill', panelId: panelOf(request) }));
   const detailsAsked: number[] = [];
   f.forge.issueDetail = (_, number) => {
@@ -108,9 +112,7 @@ test('filling a panel closes the detail, keeps the sidebar open and reloads the 
   );
   await waitFor(() => assert.equal(document.querySelector('.forge-detail'), null));
   assert.ok(sidebar());
-  // The detail closes before the dispatch is reported, so the reload that report starts asks for the list alone.
-  assert.deepEqual((await f.request(2)).query.cursor, null);
-  assert.deepEqual(detailsAsked, [9]);
+  await waitFor(() => assert.deepEqual(detailsAsked, [9, 9], 'opened, then reloaded once dispatched'));
 });
 
 test('submitting to a new panel dispatches to its Agent type and returns focus to Dispatch', async () => {

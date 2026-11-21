@@ -2,7 +2,8 @@ import './support/dom';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import test, { afterEach, before } from 'node:test';
-import { cleanup, screen, waitFor, within } from '@testing-library/react';
+import { act, cleanup, screen, waitFor, within } from '@testing-library/react';
+import { localize } from '../../app/shared/localization/localization';
 import { githubForge, githubRepository } from './support/forge';
 import type { RepositoryChoices } from '../../app/shared/forge/forge';
 import {
@@ -17,6 +18,8 @@ import {
   sidebar,
   stubSidebarApis,
 } from './support/forge-lists';
+
+const { t } = localize('en');
 
 afterEach(cleanup);
 before(stubSidebarApis);
@@ -59,7 +62,7 @@ test('Refresh is unavailable and shows progress while a request runs, and reload
   await waitFor(() => assert.deepEqual(rows(), ['Issue 2']));
 });
 
-test('search, state and labels are sent to the forge, each tab keeps its own, and switching project returns to open with no filter', async () => {
+test('search, state and labels are sent to the forge, each tab keeps its own, and switching back to a project shows its filter and kept rows while they update', async () => {
   const { user, request } = renderWorkbench();
   (await request(1)).answer(page([issue(1)]));
   await waitFor(() => assert.deepEqual(rows(), ['Issue 1']));
@@ -109,25 +112,45 @@ test('search, state and labels are sent to the forge, each tab keeps its own, an
   const beta = await request(8);
   assert.deepEqual(beta, { ...beta, projectId: 'beta', query: { filter: openNoFilter, cursor: null } });
   beta.answer(page([issue(3)]));
+  await waitFor(() => assert.deepEqual(rows(), ['Issue 3']));
   await user.click(screen.getByRole('button', { name: 'Alpha' }));
   const alpha = await request(9);
   assert.deepEqual(
     alpha,
-    { ...alpha, projectId: 'alpha', query: { filter: openNoFilter, cursor: null } },
-    'switching back refreshes from open with no filter',
+    {
+      ...alpha,
+      projectId: 'alpha',
+      query: { filter: { search: '#4', state: 'closed', labels: ['bug', 'docs'] }, cursor: null },
+    },
+    'switching back updates the filter it showed',
   );
-  alpha.answer(page([issue(1)]));
-  await waitFor(() => assert.deepEqual(rows(), ['Issue 1']));
+  assert.equal((within(sidebar()).getByRole('searchbox', { name: 'Search issues' }) as HTMLInputElement).value, '#4');
+  assert.ok(within(sidebar()).getByText('No matching issues'), 'its kept rows show while they update');
+  assert.equal(refresh().getAttribute('aria-busy'), 'true');
+  alpha.answer(page([issue(4)]));
+  await waitFor(() => assert.deepEqual(rows(), ['Issue 4']));
 });
 
-test('reopening the sidebar refreshes the list', async () => {
+test('reopening the sidebar or bringing the window to the front shows the kept rows at once and updates them in place, with a stale notice when that fails', async () => {
   const { user, request } = renderWorkbench();
   (await request(1)).answer(page([issue(1)]));
-  const toggle = screen.getByRole('button', { name: 'Hide the GitHub sidebar' });
-  await user.click(toggle);
+  await waitFor(() => assert.deepEqual(rows(), ['Issue 1']));
+  await user.click(screen.getByRole('button', { name: 'Hide the GitHub sidebar' }));
   await user.click(screen.getByRole('button', { name: 'Show the GitHub sidebar' }));
-  (await request(2)).answer(page([issue(2)]));
-  await waitFor(() => assert.deepEqual(rows(), ['Issue 2']));
+  const reopened = await request(2);
+  assert.deepEqual(reopened.query, { filter: openNoFilter, cursor: null });
+  assert.deepEqual(rows(), ['Issue 1'], 'the kept rows show before the forge answers');
+  assert.equal(refresh().getAttribute('aria-busy'), 'true');
+  reopened.answer(page([issue(2), issue(1)]));
+  await waitFor(() => assert.deepEqual(rows(), ['Issue 2', 'Issue 1']));
+
+  act(() => void window.dispatchEvent(new Event('blur')));
+  act(() => void window.dispatchEvent(new Event('focus')));
+  const inFront = await request(3);
+  assert.deepEqual(inFront.query, { filter: openNoFilter, cursor: null });
+  inFront.answer(failed('transient', 'HTTP 502'));
+  await waitFor(() => assert.ok(within(sidebar()).getByText(t('dataMayBeStale'))));
+  assert.deepEqual(rows(), ['Issue 2', 'Issue 1'], 'the rows stay beside the notice');
 });
 
 test('a missing forge CLI fills the sidebar with install instructions, and Retry refreshes', async () => {

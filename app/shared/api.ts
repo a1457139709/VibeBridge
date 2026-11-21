@@ -18,7 +18,7 @@ import type { SettingsSaveResult } from './settings/settings';
 import type { DispatchRequest } from './dispatch';
 import type { Delivery } from './settings/workflows';
 import type { DirectAction, DirectActionResult, RepositoryChoices, RepositoryReference } from './forge/forge';
-import type { DetailItem, ForgeListView } from './forge/sidebar-data';
+import type { DetailItem, ForgeListView, ForgeSidebarPresence } from './forge/sidebar-data';
 
 export interface DesktopAPI {
   snapshot(): Promise<Snapshot>;
@@ -35,22 +35,24 @@ export interface DesktopAPI {
   bindRepository(projectId: string, repository: RepositoryReference): Promise<void>;
   /** Unbinds the project; it needs no forge CLI. */
   unbindRepository(projectId: string): Promise<void>;
-  /** Declares that the Forge sidebar shows the project's lists on `view`; the main process loads its first page and
-   * pushes the lists as `forgeLists` events. Resolves once that page settled. */
+  /** Declares that the Forge sidebar shows the project's lists on `view`; the main process pushes the rows it keeps for
+   * that view at once, and loads or updates them, as `forgeLists` events. Resolves once they settled. */
   showForgeList(projectId: string, view: ForgeListView): Promise<void>;
-  /** Declares that the Forge sidebar no longer shows the project's lists. */
-  hideForgeList(projectId: string): Promise<void>;
+  /** Reports whether the Forge sidebar shows the project's lists and whether the window is in the foreground; the main
+   * process updates them in the background when they come to show. A hidden project's detail closes. */
+  reportForgeSidebarPresence(presence: ForgeSidebarPresence): Promise<void>;
   /** Appends the next page of the rows shown, in the filter that produced them. */
   loadMoreForgeList(projectId: string): Promise<void>;
-  /** Loads the shown tab's first page and the open detail again. */
+  /** Loads the shown tab's first page in place of its rows, and the open detail again. */
   refreshForgeList(projectId: string): Promise<void>;
   /** Declares that a binding page of the Forge sidebar shows the repositories the project can bind; they are read once
    * per call and pushed as `repositoryChoices` events. */
   showRepositoryChoices(projectId: string): Promise<void>;
-  /** Declares the item the Forge sidebar's detail shows, or null when it closes; the main process loads it on each call
-   * and pushes it as `forgeDetail` events. Resolves once it settled. */
+  /** Declares the item the Forge sidebar's detail shows, or null when it closes; the main process pushes a kept answer
+   * at once, loads it on each call, and pushes it as `forgeDetail` events. Resolves once it settled. */
   showForgeDetail(projectId: string, item: DetailItem | null): Promise<void>;
-  /** Reports that a direct action or dispatch changed `item`; the main process reloads what shows it. */
+  /** Reports that a direct action or dispatch changed `item`; the main process reloads its detail and shows the new
+   * state in the open detail and the item's list row. */
   reportForgeItemChanged(projectId: string, item: DetailItem): Promise<void>;
   /** Closes, reopens or merges an issue or pull request of the project's bound repository; the forge's text comes back either way. */
   directAction(projectId: string, action: DirectAction): Promise<DirectActionResult>;
