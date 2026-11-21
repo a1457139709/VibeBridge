@@ -1,7 +1,7 @@
 import { randomUUID } from 'node:crypto';
-import { message, detail } from '../../shared/messages';
+import { message, nestedMessage } from '../../shared/messages';
 import {
-  liveRun,
+  isLiveRun,
   type AgentCommand,
   type AgentType,
   type LaunchResult,
@@ -70,7 +70,7 @@ export class RunSupervision {
         if (stopped) {
           this.terminalFailure = message;
           for (const run of this.runs)
-            if (liveRun(run)) {
+            if (isLiveRun(run)) {
               run.state = 'stopped';
               this.processing.release(run.id);
             }
@@ -109,7 +109,7 @@ export class RunSupervision {
   }
   /** A live run its panel still expects. */
   private current(run: Run) {
-    return liveRun(run) && this.isExpected(run);
+    return isLiveRun(run) && this.isExpected(run);
   }
   /** Whether this run is still the one its panel expects. */
   isExpected(run: Run) {
@@ -177,7 +177,7 @@ export class RunSupervision {
         outcome: 'unconfirmed',
         run: structuredClone(run),
         agent: panel.agent,
-        reason: message('launchUnconfirmed', { reason: detail((error as Error).message) }),
+        reason: message('launchUnconfirmed', { reason: nestedMessage((error as Error).message) }),
       };
     }
   }
@@ -187,14 +187,17 @@ export class RunSupervision {
     const ids = panels.map(panel => panel.id);
     if (this.terminalFailure && this.runs.some(run => ids.includes(run.panelId))) return [this.terminalFailure];
     const failures: string[] = [];
-    for (const run of this.runs.filter(run => ids.includes(run.panelId) && liveRun(run))) {
+    for (const run of this.runs.filter(run => ids.includes(run.panelId) && isLiveRun(run))) {
       // Mark before requesting cleanup: its exit event can arrive before the response.
       this.controlledStops.add(run.id);
       try {
         await this.terminal.stop(run.id);
       } catch (error) {
         failures.push(
-          message('panelFailure', { number: ids.indexOf(run.panelId) + 1, reason: detail((error as Error).message) }),
+          message('panelFailure', {
+            number: ids.indexOf(run.panelId) + 1,
+            reason: nestedMessage((error as Error).message),
+          }),
         );
       }
     }
@@ -203,7 +206,7 @@ export class RunSupervision {
   /** Stops the panel's live run as a controlled stop. If the stop fails, a later exit
    * counts as the run ending on its own again. */
   async stopPanel(panelId: string) {
-    const run = this.runs.find(r => r.panelId === panelId && liveRun(r));
+    const run = this.runs.find(r => r.panelId === panelId && isLiveRun(r));
     if (!run) return;
     this.controlledStops.add(run.id);
     try {

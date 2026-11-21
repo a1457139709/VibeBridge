@@ -154,7 +154,7 @@ export type ListFilter = ListQuery['filter'];
  * last page), the labels the repository defines, and how many open and closed items the filter's search and labels match. */
 export interface ListPage<Item> {
   items: Item[];
-  cursor: string | null;
+  nextCursor: string | null;
   labels: ForgeLabel[];
   counts: ListCounts;
 }
@@ -191,8 +191,8 @@ export interface SubIssueProgress {
 }
 /** URL prefixes of the bound repository's issues and pull requests: a link to `<prefix><number>` opens in the sidebar. */
 export interface ForgeLinks {
-  issues: string;
-  pullRequests: string;
+  issuePrefix: string;
+  pullRequestPrefix: string;
 }
 /** A comment as the forge rendered it. `html` is the forge's own HTML, unfiltered: filter it before it joins a page. */
 export interface ForgeComment {
@@ -267,7 +267,7 @@ export interface PullRequestDetail extends Omit<PullRequestSummary, 'checks'> {
   timeline: TimelineEntry[];
   /** Every comment, also those beyond the ones listed. */
   commentCount: number;
-  codeComments: number;
+  codeCommentCount: number;
   /** Issues the forge closes when it is merged. */
   closingIssues: IssueReference[];
   links: ForgeLinks;
@@ -276,7 +276,7 @@ export interface PullRequestDetail extends Omit<PullRequestSummary, 'checks'> {
   checks: Check[];
   conflicts: Conflicts;
   /** The merge methods the repository allows, and whether it merges through a merge queue; the UI uses them as far as the forge declares them (ForgeCapabilities). */
-  merge: { methods: MergeMethod[]; queue: boolean };
+  mergeOptions: { methods: MergeMethod[]; queue: boolean };
   /** Whether the active account may write to the repository, and so merge, close and reopen it. */
   canWrite: boolean;
 }

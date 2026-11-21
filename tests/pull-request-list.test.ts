@@ -44,14 +44,14 @@ test('showing the tab loads one page of 25 pull requests, newest first, and Load
       checks: 'none',
       labels: [],
     });
-    assert.ok(first.cursor);
+    assert.ok(first.nextCursor);
     const all = (await shownLists(f.workbench, f.projectId, () => f.workbench.forgeSidebar.loadMore(f.projectId)))
       .pullRequests.loaded;
     assert.deepEqual(
       all?.items.map(item => item.number),
       Array.from({ length: 30 }, (_, index) => 30 - index),
     );
-    assert.equal(all?.cursor, null, 'the last page has no cursor');
+    assert.equal(all?.nextCursor, null, 'the last page has no cursor');
   } finally {
     await f.close();
   }

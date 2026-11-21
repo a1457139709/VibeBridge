@@ -5,7 +5,7 @@ import { Workbench, WorkbenchOpenError } from './workbench';
 import type { Language } from '../shared/model';
 import { localize } from '../shared/localization/localization';
 import { message } from '../shared/messages';
-import { commandEnvironment } from '../terminal/environment';
+import { readLoginEnvironment } from '../terminal/environment';
 
 app.setName('VibeBridge');
 // Also permits isolated local acceptance runs without touching the user's projects.
@@ -17,7 +17,7 @@ let confirming = false;
 let language: Language = 'en';
 // An app opened from the Finder inherits a minimal PATH. Forge CLIs such as gh are looked up on the
 // inherited PATH first, then on the login shell's, where the Agents find them too.
-const loginPathMerged = commandEnvironment()
+const loginPathMerged = readLoginEnvironment()
   .then(environment => {
     const entries = [...(process.env.PATH ?? '').split(':'), ...(environment.PATH ?? '').split(':')].filter(Boolean);
     process.env.PATH = [...new Set(entries)].join(':');

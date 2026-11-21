@@ -1,4 +1,4 @@
-import { detail, message } from '../../shared/messages';
+import { nestedMessage, message } from '../../shared/messages';
 import { sameRepository, type RepositoryChoices, type RepositoryReference } from '../../shared/forge/forge';
 import type { BoundRepository } from './results';
 import { currentListedReference, repositoryChoices, RepositoryListUnreadable } from './repositories';
@@ -54,7 +54,7 @@ export class RepositoryBindings {
   async findListed(repository: RepositoryReference) {
     return currentListedReference(repository).catch((error: unknown): never => {
       if (error instanceof RepositoryListUnreadable)
-        throw new Error(message('bindListFailed', { reason: detail(error.reason) }));
+        throw new Error(message('bindListFailed', { reason: nestedMessage(error.reason) }));
       throw error;
     });
   }

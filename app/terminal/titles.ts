@@ -1,11 +1,11 @@
 // Observe only OSC title signals. The caller continues forwarding the original PTY data.
-export function observeTitles(publish: (title: string) => void) {
+export function observeTitles(onTitle: (title: string) => void) {
   let state: 'text' | 'escape' | 'command' | 'title' | 'ignore' = 'text';
   let command = '',
     title = '',
     ending = false;
   const finish = () => {
-    if (state === 'title') publish(title);
+    if (state === 'title') onTitle(title);
     state = 'text';
     title = '';
   };

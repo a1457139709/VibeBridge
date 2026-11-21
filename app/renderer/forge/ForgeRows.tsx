@@ -9,7 +9,7 @@ import type {
 } from '../../shared/forge/forge';
 import { BlockedMark, IssueIcon, Label, OpenChecks, Progress, PullRequestIcon, RelativeTime } from './ForgeDisplay';
 import type { DetailItem } from '../../shared/forge/sidebar-data';
-import { withoutCommandModifier } from '../../shared/settings/shortcuts';
+import { withoutShortcutModifier } from '../../shared/settings/shortcuts';
 import { VirtualRows, type VirtualRowsHost } from './VirtualRows';
 
 /** A list row's title is the button that opens its item; the row names its item in an attribute. */
@@ -41,7 +41,7 @@ export function listRowOf(element: Element) {
 /** The row title a key was pressed on without a modifier, if any: a list's keys act only from a row. */
 const keyedRowTitle = (event: React.KeyboardEvent) => {
   const target = event.target as HTMLElement;
-  return target.matches(rowTitleSelector) && withoutCommandModifier(event) ? target : null;
+  return target.matches(rowTitleSelector) && withoutShortcutModifier(event) ? target : null;
 };
 
 /** The keys of a list of rows, answered from the row focus is on: ↑/↓ move to the row above or below, without

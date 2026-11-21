@@ -1,6 +1,6 @@
 import { useEffect, useId, useState } from 'react';
 import { useLocalization } from '../common/Localization';
-import { detail } from '../../shared/messages';
+import { nestedMessage } from '../../shared/messages';
 import { sameRepository, type RepositoryReference } from '../../shared/forge/forge';
 import type { ShownRepositoryChoices } from '../../shared/forge/sidebar-data';
 import './repository-list.css';
@@ -40,7 +40,7 @@ export function RepositoryList({ choices, retry, bound, selection, pick, disable
   if (!choices) return <span className="muted">{t('loadingRepositories')}</span>;
   if (!choices.ok) {
     const { failure } = choices;
-    const reason = failure.detail ? detail(failure.detail) : failure.kind;
+    const reason = failure.detail ? nestedMessage(failure.detail) : failure.kind;
     return (
       <div className="repository-error">
         {failure.kind === 'notInstalled' ? (

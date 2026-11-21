@@ -64,7 +64,10 @@ test('an issue detail carries the forge-rendered body and comments with their au
           { author: null, createdAt: day(9), html: '<p>From a deleted account.</p>' },
         ],
         commentCount: 2,
-        links: { issues: 'https://github.com/octo/tools/issues/', pullRequests: 'https://github.com/octo/tools/pull/' },
+        links: {
+          issuePrefix: 'https://github.com/octo/tools/issues/',
+          pullRequestPrefix: 'https://github.com/octo/tools/pull/',
+        },
         parent: undefined,
         subIssues: undefined,
         blockedBy: undefined,

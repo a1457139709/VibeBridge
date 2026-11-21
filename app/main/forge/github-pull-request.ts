@@ -188,7 +188,7 @@ export async function fetchPullRequestDetail(
     body: pull.bodyHTML,
     timeline,
     commentCount: pull.comments.totalCount,
-    codeComments: reviews.reduce((sum, review) => sum + review.comments.totalCount, 0),
+    codeCommentCount: reviews.reduce((sum, review) => sum + review.comments.totalCount, 0),
     closingIssues: pull.closingIssuesReferences.nodes.map(issueReference),
     links: repositoryLinks(repository.url),
     review: {
@@ -197,7 +197,7 @@ export async function fetchPullRequestDetail(
     },
     checks: (pull.commits.nodes[0]?.commit.statusCheckRollup?.contexts.nodes ?? []).map(check),
     conflicts: conflicts[pull.mergeable],
-    merge: {
+    mergeOptions: {
       methods: (
         [
           ['merge', repository.mergeCommitAllowed],

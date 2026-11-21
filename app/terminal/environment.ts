@@ -6,7 +6,7 @@ import { constants } from 'node:fs';
 import { isAbsolute, join } from 'node:path';
 
 const execute = promisify(execFile);
-export async function commandEnvironment(): Promise<Record<string, string>> {
+export async function readLoginEnvironment(): Promise<Record<string, string>> {
   const shell = process.env.SHELL || '/bin/zsh';
   // A login shell is used only to read the user's environment. Agents never run through it.
   const { stdout } = await execute(shell, ['-ilc', "printf '\\0VIBEBRIDGE_ENV\\0'; /usr/bin/env -0"], {
@@ -31,7 +31,7 @@ export async function commandEnvironment(): Promise<Record<string, string>> {
   return environment;
 }
 
-export async function executable(command: string, environment: Record<string, string>): Promise<string> {
+export async function resolveExecutable(command: string, environment: Record<string, string>): Promise<string> {
   const paths = isAbsolute(command)
     ? [command]
     : command.includes('/')

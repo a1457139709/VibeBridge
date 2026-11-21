@@ -16,7 +16,7 @@ import {
   type WorkflowSettings,
 } from '../shared/settings/workflows';
 import {
-  liveRun,
+  isLiveRun,
   projectPanels,
   type AgentType,
   type PanelCreation,
@@ -90,7 +90,7 @@ export class Dispatches {
       sessionId: string | undefined,
       location: PanelLocation | undefined,
     ): DispatchRecordView => ({
-      issue,
+      issueNumber: issue,
       dispatchedAt,
       agent,
       skill,
@@ -125,7 +125,7 @@ export class Dispatches {
     workflows: Record<WorkflowId, WorkflowSettings>,
     targets: DispatchTargets,
   ) {
-    const { issue, workflowId, commandId, target, invert } = dispatchRequestSchema.parse(request);
+    const { issue, workflowId, commandId, target, invertDelivery: invert } = dispatchRequestSchema.parse(request);
     const found = workflowCommand(workflowId, commandId);
     const settings = found && workflows[found.workflow.id];
     if (!found || !settings?.enabled) throw new Error(message('dispatchCommandUnavailable'));
@@ -196,7 +196,7 @@ export class Dispatches {
     const panel = targets.panel(panelId);
     if (!panel) throw new Error(message('panelMissing'));
     const run = panel.run;
-    if (!run || !liveRun(run)) throw new Error(message('dispatchTargetUnavailable'));
+    if (!run || !isLiveRun(run)) throw new Error(message('dispatchTargetUnavailable'));
     // The session is taken before writing, so a session switch during the write leaves the record on the one written to.
     let session: string | undefined;
     let onSessionKnown: SessionReceiver = sessionId => {

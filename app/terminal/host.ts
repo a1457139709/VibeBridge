@@ -1,9 +1,9 @@
-import { message, detail } from '../shared/messages';
+import { message, nestedMessage } from '../shared/messages';
 import { observeTitles } from './titles';
 import * as pty from 'node-pty';
 import type { AgentCommand, Run, TerminalEvent } from '../shared/model';
-import { commandEnvironment, executable } from './environment';
-import { descendants, processTable, stopProcesses, type ProcessIdentity } from './processes';
+import { readLoginEnvironment, resolveExecutable } from './environment';
+import { ownedProcessTree, readProcessTable, stopProcesses, type ProcessIdentity } from './processes';
 import { recordFailure } from './failure';
 
 interface ManagedRun {
@@ -11,25 +11,25 @@ interface ManagedRun {
   terminal: pty.IPty;
   processes: ProcessIdentity[];
   stopping: boolean;
-  stop?: Promise<void>;
-  outstanding: number;
+  stopTask?: Promise<void>;
+  unacknowledgedOutput: number;
   paused: boolean;
   draining: boolean;
 }
 const runs = new Map<string, ManagedRun>();
 const owner = process.env.VIBEBRIDGE_HOST_OWNER!;
 let environment: Promise<Record<string, string>> | undefined;
-let closing = false;
+let shuttingDown = false;
 // A peer can die between the connected check and the write. Let disconnect own cleanup.
 const send = (message: unknown) => {
   if (process.connected) process.send!(message, () => {});
 };
-const event = (value: TerminalEvent) => send({ event: value });
+const emitEvent = (value: TerminalEvent) => send({ event: value });
 let sampling: Promise<void> | undefined;
-function sample(): Promise<void> {
+function sampleAndReportProcesses(): Promise<void> {
   sampling ??= (async () => {
-    const table = await processTable();
-    for (const entry of runs.values()) entry.processes = descendants(table, entry.processes);
+    const table = await readProcessTable();
+    for (const entry of runs.values()) entry.processes = ownedProcessTree(table, entry.processes);
     send({ processes: [...runs.values()].flatMap(entry => entry.processes) });
   })().finally(() => {
     sampling = undefined;
@@ -37,7 +37,7 @@ function sample(): Promise<void> {
   return sampling;
 }
 const sampler = setInterval(() => {
-  void sample().catch(error => console.error(error.message));
+  void sampleAndReportProcesses().catch(error => console.error(error.message));
 }, 500);
 
 function drainAfterKill(entry: ManagedRun) {
@@ -50,28 +50,28 @@ function drainAfterKill(entry: ManagedRun) {
 async function stop(id: string) {
   const entry = runs.get(id);
   if (!entry) return;
-  if (entry.stop) return entry.stop;
+  if (entry.stopTask) return entry.stopTask;
   entry.stopping = true;
-  event({ kind: 'stopping', runId: id });
-  entry.stop = (async () => {
-    await sample();
+  emitEvent({ kind: 'stopping', runId: id });
+  entry.stopTask = (async () => {
+    await sampleAndReportProcesses();
     await stopProcesses(entry.processes, `${owner}:${id}`, () => drainAfterKill(entry));
     runs.delete(id);
-    event({ kind: 'exit', runId: id });
+    emitEvent({ kind: 'exit', runId: id });
   })();
-  return entry.stop;
+  return entry.stopTask;
 }
 
-let shuttingDown: Promise<void> | undefined;
+let shutdownTask: Promise<void> | undefined;
 function shutdown(): Promise<void> {
-  if (shuttingDown) return shuttingDown;
-  closing = true;
+  if (shutdownTask) return shutdownTask;
+  shuttingDown = true;
   clearInterval(sampler);
   for (const entry of runs.values()) {
     entry.stopping = true;
-    event({ kind: 'stopping', runId: entry.run.id });
+    emitEvent({ kind: 'stopping', runId: entry.run.id });
   }
-  shuttingDown = (async () => {
+  shutdownTask = (async () => {
     await sampling;
     await stopProcesses(
       [...runs.values()].flatMap(entry => entry.processes),
@@ -82,21 +82,24 @@ function shutdown(): Promise<void> {
     );
     runs.clear();
   })();
-  return shuttingDown;
+  return shutdownTask;
 }
 
-async function handle(operation: string, value: any) {
+async function performOperation(operation: string, value: any) {
   if (operation === 'shutdown') {
     await shutdown();
     return;
   }
-  if (closing) throw new Error(message('quitting'));
+  if (shuttingDown) throw new Error(message('quitting'));
   if (operation === 'check-command') {
     try {
-      environment ??= commandEnvironment();
-      return { available: true, path: await executable(value, await environment) };
+      environment ??= readLoginEnvironment();
+      return { available: true, path: await resolveExecutable(value, await environment) };
     } catch (error) {
-      return { available: false, message: message('commandUnavailable', { reason: detail((error as Error).message) }) };
+      return {
+        available: false,
+        message: message('commandUnavailable', { reason: nestedMessage((error as Error).message) }),
+      };
     }
   }
   if (operation === 'start') {
@@ -109,10 +112,10 @@ async function handle(operation: string, value: any) {
       extraEnvironment: Record<string, string>;
     };
     try {
-      environment ??= commandEnvironment();
+      environment ??= readLoginEnvironment();
       const env = await environment;
-      const program = await executable(command.command, env);
-      if (closing) throw new Error(message('quitting'));
+      const program = await resolveExecutable(command.command, env);
+      if (shuttingDown) throw new Error(message('quitting'));
       const terminal = pty.spawn(program, command.args, {
         cwd: directory,
         env: { ...env, ...extraEnvironment, VIBEBRIDGE_RUN_OWNER: `${owner}:${id}` },
@@ -126,19 +129,19 @@ async function handle(operation: string, value: any) {
         terminal,
         processes: [] as ProcessIdentity[],
         stopping: false,
-        outstanding: 0,
+        unacknowledgedOutput: 0,
         paused: false,
         draining: false,
       };
       runs.set(id, entry);
-      event({ kind: 'started', run });
-      const titles = observeTitles(title => event({ kind: 'title', runId: id, title }));
+      emitEvent({ kind: 'started', run });
+      const titles = observeTitles(title => emitEvent({ kind: 'title', runId: id, title }));
       terminal.onData(data => {
         titles(data);
-        entry.outstanding += data.length;
-        event({ kind: 'output', runId: id, data });
+        entry.unacknowledgedOutput += data.length;
+        emitEvent({ kind: 'output', runId: id, data });
         // Credit covers every hop through IPC and xterm's parser. Do not truncate output.
-        if (!entry.draining && entry.outstanding >= 128 * 1024) {
+        if (!entry.draining && entry.unacknowledgedOutput >= 128 * 1024) {
           terminal.pause();
           entry.paused = true;
         }
@@ -147,14 +150,14 @@ async function handle(operation: string, value: any) {
         if (entry.stopping) return;
         void stop(id).catch(error => send({ failure: String(error) }));
       });
-      const identity = (await processTable()).find(p => p.pid === terminal.pid);
+      const identity = (await readProcessTable()).find(p => p.pid === terminal.pid);
       if (identity) entry.processes = [identity];
-      await sample();
+      await sampleAndReportProcesses();
       return run;
     } catch (error) {
       console.error('Agent launch failed:', error);
       const run: Run = { id, panelId, projectId, state: 'failed' };
-      event({ kind: 'started', run });
+      emitEvent({ kind: 'started', run });
       return run;
     }
   }
@@ -182,9 +185,9 @@ process.on('message', (message: any) => {
   if (message.operation === 'output-consumed') {
     const entry = runs.get(message.value.runId);
     const characters = message.value.characters;
-    if (entry && Number.isInteger(characters) && characters > 0 && characters <= entry.outstanding) {
-      entry.outstanding -= characters;
-      if (entry.paused && entry.outstanding < 64 * 1024) {
+    if (entry && Number.isInteger(characters) && characters > 0 && characters <= entry.unacknowledgedOutput) {
+      entry.unacknowledgedOutput -= characters;
+      if (entry.paused && entry.unacknowledgedOutput < 64 * 1024) {
         entry.paused = false;
         entry.terminal.resume();
       }
@@ -193,7 +196,7 @@ process.on('message', (message: any) => {
   }
   requests = requests.then(async () => {
     try {
-      send({ id: message.id, result: await handle(message.operation, message.value) });
+      send({ id: message.id, result: await performOperation(message.operation, message.value) });
     } catch (error) {
       send({ id: message.id, error: (error as Error).message });
     }
@@ -201,7 +204,7 @@ process.on('message', (message: any) => {
   });
 });
 process.on('disconnect', () => {
-  const unexpected = !closing;
+  const unexpected = !shuttingDown;
   void (async () => {
     let cleanupError: unknown;
     try {
@@ -213,6 +216,6 @@ process.on('disconnect', () => {
       await recordFailure(process.env.VIBEBRIDGE_FAULT_FILE!, 'main', message('mainDisconnected'), cleanupError);
     else if (cleanupError) console.error(cleanupError);
   })()
-    .catch(error => console.error(message('failureRecordFailed', { reason: detail(error.message) })))
+    .catch(error => console.error(message('failureRecordFailed', { reason: nestedMessage(error.message) })))
     .finally(() => process.exit());
 });

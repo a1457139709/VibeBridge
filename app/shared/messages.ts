@@ -18,4 +18,4 @@ export function message<K extends MessageId>(id: K, ...args: MessageArguments<K>
 
 // Only explicit nested messages are formatted; user names, paths and external
 // details passed as ordinary strings remain byte-for-byte unchanged.
-export const detail = (text: string): MessageValue => ({ message: text });
+export const nestedMessage = (text: string): MessageValue => ({ message: text });

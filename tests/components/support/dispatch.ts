@@ -68,7 +68,7 @@ export const record = (
   location: DispatchRecordView['location'],
   extra: Partial<DispatchRecordView> = {},
 ): DispatchRecordView => ({
-  issue,
+  issueNumber: issue,
   dispatchedAt: hoursAgo(3),
   agent: 'codex',
   skill: 'implement',
@@ -92,7 +92,10 @@ export const issueDetail = (number: number, extra: Partial<IssueDetail> = {}): I
   blockedBy: [],
   blocking: [],
   closingPullRequests: [],
-  links: { issues: 'https://github.com/octo/alpha/issues/', pullRequests: 'https://github.com/octo/alpha/pull/' },
+  links: {
+    issuePrefix: 'https://github.com/octo/alpha/issues/',
+    pullRequestPrefix: 'https://github.com/octo/alpha/pull/',
+  },
   canWrite: true,
   ...extra,
 });

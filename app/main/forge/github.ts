@@ -227,14 +227,14 @@ function listPage<T>(
     schema,
   );
 }
-/** The page's cursor, labels and counts; the caller maps the items. */
+/** The next page's cursor, the labels and counts; the caller maps the items. */
 const pageFrame = (data: {
   repository: { labels: { nodes: ForgeLabel[] } };
   open: { issueCount: number };
   closed: { issueCount: number };
   search: { pageInfo: { hasNextPage: boolean; endCursor: string | null } };
 }) => ({
-  cursor: data.search.pageInfo.hasNextPage ? data.search.pageInfo.endCursor : null,
+  nextCursor: data.search.pageInfo.hasNextPage ? data.search.pageInfo.endCursor : null,
   labels: data.repository.labels.nodes,
   counts: { open: data.open.issueCount, closed: data.closed.issueCount },
 });

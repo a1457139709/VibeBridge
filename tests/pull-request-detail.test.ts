@@ -75,7 +75,7 @@ test('a pull request detail carries its branches, labels, the issues it closes o
             url: `${repositoryUrl}/issues/4`,
           },
         ],
-        links: { issues: `${repositoryUrl}/issues/`, pullRequests: `${repositoryUrl}/pull/` },
+        links: { issuePrefix: `${repositoryUrl}/issues/`, pullRequestPrefix: `${repositoryUrl}/pull/` },
       },
     );
   } finally {
@@ -124,7 +124,7 @@ test('a pull request detail lists comments and review summaries in time order, e
       'a review without a summary and an unsubmitted review are left out',
     );
     assert.equal(result.pullRequest.commentCount, 2);
-    assert.equal(result.pullRequest.codeComments, 5, 'code comments of submitted reviews');
+    assert.equal(result.pullRequest.codeCommentCount, 5, 'code comments of submitted reviews');
   } finally {
     await f.close();
   }
@@ -174,7 +174,7 @@ test('a pull request detail says what stands between it and a merge: the review,
       { name: 'ci/old', result: 'failed', required: false, url: null },
     ]);
     assert.deepEqual(
-      [blocked.review, blocked.conflicts, blocked.merge],
+      [blocked.review, blocked.conflicts, blocked.mergeOptions],
       [
         { state: 'changesRequested', requiredApprovals: 2 },
         'conflicting',
@@ -183,7 +183,7 @@ test('a pull request detail says what stands between it and a merge: the review,
     );
     const ready = await detail(13);
     assert.deepEqual(
-      [ready.review, ready.conflicts, ready.checks, ready.merge.queue],
+      [ready.review, ready.conflicts, ready.checks, ready.mergeOptions.queue],
       [{ state: 'approved', requiredApprovals: null }, 'none', [], false],
     );
     const waiting = await detail(14);

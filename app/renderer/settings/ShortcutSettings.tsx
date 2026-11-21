@@ -7,7 +7,7 @@ import {
   shortcutFromEvent,
   shortcutConflicts,
   shortcutNames,
-  withoutCommandModifier,
+  withoutShortcutModifier,
   type ShortcutAction,
 } from '../../shared/settings/shortcuts';
 import type { Settings } from '../../shared/model';
@@ -82,7 +82,7 @@ export function ShortcutSettings({
               onFocus={() => setRecording(action)}
               onBlur={() => setRecording(undefined)}
               onKeyDown={event => {
-                if (event.key === 'Tab' && withoutCommandModifier(event)) return;
+                if (event.key === 'Tab' && withoutShortcutModifier(event)) return;
                 event.preventDefault();
                 event.stopPropagation();
                 if (event.key === 'Escape') {

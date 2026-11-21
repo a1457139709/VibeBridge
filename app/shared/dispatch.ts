@@ -9,14 +9,14 @@ export const dispatchTargetSchema = z.discriminatedUnion('kind', [
 ]);
 export type DispatchTarget = z.infer<typeof dispatchTargetSchema>;
 
-/** One dispatch: an issue of the bound repository, a command of an enabled workflow, and the target. `invert` swaps the
+/** One dispatch: an issue of the bound repository, a command of an enabled workflow, and the target. `invertDelivery` swaps the
  * command's delivery (submit or fill) for this dispatch only. */
 export const dispatchRequestSchema = z.object({
   issue: z.object({ number: itemNumberSchema, title: z.string() }),
   workflowId: z.string(),
   commandId: z.string(),
   target: dispatchTargetSchema,
-  invert: z.boolean(),
+  invertDelivery: z.boolean(),
 });
 export type DispatchRequest = z.infer<typeof dispatchRequestSchema>;
 
@@ -31,7 +31,7 @@ export interface DispatchLocation {
  * (docs/adr/0003-dispatch-records-point-to-sessions.md). A dispatch still waiting for its new panel's first session has
  * no session ID yet and shows that panel. */
 export interface DispatchRecordView {
-  issue: number;
+  issueNumber: number;
   dispatchedAt: string;
   agent: AgentType;
   /** The skill's name, without any Agent type's invocation syntax, e.g. `grill-me`. */
@@ -41,4 +41,4 @@ export interface DispatchRecordView {
 }
 
 /** The latest of an issue's records that a panel is on now, if any. Records are oldest first. */
-export const latestLocatable = (records: DispatchRecordView[]) => records.findLast(record => record.location);
+export const latestLocatableRecord = (records: DispatchRecordView[]) => records.findLast(record => record.location);

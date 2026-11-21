@@ -110,8 +110,8 @@ test('shortcut recording uses physical keys, ignores composition and distinguish
       addPanel: 'Command+C',
     }),
     [
-      { binding: 'Command+K', actions: ['previousPanel', 'nextPanel'], system: undefined },
-      { binding: 'Command+C', actions: ['addPanel'], system: message('copy') },
+      { binding: 'Command+K', actions: ['previousPanel', 'nextPanel'], systemAction: undefined },
+      { binding: 'Command+C', actions: ['addPanel'], systemAction: message('copy') },
     ],
   );
 });

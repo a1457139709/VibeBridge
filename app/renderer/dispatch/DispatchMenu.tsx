@@ -4,7 +4,7 @@ import { ProcessingStatusIcon } from '../common/ProcessingStatusIcon';
 import { agentIcons } from '../common/agent-icons';
 import {
   agentNames,
-  liveRun,
+  isLiveRun,
   projectPanels,
   type AgentType,
   type PanelView,
@@ -163,7 +163,7 @@ export function DispatchButton({
     return inverting ? invertedDelivery(configured) : configured;
   };
   const lastTargetOf = (command: MenuCommand) => host.lastTargets.get(commandKey(command));
-  const panels = projectPanels(project).filter(panel => liveRun(panel.run));
+  const panels = projectPanels(project).filter(panel => isLiveRun(panel.run));
   const resident = (panel: PanelView) => project.panels.includes(panel);
   const targets: { target: DispatchTarget; agent: AgentType; panel?: PanelView }[] = [
     ...newPanelAgents.map(agent => ({ target: { kind: 'new', agent } as const, agent })),
@@ -198,7 +198,7 @@ export function DispatchButton({
       workflowId: menuCommand.workflowId,
       commandId: menuCommand.command.id,
       target,
-      invert,
+      invertDelivery: invert,
     };
     setOpen(false);
     try {

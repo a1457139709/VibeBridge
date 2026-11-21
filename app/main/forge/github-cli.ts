@@ -1,6 +1,6 @@
 import { execFile } from 'node:child_process';
 import { z } from 'zod';
-import { executable } from '../../terminal/environment';
+import { resolveExecutable } from '../../terminal/environment';
 import { ForgeError } from './forge';
 
 // The GitHub adapter's only way to GitHub: the `gh` CLI, its failures sorted into the forge failure kinds.
@@ -25,7 +25,7 @@ async function run(
 ): Promise<{ failure: ForgeError | null; stdout: string; stderr: string }> {
   let program: string;
   try {
-    program = await executable('gh', process.env as Record<string, string>);
+    program = await resolveExecutable('gh', process.env as Record<string, string>);
   } catch {
     throw new ForgeError('notInstalled', '');
   }

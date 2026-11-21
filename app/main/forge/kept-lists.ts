@@ -74,9 +74,12 @@ export function joinedPages<Item extends { number: number }>(
     };
   }
   if (joining === 'update' && held) {
-    const cursor = previousEnds.length > 1 ? held.cursor : page.cursor;
+    const cursor = previousEnds.length > 1 ? held.nextCursor : page.nextCursor;
     const updated = updatedInPlace(held.items, items);
-    return { rows: { failed: null, loaded: { ...page, filter, items: updated, cursor } }, pageEnds: previousEnds };
+    return {
+      rows: { failed: null, loaded: { ...page, filter, items: updated, nextCursor: cursor } },
+      pageEnds: previousEnds,
+    };
   }
   return { rows: { failed: null, loaded: { ...page, filter, items } }, pageEnds };
 }

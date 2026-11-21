@@ -192,7 +192,7 @@ test('a refresh reloads every page from the first through the one holding the la
   await refreshed;
   assert.equal(reads.length, 5, 'no page after the one shown is read');
   assert.deepEqual(numbers(lists()), [1, 2, 4], 'issue 3 no longer matches, and the rows after the page shown go');
-  assert.equal(lists()?.issues.loaded?.cursor, 'p3', 'Load more continues after the pages reloaded');
+  assert.equal(lists()?.issues.loaded?.nextCursor, 'p3', 'Load more continues after the pages reloaded');
   assert.equal(lists()?.loading, false);
 });
 
