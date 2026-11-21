@@ -1,8 +1,6 @@
 import { useEffect, useRef } from 'react';
-import type { DetailItem } from '../../shared/forge/sidebar-data';
+import { sameItem, type DetailItem } from '../../shared/forge/sidebar-data';
 import { listRowOf } from './ForgeRows';
-
-const sameItem = (a: DetailItem | null, b: DetailItem | null) => a?.kind === b?.kind && a?.number === b?.number;
 
 /** Reports with `report` the list row within `scrollArea` that the pointer or keyboard focus rests on, each time it
  * changes, and null once neither rests on a row: the pointer or focus left the rows, the row unmounted as the list

@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { ghDouble } from './support/gh-double';
 import { boundWorkbench, day, forgeAccount, issueDetail } from './support/bound-workbench';
-import { detail, detailTitle, forge, shownIssues, sidebarData } from './support/sidebar-data-sources';
+import { byNumber, detail, detailTitle, forge, issue, shownIssues, sidebarData } from './support/sidebar-data-sources';
 
 // A row the pointer or keyboard focus rests on is likely opened next: after 150ms its detail is read into the kept
 // details, so opening it shows at once.
@@ -138,4 +138,26 @@ test('nothing is read ahead while the sidebar is hidden or its window is behind'
     await rested;
   }
   assert.equal(reads.length, before);
+});
+
+test('a read ahead on its way when a direct action changes its item is not kept: opening the item asks the forge again', async context => {
+  context.mock.timers.enable({ apis: ['setTimeout'] });
+  const sidebar = sidebarData();
+  const { data, reads, shownDetail } = sidebar;
+  await shownIssues(sidebar, [3]);
+  const rested = data.reportRestingOn('alpha', three);
+  context.mock.timers.tick(150);
+  const readAhead = reads.at(-1)!;
+  const changed = data.reloadChanged('alpha', three);
+  reads.at(-1)!.answer(byNumber([issue(3)]));
+  await changed;
+  readAhead.answer(detail(3, 'Before the change'));
+  await rested;
+  const before = reads.length;
+  const opened = data.showDetail('alpha', three);
+  assert.equal(detailTitle(shownDetail()), undefined, 'the answer from before the change does not show');
+  assert.deepEqual(reads[before]?.item, three, 'opening asks the forge');
+  reads[before].answer(detail(3, 'After the change'));
+  await opened;
+  assert.equal(detailTitle(shownDetail()), 'After the change');
 });

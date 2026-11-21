@@ -4,6 +4,7 @@ import {
   detailItemSchema,
   forgeListViewSchema,
   forgeSidebarPresenceSchema,
+  sameItem,
   type DetailItem,
   type FailedPage,
   type ForgeListItems,
@@ -11,58 +12,35 @@ import {
   type ForgeListView,
   type ForgeLists,
   type ForgeSidebarPresence,
+  type ShownDetail,
   type ShownRepositoryChoices,
   type TabList,
 } from '../../shared/forge/sidebar-data';
 import { KeptDetails } from './kept-details';
+import {
+  emptyLists,
+  joinedPages,
+  pagesThroughRows,
+  replacedInPlace,
+  sameFilter,
+  type Joining,
+  type KeptLists,
+} from './kept-lists';
 import { RowRest } from './row-rest';
 import { BackgroundUpdates } from './background-updates';
-import { readByNumber, readItem, readPage, type ForgeSidebarSources } from './sidebar-reads';
+import { readByNumber, readItem, readPage, readRepositoryChoices, type ForgeSidebarSources } from './sidebar-reads';
 
 /** The projects whose lists are kept, the most recently shown. */
 const projectsKept = 5;
 
-/** A project's lists, with the view the sidebar last declared, where each page a tab loaded ends in its rows (the count
- * of rows through it), the numbers of the shown tab's rows the sidebar renders, and the request that may settle them
- * while it runs. */
-interface CachedList {
-  view: ForgeListView;
-  lists: ForgeLists;
-  pageEnds: Record<ForgeListTab, number[]>;
-  rows: number[];
-  request: object | null;
-  settled: Promise<void>;
-}
-
-/** The item a project's detail shows, with the request that may settle it. */
+/** The item a project's detail shows, with its read still on its way, which settles it while the detail stays open on
+ * this entry. */
 interface OpenDetail {
   item: DetailItem;
-  request: object;
+  reading: Promise<void> | null;
 }
 
-/** How a first page or the next one joins a tab's rows: `replace` shows the first page alone, `update` replaces the rows
- * it holds in place and keeps the others, and `append` adds the next page. */
-type Joining = 'replace' | 'update' | 'append';
-
-const noRows = { loaded: null, failed: null };
-const sameFilter = (a: ListFilter, b: ListFilter) =>
-  a.search === b.search && a.state === b.state && a.labels.join('\n') === b.labels.join('\n');
-const sameItem = (a: DetailItem, b: DetailItem) => a.kind === b.kind && a.number === b.number;
 const tabOf = (item: DetailItem): ForgeListTab => (item.kind === 'issue' ? 'issues' : 'pullRequests');
-
-/** `rows` with each one `fresh` also holds replaced in place, and each new one placed after the row before it in
- * `fresh`, or first. Rows `fresh` does not hold stay where they were. */
-export function updatedInPlace<Item extends { number: number }>(rows: Item[], fresh: Item[]) {
-  const answered = new Map(fresh.map(item => [item.number, item]));
-  const updated = rows.map(row => answered.get(row.number) ?? row);
-  const held = new Set(rows.map(row => row.number));
-  let at = 0;
-  for (const item of fresh) {
-    if (held.has(item.number)) at = updated.findIndex(row => row.number === item.number) + 1;
-    else updated.splice(at++, 0, item);
-  }
-  return updated;
-}
 
 /** The Forge sidebar's data (docs/adr/0008-forge-sidebar-data-lives-in-the-main-process.md): each project's lists, the
  * item its detail shows, and the repositories its binding pages offer. The renderer declares what it shows, reports
@@ -73,19 +51,20 @@ export function updatedInPlace<Item extends { number: number }>(rows: Item[], fr
  * 50 details used last. A declaration shows what is kept at once. When the sidebar comes to show a project in the
  * foreground, and every 5 minutes while it shows it there, the data updates in the background, in place: the shown
  * tab's first page, the rows the sidebar renders read by number, and the open detail, asked at once. Nothing updates
- * while the sidebar is hidden or its window is behind, and an update reported while one runs joins it. Only the latest
- * request of a project settles its lists, and its detail. A list row the pointer or focus rests on 150ms while the
- * sidebar shows its project in the foreground has its detail read ahead into the kept details, unless kept already, so
- * opening it shows at once. */
+ * while the sidebar is hidden or its window is behind. An update reported while one runs joins it, an update joins a
+ * request of the lists on its way, and an update or a refresh joins a read of the open detail on its way. Only the
+ * latest request of a project settles its lists, and its detail. A list row the pointer or focus rests on 150ms while
+ * the sidebar shows its project in the foreground has its detail read ahead into the kept details, unless kept
+ * already, so opening it shows at once. */
 export class ForgeSidebarData {
-  private lists = new Map<string, CachedList>();
+  private lists = new Map<string, KeptLists>();
   private openDetails = new Map<string, OpenDetail>();
   private details = new KeptDetails();
   private choices = new Map<string, { request: object; choices: ShownRepositoryChoices }>();
   /** Each project's binding, counted up when it changes: an answer for an earlier one is not kept. */
   private bindings = new Map<string, number>();
   private presence: ForgeSidebarPresence | null = null;
-  private updates = new BackgroundUpdates(projectId => this.update(projectId));
+  private updates = new BackgroundUpdates(projectId => this.updateShownData(projectId));
   /** The row the pointer or focus rests on, until its detail is read ahead. */
   private rowRest = new RowRest();
   constructor(private sources: ForgeSidebarSources) {}
@@ -109,12 +88,12 @@ export class ForgeSidebarData {
    * loads. Resolves once the lists settled. */
   showList(projectId: string, view: ForgeListView) {
     const declared = forgeListViewSchema.parse(view);
-    const cached = this.keep(projectId);
-    if (cached && cached.view.tab === declared.tab && sameFilter(cached.view.filter, declared.filter)) {
-      this.settle(projectId, cached, cached.lists);
-      return cached.settled;
+    const keptLists = this.useLists(projectId);
+    if (keptLists && keptLists.view.tab === declared.tab && sameFilter(keptLists.view.filter, declared.filter)) {
+      this.settle(projectId, keptLists, keptLists.lists);
+      return keptLists.settled;
     }
-    const shown = cached ?? this.add(projectId, declared);
+    const shown = keptLists ?? this.add(projectId, declared);
     shown.view = declared;
     const loaded = shown.lists[declared.tab].loaded;
     const kept = !!loaded && sameFilter(loaded.filter, declared.filter);
@@ -128,19 +107,19 @@ export class ForgeSidebarData {
   }
   /** Appends the next page of the rows shown, in the filter that produced them. */
   async loadMore(projectId: string) {
-    const shown = this.keep(projectId);
+    const shown = this.useLists(projectId);
     const loaded = shown?.lists[shown.view.tab].loaded;
     if (!shown || !loaded?.cursor) return;
     return this.load(projectId, shown, shown.view.tab, loaded.filter, 'append');
   }
   /** Reloads the shown tab from its first page through the page holding the last row the sidebar renders, in place of
-   * its rows, and the open detail again; the rows and the detail keep showing until their new answers. */
+   * its rows, and the open detail again, unless a read of it is on its way; the rows and the detail keep showing until
+   * their new answers. */
   async refresh(projectId: string) {
-    const shown = this.keep(projectId);
-    const detail = this.openDetails.get(projectId);
+    const shown = this.useLists(projectId);
     await Promise.all([
       shown && this.load(projectId, shown, shown.view.tab, shown.view.filter, 'replace', pagesThroughRows(shown)),
-      detail && this.loadDetail(projectId, detail.item),
+      this.rereadOpenDetail(projectId),
     ]);
   }
   /** Shows `item` in the project's detail: a kept answer at once, then the forge's answer, asked on each call. A
@@ -153,9 +132,10 @@ export class ForgeSidebarData {
     }
     const declared = detailItemSchema.parse(item);
     const kept = this.details.use(projectId, declared);
-    if (kept) this.sources.emit({ kind: 'forgeDetail', projectId, detail: { item: declared, result: kept } });
+    if (kept)
+      this.sources.emit({ kind: 'forgeDetail', projectId, detail: { item: declared, result: kept, failed: null } });
     if (kept && this.details.openUnopened(projectId, declared)) {
-      this.openDetails.set(projectId, { item: declared, request: {} });
+      this.openDetails.set(projectId, { item: declared, reading: null });
       return;
     }
     await this.loadDetail(projectId, declared);
@@ -190,12 +170,7 @@ export class ForgeSidebarData {
     const request = {};
     this.choices.set(projectId, { request, choices: null });
     this.sources.emit({ kind: 'repositoryChoices', projectId, choices: null });
-    let choices: ShownRepositoryChoices;
-    try {
-      choices = await this.sources.repositoryChoices(projectId);
-    } catch (error) {
-      choices = { ok: false, error: (error as Error).message };
-    }
+    const choices = await readRepositoryChoices(this.sources, projectId);
     if (this.choices.get(projectId)?.request !== request) return;
     this.choices.set(projectId, { request, choices });
     this.sources.emit({ kind: 'repositoryChoices', projectId, choices });
@@ -217,18 +192,22 @@ export class ForgeSidebarData {
     return presence?.visible && presence.foreground ? presence.projectId : null;
   }
   /** Updates the project's data in the background: the shown tab, unless a request of its lists is running, and the
-   * open detail, asked at once. */
-  private async update(projectId: string) {
-    const shown = this.keep(projectId);
-    const detail = this.openDetails.get(projectId);
+   * open detail, unless a read of it is on its way; asked at once. */
+  private async updateShownData(projectId: string) {
+    const shown = this.useLists(projectId);
     await Promise.all([
       shown && (shown.request ? shown.settled : this.updateShownTab(projectId, shown)),
-      detail && this.loadDetail(projectId, detail.item),
+      this.rereadOpenDetail(projectId),
     ]);
+  }
+  /** Reads the open detail's item again, or joins its read on its way; nothing when no detail is open. */
+  private rereadOpenDetail(projectId: string) {
+    const open = this.openDetails.get(projectId);
+    return open && (open.reading ?? this.loadDetail(projectId, open.item));
   }
   /** Updates the shown tab's first page in place and reads the rows the sidebar renders by number, asked at once. A
    * failed read of the rows stands beside them once the first page settled, which would clear it. */
-  private async updateShownTab(projectId: string, shown: CachedList) {
+  private async updateShownTab(projectId: string, shown: KeptLists) {
     const { tab, filter } = shown.view;
     const [, failed] = await Promise.all([
       this.load(projectId, shown, tab, filter, 'update'),
@@ -238,7 +217,7 @@ export class ForgeSidebarData {
   }
   /** Reads again the rows of the tab with these numbers, those it holds, and replaces them in place; resolves with the
    * failure of the read, if any. An answer for rows no longer shown, in another filter or binding, is dropped. */
-  private async loadByNumber(projectId: string, shown: CachedList, tab: ForgeListTab, numbers: number[]) {
+  private async loadByNumber(projectId: string, shown: KeptLists, tab: ForgeListTab, numbers: number[]) {
     const before = shown.lists[tab].loaded;
     const held = new Set(before?.items.map(row => row.number));
     const asked = numbers.filter(number => held.has(number)).slice(0, itemsPerRead);
@@ -249,18 +228,17 @@ export class ForgeSidebarData {
     if (this.lists.get(projectId) !== shown || this.bindings.get(projectId) !== binding) return null;
     if (!loaded || !sameFilter(loaded.filter, before.filter)) return null;
     if (!read.ok) return read;
-    const answered = new Map<number, ForgeListItems[ForgeListTab]>(read.items.map(item => [item.number, item]));
-    const items = loaded.items.map(row => answered.get(row.number) ?? row);
+    const items = replacedInPlace<ForgeListItems[ForgeListTab]>(loaded.items, read.items);
     this.settle(projectId, shown, { ...shown.lists, [tab]: { ...shown.lists[tab], loaded: { ...loaded, items } } });
     return null;
   }
   /** Shows a failed read beside the tab's rows, unless the lists were dropped or the tab shows a failure already. */
-  private keepFailure(projectId: string, shown: CachedList, tab: ForgeListTab, failed: FailedPage) {
+  private keepFailure(projectId: string, shown: KeptLists, tab: ForgeListTab, failed: FailedPage) {
     if (this.lists.get(projectId) !== shown || shown.lists[tab].failed) return;
     this.settle(projectId, shown, { ...shown.lists, [tab]: { ...shown.lists[tab], failed } });
   }
   /** The project's kept lists, now the most recently used; undefined when none are kept. */
-  private keep(projectId: string) {
+  private useLists(projectId: string) {
     const shown = this.lists.get(projectId);
     if (shown) {
       this.lists.delete(projectId);
@@ -268,21 +246,16 @@ export class ForgeSidebarData {
     }
     return shown;
   }
-  /** Keeps empty lists for the project on `view`, dropping the lists of the project shown longest ago beyond the limit. */
+  /** Keeps empty lists for the project on `view`, dropping the lists, open detail and running update of the project
+   * shown longest ago beyond the limit. */
   private add(projectId: string, view: ForgeListView) {
-    const shown: CachedList = {
-      view,
-      lists: { issues: noRows, pullRequests: noRows, loading: false },
-      pageEnds: { issues: [], pullRequests: [] },
-      rows: [],
-      request: null,
-      settled: Promise.resolve(),
-    };
+    const shown = emptyLists(view);
     this.lists.set(projectId, shown);
     for (const oldest of this.lists.keys()) {
       if (this.lists.size <= projectsKept) break;
       this.lists.delete(oldest);
       this.openDetails.delete(oldest);
+      this.updates.forget(oldest);
     }
     return shown;
   }
@@ -290,7 +263,7 @@ export class ForgeSidebarData {
    * are all in. */
   private load<T extends ForgeListTab>(
     projectId: string,
-    shown: CachedList,
+    shown: KeptLists,
     tab: T,
     filter: ListFilter,
     joining: Joining,
@@ -303,7 +276,7 @@ export class ForgeSidebarData {
   }
   private async loadPages<T extends ForgeListTab>(
     projectId: string,
-    shown: CachedList,
+    shown: KeptLists,
     request: object,
     tab: T,
     filter: ListFilter,
@@ -326,62 +299,42 @@ export class ForgeSidebarData {
     }
     shown.request = null;
     const previous = shown.lists[tab] as TabList<ForgeListItems[T]>;
-    let next: TabList<ForgeListItems[T]>;
-    if (!page!.ok) next = { ...previous, failed: page! };
-    else {
-      const { ok: _, ...rows } = page!;
-      const held = previous.loaded && sameFilter(previous.loaded.filter, filter) ? previous.loaded : null;
-      if (joining === 'append' && held) {
-        const numbers = new Set(held.items.map(item => item.number));
-        const joined = [...held.items, ...items.filter(item => !numbers.has(item.number))];
-        next = { failed: null, loaded: { ...rows, filter, items: joined } };
-        shown.pageEnds[tab] = [...shown.pageEnds[tab], joined.length];
-      } else if (joining === 'update' && held) {
-        const updated = updatedInPlace(held.items, items);
-        const cursor = shown.pageEnds[tab].length > 1 ? held.cursor : rows.cursor;
-        next = { failed: null, loaded: { ...rows, filter, items: updated, cursor } };
-      } else {
-        next = { failed: null, loaded: { ...rows, filter, items } };
-        shown.pageEnds[tab] = pageEnds;
-      }
-    }
-    this.settle(projectId, shown, { ...shown.lists, [tab]: next, loading: false });
-  }
-  /** Asks the forge for the item and keeps an answer that is not a failure, dropping the detail used longest ago beyond
-   * the limit; an answer for an earlier binding is not kept. */
-  private async readDetail(projectId: string, item: DetailItem) {
-    const binding = this.bindings.get(projectId);
-    const result = await readItem(this.sources, projectId, item);
-    if (result.ok && this.bindings.get(projectId) === binding) this.details.keep(projectId, item, result);
-    return result;
+    const joined = joinedPages(previous, shown.pageEnds[tab], filter, joining, page!, items, pageEnds);
+    shown.pageEnds[tab] = joined.pageEnds;
+    this.settle(projectId, shown, { ...shown.lists, [tab]: joined.rows, loading: false });
   }
   /** Reads the item's detail ahead of its opening, into the kept details. */
   private async readAhead(projectId: string, item: DetailItem) {
     if (this.watched() !== projectId || this.details.holds(projectId, item)) return;
     const open = this.openDetails.get(projectId);
     if (open && sameItem(open.item, item)) return;
-    await this.details.readAhead(projectId, item, this.readDetail(projectId, item));
+    await this.details.readAhead(projectId, item, readItem(this.sources, projectId, item));
   }
-  /** Asks the forge for the detail's item; its answer is pushed unless another request was made since. */
-  private async loadDetail(projectId: string, item: DetailItem) {
-    const request = {};
-    this.openDetails.set(projectId, { item, request });
-    const result = await (this.details.takeReadAhead(projectId, item) ?? this.readDetail(projectId, item));
-    if (this.openDetails.get(projectId)?.request === request)
-      this.sources.emit({ kind: 'forgeDetail', projectId, detail: { item, result } });
-    return result;
+  /** Opens the detail on `item` and asks the forge for it; resolves once the answer settled. */
+  private loadDetail(projectId: string, item: DetailItem) {
+    const open: OpenDetail = { item, reading: null };
+    this.openDetails.set(projectId, open);
+    open.reading = this.readOpenDetail(projectId, open).finally(() => (open.reading = null));
+    return open.reading;
   }
-  private settle(projectId: string, shown: CachedList, lists: ForgeLists) {
+  /** Asks the forge for the open detail's item, or takes its read ahead on its way, and keeps an answer that is not a
+   * failure. The answer is pushed unless the detail was opened again since; a failure leaves the item's kept answer
+   * showing beside it, and shows alone when none is kept. */
+  private async readOpenDetail(projectId: string, open: OpenDetail) {
+    const { item } = open;
+    const binding = this.bindings.get(projectId);
+    const result = await (this.details.takeReadAhead(projectId, item) ?? readItem(this.sources, projectId, item));
+    // An answer for an earlier binding is not kept.
+    if (result.ok && this.bindings.get(projectId) === binding) this.details.keep(projectId, item, result);
+    if (this.openDetails.get(projectId) !== open) return;
+    const kept = result.ok ? undefined : this.details.use(projectId, item);
+    const detail: ShownDetail =
+      kept && !result.ok ? { item, result: kept, failed: result.failure } : { item, result, failed: null };
+    this.sources.emit({ kind: 'forgeDetail', projectId, detail });
+  }
+
+  private settle(projectId: string, shown: KeptLists, lists: ForgeLists) {
     shown.lists = lists;
     this.sources.emit({ kind: 'forgeLists', projectId, lists });
   }
-}
-
-/** How many pages of the shown tab, from the first, hold every row the sidebar renders; at least one. */
-function pagesThroughRows(shown: CachedList) {
-  const { tab } = shown.view;
-  const items: { number: number }[] = shown.lists[tab].loaded?.items ?? [];
-  const rendered = new Set(shown.rows);
-  const last = items.findLastIndex(item => rendered.has(item.number));
-  return Math.max(shown.pageEnds[tab].findIndex(end => end > last) + 1, 1);
 }

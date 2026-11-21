@@ -1,4 +1,5 @@
 import './support/dom';
+import { localize } from '../../app/shared/localization/localization';
 import assert from 'node:assert/strict';
 import test, { afterEach, before } from 'node:test';
 import { cleanup, fireEvent, waitFor, within } from '@testing-library/react';
@@ -13,6 +14,8 @@ import {
   sidebar,
   stubSidebarApis,
 } from './support/forge-lists';
+
+const { t } = localize('en');
 
 const shownGeometry = { ...listGeometry };
 afterEach(() => {
@@ -38,7 +41,7 @@ async function scrolledLongList() {
   const workbench = renderWorkbench();
   (await workbench.request(1)).answer(page(issues(1, 10), 'p2'));
   await waitFor(() => assert.ok(rows().includes('Issue 1')));
-  await workbench.user.click(within(sidebar()).getByRole('button', { name: 'Load more' }));
+  await workbench.user.click(within(sidebar()).getByRole('button', { name: t('loadMore') }));
   (await workbench.request(2)).answer(page(issues(11, 20)));
   await waitFor(() => assert.ok(!refresh().hasAttribute('disabled')));
   scrollTo(12 * 40 + 20);
@@ -85,7 +88,7 @@ test("closing the detail returns focus to its issue's row, scrolling back to it 
   const detail = await waitFor(() => document.querySelector<HTMLElement>('.forge-detail')!);
   scrollTo(0);
   await waitFor(() => assert.ok(!rows().includes('Issue 13')));
-  await user.click(within(detail).getByRole('button', { name: 'Close' }));
+  await user.click(within(detail).getByRole('button', { name: t('closeDetail') }));
   await waitFor(() => assert.equal(document.activeElement?.textContent, 'Issue 13'));
   assert.ok(document.activeElement?.matches('.forge-row-title'));
 });

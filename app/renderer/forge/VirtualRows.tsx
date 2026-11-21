@@ -1,6 +1,6 @@
 import { useImperativeHandle, useLayoutEffect, useReducer, useRef, useState, type Ref } from 'react';
 import { flushSync } from 'react-dom';
-import { readingPositionAt, restoredScrollTop, rowWindow, type ReadingPosition } from './virtual-rows';
+import { heightBefore, readingPositionAt, restoredScrollTop, rowWindow, type ReadingPosition } from './virtual-rows';
 
 /** How many rows render beyond the view on each side, so ↑/↓ always has a row to move to. */
 const overscan = 4;
@@ -55,19 +55,19 @@ export function VirtualRows({
   const { start, end, before, after } = rowWindow(heights, { ...view, overscan });
 
   /** Takes the scroll area's position and size, rendering anew when they changed. */
-  const follow = () => {
+  const readScrollArea = () => {
     if (!scrollArea) return;
     const { scrollTop, clientHeight: viewport } = scrollArea;
     setView(last => (last.scrollTop === scrollTop && last.viewport === viewport ? last : { scrollTop, viewport }));
   };
   useLayoutEffect(() => {
     if (!scrollArea) return;
-    follow();
-    scrollArea.addEventListener('scroll', follow);
-    const resized = new ResizeObserver(follow);
+    readScrollArea();
+    scrollArea.addEventListener('scroll', readScrollArea);
+    const resized = new ResizeObserver(readScrollArea);
     resized.observe(scrollArea);
     return () => {
-      scrollArea.removeEventListener('scroll', follow);
+      scrollArea.removeEventListener('scroll', readScrollArea);
       resized.disconnect();
     };
   }, [scrollArea]);
@@ -83,7 +83,7 @@ export function VirtualRows({
       changed = true;
     }
     if (changed) remeasured();
-    follow();
+    readScrollArea();
     host.rendered();
   });
 
@@ -91,7 +91,7 @@ export function VirtualRows({
   const scrollTo = (scrollTop: number) => {
     if (!scrollArea) return;
     scrollArea.scrollTop = scrollTop;
-    follow();
+    readScrollArea();
   };
   useImperativeHandle(host.ref, () => ({
     readingPosition: () => readingPositionAt(keys, heights, scrollArea?.scrollTop ?? 0),
@@ -99,8 +99,7 @@ export function VirtualRows({
     reveal(key) {
       const index = keys.indexOf(key);
       if (index < 0) return false;
-      if (index < start || index >= end)
-        flushSync(() => scrollTo(heights.slice(0, index).reduce((top, height) => top + height, 0)));
+      if (index < start || index >= end) flushSync(() => scrollTo(heightBefore(heights, index)));
       return true;
     },
   }));

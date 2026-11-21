@@ -2,6 +2,7 @@ import { z } from 'zod';
 import {
   itemNumberSchema,
   listQuerySchema,
+  type ForgeFailure,
   type IssueDetailResult,
   type ListFilter,
   type ListPage,
@@ -39,19 +40,23 @@ export interface TabList<Item> {
  * each tab's rows and failure, and whether a request is running. */
 export type ForgeLists = { [T in ForgeListTab]: TabList<ForgeListItems[T]> } & { loading: boolean };
 
-/** The repositories a project can bind as the sidebar's binding pages show them: the forge's answer, or the reason the
- * read itself failed; null while it is being read. */
-export type ShownRepositoryChoices = RepositoryChoices | { ok: false; error: string } | null;
+/** The repositories a project can bind as the sidebar's binding pages show them: the forge's answer, a failure of the
+ * read itself standing as a transient one; null while it is being read. */
+export type ShownRepositoryChoices = RepositoryChoices | null;
 
 /** An issue or pull request of the bound repository, as the detail opens it. */
 export const detailItemSchema = z.object({ kind: z.enum(['issue', 'pullRequest']), number: itemNumberSchema });
 export type DetailItem = z.infer<typeof detailItemSchema>;
+/** Whether two items are the same issue or pull request; no item is the same as no item. */
+export const sameItem = (a: DetailItem | null, b: DetailItem | null) => a?.kind === b?.kind && a?.number === b?.number;
 /** What the forge answered for the detail's item: the issue or pull request, or the forge failure. */
 export type DetailResult = IssueDetailResult | PullRequestDetailResult;
-/** An item the sidebar's detail shows, and the forge's answer for it. */
+/** An item the sidebar's detail shows, the forge's answer for it, and the failure of a later read, which leaves that
+ * answer showing: the data may be stale. */
 export interface ShownDetail {
   item: DetailItem;
   result: DetailResult;
+  failed: ForgeFailure | null;
 }
 
 /** What the main process pushes about the Forge sidebar's data of a project. */

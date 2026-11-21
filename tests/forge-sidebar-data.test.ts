@@ -83,7 +83,7 @@ test('the repositories a project can bind are read once per call, only the lates
   const failing = data.showRepositoryChoices('alpha');
   reads[2].fail(new Error('Project missing'));
   await failing;
-  assert.deepEqual(choices(), { ok: false, error: 'Project missing' });
+  assert.deepEqual(choices(), { ok: false, failure: { kind: 'transient', detail: 'Project missing', forge } });
 });
 
 test('forgetting a project, as a binding change does, drops its lists and choices with the answers still on their way', async () => {
@@ -114,6 +114,7 @@ test('the detail pushes the answer for the item declared, and only the latest de
   assert.deepEqual(shownDetail(), {
     item: { kind: 'pullRequest', number: 12 },
     result: { ok: false, failure: { kind: 'transient', detail: 'No repository bound', forge } },
+    failed: null,
   });
   const closed = data.showDetail('alpha', { kind: 'issue', number: 4 });
   await data.showDetail('alpha', null);
@@ -195,6 +196,41 @@ test('a refresh reloads every page from the first through the one holding the la
   assert.equal(lists()?.loading, false);
 });
 
+test('after a background update adds rows, a refresh still reloads through the page holding the last row shown', async () => {
+  const { data, reads, readNumber, lists } = sidebarData();
+  const behind = { visible: true, foreground: false, projectId: 'alpha' };
+  await data.reportPresence(behind);
+  const shown = data.showList('alpha', { tab: 'issues', filter: openNoFilter });
+  reads[0].answer(page([1, 2], 'p2'));
+  await shown;
+  for (const [index, numbers, cursor] of [
+    [1, [3, 4], 'p3'],
+    [2, [5, 6], null],
+  ] as const) {
+    const more = data.loadMore('alpha');
+    reads[index].answer(page([...numbers], cursor));
+    await more;
+  }
+  const updated = data.reportPresence({ ...behind, foreground: true });
+  reads[3].answer(page([8, 7], 'p2'));
+  await updated;
+  await data.showRows('alpha', [5, 6]);
+  const refreshed = data.refresh('alpha');
+  // The rows the update added push each row after them down the forge's pages: rows 5 and 6 now sit on a fourth.
+  for (const [count, cursor, answer] of [
+    [5, null, page([8, 7], 'p2')],
+    [6, 'p2', page([1, 2], 'p3')],
+    [7, 'p3', page([3, 4], 'p4')],
+    [8, 'p4', page([5, 6], null)],
+  ] as const) {
+    const read = await readNumber(count);
+    assert.deepEqual(read.query, { filter: openNoFilter, cursor }, `page ${count - 4} is reloaded`);
+    read.answer(answer);
+  }
+  await refreshed;
+  assert.deepEqual(numbers(lists()), [8, 7, 1, 2, 3, 4, 5, 6], 'the rows shown are reloaded');
+});
+
 test('with no rows shown a refresh reloads the first page only', async () => {
   const { data, reads, lists } = sidebarData();
   const shown = data.showList('alpha', { tab: 'issues', filter: openNoFilter });
@@ -208,4 +244,36 @@ test('with no rows shown a refresh reloads the first page only', async () => {
   await refreshed;
   assert.equal(reads.length, 3);
   assert.deepEqual(numbers(lists()), [1]);
+});
+
+test('a failed reread of the open detail keeps its shown answer beside the failure; with none shown the failure shows', async () => {
+  const { data, reads, shownDetail } = sidebarData();
+  const item = { kind: 'issue', number: 3 } as const;
+  const failure = { kind: 'transient', detail: 'HTTP 502', forge } as const;
+  const failing = data.showDetail('alpha', item);
+  reads[0].answer({ ok: false, failure });
+  await failing;
+  assert.deepEqual(shownDetail(), { item, result: { ok: false, failure }, failed: null }, 'nothing is kept to show');
+  const opened = data.showDetail('alpha', item);
+  reads[1].answer(detail(3, 'Before'));
+  await opened;
+  const rereads = {
+    refresh: () => data.refresh('alpha'),
+    'direct action': () => data.reloadChanged('alpha', item),
+    'reopening the kept detail': () => data.showDetail('alpha', item),
+  };
+  for (const [reread, start] of Object.entries(rereads)) {
+    const settled = start();
+    reads.at(-1)!.answer({ ok: false, failure });
+    await settled;
+    assert.deepEqual(
+      shownDetail(),
+      { item, result: detail(3, 'Before'), failed: failure },
+      `after a failed ${reread} the shown answer stays, and may be stale`,
+    );
+  }
+  const updated = data.refresh('alpha');
+  reads.at(-1)!.answer(detail(3, 'After'));
+  await updated;
+  assert.deepEqual(shownDetail(), { item, result: detail(3, 'After'), failed: null }, 'the next answer clears it');
 });

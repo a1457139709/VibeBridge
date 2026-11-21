@@ -107,7 +107,10 @@ export function ForgeDetailPane({
       close();
     }
   };
-  const result = loaded?.item.kind === kind && loaded.item.number === number ? loaded.result : null;
+  const forItem = loaded?.item.kind === kind && loaded.item.number === number ? loaded : null;
+  const result = forItem?.result ?? null;
+  /** The failure of a later read, beside the answer still shown: the data may be stale. */
+  const stale = forItem?.failed ?? null;
   const shown = result?.ok ? ('issue' in result ? result.issue : result.pullRequest) : null;
   const run = async (action: DirectAction) => {
     setActionState({ running: action, failed: null });
@@ -165,6 +168,12 @@ export function ForgeDetailPane({
           ×
         </button>
       </header>
+      {stale && (
+        <div className="forge-stale" title={text(stale.detail)}>
+          <span>{t('dataMayBeStale')}</span>
+          <button onClick={retry}>{t('retry')}</button>
+        </div>
+      )}
       <div className="forge-detail-scroll" ref={scroller} tabIndex={-1}>
         {!result ? (
           <p className="forge-empty">{t('loadingDetail', { number })}</p>
