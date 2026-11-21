@@ -7,7 +7,7 @@ const edgeBand = 24;
 const sideNames = { top: 'sideTop', bottom: 'sideBottom', left: 'sideLeft', right: 'sideRight' } as const;
 
 // A frozen copy is only a paint surface. It never owns a terminal, input or a layout.
-function snapshot(element: HTMLElement) {
+function frozenCopy(element: HTMLElement) {
   const copy = element.cloneNode(true) as HTMLElement;
   copy.inert = true;
   copy.removeAttribute('id');
@@ -88,7 +88,7 @@ export function createDragPreview({
   panels,
   layout,
   tray,
-  consumed,
+  onDragStart,
   language = 'en',
 }: {
   event: PointerEvent;
@@ -101,7 +101,7 @@ export function createDragPreview({
   /** The tray, a drop target for a resident panel. */
   tray?: HTMLElement | null;
   language?: Language;
-  consumed(): void;
+  onDragStart(): void;
 }) {
   const { t } = localize(language);
   const original = structuredClone(layout);
@@ -114,7 +114,7 @@ export function createDragPreview({
       element,
       slot: slot.getBoundingClientRect(),
       box: element.getBoundingClientRect(),
-      image: snapshot(element),
+      image: frozenCopy(element),
     };
   });
   const resident = images.find(image => image.panel.id === source.id);
@@ -122,7 +122,7 @@ export function createDragPreview({
     panel: source,
     element: element!,
     box: element!.getBoundingClientRect(),
-    image: snapshot(element!),
+    image: frozenCopy(element!),
   };
   const agent = agentNames[source.agent];
   const trayArea = resident && tray ? tray.getBoundingClientRect() : undefined;
@@ -185,7 +185,7 @@ export function createDragPreview({
     element.append(
       resident
         ? layer(
-            snapshot(other.image),
+            frozenCopy(other.image),
             dragged.box,
             agentNames[other.panel.agent],
             `panel-preview-image ${other.panel.agent}`,
@@ -244,13 +244,13 @@ export function createDragPreview({
     if (!moving && Math.hypot(pointer.clientX - event.clientX, pointer.clientY - event.clientY) < 5) return;
     if (!moving) {
       moving = true;
-      consumed();
+      onDragStart();
       canvas.classList.add('dragging');
       if (!resident) canvas.classList.add('placing');
       for (const slot of covering) slot.classList.add('panel-drag-hidden');
       dragged.element.classList.add('panel-drag-hidden');
       ghost = layer(
-        snapshot(dragged.image),
+        frozenCopy(dragged.image),
         dragged.box,
         t('draggingPanel', { agent }),
         `panel-drag-image ${source.agent}`,

@@ -97,7 +97,7 @@ test("navigation reads each panel view's state, exposes all five states to keybo
     });
     return (
       <>
-        {navigation.toggle}
+        {navigation.toggleButton}
         {navigation.sidebar}
       </>
     );

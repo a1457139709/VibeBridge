@@ -15,7 +15,7 @@ import { SettingsPage, type SettingsPageActions } from './settings/SettingsPage'
 import { SettingsConflictDialog } from './settings/SettingsConflict';
 import { shortcutActions, shortcutFromEvent } from '../shared/settings/shortcuts';
 import type { SettingsCategory } from '../shared/settings/settings';
-import { configureTerminals, reconcileTerminals, terminalEvent, setTerminalLanguage } from './panels/terminals';
+import { configureTerminals, reconcileTerminals, applyTerminalEvent, setTerminalLanguage } from './panels/terminals';
 
 /** The application shell: system bar, project navigation, and the current page. */
 export function App() {
@@ -68,7 +68,7 @@ function WorkbenchView({ snapshot, setSnapshot }: { snapshot?: Snapshot; setSnap
             reconcileTerminals(event.snapshot.projects);
             flushSync(() => setSnapshot(event.snapshot));
           } else if (event.kind === 'error') report(event.message);
-          terminalEvent(event);
+          applyTerminalEvent(event);
         });
         await window.workbench.reportRendererReady();
       })
@@ -175,7 +175,7 @@ function WorkbenchView({ snapshot, setSnapshot }: { snapshot?: Snapshot; setSnap
         handled = true;
       } else if (action === 'toggleForgeSidebar') handled = forgeSidebar.toggle();
       else if (action === 'openDispatchMenu' || action === 'locateDispatchedPanel')
-        handled = forgeSidebar.handleIssueShortcut(action);
+        handled = forgeSidebar.runIssueShortcut(action);
       else if (
         !settingsOpen &&
         (action === 'nextProject' || action === 'previousProject') &&
@@ -199,7 +199,7 @@ function WorkbenchView({ snapshot, setSnapshot }: { snapshot?: Snapshot; setSnap
     <div className="app">
       <header className="system-bar">
         <div className="system-brand">
-          {navigation.toggle}
+          {navigation.toggleButton}
           <span className="wordmark">VibeBridge</span>
         </div>
         {forgeSidebar.button}

@@ -40,7 +40,7 @@ interface Props {
   /** Reports that a direct action changed `item`; the main process reloads what shows it. */
   reportChanged(item: DetailItem): void;
   /** Puts the sidebar in the failure state of a forge CLI found missing or logged out. */
-  forgeFailed(failure: ForgeFailure): void;
+  showForgeFailure(failure: ForgeFailure): void;
   /** An issue's Dispatch and Dispatch Records, as its detail shows them. */
   issueDispatch(issue: IssueDetail): IssueDispatch;
 }
@@ -66,7 +66,7 @@ export function ForgeDetailPane({
   open,
   retry,
   reportChanged,
-  forgeFailed,
+  showForgeFailure,
   issueDispatch,
 }: Props) {
   const { t, text } = useLocalization();
@@ -111,9 +111,9 @@ export function ForgeDetailPane({
   const result = forItem?.result ?? null;
   /** The failure of a later read, beside the answer still shown: the data may be stale. */
   const stale = forItem?.failed ?? null;
-  const shown = result?.ok ? ('issue' in result ? result.issue : result.pullRequest) : null;
-  const run = async (action: DirectAction) => {
-    setActionState({ running: action, failed: null });
+  const loadedItem = result?.ok ? ('issue' in result ? result.issue : result.pullRequest) : null;
+  const perform = async (action: DirectAction) => {
+    setActionState({ performing: action, failed: null });
     let result: DirectActionResult;
     // A failure outside the forge (the request itself) is shown like a transient one.
     try {
@@ -127,12 +127,13 @@ export function ForgeDetailPane({
     if (shownItem.current.kind !== kind || shownItem.current.number !== number) return;
     // On success the action stays running until the reloaded detail arrives.
     if (result.ok) reportChanged(item);
-    else if (result.failure.kind === 'notInstalled' || result.failure.kind === 'loggedOut') forgeFailed(result.failure);
-    else setActionState({ running: null, failed: { action, detail: result.failure.detail } });
+    else if (result.failure.kind === 'notInstalled' || result.failure.kind === 'loggedOut')
+      showForgeFailure(result.failure);
+    else setActionState({ performing: null, failed: { action, detail: result.failure.detail } });
   };
   const actions: Actions = {
     ...actionState,
-    run: action => void run(action),
+    perform: action => void perform(action),
     dismiss: () => setActionState(state => ({ ...state, failed: null })),
   };
   // Links in the forge's HTML: an issue or pull request of the bound repository opens here; the filter sends the rest to the browser.
@@ -159,8 +160,8 @@ export function ForgeDetailPane({
         </button>
         <span className="forge-detail-crumb">{t(kindText[kind].crumb, { number })}</span>
         <span className="forge-spacer" />
-        {shown && (
-          <a href={shown.url} target="_blank" rel="noreferrer">
+        {loadedItem && (
+          <a href={loadedItem.url} target="_blank" rel="noreferrer">
             {t('openOnForge', { forge: project.forge.name })}
           </a>
         )}

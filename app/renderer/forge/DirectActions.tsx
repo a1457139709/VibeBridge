@@ -12,13 +12,13 @@ import type {
 
 /** The direct action on the shown item that is running, and the last one that failed with the forge's text. */
 export interface ActionState {
-  running: DirectAction | null;
+  performing: DirectAction | null;
   failed: { action: DirectAction; detail: string } | null;
 }
-export const idleActions: ActionState = { running: null, failed: null };
+export const idleActions: ActionState = { performing: null, failed: null };
 /** The shown item's direct actions: what is running or failed, and how to run one or dismiss the failure. */
 export interface Actions extends ActionState {
-  run(action: DirectAction): void;
+  perform(action: DirectAction): void;
   dismiss(): void;
 }
 
@@ -51,7 +51,7 @@ export function ActionFailure({ actions }: { actions: Actions }) {
   return (
     <div className="forge-action-error" role="alert">
       <span>{t('actionFailed', { action: t(actionName(action)), reason: failed.detail })}</span>
-      <button className="forge-text-button" onClick={() => actions.run(action)}>
+      <button className="forge-text-button" onClick={() => actions.perform(action)}>
         {t('retry')}
       </button>
       <button
@@ -72,10 +72,10 @@ export function IssueActions({ issue, actions }: { issue: IssueDetail; actions: 
   const { t } = useLocalization();
   const menu = usePopover<HTMLSpanElement>();
   if (!issue.canWrite) return null;
-  const busy = actions.running !== null;
+  const busy = actions.performing !== null;
   const close = (reason: 'completed' | 'notPlanned') => {
     menu.setOpen(false);
-    actions.run({ kind: 'closeIssue', number: issue.number, reason });
+    actions.perform({ kind: 'closeIssue', number: issue.number, reason });
   };
   return (
     <div className="forge-issue-actions">
@@ -83,7 +83,7 @@ export function IssueActions({ issue, actions }: { issue: IssueDetail; actions: 
         <button
           className="forge-btn"
           disabled={busy}
-          onClick={() => actions.run({ kind: 'reopenIssue', number: issue.number })}
+          onClick={() => actions.perform({ kind: 'reopenIssue', number: issue.number })}
         >
           {busy ? t('actionWorking') : t('reopenIssue')}
         </button>
@@ -120,37 +120,31 @@ export function IssueActions({ issue, actions }: { issue: IssueDetail; actions: 
 }
 
 /** Reopening a closed pull request, in the merge area's closed row, for an account with write access. */
-export function ReopenPullRequest({
-  pullRequest: pull,
-  actions,
-}: {
-  pullRequest: PullRequestDetail;
-  actions: Actions;
-}) {
+export function ReopenPullRequest({ pullRequest, actions }: { pullRequest: PullRequestDetail; actions: Actions }) {
   const { t } = useLocalization();
-  if (!pull.canWrite || pull.state !== 'closed') return null;
+  if (!pullRequest.canWrite || pullRequest.state !== 'closed') return null;
   return (
     <button
       className="forge-btn"
-      disabled={actions.running !== null}
-      onClick={() => actions.run({ kind: 'reopenPullRequest', number: pull.number })}
+      disabled={actions.performing !== null}
+      onClick={() => actions.perform({ kind: 'reopenPullRequest', number: pullRequest.number })}
     >
-      {actions.running ? t('actionWorking') : t('reopenPullRequest')}
+      {actions.performing ? t('actionWorking') : t('reopenPullRequest')}
     </button>
   );
 }
 
 /** What keeps an open pull request from merging, as the forge reports it: a draft, conflicts, required checks, the review. */
 function mergeBlockedReasons(
-  pull: PullRequestDetail,
+  pullRequest: PullRequestDetail,
   capabilities: ForgeCapabilities,
   t: ReturnType<typeof useLocalization>['t'],
 ) {
-  const required = pull.checks.filter(check => capabilities.requiredChecks && check.required);
-  const { state: review, requiredApprovals } = pull.review;
+  const required = pullRequest.checks.filter(check => capabilities.requiredChecks && check.required);
+  const { state: review, requiredApprovals } = pullRequest.review;
   return [
-    pull.state === 'draft' && t('mergeBlockedDraft'),
-    pull.conflicts === 'conflicting' && t('mergeBlockedConflicts'),
+    pullRequest.state === 'draft' && t('mergeBlockedDraft'),
+    pullRequest.conflicts === 'conflicting' && t('mergeBlockedConflicts'),
     required.some(check => check.result === 'failed')
       ? t('mergeBlockedChecksFailing')
       : required.some(check => check.result === 'pending') && t('mergeBlockedChecksRunning'),
@@ -166,7 +160,7 @@ function mergeBlockedReasons(
  * default commit message. A blocked merge is greyed with its reasons; a repository that merges through a merge queue is
  * left to the forge. Close PR is on the right. */
 export function PullRequestActions({
-  pullRequest: pull,
+  pullRequest,
   capabilities,
   forge,
   actions,
@@ -180,11 +174,11 @@ export function PullRequestActions({
   const menu = usePopover<HTMLSpanElement>();
   const [confirming, setConfirming] = useState(false);
   const [chosen, setChosen] = useState(lastMergeMethod);
-  if (!pull.canWrite) return null;
-  const busy = actions.running !== null;
-  const methods = pull.mergeOptions.methods.filter(method => capabilities.mergeMethods.includes(method));
+  if (!pullRequest.canWrite) return null;
+  const busy = actions.performing !== null;
+  const methods = pullRequest.mergeOptions.methods.filter(method => capabilities.mergeMethods.includes(method));
   const method = chosen && methods.includes(chosen) ? chosen : (methods[0] ?? null);
-  const reasons = mergeBlockedReasons(pull, capabilities, t);
+  const reasons = mergeBlockedReasons(pullRequest, capabilities, t);
   const blocked = !!reasons.length || !method;
   const choose = (next: MergeMethod) => {
     lastMergeMethod = next;
@@ -196,10 +190,10 @@ export function PullRequestActions({
     if (!method) return;
     if (!confirming) return setConfirming(true);
     setConfirming(false);
-    actions.run({ kind: 'merge', number: pull.number, method });
+    actions.perform({ kind: 'merge', number: pullRequest.number, method });
   };
   const mainLabel =
-    actions.running?.kind === 'merge'
+    actions.performing?.kind === 'merge'
       ? t('merging')
       : !method
         ? t('mergeButton')
@@ -209,13 +203,13 @@ export function PullRequestActions({
   return (
     <div className="forge-merge-actions">
       <div className="forge-merge-buttons">
-        {capabilities.mergeQueue && pull.mergeOptions.queue ? (
+        {capabilities.mergeQueue && pullRequest.mergeOptions.queue ? (
           <span className="forge-merge-why">
             <button className="forge-btn" disabled>
               {t('mergeButton')}
             </button>
             {t('mergeQueueNote')}
-            <a href={pull.url} target="_blank" rel="noreferrer">
+            <a href={pullRequest.url} target="_blank" rel="noreferrer">
               {t('openOnForge', { forge })}
             </a>
           </span>
@@ -252,9 +246,9 @@ export function PullRequestActions({
         <button
           className="forge-btn"
           disabled={busy}
-          onClick={() => actions.run({ kind: 'closePullRequest', number: pull.number })}
+          onClick={() => actions.perform({ kind: 'closePullRequest', number: pullRequest.number })}
         >
-          {actions.running?.kind === 'closePullRequest' ? t('actionWorking') : t('closePullRequest')}
+          {actions.performing?.kind === 'closePullRequest' ? t('actionWorking') : t('closePullRequest')}
         </button>
       </div>
       <ActionFailure actions={actions} />

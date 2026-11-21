@@ -90,7 +90,7 @@ export function useSidebarPreferences(options: Options) {
     save(operation, next);
     return next.visible;
   }
-  function resize(event: PointerEvent<HTMLElement>) {
+  function startResize(event: PointerEvent<HTMLElement>) {
     if (!latest.current.snapshot || event.button !== 0) return;
     event.preventDefault();
     const { sidebar: current, edge } = latest.current;
@@ -122,5 +122,5 @@ export function useSidebarPreferences(options: Options) {
     cancelResize.current = cancel;
     window.addEventListener('blur', cancel);
   }
-  return { preferences, toggle, resize };
+  return { preferences, toggle, startResize };
 }

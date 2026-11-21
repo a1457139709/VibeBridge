@@ -87,7 +87,7 @@ export function UnboundRepository({ project }: { project: ProjectView }) {
   const [choosingOther, setChoosingOther] = useState(false);
   const [picked, setPicked] = useState<RepositoryReference>();
   const call = useBindingCall();
-  const backToCard = useFocusHandoff();
+  const cardFocus = useFocusHandoff();
   // A list that failed to load offers nothing to bind, whatever was picked before.
   const selection = listed ? (picked ?? listed.origin ?? null) : null;
   const bind = (repository: RepositoryReference) =>
@@ -111,7 +111,7 @@ export function UnboundRepository({ project }: { project: ProjectView }) {
         <button className="primary" disabled={call.busy} onClick={() => bind(origin)}>
           {call.busy ? t('binding') : t('bindTo', { repository: origin.path })}
         </button>
-        <button className="binding-link" ref={backToCard.ref} onClick={() => setChoosingOther(true)}>
+        <button className="binding-link" ref={cardFocus.ref} onClick={() => setChoosingOther(true)}>
           {t('chooseOtherRepository')}
         </button>
       </div>
@@ -126,7 +126,7 @@ export function UnboundRepository({ project }: { project: ProjectView }) {
         <button
           className="binding-link"
           onClick={() => {
-            backToCard.request();
+            cardFocus.request();
             setChoosingOther(false);
             setPicked(undefined);
           }}
@@ -169,7 +169,7 @@ export function ChangeBinding({
   const [picked, setPicked] = useState<RepositoryReference>();
   const [unbinding, setUnbinding] = useState(false);
   const call = useBindingCall();
-  const toggleUnbinding = useFocusHandoff();
+  const unbindFocus = useFocusHandoff();
   const rebindTarget = listed && picked && !sameRepository(picked, boundRepository) ? picked : undefined;
   let consequence: ReactNode = null;
   if (unbinding)
@@ -214,10 +214,10 @@ export function ChangeBinding({
           <>
             <span className="binding-spacer" />
             <button
-              ref={toggleUnbinding.ref}
+              ref={unbindFocus.ref}
               disabled={call.busy}
               onClick={() => {
-                toggleUnbinding.request();
+                unbindFocus.request();
                 setUnbinding(false);
               }}
             >
@@ -235,10 +235,10 @@ export function ChangeBinding({
           <>
             <button
               className="binding-link danger"
-              ref={toggleUnbinding.ref}
+              ref={unbindFocus.ref}
               disabled={call.busy}
               onClick={() => {
-                toggleUnbinding.request();
+                unbindFocus.request();
                 setPicked(undefined);
                 setUnbinding(true);
               }}

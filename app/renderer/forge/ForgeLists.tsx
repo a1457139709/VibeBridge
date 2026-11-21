@@ -105,8 +105,8 @@ export const openListsView: ListsView = {
 
 /** The detail's resize edge, owned by the sidebar, and where it reports whether a detail is open. */
 export interface DetailHost {
-  resize(event: ReactPointerEvent<HTMLDivElement>): void;
-  shown(open: boolean): void;
+  startResize(event: ReactPointerEvent<HTMLDivElement>): void;
+  onDetailOpenChange(open: boolean): void;
 }
 
 interface Props {
@@ -115,7 +115,7 @@ interface Props {
   changeBinding(): void;
   detailHost: DetailHost;
   /** Dispatching from an issue row or its detail; the lists add what happens once a dispatch went through. */
-  dispatchHost: Omit<DispatchHost, 'dispatched'>;
+  dispatchHost: Omit<DispatchHost, 'onDispatched'>;
   /** The tab and filters the lists last showed for this project and binding, and where they report a change. */
   view: ListsView;
   rememberView(view: ListsView): void;
@@ -127,7 +127,7 @@ export interface ForgeListsActions {
   /** Acts on the issue focus is on, its list row or the detail showing it: opens the dispatch menu of an open issue
    * where focus is, on its row or in the detail, or locates the panel of its latest dispatch a panel is on. Returns
    * false, leaving the key to go on, when there is no such issue. */
-  handleIssueShortcut(action: IssueShortcutAction): boolean;
+  runIssueShortcut(action: IssueShortcutAction): boolean;
 }
 
 /** The bound repository's lists: a persistent Refresh, the Issues and Pull requests tabs, each with its own
@@ -151,18 +151,18 @@ export function ForgeLists({ project, changeBinding, detailHost, dispatchHost, v
   const declared = useRef<Record<ForgeListTab, ListFilter | null>>({ issues: null, pullRequests: null });
   /** The items opened in the detail, the shown one last; empty when the detail is closed. */
   const [opened, setOpened] = useState<DetailItem[]>([]);
-  const shown = opened.at(-1);
-  const detailOpen = shown !== undefined;
+  const detailItem = opened.at(-1);
+  const detailOpen = detailItem !== undefined;
   useEffect(() => {
-    detailHost.shown(detailOpen);
-    return () => detailHost.shown(false);
+    detailHost.onDetailOpenChange(detailOpen);
+    return () => detailHost.onDetailOpenChange(false);
   }, [detailOpen]);
   const openItem = (item: DetailItem) =>
     setOpened(stack =>
       stack.at(-1)?.kind === item.kind && stack.at(-1)?.number === item.number ? stack : [...stack, item],
     );
   /** The number of the item of `kind` the detail shows, if any. */
-  const selected = (kind: DetailItem['kind']) => (shown?.kind === kind ? shown.number : undefined);
+  const selected = (kind: DetailItem['kind']) => (detailItem?.kind === kind ? detailItem.number : undefined);
 
   /** Sends a declaration to the main process; one that is refused is reported. */
   const declare = (declaration: Promise<void>) =>
@@ -186,10 +186,10 @@ export function ForgeLists({ project, changeBinding, detailHost, dispatchHost, v
     declare(window.workbench.showForgeDetail(project.id, item));
   };
   useEffect(() => {
-    const item = shown ? { kind: shown.kind, number: shown.number } : null;
+    const item = detailItem ? { kind: detailItem.kind, number: detailItem.number } : null;
     const last = declaredDetail.current;
     if (item?.kind !== last?.kind || item?.number !== last?.number) showDetail(item);
-  }, [shown?.kind, shown?.number]);
+  }, [detailItem?.kind, detailItem?.number]);
   useRowResting(scrollElement, item => declare(window.workbench.reportForgeRowResting(project.id, item)));
   /** Reports that a direct action or dispatch changed `item`; the main process reloads what shows it. */
   const reportChanged = (item: DetailItem) => declare(window.workbench.reportForgeItemChanged(project.id, item));
@@ -201,7 +201,7 @@ export function ForgeLists({ project, changeBinding, detailHost, dispatchHost, v
     // Filling a panel closes the detail, as focus moves into that panel, before the change is reported.
     const host: DispatchHost = {
       ...dispatchHost,
-      dispatched(delivery) {
+      onDispatched(delivery) {
         if (delivery === 'fill') {
           setOpened([]);
           showDetail(null);
@@ -237,11 +237,12 @@ export function ForgeLists({ project, changeBinding, detailHost, dispatchHost, v
     host: dispatchHost,
   });
   useImperativeHandle(ref, () => ({
-    handleIssueShortcut(action) {
+    runIssueShortcut(action) {
       const focus = document.activeElement;
       const focusedRow = issueRowOf(focus);
       const detailPane = focusedRow ? null : focus?.closest<HTMLElement>('.forge-detail');
-      const issueNumber = focusedRow?.number ?? (detailPane && shown?.kind === 'issue' ? shown.number : undefined);
+      const issueNumber =
+        focusedRow?.number ?? (detailPane && detailItem?.kind === 'issue' ? detailItem.number : undefined);
       if (issueNumber === undefined) return false;
       if (action === 'locateDispatchedPanel') {
         const location = latestLocatableRecord(dispatchRecordsOf(issueNumber))?.location;
@@ -281,7 +282,7 @@ export function ForgeLists({ project, changeBinding, detailHost, dispatchHost, v
     if (only?.kind === item.kind && only.number === item.number) closeDetail();
     else setOpened([item]);
   };
-  const forgeFailed = (failure: ForgeFailure) => setDetailFailure({ ok: false, failure, account: null });
+  const showForgeFailure = (failure: ForgeFailure) => setDetailFailure({ ok: false, failure, account: null });
 
   // The current tab is declared when it shows and whenever its filter changes; typing in the search settles first.
   useEffect(() => {
@@ -417,12 +418,12 @@ export function ForgeLists({ project, changeBinding, detailHost, dispatchHost, v
           <IssueTree
             rowsHost={rowsHost}
             issues={lists.issues.loaded.items}
-            state={lists.issues.loaded.filter.state}
+            listState={lists.issues.loaded.filter.state}
             capabilities={project.capabilities}
             selected={selected('issue')}
             open={number => openFromList({ kind: 'issue', number })}
             addLabel={addLabel}
-            action={issueAction}
+            renderAction={issueAction}
           />
         )}
         {lists.pullRequests.loaded && tab === 'pullRequests' && (
@@ -458,18 +459,18 @@ export function ForgeLists({ project, changeBinding, detailHost, dispatchHost, v
           </button>
         )}
       </div>
-      {shown && (
+      {detailItem && (
         <ForgeDetailPane
           project={project}
-          item={shown}
-          resize={detailHost.resize}
+          item={detailItem}
+          resize={detailHost.startResize}
           canBack={opened.length > 1}
           back={() => setOpened(stack => stack.slice(0, -1))}
           close={closeDetail}
           open={openItem}
-          retry={() => showDetail(shown)}
+          retry={() => showDetail(detailItem)}
           reportChanged={reportChanged}
-          forgeFailed={forgeFailed}
+          showForgeFailure={showForgeFailure}
           issueDispatch={issueDispatch}
         />
       )}

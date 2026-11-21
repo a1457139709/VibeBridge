@@ -58,7 +58,7 @@ export function panelMinimumSize(panel: HTMLElement) {
   return panelMetrics(panel).minimum;
 }
 
-export function measurePanel(container: HTMLElement, runId?: string) {
+export function applyCompactLayout(container: HTMLElement, runId?: string) {
   const panel = container.closest<HTMLElement>('.agent-panel')!;
   // A hidden settings/project view has no layout, not a genuinely tiny panel.
   if (!panel.getClientRects().length) return;
