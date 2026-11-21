@@ -27,16 +27,18 @@ export function useSidebarPreferences(options: Options) {
   const latest = useRef(options);
   latest.current = options;
   const [preferences, setPreferences] = useState<SidebarPreferences>(defaults);
-  const confirmed = useRef<SidebarPreferences>(defaults);
-  const knownSaved = useRef<SidebarPreferences>(defaults);
+  /** The preferences no operation is changing: the base of the next toggle or resize, shown when none is pending. */
+  const settled = useRef<SidebarPreferences>(defaults);
+  /** The preferences the main process last stored, which a pending operation falls back to when it fails. */
+  const stored = useRef<SidebarPreferences>(defaults);
   const initialized = useRef(false);
   const pending = useRef<object | undefined>(undefined);
   const cancelResize = useRef<(() => void) | undefined>(undefined);
   useLayoutEffect(() => {
     if (snapshot && !initialized.current) {
       initialized.current = true;
-      confirmed.current = knownSaved.current = snapshot[sidebar];
-      setPreferences(confirmed.current);
+      settled.current = stored.current = snapshot[sidebar];
+      setPreferences(settled.current);
     }
   }, [snapshot]);
   useLayoutEffect(() => {
@@ -45,10 +47,10 @@ export function useSidebarPreferences(options: Options) {
     const unsubscribe = subscribe(event => {
       if (event.kind !== 'snapshot') return;
       initialized.current = true;
-      knownSaved.current = event.snapshot[latest.current.sidebar];
+      stored.current = event.snapshot[latest.current.sidebar];
       if (!pending.current) {
-        confirmed.current = knownSaved.current;
-        setPreferences(confirmed.current);
+        settled.current = stored.current;
+        setPreferences(settled.current);
       }
     });
     return () => {
@@ -70,21 +72,21 @@ export function useSidebarPreferences(options: Options) {
       .then(() => {
         if (pending.current !== operation) return;
         pending.current = undefined;
-        confirmed.current = knownSaved.current = next;
+        settled.current = stored.current = next;
         setPreferences(next);
       })
       .catch(error => {
         if (pending.current !== operation) return;
         pending.current = undefined;
-        confirmed.current = knownSaved.current;
-        setPreferences(confirmed.current);
+        settled.current = stored.current;
+        setPreferences(settled.current);
         latest.current.report(error.message);
       });
   }
   /** Shows or hides the sidebar; returns whether it is now visible. */
   function toggle() {
     if (!latest.current.snapshot) return preferences.visible;
-    const next = { ...confirmed.current, visible: !preferences.visible };
+    const next = { ...settled.current, visible: !preferences.visible };
     const operation = replaceOperation();
     setPreferences(next);
     save(operation, next);
@@ -98,7 +100,7 @@ export function useSidebarPreferences(options: Options) {
     const widest = latest.current.widestOnResize(current);
     const bounded = (width: number) => draggedWidth(width, minWidth, widest);
     const operation = replaceOperation();
-    const base = confirmed.current;
+    const base = settled.current;
     const element = event.currentTarget,
       start = event.clientX;
     const width = element.parentElement!.getBoundingClientRect().width;
@@ -114,8 +116,8 @@ export function useSidebarPreferences(options: Options) {
       if (commit) save(operation, { ...base, width: next });
       else {
         pending.current = undefined;
-        confirmed.current = knownSaved.current;
-        setPreferences(confirmed.current);
+        settled.current = stored.current;
+        setPreferences(settled.current);
       }
     };
     const cancel = capturePointer(element, event.pointerId, { move, finish });
