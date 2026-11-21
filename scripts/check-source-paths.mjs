@@ -5,12 +5,12 @@ import ts from 'typescript';
 const issuePath = /(?:^|[\\/])issue[-_]\d+(?=$|[\\/._-])/i;
 const failures = [];
 
-async function checkDirectory(directory) {
+async function checkSourcePaths(directory) {
   const entries = await readdir(directory, { withFileTypes: true });
   for (const entry of entries) {
     const file = join(directory, entry.name);
     if (entry.isDirectory()) {
-      await checkDirectory(file);
+      await checkSourcePaths(file);
     } else if (entry.isFile() && /\.(?:[cm]?[jt]s|[jt]sx)$/.test(entry.name)) {
       if (issuePath.test(file)) failures.push(`${file}: name files by their responsibility.`);
       const source = ts.createSourceFile(file, await readFile(file, 'utf8'), ts.ScriptTarget.Latest, true);
@@ -35,7 +35,7 @@ async function checkDirectory(directory) {
 }
 
 try {
-  for (const directory of ['app', 'tests', 'scripts']) await checkDirectory(directory);
+  for (const directory of ['app', 'tests', 'scripts']) await checkSourcePaths(directory);
   if (failures.length) {
     console.error(
       `Issue-numbered local paths are not allowed in source files:\n${failures.join('\n')}\nUse feature or scenario names; keep issue references in links or comments.`,

@@ -14,7 +14,7 @@ const fieldCall = node =>
   node.expression.expression.expression.kind === ts.SyntaxKind.ThisKeyword;
 
 /** A method whose body is one call on a field, as a return or a statement, forwards a call it adds nothing to. */
-function forwarders(source) {
+function findForwarders(source) {
   const found = [];
   const visit = node => {
     if (ts.isMethodDeclaration(node) && node.body?.statements.length === 1) {
@@ -33,7 +33,7 @@ function forwarders(source) {
 
 async function checkWorkbench() {
   const source = ts.createSourceFile(workbench, await readFile(workbench, 'utf8'), ts.ScriptTarget.Latest, true);
-  for (const { node, target } of forwarders(source)) {
+  for (const { node, target } of findForwarders(source)) {
     const { line } = source.getLineAndCharacterOfPosition(node.getStart(source));
     failures.push(`${workbench}:${line + 1}: ${node.name.getText(source)} only forwards to ${target}`);
   }
