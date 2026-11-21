@@ -20,18 +20,18 @@ const runtime = globalThis as typeof globalThis & { [key]?: Map<string, Delivery
  * decisions or child-session subscriptions are installed by this observer.
  */
 export default function install(pi: ExtensionAPI) {
-  const context = reportingContext('pi');
-  if (!context) return;
+  const reporting = reportingContext('pi');
+  if (!reporting) return;
   // Pi /reload can replace the extension module within the same process. Keep
   // one delivery queue for this launch across those loads, so reports stay in order.
   const deliveries = (runtime[key] ??= new Map());
-  let delivery = deliveries.get(context.token);
+  let delivery = deliveries.get(reporting.token);
   if (!delivery) {
     delivery = { pending: Promise.resolve(), lost: false };
-    deliveries.set(context.token, delivery);
+    deliveries.set(reporting.token, delivery);
   }
   const source = delivery;
-  const send = (payload: Payload) => report(context, payload);
+  const send = (payload: Payload) => report(reporting, payload);
   const events = [
     'session_start',
     'session_switch',
@@ -51,10 +51,10 @@ export default function install(pi: ExtensionAPI) {
     'session_compact_failed',
   ];
   for (const name of events)
-    pi.on(name, (event, ctx) => {
+    pi.on(name, (event, piContext) => {
       let payload: Payload;
       try {
-        payload = { type: event.type, isIdle: ctx.isIdle(), hasPendingMessages: ctx.hasPendingMessages() };
+        payload = { type: event.type, isIdle: piContext.isIdle(), hasPendingMessages: piContext.hasPendingMessages() };
         if (name === 'message_end') {
           const message = event.message as Payload | undefined;
           payload.message = { role: message?.role, stopReason: message?.stopReason };
@@ -78,7 +78,7 @@ export default function install(pi: ExtensionAPI) {
       if (!('observation' in payload) && name !== 'session_shutdown') {
         // The session ID only locates the run's panel; a context that cannot name it still reports status.
         try {
-          payload.sessionId = ctx.sessionManager.getSessionId();
+          payload.sessionId = piContext.sessionManager.getSessionId();
         } catch {}
       }
       // UI lifecycle callbacks are not awaited by Pi. Enqueue synchronously so

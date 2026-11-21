@@ -73,7 +73,7 @@ async function readAndReport(context: ReportingContext, select: (raw: Payload) =
 /** A short-lived command-hook reporter: no hook decisions, output, model context or background
  * process. Observation failure never rejects input or keeps a turn alive.
  */
-export function reportCommandHook(agent: string, select: (raw: Payload) => Payload) {
+export function runCommandHookReporter(agent: string, select: (raw: Payload) => Payload) {
   const context = reportingContext(agent);
   void (context ? readAndReport(context, select) : Promise.resolve()).catch(() => {}).finally(() => process.exit(0));
 }
