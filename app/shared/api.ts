@@ -39,7 +39,8 @@ export interface DesktopAPI {
    * that view at once, and loads or updates them, as `forgeLists` events. Resolves once they settled. */
   showForgeList(projectId: string, view: ForgeListView): Promise<void>;
   /** Reports whether the Forge sidebar shows the project's lists and whether the window is in the foreground; the main
-   * process updates them in the background when they come to show. A hidden project's detail closes. */
+   * process updates them in the background when they come to show, and every 5 minutes while they show. A hidden
+   * project's detail closes. */
   reportForgeSidebarPresence(presence: ForgeSidebarPresence): Promise<void>;
   /** Appends the next page of the rows shown, in the filter that produced them. */
   loadMoreForgeList(projectId: string): Promise<void>;

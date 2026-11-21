@@ -16,6 +16,7 @@ import {
 } from '../../shared/forge/sidebar-data';
 import { KeptDetails } from './kept-details';
 import { RowRest } from './row-rest';
+import { BackgroundUpdates } from './background-updates';
 import { readByNumber, readItem, readPage, type ForgeSidebarSources } from './sidebar-reads';
 
 /** The projects whose lists are kept, the most recently shown. */
@@ -70,9 +71,10 @@ export function updatedInPlace<Item extends { number: number }>(rows: Item[], fr
  *
  * It keeps, in memory only, the lists of the 5 projects shown last (each tab with the rows of its latest filter) and the
  * 50 details used last. A declaration shows what is kept at once. When the sidebar comes to show a project in the
- * foreground, the data updates in the background, in place: the shown tab's first page, the rows the sidebar renders
- * read by number, and the open detail, asked at once. Nothing updates while the sidebar is hidden or its window is
- * behind. Only the latest request of a project settles its lists, and its detail. A list row the pointer or focus rests on 150ms while the
+ * foreground, and every 5 minutes while it shows it there, the data updates in the background, in place: the shown
+ * tab's first page, the rows the sidebar renders read by number, and the open detail, asked at once. Nothing updates
+ * while the sidebar is hidden or its window is behind, and an update reported while one runs joins it. Only the latest
+ * request of a project settles its lists, and its detail. A list row the pointer or focus rests on 150ms while the
  * sidebar shows its project in the foreground has its detail read ahead into the kept details, unless kept already, so
  * opening it shows at once. */
 export class ForgeSidebarData {
@@ -83,13 +85,15 @@ export class ForgeSidebarData {
   /** Each project's binding, counted up when it changes: an answer for an earlier one is not kept. */
   private bindings = new Map<string, number>();
   private presence: ForgeSidebarPresence | null = null;
+  private updates = new BackgroundUpdates(projectId => this.update(projectId));
   /** The row the pointer or focus rests on, until its detail is read ahead. */
   private rowRest = new RowRest();
   constructor(private sources: ForgeSidebarSources) {}
 
   /** Takes whether the sidebar shows the project's lists and whether its window is in the foreground. When the sidebar
    * comes to show a project in the foreground (shown, returned to, or the window back in front), its shown tab's first
-   * page, rendered rows and open detail update in the background; resolves once they settled. A hidden project's detail closes. */
+   * page, rendered rows and open detail update in the background, and again every 5 minutes while it shows there;
+   * resolves once they settled. A hidden project's detail closes. */
   async reportPresence(presence: ForgeSidebarPresence) {
     const reported = forgeSidebarPresenceSchema.parse(presence);
     if (!reported.visible) this.openDetails.delete(reported.projectId);
@@ -98,7 +102,7 @@ export class ForgeSidebarData {
     const before = this.watched();
     this.presence = reported;
     const watched = this.watched();
-    if (watched !== null && watched !== before) await this.update(watched);
+    if (watched !== before) await this.updates.watch(watched);
   }
   /** Shows the project's lists on `view`: its tab and filter. Rows kept for that tab and filter show at once; the same
    * view as last declared asks nothing more, another updates them in the background, and without rows the first page
@@ -201,6 +205,7 @@ export class ForgeSidebarData {
   forget(projectId: string) {
     this.bindings.set(projectId, (this.bindings.get(projectId) ?? 0) + 1);
     this.lists.delete(projectId);
+    this.updates.forget(projectId);
     this.openDetails.delete(projectId);
     this.choices.delete(projectId);
     this.details.forget(projectId);
