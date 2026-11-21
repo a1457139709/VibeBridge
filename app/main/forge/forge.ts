@@ -59,7 +59,7 @@ export interface Forge {
   /** The repository path on the host this `origin` URL points at, or null when it points elsewhere. */
   remotePath(host: string, originUrl: string): string | null;
   /** The entry of `paths` that names the same path as `path`, in its listed spelling, or null. */
-  find(path: string, paths: string[]): string | null;
+  matchListedPath(path: string, paths: string[]): string | null;
   /** The repository's current path, found by its ID wherever a rename or transfer moved it, for when a read at its path
    * found no repository or another one. Throws `inaccessible` when the repository is gone or the account cannot see it,
    * also when another repository has taken its path. */

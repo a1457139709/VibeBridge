@@ -1,7 +1,7 @@
 import { detail, message } from '../../shared/messages';
 import { sameRepository, type RepositoryChoices, type RepositoryReference } from '../../shared/forge/forge';
-import type { Bound } from './results';
-import { listedRepository, repositoryChoices, RepositoryListUnreadable } from './repositories';
+import type { BoundRepository } from './results';
+import { currentListedReference, repositoryChoices, RepositoryListUnreadable } from './repositories';
 import { defaultForge, forges } from './forges';
 import type { ProjectStore } from '../persistence/storage';
 
@@ -33,7 +33,7 @@ export class RepositoryBindings {
     return repository;
   }
   /** The project's bound repository for a forge call, which calls `follow` when the forge finds it at another path. */
-  forForgeCall(projectId: string, follow: (found: RepositoryReference) => void): Bound {
+  forForgeCall(projectId: string, follow: (found: RepositoryReference) => void): BoundRepository {
     return { repository: this.require(projectId), follow };
   }
   /** The repositories the project can bind, with the one that `origin` of `directory` (the directory as the user is
@@ -52,7 +52,7 @@ export class RepositoryBindings {
   /** The repository as a fresh list from its forge shows it, for `bind`; throws when the list cannot be read or does
    * not show it. */
   async findListed(repository: RepositoryReference) {
-    return listedRepository(repository).catch((error: unknown): never => {
+    return currentListedReference(repository).catch((error: unknown): never => {
       if (error instanceof RepositoryListUnreadable)
         throw new Error(message('bindListFailed', { reason: detail(error.reason) }));
       throw error;

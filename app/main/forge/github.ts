@@ -31,7 +31,7 @@ import {
   answeringSchema,
 } from './github-fields';
 import { issueDetail } from './github-issue';
-import { pullRequestDetail } from './github-pull-request';
+import { fetchPullRequestDetail } from './github-pull-request';
 
 const pageSize = 25;
 const repositorySchema = z.object({ nameWithOwner: z.string() });
@@ -317,7 +317,7 @@ export const github: Forge = {
   issueUrl({ host, path }, number) {
     return `https://${host}/${path}/issues/${number}`;
   },
-  find(path, paths) {
+  matchListedPath(path, paths) {
     return paths.find(listed => samePath(listed, path)) ?? null;
   },
   async locate({ host, id, path }) {
@@ -365,7 +365,7 @@ export const github: Forge = {
     return answered(read.repository, read.items.map(listedPullRequest));
   },
   issue: issueDetail,
-  pullRequest: pullRequestDetail,
+  pullRequest: fetchPullRequestDetail,
   async act({ host, path }, action) {
     const { stdout, stderr } = await ghOutput(host, [...actionArgs(action), '--repo', path]);
     return [stdout.trim(), stderr.trim()].filter(Boolean).join('\n');

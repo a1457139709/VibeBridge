@@ -46,17 +46,18 @@ export const answeredBy = (repository: { databaseId: number; nameWithOwner: stri
   path: repository.nameWithOwner,
 });
 
-const checksConclusion: Record<z.infer<typeof checksState>, ChecksConclusion> = {
+/** What a GitHub status state means for a check or a commit's checks. */
+export const statusStateResult = {
   SUCCESS: 'passed',
   FAILURE: 'failed',
   ERROR: 'failed',
   PENDING: 'pending',
   EXPECTED: 'pending',
-};
+} as const satisfies Record<z.infer<typeof checksState>, ChecksConclusion>;
 /** The checks conclusion of a pull request's latest commit, from its status check rollup. */
 export const latestChecks = (commits: {
   nodes: { commit: { statusCheckRollup: { state: z.infer<typeof checksState> } | null } }[];
 }): ChecksConclusion => {
   const rollup = commits.nodes[0]?.commit.statusCheckRollup;
-  return rollup ? checksConclusion[rollup.state] : 'none';
+  return rollup ? statusStateResult[rollup.state] : 'none';
 };

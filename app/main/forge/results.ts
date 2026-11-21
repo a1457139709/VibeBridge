@@ -20,14 +20,14 @@ import { ForgeError, type Answered, type Forge } from './forge';
 
 /** A bound repository a call is made on, and `follow`, which moves the binding to where the forge found the repository
  * when that is another path. */
-export interface Bound {
+export interface BoundRepository {
   repository: RepositoryReference;
   follow(found: RepositoryReference): void;
 }
 
 /** Runs `call` on the bound repository's forge; a ForgeError becomes that forge's failure, with what `onFailure` adds. */
 async function fromForge<T, F extends object>(
-  bound: Bound,
+  bound: BoundRepository,
   call: (forge: Forge) => Promise<T>,
   onFailure: (forge: Forge, error: ForgeError, repository: RepositoryReference) => Promise<F>,
 ): Promise<({ ok: true } & T) | ({ ok: false; failure: ForgeFailure } & F)> {
@@ -50,7 +50,7 @@ const otherRepositoryAt = (path: string) => new ForgeError('inaccessible', messa
  * search above all, is not trusted. */
 async function readChecked<T>(
   forge: Forge,
-  bound: Bound,
+  bound: BoundRepository,
   read: (repository: RepositoryReference) => Promise<Answered<T>>,
 ): Promise<T> {
   const { repository } = bound;
@@ -73,35 +73,35 @@ async function readChecked<T>(
 }
 
 /** An inaccessible repository is reported with the active account, so the user can tell which account lacks access. */
-const listFailure = async (forge: Forge, error: ForgeError, repository: RepositoryReference) => ({
+const accountWhenInaccessible = async (forge: Forge, error: ForgeError, repository: RepositoryReference) => ({
   account: error.kind === 'inaccessible' ? await forge.account(repository.host).catch(() => null) : null,
 });
 const nothingMore = async () => ({});
 
 /** One page of the repository's issues from its forge, or the forge failure. */
-export async function issuePage(bound: Bound, query: ListQuery): Promise<IssuePage> {
+export async function issuePage(bound: BoundRepository, query: ListQuery): Promise<IssuePage> {
   const asked = listQuerySchema.parse(query);
   return fromForge(
     bound,
     forge => readChecked(forge, bound, repository => forge.issues(repository, asked)),
-    listFailure,
+    accountWhenInaccessible,
   );
 }
 
 /** One page of the repository's pull requests from its forge, or the forge failure. */
-export async function pullRequestPage(bound: Bound, query: ListQuery): Promise<PullRequestPage> {
+export async function pullRequestPage(bound: BoundRepository, query: ListQuery): Promise<PullRequestPage> {
   const asked = listQuerySchema.parse(query);
   return fromForge(
     bound,
     forge => readChecked(forge, bound, repository => forge.pullRequests(repository, asked)),
-    listFailure,
+    accountWhenInaccessible,
   );
 }
 
 /** The repository's items with these numbers that `read` asks of its forge, as a list page holds them, read with no
  * search; or the forge failure. A number the repository has no such item for is left out. */
 function itemsByNumber<Item>(
-  bound: Bound,
+  bound: BoundRepository,
   numbers: number[],
   read: (forge: Forge, repository: RepositoryReference, numbers: number[]) => Promise<Answered<Item[]>>,
 ) {
@@ -109,22 +109,22 @@ function itemsByNumber<Item>(
   return fromForge(
     bound,
     async forge => ({ items: await readChecked(forge, bound, repository => read(forge, repository, asked)) }),
-    listFailure,
+    accountWhenInaccessible,
   );
 }
 
 /** The repository's issues with these numbers from its forge, as a list page holds them; or the forge failure. */
-export function issuesByNumber(bound: Bound, numbers: number[]): Promise<IssuesByNumber> {
+export function issuesByNumber(bound: BoundRepository, numbers: number[]): Promise<IssuesByNumber> {
   return itemsByNumber(bound, numbers, (forge, repository, asked) => forge.issuesByNumber(repository, asked));
 }
 
 /** The repository's pull requests with these numbers from its forge, as a list page holds them; or the forge failure. */
-export function pullRequestsByNumber(bound: Bound, numbers: number[]): Promise<PullRequestsByNumber> {
+export function pullRequestsByNumber(bound: BoundRepository, numbers: number[]): Promise<PullRequestsByNumber> {
   return itemsByNumber(bound, numbers, (forge, repository, asked) => forge.pullRequestsByNumber(repository, asked));
 }
 
 /** One issue of the repository from its forge, with its rendered body, comments and relations; or the forge failure. */
-export async function issueDetail(bound: Bound, number: number): Promise<IssueDetailResult> {
+export async function issueDetail(bound: BoundRepository, number: number): Promise<IssueDetailResult> {
   const asked = itemNumberSchema.parse(number);
   return fromForge(
     bound,
@@ -134,7 +134,7 @@ export async function issueDetail(bound: Bound, number: number): Promise<IssueDe
 }
 
 /** One pull request of the repository from its forge, with its rendered body and what stands between it and a merge; or the forge failure. */
-export async function pullRequestDetail(bound: Bound, number: number): Promise<PullRequestDetailResult> {
+export async function pullRequestDetail(bound: BoundRepository, number: number): Promise<PullRequestDetailResult> {
   const asked = itemNumberSchema.parse(number);
   return fromForge(
     bound,
@@ -147,7 +147,7 @@ export async function pullRequestDetail(bound: Bound, number: number): Promise<P
 
 /** Carries out a direct action on the repository's forge at its bound path, located by no request first: a direct action
  * starts from data a read just checked. What the forge said, or the forge failure with its text. */
-export async function directAction(bound: Bound, action: DirectAction): Promise<DirectActionResult> {
+export async function directAction(bound: BoundRepository, action: DirectAction): Promise<DirectActionResult> {
   const asked = directActionSchema.parse(action);
   return fromForge(bound, async forge => ({ detail: await forge.act(bound.repository, asked) }), nothingMore);
 }
