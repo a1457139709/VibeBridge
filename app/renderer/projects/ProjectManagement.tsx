@@ -149,7 +149,7 @@ export function ProjectEditor({
   const [original] = useState(project);
   const running = project.panels.filter(panel => panel.run?.state === 'running').length;
   const [name, setName] = useState(project.name),
-    [path, setPath] = useState(project.directory);
+    [directoryInput, setDirectoryInput] = useState(project.directory);
   const [inspection, setInspection] = useState<{ path: string; result: DirectoryResult }>({
     path: project.directory,
     result: { valid: true, directory: project.directory },
@@ -159,25 +159,25 @@ export function ProjectEditor({
     [choosing, setChoosing] = useState(false),
     [error, setError] = useState('');
   const [result, setResult] = useState<ProjectEditResult>();
-  const bound = project.repository;
-  const directory = inspection.path === path ? inspection.result : undefined;
-  const checking = !!path && !directory;
-  const duplicate = directory?.existingProjectId && directory.existingProjectId !== project.id;
+  const boundRepository = project.repository;
+  const inspected = inspection.path === directoryInput ? inspection.result : undefined;
+  const checking = !!directoryInput && !inspected;
+  const duplicate = inspected?.existingProjectId && inspected.existingProjectId !== project.id;
   const nameError = text(nameInputError || projectNameError(name));
-  const directoryError = !path
+  const directoryError = !directoryInput
     ? t('directoryRequired')
     : checking
       ? ''
-      : !directory?.valid
+      : !inspected?.valid
         ? t('directoryInvalid')
         : duplicate
-          ? t('duplicateEdit', { name: directory.existingProjectName! })
+          ? t('duplicateEdit', { name: inspected.existingProjectName! })
           : '';
-  const changedDirectory = !!directory?.valid && !duplicate && directory.directory !== original.directory;
-  const edited = name.trim() !== original.name || path !== original.directory;
+  const changedDirectory = !!inspected?.valid && !duplicate && inspected.directory !== original.directory;
+  const edited = name.trim() !== original.name || directoryInput !== original.directory;
   // A bound project's new directory may have an origin that points elsewhere; the binding does not follow it.
-  const listed = useListedForDirectory(project.id, bound && changedDirectory ? directory.directory! : null);
-  const originElsewhere = originElsewhereThanBinding(bound, listed);
+  const listed = useListedForDirectory(project.id, boundRepository && changedDirectory ? inspected.directory! : null);
+  const originElsewhere = originElsewhereThanBinding(boundRepository, listed);
   const canSave = !busy && !choosing && !checking && !nameError && !directoryError;
   // Open before the fields' effects run: a field can take focus only inside an open dialog.
   useLayoutEffect(() => {
@@ -187,16 +187,16 @@ export function ProjectEditor({
   }, []);
   useEffect(() => {
     let live = true;
-    if (!path) return;
+    if (!directoryInput) return;
     const timer = setTimeout(() => {
       void window.workbench
-        .inspectDirectory(path)
+        .inspectDirectory(directoryInput)
         .then(result => {
-          if (live) setInspection({ path, result });
+          if (live) setInspection({ path: directoryInput, result });
         })
         .catch(error => {
           if (live) {
-            setInspection({ path, result: { valid: false } });
+            setInspection({ path: directoryInput, result: { valid: false } });
             setError(error.message);
           }
         });
@@ -205,13 +205,13 @@ export function ProjectEditor({
       live = false;
       clearTimeout(timer);
     };
-  }, [path]);
+  }, [directoryInput]);
   async function save(restart: boolean) {
     if (!canSave) return;
     setBusy(true);
     setError('');
     try {
-      const outcome = await window.workbench.editProject(project.id, { name, directory: path }, restart);
+      const outcome = await window.workbench.editProject(project.id, { name, directory: directoryInput }, restart);
       if (outcome.error || outcome.launches.length) setResult(outcome);
       else close();
     } catch (error) {
@@ -293,11 +293,11 @@ export function ProjectEditor({
             <input
               id="edit-project-directory"
               autoComplete="off"
-              value={path}
+              value={directoryInput}
               disabled={busy}
               aria-invalid={!!directoryError}
               aria-describedby="edit-project-directory-status"
-              onChange={event => setPath(event.target.value)}
+              onChange={event => setDirectoryInput(event.target.value)}
             />
             <button
               type="button"
@@ -307,7 +307,7 @@ export function ProjectEditor({
                 setChoosing(true);
                 try {
                   const selected = await window.workbench.chooseDirectory();
-                  if (selected !== null) setPath(selected);
+                  if (selected !== null) setDirectoryInput(selected);
                 } catch (error) {
                   setError((error as Error).message);
                 } finally {
@@ -325,7 +325,7 @@ export function ProjectEditor({
                 <button
                   type="button"
                   className="open-existing-project"
-                  onClick={() => openProject(directory!.existingProjectId!)}
+                  onClick={() => openProject(inspected!.existingProjectId!)}
                 >
                   {t('openExisting')}
                 </button>
@@ -335,10 +335,10 @@ export function ProjectEditor({
           <div className="repository-field">
             <span className="repository-label">{t('repository')}</span>
             <div className="repository-current">
-              <span className="repository-path">{bound ? <b>{bound.path}</b> : t('notBound')}</span>
+              <span className="repository-path">{boundRepository ? <b>{boundRepository.path}</b> : t('notBound')}</span>
               <span className="repository-current-actions">
                 <button type="button" className="text-link" disabled={busy} onClick={openBinding}>
-                  {t(bound ? 'changeBindingInSidebar' : 'bindInSidebar', { forge: project.forge.name })}
+                  {t(boundRepository ? 'changeBindingInSidebar' : 'bindInSidebar', { forge: project.forge.name })}
                 </button>
               </span>
             </div>
@@ -351,7 +351,7 @@ export function ProjectEditor({
                 <dt>{t('directory')}</dt>
                 <dd>
                   <span className="project-path">
-                    {original.directory} → {directory!.directory}
+                    {original.directory} → {inspected!.directory}
                   </span>
                   <p>{t('currentRuns', { count: running })}</p>
                   <p>
@@ -369,7 +369,10 @@ export function ProjectEditor({
                     <dt>{t('repository')}</dt>
                     <dd>
                       <p>
-                        {t('originElsewhereThanBinding', { origin: originElsewhere.path, repository: bound!.path })}
+                        {t('originElsewhereThanBinding', {
+                          origin: originElsewhere.path,
+                          repository: boundRepository!.path,
+                        })}
                       </p>
                     </dd>
                   </>

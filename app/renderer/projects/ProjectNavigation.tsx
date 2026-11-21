@@ -22,7 +22,7 @@ interface Host {
   /** Opens the forge sidebar where the project's binding is made or changed. */
   openBinding(project: ProjectView): void;
   locatePanel(projectId: string, panelId: string): void;
-  createProject(): void;
+  openSetup(): void;
   toggleSettings(): void;
   widestOnResize: WidestOnResize;
   report(message: string): void;
@@ -75,7 +75,7 @@ export function useProjectNavigation(
             const active = page === 'workbench' && snapshot.activeProjectId === project.id;
             // The panel the user is on: the maximized one (resident or an open tray panel), else the selected one.
             const { selected, maximized } = host.view(project.id);
-            const shown = active ? (maximized ?? selected) : undefined;
+            const currentPanelId = active ? (maximized ?? selected) : undefined;
             const count = projectPanels(project).length;
             return (
               <section key={project.id} className="project-group" data-project-id={project.id}>
@@ -108,7 +108,7 @@ export function useProjectNavigation(
                       <PanelLink
                         key={panel.id}
                         panel={panel}
-                        current={shown === panel.id}
+                        current={currentPanelId === panel.id}
                         locate={() => host.locatePanel(project.id, panel.id)}
                       />
                     ))}
@@ -117,7 +117,7 @@ export function useProjectNavigation(
                 {expanded && !!project.tray.length && (
                   <EphemeralGroup
                     project={project}
-                    shownPanelId={shown}
+                    shownPanelId={currentPanelId}
                     expanded={!!expandedTrays[project.id]}
                     toggle={() => setExpandedTrays(previous => ({ ...previous, [project.id]: !previous[project.id] }))}
                     locate={panelId => host.locatePanel(project.id, panelId)}
@@ -130,7 +130,7 @@ export function useProjectNavigation(
             className={`add-project ${page === 'setup' ? 'selected' : ''}`}
             aria-label={t('addProject')}
             aria-current={page === 'setup' ? 'page' : undefined}
-            onClick={host.createProject}
+            onClick={host.openSetup}
           >
             <span>＋</span>
             {t('addProject')}

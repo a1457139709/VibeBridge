@@ -10,7 +10,7 @@ interface Props {
   choices: ShownRepositoryChoices;
   retry(): void;
   /** The project's binding, marked current and kept in the list even when the account no longer lists it. */
-  bound: RepositoryReference | null;
+  boundRepository: RepositoryReference | null;
   selection: RepositoryReference | null;
   pick(repository: RepositoryReference): void;
   disabled?: boolean;
@@ -22,7 +22,15 @@ interface Props {
  * cannot be read, its place says so and offers Retry. Focus stays in the search box, picking with the pointer too, and
  * there ↑/↓ move through the ones shown, without wrapping, keeping the one reached in view; Enter or Space picks it.
  * Pointing at one reaches it too, and a new search reaches none until a key moves. */
-export function RepositoryList({ choices, retry, bound, selection, pick, disabled = false, autoFocus = false }: Props) {
+export function RepositoryList({
+  choices,
+  retry,
+  boundRepository,
+  selection,
+  pick,
+  disabled = false,
+  autoFocus = false,
+}: Props) {
   const { t } = useLocalization();
   const [query, setQuery] = useState('');
   /** The path of the repository the keys have reached. */
@@ -61,8 +69,8 @@ export function RepositoryList({ choices, retry, bound, selection, pick, disable
   }
   const { origin } = choices;
   const listed =
-    bound && !choices.repositories.some(item => sameRepository(item, bound))
-      ? [bound, ...choices.repositories]
+    boundRepository && !choices.repositories.some(item => sameRepository(item, boundRepository))
+      ? [boundRepository, ...choices.repositories]
       : choices.repositories;
   const repositories = origin
     ? [...listed.filter(item => sameRepository(item, origin)), ...listed.filter(item => !sameRepository(item, origin))]
@@ -126,7 +134,7 @@ export function RepositoryList({ choices, retry, bound, selection, pick, disable
           >
             <span className="repository-path">{item.path}</span>
             {sameRepository(item, origin) && <small>{t('repositoryOrigin')}</small>}
-            {sameRepository(item, bound) && <small>{t('repositoryCurrent')}</small>}
+            {sameRepository(item, boundRepository) && <small>{t('repositoryCurrent')}</small>}
           </button>
         ))}
         {!shown.length && <span className="muted repository-empty">{t('noRepositories')}</span>}

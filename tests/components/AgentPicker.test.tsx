@@ -22,22 +22,22 @@ const failed: PanelCreation = {
 
 function renderPicker(language: 'en' | 'zh-CN' = 'en') {
   const close = mock.fn(),
-    added = mock.fn(),
+    onPanelAdded = mock.fn(),
     openAgentSettings = mock.fn();
   render(
     <Localization language={language}>
-      <AgentPicker projectId="project" full={false} {...{ close, added, openAgentSettings }} />
+      <AgentPicker projectId="project" atPanelLimit={false} {...{ close, onPanelAdded, openAgentSettings }} />
     </Localization>,
   );
-  return { user: userEvent.setup(), close, added, openAgentSettings };
+  return { user: userEvent.setup(), close, onPanelAdded, openAgentSettings };
 }
 
 test('a failed launch keeps the picker open with feedback that leads to Agent settings', async () => {
   provideWorkbench({ addPanel: async () => failed });
-  const { user, close, added, openAgentSettings } = renderPicker();
+  const { user, close, onPanelAdded, openAgentSettings } = renderPicker();
   await user.click(screen.getByRole('button', { name: /pi$/ }));
   assert.equal(screen.getByRole('alert').textContent, 'Agent could not start');
-  assert.equal(added.mock.callCount(), 0);
+  assert.equal(onPanelAdded.mock.callCount(), 0);
   await user.click(screen.getByRole('button', { name: 'Open Agent settings' }));
   assert.equal(close.mock.callCount(), 1);
   assert.equal(openAgentSettings.mock.callCount(), 1);
@@ -75,9 +75,9 @@ test('an unconfirmed launch reports its reason without suggesting the Agent sett
       },
     }),
   });
-  const { user, added } = renderPicker();
+  const { user, onPanelAdded } = renderPicker();
   await user.click(screen.getByRole('button', { name: /pi$/ }));
   assert.equal(screen.getByRole('alert').textContent, 'Launch could not be confirmed: host timeout');
   assert.equal(screen.queryByRole('button', { name: 'Open Agent settings' }), null);
-  assert.equal(added.mock.callCount(), 0);
+  assert.equal(onPanelAdded.mock.callCount(), 0);
 });

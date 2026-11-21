@@ -19,23 +19,23 @@ import { configureTerminals, reconcileTerminals, terminalEvent, setTerminalLangu
 
 /** The application shell: system bar, project navigation, and the current page. */
 export function App() {
-  const [state, setState] = useState<Snapshot>();
+  const [snapshot, setSnapshot] = useState<Snapshot>();
   useEffect(() => {
-    const language = state?.settings.language ?? 'en';
+    const language = snapshot?.settings.language ?? 'en';
     document.documentElement.lang = language;
     setTerminalLanguage(language);
-  }, [state?.settings.language]);
+  }, [snapshot?.settings.language]);
   return (
-    <Localization language={state?.settings.language ?? 'en'}>
-      <WorkbenchView state={state} setState={setState} />
+    <Localization language={snapshot?.settings.language ?? 'en'}>
+      <WorkbenchView snapshot={snapshot} setSnapshot={setSnapshot} />
     </Localization>
   );
 }
 
-function WorkbenchView({ state, setState }: { state?: Snapshot; setState(snapshot: Snapshot): void }) {
+function WorkbenchView({ snapshot, setSnapshot }: { snapshot?: Snapshot; setSnapshot(snapshot: Snapshot): void }) {
   const { t } = useLocalization();
   const [draft, setDraft] = useState(newDraft);
-  const [setup, setSetup] = useState(false);
+  const [setupOpen, setSetupOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [initialSettingsCategory, setInitialSettingsCategory] = useState<SettingsCategory>();
   const settingsPage = useRef<SettingsPageActions>(null);
@@ -43,30 +43,30 @@ function WorkbenchView({ state, setState }: { state?: Snapshot; setState(snapsho
   const workspace = useRef<WorkspaceActions>(null);
   const { notices, report, dismiss } = useNotices();
   const location = usePanelLocation({
-    snapshot: state,
-    visible: !settingsOpen && !setup,
+    snapshot: snapshot,
+    visible: !settingsOpen && !setupOpen,
     activateProject: id => window.workbench.activateProject(id),
-    showWorkbench: () => setSetup(false),
+    showWorkbench: () => setSetupOpen(false),
     report,
   });
   useEffect(() => {
     let unsubscribe = () => {};
     void window.workbench
       .fetchSnapshot()
-      .then(async snapshot => {
-        const dark = snapshot.resolvedTheme === 'dark';
+      .then(async initial => {
+        const dark = initial.resolvedTheme === 'dark';
         document.documentElement.dataset.theme = dark ? 'dark' : 'light';
         configureTerminals(dark, report);
-        setState(snapshot);
-        setSetup(!snapshot.projects.length);
-        snapshot.errors.forEach(message => report(message));
-        reconcileTerminals(snapshot.projects);
+        setSnapshot(initial);
+        setSetupOpen(!initial.projects.length);
+        initial.errors.forEach(message => report(message));
+        reconcileTerminals(initial.projects);
         unsubscribe = window.workbench.subscribe(event => {
           // Each snapshot is drawn as it arrives: the layout area compares consecutive saved layouts, so batching
           // two snapshots into one render could hide a save that returns to the layout before the last one.
           if (event.kind === 'snapshot') {
             reconcileTerminals(event.snapshot.projects);
-            flushSync(() => setState(event.snapshot));
+            flushSync(() => setSnapshot(event.snapshot));
           } else if (event.kind === 'error') report(event.message);
           terminalEvent(event);
         });
@@ -107,8 +107,8 @@ function WorkbenchView({ state, setState }: { state?: Snapshot; setState(snapsho
     if (settingsOpen) void leaveSettings();
     else openSettings();
   };
-  const activate = (id: string) => navigate(() => location.openProject(id));
-  const create = () => navigate(() => location.leaveWorkbench(() => setSetup(true)));
+  const openProject = (id: string) => navigate(() => location.openProject(id));
+  const openSetup = () => navigate(() => location.leaveWorkbench(() => setSetupOpen(true)));
   const locatePanel = (projectId: string, panelId: string, runId?: string) =>
     navigate(() => location.locatePanel(projectId, panelId, runId));
   const windowWidth = useWindowWidth();
@@ -120,27 +120,27 @@ function WorkbenchView({ state, setState }: { state?: Snapshot; setState(snapsho
     return drawn.current![region].widest;
   };
   const navigation = useProjectNavigation({
-    snapshot: state,
-    page: settingsOpen ? 'settings' : setup ? 'setup' : 'workbench',
+    snapshot: snapshot,
+    page: settingsOpen ? 'settings' : setupOpen ? 'setup' : 'workbench',
     view: location.view,
-    openProject: activate,
+    openProject: openProject,
     // The sidebar shows the current project, so the project whose binding it opens on becomes current.
     openBinding: project =>
       navigate(() => {
-        if (state?.activeProjectId !== project.id) location.openProject(project.id);
+        if (snapshot?.activeProjectId !== project.id) location.openProject(project.id);
         forgeSidebar.openBinding(project);
       }),
     locatePanel,
-    createProject: create,
+    openSetup: openSetup,
     toggleSettings,
     widestOnResize,
     report,
   });
-  const active = state?.projects.find(project => project.id === state.activeProjectId);
+  const active = snapshot?.projects.find(project => project.id === snapshot.activeProjectId);
   // The forge sidebar shows the current project, on the workbench and on the settings page.
   const forgeSidebar = useForgeSidebar({
-    snapshot: state,
-    project: setup ? undefined : active,
+    snapshot: snapshot,
+    project: setupOpen ? undefined : active,
     locatePanel,
     widestOnResize,
     report,
@@ -156,18 +156,18 @@ function WorkbenchView({ state, setState }: { state?: Snapshot; setState(snapsho
     lastResized,
   );
   drawn.current = fits;
-  const conflictCategory = state?.settingsConflicts[0]?.category;
+  const conflictCategory = snapshot?.settingsConflicts[0]?.category;
   useEffect(() => {
     const keydown = (event: KeyboardEvent) => {
       if (
-        !state ||
+        !snapshot ||
         !document.hasFocus() ||
         (event.target as HTMLElement).closest('[data-shortcut-recorder]') ||
         document.querySelector('dialog[open]')
       )
         return;
       const binding = shortcutFromEvent(event);
-      const action = shortcutActions.find(action => state.settings.shortcuts[action] === binding);
+      const action = shortcutActions.find(action => snapshot.settings.shortcuts[action] === binding);
       if (!action) return;
       let handled = false;
       if (action === 'settings') {
@@ -176,12 +176,17 @@ function WorkbenchView({ state, setState }: { state?: Snapshot; setState(snapsho
       } else if (action === 'toggleForgeSidebar') handled = forgeSidebar.toggle();
       else if (action === 'openDispatchMenu' || action === 'locateDispatchedPanel')
         handled = forgeSidebar.handleIssueShortcut(action);
-      else if (!settingsOpen && (action === 'nextProject' || action === 'previousProject') && state.projects.length) {
-        const index = state.projects.findIndex(project => project.id === state.activeProjectId);
-        const next = (index + (action === 'nextProject' ? 1 : -1) + state.projects.length) % state.projects.length;
-        activate(state.projects[next].id);
+      else if (
+        !settingsOpen &&
+        (action === 'nextProject' || action === 'previousProject') &&
+        snapshot.projects.length
+      ) {
+        const index = snapshot.projects.findIndex(project => project.id === snapshot.activeProjectId);
+        const next =
+          (index + (action === 'nextProject' ? 1 : -1) + snapshot.projects.length) % snapshot.projects.length;
+        openProject(snapshot.projects[next].id);
         handled = true;
-      } else if (!settingsOpen && !setup) handled = workspace.current?.shortcut(action) ?? false;
+      } else if (!settingsOpen && !setupOpen) handled = workspace.current?.runShortcut(action) ?? false;
       if (handled) {
         event.preventDefault();
         event.stopImmediatePropagation();
@@ -216,19 +221,19 @@ function WorkbenchView({ state, setState }: { state?: Snapshot; setState(snapsho
             hidden={settingsOpen}
             inert={settingsOpen}
           >
-            {!state ? (
+            {!snapshot ? (
               <div className="empty">{t('opening')}</div>
-            ) : setup ? (
+            ) : setupOpen ? (
               <Setup
-                defaultLayout={state.settings.defaultLayout}
+                defaultLayout={snapshot.settings.defaultLayout}
                 draft={draft}
-                change={setDraft}
-                cancel={() => setSetup(false)}
-                created={id => {
+                changeDraft={setDraft}
+                cancel={() => setSetupOpen(false)}
+                onSetupFinished={id => {
                   setDraft(newDraft());
-                  activate(id);
+                  openProject(id);
                 }}
-                openProject={activate}
+                openProject={openProject}
                 report={report}
                 openAgentSettings={openAgentSettings}
               />
@@ -245,17 +250,17 @@ function WorkbenchView({ state, setState }: { state?: Snapshot; setState(snapsho
             ) : (
               <div className="empty">
                 <p>{t('welcome')}</p>
-                <button className="primary" onClick={create}>
+                <button className="primary" onClick={openSetup}>
                   {t('createProject')}
                 </button>
               </div>
             )}
           </div>
-          {state && settingsOpen && (
+          {snapshot && settingsOpen && (
             <SettingsPage
               ref={settingsPage}
-              settings={state.settings}
-              startupTheme={state.startupTheme}
+              settings={snapshot.settings}
+              startupTheme={snapshot.startupTheme}
               initialCategory={initialSettingsCategory}
               report={report}
               back={() => void leaveSettings()}

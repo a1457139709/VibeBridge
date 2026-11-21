@@ -34,10 +34,10 @@ test('switching language preserves project input and old notice identity and exp
       <Localization language={settings.language}>
         <Setup
           draft={draft}
-          change={setDraft}
+          changeDraft={setDraft}
           defaultLayout="auto"
           cancel={() => {}}
-          created={() => {}}
+          onSetupFinished={() => {}}
           openProject={() => {}}
           report={report}
           openAgentSettings={() => {}}
