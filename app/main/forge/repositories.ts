@@ -13,17 +13,17 @@ export async function repositoryChoices(
   const forge = forges[bound?.forge ?? defaultForge];
   const host = bound?.host ?? forge.defaultHost;
   try {
-    const [account, listed, origin] = await Promise.all([
+    const [account, listed, remoteUrl] = await Promise.all([
       forge.account(host),
       forge.repositories(host),
       originUrl(directory),
     ]);
     const repositories = listed.map(({ id, path }): RepositoryReference => ({ forge: forge.id, host, id, path }));
-    const originPath = origin === null ? null : forge.remotePath(host, origin);
+    const originPath = remoteUrl === null ? null : forge.remotePath(host, remoteUrl);
     const offered =
       originPath === null
         ? null
-        : forge.find(
+        : forge.matchListedPath(
             originPath,
             listed.map(item => item.path),
           );
@@ -49,11 +49,11 @@ export class RepositoryListUnreadable extends Error {
 
 /** The repository as its forge currently lists it, found by its ID, at its listed path. A list that cannot be read
  * throws `RepositoryListUnreadable`; a repository the list does not show throws `repositoryNotListed`. */
-export async function listedRepository(repository: RepositoryReference): Promise<RepositoryReference> {
+export async function currentListedReference(repository: RepositoryReference): Promise<RepositoryReference> {
   const parsed = repositoryReferenceSchema.safeParse(repository);
   if (!parsed.success) throw new Error(message('repositoryNotListed'));
-  const { forge: id, host } = parsed.data;
-  const forge = forges[id];
+  const { forge: forgeId, host } = parsed.data;
+  const forge = forges[forgeId];
   let listed;
   try {
     listed = await forge.repositories(host);
@@ -64,5 +64,5 @@ export async function listedRepository(repository: RepositoryReference): Promise
   }
   const found = listed.find(item => item.id === parsed.data.id);
   if (!found) throw new Error(message('repositoryNotListed'));
-  return { forge: id, host, id: found.id, path: found.path };
+  return { forge: forgeId, host, id: found.id, path: found.path };
 }

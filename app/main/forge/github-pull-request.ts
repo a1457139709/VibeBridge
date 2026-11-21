@@ -16,6 +16,7 @@ import {
   answeredBy,
   answeringFields,
   answeringSchema,
+  statusStateResult,
 } from './github-fields';
 import type { Answered } from './forge';
 
@@ -108,7 +109,7 @@ const pullRequestDetailQuery = `query($owner: String!, $name: String!, $number: 
     } } } } } }
   } }
 }`;
-const reviewState = {
+const reviewDecision = {
   APPROVED: 'approved',
   CHANGES_REQUESTED: 'changesRequested',
   REVIEW_REQUIRED: 'required',
@@ -123,13 +124,6 @@ const checkRunResult = (status: string, conclusion: string | null): Check['resul
       : ['NEUTRAL', 'SKIPPED', 'STALE'].includes(conclusion)
         ? 'skipped'
         : 'failed';
-const statusResult = {
-  SUCCESS: 'passed',
-  FAILURE: 'failed',
-  ERROR: 'failed',
-  PENDING: 'pending',
-  EXPECTED: 'pending',
-} as const;
 const check = (context: z.infer<typeof checkContextSchema>): Check =>
   context.__typename === 'CheckRun'
     ? {
@@ -140,7 +134,7 @@ const check = (context: z.infer<typeof checkContextSchema>): Check =>
       }
     : {
         name: context.context,
-        result: statusResult[context.state],
+        result: statusStateResult[context.state],
         required: context.isRequired,
         url: context.targetUrl,
       };
@@ -153,7 +147,7 @@ const reviewVerdict = {
 
 /** One pull request of the repository with its rendered body, timeline and merge requirements, and the repository that
  * answered at its path. */
-export async function pullRequestDetail(
+export async function fetchPullRequestDetail(
   { host, path }: RepositoryReference,
   number: number,
 ): Promise<Answered<PullRequestDetail>> {
@@ -198,7 +192,7 @@ export async function pullRequestDetail(
     closingIssues: pull.closingIssuesReferences.nodes.map(issueReference),
     links: repositoryLinks(repository.url),
     review: {
-      state: pull.reviewDecision ? reviewState[pull.reviewDecision] : 'notRequired',
+      state: pull.reviewDecision ? reviewDecision[pull.reviewDecision] : 'notRequired',
       requiredApprovals: pull.baseRef?.refUpdateRule?.requiredApprovingReviewCount || null,
     },
     checks: (pull.commits.nodes[0]?.commit.statusCheckRollup?.contexts.nodes ?? []).map(check),
