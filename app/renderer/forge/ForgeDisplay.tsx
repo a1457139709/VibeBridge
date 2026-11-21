@@ -107,7 +107,7 @@ export function Post({
 }
 
 /** How an issue stands: open, or closed as completed, not planned or a duplicate (completed when the forge does not tell). */
-export const issueState = (issue: Pick<IssueSummary, 'state' | 'closedAs'>) =>
+export const issueDisplayState = (issue: Pick<IssueSummary, 'state' | 'closedAs'>) =>
   issue.state === 'open' ? ('open' as const) : (issue.closedAs ?? 'completed');
 /** Each state's octicon and colour, as the forge shows them (open green, completed purple, not planned or duplicate grey),
  * with the name an icon gives it and the shorter one a state pill shows. */
@@ -129,7 +129,7 @@ export function IssueIcon({
   decorative?: boolean;
 }) {
   const { t } = useLocalization();
-  const { Icon, tone, name } = issueStates[issueState(issue)];
+  const { Icon, tone, name } = issueStates[issueDisplayState(issue)];
   return decorative ? (
     <span className={`forge-icon forge-${tone}`}>
       <Icon size={size} />
@@ -266,7 +266,7 @@ const conclusions = {
 } as const;
 
 /** The checks conclusion of an open or draft pull request; nothing for a merged or closed one, or one without checks. */
-export function OpenChecks({ state, checks }: { state: PullRequestState; checks: ChecksConclusion }) {
+export function OpenPullRequestChecks({ state, checks }: { state: PullRequestState; checks: ChecksConclusion }) {
   const { t } = useLocalization();
   if ((state !== 'open' && state !== 'draft') || checks === 'none') return null;
   const { mark, name, tone } = conclusions[checks];

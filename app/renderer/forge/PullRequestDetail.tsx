@@ -46,44 +46,44 @@ const verdicts: Record<
 /** One pull request as its detail shows it, in the forge's order: the title, state, head into base, where its
  * changes are, labels and the issues it closes on merge; then the body, comments and review summaries in time order,
  * code comments only as a count, and the merge area with its direct actions last. No diff, size, reviewer list or approve button. */
-export function PullRequestDocument({ project, pullRequest: pull, open, followLink, actions }: Props) {
+export function PullRequestDocument({ project, pullRequest, open, followLink, actions }: Props) {
   const { t } = useLocalization();
   const forge = project.forge.name;
-  const comments = pull.timeline.filter(entry => entry.verdict === null).length;
+  const listedCommentCount = pullRequest.timeline.filter(entry => entry.verdict === null).length;
   return (
     <div className="forge-doc" onClick={followLink}>
       <h2>
-        {pull.title} <span className="forge-row-number">#{pull.number}</span>
+        {pullRequest.title} <span className="forge-row-number">#{pullRequest.number}</span>
       </h2>
       <div className="forge-doc-head">
-        <PullRequestPill state={pull.state} />
+        <PullRequestPill state={pullRequest.state} />
         <span className="forge-pull-branches">
           {withElements(slots => t('wantsToMerge', slots), {
-            author: <b>{pull.author ?? t('deletedAccount')}</b>,
-            head: <code className="forge-branch">{pull.head}</code>,
-            base: <code className="forge-branch">{pull.base}</code>,
+            author: <b>{pullRequest.author ?? t('deletedAccount')}</b>,
+            head: <code className="forge-branch">{pullRequest.head}</code>,
+            base: <code className="forge-branch">{pullRequest.base}</code>,
           })}
           {' · '}
-          <RelativeTime iso={pull.createdAt} />
+          <RelativeTime iso={pullRequest.createdAt} />
         </span>
       </div>
       <div className="forge-doc-head">
-        <a href={pull.changesUrl} target="_blank" rel="noreferrer">
+        <a href={pullRequest.changesUrl} target="_blank" rel="noreferrer">
           {t('viewChanges', { forge })}
         </a>
-        {pull.labels.map(label => (
+        {pullRequest.labels.map(label => (
           <Label key={label.name} label={label} />
         ))}
       </div>
-      {!!pull.closingIssues.length && (
+      {!!pullRequest.closingIssues.length && (
         <div className="forge-closes" role="group" aria-label={t('closesOnMerge')}>
           <span>{t('closesOnMerge')}</span>
-          {pull.closingIssues.map(issue => (
+          {pullRequest.closingIssues.map(issue => (
             <ItemReference
               key={issue.url}
               kind="issue"
               url={issue.url}
-              links={pull.links}
+              links={pullRequest.links}
               open={open}
               className="forge-ref inline"
               hint={issue.title}
@@ -96,8 +96,8 @@ export function PullRequestDocument({ project, pullRequest: pull, open, followLi
         </div>
       )}
       <div className="forge-doc-main">
-        <Post author={pull.author} createdAt={pull.createdAt} html={pull.body} />
-        {pull.timeline.map((entry, index) => (
+        <Post author={pullRequest.author} createdAt={pullRequest.createdAt} html={pullRequest.body} />
+        {pullRequest.timeline.map((entry, index) => (
           <Post
             key={index}
             {...entry}
@@ -110,20 +110,22 @@ export function PullRequestDocument({ project, pullRequest: pull, open, followLi
             }
           />
         ))}
-        {pull.commentCount > comments && (
-          <a className="forge-more-comments" href={pull.url} target="_blank" rel="noreferrer">
-            {t('moreComments', { count: pull.commentCount, forge })}
+        {pullRequest.commentCount > listedCommentCount && (
+          <a className="forge-more-comments" href={pullRequest.url} target="_blank" rel="noreferrer">
+            {t('moreComments', { count: pullRequest.commentCount, forge })}
           </a>
         )}
-        {!!pull.codeCommentCount && (
+        {!!pullRequest.codeCommentCount && (
           <div className="forge-code-comments">
-            {pull.codeCommentCount === 1 ? t('oneCodeComment') : t('codeComments', { count: pull.codeCommentCount })}{' '}
-            <a href={pull.changesUrl} target="_blank" rel="noreferrer">
+            {pullRequest.codeCommentCount === 1
+              ? t('oneCodeComment')
+              : t('codeComments', { count: pullRequest.codeCommentCount })}{' '}
+            <a href={pullRequest.changesUrl} target="_blank" rel="noreferrer">
               {t('viewOnForge', { forge })}
             </a>
           </div>
         )}
-        <MergeArea pullRequest={pull} capabilities={project.capabilities} forge={forge} actions={actions} />
+        <MergeArea pullRequest={pullRequest} capabilities={project.capabilities} forge={forge} actions={actions} />
       </div>
     </div>
   );
@@ -144,7 +146,7 @@ const results: Record<
  * running checks listed, passed ones folded; required ones marked when the forge declares required checks; each opens its
  * log), conflicts, the draft, and merging or closing it. A merged or closed pull request only says so; a closed one reopens. */
 function MergeArea({
-  pullRequest: pull,
+  pullRequest,
   capabilities,
   forge,
   actions,
@@ -157,14 +159,14 @@ function MergeArea({
   const { t } = useLocalization();
   const [showPassed, setShowPassed] = useState(false);
   const label = t('mergeRequirements');
-  if (pull.state === 'merged' || pull.state === 'closed')
+  if (pullRequest.state === 'merged' || pullRequest.state === 'closed')
     return (
       <section className="forge-merge" aria-label={label}>
         <div className="forge-merge-row">
-          <PullRequestIcon state={pull.state} hint={false} />
-          {t(pull.state === 'merged' ? 'stateMerged' : 'closedWithoutMerging')}
+          <PullRequestIcon state={pullRequest.state} hint={false} />
+          {t(pullRequest.state === 'merged' ? 'stateMerged' : 'closedWithoutMerging')}
           <span className="forge-spacer" />
-          <ReopenPullRequest pullRequest={pull} actions={actions} />
+          <ReopenPullRequest pullRequest={pullRequest} actions={actions} />
         </div>
         {actions.failed && (
           <div className="forge-merge-actions">
@@ -174,10 +176,10 @@ function MergeArea({
       </section>
     );
 
-  const failed = pull.checks.filter(check => check.result === 'failed'),
-    pending = pull.checks.filter(check => check.result === 'pending');
-  const passed = pull.checks.filter(check => check.result === 'passed' || check.result === 'skipped');
-  const { state: reviewState, requiredApprovals } = pull.review;
+  const failed = pullRequest.checks.filter(check => check.result === 'failed'),
+    pending = pullRequest.checks.filter(check => check.result === 'pending');
+  const passed = pullRequest.checks.filter(check => check.result === 'passed' || check.result === 'skipped');
+  const { state: reviewState, requiredApprovals } = pullRequest.review;
   const review = {
     approved: { mark: '✓', tone: 'open', text: t('reviewApproved') },
     changesRequested: { mark: '✗', tone: 'failed', text: t('reviewChangesRequested') },
@@ -188,7 +190,7 @@ function MergeArea({
     },
     notRequired: { mark: '●', tone: 'skipped', text: t('reviewNotRequired') },
   }[reviewState];
-  const checks = !pull.checks.length
+  const checks = !pullRequest.checks.length
     ? { mark: '–', tone: 'skipped', text: t('checksNone') }
     : {
         mark: failed.length ? '✗' : pending.length ? '●' : '✓',
@@ -208,10 +210,10 @@ function MergeArea({
       mark: '✗',
       tone: 'failed',
       text: withElements(slots => t('conflictsWith', slots), {
-        base: <code className="forge-branch">{pull.base}</code>,
+        base: <code className="forge-branch">{pullRequest.base}</code>,
       }),
     },
-  }[pull.conflicts];
+  }[pullRequest.conflicts];
   const row = (mark: string, tone: string, name: string, text: React.ReactNode) => (
     <div className="forge-merge-row">
       <span className={`forge-${tone}`}>{mark}</span>
@@ -254,8 +256,8 @@ function MergeArea({
         {showPassed && passed.map(item)}
       </div>
       {row(conflicts.mark, conflicts.tone, t('conflictsRow'), conflicts.text)}
-      {pull.state === 'draft' && row('●', 'skipped', t('draftRow'), t('draftNote', { forge }))}
-      <PullRequestActions pullRequest={pull} capabilities={capabilities} forge={forge} actions={actions} />
+      {pullRequest.state === 'draft' && row('●', 'skipped', t('draftRow'), t('draftNote', { forge }))}
+      <PullRequestActions pullRequest={pullRequest} capabilities={capabilities} forge={forge} actions={actions} />
     </section>
   );
 }

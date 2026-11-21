@@ -15,12 +15,12 @@ import './relation-graph.css';
 import {
   BlockedMark,
   IssueIcon,
-  issueState,
+  issueDisplayState,
   issueStates,
   ItemReference,
   Label,
   linkedItem,
-  OpenChecks,
+  OpenPullRequestChecks,
   Post,
   Progress,
   PullRequestIcon,
@@ -51,7 +51,7 @@ export interface IssueDispatch {
 export function IssueDocument({ project, issue, open, followLink, actions, dispatch }: DocumentProps) {
   const { t } = useLocalization();
   const { capabilities } = project;
-  const follow = (reference: IssueReference) => {
+  const openReference = (reference: IssueReference) => {
     const item = linkedItem(reference.url, issue.links);
     if (item) open(item);
     else window.open(reference.url, '_blank');
@@ -62,7 +62,7 @@ export function IssueDocument({ project, issue, open, followLink, actions, dispa
   return (
     <div className="forge-doc" onClick={followLink}>
       {parent && (
-        <button className="forge-parent" onClick={() => follow(parent)}>
+        <button className="forge-parent" onClick={() => openReference(parent)}>
           <IssueIcon issue={parent} size={12} />
           <span className="forge-ellipsis">{parent.title}</span>
           <span className="forge-row-number">#{parent.number}</span>
@@ -98,13 +98,13 @@ export function IssueDocument({ project, issue, open, followLink, actions, dispa
         <DispatchRecords
           key={`${issue.number} ${issue.state}`}
           records={dispatch.records}
-          folded={issue.state === 'closed'}
+          startFolded={issue.state === 'closed'}
           host={dispatch.host}
         />
       )}
-      {capabilities.blocking && <RelationGraph issue={issue} blockers={openBlockers} follow={follow} />}
+      {capabilities.blocking && <RelationGraph issue={issue} blockers={openBlockers} follow={openReference} />}
       {!!issue.closingPullRequests.length && (
-        <ClosingPullRequests pulls={issue.closingPullRequests} links={issue.links} open={open} />
+        <ClosingPullRequests pullRequests={issue.closingPullRequests} links={issue.links} open={open} />
       )}
       <div className="forge-doc-main">
         <Post author={issue.author} createdAt={issue.createdAt} html={issue.body} />
@@ -119,7 +119,7 @@ export function IssueDocument({ project, issue, open, followLink, actions, dispa
                 key={sub.number}
                 className={`forge-ref ${sub.state === 'closed' ? 'closed' : ''}`}
                 data-hint={sub.title}
-                onClick={() => follow(sub)}
+                onClick={() => openReference(sub)}
               >
                 <IssueIcon issue={sub} />
                 <span className="forge-ellipsis">{sub.title}</span>
@@ -144,7 +144,7 @@ export function IssueDocument({ project, issue, open, followLink, actions, dispa
 
 function StatePill({ issue }: { issue: IssueDetail }) {
   const { t } = useLocalization();
-  const { tone, short } = issueStates[issueState(issue)];
+  const { tone, short } = issueStates[issueDisplayState(issue)];
   return (
     <span className={`forge-pill forge-bg-${tone}`}>
       <IssueIcon issue={issue} decorative />
@@ -305,11 +305,11 @@ function Graph({
  * requests. An open or draft one shows its checks conclusion. One of the bound repository opens in the detail; another
  * repository's opens in the browser. */
 function ClosingPullRequests({
-  pulls,
+  pullRequests,
   links,
   open,
 }: {
-  pulls: PullRequestReference[];
+  pullRequests: PullRequestReference[];
   links: ForgeLinks;
   open(item: DetailItem): void;
 }) {
@@ -318,20 +318,20 @@ function ClosingPullRequests({
     <section className="forge-closing-pulls" aria-label={t('closingPullRequests')}>
       <header>{t('closingPullRequests')}</header>
       <ul>
-        {pulls.map(pull => (
-          <li key={pull.url}>
+        {pullRequests.map(pullRequest => (
+          <li key={pullRequest.url}>
             <ItemReference
               kind="pullRequest"
-              url={pull.url}
+              url={pullRequest.url}
               links={links}
               open={open}
               className="forge-closing-pull"
-              hint={pull.title}
+              hint={pullRequest.title}
             >
-              <PullRequestIcon state={pull.state} size={14} hint={false} />
-              <span className="forge-row-number">#{pull.number}</span>
-              <span className="forge-ellipsis">{pull.title}</span>
-              <OpenChecks state={pull.state} checks={pull.checks} />
+              <PullRequestIcon state={pullRequest.state} size={14} hint={false} />
+              <span className="forge-row-number">#{pullRequest.number}</span>
+              <span className="forge-ellipsis">{pullRequest.title}</span>
+              <OpenPullRequestChecks state={pullRequest.state} checks={pullRequest.checks} />
             </ItemReference>
           </li>
         ))}

@@ -7,7 +7,15 @@ import type {
   ListedIssue,
   PullRequestSummary,
 } from '../../shared/forge/forge';
-import { BlockedMark, IssueIcon, Label, OpenChecks, Progress, PullRequestIcon, RelativeTime } from './ForgeDisplay';
+import {
+  BlockedMark,
+  IssueIcon,
+  Label,
+  OpenPullRequestChecks,
+  Progress,
+  PullRequestIcon,
+  RelativeTime,
+} from './ForgeDisplay';
 import type { DetailItem } from '../../shared/forge/sidebar-data';
 import { withoutShortcutModifier } from '../../shared/settings/shortcuts';
 import { VirtualRows, type VirtualRowsHost } from './VirtualRows';
@@ -65,19 +73,19 @@ export function moveOrOpenRow(event: React.KeyboardEvent<HTMLElement>) {
 export function IssueTree({
   rowsHost,
   issues,
-  state,
+  listState,
   capabilities,
   selected,
   open: openIssue,
   addLabel,
-  action,
+  renderAction,
 }: {
   rowsHost: VirtualRowsHost;
   issues: ListedIssue[];
-  state: ListState;
+  listState: ListState;
   capabilities: ForgeCapabilities;
   /** The action area of an open issue's row. */
-  action(issue: IssueSummary): React.ReactNode;
+  renderAction(issue: IssueSummary): React.ReactNode;
   /** The issue the detail shows, if any. */
   selected: number | undefined;
   open(number: number): void;
@@ -111,10 +119,10 @@ export function IssueTree({
     // Only a loaded issue carries its own sub-issues; a sub-issue the forge listed for its parent shows none.
     const loadedIssue = capabilities.subIssues ? loaded.get(issue.number) : undefined;
     const children = loadedIssue ? childrenOf(loadedIssue) : [];
-    const listed = children.filter(child => child.state === state);
-    const folded = state === 'open' ? children.filter(child => child.state === 'closed') : [];
+    const listed = children.filter(child => child.state === listState);
+    const folded = listState === 'open' ? children.filter(child => child.state === 'closed') : [];
     const withSubIssues = loadedIssue && (listed.length || folded.length) ? loadedIssue : null;
-    const open = !!withSubIssues && expanded.has(issue.number);
+    const isExpanded = !!withSubIssues && expanded.has(issue.number);
     const showClosed = showingClosed.has(issue.number);
     const shown = showClosed ? [...listed, ...folded] : listed;
     return (
@@ -125,26 +133,26 @@ export function IssueTree({
           open={() => openIssue(issue.number)}
           addLabel={addLabel}
           blocking={capabilities.blocking}
-          action={action}
+          renderAction={renderAction}
           progress={
             withSubIssues && (
               <button
-                className={`forge-progress-toggle ${open ? 'on' : ''}`}
-                aria-expanded={open}
-                aria-label={t(open ? 'hideSubIssues' : 'showSubIssues')}
-                data-hint={t(open ? 'hideSubIssues' : 'showSubIssues')}
+                className={`forge-progress-toggle ${isExpanded ? 'on' : ''}`}
+                aria-expanded={isExpanded}
+                aria-label={t(isExpanded ? 'hideSubIssues' : 'showSubIssues')}
+                data-hint={t(isExpanded ? 'hideSubIssues' : 'showSubIssues')}
                 onClick={event => {
                   event.stopPropagation();
                   setExpanded(set => flip(set, issue.number));
                 }}
               >
-                <span className="forge-progress-caret">{open ? '▾' : '▸'}</span>
+                <span className="forge-progress-caret">{isExpanded ? '▾' : '▸'}</span>
                 <Progress {...withSubIssues.subIssues} />
               </button>
             )
           }
         />
-        {open && (
+        {isExpanded && (
           <div className="forge-sub-issues" role="group" aria-label={t('subIssuesOf', { number: issue.number })}>
             <ul className="forge-rows">{shown.map(row)}</ul>
             {!!folded.length && (
@@ -166,11 +174,11 @@ export function IssueTree({
     const item = title.closest('li')!;
     const { number } = issueRowOf(title)!;
     const parent = !!item.querySelector(':scope > .forge-row .forge-progress-toggle');
-    const open = parent && expanded.has(number);
+    const isExpanded = parent && expanded.has(number);
     if (event.key === 'ArrowLeft') {
-      if (open) rowTitleIn(item.querySelector(':scope > .forge-sub-issues .forge-row'))?.focus();
+      if (isExpanded) rowTitleIn(item.querySelector(':scope > .forge-sub-issues .forge-row'))?.focus();
       else if (parent) setExpanded(set => flip(set, number));
-    } else if (open) setExpanded(set => flip(set, number));
+    } else if (isExpanded) setExpanded(set => flip(set, number));
     else rowTitleIn(item.parentElement!.closest('li')?.querySelector(':scope > .forge-row'))?.focus();
   };
   return (
@@ -195,7 +203,7 @@ function IssueRow({
   addLabel,
   blocking,
   progress,
-  action,
+  renderAction,
 }: {
   issue: IssueSummary;
   selected: boolean;
@@ -203,7 +211,7 @@ function IssueRow({
   addLabel(name: string): void;
   blocking: boolean;
   progress: React.ReactNode;
-  action(issue: IssueSummary): React.ReactNode;
+  renderAction(issue: IssueSummary): React.ReactNode;
 }) {
   return (
     <div
@@ -235,7 +243,7 @@ function IssueRow({
         </div>
       </div>
       {/* An open issue is dispatched from here; a closed one shows no dispatch. */}
-      {issue.state === 'open' && <div className="forge-row-action">{action(issue)}</div>}
+      {issue.state === 'open' && <div className="forge-row-action">{renderAction(issue)}</div>}
     </div>
   );
 }
@@ -268,7 +276,7 @@ export function PullRequestRow({
           <span className="forge-row-number">#{pullRequest.number}</span>
           <RelativeTime iso={pullRequest.createdAt} />
           {pullRequest.author && <span className="forge-author">{pullRequest.author}</span>}
-          <OpenChecks state={pullRequest.state} checks={pullRequest.checks} />
+          <OpenPullRequestChecks state={pullRequest.state} checks={pullRequest.checks} />
           {pullRequest.labels.map(label => (
             <Label key={label.name} label={label} onClick={() => addLabel(label.name)} />
           ))}

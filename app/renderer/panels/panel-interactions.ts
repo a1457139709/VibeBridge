@@ -2,7 +2,7 @@ import type { Language, Layout, Panel } from '../../shared/model';
 import type { Divider } from '../../shared/layout';
 import { capturePointer } from '../common/pointer-capture';
 import { createDragPreview } from './panel-drag';
-import { measurePanel } from './panel-measurement';
+import { applyCompactLayout } from './panel-measurement';
 import { createResizePreview } from './panel-resize';
 
 export interface PanelInteractionContext {
@@ -36,10 +36,10 @@ export function createPanelInteractions(canvas: HTMLElement, context: PanelInter
   let active: { kind: 'drag' | 'resize'; cancel(): void; bounds: DOMRect; base: string } | undefined;
   let frame: number | undefined;
   const observed = new Map<string, { panel: HTMLElement; container: HTMLElement; runId?: string }>();
-  const measure = () => {
+  const applyCompactLayouts = () => {
     if (disposed || !current.visible || active?.kind === 'drag') return;
-    for (const binding of observed.values())
-      if (binding.container.isConnected) measurePanel(binding.container, binding.runId);
+    for (const observedPanel of observed.values())
+      if (observedPanel.container.isConnected) applyCompactLayout(observedPanel.container, observedPanel.runId);
   };
   const present = (layout: Layout | null) => {
     displayed = layout;
@@ -62,7 +62,7 @@ export function createPanelInteractions(canvas: HTMLElement, context: PanelInter
   const watchGeometry = () => {
     frame = undefined;
     if (geometryChanged()) cancel();
-    measure();
+    applyCompactLayouts();
     if (active) frame = requestAnimationFrame(watchGeometry);
   };
   const schedule = () => {
@@ -70,14 +70,14 @@ export function createPanelInteractions(canvas: HTMLElement, context: PanelInter
   };
   const observer = new ResizeObserver(() => {
     if (geometryChanged()) cancel();
-    measure();
+    applyCompactLayouts();
   });
   observer.observe(canvas);
   const syncPanels = () => {
-    for (const [id, binding] of observed) {
+    for (const [id, observedPanel] of observed) {
       const panel = current.panels.find(panel => panel.id === id);
-      if (!panel || panel.runId !== binding.runId || !canvas.contains(binding.container)) {
-        observer.unobserve(binding.panel);
+      if (!panel || panel.runId !== observedPanel.runId || !canvas.contains(observedPanel.container)) {
+        observer.unobserve(observedPanel.panel);
         observed.delete(id);
         cancel();
       }
@@ -146,8 +146,8 @@ export function createPanelInteractions(canvas: HTMLElement, context: PanelInter
         if (geometryChanged()) cancel();
         else preview.move(pointer);
       },
-      finish(released, release) {
-        const next = released && release && !geometryChanged() ? preview.result(release) : undefined;
+      finish(committed, upEvent) {
+        const next = committed && upEvent && !geometryChanged() ? preview.result(upEvent) : undefined;
         active = undefined;
         if (frame !== undefined) cancelAnimationFrame(frame);
         frame = undefined;
@@ -182,7 +182,7 @@ export function createPanelInteractions(canvas: HTMLElement, context: PanelInter
       if (invalidated) cancel();
       if (changedLayout) present(next.layout);
       syncPanels();
-      measure();
+      applyCompactLayouts();
     },
     /**
      * Drags a resident panel by its header to another place in the layout or onto the tray, or a tray panel
@@ -213,7 +213,7 @@ export function createPanelInteractions(canvas: HTMLElement, context: PanelInter
         element: resident ? undefined : (handle.closest<HTMLElement>('.agent-panel') ?? handle),
         tray: current.trayElement,
         language: current.language,
-        consumed: () => {
+        onDragStart: () => {
           suppressClick = true;
         },
       });
@@ -251,6 +251,6 @@ export function createPanelInteractions(canvas: HTMLElement, context: PanelInter
     },
   };
   syncPanels();
-  measure();
+  applyCompactLayouts();
   return interactions;
 }

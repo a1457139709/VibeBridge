@@ -201,7 +201,7 @@ export function Workspace({
       position={position}
       focused={isFocused}
       select={() => panelLocation.select(panel.id)}
-      focusChanged={() => panelLocation.focusChanged(panel.id)}
+      focusChanged={() => panelLocation.selectFocusedPanel(panel.id)}
       headerClick={() => panelLocation.focus(panel.id)}
       headerPointerDown={event => interactions.current?.startDrag(event.nativeEvent, event.currentTarget, panel.id)}
       actions={
@@ -353,7 +353,7 @@ export function Workspace({
           close={() => setAdding(false)}
           onPanelAdded={panelId => {
             setAdding(false);
-            panelLocation.panelAdded(panelId);
+            panelLocation.openAddedPanel(panelId);
           }}
           openAgentSettings={openAgentSettings}
         />

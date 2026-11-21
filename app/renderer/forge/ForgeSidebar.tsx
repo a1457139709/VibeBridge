@@ -36,7 +36,7 @@ export function useForgeSidebar(host: Host, api: Pick<DesktopAPI, 'saveSidebar' 
   const {
     preferences,
     toggle: togglePreferences,
-    resize,
+    startResize,
   } = useSidebarPreferences({
     sidebar: 'forgeSidebar',
     snapshot,
@@ -60,8 +60,8 @@ export function useForgeSidebar(host: Host, api: Pick<DesktopAPI, 'saveSidebar' 
   /** The tab and filters the lists last showed, per project and binding, kept while the app runs. */
   const listsViews = useRef(new Map<string, ListsView>());
   const detail: DetailHost = {
-    shown: setDetailOpen,
-    resize(event: ReactPointerEvent<HTMLDivElement>) {
+    onDetailOpenChange: setDetailOpen,
+    startResize(event: ReactPointerEvent<HTMLDivElement>) {
       if (event.button !== 0) return;
       event.preventDefault();
       // The detail's right edge is the sidebar's left edge: dragging its left edge leftwards widens it.
@@ -74,13 +74,13 @@ export function useForgeSidebar(host: Host, api: Pick<DesktopAPI, 'saveSidebar' 
       });
     },
   };
-  const shown = preferences.visible && !!project;
+  const sidebarOpen = preferences.visible && !!project;
   /** The project with its binding: the lists are mounted per this, and the change-binding page shows only for it. */
   const bindingKey = project && keyOfBinding(project);
   useLayoutEffect(() => {
-    if (shown && focusOnOpen.current) element.current!.focus();
+    if (sidebarOpen && focusOnOpen.current) element.current!.focus();
     focusOnOpen.current = false;
-  }, [shown, focusRequest]);
+  }, [sidebarOpen, focusRequest]);
   // The intent is set first: the snapshot of the save may already draw the open sidebar.
   /** Shows or hides the sidebar. Without a current project there is no sidebar to show: nothing toggles, and it returns false. */
   function toggle() {
@@ -101,41 +101,41 @@ export function useForgeSidebar(host: Host, api: Pick<DesktopAPI, 'saveSidebar' 
     if (!preferences.visible) togglePreferences();
   }
   /** The issue shortcuts act only while focus is in the sidebar; elsewhere their keys go on, to a terminal. */
-  const handleIssueShortcut = (action: IssueShortcutAction) =>
-    !!element.current?.contains(document.activeElement) && (listsActions.current?.handleIssueShortcut(action) ?? false);
+  const runIssueShortcut = (action: IssueShortcutAction) =>
+    !!element.current?.contains(document.activeElement) && (listsActions.current?.runIssueShortcut(action) ?? false);
   // The toggle names the current project's forge; without a project it names the sidebar by what it shows.
   const label = project
     ? t(preferences.visible ? 'closeForgeSidebar' : 'openForgeSidebar', { forge: project.forge.name })
     : t('toggleForgeSidebar');
-  const binding = snapshot?.settings.shortcuts.toggleForgeSidebar;
+  const toggleShortcut = snapshot?.settings.shortcuts.toggleForgeSidebar;
   const overlay = snapshot?.settings.sidebarCoexistence === 'overlay';
   return {
     toggle,
     openBinding,
-    handleIssueShortcut,
-    shown,
+    runIssueShortcut,
+    shown: sidebarOpen,
     overlay,
     /** The sidebar's remembered width. */
     width: preferences.width,
     /** Whether a detail is open, whether it squeezes the layout area, and its remembered width. */
     detail: {
-      shown: shown && detailOpen,
-      squeeze: shown && detailOpen && snapshot?.settings.detailCoexistence === 'squeeze',
+      shown: sidebarOpen && detailOpen,
+      squeeze: sidebarOpen && detailOpen && snapshot?.settings.detailCoexistence === 'squeeze',
       width,
     },
     button: (
       <button
         className="forge-sidebar-toggle"
         aria-label={label}
-        data-hint={binding ? `${label} (${displayShortcut(binding)})` : label}
-        aria-expanded={shown}
+        data-hint={toggleShortcut ? `${label} (${displayShortcut(toggleShortcut)})` : label}
+        aria-expanded={sidebarOpen}
         disabled={!project}
         onClick={toggle}
       >
-        {shown ? <SidebarCollapseIcon size={16} /> : <SidebarExpandIcon size={16} />}
+        {sidebarOpen ? <SidebarCollapseIcon size={16} /> : <SidebarExpandIcon size={16} />}
       </button>
     ),
-    sidebar: shown && project && (
+    sidebar: sidebarOpen && project && (
       <aside
         ref={element}
         tabIndex={-1}
@@ -147,7 +147,7 @@ export function useForgeSidebar(host: Host, api: Pick<DesktopAPI, 'saveSidebar' 
           role="separator"
           aria-orientation="vertical"
           aria-label={t('resizeForgeSidebar', { forge: project.forge.name })}
-          onPointerDown={resize}
+          onPointerDown={startResize}
         />
         {project.repository && changingBindingOf === bindingKey ? (
           <>
@@ -175,7 +175,7 @@ export function useForgeSidebar(host: Host, api: Pick<DesktopAPI, 'saveSidebar' 
             detailHost={detail}
             dispatchHost={{
               workflows: snapshot!.settings.workflows,
-              openMenuBinding: snapshot!.settings.shortcuts.openDispatchMenu,
+              openMenuShortcut: snapshot!.settings.shortcuts.openDispatchMenu,
               lastTargets,
               locate: host.locatePanel,
               locateBinding: snapshot!.settings.shortcuts.locateDispatchedPanel,

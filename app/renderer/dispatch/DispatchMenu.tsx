@@ -29,13 +29,13 @@ import './dispatch.css';
 export interface DispatchHost extends DispatchRecordsHost {
   workflows: Settings['workflows'];
   /** The binding that opens the dispatch menu from the sidebar. */
-  openMenuBinding: string;
+  openMenuShortcut: string;
   /** The target each command was last dispatched to while the app runs, by {@link commandKey}. */
   lastTargets: ReadonlyMap<string, DispatchTarget>;
   /** Remembers the target a command was dispatched to. */
   rememberLastTarget(commandKey: string, target: DispatchTarget): void;
   /** A dispatch went through: the sidebar reports the issue changed; `fill` also closes the detail. */
-  dispatched(delivery: Delivery): void;
+  onDispatched(delivery: Delivery): void;
 }
 
 const dispatchClass = 'dispatch';
@@ -110,16 +110,16 @@ export function DispatchButton({
   /** Whether ⌥ is held: the deliveries shown are inverted. */
   const [inverting, setInverting] = useState(false);
   /** A filled panel to locate once the snapshot has it: a new panel can be answered before the snapshot adding it arrives. */
-  const [filled, setFilled] = useState<string>();
+  const [panelToLocate, setPanelToLocate] = useState<string>();
   const menuId = useId();
   const root = useRef<HTMLDivElement>(null);
   const button = useRef<HTMLButtonElement>(null);
   const menu = useRef<HTMLDivElement>(null);
   useEffect(() => {
-    if (!filled || !projectPanels(project).some(panel => panel.id === filled)) return;
-    setFilled(undefined);
-    host.locate(project.id, filled);
-  }, [filled, project, host]);
+    if (!panelToLocate || !projectPanels(project).some(panel => panel.id === panelToLocate)) return;
+    setPanelToLocate(undefined);
+    host.locate(project.id, panelToLocate);
+  }, [panelToLocate, project, host]);
   // Each opening starts on the first command, with focus in the menu. It stays beside Dispatch as the window resizes or
   // what is around Dispatch scrolls.
   useLayoutEffect(() => {
@@ -204,9 +204,9 @@ export function DispatchButton({
     try {
       const { delivery, panelId } = await window.workbench.dispatch(project.id, request);
       host.rememberLastTarget(commandKey(menuCommand), target);
-      if (delivery === 'fill') setFilled(panelId);
+      if (delivery === 'fill') setPanelToLocate(panelId);
       else button.current?.focus();
-      host.dispatched(delivery);
+      host.onDispatched(delivery);
     } catch (error) {
       host.report((error as Error).message);
       button.current?.focus();
@@ -236,7 +236,7 @@ export function DispatchButton({
   const commandElementId = (index: number) => `${menuId}-command-${index}`,
     targetElementId = (index: number) => `${menuId}-target-${index}`;
   const cursorTarget = expanded && targets[targetIndex];
-  const openMenuShortcut = displayShortcut(host.openMenuBinding);
+  const openMenuLabel = displayShortcut(host.openMenuShortcut);
   return (
     <div className={dispatchClass} ref={root} onClick={event => event.stopPropagation()}>
       <button
@@ -244,7 +244,7 @@ export function DispatchButton({
         className="dispatch-button"
         aria-haspopup="menu"
         aria-expanded={open}
-        data-hint={`${t('dispatchHint')} (${openMenuShortcut})`}
+        data-hint={`${t('dispatchHint')} (${openMenuLabel})`}
         onClick={() => setOpen(!open)}
       >
         {t('dispatch')}

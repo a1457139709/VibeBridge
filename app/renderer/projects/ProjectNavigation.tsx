@@ -37,7 +37,7 @@ export function useProjectNavigation(
 ) {
   const { t } = useLocalization();
   const { snapshot, page } = host;
-  const { preferences, toggle, resize } = useSidebarPreferences({
+  const { preferences, toggle, startResize } = useSidebarPreferences({
     sidebar: 'navigation',
     snapshot,
     api,
@@ -56,7 +56,7 @@ export function useProjectNavigation(
   return {
     /** The navigation's remembered width, or none while collapsed. */
     width: collapsed ? 0 : preferences.width,
-    toggle: (
+    toggleButton: (
       <button
         aria-label={collapsed ? t('expandNavigation') : t('collapseNavigation')}
         aria-expanded={!collapsed}
@@ -153,7 +153,7 @@ export function useProjectNavigation(
           role="separator"
           aria-label={t('resizeNavigation')}
           aria-orientation="vertical"
-          onPointerDown={resize}
+          onPointerDown={startResize}
         />
       </nav>
     ),

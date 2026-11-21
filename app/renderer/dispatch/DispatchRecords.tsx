@@ -77,15 +77,15 @@ function SessionId({ id, report }: { id: string; report: ReportNotice }) {
  * session ID once the session is known. A closed issue's records start folded as a whole, to their count. */
 export function DispatchRecords({
   records,
-  folded,
+  startFolded,
   host,
 }: {
   records: DispatchRecordView[];
-  folded: boolean;
+  startFolded: boolean;
   host: DispatchRecordsHost;
 }) {
   const { t } = useLocalization();
-  const [open, setOpen] = useState(!folded);
+  const [open, setOpen] = useState(!startFolded);
   const heading = t('dispatchRecords', { count: records.length });
   return (
     <section className="forge-box dispatch-records" aria-label={heading}>

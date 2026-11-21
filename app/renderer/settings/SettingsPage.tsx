@@ -42,7 +42,7 @@ function SettingsEditor({
   report: ReportNotice;
 }) {
   const { t, text } = useLocalization();
-  const [section, setSection] = useState<SettingsCategory>(initialCategory);
+  const [currentCategory, setCurrentCategory] = useState<SettingsCategory>(initialCategory);
   const [draft, setDraft] = useState(settings);
   const [saved, setSaved] = useState(settings);
   useEffect(() => setSaved(settings), [settings]);
@@ -64,7 +64,7 @@ function SettingsEditor({
   const scroll = useRef<HTMLDivElement>(null);
   useLayoutEffect(() => {
     if (scroll.current) scroll.current.scrollTop = 0;
-  }, [section]);
+  }, [currentCategory]);
   useLayoutEffect(() => {
     if (saving || !problemToFocus) return;
     const input = document.querySelector<HTMLElement>(`[data-settings-field="${CSS.escape(problemToFocus.field)}"]`);
@@ -93,7 +93,7 @@ function SettingsEditor({
     },
     showCategory(category) {
       if (!pending.current && !leaveDecision.current) {
-        setSection(category);
+        setCurrentCategory(category);
         setSearch('');
       }
     },
@@ -111,9 +111,9 @@ function SettingsEditor({
     leaveDecision.current = undefined;
     resolve?.(leave);
   }
-  function replaceDraft(values: Settings) {
+  function resetCategoryDraft(values: Settings) {
     setError('');
-    changeDraft(settingsPatch(values, [section]));
+    changeDraft(settingsPatch(values, [currentCategory]));
     setAgentRevision(value => value + 1);
     setRecording(undefined);
   }
@@ -142,7 +142,7 @@ function SettingsEditor({
         )[0];
         message = first?.code === 'conflict' ? t('settingsConflict') : t('settingsInvalid');
         if (first) {
-          setSection(first.category);
+          setCurrentCategory(first.category);
           setSearch('');
           setProblemToFocus(first);
         }
@@ -178,9 +178,9 @@ function SettingsEditor({
               <button
                 key={category.id}
                 disabled={saving}
-                aria-current={section === category.id ? 'page' : undefined}
+                aria-current={currentCategory === category.id ? 'page' : undefined}
                 onClick={() => {
-                  setSection(category.id);
+                  setCurrentCategory(category.id);
                   setError('');
                 }}
               >
@@ -190,7 +190,7 @@ function SettingsEditor({
           </nav>
           <div className="settings-content">
             <header className="settings-content-heading">
-              <h2>{t('categorySettings', { category: t(section) })}</h2>
+              <h2>{t('categorySettings', { category: t(currentCategory) })}</h2>
               <div className="settings-save">
                 <span className="settings-status" aria-live="polite">
                   {error ? (
@@ -203,43 +203,45 @@ function SettingsEditor({
                     ''
                   )}
                 </span>
-                <button disabled={saving} onClick={() => replaceDraft(defaultSettings())}>
+                <button disabled={saving} onClick={() => resetCategoryDraft(defaultSettings())}>
                   {t('restoreDefaults')}
                 </button>
-                <button disabled={saving} onClick={() => replaceDraft(saved)}>
+                <button disabled={saving} onClick={() => resetCategoryDraft(saved)}>
                   {t('discardChanges')}
                 </button>
-                <button className="primary" disabled={saving} onClick={() => void save([section])}>
+                <button className="primary" disabled={saving} onClick={() => void save([currentCategory])}>
                   {t('save')}
                 </button>
               </div>
             </header>
             <div className="settings-scroll" ref={scroll}>
               <fieldset disabled={saving}>
-                {section === 'general' && (
+                {currentCategory === 'general' && (
                   <GeneralSettings language={draft.language} fieldError={fieldError} changeDraft={changeDraft} />
                 )}
-                {section === 'agents' && (
+                {currentCategory === 'agents' && (
                   <AgentSettings
                     agents={agents}
                     agentRevision={agentRevision}
                     fieldError={fieldError}
                     changeDraft={changeDraft}
-                    submit={() => void save([section])}
+                    submit={() => void save([currentCategory])}
                   />
                 )}
-                {section === 'workflows' && <WorkflowSettings values={draft.workflows} changeDraft={changeDraft} />}
-                {section === 'appearance' && (
+                {currentCategory === 'workflows' && (
+                  <WorkflowSettings workflowValues={draft.workflows} changeDraft={changeDraft} />
+                )}
+                {currentCategory === 'appearance' && (
                   <AppearanceSettings
                     draft={draft}
                     savedTheme={settings.theme}
                     startupTheme={startupTheme}
                     fieldError={fieldError}
                     changeDraft={changeDraft}
-                    submit={() => void save([section])}
+                    submit={() => void save([currentCategory])}
                   />
                 )}
-                {section === 'shortcuts' && (
+                {currentCategory === 'shortcuts' && (
                   <ShortcutSettings
                     shortcuts={shortcuts}
                     search={search}

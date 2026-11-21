@@ -4,10 +4,10 @@ import { workflows } from '../../shared/settings/workflows';
 import { WorkflowFields } from './WorkflowFields';
 
 export function WorkflowSettings({
-  values,
+  workflowValues,
   changeDraft,
 }: {
-  values: Settings['workflows'];
+  workflowValues: Settings['workflows'];
   changeDraft(patch: Partial<Settings>): void;
 }) {
   const { t } = useLocalization();
@@ -18,8 +18,8 @@ export function WorkflowSettings({
         <WorkflowFields
           key={workflow.id}
           workflow={workflow}
-          value={values[workflow.id]}
-          change={value => changeDraft({ workflows: { ...values, [workflow.id]: value } })}
+          value={workflowValues[workflow.id]}
+          change={value => changeDraft({ workflows: { ...workflowValues, [workflow.id]: value } })}
         />
       ))}
     </>

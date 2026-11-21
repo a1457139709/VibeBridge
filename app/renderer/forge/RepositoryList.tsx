@@ -34,12 +34,12 @@ export function RepositoryList({
   const { t } = useLocalization();
   const [query, setQuery] = useState('');
   /** The path of the repository the keys have reached. */
-  const [reached, setReached] = useState<string>();
+  const [highlightedPath, setHighlightedPath] = useState<string>();
   const listId = useId();
   const optionId = (path: string) => `${listId}-${path}`;
   useEffect(() => {
-    if (reached) document.getElementById(optionId(reached))?.scrollIntoView?.({ block: 'nearest' });
-  }, [reached]);
+    if (highlightedPath) document.getElementById(optionId(highlightedPath))?.scrollIntoView?.({ block: 'nearest' });
+  }, [highlightedPath]);
   const retryButton = (
     <button type="button" autoFocus={autoFocus} onClick={retry}>
       {t('retry')}
@@ -77,7 +77,7 @@ export function RepositoryList({
     : listed;
   const term = query.trim().toLowerCase();
   const shown = repositories.filter(item => item.path.toLowerCase().includes(term));
-  const reachedIndex = shown.findIndex(item => item.path === reached);
+  const reachedIndex = shown.findIndex(item => item.path === highlightedPath);
   function keydown(event: React.KeyboardEvent) {
     if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
       if (!shown.length) return;
@@ -85,7 +85,7 @@ export function RepositoryList({
         reachedIndex < 0
           ? 0
           : Math.max(0, Math.min(shown.length - 1, reachedIndex + (event.key === 'ArrowDown' ? 1 : -1)));
-      setReached(shown[index].path);
+      setHighlightedPath(shown[index].path);
     } else if ((event.key === 'Enter' || event.code === 'Space') && reachedIndex >= 0) pick(shown[reachedIndex]);
     else return;
     event.preventDefault();
@@ -104,7 +104,7 @@ export function RepositoryList({
         aria-activedescendant={reachedIndex >= 0 ? optionId(shown[reachedIndex].path) : undefined}
         onChange={event => {
           setQuery(event.target.value);
-          setReached(undefined);
+          setHighlightedPath(undefined);
         }}
         onKeyDown={keydown}
       />
@@ -124,12 +124,12 @@ export function RepositoryList({
             id={optionId(item.path)}
             data-path={item.path}
             aria-selected={sameRepository(item, selection)}
-            className={[sameRepository(item, selection) && 'on', item.path === reached && 'reached']
+            className={[sameRepository(item, selection) && 'on', item.path === highlightedPath && 'reached']
               .filter(Boolean)
               .join(' ')}
             disabled={disabled}
             tabIndex={-1}
-            onMouseEnter={() => setReached(item.path)}
+            onMouseEnter={() => setHighlightedPath(item.path)}
             onClick={() => pick(item)}
           >
             <span className="repository-path">{item.path}</span>
