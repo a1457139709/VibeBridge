@@ -93,13 +93,13 @@ export class Workbench {
       emit: event => this.emit(event),
     });
     this.runs = new RunSupervision(directory, {
-      changed: () => this.changed(),
-      emit: event => this.emit(event),
-      report: message => this.report(message),
+      onRunsChanged: () => this.changed(),
+      onTerminalEvent: event => this.emit(event),
+      onFailure: message => this.report(message),
       onRunExited: run => {
         if (!this.quitting)
           void this.operation(async () => {
-            if (!this.runs.expects(run)) return;
+            if (!this.runs.isExpected(run)) return;
             await this.panels.remove(this.project(run.projectId), run.panelId);
           }).catch(error => this.report(error.message));
       },

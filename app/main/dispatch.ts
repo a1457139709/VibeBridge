@@ -24,7 +24,7 @@ import {
   type ProjectView,
 } from '../shared/model';
 import type { RunSupervision, PanelLocation } from './runs/run-supervision';
-import type { HandOver } from './runs/processing-status';
+import type { SessionReceiver } from './runs/processing-status';
 import type { ProjectStore } from './persistence/storage';
 import { forges } from './forge/forges';
 
@@ -167,11 +167,15 @@ export class Dispatches {
       this.pending = this.pending.filter(item => item !== pending);
     };
     if (
-      !this.supervision.holdDispatch(runId, sessionId => void this.append({ ...dispatch, sessionId }, settle), settle)
+      !this.supervision.awaitFirstSession(
+        runId,
+        sessionId => void this.append({ ...dispatch, sessionId }, settle),
+        settle,
+      )
     )
       settle();
     if (delivery === 'fill')
-      this.supervision.afterFirstReady(
+      this.supervision.awaitFirstReady(
         runId,
         () =>
           void this.supervision
@@ -195,10 +199,10 @@ export class Dispatches {
     if (!run || !liveRun(run)) throw new Error(message('dispatchTargetUnavailable'));
     // The session is taken before writing, so a session switch during the write leaves the record on the one written to.
     let session: string | undefined;
-    let handOver: HandOver = sessionId => {
+    let handOver: SessionReceiver = sessionId => {
       session = sessionId;
     };
-    if (!this.supervision.holdDispatch(run.id, sessionId => handOver(sessionId)))
+    if (!this.supervision.awaitFirstSession(run.id, sessionId => handOver(sessionId)))
       throw new Error(message('dispatchTargetUnavailable'));
     const dispatch = command(panel.agent);
     await this.supervision.input(run.id, bracketedPaste(dispatch.text));

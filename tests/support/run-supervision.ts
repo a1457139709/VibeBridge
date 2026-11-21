@@ -72,11 +72,11 @@ export async function runSupervisionFixture(context: TestContext) {
   const supervision = new RunSupervision(
     directory,
     {
-      changed: () => {
+      onRunsChanged: () => {
         changes++;
       },
-      emit: event => emitted.push(event),
-      report: message => errors.push(message),
+      onTerminalEvent: event => emitted.push(event),
+      onFailure: message => errors.push(message),
       onRunExited: run => exited.push(run),
     },
     (onEvent, onFailure) => (terminal = new FakeTerminal(onEvent, onFailure, () => onShutdown())),
@@ -108,7 +108,7 @@ export async function runSupervisionFixture(context: TestContext) {
     async start(panel: Panel = project.panels[0]) {
       const launch = await supervision.start(project, panel, command);
       const start = terminal.starts.find(start => start.id === launch.run.id);
-      if (start) credentials.set(launch.run.id, JSON.parse(start.integration.VIBEBRIDGE_STATUS_CONTEXT));
+      if (start) credentials.set(launch.run.id, JSON.parse(start.extraEnvironment.VIBEBRIDGE_STATUS_CONTEXT));
       return launch;
     },
     /** Reports that the run's Codex CLI started, cleared to or resumed this session. */

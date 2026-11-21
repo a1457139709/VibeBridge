@@ -76,7 +76,7 @@ test('a run exiting on its own leaves the run list and is reported as exited, no
     [run.id],
   );
   assert.equal(
-    f.supervision.expects(f.exited[0]),
+    f.supervision.isExpected(f.exited[0]),
     true,
     'its panel still expects it until the workbench removes the panel',
   );
@@ -107,7 +107,7 @@ test('stopping a panel is a controlled stop, and released panels drop their runs
   assert.equal(await f.report(closed.id), 403);
   f.terminal.answer = 'none';
   const { run: pending } = await f.start(f.project.panels[1]);
-  f.supervision.release([pending.panelId]);
+  f.supervision.releasePanels([pending.panelId]);
   assert.equal(f.run(pending.id), undefined);
   assert.equal(
     await f.report(pending.id),

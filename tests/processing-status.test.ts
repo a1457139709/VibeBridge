@@ -208,8 +208,8 @@ test('after the reporter shuts down, silence and liveness keep the run in Error'
     changes++;
   }, directory);
   try {
-    const { integration } = await processing.prepare('silent', 'pi', { command: 'pi', args: [] }, directory);
-    const context = JSON.parse(integration.VIBEBRIDGE_STATUS_CONTEXT!);
+    const { extraEnvironment } = await processing.prepare('silent', 'pi', { command: 'pi', args: [] }, directory);
+    const context = JSON.parse(extraEnvironment.VIBEBRIDGE_STATUS_CONTEXT!);
     const report = (payload: object) =>
       new Promise<number | undefined>((resolve, reject) => {
         const body = JSON.stringify({ runId: context.runId, agent: context.agent, token: context.token, payload });
@@ -221,7 +221,7 @@ test('after the reporter shuts down, silence and liveness keep the run in Error'
           .end(body);
       });
     const run: Run = { id: 'silent', projectId: 'project', panelId: 'panel', state: 'running' };
-    processing.lifecycle(run);
+    processing.trackRunState(run);
     assert.equal(await report({ type: 'agent_start', isIdle: false, hasPendingMessages: false }), 204);
     assert.equal(processing.status(run), 'busy');
     assert.equal(await report({ type: 'session_shutdown' }), 204);
@@ -229,7 +229,7 @@ test('after the reporter shuts down, silence and liveness keep the run in Error'
     const published = changes;
     t.mock.timers.tick(24 * 60 * 60 * 1000);
     assert.equal(processing.status(run), 'error', 'silence does not restore Busy');
-    processing.lifecycle(run);
+    processing.trackRunState(run);
     assert.equal(processing.status(run), 'error', 'a running lifecycle fact does not restore Busy');
     assert.equal(changes, published, 'nothing is published without a report');
   } finally {

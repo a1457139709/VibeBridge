@@ -21,12 +21,12 @@ const reportPayload = z.union([
 ]);
 
 /** Receives the first session ID an observed run reports. */
-export type HandOver = (sessionId: string) => void;
+export type SessionReceiver = (sessionId: string) => void;
 
 /** A wait for an observed run's first session report: handed its session ID, or told it is dropped with the observation. */
 interface SessionWait {
-  handOver: HandOver;
-  dropped?: () => void;
+  handOver: SessionReceiver;
+  onReleased?: () => void;
 }
 
 interface Observation {
@@ -40,14 +40,14 @@ interface Observation {
   /** Waits for the run's first session report; dropped with the observation. */
   sessionWaits: SessionWait[];
   /** Whether the run has reported ready; once it has, nothing waits for its first ready report. */
-  readied: boolean;
+  reportedReady: boolean;
   /** Waits for the run's first ready report; dropped with the observation. */
   readyWaits: (() => void)[];
   cleanup?: () => Promise<void>;
 }
 
 /** Run-scoped ingestion and display state; see docs/processing-status.md for the report format.
- * prepare precedes launch, lifecycle uses only terminal-host facts. Reports during startup
+ * prepare precedes launch, trackRunState uses only terminal-host facts. Reports during startup
  * are retained but invisible until running. Stopping revokes credentials; no result persists.
  * A running instance without a reliable observation is Error, never inferred from PTY data.
  * The callback publishes a complete Workbench snapshot after an accepted visible change.
@@ -69,7 +69,7 @@ export class ProcessingStatus {
       accepting: true,
       running: false,
       sessionWaits: [],
-      readied: false,
+      reportedReady: false,
       readyWaits: [],
       interpreter: adapters[agent].observe(),
     };
@@ -80,27 +80,29 @@ export class ProcessingStatus {
       observation.cleanup = prepared.cleanup;
       return {
         command: prepared.command,
-        integration: { VIBEBRIDGE_STATUS_CONTEXT: JSON.stringify({ url, runId, agent, token: observation.token }) },
+        extraEnvironment: {
+          VIBEBRIDGE_STATUS_CONTEXT: JSON.stringify({ url, runId, agent, token: observation.token }),
+        },
       };
     } catch {
-      return { command, integration: {} as Record<string, string> };
+      return { command, extraEnvironment: {} as Record<string, string> };
     } // Observation must never prevent a terminal launch.
   }
 
-  lifecycle(run: Run) {
+  trackRunState(run: Run) {
     const observation = this.observations.get(run.id);
     if (!observation) return;
     observation.running = run.state === 'running';
-    if (run.state === 'failed' || run.state === 'stopped') this.forget(run.id);
+    if (run.state === 'failed' || run.state === 'stopped') this.release(run.id);
   }
-  stopping(runId: string) {
+  stopAccepting(runId: string) {
     const observation = this.observations.get(runId);
     if (observation) observation.accepting = false;
   }
-  forget(runId: string) {
+  release(runId: string) {
     const observation = this.observations.get(runId);
     this.observations.delete(runId);
-    for (const wait of observation?.sessionWaits.splice(0) ?? []) wait.dropped?.();
+    for (const wait of observation?.sessionWaits.splice(0) ?? []) wait.onReleased?.();
     if (observation?.cleanup) {
       const task = observation.cleanup();
       this.cleanups.add(task);
@@ -118,25 +120,25 @@ export class ProcessingStatus {
   }
 
   /** Hands the run's session ID to `handOver` once it has one: at once if it already has, else on
-   * its first session report. `dropped` is told when the observation is released first. False when
+   * its first session report. `onReleased` is told when the observation is released first. False when
    * the run is not observed, so it can never report one.
    */
-  onFirstSessionReport(runId: string, handOver: HandOver, dropped?: () => void) {
+  awaitFirstSession(runId: string, handOver: SessionReceiver, onReleased?: () => void) {
     const observation = this.observations.get(runId);
     if (!observation) return false;
     if (observation.session) handOver(observation.session);
-    else observation.sessionWaits.push({ handOver, dropped });
+    else observation.sessionWaits.push({ handOver, onReleased });
     return true;
   }
 
-  /** Calls `ready` on the run's first ready report: at once if it has reported ready before, whatever
+  /** Calls `onFirstReady` on the run's first ready report: at once if it has reported ready before, whatever
    * it shows now. Dropped when the observation is released first. False when the run is not observed, so it can never report one.
    */
-  onFirstReadyReport(runId: string, ready: () => void) {
+  awaitFirstReady(runId: string, onFirstReady: () => void) {
     const observation = this.observations.get(runId);
     if (!observation) return false;
-    if (observation.readied) ready();
-    else observation.readyWaits.push(ready);
+    if (observation.reportedReady) onFirstReady();
+    else observation.readyWaits.push(onFirstReady);
     return true;
   }
 
@@ -216,14 +218,14 @@ export class ProcessingStatus {
     if (visible && observation.running) this.changed();
     if (session) for (const { handOver } of observation.sessionWaits.splice(0)) handOver(session);
     if (state === 'ready') {
-      observation.readied = true;
+      observation.reportedReady = true;
       for (const ready of observation.readyWaits.splice(0)) ready();
     }
     return 204;
   }
 
   async close() {
-    for (const runId of this.observations.keys()) this.forget(runId);
+    for (const runId of this.observations.keys()) this.release(runId);
     const server = this.server;
     if (server) {
       server.closeAllConnections();
