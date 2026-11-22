@@ -13,8 +13,9 @@
     "check:source-shape": "node scripts/check-source-shape.mjs",
     "check:staged-size": "node scripts/check-staged-file-size.mjs",
     "check:test-waits": "node scripts/check-test-waits.mjs",
+    "check:lint": "oxlint",
     "prepare:runtime": "node scripts/prepare.mjs",
-    "check": "npm run check:format && npm run check:source-paths && npm run check:source-shape && npm run check:test-waits && npm run typecheck && npm test && npm run test:components",
+    "check": "npm run check:format && npm run check:source-paths && npm run check:source-shape && npm run check:test-waits && npm run check:lint && npm run typecheck && npm test && npm run test:components",
     "typecheck": "tsc --noEmit",
     "test": "node scripts/test.mjs",
     "test:components": "node scripts/test-components.mjs",
@@ -52,6 +53,7 @@
     "esbuild": "0.28.2",
     "husky": "9.1.7",
     "jsdom": "30.1.3",
+    "oxlint": "1.94.0",
     "prettier": "3.9.10",
     "typescript": "5.9.3",
     "vite": "7.3.6"

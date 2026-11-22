@@ -1,0 +1,19 @@
+{
+  "$schema": "./node_modules/oxlint/configuration_schema.json",
+  "plugins": ["typescript"],
+  "categories": {
+    "correctness": "off",
+    "suspicious": "off",
+    "pedantic": "off",
+    "style": "off",
+    "nursery": "off",
+    "perf": "off",
+    "restriction": "off"
+  },
+  "rules": {
+    // A non-null assertion tells the compiler a value is present without checking, so a missing value fails later and far from its cause.
+    "typescript/no-non-null-assertion": "error",
+    // A type assertion overrides what the compiler knows about a value, so a wrong type reaches the code that trusts it unchecked.
+    "typescript/consistent-type-assertions": ["error", { "assertionStyle": "never" }]
+  }
+}
