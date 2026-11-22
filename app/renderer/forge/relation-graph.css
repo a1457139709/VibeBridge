@@ -1,5 +1,3 @@
-/* The relation graph sits on a bordered plate, apart from the detail's text. Each column takes its relation's colour, on its
- * nodes' tint and border and on its edges, arrows and head: blocked by in red, blocks in amber, this issue in green. */
 .forge-graph {
   --forge-graph-plate: color-mix(in srgb, var(--accent) 6%, var(--canvas));
   position: relative;

@@ -1,7 +1,6 @@
 const readline = require('node:readline');
 const http = require('node:http');
 
-// A real PTY program using the same reporting credentials as launch integrations.
 const context = JSON.parse(process.env.VIBEBRIDGE_STATUS_CONTEXT || '{}');
 function report(payload, overrides = {}, destination = context) {
   return new Promise(resolve => {
@@ -31,7 +30,6 @@ readline.createInterface({ input: process.stdin }).on('line', line => {
     const message = JSON.parse(line);
     if (message.exit !== undefined) process.exit(message.exit);
     if (message.context) process.stdout.write(`CONTEXT:${JSON.stringify(context)}\n`);
-    // Native hook reporters always carry the CLI session identity.
     const payload =
       message.payload?.hook_event_name && !('session_id' in message.payload)
         ? { session_id: 'status-cli', ...message.payload }

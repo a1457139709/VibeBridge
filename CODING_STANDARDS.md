@@ -23,7 +23,9 @@ Specs, issue resolutions, ADRs, and these standards record decisions made at the
 
 ### Comments and docs
 
-Code comments, README, and `docs/` state what the current design is and why. Phrasings such as "formerly", "previously", "now", "no longer", or "kept for old callers" belong in the PR, not the repository.
+Source code carries no comments: names and structure say what code does, and a decision the code cannot show goes into `docs/adr/` or `docs/`. `npm run check:comments` enforces it against a baseline that only shrinks; `/delete-comment` is the process for what the baseline still holds. The reasoning is in `docs/adr/0010-code-carries-no-comments.md`.
+
+README and `docs/` state what the current design is and why. Phrasings such as "formerly", "previously", "now", "no longer", or "kept for old callers" belong in the PR, not the repository.
 
 ### Scope
 

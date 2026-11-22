@@ -10,13 +10,11 @@ import type {
   PullRequestDetail,
 } from '../../shared/forge/forge';
 
-/** The direct action on the shown item that is running, and the last one that failed with the forge's text. */
 export interface ActionState {
   performing: DirectAction | null;
   failed: { action: DirectAction; detail: string } | null;
 }
 export const idleActions: ActionState = { performing: null, failed: null };
-/** The shown item's direct actions: what is running or failed, and how to run one or dismiss the failure. */
 export interface Actions extends ActionState {
   perform(action: DirectAction): void;
   dismiss(): void;
@@ -27,7 +25,6 @@ const methodNames = {
   squash: { name: 'mergeMethodSquash', confirm: 'confirmMergeSquash' },
   rebase: { name: 'mergeMethodRebase', confirm: 'confirmMergeRebase' },
 } as const;
-/** The text naming each direct action: its button's or its menu item's. */
 const actionName = (action: DirectAction) =>
   (
     ({
@@ -39,10 +36,8 @@ const actionName = (action: DirectAction) =>
       reopenPullRequest: 'reopenPullRequest',
     }) as const
   )[action.kind];
-/** The merge method last chosen, remembered while the app runs and never saved. */
 let lastMergeMethod: MergeMethod | null = null;
 
-/** The failed action's name and the forge's reason, unchanged, under the buttons, with Retry and Dismiss. */
 export function ActionFailure({ actions }: { actions: Actions }) {
   const { t } = useLocalization();
   const { failed } = actions;
@@ -66,8 +61,6 @@ export function ActionFailure({ actions }: { actions: Actions }) {
   );
 }
 
-/** An issue's direct actions at the bottom of its detail, for an account with write access: Close issue (as completed),
- * with closing as not planned in its menu; a closed issue reopens. */
 export function IssueActions({ issue, actions }: { issue: IssueDetail; actions: Actions }) {
   const { t } = useLocalization();
   const menu = usePopover<HTMLSpanElement>();
@@ -119,7 +112,6 @@ export function IssueActions({ issue, actions }: { issue: IssueDetail; actions: 
   );
 }
 
-/** Reopening a closed pull request, in the merge area's closed row, for an account with write access. */
 export function ReopenPullRequest({ pullRequest, actions }: { pullRequest: PullRequestDetail; actions: Actions }) {
   const { t } = useLocalization();
   if (!pullRequest.canWrite || pullRequest.state !== 'closed') return null;
@@ -134,7 +126,6 @@ export function ReopenPullRequest({ pullRequest, actions }: { pullRequest: PullR
   );
 }
 
-/** What keeps an open pull request from merging, as the forge reports it: a draft, conflicts, required checks, the review. */
 function mergeBlockedReasons(
   pullRequest: PullRequestDetail,
   capabilities: ForgeCapabilities,
@@ -155,10 +146,6 @@ function mergeBlockedReasons(
   ].filter((reason): reason is string => !!reason);
 }
 
-/** The merge area's buttons for an open pull request, for an account with write access. Merge is a split button whose
- * menu lists the methods the repository allows; it merges on a second click that confirms in place, with the forge's
- * default commit message. A blocked merge is greyed with its reasons; a repository that merges through a merge queue is
- * left to the forge. Close PR is on the right. */
 export function PullRequestActions({
   pullRequest,
   capabilities,

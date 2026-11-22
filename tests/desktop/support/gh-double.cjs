@@ -1,8 +1,6 @@
 const { chmod, mkdir, writeFile } = require('node:fs/promises');
 const { join, resolve } = require('node:path');
 
-// Puts tests/fixtures/gh-cli.cjs first on the main process's PATH as `gh`, answering from `state`
-// (the shape tests/support/gh-double.ts describes). Suites run in the main process, so the forge adapter finds it.
 module.exports = async (directory, state) => {
   const bin = join(directory, 'gh-double');
   await mkdir(bin, { recursive: true });

@@ -22,8 +22,6 @@ import {
 } from './github-fields';
 import type { Answered } from './forge';
 
-// One issue's read-only detail from GitHub: its body, comments and relations.
-
 const issueDetailSchema = z.object({
   repository: z.object({
     ...answeringSchema,
@@ -68,7 +66,6 @@ const issueDetailSchema = z.object({
     }),
   }),
 });
-// The first 100 comments are listed; `totalCount` counts them all.
 const issueDetailQuery = `query($owner: String!, $name: String!, $number: Int!) {
   repository(owner: $owner, name: $name) { ${answeringFields} url viewerPermission issue(number: $number) {
     number title state stateReason createdAt url bodyHTML author { login }
@@ -85,7 +82,6 @@ const issueDetailQuery = `query($owner: String!, $name: String!, $number: Int!) 
   } }
 }`;
 
-/** One issue of the repository with its rendered body, comments and relations, and the repository that answered. */
 export async function issueDetail({ host, path }: RepositoryReference, number: number): Promise<Answered<IssueDetail>> {
   const [owner, name] = path.split('/');
   const { repository } = await graphql(host, issueDetailQuery, { owner, name, number }, issueDetailSchema);

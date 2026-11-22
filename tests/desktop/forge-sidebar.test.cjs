@@ -19,9 +19,6 @@ module.exports = {
     );
     const canvas = await rect(evaluate, '.canvas');
 
-    // Overlay: the sidebar lies over the layout area, which still reaches the window's right edge; the toolbar and tray make room.
-    // That the PTY then keeps its size is a "does not happen" claim the desktop suite cannot prove (ADR 0005): the PTY follows the
-    // terminal's box, and this geometry leaves that box where it was.
     assert.ok((await evaluate('window.workbench.saveSettings({ sidebarCoexistence: "overlay" })')).ok);
     await click('Show the GitHub sidebar');
     await until(
@@ -45,7 +42,6 @@ module.exports = {
     await click('Hide the GitHub sidebar');
     await until(async () => !(await rect(evaluate, '.forge-sidebar')), 'sidebar closed');
 
-    // Squeeze: the layout area ends where the sidebar begins, and the terminal and its PTY follow.
     assert.ok((await evaluate('window.workbench.saveSettings({ sidebarCoexistence: "squeeze" })')).ok);
     await click('Show the GitHub sidebar');
     await until(
@@ -57,7 +53,6 @@ module.exports = {
       'squeezing the layout area resizes the PTY to fewer columns',
     );
 
-    // Dragging the left edge 70px to the left widens the sidebar from 380px to 450px and saves it.
     const dragging = require('./support/dragging.cjs')(context);
     const edge = dragging.center(await dragging.rect('.forge-sidebar-resize'));
     context.window.webContents.sendInputEvent({

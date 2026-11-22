@@ -7,12 +7,8 @@ import { RepositoryList } from './RepositoryList';
 import { errorMessage } from '../../shared/caught-error';
 import './sidebar-binding.css';
 
-/** The repositories the project can bind, as the main process pushes them once this page declares it shows them;
- * null while they are being read. The page declares it again when the project moves to another directory, whose
- * `origin` may point elsewhere, and on Retry; each declaration reads them again. */
 function useShownRepositoryChoices({ id: projectId, directory, forge }: ProjectView) {
   const [choices, setChoices] = useState<ShownRepositoryChoices>(null);
-  // A declaration the main process refuses shows its reason in the list's place, with Retry, like a transient failure.
   const show = () =>
     void window.workbench
       .showRepositoryChoices(projectId)
@@ -27,13 +23,11 @@ function useShownRepositoryChoices({ id: projectId, directory, forge }: ProjectV
   }, [projectId, directory]);
   return {
     choices,
-    /** The loaded list, or undefined while loading or after a failure. */
     listed: choices?.ok ? choices : undefined,
     retry: show,
   };
 }
 
-/** A binding call from a button: whether one is running, and the reason the last one failed, shown where it was made. */
 function useBindingCall() {
   const { text } = useLocalization();
   const [busy, setBusy] = useState(false),
@@ -45,7 +39,6 @@ function useBindingCall() {
         {text(error)}
       </p>
     ),
-    /** Runs `call`, then `onSucceeded`; a failure stays shown until the next call. */
     async run(call: () => Promise<void>, onSucceeded?: () => void) {
       if (busy) return;
       setBusy(true);
@@ -62,8 +55,6 @@ function useBindingCall() {
   };
 }
 
-/** Focus for a control drawn in place of the one just pressed, which unmounts with it: call `request` before the
- * swap and put `ref` on the control that takes over. */
 function useFocusHandoff() {
   const pending = useRef(false);
   return {
@@ -78,18 +69,13 @@ function useFocusHandoff() {
   };
 }
 
-/** An unbound project's sidebar body. When `origin` of its directory points at a listed repository, a card offers to
- * bind that one, and Choose another repository… opens the list with that one picked; otherwise the list shows with nothing picked. Each
- * Bind button binds at once; the sidebar then shows the bound repository's lists. */
 export function UnboundRepository({ project }: { project: ProjectView }) {
   const { t } = useLocalization();
   const { choices, listed, retry } = useShownRepositoryChoices(project);
-  /** Whether Choose another repository… turned the origin card into the list. */
   const [choosingOther, setChoosingOther] = useState(false);
   const [picked, setPicked] = useState<RepositoryReference>();
   const call = useBindingCall();
   const cardFocus = useFocusHandoff();
-  // A list that failed to load offers nothing to bind, whatever was picked before.
   const selection = listed ? (picked ?? listed.origin ?? null) : null;
   const bind = (repository: RepositoryReference) =>
     void call.run(() => window.workbench.bindRepository(project.id, repository));
@@ -154,9 +140,6 @@ export function UnboundRepository({ project }: { project: ProjectView }) {
   );
 }
 
-/** A bound project's change-binding page. Picking another repository states what rebinding does above Rebind to Y;
- * Unbind states what unbinding does first, and its own Unbind carries it out. Unbinding reads no list, so it works when
- * the list cannot be read. `back` returns to the lists, as each change does once it went through. */
 export function ChangeBinding({
   project,
   back,

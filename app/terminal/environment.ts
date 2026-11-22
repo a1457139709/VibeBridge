@@ -8,7 +8,6 @@ import { isAbsolute, join } from 'node:path';
 const execute = promisify(execFile);
 export async function readLoginEnvironment(): Promise<Record<string, string>> {
   const shell = process.env.SHELL || '/bin/zsh';
-  // A login shell is used only to read the user's environment. Agents never run through it.
   const { stdout } = await execute(shell, ['-ilc', "printf '\\0VIBEBRIDGE_ENV\\0'; /usr/bin/env -0"], {
     timeout: 5000,
     maxBuffer: 1024 * 1024,
@@ -23,8 +22,6 @@ export async function readLoginEnvironment(): Promise<Record<string, string>> {
   delete environment.ELECTRON_RUN_AS_NODE;
   delete environment.NODE_CHANNEL_FD;
   delete environment.NODE_CHANNEL_SERIALIZATION_MODE;
-  // A Workbench started inside another Workbench's terminal inherits that Workbench's
-  // variables, including its reporting credentials. Each launch adds only its own.
   for (const name of Object.keys(environment)) if (name.startsWith('VIBEBRIDGE_')) delete environment[name];
   environment.TERM = 'xterm-256color';
   environment.COLORTERM = 'truecolor';
@@ -44,9 +41,7 @@ export async function resolveExecutable(command: string, environment: { PATH?: s
     try {
       await access(path, constants.X_OK);
       if ((await stat(path)).isFile()) return path;
-    } catch {
-      /* next PATH entry */
-    }
+    } catch {}
   }
   throw new Error(message('launchFailed'));
 }

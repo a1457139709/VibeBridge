@@ -27,46 +27,31 @@ import { errorMessage } from '../../shared/caught-error';
 import { requireValue } from '../common/required';
 import './dispatch.css';
 
-/** What dispatching needs from the sidebar around it. */
 export interface DispatchHost extends DispatchRecordsHost {
   workflows: Settings['workflows'];
-  /** The binding that opens the dispatch menu from the sidebar. */
   openMenuShortcut: string;
-  /** The target each command was last dispatched to while the app runs, by {@link commandKey}. */
   lastTargets: ReadonlyMap<string, DispatchTarget>;
-  /** Remembers the target a command was dispatched to. */
   rememberLastTarget(commandKey: string, target: DispatchTarget): void;
-  /** A dispatch went through: the sidebar reports the issue changed; `fill` also closes the detail. */
   onDispatched(delivery: Delivery): void;
 }
 
 const dispatchClass = 'dispatch';
-/** Whether `scope` holds an issue's Dispatch: only an open issue has one. */
 export const holdsDispatch = (scope: Element) => !!scope.querySelector(`.${dispatchClass}`);
 
-/** A command of an enabled workflow, as the menu lists it. */
 interface MenuCommand {
   workflowId: string;
   command: WorkflowCommand;
 }
-/** Names a command of a workflow across the app's lifetime. */
 export const commandKey = ({ workflowId, command }: MenuCommand) => `${workflowId}/${command.id}`;
-/** Names a target among a menu's targets. */
 const targetKey = (target: DispatchTarget) =>
   target.kind === 'new' ? `new ${target.agent}` : `panel ${target.panelId}`;
 
-/** New-panel targets, in this order. */
 const newPanelAgents: AgentType[] = ['claude', 'codex', 'pi'];
 const deliveryText = { submit: 'deliverySubmit', fill: 'deliveryFill' } as const;
-/** Moves a cursor by a step within a list's length, without wrapping. */
 const step = (count: number, by: number) => (index: number) => Math.max(0, Math.min(count - 1, index + by));
-/** The gap between the menu and what it opens from, and the margin it keeps from the window's edges. */
 const gap = 4,
   margin = 8;
 
-/** Places an open menu in the window, so the list or detail scrolling around Dispatch cannot clip it: below Dispatch and
- * aligned with its right edge, or above it when there is no room below. The targets open beside the expanded command,
- * leftwards unless there is no room there, and move up as far as they must to fit. */
 function placeMenu(button: HTMLElement, menu: HTMLElement) {
   const { clientWidth: width, clientHeight: height } = document.documentElement;
   const anchor = button.getBoundingClientRect();
@@ -83,14 +68,6 @@ function placeMenu(button: HTMLElement, menu: HTMLElement) {
   targets.classList.toggle('rightwards', width - right - menu.offsetWidth - gap - targets.offsetWidth < margin);
 }
 
-/** One Dispatch button with no default command. It opens a cascade beside it: the commands of the enabled workflows,
- * then, leftwards, the targets: new panels of each Agent type, and the project's panels that have a run, whatever
- * they are doing. The open menu holds focus, so no key reaches a terminal: ↑/↓ move, ← enters the targets (Space does
- * the same on a command), → goes back, Space dispatches, Esc closes the whole menu and Enter does nothing. Holding ⌥
- * while dispatching, by Space or by click, inverts the command's delivery for that dispatch only. The targets mark the one
- * the command last went to, and the cursor starts there, without dispatching. Submitting returns focus here, so a new
- * panel stays a card in the tray; filling locates the target panel, which opens a new one as its temporary maximize.
- * The owner holds whether the menu is open, so a shortcut can open it. */
 export function DispatchButton({
   project,
   issue,
@@ -105,13 +82,10 @@ export function DispatchButton({
   setOpen(open: boolean): void;
 }) {
   const { t } = useLocalization();
-  /** Whether the targets show, the command under the cursor, and the target under the cursor while they show. */
   const [level, setLevel] = useState<'commands' | 'targets'>('commands');
   const [commandIndex, setCommandIndex] = useState(0);
   const [targetIndex, setTargetIndex] = useState(0);
-  /** Whether ⌥ is held: the deliveries shown are inverted. */
   const [inverting, setInverting] = useState(false);
-  /** A filled panel to locate once the snapshot has it: a new panel can be answered before the snapshot adding it arrives. */
   const [panelToLocate, setPanelToLocate] = useState<string>();
   const menuId = useId();
   const root = useRef<HTMLDivElement>(null);
@@ -122,8 +96,6 @@ export function DispatchButton({
     setPanelToLocate(undefined);
     host.locate(project.id, panelToLocate);
   }, [panelToLocate, project, host]);
-  // Each opening starts on the first command, with focus in the menu. It stays beside Dispatch as the window resizes or
-  // what is around Dispatch scrolls.
   useLayoutEffect(() => {
     if (!open) return;
     setLevel('commands');
@@ -150,7 +122,6 @@ export function DispatchButton({
       setInverting(false);
     };
   }, [open]);
-  // What the menu shows changes its size: the targets, the command they are for, the preview.
   useLayoutEffect(() => {
     if (open && button.current && menu.current) placeMenu(button.current, menu.current);
   });
@@ -159,7 +130,6 @@ export function DispatchButton({
     .filter(workflow => host.workflows[workflow.id]?.enabled)
     .flatMap(workflow => workflow.commands.map(command => ({ workflowId: workflow.id, command })));
   const workflowCount = new Set(commands.map(command => command.workflowId)).size;
-  /** A command's delivery as shown: inverted while ⌥ is held. */
   const shownDelivery = ({ workflowId, command }: MenuCommand) => {
     const configured = commandDelivery(host.workflows, workflowId, command.id);
     return inverting ? invertedDelivery(configured) : configured;
@@ -175,7 +145,6 @@ export function DispatchButton({
   const lastTarget = expanded && lastTargetOf(expanded);
   const lastTargetKey = lastTarget && targetKey(lastTarget);
 
-  /** Shows a command's targets, with the cursor on the one it last went to, else the first. */
   function showTargets(index: number) {
     const menuCommand = commands[index];
     if (!menuCommand) return;
@@ -215,7 +184,6 @@ export function DispatchButton({
     }
   }
   function keydown(event: React.KeyboardEvent) {
-    // The menu answers its own keys; none of them goes further.
     event.stopPropagation();
     if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
       const by = event.key === 'ArrowDown' ? 1 : -1;
@@ -224,7 +192,6 @@ export function DispatchButton({
     } else if (event.key === 'ArrowLeft') {
       if (level === 'commands') showTargets(commandIndex);
     } else if (event.key === 'ArrowRight') setLevel('commands');
-    // ⌥+Space types another character on macOS: the key is the Space key whatever it types.
     else if (event.code === 'Space') {
       if (level === 'commands') showTargets(commandIndex);
       else void dispatch(targetIndex, event.altKey);
@@ -252,7 +219,6 @@ export function DispatchButton({
         {t('dispatch')}
         <span aria-hidden="true"> ▾</span>
       </button>
-      {/* Pressing an item keeps focus on the menu, where its keys are answered. */}
       {open && (
         <div
           ref={menu}
@@ -348,7 +314,6 @@ export function DispatchButton({
                   </button>
                 </Fragment>
               ))}
-              {/* The issue URL is the forge's; the preview elides it, as the text the target receives starts the same way. */}
               {cursorTarget && (
                 <div className="dispatch-preview">
                   <code>

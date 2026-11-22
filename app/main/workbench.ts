@@ -64,9 +64,7 @@ export class Workbench {
     resolvedTheme: 'light',
     errors: [],
   };
-  /** Runs of the projects' panels: their input, size, output flow and the commands that start them. */
   readonly runs: RunSupervision;
-  /** The Forge sidebar's lists, its detail, and the repositories its binding pages offer. */
   readonly forgeSidebar: ForgeSidebarData;
   private listeners = new Set<(event: WorkbenchEvent) => void>();
   private operations: Promise<unknown> = Promise.resolve();
@@ -208,7 +206,6 @@ export class Workbench {
       return { project: structuredClone(project), launches };
     });
   }
-  /** Saves name and directory; the Repository Binding stays as it is. */
   editProject(id: string, edit: ProjectEdit, restart: boolean): Promise<ProjectEditResult> {
     return this.operation(async () => {
       const project = this.project(id);
@@ -229,8 +226,6 @@ export class Workbench {
       return result;
     });
   }
-  /** Binds or rebinds the project to `repository`. The forge's list is read again first, outside the operation queue
-   * since it waits on the forge CLI; when it cannot be read or does not show the repository, nothing is written. */
   async bindRepository(projectId: string, repository: RepositoryReference) {
     this.project(projectId);
     const listed = await this.bindings.findListed(repository);
@@ -241,7 +236,6 @@ export class Workbench {
       this.publishSnapshot();
     });
   }
-  /** Unbinds the project. It reads no list, so it works without the forge CLI. */
   unbindRepository(projectId: string) {
     return this.operation(async () => {
       this.project(projectId);
@@ -260,7 +254,6 @@ export class Workbench {
         this.state.activeProjectId === id
           ? (this.state.projects[index + 1]?.id ?? this.state.projects[index - 1]?.id ?? null)
           : this.state.activeProjectId;
-      // Records and the active-project pointer are removed in the same transaction.
       await this.store.deleteProject(id, nextActive);
       this.state.projects = this.state.projects.filter(item => item.id !== id);
       this.panels.forget(project);
@@ -273,7 +266,6 @@ export class Workbench {
       if (activateNext && nextActive) await this.panels.startOnFirstOpen(this.project(nextActive));
     });
   }
-  // The repositories a project can bind, and direct actions on its bound repository; DesktopAPI documents each.
   async fetchRepositoryChoices(projectId: string, directory: string) {
     this.project(projectId);
     return this.bindings.choices(projectId, directory, found => this.follow(projectId, found));
@@ -281,20 +273,15 @@ export class Workbench {
   async performDirectAction(projectId: string, action: DirectAction) {
     return directAction(this.boundRepository(projectId), action);
   }
-  /** The project's bound repository for a forge call; where the forge finds it at another path, the binding follows. */
   private boundRepository(projectId: string) {
     this.project(projectId);
     return this.bindings.forForgeCall(projectId, found => this.follow(projectId, found));
   }
-  /** Writes a binding at the path its repository was found at, in the operation queue, unless the project was rebound,
-   * unbound or deleted meanwhile. */
   private follow(projectId: string, found: RepositoryReference) {
     void this.operation(async () => {
       if (await this.bindings.follow(projectId, found)) this.publishSnapshot();
     }).catch(error => this.reportError(errorMessage(error)));
   }
-  /** Dispatches an issue of the project's bound repository with a command of an enabled workflow to one of its panels
-   * that has a run, or to a new panel that joins its tray, and records the dispatch on the session that takes it. */
   dispatch(projectId: string, request: DispatchRequest) {
     return this.operation(async () => {
       const project = this.project(projectId);
@@ -318,7 +305,6 @@ export class Workbench {
       await this.panels.startOnFirstOpen(project);
     });
   }
-  /** Adds a panel to the end of the project's tray and starts its Agent. The layout is unchanged. */
   addPanel(projectId: string, agent: AgentType): Promise<PanelCreation> {
     return this.operation(() => this.panels.add(this.project(projectId), agent));
   }
@@ -334,7 +320,6 @@ export class Workbench {
   saveLayout(projectId: string, layout: Layout | null) {
     return this.operation(() => this.panels.saveLayout(this.project(projectId), layout));
   }
-  /** Saves a sidebar's preferences with its width at least the sidebar's narrowest. */
   saveSidebar(sidebar: Sidebar, preferences: SidebarPreferences) {
     return this.operation(async () => {
       const { minWidth, invalidMessage } = sidebars[sidebar];

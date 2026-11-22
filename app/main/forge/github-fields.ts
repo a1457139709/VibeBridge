@@ -1,15 +1,12 @@
 import { z } from 'zod';
 import type { ChecksConclusion, PullRequestState } from '../../shared/forge/forge';
 
-// GitHub's GraphQL fields that the adapter's issue and pull request reads share, and how they map to domain shapes.
-
 export const labelSchema = z.object({ name: z.string(), color: z.string() });
 const closedAs = { COMPLETED: 'completed', NOT_PLANNED: 'notPlanned', DUPLICATE: 'duplicate', REOPENED: null } as const;
 export const issueStateFields = {
   state: z.enum(['OPEN', 'CLOSED']),
   stateReason: z.enum(['COMPLETED', 'NOT_PLANNED', 'DUPLICATE', 'REOPENED']).nullable(),
 };
-/** An issue's state, and for a closed issue how it was closed when GitHub tells. */
 export const issueState = (issue: z.infer<z.ZodObject<typeof issueStateFields>>) => ({
   state: issue.state === 'OPEN' ? ('open' as const) : ('closed' as const),
   closedAs: issue.state === 'OPEN' || !issue.stateReason ? null : closedAs[issue.stateReason],
@@ -32,13 +29,10 @@ export const issueReference = (issue: z.infer<typeof issueReferenceSchema>) => (
 });
 export const pullRequestState = (state: 'OPEN' | 'MERGED' | 'CLOSED', draft: boolean): PullRequestState =>
   state === 'MERGED' ? 'merged' : state === 'CLOSED' ? 'closed' : draft ? 'draft' : 'open';
-/** The active account's permission on the repository; null when it has none it can tell. Closing, reopening and merging take write access. */
 export const viewerPermission = z.enum(['ADMIN', 'MAINTAIN', 'WRITE', 'TRIAGE', 'READ']).nullable();
 export const canWrite = (permission: z.infer<typeof viewerPermission>) =>
   permission === 'ADMIN' || permission === 'MAINTAIN' || permission === 'WRITE';
 export const repositoryLinks = (url: string) => ({ issuePrefix: `${url}/issues/`, pullRequestPrefix: `${url}/pull/` });
-/** The repository that answered a query at the path it named: its `databaseId`, which renames and transfers keep, and
- * its current path. Every read asks for them beside its data, so the caller checks the repository in the same request. */
 export const answeringFields = 'databaseId nameWithOwner';
 export const answeringSchema = { databaseId: z.number(), nameWithOwner: z.string() };
 export const answeredBy = (repository: { databaseId: number; nameWithOwner: string }) => ({
@@ -46,7 +40,6 @@ export const answeredBy = (repository: { databaseId: number; nameWithOwner: stri
   path: repository.nameWithOwner,
 });
 
-/** What a GitHub status state means for a check or a commit's checks. */
 export const statusStateResult = {
   SUCCESS: 'passed',
   FAILURE: 'failed',
@@ -54,7 +47,6 @@ export const statusStateResult = {
   PENDING: 'pending',
   EXPECTED: 'pending',
 } as const satisfies Record<z.infer<typeof checksState>, ChecksConclusion>;
-/** The checks conclusion of a pull request's latest commit, from its status check rollup. */
 export const latestChecks = (commits: {
   nodes: { commit: { statusCheckRollup: { state: z.infer<typeof checksState> } | null } }[];
 }): ChecksConclusion => {

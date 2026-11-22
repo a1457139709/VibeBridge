@@ -8,7 +8,6 @@ import { githubCapabilities } from './support/forge';
 afterEach(cleanup);
 before(stubSidebarApis);
 
-/** #10 has the closed sub-issue #11 and the open #12 and #13; #12 is also on the page, and #14's parent is not. */
 const tree = () =>
   page([
     issue(14, { parent: 50 }),

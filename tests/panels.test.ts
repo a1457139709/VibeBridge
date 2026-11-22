@@ -117,7 +117,6 @@ test('normal and abnormal run exits of tray panels remove them from the tray', a
       command: testNode,
       args: [resolve('tests/fixtures/interactive.cjs')],
     };
-    // A successfully spawned CLI can exit before the caller receives its launch result.
     settings.agents.claude = { command: '/usr/bin/false', args: [] };
     await workbench.saveSettings(settings);
     const { project } = await workbench.createProject({
@@ -382,9 +381,7 @@ test('terminal manager failure cleans up runs without removing saved panel confi
     if (orphanPid) {
       try {
         process.kill(orphanPid, 'SIGKILL');
-      } catch {
-        /* already cleaned */
-      }
+      } catch {}
     }
     if (hostStopped) await workbench.quit().catch(() => {});
     else await workbench.quit();
@@ -420,8 +417,6 @@ test('input while a naturally exited run is still being cleaned up is dropped wi
     await workbench.runs.input(run.id, 'linger');
     await until(() => /LINGER:(\d+)/.test(output));
     lingerPid = Number(firstCapture(output, /LINGER:(\d+)/));
-    // The child inherits the run's owner marker, so cleanup finds it after the Agent exits and waits
-    // while it ignores SIGTERM.
     await workbench.runs.input(run.id, 'exit');
     await until(() => {
       try {
@@ -431,21 +426,17 @@ test('input while a naturally exited run is still being cleaned up is dropped wi
         return true;
       }
     });
-    // The panel still shows the run while its leftover child is cleaned up.
     assert.equal(runsOf(workbench.snapshot()).find(r => r.id === run.id)?.state, 'running');
     await workbench.runs.input(run.id, 'typed-after-exit');
     await workbench.runs.input(run.id, '\x1b[O');
     await until(() => exits.includes(run.id));
-    // The exit event precedes the queued panel removal.
     await until(() => workbench.snapshot().projects[0].panels.length === 0);
     assert.deepEqual(workbench.snapshot().errors, []);
   } finally {
     if (lingerPid) {
       try {
         process.kill(lingerPid, 'SIGKILL');
-      } catch {
-        /* already cleaned */
-      }
+      } catch {}
     }
     await workbench.quit();
     await rm(directory, { recursive: true, force: true });

@@ -49,8 +49,6 @@ const shortcut = z
   .string({ error: message('shortcutInvalid') })
   .refine(binding => !shortcutFormatError(binding), { error: message('shortcutInvalid') });
 
-// The single definition of valid settings. Reading falls back to each field's default, so its
-// result is always valid; saving reports each invalid field. Unknown keys pass through both.
 function settingsSchema(reading: boolean) {
   const defaults = defaultSettings();
   const field = <T extends z.ZodType>(schema: T, fallback: z.output<T>) => (reading ? schema.catch(fallback) : schema);
@@ -92,7 +90,6 @@ function settingsSchema(reading: boolean) {
       ),
       defaults.workflows[workflow.id],
     );
-  // Each record below names every key of its type, which `satisfies` checks.
   return z.looseObject(
     {
       language: field(z.enum(languages, { error: message('languageInvalid') }), defaults.language),
@@ -153,9 +150,6 @@ function settingsSchema(reading: boolean) {
 const readSchema = settingsSchema(true);
 const saveSchema = settingsSchema(false);
 
-/** The shape of the settings a save is asked to apply: each field present has the type Settings gives it. Whether
- * its value is valid is for the save to report, field by field, so only the shape is checked here. Unknown keys pass
- * through, as they do where settings are read. */
 export const settingsPatchSchema = z
   .looseObject({
     language: z.enum(languages),
@@ -175,15 +169,12 @@ export const settingsPatchSchema = z
   })
   .partial() satisfies z.ZodType<Partial<Settings>>;
 
-/** Settings in the valid domain read from any JSON value; only a value that is not an object is rejected. */
 export function readSettings(value: unknown): Settings {
   const result = readSchema.safeParse(value);
   if (!result.success) throw new Error(result.error.issues[0].message);
   return result.data;
 }
 
-// Navigation, draft selection and validation all follow this definition's order. A category's
-// conflicts are relations between fields that are each valid.
 export const settingsCategories = [
   { id: 'general', keys: ['language'] },
   { id: 'agents', keys: ['agents'] },
@@ -217,7 +208,6 @@ export type SettingsSaveResult =
   | { ok: false; kind: 'validation'; issues: SettingsIssue[] }
   | { ok: false; kind: 'storage' | 'unavailable'; message: string };
 
-/** The category a settings key belongs to; every key the schema checks belongs to one. */
 function categoryOf(key: PropertyKey): SettingsCategory {
   const category = settingsCategories.find(category => category.keys.some(categoryKey => categoryKey === key));
   if (!category) throw new Error(`Settings key ${String(key)} belongs to no settings category`);
@@ -230,7 +220,6 @@ export function settingsConflicts(settings: Settings): SettingsIssue[] {
   );
 }
 
-/** The first problem of each invalid field, then every settings conflict, in category order. */
 export function settingsIssues(settings: Settings): SettingsIssue[] {
   const fields = new Map<string, SettingsIssue>();
   for (const issue of saveSchema.safeParse(settings).error?.issues ?? []) {

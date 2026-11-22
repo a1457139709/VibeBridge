@@ -53,7 +53,6 @@ module.exports = {
       );
     };
 
-    // A new panel joins the tray and opens at once over the hidden, still mounted resident panels.
     const first = await addThroughPicker(() => click('Add Agent'), 'codex');
     assert.deepEqual((await snapshot()).projects[0].layout, layout);
     assert.deepEqual(
@@ -73,7 +72,6 @@ module.exports = {
     );
     await typeInto(first, 'a');
 
-    // The add shortcut behaves as the toolbar button: the new panel opens and the open one returns to the tray.
     const second = await addThroughPicker(
       () =>
         evaluate(
@@ -94,7 +92,6 @@ module.exports = {
     await typeInto(second, 'b');
     assert.ok(!(await evaluate(`(window.output[${JSON.stringify(first.run.id)}] || '').includes('INPUT:b')`)));
 
-    // Escape goes to the terminal and does not collapse the open panel.
     await evaluate(`window.output[${JSON.stringify(second.run.id)}] = ''; void 0`);
     nativeKey('Escape');
     await until(
@@ -102,7 +99,6 @@ module.exports = {
       'Escape bytes reached the second tray panel',
     );
 
-    // Collapse restores the unchanged layout and runs; clicking cards switches and collapses.
     await click('Collapse panel');
     await until(
       async () =>
@@ -136,10 +132,8 @@ module.exports = {
       residentRuns.map(run => run.id),
     );
 
-    // Closing the open tray panel ends its run and returns to the resident layout.
     await evaluate(`document.querySelector('[data-tray-panel-id="${second.id}"]').click()`);
     await until(async () => (await focusedPanel()) === second.id, 'second tray panel focused after its card click');
-    // Hidden resident panels keep their own close buttons; use the open panel's.
     await evaluate(`document.querySelector('[data-panel-id="${second.id}"] button[aria-label="Close panel"]').click()`);
     await until(async () => (await tray()).length === 1, 'closed tray panel left the tray');
     await until(
@@ -148,7 +142,6 @@ module.exports = {
     );
     assert.throws(() => process.kill(second.run.pid, 0));
 
-    // A tray panel whose Agent exits on its own leaves the tray; an open one returns to the layout.
     await evaluate(`document.querySelector('[data-tray-panel-id="${first.id}"]').click()`);
     await until(async () => (await focusedPanel()) === first.id, 'first tray panel focused before its Agent exits');
     await evaluate(`window.workbench.sendInput(${JSON.stringify(first.run.id)}, 'exit')`);
@@ -159,7 +152,6 @@ module.exports = {
     );
     assert.equal(await evaluate('document.querySelectorAll(".panel-tray .tray-card").length'), 0);
     assert.deepEqual((await snapshot()).projects[0].layout, layout);
-    // Panel shortcuts follow the resident layout: with a tray panel open they collapse it first.
     const residentIds = project.panels.map(panel => panel.id);
     const shortcut = (code, key, shiftKey = false) =>
       evaluate(`document.activeElement.dispatchEvent(new KeyboardEvent("keydown",

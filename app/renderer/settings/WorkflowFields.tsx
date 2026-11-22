@@ -3,7 +3,6 @@ import { useLocalization } from '../common/Localization';
 import { deliveries, type workflows, type WorkflowSettings } from '../../shared/settings/workflows';
 import './workflow-settings.css';
 
-/** One built-in workflow in the Workflows settings: its switch, and a delivery toggle per command. */
 export function WorkflowFields({
   workflow,
   value,

@@ -5,14 +5,9 @@ import type { ProcessingState } from '../../shared/processing-status';
 import { agentIcons } from '../common/agent-icons';
 import { ProcessingStatusIcon } from '../common/ProcessingStatusIcon';
 
-/** States the project summary groups, in display order; Busy is shown only on panels and navigation. */
 const summaryStates = ['ready', 'needs-input', 'done', 'error'] as const satisfies readonly ProcessingState[];
 type SummaryState = (typeof summaryStates)[number];
 
-/**
- * The current project's panels, resident and tray, counted by processing state; each count opens a list of
- * its members. Choosing a member hands it to `locate`. The summary lives in the workspace toolbar only.
- */
 export function ProjectSummary({ panels, locate }: { panels: PanelView[]; locate(panel: PanelView): void }) {
   const { t, language } = useLocalization();
   const [open, setOpen] = useState<SummaryState>();
@@ -22,7 +17,6 @@ export function ProjectSummary({ panels, locate }: { panels: PanelView[]; locate
   const triggers = useRef(new Map<SummaryState, HTMLButtonElement>());
   const fromEnd = useRef(false);
   const focusedMember = useRef<string | undefined>(undefined);
-  // Counts and members come from the same panel views.
   const members = (state: SummaryState) => panels.filter(panel => panel.status === state);
   function close(restoreFocus = false) {
     setOpen(undefined);
@@ -34,7 +28,6 @@ export function ProjectSummary({ panels, locate }: { panels: PanelView[]; locate
   }
   useLayoutEffect(() => {
     if (!open) return;
-    // The list drops from the middle of the toolbar and stays inside the window.
     const position = () => {
       const summary = container.current,
         popup = list.current;

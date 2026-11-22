@@ -12,7 +12,6 @@ import {
   shownLists,
 } from './support/bound-workbench';
 
-/** 30 open issues, #1 the oldest, created a day apart. */
 const thirtyIssues: GhIssue[] = Array.from({ length: 30 }, (_, index) => ({
   number: index + 1,
   title: `Issue ${index + 1}`,

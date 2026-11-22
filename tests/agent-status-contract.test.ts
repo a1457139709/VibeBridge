@@ -8,26 +8,17 @@ import { codex } from '../app/main/agent-status/codex/status';
 import { claude } from '../app/main/agent-status/claude/status';
 import { pi } from '../app/main/agent-status/pi/status';
 
-/** Every Agent Type's adapter must pass this contract. Each sample is a sequence of CLI
- * facts, as its Status Reporter sends them, whose last fact has the named outcome.
- */
 interface Contract {
   adapter: StatusAdapter;
-  /** Arguments reaching this Agent Type's own configuration path, given a settings.json in the project. */
   configured: string[];
-  /** Configuration the adapter cannot safely understand, or null when it reads none. */
   unsafe: string[] | null;
   ready: Payload[];
   busy: Payload[];
   waiting: Payload[];
   done: Payload[];
-  /** A known auxiliary fact that keeps the current state. */
   auxiliary: Payload[];
-  /** A valid current-run fact with no classification. */
   unclassified: Payload[];
-  /** A distinct progress fact per id: Needs input while a wait is pending, otherwise Busy. */
   progress: (id: string) => Payload;
-  /** A fact from a session this run has retired, or null without session identity. */
   retired: { before: Payload[]; stale: Payload } | null;
 }
 
@@ -95,7 +86,6 @@ const contracts: Record<AgentType, Contract> = {
   },
 };
 
-/** Feeds facts the way ProcessingStatus does: every Error discards outcome evidence. */
 function observe(adapter: StatusAdapter) {
   const interpreter = adapter.createInterpreter();
   const accept = (payload: Payload): Outcome => {

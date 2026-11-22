@@ -16,8 +16,6 @@ const issue = (number: number) => ({
 });
 const paste = (text: string) => `\x1b[200~${text}\x1b[201~`;
 
-/** A Workbench whose one project, bound to octo/tools, has a resident Claude panel running the Claude CLI double.
- * With `lateSession`, every Claude CLI double reports its session, and so that it is ready, only when the test says. */
 async function dispatching(context: test.TestContext, { lateSession = false } = {}) {
   const gh = await ghDouble(context, {
     ...forgeAccount,
@@ -32,7 +30,6 @@ async function dispatching(context: test.TestContext, { lateSession = false } = 
   await bindListed(f.workbench, project.id, 'octo/tools');
   const session = `session-${run.pid}`;
   if (!lateSession) await until(() => f.workbench.snapshot().projects[0].panels[0].status === 'ready');
-  /** What the CLI double has received as typed input, apart from the test's own messages. */
   const typed = async (runId = run.id) => {
     await f.send(runId, undefined, { typed: true });
     const text: string = JSON.parse(firstCapture(f.output(runId), /TYPED:([^\r\n]*)\r\n(?![\s\S]*TYPED:)/));
@@ -47,7 +44,6 @@ async function dispatching(context: test.TestContext, { lateSession = false } = 
       target: { kind: 'panel', panelId: run.panelId },
       invertDelivery: false,
     });
-  /** Dispatches /implement for the issue to a new Claude panel; `invert` makes it fill only. Returns the new panel's run. */
   const dispatchNew = async (number: number, invert = false) => {
     const { panelId } = await f.workbench.dispatch(project.id, {
       issue: { number, title: `Issue ${number}` },
@@ -65,7 +61,6 @@ async function dispatching(context: test.TestContext, { lateSession = false } = 
     );
     return run;
   };
-  /** Reports that the run's CLI started on its session, and so is ready. */
   const start = (runId: string) => f.send(runId, { hook_event_name: 'SessionStart', source: 'startup' });
   return { ...f, gh, projectId: project.id, run, session, typed, records, dispatch, dispatchNew, start };
 }
@@ -172,7 +167,6 @@ test('a record locates no panel once the panel switches session, and the panel a
   }
 });
 
-/** Each of the first project's records as its issue and the panel it locates, or null. */
 const located = (workbench: Workbench) =>
   workbench.snapshot().projects[0].dispatches.map(record => [record.issueNumber, record.location?.panelId ?? null]);
 
@@ -216,7 +210,6 @@ test('rebinding shows only the records of the bound repository and keeps the oth
     assert.deepEqual(located(f.workbench), []);
     await bind('octo/tools');
     assert.deepEqual(located(f.workbench), [[7, f.run.panelId]]);
-    // Records reference their project, so the deletion succeeds only when it deletes them too.
     await f.workbench.deleteProject(f.projectId);
     await f.workbench.quit();
     reopened = await Workbench.open(f.directory);
@@ -255,7 +248,6 @@ test('filling a new panel pastes the command once it reports ready, without pres
     const args: string[] = JSON.parse(firstCapture(f.output(run.id), /ARGUMENTS:([^\r\n]+)/));
     assert.deepEqual(args.slice(0, 2), ['--raw-input', '--late-session'], 'the configured arguments only');
     assert.ok(!args.some(arg => arg.includes('/implement')));
-    // The paste is sent to the terminal while the ready report is answered, so it is in before the double acknowledges.
     await f.start(run.id);
     assert.equal(await f.typed(run.id), `[SessionStart]${paste('/implement https://github.com/octo/tools/issues/7')}`);
   } finally {
@@ -283,7 +275,6 @@ test("a new panel's dispatch locates its panel at once, and is recorded on the f
     );
     await f.start(run.id);
     await until(() => f.records()[0]?.sessionId === `session-${run.pid}`);
-    // Once recorded, the dispatch follows its session rather than the panel.
     await f.send(run.id, { hook_event_name: 'SessionStart', source: 'clear', session_id: 'cleared' });
     await until(() => located(f.workbench)[0]?.[1] === null);
     await f.send(run.id, { hook_event_name: 'SessionStart', source: 'resume', session_id: `session-${run.pid}` });

@@ -1,7 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
 
-/** A popover's open state and the element that holds it and its trigger. It closes on a pointer down outside that
- * element or on Esc, which goes no further. */
 export function usePopover<Root extends HTMLElement>() {
   const [open, setOpen] = useState(false);
   const root = useRef<Root>(null);

@@ -81,7 +81,6 @@ test('directory restart saves first, cleans descendants and preserves project la
     assert.ok(restarted.every(run => !oldRuns.some(old => old.id === run.id)));
     await until(() => restarted.every(run => f.output(run.id).includes(`:${target}`)));
     assert.deepEqual(storedProjects(f.workbench.snapshot()).find(item => item.id === project.id)?.layout, layout);
-    // Natural exit still removes its panel after a controlled restart.
     await f.workbench.runs.input(restarted[0].id, 'exit');
     await until(() => f.workbench.snapshot().projects.find(item => item.id === project.id)?.panels.length === 1);
   } finally {
@@ -128,7 +127,6 @@ test('changing directory without restart keeps original cwd and identity and use
       if (event.kind === 'output') outputs.push(event.data);
     });
     try {
-      // A project which has not been visited this app run must only save.
       const before = reopened.snapshot().projects.find(item => item.id === project.id);
       assert.ok(before);
       const saved = await reopened.editProject(project.id, { name: 'Unvisited', directory: f.directory }, true);
@@ -242,7 +240,7 @@ test('failed saves do not mutate names or stop runs and failed deletion keeps al
     const { project } = await f.create('Keep');
     const run = runsOf(f.workbench.snapshot())[0];
     database = new DatabaseSync(join(f.directory, 'projects.sqlite'));
-    database.exec('BEGIN IMMEDIATE'); // External filesystem/database fault, never a mocked collaborator.
+    database.exec('BEGIN IMMEDIATE');
     const unchanged = await f.workbench.editProject(
       project.id,
       { name: project.name, directory: project.directory },

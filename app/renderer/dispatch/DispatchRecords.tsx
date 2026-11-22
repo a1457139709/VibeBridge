@@ -9,17 +9,12 @@ import type { DispatchRecordView } from '../../shared/dispatch';
 import { errorMessage } from '../../shared/caught-error';
 import './dispatch.css';
 
-/** What showing Dispatch Records needs from the sidebar around them. */
 export interface DispatchRecordsHost {
-  /** Locates a panel; an ephemeral one opens as its temporary maximize. */
   locate(projectId: string, panelId: string): void;
-  /** The binding that locates the panel of the issue focus is on. */
   locateBinding: string;
   report: ReportNotice;
 }
 
-/** A record's skill: a link that locates the panel on its session, or grey text when no open panel is on it. The hint
- * gives its age, and how to locate the panel or that it cannot be. */
 function DispatchSkill({ record, host }: { record: DispatchRecordView; host: DispatchRecordsHost }) {
   const localization = useLocalization();
   const { t } = localization;
@@ -45,16 +40,13 @@ function DispatchSkill({ record, host }: { record: DispatchRecordView; host: Dis
   );
 }
 
-/** An issue's latest dispatch on its row: only its skill (docs/adr/0003-dispatch-records-point-to-sessions.md). */
 export function LatestDispatchSkill({ records, host }: { records: DispatchRecordView[]; host: DispatchRecordsHost }) {
   const latest = records.at(-1);
   return latest ? <DispatchSkill record={latest} host={host} /> : null;
 }
 
-/** How much of a session ID a record shows. */
 const shownSessionIdLength = 8;
 
-/** A session ID's first characters; clicking copies the whole ID, which the hint gives. */
 function SessionId({ id, report }: { id: string; report: ReportNotice }) {
   const { t } = useLocalization();
   return (
@@ -74,8 +66,6 @@ function SessionId({ id, report }: { id: string; report: ReportNotice }) {
   );
 }
 
-/** An issue's Dispatch Records in its detail, newest first, one line each: when, the Agent type, the skill, and the
- * session ID once the session is known. A closed issue's records start folded as a whole, to their count. */
 export function DispatchRecords({
   records,
   startFolded,

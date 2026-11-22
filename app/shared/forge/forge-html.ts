@@ -1,8 +1,3 @@
-/** Filters HTML a forge rendered (an issue body, a comment) through an allowlist before it joins a page.
- * The Workbench never parses Markdown itself: it shows the forge's own rendering, minus anything that could run,
- * load, style or submit. Parsing happens in an inert <template>, so nothing in the input loads or runs on the way. */
-
-/** Elements kept as they are, with only the attributes listed for them (and `title`). */
 const allowed: Record<string, readonly string[]> = {
   a: ['href'],
   abbr: [],
@@ -52,7 +47,6 @@ const allowed: Record<string, readonly string[]> = {
   ul: [],
   var: [],
 };
-/** Elements dropped with everything inside them. Any other element not allowed is unwrapped: its content stays. */
 const dropped = new Set([
   'script',
   'style',
@@ -81,12 +75,9 @@ const dropped = new Set([
   'track',
   'portal',
 ]);
-/** Media the page cannot load (its content security policy allows only its own images); each becomes a link to the file. */
 const media = new Set(['img', 'video', 'source']);
 const safeUrl = (url: string | null): url is string => !!url && /^(https?:|mailto:)/i.test(url.trim());
 
-/** The forge's HTML with every element and attribute outside the allowlist removed. Links keep only http(s) and mailto
- * targets and open outside the page; checkboxes are read-only; images and videos become links to their files. */
 export function filterForgeHtml(html: string): string {
   const template = document.createElement('template');
   template.innerHTML = html;
@@ -136,8 +127,6 @@ function filterChildren(parent: ParentNode) {
   }
 }
 
-/** A link to an image or video's file, named by its alt text; only the alt text when the file is not on the web.
- * Inside a link (the forge links an image to its file) it becomes the name, so links never nest. */
 function mediaLink(element: Element): Node {
   const source = element.getAttribute('src');
   const name = element.getAttribute('alt')?.trim() || source?.split('/').pop() || '';

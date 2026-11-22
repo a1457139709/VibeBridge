@@ -2,8 +2,6 @@ import { useEffect, useRef } from 'react';
 import { useLocalization } from '../common/Localization';
 import type { SettingsCategory } from '../../shared/settings/settings';
 
-// Shown at startup while the settings hold a settings conflict. It has no dismiss action: the
-// user either fixes the conflicting category in settings or quits.
 export function SettingsConflictDialog({
   category,
   openSettings,
@@ -22,7 +20,6 @@ export function SettingsConflictDialog({
       className="settings-conflict"
       aria-labelledby="settings-conflict-title"
       onCancel={event => event.preventDefault()}
-      // Browsers may still close a modal after repeated Escape presses, so it reopens.
       onClose={event => {
         if (event.currentTarget.isConnected) event.currentTarget.showModal();
       }}

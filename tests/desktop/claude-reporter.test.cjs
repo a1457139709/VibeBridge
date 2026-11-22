@@ -49,7 +49,6 @@ module.exports = {
     await check(runs[0], 'Busy');
     await emit(runs[0], { hook_event_name: 'StopFailure' });
     await check(runs[0], 'Error');
-    // Input travels through the actual renderer terminal after an observation error.
     await evaluate(`document.querySelector('[data-panel-id="${runs[0].panelId}"] .xterm-helper-textarea').focus()`);
     for (const character of JSON.stringify({ id: 'keyboard', payload: { hook_event_name: 'UserPromptSubmit' } })) {
       window.webContents.sendInputEvent({ type: 'char', keyCode: character });

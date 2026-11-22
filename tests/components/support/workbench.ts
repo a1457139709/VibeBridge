@@ -11,8 +11,6 @@ export function deferred<T>() {
   return { promise, resolve, reject };
 }
 
-// The preload API is the component's external boundary. Unexpected calls fail
-// instead of silently returning a permissive default.
 export function provideWorkbench(methods: Partial<DesktopAPI>) {
   window.workbench = fromPartial<DesktopAPI>(
     new Proxy(methods, {

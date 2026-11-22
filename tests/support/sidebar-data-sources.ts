@@ -26,7 +26,6 @@ export const issue = (number: number): ListedIssue => ({
   parent: null,
   subIssues: { closed: 0, total: 0, issues: [] },
 });
-/** An issue's detail as the forge answers it, titled `title`, with `extra`. */
 export const detail = (
   number: number,
   title = `Issue ${number}`,
@@ -53,28 +52,21 @@ export const page = (numbers: number[], cursor: string | null = null): Extract<I
   labels: [],
   counts: { open: numbers.length, closed: 0 },
 });
-/** The forge's answer to a read of issues by number. */
 export const byNumber = (items: ListedIssue[]): IssuesByNumber => ({ ok: true, items });
-/** Resolves once the answers given so far are taken in: every promise callback they set off has run. */
 export const answersTakenIn = () => new Promise<void>(resolve => setImmediate(resolve));
 
-/** What any of the sources' reads resolves to. */
 type SourceAnswer = {
   [Read in keyof ForgeSidebarSources]: ForgeSidebarSources[Read] extends (...args: never[]) => Promise<infer Answer>
     ? Answer
     : never;
 }[keyof ForgeSidebarSources];
 
-/** The module over sources whose every read waits until the test answers it. */
 export function sidebarData() {
   const reads: {
     projectId: string;
     query?: ListQuery;
     item?: DetailItem;
-    /** The numbers a read by number asks for, of `item`'s kind. */
     byNumber?: { kind: DetailItem['kind']; numbers: number[] };
-    /** Resolves the read with an answer one of the sources gives: the test gives each read what the source behind it
-     * returns. Method shorthand, so each read's resolver, which takes its own source's answer, is stored here. */
     answer(value: SourceAnswer): void;
     fail(error: Error): void;
   }[] = [];
@@ -86,11 +78,9 @@ export function sidebarData() {
     byNumber?: { kind: DetailItem['kind']; numbers: number[] },
   ) =>
     new Promise<Answer>((answer, fail) => {
-      // Every source shares this read; each one's type gives `Answer`, what the test answers it with.
       reads.push({ projectId, query, item, byNumber, answer: (value: Answer) => answer(value), fail });
       for (const wake of waiting.splice(0)) wake();
     });
-  /** The `count`th read, once it is made. */
   const readNumber = async (count: number) => {
     while (reads.length < count) await new Promise<void>(wake => waiting.push(wake));
     return reads[count - 1];
@@ -126,12 +116,9 @@ export function sidebarData() {
   return { data, reads, readNumber, events, lists, choices, shownDetail };
 }
 export const numbers = (lists: ForgeLists | undefined) => lists?.issues.loaded?.items.map(item => item.number);
-/** The title of the issue the detail shows, as last pushed. */
 export const detailTitle = (shown: ShownDetail | undefined) =>
   shown?.result.ok && 'issue' in shown.result ? shown.result.issue.title : undefined;
 
-/** Shows the project's issues on the default view while the sidebar shows it in the foreground, answering the first
- * page with `numbers`. */
 export async function shownIssues(
   { data, reads }: ReturnType<typeof sidebarData>,
   numbers: number[],

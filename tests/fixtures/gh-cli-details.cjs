@@ -1,6 +1,3 @@
-// The `gh api graphql` answers for one issue or pull request, read from the gh double's state (see gh-cli.cjs).
-
-/** One issue with its comments and relations, as GitHub's `repository.issue` answers; NOT_FOUND for a number with no issue. */
 function issueDetail(state, path, number, answering) {
   const issues = state.issues ?? [],
     pulls = state.pullRequests ?? [];
@@ -25,7 +22,6 @@ function issueDetail(state, path, number, answering) {
     url: `${url}/issues/${item.number}`,
   });
   const byNumber = numbers => (numbers ?? []).map(n => issues.find(item => item.number === n)).filter(Boolean);
-  // A blocker in another repository is named in full; one in this repository by its number.
   const blocker = entry =>
     typeof entry === 'number'
       ? reference(byNumber([entry])[0])
@@ -81,7 +77,6 @@ function issueDetail(state, path, number, answering) {
             parent: issue.parent
               ? { ...reference(byNumber([issue.parent])[0]), subIssuesSummary: subIssuesSummary(issue.parent) }
               : null,
-            // GitHub lists sub-issues in the order they were added, not by number.
             subIssues: {
               nodes: issues
                 .filter(item => item.parent === issue.number)
@@ -98,7 +93,6 @@ function issueDetail(state, path, number, answering) {
   );
 }
 
-/** One pull request with its timeline and merge requirements, as GitHub's `repository.pullRequest` answers; NOT_FOUND for a number with no pull request. */
 function pullRequestDetail(state, path, number, answering) {
   const url = `https://github.com/${path}`;
   const pull = (state.pullRequests ?? []).find(item => item.number === number);
@@ -124,7 +118,6 @@ function pullRequestDetail(state, path, number, answering) {
     };
   };
   const allowed = { merge: true, squash: true, rebase: true, ...state.mergeMethods };
-  // A check run's log is its GitHub page; a commit status links where it ran, if anywhere.
   const contexts = (pull.checkRuns ?? []).map((check, index) =>
     check.context === undefined
       ? {

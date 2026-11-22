@@ -23,7 +23,6 @@ const panel = (id: string, status: ProcessingState): PanelView => ({
   status,
 });
 
-// Like the workspace, the harness shows one summary per current project over its resident and tray panels.
 function fixture() {
   const snapshot: Snapshot = {
     navigation: { visible: true, width: 212 },

@@ -14,8 +14,6 @@ import { selectElement } from './support/elements';
 afterEach(cleanup);
 
 const github = (path: string) => githubRepository(path);
-/** The account's repositories, with the one `origin` of `directory` points at: acme/forge for /work/moved, else
- * octo/vibebridge. */
 const listed = async (directory: string): Promise<RepositoryChoices> => ({
   ok: true,
   forge: githubForge,
@@ -24,7 +22,6 @@ const listed = async (directory: string): Promise<RepositoryChoices> => ({
   repositories: ['octo/tools', 'octo/vibebridge', 'acme/forge'].map(github),
 });
 
-/** The edit-project dialog's host for a project bound to `repository`, or unbound for null. */
 function editor(repository: RepositoryReference | null, choices = listed) {
   const project: ProjectView = {
     id: 'project',

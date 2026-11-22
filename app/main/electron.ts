@@ -12,15 +12,12 @@ import { desktopRequestArguments } from './desktop-requests';
 import type { z } from 'zod';
 
 app.setName('VibeBridge');
-// Also permits isolated local acceptance runs without touching the user's projects.
 if (process.env.VIBEBRIDGE_DATA_DIR) app.setPath('userData', process.env.VIBEBRIDGE_DATA_DIR);
 let window: BrowserWindow | undefined;
 let opening: Promise<Workbench>;
 let exiting = false;
 let confirming = false;
 let language: Language = 'en';
-// An app opened from the Finder inherits a minimal PATH. Forge CLIs such as gh are looked up on the
-// inherited PATH first, then on the login shell's, where the Agents find them too.
 const loginPathMerged = readLoginEnvironment()
   .then(environment => {
     const entries = [...(process.env.PATH ?? '').split(':'), ...(environment.PATH ?? '').split(':')].filter(Boolean);
@@ -68,7 +65,6 @@ function updateNativeLanguage(next: Language) {
   );
 }
 
-/** Shows a message box on the window, or on its own while there is no window. */
 const showMessageBox = (options: MessageBoxOptions) =>
   window ? dialog.showMessageBox(window, options) : dialog.showMessageBox(options);
 
@@ -134,7 +130,6 @@ void app.whenReady().then(async () => {
     }
   });
   mainWindow.webContents.setWindowOpenHandler(({ url }) => {
-    // The links forge HTML keeps (http, https and mailto) open in the system's own apps.
     if (/^(https?:\/\/|mailto:)/i.test(url)) void shell.openExternal(url);
     return { action: 'deny' };
   });
@@ -160,18 +155,14 @@ void app.whenReady().then(async () => {
       detail: localize(language).text(error.message),
     });
   });
-  // Install handlers before showing the page, while disk work completes asynchronously.
-  /** Whether an IPC message comes from the page this window shows, the only sender the Workbench answers. */
   const fromPage = (event: Electron.IpcMainEvent | Electron.IpcMainInvokeEvent) =>
     event.sender === mainWindow.webContents && event.senderFrame?.url === page;
-  /** The arguments of `request` as its schema reads them; throws when they are not the ones the contract gives it. */
   const readArguments = <R extends DesktopRequest>(request: R, args: unknown[]): Parameters<DesktopAPI[R]> => {
     const schema: z.ZodType<Parameters<DesktopAPI[R]>> = desktopRequestArguments[request];
     const parsed = schema.safeParse(args);
     if (!parsed.success) throw new Error(message('requestInvalid'));
     return parsed.data;
   };
-  /** Answers `request` with `action`, which takes its arguments and returns its result as the contract types them. */
   const handle = <R extends DesktopRequest>(
     request: R,
     action: (

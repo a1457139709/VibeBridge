@@ -89,8 +89,6 @@ interface ActionRequest {
   answer(result: DirectActionResult): void;
 }
 
-/** The Workbench with a bound project and its sidebar open, its forge holding one issue (#3) and one pull request (#12).
- * Details and pages answer from `forge` at once; each direct action waits until the test answers it. */
 function renderWorkbench(forge: Forge) {
   const project: ProjectView = {
     id: 'alpha',
@@ -185,7 +183,6 @@ function renderWorkbench(forge: Forge) {
 const sidebar = () => screen.getByRole('complementary', { name: 'GitHub' });
 const issuePane = () => within(sidebar()).getByRole('region', { name: 'Issue detail' });
 const pullPane = () => within(sidebar()).getByRole('region', { name: 'Pull request detail' });
-/** The texts of the buttons in the pull request's merge area. */
 const mergeButtons = () =>
   within(within(pullPane()).getByRole('region', { name: 'Merge requirements' }))
     .queryAllByRole('button')
@@ -405,7 +402,6 @@ test('a repository that merges through a merge queue greys out merging and links
   );
 });
 
-// The chosen merge method is remembered for the rest of the app's run, so this test runs last.
 test('the method menu lists only the methods the repository allows and remembers the last one chosen', async () => {
   const forge: Forge = {
     pullRequest: pullDetail(12, { mergeOptions: { methods: ['squash', 'rebase'], queue: false } }),

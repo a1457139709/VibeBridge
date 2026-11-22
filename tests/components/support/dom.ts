@@ -24,10 +24,7 @@ for (const key of [
   });
 }
 Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true, CSS: { escape } });
-// jsdom has no AnimationEvent, so React would listen for a vendor-prefixed animationend that fireEvent never sends.
 Object.assign(window, { AnimationEvent: class AnimationEvent extends window.Event {} });
-// jsdom has no layout or native modal UI. Model only the open/close DOM contract;
-// these shims deliberately cannot verify scrolling, top-layer rendering or focus.
 window.HTMLElement.prototype.scrollIntoView = () => {};
 window.HTMLDialogElement.prototype.showModal = function () {
   this.open = true;

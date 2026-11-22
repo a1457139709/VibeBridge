@@ -11,10 +11,8 @@ import { githubView } from './support/forge';
 import { requireValue } from '../../app/renderer/common/required';
 import { selectElement } from './support/elements';
 
-// Frames run only when the test runs them, so every frame a pending location could use has run before an assertion.
 const frames = new Map<number, FrameRequestCallback>();
 let nextFrame = 0;
-// Terminals of these panels are on screen but cannot take input yet, as during a delayed layout.
 const unavailable = new Set<string>();
 
 afterEach(cleanup);
@@ -66,15 +64,12 @@ before(() => {
   }
 });
 
-/** Runs the frames requested so far; frames they request wait for the next call. */
 const runFrame = () =>
   act(async () => {
     const pending = [...frames.values()];
     frames.clear();
     for (const callback of pending) callback(0);
   });
-/** Runs frames until none is requested, so no pending work can change focus afterwards. A location
- * waiting for its terminal requests a frame every frame, so this also proves no location still waits. */
 const settle = async () => {
   for (let round = 0; frames.size; round++) {
     assert.ok(round < 50, 'frames keep requesting frames');
@@ -128,7 +123,6 @@ async function renderWorkbench() {
   await screen.findAllByText('Session first');
   const user = userEvent.setup();
   return {
-    // The panel whose terminal receives keyboard input, if any.
     focused: () =>
       document.activeElement?.classList.contains('xterm-helper-textarea')
         ? document.activeElement.closest<HTMLElement>('[data-panel-id]')?.dataset.panelId
@@ -144,7 +138,6 @@ async function renderWorkbench() {
       );
       await runFrame();
     },
-    // The main process closes a panel and reports the project as it now is.
     close: (panelId: string) =>
       act(() => {
         const [project] = snapshot.projects;

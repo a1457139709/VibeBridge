@@ -1,7 +1,6 @@
 import { useLocalization } from '../common/Localization';
 import { agentNames, type LaunchResult } from '../../shared/model';
 
-/** One line per launch, numbered in launch order. */
 export function LaunchResults({ launches }: { launches: LaunchResult[] }) {
   const { t, text } = useLocalization();
   return (

@@ -27,9 +27,7 @@ export function localize(language: Language) {
     try {
       const parsed = JSON.parse(input.slice(messagePrefix.length));
       if (Object.hasOwn(english, parsed.id)) return format(parsed.id, parsed.values);
-    } catch {
-      /* External error details are kept as received. */
-    }
+    } catch {}
     return input;
   }
   return {

@@ -123,8 +123,6 @@ test('an inaccessible repository names the account and offers Retry and Change b
   );
 });
 
-/** The bound project alpha's sidebar on its change-binding page, with octo/alpha listed and octo/renamed the origin;
- * binding and unbinding record their calls and take effect. */
 async function changeBindingPage(choices?: () => Promise<RepositoryChoices>) {
   const calls: unknown[] = [];
   const rendered = renderWorkbench(undefined, {

@@ -17,8 +17,6 @@ import { selectElement } from './support/elements';
 afterEach(cleanup);
 const { t } = localize('en');
 before(() => {
-  // jsdom has no layout, frames, media queries or pointer capture. Every element reports one fixed area,
-  // so these tests cover what a drop does, not where the pointer has to be.
   stubLayoutApis();
   Object.assign(globalThis, { getComputedStyle: window.getComputedStyle.bind(window) });
   const area = new window.DOMRect(0, 0, 800, 600);
@@ -102,7 +100,6 @@ function renderWorkbench(resident = false) {
       return placed.promise;
     },
     moveToTray: async (...request) => {
-      // The main process moves the panel from the layout to the tray's end; `publish` delivers that snapshot.
       moved.push(request);
       const [project] = snapshot.projects;
       const panel = requireValue(
@@ -179,7 +176,6 @@ test('moving the maximized resident panel to the tray leaves it collapsed in the
   assert.equal(screen.queryByRole('button', { name: t('collapsePanel') }), null);
 });
 
-/** Records the animations the workbench starts; each finishes when the test says so. */
 function recordAnimations(reducedMotion: boolean) {
   const started: { target: Element; keyframes: Keyframe[]; options: KeyframeAnimationOptions; finish(): void }[] = [];
   const slot = new window.DOMRect(0, 0, 800, 600),

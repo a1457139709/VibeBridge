@@ -1,5 +1,3 @@
-/* The direct actions at the bottom of a detail: split buttons with their menus, and a failure's line under them.
-   Menus are forge popovers; their placement here is more specific than the popover's own. */
 .forge-muted {
   color: var(--muted);
 }

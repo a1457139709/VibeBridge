@@ -36,7 +36,6 @@ module.exports = {
     await f.choose('done', second);
     await f.receiveInput(second, 'maximized-selection');
     assert.equal(await visiblePanels(evaluate), 1);
-    // The summary belongs to the workspace and leaves with it.
     await click('Global settings');
     assert.equal(await summaryShown(), false, 'the settings page shows no summary');
     await click('‹ Back');
@@ -46,8 +45,6 @@ module.exports = {
     await f.receiveInput(first, 'restored-split-selection');
     assert.equal(await visiblePanels(evaluate), 3);
 
-    // A newer list selection supersedes a target that is visible but cannot yet
-    // receive terminal input. Hiding only the terminal models delayed layout.
     await evaluate(
       `document.querySelector('[data-panel-id="${first.panelId}"] .terminal-container').style.display = 'none'`,
     );
@@ -67,8 +64,6 @@ module.exports = {
         !(await evaluate('document.querySelector(".workbench-page").classList.contains("locating-panel")')),
       'second terminal keeps focus and no location waits once the first terminal is shown again',
     );
-    // Earlier output remains accessible through terminal scrollback: each Shift+PageUp shows earlier rows
-    // until the record is in view. At the top of the scrollback the rows stop changing and the wait fails.
     const rowsText = () =>
       evaluate(`document.querySelector('[data-panel-id="${second.panelId}"] .xterm-rows').textContent`);
     while (!(await rowsText()).includes('RECEIVED:split-selection')) {
@@ -87,8 +82,6 @@ module.exports = {
     );
     assert.deepEqual(unchanged.projects[0].layout, layout);
 
-    // Background projects keep updating navigation while the summary follows
-    // project navigation. A project-title visit retains its saved viewing mode.
     const otherDirectory = `${directory}/other`;
     await mkdir(otherDirectory);
     await evaluate(
@@ -116,7 +109,6 @@ module.exports = {
       'summary shows "3 Done" after returning',
     );
 
-    // Ten long titles make a scrollable list; many projects cannot add bar rows.
     for (let i = 0; i < 7; i++) {
       const result = await evaluate(`window.workbench.addPanel(${JSON.stringify(f.projectId)}, 'codex')`);
       await f.send(result.launch.run, {
@@ -152,7 +144,6 @@ module.exports = {
           for (const collapsed of [false, true]) {
             if (collapsed) await click(language === 'en' ? 'Collapse project navigation' : '折叠项目导航');
             await f.open('done');
-            // The list drops from the middle of the toolbar, centred under the summary unless the window edge clamps it.
             const geometry = await evaluate(`(() => {
               const bar = document.querySelector('.workspace-toolbar').getBoundingClientRect();
               const summary = document.querySelector('.project-summary').getBoundingClientRect();
@@ -184,9 +175,6 @@ module.exports = {
         }
       }
     }
-    // The summary stays centred in the toolbar between an empty left and ＋ on the right. A toolbar too narrow
-    // for four names collapses every entry to icon and count together; names remain in each entry's
-    // accessible name and tooltip.
     for (const language of ['en', 'zh-CN']) {
       await evaluate(`window.workbench.saveSettings({ language: ${JSON.stringify(language)} })`);
       await until(
@@ -217,7 +205,6 @@ module.exports = {
                   inside: box.left >= summary.left && box.right <= summary.right && box.top >= bar.top && box.bottom <= bar.bottom };
               }) };
           })()`);
-          // The toolbar settles once the navigation change is laid out: the summary centred, entries named as the width allows.
           let toolbar;
           await until(
             async () => {
@@ -234,7 +221,6 @@ module.exports = {
             assert.ok(entry.inside, `${entry.label} at ${width}px`);
             assert.equal(entry.hint, entry.label);
           }
-          // The next measurement must be of the toolbar beside the toggled navigation.
           const toolbarLeft = () =>
             evaluate('document.querySelector(".workspace-toolbar").getBoundingClientRect().left');
           const left = await toolbarLeft();
@@ -251,8 +237,6 @@ module.exports = {
     window.setContentSize(1280, 860);
     await evaluate('window.workbench.saveSettings({ language: "en" })');
     await until(() => evaluate('document.documentElement.lang === "en"'), 'interface switched to en');
-    // Persisted configuration is tested in a second Electron process; temporary
-    // maximize must not overwrite the layout, and old runs must not be resumed.
     await evaluate(
       `document.querySelector('[data-panel-id="${second.panelId}"] button[aria-label="Maximize panel"]').click()`,
     );

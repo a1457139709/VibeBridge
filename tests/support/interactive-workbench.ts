@@ -20,7 +20,6 @@ export const alive = (pid: number) => {
   }
 };
 
-/** A Workbench in its own data directory whose every Agent runs tests/fixtures/interactive.cjs. */
 export async function interactiveWorkbench(scope: string) {
   const directory = await mkdtemp(resolve(`work/${scope}-`));
   const workbench = await Workbench.open(directory);

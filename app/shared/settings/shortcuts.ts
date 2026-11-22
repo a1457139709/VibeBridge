@@ -13,7 +13,6 @@ export const shortcutActions = [
   'locateDispatchedPanel',
 ] as const;
 export type ShortcutAction = (typeof shortcutActions)[number];
-/** The actions on the issue focus is on in the forge sidebar; elsewhere their keys go on to the terminal. */
 export type IssueShortcutAction = Extract<ShortcutAction, 'openDispatchMenu' | 'locateDispatchedPanel'>;
 export type Shortcuts = Record<ShortcutAction, string>;
 export const shortcutNames: Record<ShortcutAction, string> = {
@@ -91,7 +90,6 @@ const validKey = (key: string) =>
   ].includes(key) ||
   /^F([1-9]|1[0-9]|2[0-4])$/.test(key);
 
-// One canonical spelling is shared by hand-edited settings, the recorder and dispatch.
 export function shortcutFormatError(binding: unknown): string | undefined {
   if (typeof binding !== 'string') return message('shortcutInvalid');
   const parts = binding.split('+'),
@@ -130,7 +128,6 @@ export function shortcutConflicts(shortcuts: Shortcuts): ShortcutConflict[] {
     .map(([binding, actions]) => ({ binding, actions, systemAction: reserved[binding] }));
 }
 
-/** Whether a key was pressed with none of ⌘, Ctrl and ⌥ held: a plain key, not a shortcut. */
 export const withoutShortcutModifier = (event: Pick<KeyboardEvent, 'metaKey' | 'ctrlKey' | 'altKey'>) =>
   !(event.metaKey || event.ctrlKey || event.altKey);
 

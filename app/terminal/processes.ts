@@ -10,14 +10,11 @@ export interface ProcessIdentity {
   owner?: string;
 }
 const execute = promisify(execFile);
-/** This process's user ID; `ps` lists that user's processes. Platforms without user IDs cannot be inspected. */
 function currentUser(): number {
   if (!process.getuid) throw new Error(message('processInspectionFailed'));
   return process.getuid();
 }
 export async function readProcessTable(includeOwners = false): Promise<ProcessIdentity[]> {
-  // macOS -E reads the launch environment, including inherited ownership after reparenting.
-  // Only retain our marker; never log or send command lines or other environment values.
   let stdout: string;
   try {
     const args = includeOwners

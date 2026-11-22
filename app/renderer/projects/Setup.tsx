@@ -76,7 +76,6 @@ export function Setup({
   const pending = useRef(false);
   const inspected = inspection?.path === draft.directory ? inspection.result : undefined;
   const checking = !!draft.directory && !inspected;
-  /** The project that already uses the chosen directory. */
   const existingProjectId = inspected?.existingProjectId;
   const nameError = text(projectNameError(draft.name));
   const nameMessage = text(nameInputError) || (nameTouched || draft.name.trim() ? nameError : '');
@@ -156,7 +155,6 @@ export function Setup({
     pending.current = true;
     setBusy(true);
     try {
-      // Failed launches are already withdrawn from the project.
       const { project, launches } = await window.workbench.createProject(draft);
       if (launches.every(launch => launch.outcome === 'started')) onSetupFinished(project.id);
       else setLaunchReport({ projectId: project.id, launches });

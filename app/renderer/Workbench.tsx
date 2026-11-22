@@ -19,7 +19,6 @@ import { configureTerminals, reconcileTerminals, applyTerminalEvent, setTerminal
 import { errorMessage } from '../shared/caught-error';
 import { requireValue } from './common/required';
 
-/** The application shell: system bar, project navigation, and the current page. */
 export function App() {
   const [snapshot, setSnapshot] = useState<Snapshot>();
   useEffect(() => {
@@ -64,8 +63,6 @@ function WorkbenchView({ snapshot, setSnapshot }: { snapshot?: Snapshot; setSnap
         initial.errors.forEach(message => report(message));
         reconcileTerminals(initial.projects);
         unsubscribe = window.workbench.subscribe(event => {
-          // Each snapshot is drawn as it arrives: the layout area compares consecutive saved layouts, so batching
-          // two snapshots into one render could hide a save that returns to the layout before the last one.
           if (event.kind === 'snapshot') {
             reconcileTerminals(event.snapshot.projects);
             flushSync(() => setSnapshot(event.snapshot));
@@ -115,7 +112,6 @@ function WorkbenchView({ snapshot, setSnapshot }: { snapshot?: Snapshot; setSnap
     navigate(() => location.locatePanel(projectId, panelId, runId));
   const windowWidth = useWindowWidth();
   const [lastResized, setLastResized] = useState<Region>('navigation');
-  /** How each region was last drawn: a drag starts from it. */
   const drawn = useRef<Record<Region, RegionFit>>(undefined);
   const widestOnResize: WidestOnResize = region => {
     setLastResized(region);
@@ -126,7 +122,6 @@ function WorkbenchView({ snapshot, setSnapshot }: { snapshot?: Snapshot; setSnap
     page: settingsOpen ? 'settings' : setupOpen ? 'setup' : 'workbench',
     view: location.view,
     openProject: openProject,
-    // The sidebar shows the current project, so the project whose binding it opens on becomes current.
     openBinding: project =>
       navigate(() => {
         if (snapshot?.activeProjectId !== project.id) location.openProject(project.id);
@@ -139,7 +134,6 @@ function WorkbenchView({ snapshot, setSnapshot }: { snapshot?: Snapshot; setSnap
     report,
   });
   const active = snapshot?.projects.find(project => project.id === snapshot.activeProjectId);
-  // The forge sidebar shows the current project, on the workbench and on the settings page.
   const forgeSidebar = useForgeSidebar({
     snapshot: snapshot,
     project: setupOpen ? undefined : active,
@@ -147,7 +141,6 @@ function WorkbenchView({ snapshot, setSnapshot }: { snapshot?: Snapshot; setSnap
     widestOnResize,
     report,
   });
-  // The window bounds how the regions are drawn, never their remembered widths.
   const fits = fitRegions(
     windowWidth,
     {

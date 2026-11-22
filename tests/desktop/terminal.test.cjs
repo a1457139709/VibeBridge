@@ -20,13 +20,11 @@ module.exports = {
       'terminal echoes typed k',
     );
 
-    // Agent CLIs read CSI u Shift+Enter as a newline in their prompt; plain Enter still submits.
     const bytesOf = async (keyCode, modifiers, after = async () => {}) => {
       await evaluate('window.output = ""; void 0');
       window.webContents.sendInputEvent({ type: 'keyDown', keyCode, modifiers });
       window.webContents.sendInputEvent({ type: 'keyUp', keyCode, modifiers });
       await after();
-      // A trailing marker shows every byte of the key has arrived; PTY reads may merge them.
       window.webContents.sendInputEvent({ type: 'char', keyCode: '.' });
       await until(
         () => evaluate('/BYTES:[0-9a-f]*2e[^0-9a-f]/.test(window.output)'),
@@ -36,16 +34,12 @@ module.exports = {
     };
     assert.equal(await bytesOf('Enter', ['shift']), Buffer.from('\x1b[13;2u.').toString('hex'));
     assert.equal(await bytesOf('Enter', []), Buffer.from('\r.').toString('hex'));
-    // Command+V reaches the terminal only through the Edit menu's paste, which synthetic key events
-    // cannot trigger, so the paste is performed after the key; it must land before the marker.
     require('electron').clipboard.writeText('pasted');
     const paste = async () => {
       window.webContents.paste();
       await until(() => evaluate('window.output.includes("INPUT:pasted")'), 'pasted text echoed');
     };
     assert.equal(await bytesOf('v', ['meta'], paste), `${Buffer.from('pasted').toString('hex')}2e`);
-    // Command+C over a selection is left to the Edit menu and sends nothing to the Agent.
-    // Echoed CSI u restores the cursor and overwrites earlier rows, so select on a freshly cleared screen.
     await evaluate(`window.workbench.sendInput(${JSON.stringify(run.id)}, 'palette')`);
     const accentRow =
       '[...document.querySelectorAll(".xterm-rows > div")].find(row => row.textContent.startsWith("ACCENT"))';
@@ -69,8 +63,6 @@ module.exports = {
     await evaluate('document.querySelector(".xterm-helper-textarea").focus()');
     assert.equal(await bytesOf('c', ['meta']), '2e');
 
-    // A screen that follows output keeps following after it shrinks while off screen. Off screen
-    // the renderer pauses; held idle callbacks keep its earlier size, as on a busy main thread.
     for (let i = 0; i < 8; i++) await evaluate(`window.workbench.sendInput(${JSON.stringify(run.id)}, 'fill-${i}')`);
     await until(
       () => evaluate('document.querySelector(".xterm-rows").textContent.includes("INPUT:fill-7")'),
@@ -78,8 +70,6 @@ module.exports = {
     );
     const rows = () => evaluate('document.querySelector(".xterm-rows").children.length');
     const rowsInView = await rows();
-    // The test observes the screen as the Workbench does. Observers are notified in the order they were
-    // created, so once these report, the Workbench's own observers have seen the same change.
     await evaluate(`(() => {
       const container = document.querySelector('.terminal-container'); const { width, height } = container.getBoundingClientRect();
       const screen = container.querySelector('.terminal-screen');
@@ -98,8 +88,6 @@ module.exports = {
     await evaluate(
       `document.querySelector('.terminal-container').style.top = '0'; window.requestIdleCallback = window.heldIdle; void 0`,
     );
-    // Back in view the screen fits its shorter size. The run is asked for its size until it
-    // answers with the rows the screen shows, so later input lands after the resize is settled.
     await until(async () => (await rows()) < rowsInView, 'terminal fitted its shorter size back in view');
     await until(
       async () => (await reportedSize(run.id)).rows === (await rows()),
@@ -111,7 +99,6 @@ module.exports = {
       'terminal resized off screen still follows output (INPUT:after-hidden-resize drawn)',
     );
     await evaluate(`document.querySelector('.terminal-container').style.cssText = ''`);
-    // Keep the descendant check bounded to the one retained cleanup flow.
     await evaluate(`window.workbench.sendInput(${JSON.stringify(run.id)}, 'child')`);
     await until(() => evaluate('/CHILD:\\d+/.test(window.output)'), 'descendant process reported its CHILD pid');
     const child = Number(await evaluate('window.output.match(/CHILD:(\\d+)/)[1]'));

@@ -20,7 +20,6 @@ import { requireValue } from '../../app/renderer/common/required';
 afterEach(cleanup);
 before(stubSidebarApis);
 
-/** The sidebar on the Pull requests tab, after the Issues tab has shown its first page. Returns the rendered Workbench. */
 async function onPullRequests() {
   const workbench = renderWorkbench();
   (await workbench.request(1)).answer(page([issue(1)]));

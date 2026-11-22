@@ -13,9 +13,7 @@ export const githubCapabilities: ForgeCapabilities = {
   mergeQueue: true,
   mergeMethods: ['merge', 'squash', 'rebase'],
 };
-/** The forge fields of a ProjectView whose project uses GitHub, with no Dispatch Records. */
 export const githubView = { forge: githubForge, capabilities: githubCapabilities, dispatches: [] };
-/** A repository on github.com; each path has its own ID unless `id` gives another. */
 export const githubRepository = (path: string, id = `id-${path}`): RepositoryReference => ({
   forge: 'github',
   host: 'github.com',

@@ -1,5 +1,3 @@
-// Own only capture and pointer listener cleanup; gesture calculations and outside
-// cancellation triggers stay with their callers.
 export function capturePointer(
   element: HTMLElement,
   pointerId: number,

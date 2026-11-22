@@ -25,14 +25,11 @@ import './pull-request-detail.css';
 interface Props {
   project: ProjectView & { repository: RepositoryReference };
   pullRequest: PullRequestDetail;
-  /** Opens an issue or pull request of the bound repository in the detail. */
   open(item: DetailItem): void;
-  /** Opens a clicked link of the bound repository in the detail. */
   followLink(event: MouseEvent): void;
   actions: Actions;
 }
 
-/** Each review verdict's name and colour, as a review summary's chip shows it. */
 const verdicts: Record<
   ReviewVerdict,
   { name: 'verdictApproved' | 'verdictChangesRequested' | 'verdictCommented' | 'verdictDismissed'; tone: string }
@@ -43,9 +40,6 @@ const verdicts: Record<
   dismissed: { name: 'verdictDismissed', tone: 'skipped' },
 };
 
-/** One pull request as its detail shows it, in the forge's order: the title, state, head into base, where its
- * changes are, labels and the issues it closes on merge; then the body, comments and review summaries in time order,
- * code comments only as a count, and the merge area with its direct actions last. No diff, size, reviewer list or approve button. */
 export function PullRequestDocument({ project, pullRequest, open, followLink, actions }: Props) {
   const { t } = useLocalization();
   const forge = project.forge.name;
@@ -131,7 +125,6 @@ export function PullRequestDocument({ project, pullRequest, open, followLink, ac
   );
 }
 
-/** Each check result's mark, name and colour; a skipped check folds with the passed ones. */
 const results: Record<
   Check['result'],
   { mark: string; name: 'checksPassed' | 'checksFailed' | 'checksPending' | 'checkSkipped'; tone: string }
@@ -142,9 +135,6 @@ const results: Record<
   skipped: { mark: '–', name: 'checkSkipped', tone: 'skipped' },
 };
 
-/** The merge area at the bottom, one requirement per row, then the direct actions: the review, the checks (one summary line; failed and
- * running checks listed, passed ones folded; required ones marked when the forge declares required checks; each opens its
- * log), conflicts, the draft, and merging or closing it. A merged or closed pull request only says so; a closed one reopens. */
 function MergeArea({
   pullRequest,
   capabilities,

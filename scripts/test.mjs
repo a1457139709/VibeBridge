@@ -47,7 +47,6 @@ try {
     format: 'esm',
     outExtension: { '.js': '.mjs' },
   });
-  // Git run from a hook names this checkout's index and directory in GIT_* variables; tests create repositories of their own.
   const env = Object.fromEntries(Object.entries(process.env).filter(([key]) => !key.startsWith('GIT_')));
   const result = spawnSync(
     binary,

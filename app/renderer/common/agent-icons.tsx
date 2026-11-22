@@ -1,8 +1,6 @@
 import type { ReactNode } from 'react';
 import type { AgentType } from '../../shared/model';
 
-// OpenAI Blossom, owned by OpenAI. Geometry from the official ChatGPT asset:
-// https://cdn.oaistatic.com/assets/favicon-l4nq08hd.svg (https://openai.com/brand/).
 export const agentIcons: Record<AgentType, ReactNode> = {
   codex: (
     <svg className="openai-mark" viewBox="0 0 180 180" fill="currentColor" aria-hidden="true" focusable="false">

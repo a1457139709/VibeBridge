@@ -11,7 +11,6 @@ module.exports = {
     const settingsVisible = () => evaluate('!!document.querySelector(".settings-page")');
     const command = before.settings.agents.codex.command;
     const leaveDialog = () => evaluate('!!document.querySelector(".settings-leave[open]")');
-    // The project summary lives in the workspace, so the settings page locates panels from project navigation.
     const locate = run => evaluate(`document.querySelector('[data-locate-panel-id="${run.panelId}"]').click()`);
     const navigationStatus = run =>
       evaluate(
@@ -70,8 +69,6 @@ module.exports = {
 
     await click('Agent');
     await fill('command-codex', command);
-    // A valid Agent draft changes a future launch argument without restarting
-    // existing runs. All three dirty categories must commit together.
     const argumentsDraft = [...before.settings.agents.codex.args, '--saved-draft'].join('\n');
     await evaluate(`(() => { const input = document.getElementById('arguments-codex');
       Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, 'value').set.call(input, ${JSON.stringify(argumentsDraft)});
@@ -134,8 +131,6 @@ module.exports = {
     await click('Agent');
     assert.equal(await evaluate('document.getElementById("command-codex").value'), command);
 
-    // The selected panel can disappear while the confirmation is open. A
-    // successful settings decision must never retarget input to a survivor.
     await fill('command-codex', 'another-discarded-draft');
     await locate(third);
     await until(leaveDialog, 'leave-settings dialog opened');
@@ -149,8 +144,6 @@ module.exports = {
     await f.choose('done', second);
     await f.receiveInput(second, 'explicit-selection-after-disappearance');
 
-    // Disappearance while waiting for a real terminal must also cancel without
-    // focusing the fallback panel chosen only for display.
     await evaluate(
       `document.querySelector('[data-panel-id="${first.panelId}"] .terminal-container').style.display = 'none'`,
     );

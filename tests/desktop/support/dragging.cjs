@@ -1,4 +1,3 @@
-// Native pointer drags in the workbench window, and the geometry they are checked against.
 module.exports = ({ window, evaluate, until }) => {
   const rect = selector =>
     evaluate(`(() => {
@@ -9,8 +8,6 @@ module.exports = ({ window, evaluate, until }) => {
   return {
     rect,
     center,
-    // Panel slot geometry relative to the layout area, rounded to 1/100. The renderer draws a snapshot after the
-    // main process reports it, so a panel can be missing from the layout area for a moment: that gives null.
     geometry: ids =>
       evaluate(`(() => {
       const canvas = document.querySelector('.canvas').getBoundingClientRect();
@@ -22,8 +19,6 @@ module.exports = ({ window, evaluate, until }) => {
           .map(value => Math.round(value * 100) / 100)];
       }));
     })()`),
-    // Presses on the element and moves past the drag threshold. Electron's button identifies the changed
-    // button; modifiers carry the held button across movement.
     async press(selector) {
       const start = center(await rect(selector));
       window.webContents.sendInputEvent({
@@ -53,7 +48,6 @@ module.exports = ({ window, evaluate, until }) => {
       );
     },
     release: point => window.webContents.sendInputEvent({ type: 'mouseUp', ...point, button: 'left', clickCount: 1 }),
-    // The drop preview outline relative to the layout area, rounded to 1/100.
     async previewBox() {
       const canvas = await rect('.canvas'),
         box = await rect('.panel-drop-preview');

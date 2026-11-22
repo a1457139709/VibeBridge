@@ -4,8 +4,6 @@ import { forges, defaultForge } from './forges';
 import { ForgeError } from './forge';
 import { originUrl } from './origin';
 
-/** The repositories a project can bind, at their current paths: from the forge and host of its binding, or the default
- * forge and its default host when unbound, with the one that `origin` of `directory` points at. */
 export async function repositoryChoices(
   bound: RepositoryReference | null,
   directory: string,
@@ -40,15 +38,12 @@ export async function repositoryChoices(
   }
 }
 
-/** The forge could not list repositories; `reason` is the forge's own text. */
 export class RepositoryListUnreadable extends Error {
   constructor(readonly reason: string) {
     super(reason);
   }
 }
 
-/** The repository as its forge currently lists it, found by its ID, at its listed path. A list that cannot be read
- * throws `RepositoryListUnreadable`; a repository the list does not show throws `repositoryNotListed`. */
 export async function currentListedReference(repository: RepositoryReference): Promise<RepositoryReference> {
   const parsed = repositoryReferenceSchema.safeParse(repository);
   if (!parsed.success) throw new Error(message('repositoryNotListed'));

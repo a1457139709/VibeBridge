@@ -1,4 +1,3 @@
-// Controlled terminal-title producer, exercised only through the public Workbench API.
 process.stdin.setRawMode(true);
 process.stdin.setEncoding('utf8');
 process.stdout.write(`READY:${process.pid}\r\n`);

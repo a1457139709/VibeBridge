@@ -1,11 +1,8 @@
-/* The forge sidebar sits at the right of the app body. Squeeze: it takes its width from the main area.
-   Overlay: it covers the right of the main area; the workspace toolbar, tray and settings page make room, so only the layout area is covered. */
 .app-body {
   position: relative;
 }
 .forge-sidebar {
   position: relative;
-  /* Drawn at the width the window leaves it; it gives up only what a navigation drawn at no width still takes. */
   min-width: 0;
   width: var(--forge-sidebar-width);
   display: flex;
@@ -19,7 +16,6 @@
 .forge-sidebar:focus {
   outline: none;
 }
-/* Above the toolbar and every panel, including a maximized one. */
 .forge-sidebar.overlay {
   position: absolute;
   right: 0;
@@ -97,7 +93,6 @@
   color: var(--accent);
 }
 
-/* State colours match the forge's own (GitHub's octicon colours). */
 :root {
   --forge-open: #1a7f37;
   --forge-done: #8250df;
@@ -375,8 +370,6 @@
 .forge-row {
   cursor: pointer;
 }
-/* One highlight per row, carried by the whole row: faint for the open item's row, strong for the row focus is on;
- * the title draws no focus ring of its own. */
 .forge-row.selected {
   background: var(--hover);
   box-shadow: var(--selection-marker, inset 2px 0 var(--focus));
@@ -471,7 +464,6 @@
 .forge-blocked svg {
   fill: currentColor;
 }
-/* Expanded sub-issues keep whole rows, indented one step behind a line down their left edge. */
 .forge-sub-issues {
   margin-left: 18px;
   border-left: 2px solid color-mix(in srgb, var(--forge-link) 35%, var(--line));
@@ -519,22 +511,17 @@
   background: var(--forge-row-hover);
 }
 
-/* The issue detail opens leftwards from the sidebar's edge. On the workspace it sits only between the toolbar (32px) and
-   the tray (41px; an empty tray lies over the layout area, so then it reaches the bottom). Overlay: it covers the layout area.
-   Squeeze: the layout area also gives up the detail's width, down to none. */
 .app-body.forge-detail-squeeze .canvas {
   margin-right: calc(var(--forge-detail-width) + 4px);
 }
 .app-body.forge-sidebar-yield.forge-detail-squeeze .canvas {
   margin-right: calc(var(--forge-sidebar-width) + var(--forge-detail-width) + 4px);
 }
-/* Above every panel, including a maximized one. */
 .forge-sidebar:has(.forge-detail) {
   z-index: 20;
 }
 .forge-detail {
   position: absolute;
-  /* Ends at the sidebar's border, not inside it: the detail and the sidebar together take their widths of the window. */
   right: calc(100% + 1px);
   top: 0;
   bottom: 0;
@@ -751,7 +738,6 @@
   font-size: 12px;
 }
 
-/* The forge's rendered Markdown, after the filter. */
 .forge-markdown {
   padding: 12px 16px;
   font-size: 13px;
@@ -860,8 +846,6 @@
   font-style: italic;
 }
 
-/* The relation graph: open blockers, this issue, what it blocks. */
-/* The pull requests that close the issue on merge: drawn as pull requests, apart from the issue graph. */
 .forge-closing-pulls {
   margin: 0 0 14px;
   border: 1px solid color-mix(in srgb, var(--forge-done) 40%, var(--line));

@@ -1,4 +1,3 @@
-// Observe only OSC title signals. The caller continues forwarding the original PTY data.
 export function observeTitles(onTitle: (title: string) => void) {
   let state: 'text' | 'escape' | 'command' | 'title' | 'ignore' = 'text';
   let command = '',
@@ -17,7 +16,6 @@ export function observeTitles(onTitle: (title: string) => void) {
           finish();
           continue;
         }
-        // A different escape abandons the incomplete OSC and begins the next sequence.
         state = 'escape';
         title = '';
       }

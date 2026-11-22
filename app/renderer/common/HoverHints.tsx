@@ -1,8 +1,5 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 
-// Native `title` tooltips do not show in the workbench window, so the app draws its own hover hints.
-// Any element marks its hint with `data-hint`; the innermost hinted element under the pointer or
-// keyboard focus wins, so a status icon inside a tray card shows its own hint.
 const showDelay = 400;
 const gap = 6,
   margin = 8;
@@ -11,13 +8,11 @@ const hinted = (target: EventTarget | null) => {
   return found instanceof HTMLElement ? found : null;
 };
 
-/** Shows the hint of the hovered or keyboard-focused element, below it or above it near the window bottom. */
 export function HoverHints() {
   const [anchor, setAnchor] = useState<HTMLElement>();
   const hint = useRef<HTMLDivElement>(null);
   useEffect(() => {
     let timer: ReturnType<typeof setTimeout> | undefined;
-    // The hovered hint wins; without one, the keyboard-focused element keeps its hint.
     let hovered: HTMLElement | null = null,
       focused: HTMLElement | null = null;
     const show = (element: HTMLElement, delay: number) => {
@@ -42,7 +37,6 @@ export function HoverHints() {
       hovered = null;
       hide();
     };
-    // Pressing starts a click or a drag; the hint steps aside until the pointer enters another element.
     const press = () => {
       focused = null;
       hide();
@@ -71,7 +65,6 @@ export function HoverHints() {
       document.removeEventListener('focusout', blur);
     };
   }, []);
-  // The hint text follows its element on every render (a status change renames a panel's hint), so its place does too.
   useLayoutEffect(() => {
     const element = hint.current;
     if (!anchor || !element) return;

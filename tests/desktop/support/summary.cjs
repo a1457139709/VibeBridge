@@ -16,7 +16,6 @@ module.exports = async context => {
   const snapshot = () => evaluate('window.workbench.fetchSnapshot()');
   const runs = runsOf(await snapshot());
   let sequence = 0;
-  // Every run reports one shared CLI session ID; a different session's facts are discarded.
   const session = 'same-session';
   const send = async (run, message) => {
     const id = `summary-${++sequence}`;

@@ -16,7 +16,6 @@ import { interactiveWorkbench } from './support/interactive-workbench';
 import { fromAny } from '@total-typescript/shoehorn';
 
 const account = { account: 'octo', repositories: ['octo/tools', 'Octo/VibeBridge', 'acme/forge'] };
-/** A GitHub repository reference; the ID is one the forge does not list unless a test took it from a listing. */
 const github = (path: string, id = '1'): RepositoryReference => ({ forge: 'github', host: 'github.com', id, path });
 
 function setOrigin(directory: string, url: string) {

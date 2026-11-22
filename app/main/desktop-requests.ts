@@ -6,10 +6,6 @@ import { detailItemSchema, forgeListViewSchema, forgeSidebarPresenceSchema } fro
 import { agentTypeSchema, layoutSchema, sidebarPreferencesSchema, sidebarSchema } from '../shared/model';
 import { settingsPatchSchema } from '../shared/settings/settings';
 
-// The renderer's arguments are data entering the main process: each request's are parsed here, by the types the
-// DesktopAPI contract gives them, before a handler sees them. What a value means (a name that is too long, a layout
-// that places other panels) is for the Workbench to judge; these schemas check its shape.
-
 const id = z.string();
 const projectDraftSchema = z.object({
   name: z.string(),
@@ -20,7 +16,6 @@ const projectDraftSchema = z.object({
 const projectEditSchema = z.object({ name: z.string(), directory: z.string() });
 const itemNumbersSchema = z.array(z.number());
 
-/** The schema of each request's arguments, as a tuple in the contract's order. */
 export const desktopRequestArguments: { [R in DesktopRequest]: z.ZodType<Parameters<DesktopAPI[R]>> } = {
   fetchSnapshot: z.tuple([]),
   createProject: z.tuple([projectDraftSchema]),

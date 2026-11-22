@@ -47,7 +47,6 @@ if (list) {
       'Desktop checks run on GitHub-hosted macOS only. Use the Checks workflow; run npm run check locally.',
     );
   }
-  // Packaged checks load product code from the bundle through Electron's test host.
   const binary = resolve(
     'node_modules/electron/dist',
     (await readFile('node_modules/electron/path.txt', 'utf8')).trim(),

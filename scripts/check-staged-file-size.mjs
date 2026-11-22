@@ -11,19 +11,16 @@ function checkStagedFiles() {
       input,
       maxBuffer: 16 * 1024 * 1024,
     });
-  // Disabling rename detection also checks the destination of renames and copies.
   const changes = git(['diff', '--cached', '--raw', '--no-abbrev', '--no-renames', '-z', '--diff-filter=ACMT']).split(
     '\0',
   );
   const files = [];
   for (let i = 0; i < changes.length - 1; i += 2) {
     const [, mode, , object] = changes[i].split(' ');
-    // Symlinks and submodules do not contain authored file contents.
     if (mode === '100644' || mode === '100755') files.push({ path: changes[i + 1], object });
   }
   if (!files.length) return;
 
-  // Use staged attributes too: unstaged exclusions must not change the result.
   const attributes = git(
     ['check-attr', '--cached', '-z', '--stdin', 'linguist-generated', 'linguist-vendored'],
     files.map(file => file.path).join('\0') + '\0',
@@ -35,7 +32,6 @@ function checkStagedFiles() {
   const authoredFiles = files.filter(file => !ignored.has(file.path));
   if (!authoredFiles.length) return;
 
-  // Read blob sizes from the index's object IDs, never from working-tree files.
   const sizes = git(
     ['cat-file', '--batch-check=%(objectsize)'],
     authoredFiles.map(file => file.object).join('\n') + '\n',

@@ -1,4 +1,3 @@
-/** English texts of the forge sidebar: its lists, details and direct actions. */
 export const englishForgeSidebar = {
   noRepositoryBound: 'No repository bound',
   otherRepositoryAnswers: 'Another repository answers at {path}',

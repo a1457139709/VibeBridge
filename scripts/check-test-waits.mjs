@@ -2,11 +2,8 @@ import { readdir, readFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import ts from 'typescript';
 
-// A fixed wait is a promise that a timer or an animation frame settles: it waits a duration or a number of
-// frames, not for the behaviour under test (docs/adr/0005-tests-guarantee-behaviour-deterministically.md).
 const fixedWait = /new Promise\(\s*\(?\s*[A-Za-z_$][\w$]*\s*\)?\s*=>\s*\{?\s*(?:setTimeout|requestAnimationFrame)\(/;
 const failures = [];
-// The poll interval of an until() helper is how often it checks a condition, not a wait for a duration.
 const insideUntil = node => {
   for (let scope = node.parent; scope; scope = scope.parent) {
     if (!ts.isFunctionLike(scope)) continue;
@@ -21,13 +18,11 @@ const insideUntil = node => {
 async function checkTestWaits(directory) {
   for (const entry of await readdir(directory, { withFileTypes: true })) {
     const file = join(directory, entry.name);
-    // Fixtures stand in for Agent CLIs and processes; their timers are behaviour the tests drive.
     if (entry.isDirectory()) {
       if (file !== join('tests', 'fixtures')) await checkTestWaits(file);
     } else if (entry.isFile() && /\.(?:[cm]?[jt]s|[jt]sx)$/.test(entry.name)) {
       const source = ts.createSourceFile(file, await readFile(file, 'utf8'), ts.ScriptTarget.Latest, true);
       const visit = node => {
-        // Desktop suites run renderer code from strings, so scripts in strings are checked as well as code.
         const candidate = ts.isNewExpression(node) || ts.isStringLiteralLike(node) || ts.isTemplateExpression(node);
         if (candidate && !insideUntil(node) && fixedWait.test(node.getText(source))) {
           const { line, character } = source.getLineAndCharacterOfPosition(node.getStart(source));

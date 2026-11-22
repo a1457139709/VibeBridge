@@ -81,7 +81,6 @@ test('the Claude reporter forwards only the kind and status of Spawned Tasks, so
     const {
       launches: [{ run }],
     } = await f.create();
-    // Each is larger than a report may be: forwarding any would lose the observation and show Error.
     const content = (field: string) => `${field} ${'x'.repeat(64 * 1024)}`;
     await f.send(run.id, { hook_event_name: 'UserPromptSubmit' });
     const payloadFile = join(f.directory, 'stop-with-spawned-tasks.json');

@@ -33,7 +33,6 @@ export class SettingsFile {
   }
   async commit(current: Settings, patch: Partial<Settings>): Promise<SettingsSaveResult> {
     const settings = { ...current, ...patch };
-    // A settings conflict blocks only the categories being saved.
     const saving = settingsCategories
       .filter(category => category.keys.some(key => key in patch))
       .map(category => category.id);

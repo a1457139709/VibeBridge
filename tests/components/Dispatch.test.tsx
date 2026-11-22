@@ -17,7 +17,6 @@ test('Dispatch opens the commands of the enabled workflow, each marked Submit or
   assert.equal(within(row(8)).queryByRole('button', { name: 'Dispatch' }), null, 'a closed issue is not dispatched');
   await f.user.click(dispatchButton(9));
   const menu = screen.getByRole('menu', { name: 'Dispatch #9' });
-  // Each command opens its targets leftwards, behind a caret.
   const commands = within(menu)
     .getAllByRole('menuitem')
     .map(item => (item.textContent ?? '').replace(/^‹/, ''));
@@ -167,7 +166,6 @@ test('filling a new panel opens it as the temporary maximize once it joins the t
       [{ kind: 'new', agent: 'pi' }],
     ),
   );
-  // The dispatch can answer before the snapshot with the new panel reaches the renderer.
   f.snapshot.projects[0].tray.push({
     id: 'new-panel',
     agent: 'pi',
@@ -228,9 +226,7 @@ test('an issue row shows a latest dispatch whose session no panel is on as grey 
   );
 });
 
-/** The implement command's item, whichever delivery it shows. */
 const implement = { name: /^implement\s?(Submit|Fill only)$/ };
-/** The item the open menu's keyboard cursor is on. */
 const cursor = () =>
   document.getElementById(menu().getAttribute('aria-activedescendant') ?? '')?.textContent?.replace(/^‹/, '');
 

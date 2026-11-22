@@ -7,8 +7,6 @@ import { testDirectory } from './directory';
 
 type Start = Parameters<Terminal['start']>[0];
 
-// An in-memory terminal host. Like the real host it reports `started` before answering
-// a start, and `stopping` then `exit` before answering a stop.
 class FakeTerminal implements Terminal {
   starts: Start[] = [];
   answer: 'running' | 'failed' | 'none' = 'running';
@@ -112,12 +110,10 @@ export async function runSupervisionFixture(context: TestContext) {
       if (start) credentials.set(launch.run.id, JSON.parse(start.extraEnvironment.VIBEBRIDGE_STATUS_CONTEXT));
       return launch;
     },
-    /** Reports that the run's Codex CLI started, cleared to or resumed this session. */
     enter: (runId: string, session: string) =>
       f.report(runId, { hook_event_name: 'SessionStart', source: 'resume', session_id: session }),
     runs: () => project.panels.flatMap(panel => supervision.panelView(panel).run ?? []),
     run: (id: string) => project.panels.map(panel => supervision.panelView(panel).run).find(run => run?.id === id),
-    // Reports as the Agent's own status integration would: 204 while observed, 403 once released.
     async report(runId: string, payload: object = {}) {
       const context = credentials.get(runId);
       assert.ok(context, `run ${runId} has no status context`);

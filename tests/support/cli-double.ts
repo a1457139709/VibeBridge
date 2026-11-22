@@ -6,7 +6,6 @@ import { statusOf } from './panel-views';
 import { firstCapture } from './expected';
 import { testNode } from './test-node';
 
-/** Waits for the CLI double; a timeout carries the run's output so CI logs show where it stopped. */
 export async function until(check: () => boolean, output?: () => string) {
   const deadline = Date.now() + 8000;
   while (!check()) {
@@ -16,15 +15,11 @@ export async function until(check: () => boolean, output?: () => string) {
   }
 }
 
-/** The CLI double reports hooks that failed or outlived their timeout before it continues. */
 function assertHooksCompleted(reply: string) {
   if (/HOOK-(FAILED|TIMEOUT):/.test(reply))
     throw new Error(`A hook did not complete; output: ${JSON.stringify(reply)}`);
 }
 
-/** A Workbench whose Agent runs tests/fixtures/<agent>-cli.cjs: a CLI double that loads
- * the launch's Status Reporter through the CLI's native mechanism and emits facts on request.
- */
 export async function fixture(agent: AgentType, args: string[] = []) {
   const directory = await mkdtemp(resolve(`work/${agent}-reporter-'$-`));
   let workbench: Workbench;
@@ -80,7 +75,6 @@ export async function fixture(agent: AgentType, args: string[] = []) {
       }
       return created;
     },
-    /** Ask the CLI double to emit one native fact; options are its other per-message controls. */
     async send(runId: string, payload?: object, options: object = {}) {
       const id = ++sequence;
       const start = output(runId).length;

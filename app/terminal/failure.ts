@@ -1,6 +1,5 @@
 import { writeFile } from 'node:fs/promises';
 
-// One bounded diagnostic record, separate from settings and panel configuration.
 export async function recordFailure(
   file: string,
   source: 'main' | 'terminal',

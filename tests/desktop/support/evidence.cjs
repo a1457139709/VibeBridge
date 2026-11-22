@@ -4,8 +4,6 @@ const { join } = require('node:path');
 module.exports = async function evidence(window) {
   const directory = process.env.VIBEBRIDGE_TEST_EVIDENCE;
   await mkdir(directory, { recursive: true });
-  // Capture independently: a broken renderer may prevent DOM inspection while
-  // the native surface is still useful. Never open a report or image viewer.
   const results = await Promise.allSettled([
     window.webContents.capturePage().then(image => writeFile(join(directory, 'failure.png'), image.toPNG())),
     window.webContents

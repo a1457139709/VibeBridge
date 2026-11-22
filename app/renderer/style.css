@@ -103,7 +103,6 @@ input {
 .primary:hover:not(:disabled) {
   background: var(--primary-hover, var(--focus));
 }
-/* The app's one boolean control: a pill switch (role="switch"), its state also written beside it. */
 .switch {
   position: relative;
   flex-shrink: 0;
@@ -495,7 +494,6 @@ hr {
   display: flex;
   flex-direction: column;
 }
-/* Three columns: an empty left, the project summary centred, and ＋ on the right. Equal side columns keep the summary centred. */
 .workspace-toolbar {
   container: workspace-toolbar / inline-size;
   position: relative;
@@ -646,7 +644,6 @@ textarea {
   }
 }
 
-/* Hover hints follow the pointer's element, never take the pointer, and sit above every drag figure. */
 .hover-hint {
   position: fixed;
   z-index: 40;

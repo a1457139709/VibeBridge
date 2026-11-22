@@ -17,10 +17,8 @@ import {
 } from '../../terminal/protocol';
 import type { z } from 'zod';
 
-/** An operation as a caller sends it; the request it travels in adds its ID. */
 type Operation = WithoutId<HostOperation>;
 type WithoutId<O> = O extends unknown ? Omit<O, 'id'> : never;
-/** A request waiting for its reply: `settle` reads the reply's result by its operation's schema. */
 interface PendingRequest {
   settle(result: unknown): void;
   reject(error: Error): void;
@@ -104,7 +102,6 @@ export class TerminalClient {
       ),
     );
   }
-  /** Sends `operation` and resolves with the host's result as `result` reads it. */
   private request<T>(operation: Operation, result: z.ZodType<T>): Promise<T> {
     if (this.closing && operation.operation !== 'shutdown') return Promise.reject(new Error(message('quitting')));
     if (this.failure) return Promise.reject(this.failure);

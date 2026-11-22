@@ -58,7 +58,6 @@ function TerminalView({ run }: { run?: Run }) {
 
 const maximizedPosition: CSSProperties = { left: 0, top: 0, width: '100%', height: '100%', zIndex: 2 };
 
-/** One Agent panel: header with title, processing state, Agent type and actions, over its terminal. */
 function AgentPanel({
   panel,
   position,
@@ -154,7 +153,6 @@ export function Workspace({
     void window.workbench.saveLayout(project.id, next).catch(error => report(errorMessage(error)));
   };
   const placeInLayout = (panelId: string, next: Layout) => {
-    // The layout area returns to the resident layout, where the placed panel lives; a rejected placement changes nothing.
     const open = openTrayPanel?.id;
     panelLocation.collapse();
     void window.workbench.placeInLayout(project.id, panelId, next).catch(error => {
@@ -163,7 +161,6 @@ export function Workspace({
     });
   };
   const moveToTray = (panelId: string) => {
-    // A panel moved to the tray waits there collapsed, so a maximized resident panel is restored first.
     if (maximized === panelId) panelLocation.toggleMaximize(panelId);
     void window.workbench.moveToTray(project.id, panelId).catch(error => report(errorMessage(error)));
   };
@@ -195,7 +192,6 @@ export function Workspace({
   const close = (panelId: string) => {
     void window.workbench.closePanel(project.id, panelId).catch(error => report(errorMessage(error)));
   };
-  // Resident and open tray panels differ only in where they sit and in their first action.
   const agentPanel = (panel: PanelView, position: CSSProperties, isFocused: boolean, action: ReactNode) => (
     <AgentPanel
       key={panel.id}
@@ -228,7 +224,6 @@ export function Workspace({
         close(closing);
         return true;
       }
-      // Panel keys follow the resident layout: an open tray panel returns to the tray first.
       if (action === 'maximizePanel') {
         if (openTrayPanel) flight.collapseIntoCard();
         else if (focused) panelLocation.toggleMaximize(focused);
@@ -267,7 +262,6 @@ export function Workspace({
         {project.panels.map(panel => {
           const box = positions.panels.get(panel.id);
           if (!box) return null;
-          // Hidden panels stay mounted, so their terminals keep their screens.
           const position: CSSProperties =
             maximized === panel.id
               ? maximizedPosition

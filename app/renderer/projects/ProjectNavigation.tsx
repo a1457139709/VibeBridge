@@ -19,7 +19,6 @@ interface Host {
   page: 'workbench' | 'setup' | 'settings';
   view: PanelLocation['view'];
   openProject(id: string): void;
-  /** Opens the forge sidebar where the project's binding is made or changed. */
   openBinding(project: ProjectView): void;
   locatePanel(projectId: string, panelId: string): void;
   openSetup(): void;
@@ -28,9 +27,6 @@ interface Host {
   report(message: string): void;
 }
 
-// Keep this hook in the main window's lifetime. The two presentation entries
-// share navigation interaction state; page permission and panel location stay
-// with the host callbacks and the read-only view supplied by panel-location.
 export function useProjectNavigation(
   host: Host,
   api: Pick<DesktopAPI, 'saveSidebar' | 'subscribe'> = window.workbench,
@@ -46,7 +42,6 @@ export function useProjectNavigation(
     report: host.report,
   });
   const [expandedProjects, setExpandedProjects] = useState<Record<string, boolean>>({});
-  // Ephemeral groups start collapsed and their expansion lives only in this interface.
   const [expandedTrays, setExpandedTrays] = useState<Record<string, boolean>>({});
   useEffect(() => {
     const id = snapshot?.activeProjectId;
@@ -54,7 +49,6 @@ export function useProjectNavigation(
   }, [snapshot?.activeProjectId]);
   const collapsed = !preferences.visible;
   return {
-    /** The navigation's remembered width, or none while collapsed. */
     width: collapsed ? 0 : preferences.width,
     toggleButton: (
       <button
@@ -73,7 +67,6 @@ export function useProjectNavigation(
           {snapshot?.projects.map(project => {
             const expanded = expandedProjects[project.id] ?? snapshot.activeProjectId === project.id;
             const active = page === 'workbench' && snapshot.activeProjectId === project.id;
-            // The panel the user is on: the maximized one (resident or an open tray panel), else the selected one.
             const { selected, maximized } = host.view(project.id);
             const currentPanelId = active ? (maximized ?? selected) : undefined;
             const count = projectPanels(project).length;
@@ -187,8 +180,6 @@ function PanelLink({ panel, current, locate }: { panel: PanelView; current: bool
 
 const attentionStates: ProcessingState[] = ['needs-input', 'done', 'error'];
 
-/** A project's ephemeral panels below its resident panels. While collapsed, it shows which
- * states needing attention its panels are in; it has no add entry. */
 function EphemeralGroup({
   project,
   shownPanelId,

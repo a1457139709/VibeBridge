@@ -7,7 +7,6 @@ import { resolve } from 'node:path';
 test('installed pre-commit blocks oversized staged files before working-tree checks and leaves the index untouched', async () => {
   await mkdir('work/commit-gate', { recursive: true });
   const directory = await mkdtemp(resolve('work/commit-gate/repo-'));
-  // The disposable repository reads no system or user Git configuration, and Husky runs its hooks.
   const env = {
     ...process.env,
     GIT_CONFIG_NOSYSTEM: '1',
@@ -45,6 +44,7 @@ if (process.env.FAIL_CHECK === '${stage}') { console.error('FAILED:${stage}'); p
     await writeFile(`${directory}/scripts/check-source-paths.mjs`, check('source-paths'));
     await writeFile(`${directory}/scripts/check-source-shape.mjs`, check('source-shape'));
     await writeFile(`${directory}/scripts/check-test-waits.mjs`, check('test-waits'));
+    await writeFile(`${directory}/scripts/check-comments.mjs`, check('comments'));
     await writeFile(`${directory}/scripts/typecheck.mjs`, check('typecheck'));
     await writeFile(`${directory}/scripts/test.mjs`, check('unit'));
     await writeFile(`${directory}/scripts/test-components.mjs`, check('components'));
@@ -77,7 +77,16 @@ if (process.env.FAIL_CHECK === '${stage}') { console.error('FAILED:${stage}'); p
     await writeFile(`${directory}/sample.txt`, 'working tree');
     const staged = git('diff', '--cached'),
       unstaged = git('diff');
-    const stages = ['format', 'source-paths', 'source-shape', 'test-waits', 'typecheck', 'unit', 'components'];
+    const stages = [
+      'format',
+      'source-paths',
+      'source-shape',
+      'test-waits',
+      'comments',
+      'typecheck',
+      'unit',
+      'components',
+    ];
     for (const [index, stage] of stages.entries()) {
       await writeFile(`${directory}/checks.jsonl`, '');
       const result = run('git', ['commit', '-m', `Fails ${stage}`], { FAIL_CHECK: stage });

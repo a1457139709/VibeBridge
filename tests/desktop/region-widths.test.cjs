@@ -4,9 +4,6 @@ const rect = (evaluate, selector) =>
   evaluate(`(() => { const box = document.querySelector(${JSON.stringify(selector)})?.getBoundingClientRect();
   return box && { left: Math.round(box.left), right: Math.round(box.right), width: Math.round(box.width) }; })()`);
 
-// The project navigation, the forge sidebar and the issue detail are as wide as the user drags them: each edge
-// reaches its farthest place and no farther than the window, and a window too narrow for them draws them narrower
-// without changing the widths they return to.
 module.exports = {
   async run(base) {
     await require('./support/gh-double.cjs')(base.directory, {
@@ -34,7 +31,6 @@ module.exports = {
         'window.workbench.fetchSnapshot().then(({ navigation, forgeSidebar }) => ({ navigation, forgeSidebar }))',
       );
     const center = box => ({ x: Math.round(box.left + box.width / 2), y: 300 });
-    // Drags the edge to x, which may lie beyond where the edge can go.
     const drag = async (selector, x) => {
       const from = center(await rect(evaluate, selector));
       const held = { button: 'left', modifiers: ['leftbuttondown'] };
@@ -54,7 +50,6 @@ module.exports = {
     await click('Show the GitHub sidebar');
     await until(async () => (await rect(evaluate, '.forge-sidebar'))?.width === 380, 'sidebar drawn 380px wide');
 
-    // The navigation's right edge reaches the sidebar's left edge, and no farther.
     await drag('.navigation-resize', 1279);
     await until(
       async () => (await remembered()).navigation.width === 900,
@@ -68,7 +63,6 @@ module.exports = {
     await evaluate(`window.workbench.saveSidebar('navigation', { visible: true, width: 212 })`);
     await until(async () => (await rect(evaluate, '.navigation')).width === 212, 'navigation drawn 212px wide again');
 
-    // The sidebar's left edge reaches the navigation's right edge, and no farther.
     await drag('.forge-sidebar-resize', 0);
     await until(
       async () => (await remembered()).forgeSidebar.width === 1068,
@@ -79,7 +73,6 @@ module.exports = {
       'the sidebar drawn over the whole layout area, up to the navigation',
     );
 
-    // A narrower window draws the last-dragged sidebar at its width and the navigation narrower; neither width changes.
     await resizeWindow(1000);
     await until(async () => {
       const sidebar = await rect(evaluate, '.forge-sidebar');
@@ -95,7 +88,6 @@ module.exports = {
       return navigation.width === 212 && sidebar.width === 1068;
     }, 'a wider window draws both at their remembered widths again');
 
-    // The detail's left edge reaches the window's left edge, over the navigation, and no farther.
     await evaluate(`window.workbench.saveSidebar('forgeSidebar', { visible: true, width: 380 })`);
     await until(async () => (await rect(evaluate, '.forge-sidebar')).width === 380, 'sidebar drawn 380px wide again');
     await click('Wide issue');

@@ -10,14 +10,12 @@ import { selectElement, focusedElement } from './support/elements';
 afterEach(cleanup);
 before(stubSidebarApis);
 
-/** Presses a key with ⌘ where focus is; true when nothing took it, so it goes on to where focus is. */
 const pressCommandKey = (code: 'KeyD' | 'KeyL') =>
   fireEvent.keyDown(focusedElement(), {
     key: requireValue(code.at(-1), 'the key code').toLowerCase(),
     code,
     metaKey: true,
   });
-/** The open detail, once it shows the issue. */
 async function detailOf(number: number) {
   const detail = await waitFor(() => selectElement('.forge-detail'));
   await within(detail).findByRole('heading', { name: `Issue ${number} #${number}` });

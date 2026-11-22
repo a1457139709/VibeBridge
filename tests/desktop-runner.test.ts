@@ -14,7 +14,6 @@ async function fixture() {
   await mkdir(`${directory}/node_modules/electron/dist`, { recursive: true });
   await writeFile(`${directory}/node_modules/electron/path.txt`, 'test-electron');
   const binary = `${directory}/node_modules/electron/dist/test-electron`;
-  // Substitute only the external Electron process; exercise the real runner CLI.
   await writeFile(
     binary,
     `#!${testNode}

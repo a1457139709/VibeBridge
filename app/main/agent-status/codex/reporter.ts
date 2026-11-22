@@ -1,6 +1,5 @@
 import { runCommandHookReporter } from '../reporter';
 
-// Prompts, transcripts and tool output can be large and are not needed for status.
 runCommandHookReporter('codex', raw =>
   Object.fromEntries(
     ['hook_event_name', 'session_id', 'source', 'turn_id', 'agent_id', 'tool_name', 'tool_use_id']
