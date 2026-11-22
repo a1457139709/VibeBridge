@@ -1,5 +1,6 @@
-import { fromAny, fromPartial } from '@total-typescript/shoehorn';
+import { fromPartial } from '@total-typescript/shoehorn';
 import { ForgeSidebarData } from '../../app/main/forge/forge-sidebar-data';
+import type { ForgeSidebarSources } from '../../app/main/forge/sidebar-reads';
 import type {
   IssueDetail,
   IssueDetailResult,
@@ -45,7 +46,7 @@ export const detail = (
     ...extra,
   }),
 });
-export const page = (numbers: number[], cursor: string | null = null): IssuePage => ({
+export const page = (numbers: number[], cursor: string | null = null): Extract<IssuePage, { ok: true }> => ({
   ok: true,
   items: numbers.map(issue),
   nextCursor: cursor,
@@ -57,6 +58,13 @@ export const byNumber = (items: ListedIssue[]): IssuesByNumber => ({ ok: true, i
 /** Resolves once the answers given so far are taken in: every promise callback they set off has run. */
 export const answersTakenIn = () => new Promise<void>(resolve => setImmediate(resolve));
 
+/** What any of the sources' reads resolves to. */
+type SourceAnswer = {
+  [Read in keyof ForgeSidebarSources]: ForgeSidebarSources[Read] extends (...args: never[]) => Promise<infer Answer>
+    ? Answer
+    : never;
+}[keyof ForgeSidebarSources];
+
 /** The module over sources whose every read waits until the test answers it. */
 export function sidebarData() {
   const reads: {
@@ -65,19 +73,21 @@ export function sidebarData() {
     item?: DetailItem;
     /** The numbers a read by number asks for, of `item`'s kind. */
     byNumber?: { kind: DetailItem['kind']; numbers: number[] };
-    answer(value: unknown): void;
+    /** Resolves the read with an answer one of the sources gives: the test gives each read what the source behind it
+     * returns. Method shorthand, so each read's resolver, which takes its own source's answer, is stored here. */
+    answer(value: SourceAnswer): void;
     fail(error: Error): void;
   }[] = [];
   const waiting: (() => void)[] = [];
-  const read = (
+  const read = <Answer extends SourceAnswer>(
     projectId: string,
     query?: ListQuery,
     item?: DetailItem,
     byNumber?: { kind: DetailItem['kind']; numbers: number[] },
   ) =>
-    new Promise<never>((answer, fail) => {
-      // Every source shares this read, so the test's answer is whatever the source it stands in for returns.
-      reads.push({ projectId, query, item, byNumber, answer: value => answer(fromAny(value)), fail });
+    new Promise<Answer>((answer, fail) => {
+      // Every source shares this read; each one's type gives `Answer`, what the test answers it with.
+      reads.push({ projectId, query, item, byNumber, answer: (value: Answer) => answer(value), fail });
       for (const wake of waiting.splice(0)) wake();
     });
   /** The `count`th read, once it is made. */
