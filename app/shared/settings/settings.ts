@@ -1,6 +1,14 @@
 import { z } from 'zod';
 import { message } from '../messages';
-import { agentNames, agentTypes, defaultLayouts, languages, type AgentType, type Settings } from '../model';
+import {
+  agentNames,
+  agentTypes,
+  agentTypeSchema,
+  defaultLayouts,
+  languages,
+  type AgentType,
+  type Settings,
+} from '../model';
 import { defaultDelivery, defaultWorkflowSettings, deliveries, workflows } from './workflows';
 import {
   defaultShortcuts,
@@ -147,6 +155,28 @@ function settingsSchema(reading: boolean) {
 }
 const readSchema = settingsSchema(true);
 const saveSchema = settingsSchema(false);
+
+/** The shape of the settings a save is asked to apply: each field present has the type Settings gives it. Whether
+ * its value is valid is for the save to report, field by field, so only the shape is checked here. Unknown keys pass
+ * through, as they do where settings are read. */
+export const settingsPatchSchema = z
+  .looseObject({
+    language: z.enum(languages),
+    theme: z.enum(['system', 'dark', 'light']),
+    defaultLayout: z.enum(defaultLayouts),
+    sidebarCoexistence: z.enum(['squeeze', 'overlay']),
+    detailCoexistence: z.enum(['overlay', 'squeeze']),
+    agents: z.looseRecord(agentTypeSchema, z.looseObject({ command: z.string(), args: z.array(z.string()) })),
+    shortcuts: z.looseRecord(z.enum(shortcutActions), z.string()),
+    workflows: z.looseRecord(
+      z.literal(workflows.map(workflow => workflow.id)),
+      z.looseObject({
+        enabled: z.boolean(),
+        commands: z.record(z.string(), z.looseObject({ delivery: z.enum(deliveries) })),
+      }),
+    ),
+  })
+  .partial() satisfies z.ZodType<Partial<Settings>>;
 
 /** Settings in the valid domain read from any JSON value; only a value that is not an object is rejected. */
 export function readSettings(value: unknown): Settings {

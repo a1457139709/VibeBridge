@@ -90,6 +90,47 @@ export interface DesktopAPI {
   /** Starts the same confirmed quit as the application menu. */
   quit(): Promise<void>;
 }
+/** The DesktopAPI methods the renderer sends to the main process; `subscribe` listens to `workbenchEventChannel`. */
+export type DesktopRequest = Exclude<keyof DesktopAPI, 'subscribe'>;
+/** The IPC channel each request travels on; the preload sends on it and the main process handles it. */
+export const desktopChannels = {
+  fetchSnapshot: 'workbench:fetch-snapshot',
+  createProject: 'workbench:create-project',
+  editProject: 'workbench:edit-project',
+  deleteProject: 'workbench:delete-project',
+  inspectDirectory: 'workbench:inspect-directory',
+  fetchRepositoryChoices: 'workbench:fetch-repository-choices',
+  bindRepository: 'workbench:bind-repository',
+  unbindRepository: 'workbench:unbind-repository',
+  showForgeList: 'workbench:show-forge-list',
+  reportForgeSidebarPresence: 'workbench:report-forge-sidebar-presence',
+  loadMoreForgeList: 'workbench:load-more-forge-list',
+  showForgeRows: 'workbench:show-forge-rows',
+  refreshForgeList: 'workbench:refresh-forge-list',
+  showRepositoryChoices: 'workbench:show-repository-choices',
+  showForgeDetail: 'workbench:show-forge-detail',
+  reportForgeRowResting: 'workbench:report-forge-row-resting',
+  reportForgeItemChanged: 'workbench:report-forge-item-changed',
+  performDirectAction: 'workbench:perform-direct-action',
+  dispatch: 'workbench:dispatch',
+  chooseDirectory: 'workbench:choose-directory',
+  activateProject: 'workbench:activate-project',
+  addPanel: 'workbench:add-panel',
+  closePanel: 'workbench:close-panel',
+  placeInLayout: 'workbench:place-in-layout',
+  moveToTray: 'workbench:move-to-tray',
+  saveLayout: 'workbench:save-layout',
+  saveSidebar: 'workbench:save-sidebar',
+  saveSettings: 'workbench:save-settings',
+  checkCommand: 'workbench:check-command',
+  sendInput: 'workbench:send-input',
+  resizeRun: 'workbench:resize-run',
+  acknowledgeOutput: 'workbench:acknowledge-output',
+  reportRendererReady: 'workbench:renderer-ready',
+  quit: 'workbench:quit',
+} as const satisfies Record<DesktopRequest, `workbench:${string}`>;
+/** The channel the main process pushes each WorkbenchEvent on. */
+export const workbenchEventChannel = 'workbench:event';
 declare global {
   interface Window {
     workbench: DesktopAPI;

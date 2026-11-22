@@ -124,6 +124,13 @@ for (const [behavior, stored] of [
   });
 }
 
+test('a stored active project that is not a project ID keeps the workbench closed and the database unchanged', async context => {
+  const { directory, file } = await storedWorkbench(context, 'stored-invalid-active-project', database =>
+    database.prepare('INSERT INTO workspace (id, active_project) VALUES (1,?)').run(blob),
+  );
+  await assertRejected(directory, file, /workspaceDataInvalid/, ['workspace.active_project']);
+});
+
 const storedBinding = ['github', 'github.com', '42', 'group/sub/repo'];
 for (const [behavior, row, field] of [
   ['names a forge without an adapter', ['gitlab', 'gitlab.com', '42', 'group/sub/repo'], 'bound_repositories.forge'],

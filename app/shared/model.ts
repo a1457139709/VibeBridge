@@ -108,8 +108,10 @@ export const sidebarPreferencesSchema = z.strictObject({ visible: z.boolean(), w
 export const sidebars = {
   navigation: { defaults: { visible: true, width: 212 }, minWidth: 168, invalidMessage: 'navigationInvalid' },
   forgeSidebar: { defaults: { visible: false, width: 380 }, minWidth: 300, invalidMessage: 'forgeSidebarInvalid' },
-} as const satisfies Record<string, { defaults: SidebarPreferences; minWidth: number; invalidMessage: MessageId }>;
-export type Sidebar = keyof typeof sidebars;
+} as const satisfies Record<Sidebar, { defaults: SidebarPreferences; minWidth: number; invalidMessage: MessageId }>;
+const sidebarIds = ['navigation', 'forgeSidebar'] as const;
+export type Sidebar = (typeof sidebarIds)[number];
+export const sidebarSchema = z.enum(sidebarIds);
 /** A panel with its current run, whatever that run's state, and the processing state it displays. */
 export type PanelView = Panel & { run?: Run; status?: ProcessingState };
 /** A project as the snapshot shows it. `panels` are its resident panels, placed by `layout`;
@@ -226,7 +228,8 @@ const layoutDepth = (node: Layout): number =>
   'panel' in node ? 0 : 1 + Math.max(layoutDepth(node.first), layoutDepth(node.second));
 const panelIds = (node: Layout): string[] =>
   'panel' in node ? [node.panel] : [...panelIds(node.first), ...panelIds(node.second)];
-const layoutSchema = layoutNodeSchema.refine(layout => layoutDepth(layout) <= 10).nullable();
+/** A layout whose structure is valid, whichever panels it places. */
+export const layoutSchema = layoutNodeSchema.refine(layout => layoutDepth(layout) <= 10);
 
 /** The panel IDs a layout places, in order. */
 export const layoutPanelIds = (layout: Layout | null): string[] => (layout ? panelIds(layout) : []);
@@ -250,7 +253,7 @@ export function panelPath(layout: Layout | null, panelId: string): ('first' | 's
 
 /** A layout whose structure is valid, whichever panels it places. */
 export function parseLayoutStructure(value: unknown): Layout | null {
-  const parsed = layoutSchema.safeParse(value);
+  const parsed = layoutSchema.nullable().safeParse(value);
   if (!parsed.success) throw new Error(message('layoutInvalid'));
   return parsed.data;
 }

@@ -7,6 +7,9 @@ import { localize } from '../shared/localization/localization';
 import { message } from '../shared/messages';
 import { readLoginEnvironment } from '../terminal/environment';
 import { errorMessage } from '../shared/caught-error';
+import { desktopChannels, workbenchEventChannel, type DesktopAPI, type DesktopRequest } from '../shared/api';
+import { desktopRequestArguments } from './desktop-requests';
+import type { z } from 'zod';
 
 app.setName('VibeBridge');
 // Also permits isolated local acceptance runs without touching the user's projects.
@@ -158,90 +161,109 @@ void app.whenReady().then(async () => {
     });
   });
   // Install handlers before showing the page, while disk work completes asynchronously.
-  const handle = (name: string, action: (workbench: Workbench, ...args: any[]) => unknown) => {
-    ipcMain.handle(`workbench:${name}`, async (event, ...args) => {
-      if (event.sender !== mainWindow.webContents || event.senderFrame?.url !== page)
-        throw new Error(message('requestInvalid'));
+  /** Whether an IPC message comes from the page this window shows, the only sender the Workbench answers. */
+  const fromPage = (event: Electron.IpcMainEvent | Electron.IpcMainInvokeEvent) =>
+    event.sender === mainWindow.webContents && event.senderFrame?.url === page;
+  /** The arguments of `request` as its schema reads them; throws when they are not the ones the contract gives it. */
+  const readArguments = <R extends DesktopRequest>(request: R, args: unknown[]): Parameters<DesktopAPI[R]> => {
+    const schema: z.ZodType<Parameters<DesktopAPI[R]>> = desktopRequestArguments[request];
+    const parsed = schema.safeParse(args);
+    if (!parsed.success) throw new Error(message('requestInvalid'));
+    return parsed.data;
+  };
+  /** Answers `request` with `action`, which takes its arguments and returns its result as the contract types them. */
+  const handle = <R extends DesktopRequest>(
+    request: R,
+    action: (
+      workbench: Workbench,
+      ...args: Parameters<DesktopAPI[R]>
+    ) => ReturnType<DesktopAPI[R]> | Awaited<ReturnType<DesktopAPI[R]>>,
+  ) => {
+    ipcMain.handle(desktopChannels[request], async (event, ...args: unknown[]) => {
+      if (!fromPage(event)) throw new Error(message('requestInvalid'));
+      const parsed = readArguments(request, args);
       try {
-        return await action(await opening, ...args);
+        return await action(await opening, ...parsed);
       } catch (error) {
         if (error instanceof WorkbenchOpenError) throw new Error(localize(error.language).text(error.message));
         throw error;
       }
     });
   };
-  handle('fetch-snapshot', workbench => workbench.snapshot());
-  handle('create-project', (workbench, draft) => workbench.createProject(draft));
-  handle('edit-project', async (workbench, id, edit, restart) => {
+  handle('fetchSnapshot', workbench => workbench.snapshot());
+  handle('createProject', (workbench, draft) => workbench.createProject(draft));
+  handle('editProject', async (workbench, id, edit, restart) => {
     await loginPathMerged;
     return workbench.editProject(id, edit, restart);
   });
-  handle('delete-project', (workbench, id) => workbench.deleteProject(id));
-  handle('inspect-directory', (workbench, directory) => workbench.inspectDirectory(directory));
-  handle('fetch-repository-choices', async (workbench, id, directory) => {
+  handle('deleteProject', (workbench, id) => workbench.deleteProject(id));
+  handle('inspectDirectory', (workbench, directory) => workbench.inspectDirectory(directory));
+  handle('fetchRepositoryChoices', async (workbench, id, directory) => {
     await loginPathMerged;
     return workbench.fetchRepositoryChoices(id, directory);
   });
-  handle('bind-repository', async (workbench, id, repository) => {
+  handle('bindRepository', async (workbench, id, repository) => {
     await loginPathMerged;
     return workbench.bindRepository(id, repository);
   });
-  handle('unbind-repository', (workbench, id) => workbench.unbindRepository(id));
-  handle('show-forge-list', async (workbench, id, view) => {
+  handle('unbindRepository', (workbench, id) => workbench.unbindRepository(id));
+  handle('showForgeList', async (workbench, id, view) => {
     await loginPathMerged;
     return workbench.forgeSidebar.showList(id, view);
   });
-  handle('report-forge-sidebar-presence', async (workbench, presence) => {
+  handle('reportForgeSidebarPresence', async (workbench, presence) => {
     await loginPathMerged;
     return workbench.forgeSidebar.reportPresence(presence);
   });
-  handle('load-more-forge-list', async (workbench, id) => {
+  handle('loadMoreForgeList', async (workbench, id) => {
     await loginPathMerged;
     return workbench.forgeSidebar.loadMore(id);
   });
-  handle('show-forge-rows', (workbench, id, numbers) => workbench.forgeSidebar.showRows(id, numbers));
-  handle('refresh-forge-list', async (workbench, id) => {
+  handle('showForgeRows', (workbench, id, numbers) => workbench.forgeSidebar.showRows(id, numbers));
+  handle('refreshForgeList', async (workbench, id) => {
     await loginPathMerged;
     return workbench.forgeSidebar.refresh(id);
   });
-  handle('show-repository-choices', async (workbench, id) => {
+  handle('showRepositoryChoices', async (workbench, id) => {
     await loginPathMerged;
     return workbench.forgeSidebar.showRepositoryChoices(id);
   });
-  handle('show-forge-detail', async (workbench, id, item) => {
+  handle('showForgeDetail', async (workbench, id, item) => {
     await loginPathMerged;
     return workbench.forgeSidebar.showDetail(id, item);
   });
-  handle('report-forge-row-resting', async (workbench, id, item) => {
+  handle('reportForgeRowResting', async (workbench, id, item) => {
     await loginPathMerged;
     return workbench.forgeSidebar.reportRestingOn(id, item);
   });
-  handle('report-forge-item-changed', async (workbench, id, item) => {
+  handle('reportForgeItemChanged', async (workbench, id, item) => {
     await loginPathMerged;
     return workbench.forgeSidebar.reloadChanged(id, item);
   });
   handle('dispatch', (workbench, id, request) => workbench.dispatch(id, request));
-  handle('perform-direct-action', async (workbench, id, action) => {
+  handle('performDirectAction', async (workbench, id, action) => {
     await loginPathMerged;
     return workbench.performDirectAction(id, action);
   });
-  handle('activate-project', (workbench, id) => workbench.activateProject(id));
-  handle('add-panel', (workbench, project, agent) => workbench.addPanel(project, agent));
-  handle('close-panel', (workbench, project, panel) => workbench.closePanel(project, panel));
-  handle('place-in-layout', (workbench, project, panel, layout) => workbench.placeInLayout(project, panel, layout));
-  handle('move-to-tray', (workbench, project, panel) => workbench.moveToTray(project, panel));
-  handle('save-layout', (workbench, project, layout) => workbench.saveLayout(project, layout));
-  handle('save-sidebar', (workbench, sidebar, preferences) => workbench.saveSidebar(sidebar, preferences));
-  handle('save-settings', (workbench, settings) => workbench.saveSettings(settings));
-  handle('check-command', (workbench, command) => workbench.runs.checkCommand(command));
-  handle('send-input', (workbench, run, data) => workbench.runs.input(run, data));
-  handle('resize-run', (workbench, run, cols, rows) => workbench.runs.resize(run, cols, rows));
-  ipcMain.on('workbench:acknowledge-output', (event, run, characters) => {
-    if (event.sender === mainWindow.webContents && event.senderFrame?.url === page) {
-      void opening.then(workbench => workbench.runs.acknowledgeOutput(run, characters));
-    }
+  handle('activateProject', (workbench, id) => workbench.activateProject(id));
+  handle('addPanel', (workbench, project, agent) => workbench.addPanel(project, agent));
+  handle('closePanel', (workbench, project, panel) => workbench.closePanel(project, panel));
+  handle('placeInLayout', (workbench, project, panel, layout) => workbench.placeInLayout(project, panel, layout));
+  handle('moveToTray', (workbench, project, panel) => workbench.moveToTray(project, panel));
+  handle('saveLayout', (workbench, project, layout) => workbench.saveLayout(project, layout));
+  handle('saveSidebar', (workbench, sidebar, preferences) => workbench.saveSidebar(sidebar, preferences));
+  handle('saveSettings', (workbench, settings) => workbench.saveSettings(settings));
+  handle('checkCommand', (workbench, command) => workbench.runs.checkCommand(command));
+  handle('sendInput', (workbench, run, data) => workbench.runs.input(run, data));
+  handle('resizeRun', (workbench, run, cols, rows) => workbench.runs.resize(run, cols, rows));
+  ipcMain.on(desktopChannels.acknowledgeOutput, (event, ...args: unknown[]) => {
+    if (!fromPage(event)) return;
+    const acknowledged = desktopRequestArguments.acknowledgeOutput.safeParse(args);
+    if (!acknowledged.success) return;
+    const [run, characters] = acknowledged.data;
+    void opening.then(workbench => workbench.runs.acknowledgeOutput(run, characters));
   });
-  handle('choose-directory', async () => {
+  handle('chooseDirectory', async () => {
     const { t } = localize(language);
     const choice = await dialog.showOpenDialog(mainWindow, {
       title: t('chooseDirectory'),
@@ -254,11 +276,11 @@ void app.whenReady().then(async () => {
     void requestQuit();
   });
   let ready = false;
-  handle('renderer-ready', async workbench => {
+  handle('reportRendererReady', async workbench => {
     if (ready) return;
     ready = true;
     workbench.subscribe(event => {
-      if (!mainWindow.isDestroyed()) mainWindow.webContents.send('workbench:event', event);
+      if (!mainWindow.isDestroyed()) mainWindow.webContents.send(workbenchEventChannel, event);
     });
     const active = workbench.snapshot().activeProjectId;
     if (active) await workbench.activateProject(active);

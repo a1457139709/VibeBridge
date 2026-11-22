@@ -2,14 +2,34 @@ import { message, nestedMessage } from '../../shared/messages';
 import { fork, type ChildProcess } from 'node:child_process';
 import { join } from 'node:path';
 import { randomUUID } from 'node:crypto';
-import type { AgentCommand, CommandCheck, Run, TerminalEvent } from '../../shared/model';
+import type { TerminalEvent } from '../../shared/model';
 import { stopProcesses, type ProcessIdentity } from '../../terminal/processes';
 import { recordFailure } from '../../terminal/failure';
 import { errorMessage } from '../../shared/caught-error';
+import {
+  commandCheckSchema,
+  completionSchema,
+  hostReportSchema,
+  runSchema,
+  type HostOperation,
+  type HostRequest,
+  type RunStart,
+} from '../../terminal/protocol';
+import type { z } from 'zod';
+
+/** An operation as a caller sends it; the request it travels in adds its ID. */
+type Operation = WithoutId<HostOperation>;
+type WithoutId<O> = O extends unknown ? Omit<O, 'id'> : never;
+/** A request waiting for its reply: `settle` reads the reply's result by its operation's schema. */
+interface PendingRequest {
+  settle(result: unknown): void;
+  reject(error: Error): void;
+  timer: NodeJS.Timeout;
+}
 
 export class TerminalClient {
   private child: ChildProcess;
-  private pending = new Map<number, { resolve(value: any): void; reject(error: Error): void; timer: NodeJS.Timeout }>();
+  private pending = new Map<number, PendingRequest>();
   private sequence = 0;
   private processes: ProcessIdentity[] = [];
   private closing = false;
@@ -33,18 +53,24 @@ export class TerminalClient {
       stdio: ['ignore', 'inherit', 'inherit', 'ipc'],
     });
     this.exited = new Promise(resolve => this.child.once('exit', () => resolve()));
-    this.child.on('message', (message: any) => {
+    this.child.on('message', (received: unknown) => {
       if (this.failure) return;
-      if (message.event) onEvent(message.event);
-      else if (message.processes) this.processes = message.processes;
-      else if (message.failure) onFailure(message.failure);
+      const report = hostReportSchema.safeParse(received);
+      if (!report.success) {
+        onFailure(message('terminalReportInvalid'));
+        return;
+      }
+      const { data } = report;
+      if (data.kind === 'event') onEvent(data.event);
+      else if (data.kind === 'processes') this.processes = data.processes;
+      else if (data.kind === 'failure') onFailure(data.message);
       else {
-        const request = this.pending.get(message.id);
+        const request = this.pending.get(data.id);
         if (!request) return;
         clearTimeout(request.timer);
-        this.pending.delete(message.id);
-        if (message.error) request.reject(new Error(message.error));
-        else request.resolve(message.result);
+        this.pending.delete(data.id);
+        if (data.kind === 'error') request.reject(new Error(data.message));
+        else request.settle(data.result);
       }
     });
     const fail = (error: Error) => {
@@ -78,8 +104,9 @@ export class TerminalClient {
       ),
     );
   }
-  private request<T>(operation: string, value?: unknown): Promise<T> {
-    if (this.closing && operation !== 'shutdown') return Promise.reject(new Error(message('quitting')));
+  /** Sends `operation` and resolves with the host's result as `result` reads it. */
+  private request<T>(operation: Operation, result: z.ZodType<T>): Promise<T> {
+    if (this.closing && operation.operation !== 'shutdown') return Promise.reject(new Error(message('quitting')));
     if (this.failure) return Promise.reject(this.failure);
     return new Promise((resolve, reject) => {
       const id = ++this.sequence;
@@ -87,8 +114,13 @@ export class TerminalClient {
         this.pending.delete(id);
         reject(new Error(message('terminalTimeout')));
       }, 10000);
-      this.pending.set(id, { resolve, reject, timer });
-      this.child.send({ id, operation, value }, error => {
+      const settle = (value: unknown) => {
+        const parsed = result.safeParse(value);
+        if (parsed.success) resolve(parsed.data);
+        else reject(new Error(message('terminalReportInvalid')));
+      };
+      this.pending.set(id, { settle, reject, timer });
+      this.send({ ...operation, id }, error => {
         if (error) {
           clearTimeout(timer);
           this.pending.delete(id);
@@ -97,37 +129,35 @@ export class TerminalClient {
       });
     });
   }
-  start(value: {
-    id: string;
-    panelId: string;
-    projectId: string;
-    directory: string;
-    command: AgentCommand;
-    extraEnvironment: Record<string, string>;
-  }) {
-    return this.request<Run>('start', value);
+  private send(request: HostRequest, sent: (error: Error | null) => void) {
+    this.child.send(request, sent);
+  }
+  start(value: RunStart) {
+    return this.request({ operation: 'start', value }, runSchema);
   }
   checkCommand(command: string) {
-    return this.request<CommandCheck>('check-command', command);
+    return this.request({ operation: 'check-command', value: command }, commandCheckSchema);
   }
   input(runId: string, data: string) {
-    return this.request<void>('input', { runId, data });
+    return this.request({ operation: 'input', value: { runId, data } }, completionSchema);
   }
   resize(runId: string, cols: number, rows: number) {
-    return this.closing ? Promise.resolve() : this.request<void>('resize', { runId, cols, rows });
+    return this.closing
+      ? Promise.resolve()
+      : this.request({ operation: 'resize', value: { runId, cols, rows } }, completionSchema);
   }
   stop(runId: string) {
-    return this.request<void>('stop', { runId });
+    return this.request({ operation: 'stop', value: { runId } }, completionSchema);
   }
   acknowledgeOutput(runId: string, characters: number) {
     if (!this.failure && this.child.connected) {
-      this.child.send({ operation: 'output-consumed', value: { runId, characters } }, () => {});
+      this.send({ operation: 'output-consumed', value: { runId, characters } }, () => {});
     }
   }
   async shutdown() {
     this.closing = true;
     try {
-      await this.request('shutdown');
+      await this.request({ operation: 'shutdown' }, completionSchema);
       let timer: NodeJS.Timeout | undefined;
       try {
         await Promise.race([

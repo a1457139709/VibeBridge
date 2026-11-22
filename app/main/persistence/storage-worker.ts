@@ -14,7 +14,7 @@ import {
 } from '../../shared/model';
 import { forgeIdSchema, type RepositoryReference } from '../../shared/forge/forge';
 import type { DispatchRecord } from '../dispatch';
-import type { StorageRequest } from './storage';
+import type { StorageReply, StorageRequest, StoredContent } from './storage';
 import { errorMessage } from '../../shared/caught-error';
 
 const file: string = workerData.file;
@@ -232,21 +232,31 @@ function deleteProject(projectId: string, nextActiveProjectId: string | null) {
   });
 }
 
+/** Everything the store holds. */
+function load(): StoredContent {
+  const workspace = db.prepare('SELECT active_project FROM workspace WHERE id=1').get();
+  const projects = db.prepare('SELECT * FROM projects ORDER BY rowid').all().map(readProject);
+  const activeProject = z
+    .string()
+    .nullable()
+    .safeParse(workspace?.active_project ?? null);
+  if (!activeProject.success)
+    throw new Error(message('workspaceDataInvalid', { file, field: 'workspace.active_project' }));
+  return {
+    projects,
+    bindings: readBindings(projects),
+    dispatches: readDispatchRecords(),
+    navigation: readSidebar('navigation'),
+    forgeSidebar: readSidebar('forgeSidebar'),
+    activeProjectId: activeProject.data,
+  };
+}
+
 /** Carries out a request: the stored content for a load, nothing for a write. */
-function perform(request: StorageRequest): unknown {
+function perform(request: StorageRequest): StoredContent | void {
   switch (request.operation) {
-    case 'load': {
-      const workspace = db.prepare('SELECT active_project FROM workspace WHERE id=1').get();
-      const projects = db.prepare('SELECT * FROM projects ORDER BY rowid').all().map(readProject);
-      return {
-        projects,
-        bindings: readBindings(projects),
-        dispatches: readDispatchRecords(),
-        navigation: readSidebar('navigation'),
-        forgeSidebar: readSidebar('forgeSidebar'),
-        activeProjectId: workspace?.active_project ?? null,
-      };
-    }
+    case 'load':
+      return load();
     case 'save':
       return transaction(() => saveProject(request.project));
     case 'bind':
@@ -273,10 +283,11 @@ function perform(request: StorageRequest): unknown {
 const port = parentPort;
 if (!port) throw new Error("The storage worker runs only as the Project Store's worker thread");
 // Requests come only from the Project Store in this process, typed by the protocol both sides share.
+const reply = (message: StorageReply) => port.postMessage(message);
 port.on('message', ({ id, request }: { id: number; request: StorageRequest }) => {
   try {
-    port.postMessage({ id, result: perform(request) });
+    reply({ kind: 'result', id, result: perform(request) });
   } catch (error) {
-    port.postMessage({ id, error: errorMessage(error) });
+    reply({ kind: 'error', id, message: errorMessage(error) });
   }
 });
