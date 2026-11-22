@@ -8,6 +8,7 @@ import { layoutBoxes } from '../app/shared/layout';
 import { runsOf, storedProjects } from './support/panel-views';
 import { testNode } from './support/test-node';
 import { firstCapture, lastOf, pidOf } from './support/expected';
+import { killUnlessExited } from './support/process-cleanup';
 
 async function until(check: () => boolean) {
   const deadline = Date.now() + 5000;
@@ -378,11 +379,7 @@ test('terminal manager failure cleans up runs without removing saved panel confi
     hostStopped = false;
     assert.deepEqual(storedProjects(workbench.snapshot()), [project, second]);
   } finally {
-    if (orphanPid) {
-      try {
-        process.kill(orphanPid, 'SIGKILL');
-      } catch {}
-    }
+    if (orphanPid) killUnlessExited(orphanPid);
     if (hostStopped) await workbench.quit().catch(() => {});
     else await workbench.quit();
     await rm(directory, { recursive: true, force: true });
@@ -433,11 +430,7 @@ test('input while a naturally exited run is still being cleaned up is dropped wi
     await until(() => workbench.snapshot().projects[0].panels.length === 0);
     assert.deepEqual(workbench.snapshot().errors, []);
   } finally {
-    if (lingerPid) {
-      try {
-        process.kill(lingerPid, 'SIGKILL');
-      } catch {}
-    }
+    if (lingerPid) killUnlessExited(lingerPid);
     await workbench.quit();
     await rm(directory, { recursive: true, force: true });
   }
