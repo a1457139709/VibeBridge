@@ -15,7 +15,11 @@ export interface ActionState {
   failed: { action: DirectAction; detail: string } | null;
 }
 export const idleActions: ActionState = { performing: null, failed: null };
-export interface Actions extends ActionState {
+export interface MergeMethodMemory {
+  lastMergeMethod: MergeMethod | null;
+  rememberMergeMethod(method: MergeMethod): void;
+}
+export interface Actions extends ActionState, MergeMethodMemory {
   perform(action: DirectAction): void;
   dismiss(): void;
 }
@@ -36,7 +40,6 @@ const actionName = (action: DirectAction) =>
       reopenPullRequest: 'reopenPullRequest',
     }) as const
   )[action.kind];
-let lastMergeMethod: MergeMethod | null = null;
 
 export function ActionFailure({ actions }: { actions: Actions }) {
   const { t } = useLocalization();
@@ -160,7 +163,7 @@ export function PullRequestActions({
   const { t } = useLocalization();
   const menu = usePopover<HTMLSpanElement>();
   const [confirming, setConfirming] = useState(false);
-  const [chosen, setChosen] = useState(lastMergeMethod);
+  const [chosen, setChosen] = useState(actions.lastMergeMethod);
   if (!pullRequest.canWrite) return null;
   const busy = actions.performing !== null;
   const methods = pullRequest.mergeOptions.methods.filter(method => capabilities.mergeMethods.includes(method));
@@ -168,7 +171,7 @@ export function PullRequestActions({
   const reasons = mergeBlockedReasons(pullRequest, capabilities, t);
   const blocked = !!reasons.length || !method;
   const choose = (next: MergeMethod) => {
-    lastMergeMethod = next;
+    actions.rememberMergeMethod(next);
     setChosen(next);
     setConfirming(false);
     menu.setOpen(false);

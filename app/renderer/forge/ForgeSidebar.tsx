@@ -9,6 +9,7 @@ import { ChangeBinding, UnboundRepository } from './SidebarBinding';
 import { ForgeLists, openListsView, type DetailHost, type ForgeListsActions, type ListsView } from './ForgeLists';
 import { SidebarHead } from './SidebarHead';
 import type { DispatchTarget } from '../../shared/dispatch';
+import type { MergeMethod } from '../../shared/forge/forge';
 import { capturePointer } from '../common/pointer-capture';
 import { requireValue } from '../common/required';
 import type { ReportNotice } from '../common/Notices';
@@ -47,9 +48,12 @@ export function useForgeSidebar(host: Host, api: Pick<DesktopAPI, 'saveSidebar' 
   const [detailOpen, setDetailOpen] = useState(false);
   const [width, setWidth] = useState(detailWidth.initial);
   const [lastTargets, setLastTargets] = useState<ReadonlyMap<string, DispatchTarget>>(new Map());
+  const [lastMergeMethod, setLastMergeMethod] = useState<MergeMethod | null>(null);
   const listsActions = useRef<ForgeListsActions>(null);
   const listsViews = useRef(new Map<string, ListsView>());
   const detail: DetailHost = {
+    lastMergeMethod,
+    rememberMergeMethod: setLastMergeMethod,
     onDetailOpenChange: setDetailOpen,
     startResize(event: ReactPointerEvent<HTMLDivElement>) {
       if (event.button !== 0) return;
