@@ -114,8 +114,7 @@ export function ForgeDetailPane({
   };
   const actions: Actions = {
     ...actionState,
-    lastMergeMethod: mergeMethodMemory.lastMergeMethod,
-    rememberMergeMethod: mergeMethodMemory.rememberMergeMethod,
+    ...mergeMethodMemory,
     perform: action => void perform(action),
     dismiss: () => setActionState(state => ({ ...state, failed: null })),
   };

@@ -13,6 +13,6 @@ test('killing a process that has already exited succeeds', async () => {
   assert.doesNotThrow(() => killUnlessExited(pid));
 });
 
-test('a kill the system refuses is raised, not ignored', () => {
-  assert.throws(() => killUnlessExited(1), { code: 'EPERM' });
+test('a kill that fails for any reason but an exited process is raised, not ignored', () => {
+  assert.throws(() => killUnlessExited(Number.NaN), { code: 'ERR_INVALID_ARG_TYPE' });
 });
