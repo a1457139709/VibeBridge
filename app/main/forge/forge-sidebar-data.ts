@@ -233,17 +233,20 @@ export class ForgeSidebarData {
     const items: ForgeListItems[T][] = [];
     const pageEnds: number[] = [];
     let cursor = joining === 'append' ? (before.loaded?.nextCursor ?? null) : null;
+    let labels = cursor === null ? null : (before.loaded?.labels ?? null);
     let page = await readPage(this.sources, projectId, tab, { filter, cursor });
     for (;;) {
       if (shown.request !== request || this.lists.get(projectId) !== shown) return;
       if (!page.ok) break;
+      labels ??= page.labels;
       items.push(...page.items);
       pageEnds.push(items.length);
       if (!(cursor = page.nextCursor) || --pages < 1) break;
       page = await readPage(this.sources, projectId, tab, { filter, cursor });
     }
     shown.request = null;
-    const joined = joinedPages(tabList(shown.lists, tab), shown.pageEnds[tab], filter, joining, page, items, pageEnds);
+    const last = page.ok && labels ? { ...page, labels } : page;
+    const joined = joinedPages(tabList(shown.lists, tab), shown.pageEnds[tab], filter, joining, last, items, pageEnds);
     shown.pageEnds[tab] = joined.pageEnds;
     this.settle(projectId, shown, { ...shown.lists, [tab]: joined.rows, loading: false });
   }

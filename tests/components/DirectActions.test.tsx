@@ -7,7 +7,6 @@ import { App } from '../../app/renderer/Workbench';
 import { defaultSettings } from '../../app/shared/settings/settings';
 import type { ProjectView, Snapshot } from '../../app/shared/model';
 import type {
-  Check,
   DirectAction,
   DirectActionResult,
   ForgeFailure,
@@ -19,6 +18,7 @@ import { forgeSidebarData, workbenchEvents } from './support/forge-sidebar-data'
 import { githubForge, githubView, githubRepository } from './support/forge';
 import { issue as listedIssue, pullRequest as listedPullRequest, stubSidebarApis } from './support/forge-lists';
 import { requireValue } from '../../app/renderer/common/required';
+import { localize } from '../../app/shared/localization/localization';
 
 afterEach(cleanup);
 before(stubSidebarApis);
@@ -43,6 +43,7 @@ const issueDetail = (number: number, extra: Partial<IssueDetail> = {}): IssueDet
     commentCount: 0,
     parent: null,
     subIssues: [],
+    subIssueProgress: { closed: 0, total: 0 },
     blockedBy: [],
     blocking: [],
     closingPullRequests: [],
@@ -61,24 +62,18 @@ const pullDetail = (number: number, extra: Partial<PullRequestDetail> = {}): Pul
     base: 'main',
     body: '',
     timeline: [],
-    commentCount: 0,
-    codeCommentCount: 0,
+    earlierEntries: 0,
     closingIssues: [],
     links,
-    review: { state: 'notRequired', requiredApprovals: null },
-    checks: [],
-    conflicts: 'none',
+    reviewDecision: null,
+    checks: { state: null, counts: [], total: 0, url: `${repositoryUrl}/pull/${number}/checks`, listed: [] },
+    mergeState: 'clean',
     mergeOptions: { methods: ['merge', 'squash', 'rebase'], queue: false },
     canWrite: true,
     ...extra,
   };
 };
-const check = (name: string, result: Check['result'], required = false): Check => ({
-  name,
-  result,
-  required,
-  url: null,
-});
+const { t } = localize('en');
 
 interface Forge {
   issue?: IssueDetail;
@@ -351,43 +346,40 @@ test('a pull request closes, and a closed one reopens', async () => {
   assert.deepEqual((await action(2)).action, { kind: 'reopenPullRequest', number: 12 });
 });
 
-test('a blocked merge greys out the merge button and says why', async () => {
-  const forge: Forge = {
-    pullRequest: pullDetail(12, {
-      state: 'draft',
-      conflicts: 'conflicting',
-      review: { state: 'required', requiredApprovals: 2 },
-      checks: [check('unit', 'failed', true), check('lint', 'failed'), check('e2e', 'pending', true)],
-    }),
-  };
-  await openPullRequest(forge);
-  assert.ok(within(pullPane()).getByRole('button', { name: 'Create a merge commit' }).hasAttribute('disabled'));
-  assert.ok(within(pullPane()).getByRole('button', { name: 'Choose a merge method' }).hasAttribute('disabled'));
-  within(pullPane()).getByText(
-    'Cannot merge: this is a draft, conflicts, required checks failing, 2 approvals still needed',
+const mergeReasons = () =>
+  within(pullPane())
+    .queryAllByText(/./, { selector: '.forge-merge-why > .forge-muted' })
+    .map(reason => reason.textContent);
+const mergeDisabled = () =>
+  ['Create a merge commit', 'Choose a merge method'].map(name =>
+    within(pullPane()).getByRole('button', { name }).hasAttribute('disabled'),
   );
-  assert.ok(
-    !within(pullPane()).getByRole('button', { name: 'Close PR' }).hasAttribute('disabled'),
-    'closing is not blocked',
-  );
-  cleanup();
 
-  forge.pullRequest = pullDetail(12, {
-    review: { state: 'changesRequested', requiredApprovals: null },
-    checks: [check('e2e', 'pending', true)],
+for (const [state, mergeState, reasons] of [
+  ['open', 'clean', []],
+  ['open', 'hasHooks', []],
+  ['open', 'unstable', []],
+  ['open', 'dirty', [t('mergeBlockedDirty')]],
+  ['open', 'behind', [t('mergeBlockedBehind', { base: 'main' })]],
+  ['open', 'blocked', [t('mergeBlockedBlocked', { forge: 'GitHub' })]],
+  ['open', 'unknown', [t('mergeBlockedUnknown', { forge: 'GitHub' })]],
+  ['draft', 'blocked', [t('mergeBlockedDraft'), t('mergeBlockedBlocked', { forge: 'GitHub' })]],
+  ['draft', 'clean', [t('mergeBlockedDraft')]],
+  ['draft', null, [t('mergeBlockedDraft')]],
+] as const) {
+  test(`${state === 'draft' ? 'a draft' : 'an open'} pull request whose merge state is ${mergeState} ${reasons.length ? 'cannot be merged and says why' : 'can be merged'}`, async () => {
+    await openPullRequest({ pullRequest: pullDetail(12, { state, mergeState }) });
+    const blocked = !!reasons.length;
+    assert.deepEqual(
+      [mergeDisabled(), mergeReasons()],
+      [[blocked, blocked], blocked ? [t('cannotMerge', { reasons: [...reasons] })] : []],
+    );
+    assert.ok(
+      !within(pullPane()).getByRole('button', { name: 'Close PR' }).hasAttribute('disabled'),
+      'closing is never blocked',
+    );
   });
-  await openPullRequest(forge);
-  within(pullPane()).getByText('Cannot merge: required checks still running, changes were requested');
-  cleanup();
-
-  forge.pullRequest = pullDetail(12, {
-    review: { state: 'required', requiredApprovals: null },
-    conflicts: 'unknown',
-    checks: [check('lint', 'failed')],
-  });
-  await openPullRequest(forge);
-  within(pullPane()).getByText('Cannot merge: a required review is missing');
-});
+}
 
 test('a repository that merges through a merge queue greys out merging and links the pull request on the forge', async () => {
   const forge: Forge = { pullRequest: pullDetail(12, { mergeOptions: { methods: ['squash'], queue: true } }) };

@@ -1,164 +1,24 @@
 import './support/dom';
 import assert from 'node:assert/strict';
 import test, { afterEach, before } from 'node:test';
-import { cleanup, render, screen, waitFor, within } from '@testing-library/react';
-import { userEvent } from '@testing-library/user-event';
-import { App } from '../../app/renderer/Workbench';
-import { defaultSettings } from '../../app/shared/settings/settings';
-import type { ProjectView, Snapshot } from '../../app/shared/model';
-import type {
-  Check,
-  ForgeCapabilities,
-  IssueDetailResult,
-  PullRequestDetail,
-  PullRequestDetailResult,
-  PullRequestReference,
-} from '../../app/shared/forge/forge';
-import { deferred, provideWorkbench } from './support/workbench';
-import { forgeSidebarData, workbenchEvents } from './support/forge-sidebar-data';
-import { githubCapabilities, githubView, githubRepository } from './support/forge';
-import { issue as listedIssue, pullRequest as listedPullRequest, stubSidebarApis } from './support/forge-lists';
-import { requireInstance, selectElement } from './support/elements';
+import { cleanup, screen, within } from '@testing-library/react';
+import type { PullRequestReference } from '../../app/shared/forge/forge';
+import { issue as listedIssue, stubSidebarApis } from './support/forge-lists';
+import { selectElement } from './support/elements';
+import {
+  repositoryUrl,
+  hoursAgo,
+  links,
+  detail,
+  sidebar,
+  pane,
+  t,
+  renderWorkbench,
+  openPullRequest,
+} from './support/pull-request-detail';
 
 afterEach(cleanup);
 before(stubSidebarApis);
-
-const repositoryUrl = 'https://github.com/octo/alpha';
-const hoursAgo = (hours: number) => new Date(Date.now() - hours * 3600e3).toISOString();
-const links = { issuePrefix: `${repositoryUrl}/issues/`, pullRequestPrefix: `${repositoryUrl}/pull/` };
-const detail = (number: number, extra: Partial<PullRequestDetail> = {}): PullRequestDetail => {
-  const { checks: _, ...summary } = listedPullRequest(number, { createdAt: hoursAgo(50) });
-  return {
-    ...summary,
-    url: `${repositoryUrl}/pull/${number}`,
-    changesUrl: `${repositoryUrl}/pull/${number}/files`,
-    head: 'feature',
-    base: 'main',
-    body: '',
-    timeline: [],
-    commentCount: 0,
-    codeCommentCount: 0,
-    closingIssues: [],
-    links,
-    review: { state: 'notRequired', requiredApprovals: null },
-    checks: [],
-    conflicts: 'none',
-    mergeOptions: { methods: ['merge', 'squash', 'rebase'], queue: false },
-    canWrite: true,
-    ...extra,
-  };
-};
-const check = (name: string, result: Check['result'], required = false): Check => ({
-  name,
-  result,
-  required,
-  url: `${repositoryUrl}/runs/${name}`,
-});
-
-interface Request {
-  kind: 'issue' | 'pullRequest';
-  number: number;
-  answer(result: IssueDetailResult | PullRequestDetailResult): void;
-}
-
-function renderWorkbench({
-  capabilities = githubCapabilities,
-  closingPullRequests = [],
-}: { capabilities?: ForgeCapabilities; closingPullRequests?: PullRequestReference[] } = {}) {
-  const project: ProjectView = {
-    id: 'alpha',
-    name: 'Alpha',
-    directory: '/work/alpha',
-    layout: { panel: 'panel' },
-    tray: [],
-    repository: githubRepository('octo/alpha'),
-    ...githubView,
-    capabilities,
-    panels: [
-      {
-        id: 'panel',
-        agent: 'codex',
-        run: { id: 'run', panelId: 'panel', projectId: 'alpha', state: 'running', title: 'Alpha session' },
-      },
-    ],
-  };
-  const snapshot: Snapshot = {
-    navigation: { visible: true, width: 212 },
-    forgeSidebar: { visible: true, width: 380 },
-    activeProjectId: 'alpha',
-    settings: defaultSettings(),
-    settingsConflicts: [],
-    startupTheme: 'light',
-    resolvedTheme: 'light',
-    errors: [],
-    projects: [project],
-  };
-  const requests: Request[] = [];
-  const ask = <Result extends IssueDetailResult | PullRequestDetailResult>(kind: Request['kind'], number: number) => {
-    const answer = deferred<Result>();
-    requests.push({ kind, number, answer: answer.resolve });
-    return answer.promise;
-  };
-  const events = workbenchEvents();
-  provideWorkbench({
-    fetchSnapshot: async () => structuredClone(snapshot),
-    reportRendererReady: async () => {},
-    subscribe: events.subscribe,
-    saveSidebar: async () => {},
-    activateProject: async () => {},
-    saveLayout: async () => {},
-    ...forgeSidebarData(
-      {
-        issuePage: async () => ({
-          ok: true,
-          items: [listedIssue(3, { title: 'Spec' })],
-          nextCursor: null,
-          labels: [],
-          counts: { open: 1, closed: 0 },
-        }),
-        pullRequestPage: async () => ({
-          ok: true,
-          items: [listedPullRequest(12, { title: 'Read-only detail' })],
-          nextCursor: null,
-          labels: [],
-          counts: { open: 1, closed: 0 },
-        }),
-        issueDetail: async (_, number) => {
-          const result = await ask<IssueDetailResult>('issue', number);
-          return result.ok ? { ...result, issue: { ...result.issue, closingPullRequests } } : result;
-        },
-        pullRequestDetail: (_, number) => ask<PullRequestDetailResult>('pullRequest', number),
-      },
-      events.emit,
-    ),
-  });
-  render(<App />);
-  const request = (count: number) =>
-    waitFor(() => {
-      assert.equal(requests.length, count, 'detail requests made');
-      return requests[count - 1];
-    });
-  return { user: userEvent.setup(), request };
-}
-
-const sidebar = () => screen.getByRole('complementary', { name: 'GitHub' });
-const pane = () => within(sidebar()).getByRole('region', { name: 'Pull request detail' });
-const mergeArea = () => within(pane()).getByRole('region', { name: 'Merge requirements' });
-const rowOf = (name: string) =>
-  requireInstance(within(mergeArea()).getByText(name, { selector: 'b' }).closest('.forge-merge-row'), HTMLElement);
-
-async function openPullRequest(pullRequest: PullRequestDetail, options: Parameters<typeof renderWorkbench>[0] = {}) {
-  const view = renderWorkbench(options);
-  await view.user.click(
-    within(await screen.findByRole('complementary', { name: 'GitHub' })).getByRole('tab', { name: 'Pull requests' }),
-  );
-  await view.user.click(await within(sidebar()).findByRole('button', { name: 'Read-only detail' }));
-  const first = await view.request(1);
-  assert.deepEqual([first.kind, first.number], ['pullRequest', 12]);
-  first.answer({ ok: true, pullRequest });
-  await within(pane()).findByRole('heading', { name: `${pullRequest.title} #12` });
-  return view;
-}
 
 test('a pull request row opens its detail: title, state, head into base, the changes on the forge, labels, and the issues it closes', async () => {
   const { user, request } = await openPullRequest(
@@ -204,12 +64,11 @@ test('a pull request row opens its detail: title, state, head into base, the cha
   await within(pane()).findByRole('heading', { name: 'Read-only detail #12' });
 });
 
-test('the body, comments and review summaries follow in time order, reviews with their verdict, and code comments only as a count with a link', async () => {
+test('the body, comments and review summaries follow in time order, reviews with their verdict', async () => {
   await openPullRequest(
     detail(12, {
       title: 'Timeline',
       body: '<p>The body.</p>',
-      codeCommentCount: 5,
       timeline: [
         { author: 'bob', createdAt: hoursAgo(4), html: '<p>Handle the draft row.</p>', verdict: 'changesRequested' },
         { author: 'hubot', createdAt: hoursAgo(3), html: '<p>Rebased.</p>', verdict: null },
@@ -224,94 +83,26 @@ test('the body, comments and review summaries follow in time order, reviews with
     'hubot 3h agoRebased.',
     'alice Approved 2h agoLGTM',
   ]);
-  const code = selectElement('.forge-code-comments', pane());
-  assert.match(code.textContent ?? '', /5 code comments/);
-  assert.equal(within(code).getByRole('link').getAttribute('href'), `${repositoryUrl}/pull/12/files`);
+  assert.equal(pane().querySelector('.forge-earlier'), null, 'nothing came before the timeline');
   assert.ok(!within(pane()).queryByRole('button', { name: /Approve/ }), 'no approve button');
 });
 
-test('a blocked pull request lists its failing and running checks with their logs, folds the passed ones, and names the conflict and the draft', async () => {
-  const { user } = await openPullRequest(
+test('a timeline with earlier entries says how many at its top and links the pull request on the forge', async () => {
+  await openPullRequest(
     detail(12, {
-      state: 'draft',
-      review: { state: 'changesRequested', requiredApprovals: 1 },
-      conflicts: 'conflicting',
-      checks: [
-        check('lint', 'passed', true),
-        check('unit tests', 'failed', true),
-        check('e2e', 'pending'),
-        check('docs', 'skipped'),
-        check('build', 'passed'),
-      ],
+      body: '<p>The body.</p>',
+      earlierEntries: 80,
+      timeline: [{ author: 'hubot', createdAt: hoursAgo(3), html: '<p>Rebased.</p>', verdict: null }],
     }),
   );
-  const rows = [
-    ...mergeArea().querySelectorAll(
-      ':scope > .forge-merge-row > b, :scope > .forge-merge-row > .forge-merge-row-head > b',
-    ),
-  ].map(name => name.textContent);
-  assert.deepEqual(rows, ['Review', 'Checks', 'Conflicts', 'Draft'], 'in order: review, checks, conflicts, draft');
-  assert.match(rowOf('Review').textContent ?? '', /Changes requested; needs another review/);
-  const checks = rowOf('Checks');
-  assert.match(checks.textContent ?? '', /1 failed, 1 running, 3 passed/);
-  const listed = () => [...checks.querySelectorAll('.forge-merge-check')].map(item => item.textContent);
-  assert.deepEqual(listed(), ['✗unit testsRequiredChecks failedLog ↗', '●e2eChecks runningLog ↗']);
-  assert.equal(
-    within(checks).getAllByRole('link', { name: 'Log ↗' })[0].getAttribute('href'),
-    `${repositoryUrl}/runs/unit tests`,
+  const earlier = within(pane()).getByRole('link', { name: t('earlierEntries', { count: 80, forge: 'GitHub' }) });
+  assert.equal(earlier.getAttribute('href'), `${repositoryUrl}/pull/12`);
+  const [body, comment] = [...pane().querySelectorAll('.forge-card')];
+  assert.ok(
+    body.compareDocumentPosition(earlier) & Node.DOCUMENT_POSITION_FOLLOWING &&
+      earlier.compareDocumentPosition(comment) & Node.DOCUMENT_POSITION_FOLLOWING,
+    'the notice sits between the body and the timeline',
   );
-  await user.click(within(checks).getByRole('button', { name: '3 passed ▸' }));
-  assert.deepEqual(listed().slice(2), [
-    '✓lintRequiredChecks passedLog ↗',
-    '–docsSkippedLog ↗',
-    '✓buildChecks passedLog ↗',
-  ]);
-  await user.click(within(checks).getByRole('button', { name: 'Hide passed checks' }));
-  assert.equal(listed().length, 2);
-  assert.match(rowOf('Conflicts').textContent ?? '', /Conflicts with main; resolve them first/);
-  assert.match(rowOf('Draft').textContent ?? '', /Can be merged once marked ready for review \(on GitHub\)/);
-});
-
-test('a pull request ready to merge shows an approved review, passing checks and no conflicts', async () => {
-  await openPullRequest(
-    detail(12, { review: { state: 'approved', requiredApprovals: 1 }, checks: [check('lint', 'passed')] }),
-  );
-  assert.match(rowOf('Review').textContent ?? '', /Approved/);
-  assert.match(rowOf('Checks').textContent ?? '', /^✓Checks1 passed/);
-  assert.match(rowOf('Conflicts').textContent ?? '', /No conflicts/);
-  assert.equal(within(mergeArea()).queryByText('Draft'), null);
-});
-
-for (const [review, text] of [
-  [{ state: 'required', requiredApprovals: 2 }, 'At least 2 approvals required'],
-  [{ state: 'required', requiredApprovals: null }, 'Review required'],
-  [{ state: 'notRequired', requiredApprovals: null }, 'Review not required'],
-] as const) {
-  test(`a review ${review.state} with ${review.requiredApprovals ?? 'unknown'} required approvals reads: ${text}`, async () => {
-    await openPullRequest(detail(12, { review, conflicts: 'unknown' }));
-    assert.match(rowOf('Review').textContent ?? '', new RegExp(text));
-    assert.match(rowOf('Checks').textContent ?? '', /No checks/);
-    assert.match(rowOf('Conflicts').textContent ?? '', /Checking for conflicts/);
-  });
-}
-
-for (const [state, text] of [
-  ['merged', 'Merged'],
-  ['closed', 'Closed without merging'],
-] as const) {
-  test(`a ${state} pull request's merge area says only that it is ${state}, not what blocked a merge`, async () => {
-    await openPullRequest(
-      detail(12, { state, conflicts: 'conflicting', checks: [check('lint', 'failed')], canWrite: false }),
-    );
-    assert.equal(mergeArea().textContent, text);
-  });
-}
-
-test('a forge without required checks marks none', async () => {
-  await openPullRequest(detail(12, { checks: [check('unit tests', 'failed', true)] }), {
-    capabilities: { ...githubCapabilities, requiredChecks: false },
-  });
-  assert.equal(within(mergeArea()).queryByText('Required'), null);
 });
 
 test('a pull request that closes an issue opens in the sidebar from the issue detail; one of another repository opens in the browser', async () => {
@@ -341,6 +132,7 @@ test('a pull request that closes an issue opens in the sidebar from the issue de
       commentCount: 0,
       parent: null,
       subIssues: [],
+      subIssueProgress: { closed: 0, total: 0 },
       blockedBy: [],
       blocking: [],
       closingPullRequests: [],

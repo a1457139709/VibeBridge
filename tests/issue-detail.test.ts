@@ -43,6 +43,7 @@ test('an issue detail carries the forge-rendered body and comments with their au
         ...issue,
         parent: undefined,
         subIssues: undefined,
+        subIssueProgress: undefined,
         blockedBy: undefined,
         blocking: undefined,
         closingPullRequests: undefined,
@@ -70,6 +71,7 @@ test('an issue detail carries the forge-rendered body and comments with their au
         },
         parent: undefined,
         subIssues: undefined,
+        subIssueProgress: undefined,
         blockedBy: undefined,
         blocking: undefined,
         closingPullRequests: undefined,
@@ -135,6 +137,37 @@ test('an issue detail names its parent, its sub-issues in number order, its bloc
     assert.ok(root.ok);
     assert.equal(root.issue.parent, null);
     assert.deepEqual(root.issue.closingPullRequests, []);
+  } finally {
+    await f.close();
+  }
+});
+
+test("a long issue detail holds the latest 100 comments, the first 50 sub-issues, and GitHub's counts of both", async context => {
+  await ghDouble(context, {
+    ...forgeAccount,
+    issues: [
+      plain(1, {
+        comments: Array.from({ length: 120 }, (_, index) => ({
+          author: 'hubot',
+          createdAt: day(index),
+          bodyHTML: `<p>Comment ${index}.</p>`,
+        })),
+      }),
+      ...Array.from({ length: 55 }, (_, index) =>
+        plain(100 + index, { parent: 1, ...(index % 5 ? {} : { state: 'CLOSED', stateReason: 'COMPLETED' }) }),
+      ),
+    ],
+  });
+  const f = await boundWorkbench('issue-detail-long');
+  try {
+    const result = await issueDetail(f.workbench, f.projectId, 1);
+    assert.ok(result.ok);
+    const { comments, commentCount, subIssues, subIssueProgress } = result.issue;
+    assert.deepEqual(
+      [comments.length, comments[0].html, comments.at(-1)?.html, commentCount],
+      [100, '<p>Comment 20.</p>', '<p>Comment 119.</p>', 120],
+    );
+    assert.deepEqual([subIssues.length, subIssueProgress], [50, { closed: 11, total: 55 }]);
   } finally {
     await f.close();
   }

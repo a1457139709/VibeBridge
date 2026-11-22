@@ -20,6 +20,7 @@ import {
   ItemReference,
   Label,
   linkedItem,
+  MoreOnForge,
   OpenPullRequestChecks,
   Post,
   Progress,
@@ -107,8 +108,7 @@ export function IssueDocument({ project, issue, open, followLink, actions, dispa
         {!!subIssues.length && (
           <section className="forge-box" aria-label={t('subIssues')}>
             <header>
-              {t('subIssues')}{' '}
-              <Progress closed={subIssues.filter(sub => sub.state === 'closed').length} total={subIssues.length} />
+              {t('subIssues')} <Progress {...issue.subIssueProgress} />
             </header>
             {subIssues.map(sub => (
               <button
@@ -122,16 +122,24 @@ export function IssueDocument({ project, issue, open, followLink, actions, dispa
                 <span className="forge-row-number">#{sub.number}</span>
               </button>
             ))}
+            {issue.subIssueProgress.total > subIssues.length && (
+              <MoreOnForge
+                message="moreSubIssues"
+                count={issue.subIssueProgress.total - subIssues.length}
+                forge={project.forge.name}
+                url={issue.url}
+              />
+            )}
           </section>
+        )}
+        {issue.commentCount > issue.comments.length && (
+          <a className="forge-earlier" href={issue.url} target="_blank" rel="noreferrer">
+            {t('earlierEntries', { count: issue.commentCount - issue.comments.length, forge: project.forge.name })}
+          </a>
         )}
         {issue.comments.map((comment, index) => (
           <Post key={index} {...comment} />
         ))}
-        {issue.commentCount > issue.comments.length && (
-          <a className="forge-more-comments" href={issue.url} target="_blank" rel="noreferrer">
-            {t('moreComments', { count: issue.commentCount, forge: project.forge.name })}
-          </a>
-        )}
         <IssueActions issue={issue} actions={actions} />
       </div>
     </div>

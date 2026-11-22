@@ -733,7 +733,8 @@
 .forge-doc .forge-progress-bar {
   width: 40px;
 }
-.forge-more-comments {
+.forge-earlier,
+.forge-more-link {
   color: var(--forge-link);
   font-size: 12px;
 }

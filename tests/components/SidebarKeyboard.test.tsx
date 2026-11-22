@@ -13,7 +13,7 @@ const parentWithTwoOpenSubIssues = () =>
   page([
     issue(20),
     issue(12, { parent: 10 }),
-    issue(10, { subIssues: { closed: 0, total: 2, issues: [summary(12), summary(13)] } }),
+    issue(10, { subIssues: { closed: 0, total: 2, unlisted: 0, issues: [summary(12), summary(13)] } }),
     issue(5),
   ]);
 const focusedRow = () => document.activeElement?.closest('.forge-row')?.querySelector('.forge-row-title')?.textContent;

@@ -1,4 +1,5 @@
-function issueDetail(state, path, number, answering) {
+function issueDetail(state, path, number, answering, query) {
+  const window = connection => Number(new RegExp(`${connection}\\((?:first|last): (\\d+)`).exec(query)?.[1]);
   const issues = state.issues ?? [],
     pulls = state.pullRequests ?? [];
   const url = `https://github.com/${path}`;
@@ -68,7 +69,7 @@ function issueDetail(state, path, number, answering) {
             labels: { nodes: issue.labels },
             comments: {
               totalCount: comments.length,
-              nodes: comments.map(comment => ({
+              nodes: comments.slice(-window('comments')).map(comment => ({
                 author: comment.author === null ? null : { login: comment.author },
                 createdAt: comment.createdAt,
                 bodyHTML: comment.bodyHTML,
@@ -77,10 +78,12 @@ function issueDetail(state, path, number, answering) {
             parent: issue.parent
               ? { ...reference(byNumber([issue.parent])[0]), subIssuesSummary: subIssuesSummary(issue.parent) }
               : null,
+            subIssuesSummary: subIssuesSummary(issue.number),
             subIssues: {
               nodes: issues
                 .filter(item => item.parent === issue.number)
                 .reverse()
+                .slice(0, window('subIssues'))
                 .map(reference),
             },
             blockedBy: { nodes: (issue.blockedBy ?? []).map(blocker) },
@@ -93,7 +96,7 @@ function issueDetail(state, path, number, answering) {
   );
 }
 
-function pullRequestDetail(state, path, number, answering) {
+function pullRequestDetail(state, path, number, answering, query) {
   const url = `https://github.com/${path}`;
   const pull = (state.pullRequests ?? []).find(item => item.number === number);
   if (!pull) {
@@ -118,24 +121,51 @@ function pullRequestDetail(state, path, number, answering) {
     };
   };
   const allowed = { merge: true, squash: true, rebase: true, ...state.mergeMethods };
-  const contexts = (pull.checkRuns ?? []).map((check, index) =>
+  const latest = (items, connection) =>
+    items.slice(-Number(new RegExp(`${connection}\\(last: (\\d+)\\)`).exec(query)?.[1]));
+  const checkWindow = Number(/contexts\(first: (\d+)\)/.exec(query)?.[1]);
+  const checks = pull.checkRuns ?? [];
+  const contexts = checks.map((check, index) =>
     check.context === undefined
       ? {
           __typename: 'CheckRun',
           name: check.name,
           status: check.status,
           conclusion: check.conclusion,
+          title: check.title ?? null,
+          startedAt: check.startedAt ?? null,
+          completedAt: check.completedAt ?? null,
           permalink: `${url}/runs/${index}`,
           isRequired: !!check.required,
+          checkSuite: { workflowRun: check.workflow ? { workflow: { name: check.workflow } } : null },
         }
       : {
           __typename: 'StatusContext',
           context: check.context,
           state: check.state,
+          description: check.description ?? null,
           targetUrl: check.targetUrl,
           isRequired: !!check.required,
         },
   );
+  const countsBy = (items, stateOf) =>
+    [...items.reduce((counts, item) => counts.set(stateOf(item), (counts.get(stateOf(item)) ?? 0) + 1), new Map())].map(
+      ([state, count]) => ({ state, count }),
+    );
+  const runs = contexts.filter(context => context.__typename === 'CheckRun');
+  const statuses = contexts.filter(context => context.__typename === 'StatusContext');
+  const rollup =
+    contexts.length || pull.checks
+      ? {
+          state: pull.checks ?? 'SUCCESS',
+          contexts: {
+            totalCount: contexts.length,
+            checkRunCountsByState: countsBy(runs, run => (run.status === 'COMPLETED' ? run.conclusion : run.status)),
+            statusContextCountsByState: countsBy(statuses, status => status.state),
+            nodes: contexts.slice(0, checkWindow),
+          },
+        }
+      : null;
   process.stdout.write(
     JSON.stringify({
       data: {
@@ -161,30 +191,27 @@ function pullRequestDetail(state, path, number, answering) {
             closingIssuesReferences: { nodes: (pull.closes ?? []).map(issue) },
             comments: {
               totalCount: (pull.comments ?? []).length,
-              nodes: (pull.comments ?? []).map(comment => ({
+              nodes: latest(pull.comments ?? [], 'comments').map(comment => ({
                 author: comment.author === null ? null : { login: comment.author },
                 createdAt: comment.createdAt,
                 bodyHTML: comment.bodyHTML,
               })),
             },
             reviews: {
-              nodes: (pull.reviews ?? []).map(review => ({
+              totalCount: (pull.reviews ?? []).length,
+              nodes: latest(pull.reviews ?? [], 'reviews').map(review => ({
                 author: review.author === null ? null : { login: review.author },
                 state: review.state,
+                createdAt: review.createdAt ?? review.submittedAt,
                 submittedAt: review.submittedAt,
                 bodyHTML: review.bodyHTML,
-                comments: { totalCount: review.codeComments ?? 0 },
               })),
             },
             reviewDecision: pull.reviewDecision ?? null,
-            baseRef: {
-              refUpdateRule: pull.requiredApprovals ? { requiredApprovingReviewCount: pull.requiredApprovals } : null,
-            },
-            mergeable: pull.mergeable ?? 'MERGEABLE',
+            mergeStateStatus: pull.mergeStateStatus ?? 'CLEAN',
             isMergeQueueEnabled: !!pull.mergeQueue,
-            commits: {
-              nodes: [{ commit: { statusCheckRollup: contexts.length ? { contexts: { nodes: contexts } } : null } }],
-            },
+            checksUrl: `${url}/pull/${pull.number}/checks`,
+            commits: { nodes: [{ commit: { statusCheckRollup: rollup } }] },
           },
         },
       },

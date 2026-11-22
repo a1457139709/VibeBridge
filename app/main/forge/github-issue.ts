@@ -44,6 +44,7 @@ const issueDetailSchema = z.object({
       parent: issueReferenceSchema
         .extend({ subIssuesSummary: z.object({ total: z.number(), completed: z.number() }) })
         .nullable(),
+      subIssuesSummary: z.object({ total: z.number(), completed: z.number() }),
       subIssues: z.object({ nodes: z.array(issueReferenceSchema) }),
       blockedBy: z.object({ nodes: z.array(issueReferenceSchema) }),
       blocking: z.object({ nodes: z.array(issueReferenceSchema) }),
@@ -71,8 +72,9 @@ const issueDetailQuery = `query($owner: String!, $name: String!, $number: Int!) 
     number title state stateReason createdAt url bodyHTML author { login }
     assignees(first: 20) { nodes { login } }
     labels(first: 20) { nodes { name color } }
-    comments(first: 100) { totalCount nodes { author { login } createdAt bodyHTML } }
+    comments(last: 100) { totalCount nodes { author { login } createdAt bodyHTML } }
     parent { ${issueReferenceFields} subIssuesSummary { total completed } }
+    subIssuesSummary { total completed }
     subIssues(first: ${relatedLimit}) { nodes { ${issueReferenceFields} } }
     blockedBy(first: ${relatedLimit}) { nodes { ${issueReferenceFields} } }
     blocking(first: ${relatedLimit}) { nodes { ${issueReferenceFields} } }
@@ -109,6 +111,7 @@ export async function issueDetail({ host, path }: RepositoryReference, number: n
         progress: { closed: issue.parent.subIssuesSummary.completed, total: issue.parent.subIssuesSummary.total },
       },
       subIssues: issue.subIssues.nodes.map(issueReference).sort((a, b) => a.number - b.number),
+      subIssueProgress: { closed: issue.subIssuesSummary.completed, total: issue.subIssuesSummary.total },
       blockedBy: issue.blockedBy.nodes.map(issueReference),
       blocking: issue.blocking.nodes.map(issueReference),
       closingPullRequests: issue.closedByPullRequestsReferences.nodes.map(pull => ({
