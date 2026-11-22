@@ -6,6 +6,7 @@ import { Workbench } from '../app/main/workbench';
 import type { Project } from '../app/shared/model';
 import { runsOf, storedProjects } from './support/panel-views';
 import { alive, interactiveWorkbench, until } from './support/interactive-workbench';
+import { firstCapture, pidOf } from './support/expected';
 
 const fixture = () => interactiveWorkbench('project-management');
 
@@ -65,13 +66,13 @@ test('directory restart saves first, cleans descendants and preserves project la
     await until(() => oldRuns.every(run => f.output(run.id).includes('READY:')));
     await f.workbench.runs.input(oldRuns[0].id, 'child');
     await until(() => /CHILD:(\d+)/.test(f.output(oldRuns[0].id)));
-    const child = Number(f.output(oldRuns[0].id).match(/CHILD:(\d+)/)![1]);
+    const child = Number(firstCapture(f.output(oldRuns[0].id), /CHILD:(\d+)/));
     const result = await f.workbench.editProject(project.id, { name: 'New directory', directory: target }, true);
     assert.equal(result.error, undefined);
     assert.equal(result.launches.length, 2);
     assert.ok(result.launches.every(launch => launch.outcome === 'started'));
     assert.deepEqual(result.project, { ...project, name: 'New directory', directory: target, layout });
-    assert.ok([...oldRuns.map(run => run.pid!), child].every(pid => !alive(pid)));
+    assert.ok([...oldRuns.map(pidOf), child].every(pid => !alive(pid)));
     assert.deepEqual(
       runsOf(f.workbench.snapshot()).filter(run => run.projectId === second.id),
       before.filter(run => run.projectId === second.id),
@@ -82,7 +83,7 @@ test('directory restart saves first, cleans descendants and preserves project la
     assert.deepEqual(storedProjects(f.workbench.snapshot()).find(item => item.id === project.id)?.layout, layout);
     // Natural exit still removes its panel after a controlled restart.
     await f.workbench.runs.input(restarted[0].id, 'exit');
-    await until(() => f.workbench.snapshot().projects.find(item => item.id === project.id)!.panels.length === 1);
+    await until(() => f.workbench.snapshot().projects.find(item => item.id === project.id)?.panels.length === 1);
   } finally {
     await f.close();
   }
@@ -116,8 +117,8 @@ test('changing directory without restart keeps original cwd and identity and use
     assert.deepEqual(
       f.workbench
         .snapshot()
-        .projects.find(item => item.id === project.id)!
-        .tray.map(panel => panel.id),
+        .projects.find(item => item.id === project.id)
+        ?.tray.map(panel => panel.id),
       [added.panel.id],
     );
     await f.workbench.quit();
@@ -128,7 +129,8 @@ test('changing directory without restart keeps original cwd and identity and use
     });
     try {
       // A project which has not been visited this app run must only save.
-      const before = reopened.snapshot().projects.find(item => item.id === project.id)!;
+      const before = reopened.snapshot().projects.find(item => item.id === project.id);
+      assert.ok(before);
       const saved = await reopened.editProject(project.id, { name: 'Unvisited', directory: f.directory }, true);
       assert.deepEqual(saved.launches, []);
       assert.deepEqual(runsOf(reopened.snapshot()), []);
@@ -154,12 +156,13 @@ test('deletion cleans only the target project, preserves files, persists removal
     for (let i = 0; i < paths.length; i++)
       projects.push((await f.create(['First', 'Middle', 'Last'][i], paths[i])).project);
     await f.workbench.activateProject(projects[1].id);
-    const before = runsOf(f.workbench.snapshot()),
-      target = before.find(run => run.projectId === projects[1].id)!;
+    const before = runsOf(f.workbench.snapshot());
+    const target = before.find(run => run.projectId === projects[1].id);
+    assert.ok(target);
     await until(() => f.output(target.id).includes('READY:'));
     await f.workbench.runs.input(target.id, 'orphan');
     await until(() => /ORPHAN:(\d+)/.test(f.output(target.id)));
-    const orphan = Number(f.output(target.id).match(/ORPHAN:(\d+)/)![1]);
+    const orphan = Number(firstCapture(f.output(target.id), /ORPHAN:(\d+)/));
     await f.workbench.deleteProject(projects[1].id);
     assert.equal(f.workbench.snapshot().activeProjectId, projects[2].id);
     assert.deepEqual(storedProjects(f.workbench.snapshot()), [projects[0], projects[2]]);
@@ -167,7 +170,7 @@ test('deletion cleans only the target project, preserves files, persists removal
       runsOf(f.workbench.snapshot()),
       before.filter(run => run.projectId !== projects[1].id),
     );
-    assert.equal(alive(target.pid!), false);
+    assert.equal(alive(pidOf(target)), false);
     assert.equal(alive(orphan), false);
     assert.equal(await readFile(join(paths[1], 'cli-history'), 'utf8'), 'retained history');
     await f.workbench.deleteProject(projects[2].id);
@@ -256,7 +259,7 @@ test('failed saves do not mutate names or stop runs and failed deletion keeps al
     assert.deepEqual(storedProjects(f.workbench.snapshot()), [project]);
     assert.equal(f.workbench.snapshot().activeProjectId, project.id);
     assert.equal(runsOf(f.workbench.snapshot())[0].state, 'stopped');
-    assert.equal(alive(run.pid!), false);
+    assert.equal(alive(pidOf(run)), false);
     database.exec('ROLLBACK');
     database.close();
     database = undefined;
@@ -288,21 +291,22 @@ test('a terminal stop timeout reports a saved edit and leaves panel records inta
     await until(() => f.output(run.id).includes('READY:'));
     await f.workbench.runs.input(run.id, 'host');
     await until(() => /HOST:(\d+)/.test(f.output(run.id)));
-    host = Number(f.output(run.id).match(/HOST:(\d+)/)![1]);
+    host = Number(firstCapture(f.output(run.id), /HOST:(\d+)/));
     process.kill(host, 'SIGSTOP');
     const result = await f.workbench.editProject(
       project.id,
       { name: 'Saved with stop failure', directory: target },
       true,
     );
-    assert.match(result.error!, /projectRestartFailed/);
+    assert.ok(result.error);
+    assert.match(result.error, /projectRestartFailed/);
     assert.deepEqual(result.launches, []);
     assert.equal(result.project.directory, target);
     assert.deepEqual(storedProjects(f.workbench.snapshot())[0].panels, project.panels);
-    assert.equal(alive(run.pid!), true);
+    assert.equal(alive(pidOf(run)), true);
     process.kill(host, 'SIGCONT');
     host = undefined;
-    await until(() => !alive(run.pid!));
+    await until(() => !alive(pidOf(run)));
     await until(() => runsOf(f.workbench.snapshot())[0]?.state === 'stopped');
     assert.deepEqual(storedProjects(f.workbench.snapshot())[0].panels, project.panels);
   } finally {
@@ -319,12 +323,12 @@ test('deletion after a terminal manager failure does not claim cleanup succeeded
     await until(() => f.output(run.id).includes('READY:'));
     await f.workbench.runs.input(run.id, 'host');
     await until(() => /HOST:(\d+)/.test(f.output(run.id)));
-    const host = Number(f.output(run.id).match(/HOST:(\d+)/)![1]);
+    const host = Number(firstCapture(f.output(run.id), /HOST:(\d+)/));
     process.kill(host, 'SIGKILL');
     await until(() => runsOf(f.workbench.snapshot())[0]?.state === 'stopped');
     await assert.rejects(f.workbench.deleteProject(project.id), /projectDeleteFailed.*terminalHostExited/);
     assert.deepEqual(storedProjects(f.workbench.snapshot()), [project]);
-    await until(() => !alive(run.pid!));
+    await until(() => !alive(pidOf(run)));
   } finally {
     await f.close().catch(async () => {
       await rm(f.directory, { recursive: true, force: true });
@@ -344,7 +348,8 @@ test('a start response timeout returns an explicit per-panel uncertain result wh
     await until(() => f.output(old.id).includes('READY:'));
     await f.workbench.runs.input(old.id, 'host');
     await until(() => /HOST:(\d+)/.test(f.output(old.id)));
-    host = Number(f.output(old.id).match(/HOST:(\d+)/)![1]);
+    const oldHost = Number(firstCapture(f.output(old.id), /HOST:(\d+)/));
+    host = oldHost;
     const unsubscribe = f.workbench.subscribe(event => {
       if (
         !paused &&
@@ -352,7 +357,7 @@ test('a start response timeout returns an explicit per-panel uncertain result wh
         runsOf(event.snapshot).find(run => run.id === old.id)?.state === 'stopped'
       ) {
         paused = true;
-        process.kill(host!, 'SIGSTOP');
+        process.kill(oldHost, 'SIGSTOP');
       }
     });
     try {

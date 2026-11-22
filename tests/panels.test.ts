@@ -6,6 +6,8 @@ import { Workbench } from '../app/main/workbench';
 import type { Snapshot, WorkbenchEvent } from '../app/shared/model';
 import { layoutBoxes } from '../app/shared/layout';
 import { runsOf, storedProjects } from './support/panel-views';
+import { testNode } from './support/test-node';
+import { firstCapture, lastOf, pidOf } from './support/expected';
 
 async function until(check: () => boolean) {
   const deadline = Date.now() + 5000;
@@ -23,7 +25,7 @@ test('an added panel enters the tray, leaving the saved layout and existing runs
   try {
     const settings = workbench.snapshot().settings;
     settings.agents.codex = {
-      command: process.env.VIBEBRIDGE_TEST_NODE!,
+      command: testNode,
       args: [resolve('tests/fixtures/interactive.cjs')],
     };
     await workbench.saveSettings(settings);
@@ -78,10 +80,10 @@ test('an added panel enters the tray, leaving the saved layout and existing runs
     await until(() => output(originalRuns[1].id).includes('INPUT:after-add'));
     await workbench.runs.input(added.launch.run.id, 'child');
     await until(() => /CHILD:(\d+)/.test(output(added.launch.run.id)));
-    const childPid = Number(output(added.launch.run.id).match(/CHILD:(\d+)/)![1]);
+    const childPid = Number(firstCapture(output(added.launch.run.id), /CHILD:(\d+)/));
     await workbench.closePanel(project.id, added.panel.id);
     assert.throws(() => process.kill(childPid, 0));
-    assert.throws(() => process.kill(added.launch.run.pid!, 0));
+    assert.throws(() => process.kill(pidOf(added.launch.run), 0));
     await assert.rejects(workbench.runs.input(added.launch.run.id, 'stale'), /runInvalid/);
     assert.deepEqual(
       workbench.snapshot().projects[0].tray.map(panel => panel.id),
@@ -112,7 +114,7 @@ test('normal and abnormal run exits of tray panels remove them from the tray', a
   try {
     const settings = workbench.snapshot().settings;
     settings.agents.codex = {
-      command: process.env.VIBEBRIDGE_TEST_NODE!,
+      command: testNode,
       args: [resolve('tests/fixtures/interactive.cjs')],
     };
     // A successfully spawned CLI can exit before the caller receives its launch result.
@@ -162,7 +164,7 @@ test('quitting the Workbench preserves panels and layout', async () => {
   try {
     const settings = workbench.snapshot().settings;
     settings.agents.codex = {
-      command: process.env.VIBEBRIDGE_TEST_NODE!,
+      command: testNode,
       args: [resolve('tests/fixtures/interactive.cjs')],
     };
     await workbench.saveSettings(settings);
@@ -184,7 +186,7 @@ test('an added panel whose Agent cannot start is withdrawn, and adding succeeds 
   try {
     const settings = workbench.snapshot().settings;
     settings.agents.codex = {
-      command: process.env.VIBEBRIDGE_TEST_NODE!,
+      command: testNode,
       args: [resolve('tests/fixtures/interactive.cjs')],
     };
     settings.agents.pi = { command: '/no-such-agent', args: [] };
@@ -203,7 +205,7 @@ test('an added panel whose Agent cannot start is withdrawn, and adding succeeds 
     assert.equal(failed.launch.outcome, 'failed');
     const after = workbench.snapshot();
     assert.deepEqual(after.projects, before.projects, 'panels, runs and processing states are as before the addition');
-    assert.deepEqual(snapshots.at(-1)!.projects, before.projects);
+    assert.deepEqual(lastOf(snapshots).projects, before.projects);
     await until(() => output.includes('READY:'));
     await workbench.runs.input(runsOf(before)[1].id, 'still-alive');
     await until(() => output.includes('INPUT:still-alive'));
@@ -230,7 +232,7 @@ test('project creation withdraws only the panels whose Agent cannot start, keepi
   try {
     const settings = workbench.snapshot().settings;
     settings.agents.codex = {
-      command: process.env.VIBEBRIDGE_TEST_NODE!,
+      command: testNode,
       args: [resolve('tests/fixtures/interactive.cjs')],
     };
     settings.agents.pi = { command: '/no-such-agent', args: [] };
@@ -286,7 +288,7 @@ test('restoring a layout keeps panels whose Agent cannot start', async () => {
   try {
     const settings = workbench.snapshot().settings;
     settings.agents.codex = {
-      command: process.env.VIBEBRIDGE_TEST_NODE!,
+      command: testNode,
       args: [resolve('tests/fixtures/interactive.cjs')],
     };
     await workbench.saveSettings(settings);
@@ -327,7 +329,7 @@ test('terminal manager failure cleans up runs without removing saved panel confi
   try {
     const settings = workbench.snapshot().settings;
     settings.agents.codex = {
-      command: process.env.VIBEBRIDGE_TEST_NODE!,
+      command: testNode,
       args: [resolve('tests/fixtures/interactive.cjs')],
     };
     await workbench.saveSettings(settings);
@@ -354,12 +356,12 @@ test('terminal manager failure cleans up runs without removing saved panel confi
     await until(() => /HOST:(\d+)/.test(output));
     await workbench.runs.input(runs[0].id, 'orphan');
     await until(() => /ORPHAN:(\d+)/.test(output));
-    orphanPid = Number(output.match(/ORPHAN:(\d+)/)![1]);
-    process.kill(Number(output.match(/HOST:(\d+)/)![1]), 'SIGKILL');
+    orphanPid = Number(firstCapture(output, /ORPHAN:(\d+)/));
+    process.kill(Number(firstCapture(output, /HOST:(\d+)/)), 'SIGKILL');
     hostStopped = true;
     await until(() => workbench.snapshot().errors.some(message => message.includes('terminalHostExited')));
     await until(() =>
-      [...runs.map(run => run.pid!), orphanPid].every(pid => {
+      [...runs.map(pidOf), orphanPid].every(pid => {
         try {
           process.kill(pid, 0);
           return false;
@@ -397,7 +399,7 @@ test('input while a naturally exited run is still being cleaned up is dropped wi
   try {
     const settings = workbench.snapshot().settings;
     settings.agents.codex = {
-      command: process.env.VIBEBRIDGE_TEST_NODE!,
+      command: testNode,
       args: [resolve('tests/fixtures/interactive.cjs')],
     };
     await workbench.saveSettings(settings);
@@ -417,13 +419,13 @@ test('input while a naturally exited run is still being cleaned up is dropped wi
     await until(() => output.includes('READY:'));
     await workbench.runs.input(run.id, 'linger');
     await until(() => /LINGER:(\d+)/.test(output));
-    lingerPid = Number(output.match(/LINGER:(\d+)/)![1]);
+    lingerPid = Number(firstCapture(output, /LINGER:(\d+)/));
     // The child inherits the run's owner marker, so cleanup finds it after the Agent exits and waits
     // while it ignores SIGTERM.
     await workbench.runs.input(run.id, 'exit');
     await until(() => {
       try {
-        process.kill(run.pid!, 0);
+        process.kill(pidOf(run), 0);
         return false;
       } catch {
         return true;

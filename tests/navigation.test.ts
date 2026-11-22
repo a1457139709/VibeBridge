@@ -4,6 +4,7 @@ import { readFile } from 'node:fs/promises';
 import { resolve } from 'node:path';
 import { Workbench } from '../app/main/workbench';
 import { testDirectory } from './support/directory';
+import { testNode } from './support/test-node';
 
 test('navigation preferences default open and survive project deletion and reopening independently from user settings', async context => {
   const directory = await testDirectory(context, 'navigation-persistence');
@@ -20,7 +21,7 @@ test('navigation preferences default open and survive project deletion and reope
     await workbench.saveSidebar('navigation', { visible: true, width: 318 });
     assert.deepEqual(workbench.snapshot().navigation, { visible: true, width: 318 });
     const agents = workbench.snapshot().settings.agents;
-    agents.codex = { command: process.env.VIBEBRIDGE_TEST_NODE!, args: [resolve('tests/fixtures/interactive.cjs')] };
+    agents.codex = { command: testNode, args: [resolve('tests/fixtures/interactive.cjs')] };
     await workbench.saveSettings({ agents });
     const { project } = await workbench.createProject({
       name: 'Navigation persistence',

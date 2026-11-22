@@ -5,6 +5,8 @@ import { pi } from '../app/main/agent-status/pi/status';
 import type { ProcessingState } from '../app/shared/processing-status';
 import { observe } from './support/interpreter';
 
+const isPayload = (value: unknown): value is Payload => typeof value === 'object' && value !== null;
+
 interface Context {
   idle?: boolean;
   pendingMessages?: boolean;
@@ -26,7 +28,7 @@ function started() {
     }
     if (event.type === 'agent_settled') idle = true;
     const payload: Payload = { ...event, isIdle: idle, hasPendingMessages: context.pendingMessages ?? false };
-    if (event.type === 'message_end') messages.push(event.message as Payload);
+    if (event.type === 'message_end' && isPayload(event.message)) messages.push(event.message);
     if (event.type === 'agent_end')
       payload.finalStopReason = messages.findLast(message => message.role === 'assistant')?.stopReason ?? null;
     return accept(payload);

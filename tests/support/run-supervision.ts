@@ -1,3 +1,4 @@
+import assert from 'node:assert/strict';
 import type { TestContext } from 'node:test';
 import { message } from '../../app/shared/messages';
 import { RunSupervision, type Terminal } from '../../app/main/runs/run-supervision';
@@ -118,7 +119,8 @@ export async function runSupervisionFixture(context: TestContext) {
     run: (id: string) => project.panels.map(panel => supervision.panelView(panel).run).find(run => run?.id === id),
     // Reports as the Agent's own status integration would: 204 while observed, 403 once released.
     async report(runId: string, payload: object = {}) {
-      const context = credentials.get(runId)!;
+      const context = credentials.get(runId);
+      assert.ok(context, `run ${runId} has no status context`);
       const response = await fetch(context.url, { method: 'POST', body: JSON.stringify({ ...context, payload }) });
       await response.text();
       return response.status;

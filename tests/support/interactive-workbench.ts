@@ -2,6 +2,7 @@ import { mkdtemp, rm } from 'node:fs/promises';
 import { resolve } from 'node:path';
 import { Workbench } from '../../app/main/workbench';
 import type { WorkbenchEvent } from '../../app/shared/model';
+import { testNode } from './test-node';
 
 export async function until(check: () => boolean, timeout = 7000) {
   const deadline = Date.now() + timeout;
@@ -28,7 +29,7 @@ export async function interactiveWorkbench(scope: string) {
   const settings = workbench.snapshot().settings;
   for (const agent of ['codex', 'claude', 'pi'] as const)
     settings.agents[agent] = {
-      command: process.env.VIBEBRIDGE_TEST_NODE!,
+      command: testNode,
       args: [resolve('tests/fixtures/interactive.cjs')],
     };
   await workbench.saveSettings(settings);

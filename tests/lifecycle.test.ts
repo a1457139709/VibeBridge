@@ -6,6 +6,8 @@ import { resolve, join } from 'node:path';
 import { Workbench } from '../app/main/workbench';
 import type { Snapshot } from '../app/shared/model';
 import { runsOf, storedProjects } from './support/panel-views';
+import { testNode } from './support/test-node';
+import { pidOf } from './support/expected';
 
 const alive = (pid: number) => {
   try {
@@ -15,6 +17,20 @@ const alive = (pid: number) => {
     return false;
   }
 };
+/** What the main fixture reports once its project runs and its terminal host has an orphan. */
+interface Ready {
+  snapshot: Snapshot;
+  host: number;
+  orphan: number;
+}
+const isReady = (message: unknown): message is Ready =>
+  typeof message === 'object' &&
+  message !== null &&
+  'snapshot' in message &&
+  'host' in message &&
+  typeof message.host === 'number' &&
+  'orphan' in message &&
+  typeof message.orphan === 'number';
 async function until(check: () => boolean) {
   const deadline = Date.now() + 7000;
   while (!check()) {
@@ -29,32 +45,27 @@ test('a surviving terminal manager cleans all projects after main-process SIGKIL
     stdio: ['ignore', 'inherit', 'inherit', 'ipc'],
   });
   // The same program outside the workbench must remain alive.
-  const unrelated = spawn(
-    process.env.VIBEBRIDGE_TEST_NODE!,
-    [resolve('tests/fixtures/interactive.cjs'), 'orphan-child'],
-    { stdio: 'ignore' },
-  );
+  const unrelated = spawn(testNode, [resolve('tests/fixtures/interactive.cjs'), 'orphan-child'], { stdio: 'ignore' });
   let pids: number[] = [];
   try {
-    const { snapshot, host, orphan } = await new Promise<{ snapshot: Snapshot; host: number; orphan: number }>(
-      (resolve, reject) => {
-        const timer = setTimeout(() => reject(new Error('Main fixture did not become ready')), 10000);
-        main.once('message', message => {
-          clearTimeout(timer);
-          resolve(message as any);
-        });
-        main.once('exit', () => {
-          clearTimeout(timer);
-          reject(new Error('Main fixture exited early'));
-        });
-      },
-    );
-    pids = [host, orphan, ...runsOf(snapshot).map(run => run.pid!)];
+    const { snapshot, host, orphan } = await new Promise<Ready>((resolve, reject) => {
+      const timer = setTimeout(() => reject(new Error('Main fixture did not become ready')), 10000);
+      main.once('message', message => {
+        clearTimeout(timer);
+        if (isReady(message)) resolve(message);
+        else reject(new Error(`Main fixture sent ${JSON.stringify(message)}`));
+      });
+      main.once('exit', () => {
+        clearTimeout(timer);
+        reject(new Error('Main fixture exited early'));
+      });
+    });
+    pids = [host, orphan, ...runsOf(snapshot).map(pidOf)];
     main.kill('SIGKILL');
     const started = Date.now();
     await until(() => pids.every(pid => !alive(pid)));
     console.log(`Main fault cleanup: ${Date.now() - started} ms`);
-    assert.ok(alive(unrelated.pid!));
+    assert.ok(unrelated.pid !== undefined && alive(unrelated.pid));
     assert.match(await readFile(join(directory, 'last-failure.json'), 'utf8'), /mainDisconnected/);
     const reopened = await Workbench.open(directory);
     try {
@@ -89,7 +100,7 @@ test('quit requests termination before forcing a refusing run, and keeps its pan
     const settings = workbench.snapshot().settings;
     const terminationFile = join(directory, 'termination.txt');
     settings.agents.codex = {
-      command: process.env.VIBEBRIDGE_TEST_NODE!,
+      command: testNode,
       args: [resolve('tests/fixtures/interactive.cjs'), '--termination-file', terminationFile],
     };
     await workbench.saveSettings(settings);
@@ -110,7 +121,7 @@ test('quit requests termination before forcing a refusing run, and keeps its pan
     assert.equal(await readFile(terminationFile, 'utf8'), 'TERM:received');
     assert.ok(output.length < 160 * 1024, 'quitting must not remove the output bound');
     assert.ok(elapsed >= 1900 && elapsed < 5000, `forced cleanup took ${elapsed} ms`);
-    assert.equal(alive(run.pid!), false);
+    assert.equal(alive(pidOf(run)), false);
     const reopened = await Workbench.open(directory);
     try {
       assert.deepEqual(storedProjects(reopened.snapshot()), [project]);

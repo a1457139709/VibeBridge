@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import { ghDouble } from './support/gh-double';
 import { boundWorkbench, day, forgeAccount, issueDetail } from './support/bound-workbench';
 import { byNumber, detail, detailTitle, forge, issue, shownIssues, sidebarData } from './support/sidebar-data-sources';
+import { lastOf } from './support/expected';
 
 // A row the pointer or keyboard focus rests on is likely opened next: after 150ms its detail is read into the kept
 // details, so opening it shows at once.
@@ -29,7 +30,7 @@ test('a detail is read once the pointer or focus rested 150ms on its row; leavin
     [three],
     'the row rested on for 150ms is read',
   );
-  reads.at(-1)!.answer(detail(3));
+  lastOf(reads).answer(detail(3));
   await rested;
 });
 
@@ -40,7 +41,7 @@ test('a detail read ahead opens at once without asking the forge again', async c
   await shownIssues(sidebar, [3]);
   const rested = data.reportRestingOn('alpha', three);
   context.mock.timers.tick(150);
-  reads.at(-1)!.answer(detail(3, 'Read ahead'));
+  lastOf(reads).answer(detail(3, 'Read ahead'));
   await rested;
   const before = reads.length;
   await data.showDetail('alpha', three);
@@ -54,7 +55,7 @@ test('a kept detail is not read ahead, and opening one still on its way waits fo
   const { data, reads, shownDetail } = sidebar;
   await shownIssues(sidebar, [3, 2]);
   const opened = data.showDetail('alpha', three);
-  reads.at(-1)!.answer(detail(3));
+  lastOf(reads).answer(detail(3));
   await opened;
   await data.showDetail('alpha', null);
   const before = reads.length;
@@ -72,7 +73,7 @@ test('a kept detail is not read ahead, and opening one still on its way waits fo
     [two],
     'opening the item read ahead asks the forge no second time',
   );
-  reads.at(-1)!.answer(detail(2, 'Answered once'));
+  lastOf(reads).answer(detail(2, 'Answered once'));
   await Promise.all([rested, openedTwo]);
   assert.equal(detailTitle(shownDetail()), 'Answered once');
 });
@@ -85,7 +86,7 @@ test('a read ahead that fails shows nothing; opening the item then asks the forg
   const count = events.length;
   const rested = data.reportRestingOn('alpha', three);
   context.mock.timers.tick(150);
-  reads.at(-1)!.fail(new Error('gh exited'));
+  lastOf(reads).fail(new Error('gh exited'));
   await rested;
   assert.deepEqual(events.slice(count), [], 'nothing is pushed');
   const before = reads.length;
@@ -147,9 +148,9 @@ test('a read ahead on its way when a direct action changes its item is not kept:
   await shownIssues(sidebar, [3]);
   const rested = data.reportRestingOn('alpha', three);
   context.mock.timers.tick(150);
-  const readAhead = reads.at(-1)!;
+  const readAhead = lastOf(reads);
   const changed = data.reloadChanged('alpha', three);
-  reads.at(-1)!.answer(byNumber([issue(3)]));
+  lastOf(reads).answer(byNumber([issue(3)]));
   await changed;
   readAhead.answer(detail(3, 'Before the change'));
   await rested;

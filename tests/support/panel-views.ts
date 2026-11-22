@@ -14,7 +14,7 @@ export const statusOf = (snapshot: Snapshot, runId: string) =>
 export const showing = (snapshot: Snapshot, projectId: string, state: ProcessingState) => {
   const project = snapshot.projects.find(project => project.id === projectId);
   return (project ? projectPanels(project) : []).flatMap(panel =>
-    panel.status === state ? [[panel.id, panel.run!.id]] : [],
+    panel.status === state && panel.run ? [[panel.id, panel.run.id]] : [],
   );
 };
 /** The snapshot's projects in their stored shape: resident panels without run and processing state, no tray, no Repository Binding,

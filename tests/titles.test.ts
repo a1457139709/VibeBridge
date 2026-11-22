@@ -6,6 +6,8 @@ import { Workbench } from '../app/main/workbench';
 import { sessionTitle } from '../app/main/runs/session-title';
 import type { WorkbenchEvent } from '../app/shared/model';
 import { runsOf, showing, statusOf, storedProjects } from './support/panel-views';
+import { testNode } from './support/test-node';
+import { firstCapture } from './support/expected';
 
 async function until(check: () => boolean) {
   const deadline = Date.now() + 7000;
@@ -21,7 +23,7 @@ async function fixture() {
   workbench.subscribe(event => events.push(event));
   const settings = workbench.snapshot().settings;
   settings.agents.codex = {
-    command: process.env.VIBEBRIDGE_TEST_NODE!,
+    command: testNode,
     args: [resolve('tests/fixtures/title-cli.cjs')],
   };
   await workbench.saveSettings(settings);
@@ -144,7 +146,7 @@ test('titles stay with their running instance, reset on directory restart and ne
     );
     await f.emit(current[0].id, 'new', ['\x1b]2;New run title | target\x07']);
     await until(() => f.output(current[0].id).includes('DONE:new'));
-    assert.equal(runsOf(f.workbench.snapshot()).find(run => run.id === current[0].id)!.title, 'New run title');
+    assert.equal(runsOf(f.workbench.snapshot()).find(run => run.id === current[0].id)?.title, 'New run title');
     await f.workbench.quit();
     const reopened = await Workbench.open(f.directory);
     try {
@@ -179,7 +181,7 @@ test('a delayed genuine start replaces the uncertain starting run and then accep
       JSON.stringify({ id: 'host', host: true, chunks: ['\x1b]2;Existing title | directory\x07'] }) + '\n',
     );
     await until(() => /HOST:(\d+)/.test(f.output(first.id)));
-    host = Number(f.output(first.id).match(/HOST:(\d+)/)![1]);
+    host = Number(firstCapture(f.output(first.id), /HOST:(\d+)/));
     const settings = f.workbench.snapshot().settings;
     settings.agents.codex.args.push('--initial-title', ' Late title | raw ');
     await f.workbench.saveSettings(settings);
@@ -198,8 +200,8 @@ test('a delayed genuine start replaces the uncertain starting run and then accep
     process.kill(host, 'SIGCONT');
     host = undefined;
     await until(() => runsOf(f.workbench.snapshot()).some(run => run.id === pending.id && run.title === 'Late title'));
-    assert.equal(runsOf(f.workbench.snapshot()).find(run => run.id === pending.id)!.state, 'running');
-    assert.equal(runsOf(f.workbench.snapshot()).find(run => run.id === first.id)!.title, 'Existing title');
+    assert.equal(runsOf(f.workbench.snapshot()).find(run => run.id === pending.id)?.state, 'running');
+    assert.equal(runsOf(f.workbench.snapshot()).find(run => run.id === first.id)?.title, 'Existing title');
   } finally {
     if (host) process.kill(host, 'SIGCONT');
     await f.close();

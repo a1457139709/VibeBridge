@@ -6,6 +6,7 @@ import { DatabaseSync } from 'node:sqlite';
 import { Workbench, WorkbenchOpenError } from '../app/main/workbench';
 import { testDirectory } from './support/directory';
 import { storedProjects } from './support/panel-views';
+import { testNode } from './support/test-node';
 
 const project = { id: 'project-a', name: 'Stored' };
 const layout = { axis: 'row', ratio: 0.5, first: { panel: 'panel-a' }, second: { panel: 'panel-b' } };
@@ -49,7 +50,7 @@ test('projects without panels and navigation that was never saved reopen as stor
   let workbench = await Workbench.open(directory);
   try {
     const agents = workbench.snapshot().settings.agents;
-    agents.codex = { command: process.env.VIBEBRIDGE_TEST_NODE!, args: [resolve('tests/fixtures/interactive.cjs')] };
+    agents.codex = { command: testNode, args: [resolve('tests/fixtures/interactive.cjs')] };
     await workbench.saveSettings({ agents });
     await workbench.createProject({ name: 'Arranged', directory, total: 2, counts: { codex: 2, claude: 0, pi: 0 } });
     await mkdir(join(directory, 'empty'));

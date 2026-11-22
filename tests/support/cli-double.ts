@@ -3,6 +3,8 @@ import { resolve } from 'node:path';
 import { Workbench } from '../../app/main/workbench';
 import type { AgentType, WorkbenchEvent } from '../../app/shared/model';
 import { statusOf } from './panel-views';
+import { firstCapture } from './expected';
+import { testNode } from './test-node';
 
 /** Waits for the CLI double; a timeout carries the run's output so CI logs show where it stopped. */
 export async function until(check: () => boolean, output?: () => string) {
@@ -46,7 +48,7 @@ export async function fixture(agent: AgentType, args: string[] = []) {
   });
   const output = (id: string) => events.flatMap(e => (e.kind === 'output' && e.runId === id ? [e.data] : [])).join('');
   const command = {
-    command: process.env.VIBEBRIDGE_TEST_NODE!,
+    command: testNode,
     args: [resolve(`tests/fixtures/${agent}-cli.cjs`), ...args],
   };
   try {
@@ -91,7 +93,7 @@ export async function fixture(agent: AgentType, args: string[] = []) {
     },
     async context(runId: string) {
       await this.send(runId, undefined, { context: true });
-      return JSON.parse(output(runId).match(/CONTEXT:([^\r\n]+)/)![1]);
+      return JSON.parse(firstCapture(output(runId), /CONTEXT:([^\r\n]+)/));
     },
     close,
   };

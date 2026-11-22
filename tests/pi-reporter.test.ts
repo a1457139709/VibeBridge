@@ -8,6 +8,8 @@ import { syncBuiltinESMExports } from 'node:module';
 import { pathToFileURL } from 'node:url';
 import { fixture, until } from './support/cli-double';
 import { showing, statusOf } from './support/panel-views';
+import { firstCapture, lastOf } from './support/expected';
+import { fromPartial } from '@total-typescript/shoehorn';
 
 test('pi loads the invocation extension, and session shutdown leaves a usable terminal with Error', async () => {
   const f = await fixture('pi');
@@ -77,7 +79,7 @@ test('pi preserves explicit extensions and arguments', async () => {
     assert.ok(f.output(run.id).includes('EXISTING_EXTENSION_OK'));
     await f.send(run.id, undefined, { arguments: true });
     assert.equal(await readFile(join(f.directory, 'existing.mjs'), 'utf8'), source);
-    const args: string[] = JSON.parse(f.output(run.id).match(/ARGUMENTS:([^\r\n]+)/)![1]);
+    const args: string[] = JSON.parse(firstCapture(f.output(run.id), /ARGUMENTS:([^\r\n]+)/));
     assert.deepEqual(args.slice(0, 3), ['--no-extensions', '-e', './existing.mjs']);
     assert.deepEqual(args.slice(-2), ['--', 'literal --extension']);
     assert.deepEqual(f.workbench.snapshot().settings.agents.pi.args.slice(1), [
@@ -97,34 +99,39 @@ test('pi preserves explicit extensions and arguments', async () => {
 function holdReports(runId: string) {
   const requests: { payload: Record<string, unknown>; deliver(): void }[] = [];
   const original = http.request;
-  http.request = ((_url: string, _options: object, respond: (response: object) => void) => {
-    const listeners = new Map<string, () => void>();
-    const outgoing = {
-      once(name: string, listener: () => void) {
-        listeners.set(name, listener);
-        return outgoing;
-      },
-      destroy() {},
-      end(body: string) {
-        requests.push({
-          payload: JSON.parse(body).payload,
-          deliver() {
-            const ended = new Map<string, () => void>();
-            respond({
-              statusCode: 204,
-              resume() {},
-              once(name: string, listener: () => void) {
-                ended.set(name, listener);
-              },
-            });
-            ended.get('end')!();
-            listeners.get('close')!();
-          },
-        });
-      },
-    };
-    return outgoing;
-  }) as unknown as typeof http.request;
+  http.request = fromPartial<typeof http.request>(
+    (_url: string, _options: object, respond: (response: object) => void) => {
+      const listeners = new Map<string, () => void>();
+      const outgoing = {
+        once(name: string, listener: () => void) {
+          listeners.set(name, listener);
+          return outgoing;
+        },
+        destroy() {},
+        end(body: string) {
+          requests.push({
+            payload: JSON.parse(body).payload,
+            deliver() {
+              const ended = new Map<string, () => void>();
+              respond({
+                statusCode: 204,
+                resume() {},
+                once(name: string, listener: () => void) {
+                  ended.set(name, listener);
+                },
+              });
+              const end = ended.get('end');
+              const close = listeners.get('close');
+              assert.ok(end && close, 'the reporter waits for the response to end and the request to close');
+              end();
+              close();
+            },
+          });
+        },
+      };
+      return outgoing;
+    },
+  );
   syncBuiltinESMExports();
   const previous = process.env.VIBEBRIDGE_STATUS_CONTEXT;
   process.env.VIBEBRIDGE_STATUS_CONTEXT = JSON.stringify({
@@ -151,8 +158,11 @@ async function loadReporter(instance: string) {
   const handlers = new Map<string, Handler>();
   const module = await import(`${pathToFileURL(join(__dirname, 'pi-reporter.mjs')).href}?${instance}`);
   module.default({ on: (name: string, handler: Handler) => handlers.set(name, handler) });
-  return (type: string, context: object = {}) =>
-    handlers.get(type)!({ type }, { isIdle: () => false, hasPendingMessages: () => false, ...context });
+  return (type: string, context: object = {}) => {
+    const handler = handlers.get(type);
+    assert.ok(handler, `the reporter handles ${type}`);
+    return handler({ type }, { isIdle: () => false, hasPendingMessages: () => false, ...context });
+  };
 }
 // No report waits on I/O, so once queued callbacks have run, every report that can be sent has been.
 const settled = () => new Promise(resolve => setImmediate(resolve));
@@ -183,7 +193,7 @@ test('pi reports forward the current session ID from the official session manage
   const sessionManager = (id: string) => ({ sessionManager: { getSessionId: () => id } });
   const deliver = async (report: Promise<void>) => {
     await settled();
-    requests.at(-1)!.deliver();
+    lastOf(requests).deliver();
     await report;
   };
   try {

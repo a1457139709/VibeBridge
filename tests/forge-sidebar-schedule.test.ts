@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import { updateInterval } from '../app/main/forge/background-updates';
 import type { ForgeSidebarPresence } from '../app/shared/forge/sidebar-data';
 import { openNoFilter } from './support/bound-workbench';
+import { lastOf } from './support/expected';
 import {
   answersTakenIn,
   byNumber,
@@ -51,13 +52,13 @@ test('every 5 minutes while the sidebar shows a project in the foreground its da
     assert.equal(reads.length, count, `nothing updates while ${away.visible ? 'behind' : 'hidden'}`);
     const shown = data.reportPresence(inFront);
     assert.equal(reads.length, count + 1, 'showing the project again updates it at once');
-    reads.at(-1)!.answer(page([1]));
+    lastOf(reads).answer(page([1]));
     await shown;
     t.mock.timers.tick(updateInterval - 1);
     assert.equal(reads.length, count + 1, 'the count starts again from when the project shows');
     t.mock.timers.tick(1);
     assert.equal(reads.length, count + 2, 'and updates 5 minutes later');
-    reads.at(-1)!.answer(page([1]));
+    lastOf(reads).answer(page([1]));
     await answersTakenIn();
   }
 });

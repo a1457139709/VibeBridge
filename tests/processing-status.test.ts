@@ -9,6 +9,8 @@ import type { AgentType, Run, WorkbenchEvent } from '../app/shared/model';
 import type { ProcessingState } from '../app/shared/processing-status';
 import { testDirectory } from './support/directory';
 import { panelViews, runsOf, showing, statusOf, storedProjects } from './support/panel-views';
+import { testNode } from './support/test-node';
+import { firstCapture } from './support/expected';
 
 async function until(check: () => boolean) {
   const deadline = Date.now() + 7000;
@@ -26,7 +28,7 @@ async function fixture() {
     events.push(event);
     if (event.kind === 'output') workbench.runs.acknowledgeOutput(event.runId, event.data.length);
   });
-  const command = { command: process.env.VIBEBRIDGE_TEST_NODE!, args: [resolve('tests/fixtures/status-cli.cjs')] };
+  const command = { command: testNode, args: [resolve('tests/fixtures/status-cli.cjs')] };
   await workbench.saveSettings({ agents: { codex: command, claude: command, pi: command } });
   const output = (runId: string) =>
     events.flatMap(event => (event.kind === 'output' && event.runId === runId ? [event.data] : [])).join('');
@@ -124,7 +126,7 @@ test('a launch configuration that cannot be safely extended starts the original 
   const f = await fixture();
   try {
     const command = {
-      command: process.env.VIBEBRIDGE_TEST_NODE!,
+      command: testNode,
       args: [resolve('tests/fixtures/status-cli.cjs'), '-c', 'hooks=1'],
     };
     await f.workbench.saveSettings({ agents: { ...f.workbench.snapshot().settings.agents, codex: command } });
@@ -155,7 +157,7 @@ test('a Workbench started inside another Workbench terminal passes on none of it
   const f = await fixture();
   try {
     const command = {
-      command: process.env.VIBEBRIDGE_TEST_NODE!,
+      command: testNode,
       args: [resolve('tests/fixtures/status-cli.cjs'), '-c', 'hooks=1'],
     };
     await f.workbench.saveSettings({ agents: { ...f.workbench.snapshot().settings.agents, codex: command } });
@@ -209,7 +211,9 @@ test('after the reporter shuts down, silence and liveness keep the run in Error'
   }, directory);
   try {
     const { extraEnvironment } = await processing.prepare('silent', 'pi', { command: 'pi', args: [] }, directory);
-    const context = JSON.parse(extraEnvironment.VIBEBRIDGE_STATUS_CONTEXT!);
+    const statusContext = extraEnvironment.VIBEBRIDGE_STATUS_CONTEXT;
+    assert.ok(statusContext);
+    const context = JSON.parse(statusContext);
     const report = (payload: object) =>
       new Promise<number | undefined>((resolve, reject) => {
         const body = JSON.stringify({ runId: context.runId, agent: context.agent, token: context.token, payload });
@@ -273,10 +277,10 @@ test('background panels retain independent memberships, exits remove them, and q
       await f.workbench.runs.input(run.id, JSON.stringify({ exit: code }) + '\n');
       await until(
         () =>
-          !f.workbench
+          f.workbench
             .snapshot()
-            .projects.find(p => p.id === project.id)!
-            .panels.some(p => p.id === run.panelId),
+            .projects.find(p => p.id === project.id)
+            ?.panels.some(p => p.id === run.panelId) === false,
       );
       assert.equal(statusOf(f.workbench.snapshot(), run.id), undefined);
     }
@@ -284,15 +288,15 @@ test('background panels retain independent memberships, exits remove them, and q
     assert.ok(
       f.workbench
         .snapshot()
-        .projects.find(p => p.id === project.id)!
-        .panels.every(panel => !panel.status),
+        .projects.find(p => p.id === project.id)
+        ?.panels.every(panel => !panel.status),
     );
     await f.workbench.quit();
     const reopened = await Workbench.open(f.directory);
     try {
       assert.ok(panelViews(reopened.snapshot()).every(panel => !panel.run && !panel.status));
       assert.deepEqual(
-        storedProjects(reopened.snapshot()).find(p => p.id === other.project.id)!.panels,
+        storedProjects(reopened.snapshot()).find(p => p.id === other.project.id)?.panels,
         other.project.panels,
       );
       await reopened.activateProject(other.project.id);
@@ -315,7 +319,7 @@ test('restarting a panel revokes old report credentials and never inherits Done'
       launches: [{ run }],
     } = await f.create();
     await f.send(run.id, { context: true, payload: { hook_event_name: 'Stop' } });
-    const context = JSON.parse(f.output(run.id).match(/CONTEXT:([^\r\n]+)/)![1]);
+    const context = JSON.parse(firstCapture(f.output(run.id), /CONTEXT:([^\r\n]+)/));
     const target = join(f.directory, 'restart');
     await mkdir(target);
     const result = await f.workbench.editProject(project.id, { name: project.name, directory: target }, true);

@@ -1,3 +1,4 @@
+import { fromAny, fromPartial } from '@total-typescript/shoehorn';
 import { ForgeSidebarData } from '../../app/main/forge/forge-sidebar-data';
 import type {
   IssueDetail,
@@ -9,6 +10,7 @@ import type {
 } from '../../app/shared/forge/forge';
 import type { DetailItem, ForgeLists, ForgeSidebarEvent, ShownDetail } from '../../app/shared/forge/sidebar-data';
 import { openNoFilter } from './bound-workbench';
+import { lastOf } from './expected';
 
 export const forge = { name: 'GitHub', cli: 'gh', installUrl: 'https://cli.github.com', loginCommand: 'gh auth login' };
 export const issue = (number: number): ListedIssue => ({
@@ -30,7 +32,18 @@ export const detail = (
   extra: Partial<IssueDetail> = {},
 ): IssueDetailResult => ({
   ok: true,
-  issue: { ...issue(number), title, ...extra } as unknown as IssueDetail,
+  issue: fromPartial<IssueDetail>({
+    number,
+    title,
+    state: 'open',
+    closedAs: null,
+    createdAt: '2026-01-01T00:00:00.000Z',
+    labels: [],
+    parent: null,
+    subIssues: [],
+    blockedBy: [],
+    ...extra,
+  }),
 });
 export const page = (numbers: number[], cursor: string | null = null): IssuePage => ({
   ok: true,
@@ -63,7 +76,8 @@ export function sidebarData() {
     byNumber?: { kind: DetailItem['kind']; numbers: number[] },
   ) =>
     new Promise<never>((answer, fail) => {
-      reads.push({ projectId, query, item, byNumber, answer: answer as never, fail });
+      // Every source shares this read, so the test's answer is whatever the source it stands in for returns.
+      reads.push({ projectId, query, item, byNumber, answer: value => answer(fromAny(value)), fail });
       for (const wake of waiting.splice(0)) wake();
     });
   /** The `count`th read, once it is made. */
@@ -115,6 +129,6 @@ export async function shownIssues(
 ) {
   void data.reportPresence({ visible: true, foreground: true, projectId });
   const shown = data.showList(projectId, { tab: 'issues', filter: openNoFilter });
-  reads.at(-1)!.answer(page(numbers));
+  lastOf(reads).answer(page(numbers));
   await shown;
 }

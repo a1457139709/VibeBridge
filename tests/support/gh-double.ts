@@ -124,7 +124,7 @@ export async function ghDouble(context: TestContext, state: GhState) {
       return lines
         .split('\n')
         .filter(Boolean)
-        .map(line => JSON.parse(line) as string[]);
+        .map((line): string[] => JSON.parse(line));
     },
     uninstall() {
       process.env.PATH = empty;
