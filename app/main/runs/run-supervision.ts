@@ -15,7 +15,7 @@ import {
 import { ProcessingStatus, type SessionReceiver } from './processing-status';
 import { sessionTitle } from './session-title';
 import { TerminalClient } from './terminal-client';
-import { errorMessage } from '../../shared/error-message';
+import { errorMessage } from '../../shared/caught-error';
 
 export type Terminal = Pick<
   TerminalClient,

@@ -19,7 +19,7 @@ import type {
   ForgeListTab,
   ForgeSidebarEvent,
 } from '../../shared/forge/sidebar-data';
-import { errorMessage } from '../../shared/error-message';
+import { errorMessage } from '../../shared/caught-error';
 
 /** Where the Forge sidebar's data comes from, and where it goes. Each read is of a project's bound repository, or of the
  * repositories the project can bind. */

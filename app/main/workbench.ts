@@ -41,7 +41,7 @@ import {
 } from './forge/results';
 import { Dispatches, type DispatchRecord } from './dispatch';
 import type { DispatchRequest } from '../shared/dispatch';
-import { errorMessage } from '../shared/error-message';
+import { errorMessage } from '../shared/caught-error';
 
 export class WorkbenchOpenError extends Error {
   constructor(

@@ -2,7 +2,7 @@ import { Terminal, type ITheme } from '@xterm/xterm';
 import { FitAddon } from '@xterm/addon-fit';
 import { projectPanels, type Language, type ProjectView, type WorkbenchEvent } from '../../shared/model';
 import { localize } from '../../shared/localization/localization';
-import { errorMessage } from '../../shared/error-message';
+import { errorMessage } from '../../shared/caught-error';
 
 interface Screen {
   terminal: Terminal;

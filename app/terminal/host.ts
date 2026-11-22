@@ -5,7 +5,7 @@ import type { AgentCommand, Run, TerminalEvent } from '../shared/model';
 import { readLoginEnvironment, resolveExecutable } from './environment';
 import { ownedProcessTree, readProcessTable, stopProcesses, type ProcessIdentity } from './processes';
 import { recordFailure } from './failure';
-import { errorMessage } from '../shared/error-message';
+import { errorMessage } from '../shared/caught-error';
 
 interface ManagedRun {
   run: Run;

@@ -10,7 +10,7 @@ import {
   settingsIssues,
   type SettingsSaveResult,
 } from '../../shared/settings/settings';
-import { errorCode, errorMessage } from '../../shared/error-message';
+import { errorCode, errorMessage } from '../../shared/caught-error';
 export { defaultSettings } from '../../shared/settings/settings';
 
 export class SettingsFile {

@@ -3,7 +3,7 @@ import { useEffect, useRef, useState } from 'react';
 import { message } from '../../shared/messages';
 import { agentNames, agentTypes } from '../../shared/model';
 import { agentIcons } from '../common/agent-icons';
-import { errorMessage } from '../../shared/error-message';
+import { errorMessage } from '../../shared/caught-error';
 import { requireValue } from '../common/required';
 
 export function AgentPicker({

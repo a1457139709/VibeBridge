@@ -1,5 +1,5 @@
 import { message } from '../shared/messages';
-import { errorCode } from '../shared/error-message';
+import { errorCode } from '../shared/caught-error';
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
 

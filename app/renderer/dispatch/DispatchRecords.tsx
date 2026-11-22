@@ -6,7 +6,7 @@ import { agentIcons } from '../common/agent-icons';
 import { agentNames } from '../../shared/model';
 import { displayShortcut } from '../../shared/settings/shortcuts';
 import type { DispatchRecordView } from '../../shared/dispatch';
-import { errorMessage } from '../../shared/error-message';
+import { errorMessage } from '../../shared/caught-error';
 import './dispatch.css';
 
 /** What showing Dispatch Records needs from the sidebar around them. */

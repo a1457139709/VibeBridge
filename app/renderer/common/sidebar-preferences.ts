@@ -1,7 +1,7 @@
 import { useLayoutEffect, useRef, useState, type PointerEvent } from 'react';
 import type { DesktopAPI } from '../../shared/api';
 import { sidebars, type Sidebar, type SidebarPreferences, type Snapshot } from '../../shared/model';
-import { errorMessage } from '../../shared/error-message';
+import { errorMessage } from '../../shared/caught-error';
 import { capturePointer } from './pointer-capture';
 import { requireValue } from './required';
 import { draggedWidth, type WidestOnResize } from './region-widths';

@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { useLocalization } from '../common/Localization';
 import { agentIcons } from '../common/agent-icons';
 import { agentNames, agentTypes, type AgentCommand, type CommandCheck, type Settings } from '../../shared/model';
-import { errorMessage } from '../../shared/error-message';
+import { errorMessage } from '../../shared/caught-error';
 
 function AgentFields({
   type,

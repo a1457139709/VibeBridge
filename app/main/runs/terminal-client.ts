@@ -5,7 +5,7 @@ import { randomUUID } from 'node:crypto';
 import type { AgentCommand, CommandCheck, Run, TerminalEvent } from '../../shared/model';
 import { stopProcesses, type ProcessIdentity } from '../../terminal/processes';
 import { recordFailure } from '../../terminal/failure';
-import { errorMessage } from '../../shared/error-message';
+import { errorMessage } from '../../shared/caught-error';
 
 export class TerminalClient {
   private child: ChildProcess;

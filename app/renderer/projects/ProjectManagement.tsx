@@ -5,7 +5,7 @@ import { type DirectoryResult, type Project, type ProjectEditResult, type Projec
 import { originElsewhereThanBinding, type RepositoryChoices } from '../../shared/forge/forge';
 import { projectNameError, projectNameHasControls } from '../../shared/project-name';
 import { LaunchResults } from './LaunchResults';
-import { errorMessage } from '../../shared/error-message';
+import { errorMessage } from '../../shared/caught-error';
 import { requireValue } from '../common/required';
 import './project-management.css';
 

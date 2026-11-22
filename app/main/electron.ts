@@ -6,7 +6,7 @@ import type { Language } from '../shared/model';
 import { localize } from '../shared/localization/localization';
 import { message } from '../shared/messages';
 import { readLoginEnvironment } from '../terminal/environment';
-import { errorMessage } from '../shared/error-message';
+import { errorMessage } from '../shared/caught-error';
 
 app.setName('VibeBridge');
 // Also permits isolated local acceptance runs without touching the user's projects.

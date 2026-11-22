@@ -23,7 +23,7 @@ import { idleActions, type Actions, type ActionState } from './DirectActions';
 import { IssueDocument, type IssueDispatch } from './IssueDetail';
 import { PullRequestDocument } from './PullRequestDetail';
 import { withoutShortcutModifier } from '../../shared/settings/shortcuts';
-import { errorMessage } from '../../shared/error-message';
+import { errorMessage } from '../../shared/caught-error';
 
 interface Props {
   project: ProjectView & { repository: RepositoryReference };

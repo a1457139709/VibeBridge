@@ -16,7 +16,7 @@ import { SettingsConflictDialog } from './settings/SettingsConflict';
 import { shortcutActions, shortcutFromEvent } from '../shared/settings/shortcuts';
 import type { SettingsCategory } from '../shared/settings/settings';
 import { configureTerminals, reconcileTerminals, applyTerminalEvent, setTerminalLanguage } from './panels/terminals';
-import { errorMessage } from '../shared/error-message';
+import { errorMessage } from '../shared/caught-error';
 import { requireValue } from './common/required';
 
 /** The application shell: system bar, project navigation, and the current page. */

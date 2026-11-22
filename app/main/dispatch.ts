@@ -27,7 +27,7 @@ import type { RunSupervision, PanelLocation } from './runs/run-supervision';
 import type { SessionReceiver } from './runs/processing-status';
 import type { ProjectStore } from './persistence/storage';
 import { forges } from './forge/forges';
-import { errorMessage } from '../shared/error-message';
+import { errorMessage } from '../shared/caught-error';
 
 /** A Dispatch Record as stored: append-only, pointing at the session that took the dispatch, never at a panel
  * (docs/adr/0003-dispatch-records-point-to-sessions.md). */

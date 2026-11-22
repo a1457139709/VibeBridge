@@ -8,7 +8,7 @@ import { codex } from '../agent-status/codex/status';
 import { claude } from '../agent-status/claude/status';
 import { pi } from '../agent-status/pi/status';
 import { message, nestedMessage } from '../../shared/messages';
-import { errorMessage } from '../../shared/error-message';
+import { errorMessage } from '../../shared/caught-error';
 
 // CLI protocol differences stay behind this closed table.
 const adapters: Record<AgentType, StatusAdapter> = { codex, claude, pi };

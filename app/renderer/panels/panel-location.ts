@@ -3,7 +3,7 @@ import type { PanelView, ProjectView, Snapshot } from '../../shared/model';
 import { localize } from '../../shared/localization/localization';
 import type { ReportNotice } from '../common/Notices';
 import { focusTerminal, terminalHasFocus } from './terminals';
-import { errorMessage } from '../../shared/error-message';
+import { errorMessage } from '../../shared/caught-error';
 
 // `selected` is always a resident panel. `maximized` is the one panel occupying the
 // layout area: a resident panel, or the open tray panel (its ephemeral maximize).

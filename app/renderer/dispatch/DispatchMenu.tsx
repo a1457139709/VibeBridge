@@ -23,7 +23,7 @@ import type { DispatchRequest, DispatchTarget } from '../../shared/dispatch';
 import { displayShortcut } from '../../shared/settings/shortcuts';
 import type { IssueSummary } from '../../shared/forge/forge';
 import type { DispatchRecordsHost } from './DispatchRecords';
-import { errorMessage } from '../../shared/error-message';
+import { errorMessage } from '../../shared/caught-error';
 import { requireValue } from '../common/required';
 import './dispatch.css';
 
