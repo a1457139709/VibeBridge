@@ -80,6 +80,24 @@ test('a stored panel with an unknown Agent type keeps the workbench closed and t
   await assertRejected(directory, file, /projectDataInvalid/, ['panels.agent', project.id, project.name]);
 });
 
+// SQLite keeps a blob in a TEXT column and text in an INTEGER one, so a column can hold what its table does not declare.
+const blob = Uint8Array.from([0xff]);
+for (const [field, change] of [
+  ['projects.directory', database => database.prepare('UPDATE projects SET directory=?').run(blob)],
+  ['panels.id', database => database.prepare('UPDATE panels SET id=? WHERE id=?').run(blob, 'panel-b')],
+  [
+    'dispatches_with_skill.issue',
+    database =>
+      database.exec(`INSERT INTO dispatches_with_skill VALUES ('${project.id}', 'github', 'github.com', '42',
+        'octo/tools', 'seven', '2026-01-01T00:00:00Z', 'claude', 'implement', '/implement', 'session-a');`),
+  ],
+] satisfies [string, (database: DatabaseSync) => void][]) {
+  test(`a stored ${field} that is not what its table declares keeps the workbench closed and the database unchanged`, async context => {
+    const { directory, file } = await storedWorkbench(context, 'stored-undeclared-column', change);
+    await assertRejected(directory, file, /projectDataInvalid/, [field, project.id, project.name]);
+  });
+}
+
 for (const [behavior, stored] of [
   ['is not JSON', '{"axis":'],
   ['has an invalid structure', JSON.stringify({ ...layout, ratio: 1 })],

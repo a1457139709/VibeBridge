@@ -40,7 +40,8 @@ db.exec(`PRAGMA journal_mode=WAL; PRAGMA foreign_keys=ON;
 `);
 
 // Stored content is read in its current format only: anything else fails the whole load and leaves the file untouched.
-// Columns other than layout, panels.agent and the repository's are read as the table constraints store them.
+// Columns other than layout, panels.agent and the repository's are read as the tables declare them; SQLite stores what
+// it is given, so one that holds something else is reported like any other invalid field.
 const projectRowSchema = z.object({ id: z.string(), name: z.string(), directory: z.string(), layout: z.unknown() });
 const panelRowSchema = z.object({ id: z.string(), agent: z.unknown() });
 const dispatchRowSchema = z.object({
@@ -64,13 +65,22 @@ interface StoredProject {
 const invalidProjectData = (project: StoredProject, field: string) =>
   new Error(message('projectDataInvalid', { file, field, id: project.id, name: project.name }));
 
+/** `stored`, a row of `table` that belongs to `project`, as `schema` reads it; the first column `schema` does not
+ * accept is reported as the project's invalid field. */
+function readRow<Row>(schema: z.ZodType<Row>, stored: Record<string, unknown>, table: string, project: StoredProject) {
+  const row = schema.safeParse(stored);
+  if (!row.success) throw invalidProjectData(project, `${table}.${String(row.error.issues[0]?.path[0])}`);
+  return row.data;
+}
+
 function readProject(row: Record<string, unknown>): Project {
-  const { id, name, directory, layout: storedLayout } = projectRowSchema.parse(row);
+  const owner = { id: String(row.id), name: String(row.name) };
+  const { id, name, directory, layout: storedLayout } = readRow(projectRowSchema, row, 'projects', owner);
   const panels = db
     .prepare('SELECT id, agent FROM panels WHERE project_id=? ORDER BY position')
     .all(id)
     .map((stored): Panel => {
-      const panel = panelRowSchema.parse(stored);
+      const panel = readRow(panelRowSchema, stored, 'panels', { id, name });
       const agent = agentTypeSchema.safeParse(panel.agent);
       if (!agent.success) throw invalidProjectData({ id, name }, 'panels.agent');
       return { id: panel.id, agent: agent.data };
@@ -117,8 +127,8 @@ function readDispatchRecords(): DispatchRecord[] {
     )
     .all()
     .map(stored => {
-      const row = dispatchRowSchema.parse(stored);
-      const project = { id: row.project_id, name: row.project_name };
+      const project = { id: String(stored.project_id), name: String(stored.project_name) };
+      const row = readRow(dispatchRowSchema, stored, 'dispatches_with_skill', project);
       const repository = readRepository('dispatches_with_skill', stored, project);
       const agent = agentTypeSchema.safeParse(row.agent);
       if (!agent.success) throw invalidProjectData(project, 'dispatches_with_skill.agent');
