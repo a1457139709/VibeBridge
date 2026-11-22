@@ -1,23 +1,23 @@
 import { z } from 'zod';
 import { message } from '../messages';
+import { agentNames, agentTypeSchema, defaultLayouts, languages, type AgentType, type Settings } from '../model';
 import {
-  agentNames,
-  agentTypes,
-  agentTypeSchema,
-  defaultLayouts,
-  languages,
-  type AgentType,
-  type Settings,
-} from '../model';
-import { defaultDelivery, defaultWorkflowSettings, deliveries, workflows } from './workflows';
+  defaultDelivery,
+  defaultWorkflowSettings,
+  deliveries,
+  workflows,
+  workflowsById,
+  type Workflow,
+  type WorkflowId,
+} from './workflows';
 import {
   defaultShortcuts,
   shortcutActions,
   shortcutConflicts,
   shortcutConflictMessage,
   shortcutFormatError,
+  type ShortcutAction,
 } from './shortcuts';
-import { recordOf } from '../record-of';
 
 export const defaultSettings = (): Settings => ({
   language: 'en',
@@ -55,6 +55,44 @@ function settingsSchema(reading: boolean) {
   const defaults = defaultSettings();
   const field = <T extends z.ZodType>(schema: T, fallback: z.output<T>) => (reading ? schema.catch(fallback) : schema);
   const object = <T extends z.ZodRawShape>(shape: T, error: string) => z.looseObject(shape, { error });
+  const agentSettings = (type: AgentType) =>
+    field(
+      object(
+        { command: field(command(type), defaults.agents[type].command), args: field(args, []) },
+        message('commandInvalid', { agent: agentNames[type] }),
+      ),
+      defaults.agents[type],
+    );
+  const shortcutSetting = (action: ShortcutAction) => field(shortcut, defaults.shortcuts[action]);
+  const workflowSettings = (workflow: Workflow & { id: WorkflowId }) =>
+    field(
+      object(
+        {
+          enabled: field(z.boolean({ error: message('workflowsInvalid') }), defaults.workflows[workflow.id].enabled),
+          commands: field(
+            object(
+              Object.fromEntries(
+                workflow.commands.map(command => [
+                  command.id,
+                  field(
+                    object(
+                      { delivery: field(z.enum(deliveries, { error: message('workflowsInvalid') }), defaultDelivery) },
+                      message('workflowsInvalid'),
+                    ),
+                    defaults.workflows[workflow.id].commands[command.id],
+                  ),
+                ]),
+              ),
+              message('workflowsInvalid'),
+            ),
+            defaults.workflows[workflow.id].commands,
+          ),
+        },
+        message('workflowsInvalid'),
+      ),
+      defaults.workflows[workflow.id],
+    );
+  // Each record below names every key of its type, which `satisfies` checks.
   return z.looseObject(
     {
       language: field(z.enum(languages, { error: message('languageInvalid') }), defaults.language),
@@ -73,78 +111,37 @@ function settingsSchema(reading: boolean) {
       ),
       agents: field(
         object(
-          recordOf(
-            agentTypes,
-            type => type,
-            type =>
-              field(
-                object(
-                  {
-                    command: field(command(type), defaults.agents[type].command),
-                    args: field(args, []),
-                  },
-                  message('commandInvalid', { agent: agentNames[type] }),
-                ),
-                defaults.agents[type],
-              ),
-          ),
+          {
+            codex: agentSettings('codex'),
+            claude: agentSettings('claude'),
+            pi: agentSettings('pi'),
+          } satisfies Record<AgentType, z.ZodType>,
           message('settingsInvalid'),
         ),
         defaults.agents,
       ),
       shortcuts: field(
         object(
-          recordOf(
-            shortcutActions,
-            action => action,
-            action => field(shortcut, defaults.shortcuts[action]),
-          ),
+          {
+            previousProject: shortcutSetting('previousProject'),
+            nextProject: shortcutSetting('nextProject'),
+            previousPanel: shortcutSetting('previousPanel'),
+            nextPanel: shortcutSetting('nextPanel'),
+            maximizePanel: shortcutSetting('maximizePanel'),
+            addPanel: shortcutSetting('addPanel'),
+            closePanel: shortcutSetting('closePanel'),
+            settings: shortcutSetting('settings'),
+            toggleForgeSidebar: shortcutSetting('toggleForgeSidebar'),
+            openDispatchMenu: shortcutSetting('openDispatchMenu'),
+            locateDispatchedPanel: shortcutSetting('locateDispatchedPanel'),
+          } satisfies Record<ShortcutAction, z.ZodType>,
           message('shortcutInvalid'),
         ),
         defaults.shortcuts,
       ),
       workflows: field(
         object(
-          recordOf(
-            workflows,
-            workflow => workflow.id,
-            workflow =>
-              field(
-                object(
-                  {
-                    enabled: field(
-                      z.boolean({ error: message('workflowsInvalid') }),
-                      defaults.workflows[workflow.id].enabled,
-                    ),
-                    commands: field(
-                      object(
-                        Object.fromEntries(
-                          workflow.commands.map(command => [
-                            command.id,
-                            field(
-                              object(
-                                {
-                                  delivery: field(
-                                    z.enum(deliveries, { error: message('workflowsInvalid') }),
-                                    defaultDelivery,
-                                  ),
-                                },
-                                message('workflowsInvalid'),
-                              ),
-                              defaults.workflows[workflow.id].commands[command.id],
-                            ),
-                          ]),
-                        ),
-                        message('workflowsInvalid'),
-                      ),
-                      defaults.workflows[workflow.id].commands,
-                    ),
-                  },
-                  message('workflowsInvalid'),
-                ),
-                defaults.workflows[workflow.id],
-              ),
-          ),
+          { matt: workflowSettings(workflowsById.matt) } satisfies Record<WorkflowId, z.ZodType>,
           message('workflowsInvalid'),
         ),
         defaults.workflows,

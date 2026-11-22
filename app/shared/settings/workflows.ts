@@ -1,6 +1,5 @@
 import type { MessageId } from '../messages';
 import type { AgentType } from '../model';
-import { recordOf } from '../record-of';
 
 /** One dispatch command: which skill to call and its argument template. */
 export interface WorkflowCommand {
@@ -18,30 +17,31 @@ export interface Workflow {
 
 const issueCommand = (skill: string, args = '{url}') => ({ id: skill, skill, args });
 
-// The built-in workflow catalog (#143). Users switch workflows on and off but never add, edit or reorder commands.
-export const workflows = [
-  {
-    id: 'matt',
-    name: 'workflowMatt',
-    enabledByDefault: true,
-    commands: [
-      issueCommand('grill-with-docs'),
-      issueCommand('to-spec'),
-      issueCommand('to-tickets'),
-      issueCommand('implement'),
-      issueCommand('implement-spec'),
-      issueCommand('wayfinder'),
-      issueCommand('triage', 'look at {url}'),
-      { ...issueCommand('diagnosing-bugs'), separatorBefore: true },
-      issueCommand('tdd'),
-      issueCommand('prototype'),
-      issueCommand('research'),
-      issueCommand('grill-me'),
-    ],
-  },
-] as const satisfies readonly Workflow[];
+const matt = {
+  id: 'matt',
+  name: 'workflowMatt',
+  enabledByDefault: true,
+  commands: [
+    issueCommand('grill-with-docs'),
+    issueCommand('to-spec'),
+    issueCommand('to-tickets'),
+    issueCommand('implement'),
+    issueCommand('implement-spec'),
+    issueCommand('wayfinder'),
+    issueCommand('triage', 'look at {url}'),
+    { ...issueCommand('diagnosing-bugs'), separatorBefore: true },
+    issueCommand('tdd'),
+    issueCommand('prototype'),
+    issueCommand('research'),
+    issueCommand('grill-me'),
+  ],
+} as const satisfies Workflow;
 
+// The built-in workflow catalog (#143). Users switch workflows on and off but never add, edit or reorder commands.
+export const workflows = [matt] as const satisfies readonly Workflow[];
 export type WorkflowId = (typeof workflows)[number]['id'];
+/** Each built-in workflow under its ID; the type requires an entry for every workflow in the catalog. */
+export const workflowsById = { matt } satisfies { [W in (typeof workflows)[number] as W['id']]: W };
 export const deliveries = ['submit', 'fill'] as const;
 /** Submit sends the command; fill only types it into the input. */
 export type Delivery = (typeof deliveries)[number];
@@ -52,15 +52,14 @@ export type WorkflowSettings = {
   commands: Record<string, { delivery: Delivery }>;
 };
 
-export const defaultWorkflowSettings = (): Record<WorkflowId, WorkflowSettings> =>
-  recordOf(
-    workflows,
-    workflow => workflow.id,
-    workflow => ({
-      enabled: workflow.enabledByDefault,
-      commands: Object.fromEntries(workflow.commands.map(command => [command.id, { delivery: defaultDelivery }])),
-    }),
-  );
+/** A workflow's settings before any are saved: on when the catalog enables it by default, each command submitted. */
+const workflowDefaults = (workflow: Workflow): WorkflowSettings => ({
+  enabled: workflow.enabledByDefault,
+  commands: Object.fromEntries(workflow.commands.map(command => [command.id, { delivery: defaultDelivery }])),
+});
+export const defaultWorkflowSettings = (): Record<WorkflowId, WorkflowSettings> => ({
+  matt: workflowDefaults(workflowsById.matt),
+});
 const isWorkflowId = (id: string): id is WorkflowId => workflows.some(workflow => workflow.id === id);
 
 /** A command of a built-in workflow, or undefined when the catalog has no such workflow or command. */
