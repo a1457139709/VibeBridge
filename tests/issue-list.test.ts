@@ -41,6 +41,7 @@ test('showing the list loads one page of 25 issues, newest first, and Load more 
       labels: [],
       blockedBy: [],
       unlistedBlockers: 0,
+      url: 'https://github.com/octo/tools/issues/30',
       parent: null,
       subIssues: { closed: 0, total: 0, issues: [] },
     });
@@ -103,6 +104,7 @@ test('the search, open or closed state and labels all narrow the page, and a clo
       labels: [ui],
       blockedBy: [],
       unlistedBlockers: 0,
+      url: 'https://github.com/octo/tools/issues/3',
       parent: null,
       subIssues: { closed: 0, total: 0, issues: [] },
     });
@@ -184,6 +186,7 @@ test("a page carries each issue's parent, its sub-issues with their progress, an
       labels: [bug],
       blockedBy: blockers,
       unlistedBlockers: 0,
+      url: 'https://github.com/octo/tools/issues/3',
       parent: 1,
       subIssues: { closed: 0, total: 0, issues: [] },
     });
@@ -293,6 +296,72 @@ test('list failures fall into the four kinds with the forge text, and an inacces
     });
     double.uninstall();
     assert.deepEqual(await page(), { ok: false, account: null, failure: { kind: 'notInstalled', forge, detail: '' } });
+  } finally {
+    await f.close();
+  }
+});
+
+test('an issue with more sub-issues than GitHub lists counts them all and carries the page that lists them', async context => {
+  await ghDouble(context, {
+    ...forgeAccount,
+    issues: [
+      { number: 1, title: 'Epic', state: 'OPEN', createdAt: day(1), labels: [] },
+      ...Array.from({ length: 55 }, (_, index) => ({
+        number: 100 + index,
+        title: `Part ${index}`,
+        state: 'CLOSED' as const,
+        createdAt: day(0),
+        labels: [],
+        parent: 1,
+      })),
+    ],
+  });
+  const f = await boundWorkbench('issue-sub-issue-window');
+  try {
+    const page = (await showList(f.workbench, f.projectId)).issues.loaded;
+    assert.ok(page);
+    const epic = page.items[0];
+    assert.deepEqual(
+      [epic.url, epic.subIssues.issues.length, epic.subIssues.total, epic.subIssues.closed],
+      ['https://github.com/octo/tools/issues/1', 50, 55, 55],
+    );
+  } finally {
+    await f.close();
+  }
+});
+
+const manyLabels = Array.from({ length: 230 }, (_, index) => ({
+  name: `label ${String(index).padStart(3, '0')}`,
+  color: 'ededed',
+}));
+
+test('a repository with more labels than one page carries every label, in both lists', async context => {
+  await ghDouble(context, { ...forgeAccount, labels: manyLabels, issues: thirtyIssues });
+  const f = await boundWorkbench('issue-many-labels');
+  try {
+    const lists = await showList(f.workbench, f.projectId);
+    assert.deepEqual(lists.issues.loaded?.labels, manyLabels);
+    const pulls = await showList(f.workbench, f.projectId, 'pullRequests');
+    assert.deepEqual(pulls.pullRequests.loaded?.labels, manyLabels);
+  } finally {
+    await f.close();
+  }
+});
+
+test('a later label page that fails fails the list read', async context => {
+  await ghDouble(context, {
+    ...forgeAccount,
+    labels: manyLabels,
+    issues: thirtyIssues,
+    labelPageFailure: { code: 1, stderr: 'HTTP 502: Bad Gateway (https://api.github.com/graphql)\n' },
+  });
+  const f = await boundWorkbench('issue-label-page-failure');
+  try {
+    const failed = (await showList(f.workbench, f.projectId)).issues.failed;
+    assert.deepEqual(
+      [failed?.failure.kind, failed?.failure.detail],
+      ['transient', 'HTTP 502: Bad Gateway (https://api.github.com/graphql)'],
+    );
   } finally {
     await f.close();
   }

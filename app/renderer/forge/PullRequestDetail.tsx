@@ -1,8 +1,10 @@
-import { useState, type MouseEvent } from 'react';
+import type { MouseEvent } from 'react';
 import { useLocalization } from '../common/Localization';
 import type {
   Check,
+  CheckOutcome,
   ForgeCapabilities,
+  MergeState,
   PullRequestDetail,
   RepositoryReference,
   ReviewVerdict,
@@ -20,6 +22,7 @@ import {
   withElements,
 } from './ForgeDisplay';
 import type { DetailItem } from '../../shared/forge/sidebar-data';
+import { checkDuration, checkTones, unlistedChecks } from './merge-requirements';
 import './pull-request-detail.css';
 
 interface Props {
@@ -43,7 +46,6 @@ const verdicts: Record<
 export function PullRequestDocument({ project, pullRequest, open, followLink, actions }: Props) {
   const { t } = useLocalization();
   const forge = project.forge.name;
-  const listedCommentCount = pullRequest.timeline.filter(entry => entry.verdict === null).length;
   return (
     <div className="forge-doc" onClick={followLink}>
       <h2>
@@ -91,6 +93,11 @@ export function PullRequestDocument({ project, pullRequest, open, followLink, ac
       )}
       <div className="forge-doc-main">
         <Post author={pullRequest.author} createdAt={pullRequest.createdAt} html={pullRequest.body} />
+        {!!pullRequest.earlierEntries && (
+          <a className="forge-earlier" href={pullRequest.url} target="_blank" rel="noreferrer">
+            {t('earlierEntries', { count: pullRequest.earlierEntries, forge })}
+          </a>
+        )}
         {pullRequest.timeline.map((entry, index) => (
           <Post
             key={index}
@@ -104,36 +111,83 @@ export function PullRequestDocument({ project, pullRequest, open, followLink, ac
             }
           />
         ))}
-        {pullRequest.commentCount > listedCommentCount && (
-          <a className="forge-more-comments" href={pullRequest.url} target="_blank" rel="noreferrer">
-            {t('moreComments', { count: pullRequest.commentCount, forge })}
-          </a>
-        )}
-        {!!pullRequest.codeCommentCount && (
-          <div className="forge-code-comments">
-            {pullRequest.codeCommentCount === 1
-              ? t('oneCodeComment')
-              : t('codeComments', { count: pullRequest.codeCommentCount })}{' '}
-            <a href={pullRequest.changesUrl} target="_blank" rel="noreferrer">
-              {t('viewOnForge', { forge })}
-            </a>
-          </div>
-        )}
         <MergeArea pullRequest={pullRequest} capabilities={project.capabilities} forge={forge} actions={actions} />
       </div>
     </div>
   );
 }
 
-const results: Record<
-  Check['result'],
-  { mark: string; name: 'checksPassed' | 'checksFailed' | 'checksPending' | 'checkSkipped'; tone: string }
-> = {
-  passed: { mark: '✓', name: 'checksPassed', tone: 'open' },
-  failed: { mark: '✗', name: 'checksFailed', tone: 'failed' },
-  pending: { mark: '●', name: 'checksPending', tone: 'pending' },
-  skipped: { mark: '–', name: 'checkSkipped', tone: 'skipped' },
-};
+const outcomeNames = {
+  queued: 'checkQueued',
+  inProgress: 'checkInProgress',
+  waiting: 'checkWaiting',
+  pending: 'checkPending',
+  requested: 'checkRequested',
+  expected: 'checkExpected',
+  completed: 'checkCompleted',
+  success: 'checkSuccess',
+  failure: 'checkFailure',
+  error: 'checkError',
+  cancelled: 'checkCancelled',
+  timedOut: 'checkTimedOut',
+  actionRequired: 'checkActionRequired',
+  startupFailure: 'checkStartupFailure',
+  neutral: 'checkNeutral',
+  skipped: 'checkSkipped',
+  stale: 'checkStale',
+} as const satisfies Record<CheckOutcome, string>;
+
+function Duration({ check }: { check: Check }) {
+  const { t } = useLocalization();
+  const duration = checkDuration(check);
+  if (!duration) return null;
+  return (
+    <span className="forge-check-duration">
+      {duration.unit === 'hours'
+        ? t('durationHours', duration)
+        : duration.unit === 'minutes'
+          ? t('durationMinutes', duration)
+          : t('durationSeconds', duration)}
+    </span>
+  );
+}
+
+function CheckItem({ check, requiredChecks }: { check: Check; requiredChecks: boolean }) {
+  const { t } = useLocalization();
+  const { mark, tone } = checkTones[check.tone];
+  return (
+    <div className="forge-merge-check">
+      <span className={`forge-${tone}`}>{mark}</span>
+      <span className="forge-check-text">
+        <span className="forge-check-line">
+          <span className="forge-ellipsis forge-check-name">
+            {check.workflow ? `${check.workflow} / ${check.name}` : check.name}
+          </span>
+          {requiredChecks && check.required && <span className="forge-required">{t('requiredCheck')}</span>}
+          <span className="forge-spacer" />
+          <span className={`forge-${tone} forge-check-outcome`}>{t(outcomeNames[check.outcome])}</span>
+          <Duration check={check} />
+          {check.url && (
+            <a href={check.url} target="_blank" rel="noreferrer">
+              {t('checkLog')}
+            </a>
+          )}
+        </span>
+        {check.description && <span className="forge-ellipsis forge-check-description">{check.description}</span>}
+      </span>
+    </div>
+  );
+}
+
+const mergeStates = {
+  clean: { mark: '✓', tone: 'open' },
+  hasHooks: { mark: '✓', tone: 'open' },
+  unstable: { mark: '●', tone: 'pending' },
+  dirty: { mark: '✗', tone: 'failed' },
+  behind: { mark: '✗', tone: 'failed' },
+  blocked: { mark: '✗', tone: 'failed' },
+  unknown: { mark: '●', tone: 'pending' },
+} as const satisfies Record<MergeState, { mark: string; tone: string }>;
 
 function MergeArea({
   pullRequest,
@@ -147,7 +201,6 @@ function MergeArea({
   actions: Actions;
 }) {
   const { t } = useLocalization();
-  const [showPassed, setShowPassed] = useState(false);
   const label = t('mergeRequirements');
   if (pullRequest.state === 'merged' || pullRequest.state === 'closed')
     return (
@@ -166,44 +219,37 @@ function MergeArea({
       </section>
     );
 
-  const failed = pullRequest.checks.filter(check => check.result === 'failed'),
-    pending = pullRequest.checks.filter(check => check.result === 'pending');
-  const passed = pullRequest.checks.filter(check => check.result === 'passed' || check.result === 'skipped');
-  const { state: reviewState, requiredApprovals } = pullRequest.review;
   const review = {
     approved: { mark: '✓', tone: 'open', text: t('reviewApproved') },
     changesRequested: { mark: '✗', tone: 'failed', text: t('reviewChangesRequested') },
-    required: {
-      mark: '●',
-      tone: 'pending',
-      text: requiredApprovals ? t('reviewRequiredCount', { count: requiredApprovals }) : t('reviewRequired'),
-    },
-    notRequired: { mark: '●', tone: 'skipped', text: t('reviewNotRequired') },
-  }[reviewState];
-  const checks = !pullRequest.checks.length
-    ? { mark: '–', tone: 'skipped', text: t('checksNone') }
-    : {
-        mark: failed.length ? '✗' : pending.length ? '●' : '✓',
-        tone: failed.length ? 'failed' : pending.length ? 'pending' : 'open',
-        text: t('checksSummary', {
-          parts: [
-            ...(failed.length ? [t('checksFailedCount', { count: failed.length })] : []),
-            ...(pending.length ? [t('checksPendingCount', { count: pending.length })] : []),
-            ...(passed.length ? [t('checksPassedCount', { count: passed.length })] : []),
-          ],
+    reviewRequired: { mark: '●', tone: 'pending', text: t('reviewRequired') },
+    none: { mark: '●', tone: 'skipped', text: t('reviewNotRequired') },
+  }[pullRequest.reviewDecision ?? 'none'];
+  const { checks } = pullRequest;
+  const checksHead = checks.state
+    ? {
+        ...checkTones[checks.state.tone],
+        text: t('checksState', {
+          outcome: t(outcomeNames[checks.state.outcome]),
+          counts: checks.counts.map(({ outcome, count }) =>
+            t('checkCount', { outcome: t(outcomeNames[outcome]), count }),
+          ),
         }),
-      };
-  const conflicts = {
-    none: { mark: '✓', tone: 'open', text: t('conflictsNone') },
-    unknown: { mark: '●', tone: 'pending', text: t('conflictsUnknown') },
-    conflicting: {
-      mark: '✗',
-      tone: 'failed',
-      text: withElements(slots => t('conflictsWith', slots), {
-        base: <code className="forge-branch">{pullRequest.base}</code>,
-      }),
-    },
-  }[pullRequest.conflicts];
+      }
+    : { mark: '–', tone: 'skipped', text: t('checksNone') };
+  const unlisted = unlistedChecks(pullRequest);
+  const merge = {
+    ...mergeStates[pullRequest.mergeState],
+    text: {
+      clean: () => t('mergeStateClean'),
+      hasHooks: () => t('mergeStateClean'),
+      unstable: () => t('mergeStateUnstable'),
+      dirty: () => t('mergeStateDirty', { base: pullRequest.base }),
+      behind: () => t('mergeStateBehind', { base: pullRequest.base }),
+      blocked: () => t('mergeStateBlocked'),
+      unknown: () => t('mergeStateUnknown', { forge }),
+    }[pullRequest.mergeState](),
+  };
   const row = (mark: string, tone: string, name: string, text: React.ReactNode) => (
     <div className="forge-merge-row">
       <span className={`forge-${tone}`}>{mark}</span>
@@ -211,41 +257,25 @@ function MergeArea({
       <span>{text}</span>
     </div>
   );
-  const item = (check: Check, index: number) => {
-    const { mark, name, tone } = results[check.result];
-    return (
-      <div key={index} className="forge-merge-check">
-        <span className={`forge-${tone}`}>{mark}</span>
-        <span className="forge-ellipsis">{check.name}</span>
-        {capabilities.requiredChecks && check.required && <span className="forge-required">{t('requiredCheck')}</span>}
-        <span className="forge-spacer" />
-        <span className={`forge-${tone}`}>{t(name)}</span>
-        {check.url && (
-          <a href={check.url} target="_blank" rel="noreferrer">
-            {t('checkLog')}
-          </a>
-        )}
-      </div>
-    );
-  };
   return (
     <section className="forge-merge" aria-label={label}>
       {row(review.mark, review.tone, t('reviewRow'), review.text)}
       <div className="forge-merge-row column">
         <div className="forge-merge-row-head">
-          <span className={`forge-${checks.tone}`}>{checks.mark}</span>
+          <span className={`forge-${checksHead.tone}`}>{checksHead.mark}</span>
           <b>{t('checksRow')}</b>
-          <span>{checks.text}</span>
+          <span>{checksHead.text}</span>
         </div>
-        {[...failed, ...pending].map(item)}
-        {!!passed.length && (
-          <button className="forge-text-button forge-merge-fold" onClick={() => setShowPassed(shown => !shown)}>
-            {showPassed ? t('hidePassedChecks') : t('showPassedChecks', { count: passed.length })}
-          </button>
+        {checks.listed.map((check, index) => (
+          <CheckItem key={index} check={check} requiredChecks={capabilities.requiredChecks} />
+        ))}
+        {!!unlisted && (
+          <a className="forge-more-checks" href={checks.url} target="_blank" rel="noreferrer">
+            {t('moreChecks', { count: unlisted, forge })}
+          </a>
         )}
-        {showPassed && passed.map(item)}
       </div>
-      {row(conflicts.mark, conflicts.tone, t('conflictsRow'), conflicts.text)}
+      {row(merge.mark, merge.tone, t('mergeStateRow'), merge.text)}
       {pullRequest.state === 'draft' && row('●', 'skipped', t('draftRow'), t('draftNote', { forge }))}
       <PullRequestActions pullRequest={pullRequest} capabilities={capabilities} forge={forge} actions={actions} />
     </section>

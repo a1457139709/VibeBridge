@@ -38,18 +38,26 @@ export interface GhPullRequest {
     state: 'PENDING' | 'COMMENTED' | 'APPROVED' | 'CHANGES_REQUESTED' | 'DISMISSED';
     submittedAt: string | null;
     bodyHTML: string;
-    codeComments?: number;
   }[];
   reviewDecision?: 'APPROVED' | 'CHANGES_REQUESTED' | 'REVIEW_REQUIRED' | null;
-  requiredApprovals?: number | null;
-  mergeable?: 'MERGEABLE' | 'CONFLICTING' | 'UNKNOWN';
+  mergeStateStatus?: 'CLEAN' | 'HAS_HOOKS' | 'UNSTABLE' | 'DIRTY' | 'BEHIND' | 'BLOCKED' | 'DRAFT' | 'UNKNOWN';
   mergeQueue?: boolean;
   checkRuns?: (
-    | { name: string; status: string; conclusion: string | null; required?: boolean }
+    | {
+        workflow?: string;
+        name: string;
+        status: string;
+        conclusion: string | null;
+        title?: string;
+        startedAt?: string;
+        completedAt?: string;
+        required?: boolean;
+      }
     | {
         context: string;
         state: 'SUCCESS' | 'FAILURE' | 'ERROR' | 'PENDING' | 'EXPECTED';
         targetUrl: string | null;
+        description?: string;
         required?: boolean;
       }
   )[];
@@ -66,6 +74,7 @@ export interface GhState {
   permission?: 'ADMIN' | 'MAINTAIN' | 'WRITE' | 'TRIAGE' | 'READ';
   answerOnceAsked?: number;
   failure?: { code: number; stdout?: string; stderr?: string };
+  labelPageFailure?: { code: number; stderr?: string };
 }
 
 export async function ghDouble(context: TestContext, state: GhState) {

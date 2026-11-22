@@ -8,6 +8,7 @@ import { defaultSettings } from '../../app/shared/settings/settings';
 import type { ProjectView, Snapshot } from '../../app/shared/model';
 import type {
   Check,
+  CheckState,
   ForgeCapabilities,
   IssueDetailResult,
   PullRequestDetail,
@@ -19,6 +20,7 @@ import { forgeSidebarData, workbenchEvents } from './support/forge-sidebar-data'
 import { githubCapabilities, githubView, githubRepository } from './support/forge';
 import { issue as listedIssue, pullRequest as listedPullRequest, stubSidebarApis } from './support/forge-lists';
 import { requireInstance, selectElement } from './support/elements';
+import { localize } from '../../app/shared/localization/localization';
 
 afterEach(cleanup);
 before(stubSidebarApis);
@@ -36,23 +38,41 @@ const detail = (number: number, extra: Partial<PullRequestDetail> = {}): PullReq
     base: 'main',
     body: '',
     timeline: [],
-    commentCount: 0,
-    codeCommentCount: 0,
+    earlierEntries: 0,
     closingIssues: [],
     links,
-    review: { state: 'notRequired', requiredApprovals: null },
-    checks: [],
-    conflicts: 'none',
+    reviewDecision: null,
+    checks: { state: null, counts: [], total: 0, url: `${repositoryUrl}/pull/${number}/checks`, listed: [] },
+    mergeState: 'clean',
     mergeOptions: { methods: ['merge', 'squash', 'rebase'], queue: false },
     canWrite: true,
     ...extra,
   };
 };
-const check = (name: string, result: Check['result'], required = false): Check => ({
+const { t } = localize('en');
+const success: CheckState = { outcome: 'success', tone: 'passed' };
+const failure: CheckState = { outcome: 'failure', tone: 'failed' };
+const timedOut: CheckState = { outcome: 'timedOut', tone: 'failed' };
+const inProgress: CheckState = { outcome: 'inProgress', tone: 'pending' };
+const skipped: CheckState = { outcome: 'skipped', tone: 'neutral' };
+const check = (name: string, state: CheckState = success, extra: Partial<Check> = {}): Check => ({
+  ...state,
+  workflow: null,
   name,
-  result,
-  required,
+  description: null,
+  required: false,
+  startedAt: null,
+  completedAt: null,
   url: `${repositoryUrl}/runs/${name}`,
+  ...extra,
+});
+const checks = (listed: Check[], extra: Partial<PullRequestDetail['checks']> = {}): PullRequestDetail['checks'] => ({
+  state: success,
+  counts: [{ ...success, count: listed.length }],
+  total: listed.length,
+  url: `${repositoryUrl}/pull/12/checks`,
+  listed,
+  ...extra,
 });
 
 interface Request {
@@ -204,12 +224,11 @@ test('a pull request row opens its detail: title, state, head into base, the cha
   await within(pane()).findByRole('heading', { name: 'Read-only detail #12' });
 });
 
-test('the body, comments and review summaries follow in time order, reviews with their verdict, and code comments only as a count with a link', async () => {
+test('the body, comments and review summaries follow in time order, reviews with their verdict', async () => {
   await openPullRequest(
     detail(12, {
       title: 'Timeline',
       body: '<p>The body.</p>',
-      codeCommentCount: 5,
       timeline: [
         { author: 'bob', createdAt: hoursAgo(4), html: '<p>Handle the draft row.</p>', verdict: 'changesRequested' },
         { author: 'hubot', createdAt: hoursAgo(3), html: '<p>Rebased.</p>', verdict: null },
@@ -224,74 +243,189 @@ test('the body, comments and review summaries follow in time order, reviews with
     'hubot 3h agoRebased.',
     'alice Approved 2h agoLGTM',
   ]);
-  const code = selectElement('.forge-code-comments', pane());
-  assert.match(code.textContent ?? '', /5 code comments/);
-  assert.equal(within(code).getByRole('link').getAttribute('href'), `${repositoryUrl}/pull/12/files`);
+  assert.equal(pane().querySelector('.forge-earlier'), null, 'nothing came before the timeline');
   assert.ok(!within(pane()).queryByRole('button', { name: /Approve/ }), 'no approve button');
 });
 
-test('a blocked pull request lists its failing and running checks with their logs, folds the passed ones, and names the conflict and the draft', async () => {
-  const { user } = await openPullRequest(
+test('a timeline with earlier entries says how many at its top and links the pull request on the forge', async () => {
+  await openPullRequest(
     detail(12, {
-      state: 'draft',
-      review: { state: 'changesRequested', requiredApprovals: 1 },
-      conflicts: 'conflicting',
-      checks: [
-        check('lint', 'passed', true),
-        check('unit tests', 'failed', true),
-        check('e2e', 'pending'),
-        check('docs', 'skipped'),
-        check('build', 'passed'),
-      ],
+      body: '<p>The body.</p>',
+      earlierEntries: 80,
+      timeline: [{ author: 'hubot', createdAt: hoursAgo(3), html: '<p>Rebased.</p>', verdict: null }],
     }),
   );
+  const earlier = within(pane()).getByRole('link', { name: t('earlierEntries', { count: 80, forge: 'GitHub' }) });
+  assert.equal(earlier.getAttribute('href'), `${repositoryUrl}/pull/12`);
+  const [body, comment] = [...pane().querySelectorAll('.forge-card')];
+  assert.ok(
+    body.compareDocumentPosition(earlier) & Node.DOCUMENT_POSITION_FOLLOWING &&
+      earlier.compareDocumentPosition(comment) & Node.DOCUMENT_POSITION_FOLLOWING,
+    'the notice sits between the body and the timeline',
+  );
+});
+
+const shownChecks = () =>
+  [...rowOf(t('checksRow')).querySelectorAll<HTMLElement>('.forge-merge-check')].map(item => ({
+    tone: item.querySelector(':scope > span')?.className,
+    name: item.querySelector('.forge-check-name')?.textContent,
+    required: !!within(item).queryByText(t('requiredCheck')),
+    outcome: item.querySelector('.forge-check-outcome')?.textContent,
+    duration: item.querySelector('.forge-check-duration')?.textContent ?? null,
+    description: item.querySelector('.forge-check-description')?.textContent ?? null,
+    log:
+      within(item)
+        .queryByRole('link', { name: t('checkLog') })
+        ?.getAttribute('href') ?? null,
+  }));
+
+test("the checks show GitHub's overall state and every count, then each check in GitHub's order with its workflow, raw conclusion, description, required mark, duration and log", async () => {
+  await openPullRequest(
+    detail(12, {
+      checks: checks(
+        [
+          check('lint', success, { workflow: 'CI', required: true }),
+          check('unit tests', timedOut, {
+            workflow: 'CI',
+            required: true,
+            description: 'Timed out after 30 minutes',
+            startedAt: '2026-01-02T10:00:00Z',
+            completedAt: '2026-01-02T10:30:05Z',
+          }),
+          check('e2e', inProgress, { startedAt: '2026-01-02T10:00:00Z' }),
+          check('docs', skipped, { startedAt: '2026-01-02T10:00:00Z', completedAt: '2026-01-02T10:00:00Z' }),
+          check('build', success, { startedAt: '2026-01-02T10:00:00Z', completedAt: '2026-01-02T11:05:00Z' }),
+          check('ci/legacy', success, { url: null }),
+        ],
+        {
+          state: failure,
+          counts: [
+            { ...success, count: 40 },
+            { ...timedOut, count: 2 },
+            { ...inProgress, count: 3 },
+          ],
+          total: 6,
+        },
+      ),
+    }),
+  );
+  assert.equal(
+    selectElement('.forge-merge-row-head', rowOf(t('checksRow'))).textContent,
+    `✗${t('checksRow')}${t('checksState', {
+      outcome: t('checkFailure'),
+      counts: [
+        t('checkCount', { outcome: t('checkSuccess'), count: 40 }),
+        t('checkCount', { outcome: t('checkTimedOut'), count: 2 }),
+        t('checkCount', { outcome: t('checkInProgress'), count: 3 }),
+      ],
+    })}`,
+  );
+  const none = { required: false, duration: null, description: null };
+  assert.deepEqual(shownChecks(), [
+    {
+      ...none,
+      tone: 'forge-open',
+      name: 'CI / lint',
+      required: true,
+      outcome: t('checkSuccess'),
+      log: `${repositoryUrl}/runs/lint`,
+    },
+    {
+      tone: 'forge-failed',
+      name: 'CI / unit tests',
+      required: true,
+      outcome: t('checkTimedOut'),
+      duration: t('durationMinutes', { minutes: 30, seconds: 5 }),
+      description: 'Timed out after 30 minutes',
+      log: `${repositoryUrl}/runs/unit tests`,
+    },
+    { ...none, tone: 'forge-pending', name: 'e2e', outcome: t('checkInProgress'), log: `${repositoryUrl}/runs/e2e` },
+    {
+      ...none,
+      tone: 'forge-skipped',
+      name: 'docs',
+      outcome: t('checkSkipped'),
+      duration: t('durationSeconds', { seconds: 0 }),
+      log: `${repositoryUrl}/runs/docs`,
+    },
+    {
+      ...none,
+      tone: 'forge-open',
+      name: 'build',
+      outcome: t('checkSuccess'),
+      duration: t('durationHours', { hours: 1, minutes: 5 }),
+      log: `${repositoryUrl}/runs/build`,
+    },
+    { ...none, tone: 'forge-open', name: 'ci/legacy', outcome: t('checkSuccess'), log: null },
+  ]);
+  assert.equal(rowOf(t('checksRow')).querySelector('.forge-more-checks'), null, 'every check is listed');
+});
+
+test('a check list GitHub cut short says how many more there are and links the checks page', async () => {
+  await openPullRequest(
+    detail(12, {
+      checks: checks(
+        Array.from({ length: 100 }, (_, index) => check(`shard ${index}`)),
+        { total: 116, counts: [{ ...success, count: 116 }] },
+      ),
+    }),
+  );
+  const more = within(rowOf(t('checksRow'))).getByRole('link', {
+    name: t('moreChecks', { count: 16, forge: 'GitHub' }),
+  });
+  assert.equal(more.getAttribute('href'), `${repositoryUrl}/pull/12/checks`);
+});
+
+test('a pull request without checks says so', async () => {
+  await openPullRequest(detail(12));
+  assert.equal(
+    selectElement('.forge-merge-row-head', rowOf(t('checksRow'))).textContent,
+    `–${t('checksRow')}${t('checksNone')}`,
+  );
+});
+
+const rowText = (name: string) => rowOf(name).querySelector(':scope > span:last-child')?.textContent;
+
+test('the merge requirements read, in order, the review decision, the checks, the merge state, and the draft', async () => {
+  await openPullRequest(detail(12, { state: 'draft', reviewDecision: 'changesRequested', mergeState: 'blocked' }));
   const rows = [
     ...mergeArea().querySelectorAll(
       ':scope > .forge-merge-row > b, :scope > .forge-merge-row > .forge-merge-row-head > b',
     ),
   ].map(name => name.textContent);
-  assert.deepEqual(rows, ['Review', 'Checks', 'Conflicts', 'Draft'], 'in order: review, checks, conflicts, draft');
-  assert.match(rowOf('Review').textContent ?? '', /Changes requested; needs another review/);
-  const checks = rowOf('Checks');
-  assert.match(checks.textContent ?? '', /1 failed, 1 running, 3 passed/);
-  const listed = () => [...checks.querySelectorAll('.forge-merge-check')].map(item => item.textContent);
-  assert.deepEqual(listed(), ['✗unit testsRequiredChecks failedLog ↗', '●e2eChecks runningLog ↗']);
-  assert.equal(
-    within(checks).getAllByRole('link', { name: 'Log ↗' })[0].getAttribute('href'),
-    `${repositoryUrl}/runs/unit tests`,
-  );
-  await user.click(within(checks).getByRole('button', { name: '3 passed ▸' }));
-  assert.deepEqual(listed().slice(2), [
-    '✓lintRequiredChecks passedLog ↗',
-    '–docsSkippedLog ↗',
-    '✓buildChecks passedLog ↗',
-  ]);
-  await user.click(within(checks).getByRole('button', { name: 'Hide passed checks' }));
-  assert.equal(listed().length, 2);
-  assert.match(rowOf('Conflicts').textContent ?? '', /Conflicts with main; resolve them first/);
-  assert.match(rowOf('Draft').textContent ?? '', /Can be merged once marked ready for review \(on GitHub\)/);
+  assert.deepEqual(rows, [t('reviewRow'), t('checksRow'), t('mergeStateRow'), t('draftRow')]);
+  assert.equal(rowText(t('draftRow')), t('draftNote', { forge: 'GitHub' }));
 });
 
-test('a pull request ready to merge shows an approved review, passing checks and no conflicts', async () => {
-  await openPullRequest(
-    detail(12, { review: { state: 'approved', requiredApprovals: 1 }, checks: [check('lint', 'passed')] }),
-  );
-  assert.match(rowOf('Review').textContent ?? '', /Approved/);
-  assert.match(rowOf('Checks').textContent ?? '', /^✓Checks1 passed/);
-  assert.match(rowOf('Conflicts').textContent ?? '', /No conflicts/);
-  assert.equal(within(mergeArea()).queryByText('Draft'), null);
-});
-
-for (const [review, text] of [
-  [{ state: 'required', requiredApprovals: 2 }, 'At least 2 approvals required'],
-  [{ state: 'required', requiredApprovals: null }, 'Review required'],
-  [{ state: 'notRequired', requiredApprovals: null }, 'Review not required'],
+for (const [reviewDecision, text] of [
+  ['approved', t('reviewApproved')],
+  ['changesRequested', t('reviewChangesRequested')],
+  ['reviewRequired', t('reviewRequired')],
+  [null, t('reviewNotRequired')],
 ] as const) {
-  test(`a review ${review.state} with ${review.requiredApprovals ?? 'unknown'} required approvals reads: ${text}`, async () => {
-    await openPullRequest(detail(12, { review, conflicts: 'unknown' }));
-    assert.match(rowOf('Review').textContent ?? '', new RegExp(text));
-    assert.match(rowOf('Checks').textContent ?? '', /No checks/);
-    assert.match(rowOf('Conflicts').textContent ?? '', /Checking for conflicts/);
+  test(`a review decision of ${reviewDecision} reads: ${text}`, async () => {
+    await openPullRequest(detail(12, { reviewDecision }));
+    assert.equal(rowText(t('reviewRow')), text);
+  });
+}
+
+for (const [mergeState, tone, text] of [
+  ['clean', 'open', t('mergeStateClean')],
+  ['hasHooks', 'open', t('mergeStateClean')],
+  ['unstable', 'pending', t('mergeStateUnstable')],
+  ['dirty', 'failed', t('mergeStateDirty', { base: 'main' })],
+  ['behind', 'failed', t('mergeStateBehind', { base: 'main' })],
+  ['blocked', 'failed', t('mergeStateBlocked')],
+  ['unknown', 'pending', t('mergeStateUnknown', { forge: 'GitHub' })],
+] as const) {
+  test(`a merge state of ${mergeState} reads: ${text}`, async () => {
+    await openPullRequest(detail(12, { mergeState }));
+    const row = rowOf(t('mergeStateRow'));
+    assert.deepEqual(
+      [row.querySelector(':scope > span')?.className, rowText(t('mergeStateRow'))],
+      [`forge-${tone}`, text],
+    );
+    assert.equal(within(mergeArea()).queryByText(t('draftRow')), null);
   });
 }
 
@@ -301,17 +435,17 @@ for (const [state, text] of [
 ] as const) {
   test(`a ${state} pull request's merge area says only that it is ${state}, not what blocked a merge`, async () => {
     await openPullRequest(
-      detail(12, { state, conflicts: 'conflicting', checks: [check('lint', 'failed')], canWrite: false }),
+      detail(12, { state, mergeState: 'dirty', checks: checks([check('lint', failure)]), canWrite: false }),
     );
     assert.equal(mergeArea().textContent, text);
   });
 }
 
 test('a forge without required checks marks none', async () => {
-  await openPullRequest(detail(12, { checks: [check('unit tests', 'failed', true)] }), {
+  await openPullRequest(detail(12, { checks: checks([check('unit tests', failure, { required: true })]) }), {
     capabilities: { ...githubCapabilities, requiredChecks: false },
   });
-  assert.equal(within(mergeArea()).queryByText('Required'), null);
+  assert.equal(within(mergeArea()).queryByText(t('requiredCheck')), null);
 });
 
 test('a pull request that closes an issue opens in the sidebar from the issue detail; one of another repository opens in the browser', async () => {
@@ -341,6 +475,7 @@ test('a pull request that closes an issue opens in the sidebar from the issue de
       commentCount: 0,
       parent: null,
       subIssues: [],
+      subIssueProgress: { closed: 0, total: 0 },
       blockedBy: [],
       blocking: [],
       closingPullRequests: [],

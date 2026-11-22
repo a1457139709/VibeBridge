@@ -4,6 +4,9 @@ import test, { afterEach, before } from 'node:test';
 import { cleanup, waitFor, within } from '@testing-library/react';
 import { bug, issue, page, renderWorkbench, rows, sidebar, stubSidebarApis, summary } from './support/forge-lists';
 import { githubCapabilities } from './support/forge';
+import { localize } from '../../app/shared/localization/localization';
+
+const { t } = localize('en');
 
 afterEach(cleanup);
 before(stubSidebarApis);
@@ -98,6 +101,30 @@ test('an issue blocked by more open issues than the forge listed counts the rest
   assert.ok(
     within(sidebar()).getByLabelText('Blocked by +1 more'),
     'an issue none of whose open blockers is listed is still marked',
+  );
+});
+
+test('an expanded parent with more sub-issues than the forge listed says how many more and links the issue on the forge', async () => {
+  const { user, request } = renderWorkbench();
+  (await request(1)).answer(
+    page([
+      issue(10, {
+        subIssues: { closed: 0, total: 55, issues: Array.from({ length: 50 }, (_, index) => summary(100 + index)) },
+      }),
+      issue(9, { subIssues: { closed: 0, total: 1, issues: [summary(5)] } }),
+    ]),
+  );
+  for (const expand of await within(sidebar()).findAllByRole('button', { name: t('showSubIssues') }))
+    await user.click(expand);
+  const more = within(within(sidebar()).getByRole('group', { name: t('subIssuesOf', { number: 10 }) })).getByRole(
+    'link',
+    { name: t('moreSubIssues', { count: 5, forge: 'GitHub' }) },
+  );
+  assert.equal(more.getAttribute('href'), 'https://github.com/octo/alpha/issues/10');
+  assert.equal(
+    within(within(sidebar()).getByRole('group', { name: t('subIssuesOf', { number: 9 }) })).queryByRole('link'),
+    null,
+    'a parent whose sub-issues are all listed links nothing',
   );
 });
 

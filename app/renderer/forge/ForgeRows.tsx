@@ -65,6 +65,7 @@ export function IssueTree({
   issues,
   listState,
   capabilities,
+  forge,
   selected,
   open: openIssue,
   addLabel,
@@ -74,6 +75,7 @@ export function IssueTree({
   issues: ListedIssue[];
   listState: ListState;
   capabilities: ForgeCapabilities;
+  forge: string;
   renderAction(issue: IssueSummary): React.ReactNode;
   selected: number | undefined;
   open(number: number): void;
@@ -111,6 +113,7 @@ export function IssueTree({
     const isExpanded = !!withSubIssues && expanded.has(issue.number);
     const showClosed = showingClosed.has(issue.number);
     const shown = showClosed ? [...listed, ...folded] : listed;
+    const unlisted = withSubIssues ? Math.max(0, withSubIssues.subIssues.total - children.length) : 0;
     return (
       <li key={issue.number}>
         <IssueRow
@@ -145,6 +148,11 @@ export function IssueTree({
               <button className="forge-fold" onClick={() => setShowingClosed(set => flip(set, issue.number))}>
                 {showClosed ? t('hideClosedSubIssues') : t('closedSubIssues', { count: folded.length })}
               </button>
+            )}
+            {withSubIssues && !!unlisted && (
+              <a className="forge-fold forge-more-link" href={withSubIssues.url} target="_blank" rel="noreferrer">
+                {t('moreSubIssues', { count: unlisted, forge })}
+              </a>
             )}
           </div>
         )}

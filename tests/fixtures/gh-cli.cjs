@@ -90,7 +90,7 @@ function write(noun, verb, number, options) {
       fail(
         `X Pull request ${path}#${number} (${item.title}) can't be merged because it is ${item.state === 'MERGED' ? 'already merged' : 'closed'}`,
       );
-    if (item.mergeable === 'CONFLICTING')
+    if (item.mergeStateStatus === 'DIRTY')
       fail(`X Pull request ${path}#${number} is not mergeable: the merge commit cannot be cleanly created.`);
     const methodName = { merge: 'Merge commits', squash: 'Squash merges', rebase: 'Rebase merges' }[method];
     if (state.mergeMethods?.[method] === false)
@@ -141,6 +141,7 @@ function graphql({ query, owner, name, search, openSearch, closedSearch, after, 
   if (!query) unsupported();
   const asked = `${owner}/${name}`;
   const blockerWindow = Number(/blockedBy\(first: (\d+)\)/.exec(query)?.[1]);
+  const subIssueWindow = Number(/subIssues\(first: (\d+)\)/.exec(query)?.[1]);
   const repository = repositoryAt(asked);
   if (!repository) {
     const message = `Could not resolve to a Repository with the name '${asked}'.`;
@@ -153,9 +154,10 @@ function graphql({ query, owner, name, search, openSearch, closedSearch, after, 
   const path = repository.path;
   const answering = /databaseId nameWithOwner/.test(query) ? { databaseId: repository.id, nameWithOwner: path } : {};
   const byNumber = [...query.matchAll(/(n\d+): (issue|pullRequest)\(number: (\d+)\)/g)];
-  if (byNumber.length) return itemsByNumber(byNumber, path, answering, blockerWindow);
-  if (/issue\(number:/.test(query)) return issueDetail(state, path, Number(number), answering);
-  if (/pullRequest\(number:/.test(query)) return pullRequestDetail(state, path, Number(number), answering);
+  if (byNumber.length) return itemsByNumber(byNumber, path, answering, blockerWindow, subIssueWindow);
+  if (/issue\(number:/.test(query)) return issueDetail(state, path, Number(number), answering, query);
+  if (/pullRequest\(number:/.test(query)) return pullRequestDetail(state, path, Number(number), answering, query);
+  if (!/search\(/.test(query) && /labels\(first:/.test(query)) return labelPage(query, after, answering);
   if (!/search\(/.test(query)) return process.stdout.write(JSON.stringify({ data: { repository: answering } }));
   const found = searchIssues(search);
   const offset = after ? Number(Buffer.from(after, 'base64').toString().replace('cursor:', '')) : 0;
@@ -164,7 +166,7 @@ function graphql({ query, owner, name, search, openSearch, closedSearch, after, 
   process.stdout.write(
     JSON.stringify({
       data: {
-        repository: { ...answering, labels: { nodes: state.labels ?? [] } },
+        repository: { ...answering, labels: labels(query, undefined) },
         open: { issueCount: searchIssues(openSearch).length },
         closed: { issueCount: searchIssues(closedSearch).length },
         search: {
@@ -173,7 +175,9 @@ function graphql({ query, owner, name, search, openSearch, closedSearch, after, 
             endCursor: page.length ? Buffer.from(`cursor:${end}`).toString('base64') : null,
           },
           nodes: page.map(issue =>
-            isPullRequestSearch(search) ? pullRequestNode(issue) : listedIssueNode(issue, path, blockerWindow),
+            isPullRequestSearch(search)
+              ? pullRequestNode(issue)
+              : listedIssueNode(issue, path, blockerWindow, subIssueWindow),
           ),
         },
       },
@@ -181,7 +185,27 @@ function graphql({ query, owner, name, search, openSearch, closedSearch, after, 
   );
 }
 
-function itemsByNumber(fields, path, answering, blockerWindow) {
+function labels(query, after) {
+  const all = state.labels ?? [];
+  const window = Number(/labels\(first: (\d+)/.exec(query)?.[1]);
+  const offset = after ? Number(Buffer.from(after, 'base64').toString().replace('label:', '')) : 0;
+  const end = Math.min(all.length, offset + window);
+  return {
+    pageInfo: { hasNextPage: end < all.length, endCursor: Buffer.from(`label:${end}`).toString('base64') },
+    nodes: all.slice(offset, end),
+  };
+}
+
+function labelPage(query, after, answering) {
+  const failure = state.labelPageFailure;
+  if (failure) {
+    process.stderr.write(failure.stderr ?? '');
+    process.exit(failure.code);
+  }
+  process.stdout.write(JSON.stringify({ data: { repository: { ...answering, labels: labels(query, after) } } }));
+}
+
+function itemsByNumber(fields, path, answering, blockerWindow, subIssueWindow) {
   const repository = { ...answering };
   const errors = [];
   for (const [, field, kind, number] of fields) {
@@ -189,7 +213,7 @@ function itemsByNumber(fields, path, answering, blockerWindow) {
     const item = items.find(candidate => candidate.number === Number(number));
     repository[field] = item
       ? kind === 'issue'
-        ? listedIssueNode(item, path, blockerWindow)
+        ? listedIssueNode(item, path, blockerWindow, subIssueWindow)
         : pullRequestNode({ createdAt: '2026-01-01T00:00:00Z', labels: [], ...item })
       : null;
     if (!item)
@@ -206,7 +230,7 @@ function itemsByNumber(fields, path, answering, blockerWindow) {
   }
 }
 
-function listedIssueNode(issue, path, blockerWindow) {
+function listedIssueNode(issue, path, blockerWindow, subIssueWindow) {
   const children = (state.issues ?? [])
     .filter(child => child.parent === issue.number)
     .sort((a, b) => a.number - b.number);
@@ -217,7 +241,8 @@ function listedIssueNode(issue, path, blockerWindow) {
       total: children.length,
       completed: children.filter(child => child.state === 'CLOSED').length,
     },
-    subIssues: { nodes: children.map(child => node(child, path, blockerWindow)) },
+    url: `https://github.com/${path}/issues/${issue.number}`,
+    subIssues: { nodes: children.slice(0, subIssueWindow).map(child => node(child, path, blockerWindow)) },
   };
 }
 

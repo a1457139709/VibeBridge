@@ -71,6 +71,7 @@ test('a background update searches the first page again and reads the visible ro
       labels: [],
       blockedBy: [],
       unlistedBlockers: 0,
+      url: 'https://github.com/octo/tools/issues/3',
       parent: null,
       subIssues: { closed: 0, total: 0, issues: [] },
     });

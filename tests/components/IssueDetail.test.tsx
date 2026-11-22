@@ -1,25 +1,22 @@
 import './support/dom';
 import assert from 'node:assert/strict';
 import test, { afterEach, before } from 'node:test';
-import { cleanup, render, screen, waitFor, within } from '@testing-library/react';
-import { userEvent } from '@testing-library/user-event';
-import { App } from '../../app/renderer/Workbench';
-import { defaultSettings } from '../../app/shared/settings/settings';
-import type { ProjectView, Settings, Snapshot, WorkbenchEvent } from '../../app/shared/model';
-import type {
-  ForgeCapabilities,
-  IssueDetail,
-  IssueDetailResult,
-  IssueReference,
-  ListedIssue,
-} from '../../app/shared/forge/forge';
+import { cleanup, waitFor, within } from '@testing-library/react';
 import { localize } from '../../app/shared/localization/localization';
 import { stubLayoutApis } from './support/no-layout';
-import { deferred, provideWorkbench } from './support/workbench';
-import { forgeSidebarData } from './support/forge-sidebar-data';
-import { githubCapabilities, githubForge, githubView, githubRepository } from './support/forge';
-import { issue as listedIssue } from './support/forge-lists';
+import { githubCapabilities, githubForge } from './support/forge';
 import { requireInstance, selectElement } from './support/elements';
+import {
+  repositoryUrl,
+  hoursAgo,
+  summary,
+  reference,
+  detail,
+  renderWorkbench,
+  sidebar,
+  pane,
+  row,
+} from './support/issue-detail';
 
 const { t } = localize('en');
 
@@ -29,123 +26,6 @@ before(() => {
   for (const target of [globalThis, window]) Object.assign(target, { KeyframeEffect: class {} });
   window.HTMLElement.prototype.checkVisibility = () => true;
 });
-
-const repositoryUrl = 'https://github.com/octo/alpha';
-const hoursAgo = (hours: number) => new Date(Date.now() - hours * 3600e3).toISOString();
-const summary = (number: number, extra: Partial<ListedIssue> = {}): ListedIssue =>
-  listedIssue(number, { createdAt: hoursAgo(3), ...extra });
-const reference = (number: number, extra: Partial<IssueReference> = {}): IssueReference => ({
-  number,
-  title: `Issue ${number}`,
-  state: 'open',
-  closedAs: null,
-  url: `${repositoryUrl}/issues/${number}`,
-  ...extra,
-});
-const detail = (number: number, extra: Partial<IssueDetail> = {}): IssueDetail => ({
-  ...summary(number),
-  url: `${repositoryUrl}/issues/${number}`,
-  author: 'mona',
-  assignees: [],
-  body: '',
-  comments: [],
-  commentCount: 0,
-  parent: null,
-  subIssues: [],
-  blockedBy: [],
-  blocking: [],
-  closingPullRequests: [],
-  links: { issuePrefix: `${repositoryUrl}/issues/`, pullRequestPrefix: `${repositoryUrl}/pull/` },
-  canWrite: true,
-  ...extra,
-});
-
-interface Request {
-  number: number;
-  answer(result: IssueDetailResult): void;
-  fail(error: Error): void;
-}
-
-function renderWorkbench(
-  issues: ListedIssue[],
-  capabilities: ForgeCapabilities = githubCapabilities,
-  settings: Partial<Settings> = {},
-) {
-  const project: ProjectView = {
-    id: 'alpha',
-    name: 'Alpha',
-    directory: '/work/alpha',
-    layout: { panel: 'panel' },
-    tray: [],
-    repository: githubRepository('octo/alpha'),
-    ...githubView,
-    capabilities,
-    panels: [
-      {
-        id: 'panel',
-        agent: 'codex',
-        run: { id: 'run', panelId: 'panel', projectId: 'alpha', state: 'running', title: 'Alpha session' },
-      },
-    ],
-  };
-  const snapshot: Snapshot = {
-    navigation: { visible: true, width: 212 },
-    forgeSidebar: { visible: true, width: 380 },
-    activeProjectId: 'alpha',
-    settings: { ...defaultSettings(), ...settings },
-    settingsConflicts: [],
-    startupTheme: 'light',
-    resolvedTheme: 'light',
-    errors: [],
-    projects: [project],
-  };
-  const listeners = new Set<(event: WorkbenchEvent) => void>();
-  const requests: Request[] = [];
-  provideWorkbench({
-    fetchSnapshot: async () => structuredClone(snapshot),
-    reportRendererReady: async () => {},
-    subscribe: listener => {
-      listeners.add(listener);
-      return () => {
-        listeners.delete(listener);
-      };
-    },
-    saveSidebar: async () => {},
-    activateProject: async () => {},
-    saveLayout: async () => {},
-    ...forgeSidebarData(
-      {
-        issuePage: async () => ({
-          ok: true,
-          items: issues,
-          nextCursor: null,
-          labels: [],
-          counts: { open: issues.length, closed: 0 },
-        }),
-        issueDetail: (projectId, number) => {
-          assert.equal(projectId, 'alpha');
-          const answer = deferred<IssueDetailResult>();
-          requests.push({ number, answer: answer.resolve, fail: answer.reject });
-          return answer.promise;
-        },
-      },
-      event => {
-        for (const listener of listeners) listener(event);
-      },
-    ),
-  });
-  render(<App />);
-  const request = (count: number) =>
-    waitFor(() => {
-      assert.equal(requests.length, count, 'detail requests made');
-      return requests[count - 1];
-    });
-  return { user: userEvent.setup(), request };
-}
-
-const sidebar = () => screen.getByRole('complementary', { name: 'GitHub' });
-const pane = () => within(sidebar()).getByRole('region', { name: 'Issue detail' });
-const row = (title: string) => waitFor(() => within(sidebar()).getByRole('button', { name: title }));
 
 test('clicking a row opens its detail beside the list, with the author, comment count and assignees, and closing it returns to the list alone', async () => {
   const { user, request } = renderWorkbench([summary(7, { title: 'Issue detail' }), summary(6)]);
@@ -280,6 +160,7 @@ test('the relation graph draws open blockers and the open issues this one blocks
         reference(6, { title: 'First part', state: 'closed', closedAs: 'completed' }),
         reference(9, { title: 'Second part' }),
       ],
+      subIssueProgress: { closed: 1, total: 2 },
     }),
   });
   const graph = await within(pane()).findByRole('group', { name: 'Relations' });

@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { useLocalization } from '../common/Localization';
 import { usePopover } from '../common/popover';
 import './direct-actions.css';
+import { mergeBlocks } from './merge-requirements';
 import type {
   DirectAction,
   ForgeCapabilities,
@@ -128,22 +129,17 @@ export function ReopenPullRequest({ pullRequest, actions }: { pullRequest: PullR
 
 function mergeBlockedReasons(
   pullRequest: PullRequestDetail,
-  capabilities: ForgeCapabilities,
+  forge: string,
   t: ReturnType<typeof useLocalization>['t'],
 ) {
-  const required = pullRequest.checks.filter(check => capabilities.requiredChecks && check.required);
-  const { state: review, requiredApprovals } = pullRequest.review;
-  return [
-    pullRequest.state === 'draft' && t('mergeBlockedDraft'),
-    pullRequest.conflicts === 'conflicting' && t('mergeBlockedConflicts'),
-    required.some(check => check.result === 'failed')
-      ? t('mergeBlockedChecksFailing')
-      : required.some(check => check.result === 'pending') && t('mergeBlockedChecksRunning'),
-    review === 'changesRequested'
-      ? t('mergeBlockedChangesRequested')
-      : review === 'required' &&
-        (requiredApprovals ? t('mergeBlockedApprovals', { count: requiredApprovals }) : t('mergeBlockedReview')),
-  ].filter((reason): reason is string => !!reason);
+  const reason = {
+    draft: () => t('mergeBlockedDraft'),
+    dirty: () => t('mergeBlockedDirty'),
+    behind: () => t('mergeBlockedBehind', { base: pullRequest.base }),
+    blocked: () => t('mergeBlockedBlocked', { forge }),
+    unknown: () => t('mergeBlockedUnknown', { forge }),
+  };
+  return mergeBlocks(pullRequest).map(block => reason[block]());
 }
 
 export function PullRequestActions({
@@ -165,7 +161,7 @@ export function PullRequestActions({
   const busy = actions.performing !== null;
   const methods = pullRequest.mergeOptions.methods.filter(method => capabilities.mergeMethods.includes(method));
   const method = chosen && methods.includes(chosen) ? chosen : (methods[0] ?? null);
-  const reasons = mergeBlockedReasons(pullRequest, capabilities, t);
+  const reasons = mergeBlockedReasons(pullRequest, forge, t);
   const blocked = !!reasons.length || !method;
   const choose = (next: MergeMethod) => {
     lastMergeMethod = next;
