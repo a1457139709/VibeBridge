@@ -131,7 +131,7 @@ test('a refused direct action comes back as a forge failure with the forge text 
     ...forgeAccount,
     mergeMethods: { rebase: false },
     issues: [issue(3)],
-    pullRequests: [change(12, { mergeable: 'CONFLICTING' }), change(13, { state: 'MERGED' }), change(14)],
+    pullRequests: [change(12, { mergeStateStatus: 'DIRTY' }), change(13, { state: 'MERGED' }), change(14)],
   });
   const f = await boundWorkbench('direct-actions-refused');
   const failure = async (action: Parameters<typeof f.workbench.performDirectAction>[1]) => {

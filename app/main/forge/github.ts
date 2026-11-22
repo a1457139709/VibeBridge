@@ -2,7 +2,6 @@ import { z } from 'zod';
 import type {
   ChecksConclusion,
   DirectAction,
-  ForgeLabel,
   ListFilter,
   IssueSummary,
   ListedIssue,
@@ -49,9 +48,13 @@ const issueSchema = z.object({
   }),
   issueDependenciesSummary: z.object({ blockedBy: z.number() }),
 });
+const labelPageSchema = z.object({
+  pageInfo: z.object({ hasNextPage: z.boolean(), endCursor: z.string().nullable() }),
+  nodes: z.array(labelSchema),
+});
 const listPageSchema = <Node extends z.ZodType>(node: Node) =>
   z.object({
-    repository: z.object({ ...answeringSchema, labels: z.object({ nodes: z.array(labelSchema) }) }),
+    repository: z.object({ ...answeringSchema, labels: labelPageSchema }),
     open: z.object({ issueCount: z.number() }),
     closed: z.object({ issueCount: z.number() }),
     search: z.object({
@@ -60,6 +63,7 @@ const listPageSchema = <Node extends z.ZodType>(node: Node) =>
     }),
   });
 const listedIssueSchema = issueSchema.extend({
+  url: z.string(),
   parent: z.object({ number: z.number(), repository: repositorySchema }).nullable(),
   subIssuesSummary: z.object({ total: z.number(), completed: z.number() }),
   subIssues: z.object({ nodes: z.array(issueSchema) }),
@@ -80,10 +84,16 @@ const issuePageSchema = listPageSchema(listedIssueSchema);
 const pullRequestPageSchema = listPageSchema(listedPullRequestSchema);
 const issueFields = `number title state stateReason createdAt labels(first: 20) { nodes { name color } } repository { nameWithOwner }
       blockedBy(first: 20) { nodes { number title state repository { nameWithOwner } } } issueDependenciesSummary { blockedBy }`;
+const labelPageArguments = 'first: 100, orderBy: { field: NAME, direction: ASC }';
+const labelPageFields = 'pageInfo { hasNextPage endCursor } nodes { name color }';
+const labelPageQuery = `query($owner: String!, $name: String!, $after: String!) {
+  repository(owner: $owner, name: $name) { labels(${labelPageArguments}, after: $after) { ${labelPageFields} } }
+}`;
+const laterLabelPageSchema = z.object({ repository: z.object({ labels: labelPageSchema }) });
 const listPageQuery = (
   nodes: string,
 ) => `query($owner: String!, $name: String!, $search: String!, $openSearch: String!, $closedSearch: String!, $after: String) {
-  repository(owner: $owner, name: $name) { ${answeringFields} labels(first: 100, orderBy: { field: NAME, direction: ASC }) { nodes { name color } } }
+  repository(owner: $owner, name: $name) { ${answeringFields} labels(${labelPageArguments}) { ${labelPageFields} } }
   open: search(query: $openSearch, type: ISSUE, first: 0) { issueCount }
   closed: search(query: $closedSearch, type: ISSUE, first: 0) { issueCount }
   search(query: $search, type: ISSUE, first: ${pageSize}, after: $after) {
@@ -91,10 +101,10 @@ const listPageQuery = (
     nodes { ${nodes} }
   }
 }`;
-const listedIssueFields = `${issueFields}
+const listedIssueFields = `${issueFields} url
       parent { number repository { nameWithOwner } }
       subIssuesSummary { total completed }
-      subIssues(first: 50) { nodes { ${issueFields} } }`;
+      subIssues(first: ${relatedLimit}) { nodes { ${issueFields} } }`;
 const listedPullRequestFields = `number title state isDraft createdAt author { login }
       labels(first: 20) { nodes { name color } }
       commits(last: 1) { nodes { commit { statusCheckRollup { state } } } }`;
@@ -131,6 +141,7 @@ function issueSummary(issue: z.infer<typeof issueSchema>, path: string): IssueSu
 function listedIssue(issue: z.infer<typeof listedIssueSchema>, path: string): ListedIssue {
   return {
     ...issueSummary(issue, path),
+    url: issue.url,
     parent: issue.parent && samePath(issue.parent.repository.nameWithOwner, path) ? issue.parent.number : null,
     subIssues: {
       closed: issue.subIssuesSummary.completed,
@@ -138,6 +149,7 @@ function listedIssue(issue: z.infer<typeof listedIssueSchema>, path: string): Li
       issues: issue.subIssues.nodes
         .filter(child => samePath(child.repository.nameWithOwner, path))
         .map(child => issueSummary(child, path)),
+      unlisted: Math.max(0, issue.subIssuesSummary.total - issue.subIssues.nodes.length),
     },
   };
 }
@@ -188,7 +200,22 @@ function listSearch(path: string, kind: 'issue' | 'pr', { search, state, labels 
   ].join(' ');
 }
 
-function listPage<T>(
+async function withLaterLabelPages(
+  host: string,
+  owner: string,
+  name: string,
+  firstPage: z.infer<typeof labelPageSchema>,
+) {
+  const labels = [...firstPage.nodes];
+  for (let page = firstPage.pageInfo; page.hasNextPage && page.endCursor !== null;) {
+    const later = await graphql(host, labelPageQuery, { owner, name, after: page.endCursor }, laterLabelPageSchema);
+    labels.push(...later.repository.labels.nodes);
+    page = later.repository.labels.pageInfo;
+  }
+  return labels;
+}
+
+async function listPage<T extends z.infer<ReturnType<typeof listPageSchema>>>(
   query: string,
   schema: z.ZodType<T>,
   { host, path }: RepositoryReference,
@@ -196,7 +223,7 @@ function listPage<T>(
   { filter, cursor }: { filter: ListFilter; cursor: string | null },
 ) {
   const [owner, name] = path.split('/');
-  return graphql(
+  const data = await graphql(
     host,
     query,
     {
@@ -209,17 +236,19 @@ function listPage<T>(
     },
     schema,
   );
+  const labels =
+    cursor === null
+      ? await withLaterLabelPages(host, owner, name, data.repository.labels)
+      : data.repository.labels.nodes;
+  return {
+    data,
+    frame: {
+      nextCursor: data.search.pageInfo.hasNextPage ? data.search.pageInfo.endCursor : null,
+      labels,
+      counts: { open: data.open.issueCount, closed: data.closed.issueCount },
+    },
+  };
 }
-const pageFrame = (data: {
-  repository: { labels: { nodes: ForgeLabel[] } };
-  open: { issueCount: number };
-  closed: { issueCount: number };
-  search: { pageInfo: { hasNextPage: boolean; endCursor: string | null } };
-}) => ({
-  nextCursor: data.search.pageInfo.hasNextPage ? data.search.pageInfo.endCursor : null,
-  labels: data.repository.labels.nodes,
-  counts: { open: data.open.issueCount, closed: data.closed.issueCount },
-});
 
 const actionArgs = (action: DirectAction): string[] => {
   const number = String(action.number);
@@ -315,15 +344,15 @@ export const github: Forge = {
     }
   },
   async issues(repository, query) {
-    const data = await listPage(issuePageQuery, issuePageSchema, repository, 'issue', query);
+    const { data, frame } = await listPage(issuePageQuery, issuePageSchema, repository, 'issue', query);
     return answered(data.repository, {
       items: data.search.nodes.map(issue => listedIssue(issue, repository.path)),
-      ...pageFrame(data),
+      ...frame,
     });
   },
   async pullRequests(repository, query) {
-    const data = await listPage(pullRequestPageQuery, pullRequestPageSchema, repository, 'pr', query);
-    return answered(data.repository, { items: data.search.nodes.map(listedPullRequest), ...pageFrame(data) });
+    const { data, frame } = await listPage(pullRequestPageQuery, pullRequestPageSchema, repository, 'pr', query);
+    return answered(data.repository, { items: data.search.nodes.map(listedPullRequest), ...frame });
   },
   async issuesByNumber(repository, numbers) {
     const read = await byNumber(repository, 'issue', listedIssueFields, listedIssueSchema, numbers);

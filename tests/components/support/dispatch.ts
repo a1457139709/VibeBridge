@@ -82,6 +82,7 @@ export const issueDetail = (number: number, extra: Partial<IssueDetail> = {}): I
   commentCount: 0,
   parent: null,
   subIssues: [],
+  subIssueProgress: { closed: 0, total: 0 },
   blockedBy: [],
   blocking: [],
   closingPullRequests: [],

@@ -378,6 +378,7 @@ export function ForgeLists({ project, changeBinding, detailHost, dispatchHost, v
             issues={lists.issues.loaded.items}
             listState={lists.issues.loaded.filter.state}
             capabilities={project.capabilities}
+            forge={project.forge.name}
             selected={selected('issue')}
             open={number => openFromList({ kind: 'issue', number })}
             addLabel={addLabel}

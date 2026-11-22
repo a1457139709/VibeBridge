@@ -53,8 +53,9 @@ export const summary = (number: number, extra: Partial<IssueSummary> = {}): Issu
 });
 export const issue = (number: number, extra: Partial<ListedIssue> = {}): ListedIssue => ({
   ...summary(number),
+  url: `https://github.com/octo/alpha/issues/${number}`,
   parent: null,
-  subIssues: { closed: 0, total: 0, issues: [] },
+  subIssues: { closed: 0, total: 0, issues: [], unlisted: 0 },
   ...extra,
 });
 export const pullRequest = (number: number, extra: Partial<PullRequestSummary> = {}): PullRequestSummary => ({

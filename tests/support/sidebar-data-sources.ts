@@ -20,11 +20,12 @@ export const issue = (number: number): ListedIssue => ({
   state: 'open',
   closedAs: null,
   createdAt: '2026-01-01T00:00:00.000Z',
+  url: `https://github.com/octo/tools/issues/${number}`,
   labels: [],
   blockedBy: [],
   unlistedBlockers: 0,
   parent: null,
-  subIssues: { closed: 0, total: 0, issues: [] },
+  subIssues: { closed: 0, total: 0, issues: [], unlisted: 0 },
 });
 export const detail = (
   number: number,

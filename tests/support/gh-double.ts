@@ -15,6 +15,7 @@ export interface GhIssue {
   bodyHTML?: string;
   comments?: { author: string | null; createdAt: string; bodyHTML: string }[];
   parent?: number;
+  foreignSubIssues?: { path: string; number: number; title: string; state: 'OPEN' | 'CLOSED' }[];
   blockedBy?: (number | { path: string; number: number; title: string; state: 'OPEN' | 'CLOSED' })[];
   closedBy?: number[];
 }
@@ -27,7 +28,7 @@ export interface GhPullRequest {
   createdAt?: string;
   author?: string | null;
   labels?: { name: string; color: string }[];
-  checks?: 'SUCCESS' | 'FAILURE' | 'ERROR' | 'PENDING' | 'EXPECTED' | null;
+  checks?: string | null;
   head?: string;
   base?: string;
   bodyHTML?: string;
@@ -36,20 +37,29 @@ export interface GhPullRequest {
   reviews?: {
     author: string | null;
     state: 'PENDING' | 'COMMENTED' | 'APPROVED' | 'CHANGES_REQUESTED' | 'DISMISSED';
+    createdAt?: string;
     submittedAt: string | null;
     bodyHTML: string;
-    codeComments?: number;
   }[];
   reviewDecision?: 'APPROVED' | 'CHANGES_REQUESTED' | 'REVIEW_REQUIRED' | null;
-  requiredApprovals?: number | null;
-  mergeable?: 'MERGEABLE' | 'CONFLICTING' | 'UNKNOWN';
+  mergeStateStatus?: 'CLEAN' | 'HAS_HOOKS' | 'UNSTABLE' | 'DIRTY' | 'BEHIND' | 'BLOCKED' | 'DRAFT' | 'UNKNOWN';
   mergeQueue?: boolean;
   checkRuns?: (
-    | { name: string; status: string; conclusion: string | null; required?: boolean }
+    | {
+        workflow?: string;
+        name: string;
+        status: string;
+        conclusion: string | null;
+        title?: string;
+        startedAt?: string;
+        completedAt?: string;
+        required?: boolean;
+      }
     | {
         context: string;
-        state: 'SUCCESS' | 'FAILURE' | 'ERROR' | 'PENDING' | 'EXPECTED';
+        state: string;
         targetUrl: string | null;
+        description?: string;
         required?: boolean;
       }
   )[];
@@ -67,6 +77,7 @@ export interface GhState {
   permission?: 'ADMIN' | 'MAINTAIN' | 'WRITE' | 'TRIAGE' | 'READ';
   answerOnceAsked?: number;
   failure?: { code: number; stdout?: string; stderr?: string };
+  labelPageFailure?: { code: number; stderr?: string };
 }
 
 export async function ghDouble(context: TestContext, state: GhState) {

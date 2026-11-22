@@ -87,8 +87,9 @@ export interface BlockerReference {
 }
 
 export interface ListedIssue extends IssueSummary {
+  url: string;
   parent: number | null;
-  subIssues: { closed: number; total: number; issues: IssueSummary[] };
+  subIssues: { closed: number; total: number; issues: IssueSummary[]; unlisted: number };
 }
 
 export type PullRequestState = 'open' | 'draft' | 'merged' | 'closed';
@@ -160,6 +161,7 @@ export interface IssueDetail extends Omit<IssueSummary, 'blockedBy' | 'unlistedB
   commentCount: number;
   parent: (IssueReference & { progress: SubIssueProgress }) | null;
   subIssues: IssueReference[];
+  subIssueProgress: SubIssueProgress;
   blockedBy: IssueReference[];
   blocking: IssueReference[];
   closingPullRequests: PullRequestReference[];
@@ -176,17 +178,45 @@ export interface TimelineEntry extends ForgeComment {
   verdict: ReviewVerdict | null;
 }
 
-export interface ReviewStatus {
-  state: 'approved' | 'changesRequested' | 'required' | 'notRequired';
-  requiredApprovals: number | null;
-}
-export interface Check {
+export type ReviewDecision = 'approved' | 'changesRequested' | 'reviewRequired';
+export type MergeState = 'clean' | 'hasHooks' | 'unstable' | 'dirty' | 'behind' | 'blocked' | 'unknown';
+export type CheckOutcome =
+  | 'queued'
+  | 'inProgress'
+  | 'waiting'
+  | 'pending'
+  | 'requested'
+  | 'expected'
+  | 'completed'
+  | 'success'
+  | 'failure'
+  | 'error'
+  | 'cancelled'
+  | 'timedOut'
+  | 'actionRequired'
+  | 'startupFailure'
+  | 'neutral'
+  | 'skipped'
+  | 'stale';
+export type CheckTone = 'passed' | 'failed' | 'pending' | 'neutral';
+export type CheckState =
+  { outcome: CheckOutcome; tone: CheckTone } | { outcome: 'unrecognized'; raw: string; tone: 'neutral' };
+export type Check = CheckState & {
+  workflow: string | null;
   name: string;
-  result: 'passed' | 'failed' | 'pending' | 'skipped';
+  description: string | null;
   required: boolean;
+  startedAt: string | null;
+  completedAt: string | null;
   url: string | null;
+};
+export interface PullRequestChecks {
+  state: CheckState | null;
+  counts: (CheckState & { count: number })[];
+  total: number;
+  url: string;
+  listed: Check[];
 }
-export type Conflicts = 'none' | 'conflicting' | 'unknown';
 
 export interface PullRequestDetail extends Omit<PullRequestSummary, 'checks'> {
   url: string;
@@ -195,13 +225,12 @@ export interface PullRequestDetail extends Omit<PullRequestSummary, 'checks'> {
   base: string;
   body: string;
   timeline: TimelineEntry[];
-  commentCount: number;
-  codeCommentCount: number;
+  earlierEntries: number;
   closingIssues: IssueReference[];
   links: ForgeLinks;
-  review: ReviewStatus;
-  checks: Check[];
-  conflicts: Conflicts;
+  reviewDecision: ReviewDecision | null;
+  checks: PullRequestChecks;
+  mergeState: MergeState | null;
   mergeOptions: { methods: MergeMethod[]; defaultMethod: MergeMethod; queue: boolean };
   canWrite: boolean;
 }
