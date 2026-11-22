@@ -6,7 +6,9 @@ for (const key of [
   'window',
   'document',
   'navigator',
+  'Element',
   'HTMLElement',
+  'HTMLButtonElement',
   'HTMLInputElement',
   'HTMLDialogElement',
   'Node',
@@ -18,7 +20,7 @@ for (const key of [
 ]) {
   Object.defineProperty(globalThis, key, {
     configurable: true,
-    value: key === 'window' ? window : window[key as keyof typeof window],
+    value: key === 'window' ? window : Reflect.get(window, key),
   });
 }
 Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true, CSS: { escape } });

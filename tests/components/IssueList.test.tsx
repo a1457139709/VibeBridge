@@ -18,6 +18,7 @@ import {
   sidebar,
   stubSidebarApis,
 } from './support/forge-lists';
+import { requireValue, requireElement, selectElement } from './support/elements';
 
 const { t } = localize('en');
 
@@ -108,9 +109,12 @@ test('an inaccessible repository names the account and offers Retry and Change b
     ),
   );
   await user.click(
-    within(sidebar())
-      .getAllByRole('button', { name: 'Change binding' })
-      .find(button => !button.closest('header'))!,
+    requireValue(
+      within(sidebar())
+        .getAllByRole('button', { name: 'Change binding' })
+        .find(button => !button.closest('header')),
+      'the Change binding button outside the header',
+    ),
   );
   const search = await within(sidebar()).findByRole('searchbox', { name: 'Search repositories' });
   await waitFor(() =>
@@ -144,7 +148,7 @@ async function changeBindingPage(choices?: () => Promise<RepositoryChoices>) {
     },
   });
   (await rendered.request(1)).answer(page([issue(1)]));
-  await rendered.user.click(within(sidebar().querySelector('header')!).getByRole('button', { name: 'Change binding' }));
+  await rendered.user.click(within(selectElement('header', sidebar())).getByRole('button', { name: 'Change binding' }));
   await within(sidebar()).findByRole('button', { name: '← Back' });
   return { ...rendered, calls };
 }
@@ -167,7 +171,10 @@ test('Change binding turns the sidebar to its change-binding page, and ← Back 
 
 test('picking another repository states what rebinding does, and Rebind to Y rebinds at once and returns to the lists', async () => {
   const { user, calls, request } = await changeBindingPage();
-  assert.equal((within(sidebar()).getByRole('button', { name: 'Rebind' }) as HTMLButtonElement).disabled, true);
+  assert.equal(
+    requireElement(within(sidebar()).getByRole('button', { name: 'Rebind' }), HTMLButtonElement).disabled,
+    true,
+  );
   await user.click(await within(sidebar()).findByRole('option', { name: /octo\/renamed/ }));
   assert.ok(
     within(sidebar()).getByText(
@@ -197,7 +204,10 @@ test('a bound repository the forge lists at a new path is listed once, there, as
     options.map(option => option.textContent),
     ['octo/renamedorigin', 'octo/alpha-xcurrent'],
   );
-  assert.equal((within(sidebar()).getByRole('button', { name: 'Rebind' }) as HTMLButtonElement).disabled, true);
+  assert.equal(
+    requireElement(within(sidebar()).getByRole('button', { name: 'Rebind' }), HTMLButtonElement).disabled,
+    true,
+  );
 });
 
 test('a binding changed elsewhere while the change-binding page shows returns the sidebar to the lists', async () => {
@@ -243,7 +253,9 @@ test('a transient failure keeps the rows under a stale notice, and fills the sid
   (await request(3)).answer(failed('transient', 'API rate limit exceeded'));
   const stale = await within(sidebar()).findByText('Data may be stale');
   assert.deepEqual(rows(), ['Issue 1'], 'the old rows stay');
-  await user.click(within(stale.parentElement!).getByRole('button', { name: 'Retry' }));
+  await user.click(
+    within(requireValue(stale.parentElement, 'the stale notice')).getByRole('button', { name: 'Retry' }),
+  );
   (await request(4)).answer(page([issue(2)]));
   await waitFor(() => assert.deepEqual(rows(), ['Issue 2']));
   assert.equal(within(sidebar()).queryByText('Data may be stale'), null);
@@ -284,7 +296,8 @@ test('the current issue row is the one highlight: strong while the list has focu
     (await request(1)).answer(page([issue(9), issue(8)]));
     await waitFor(() => assert.deepEqual(rows(), ['Issue 9', 'Issue 8']));
     const title = (name: string) => within(sidebar()).getByRole('button', { name });
-    const highlight = (name: string) => window.getComputedStyle(title(name).closest('.forge-row')!).boxShadow;
+    const highlight = (name: string) =>
+      window.getComputedStyle(requireElement(title(name).closest('.forge-row'))).boxShadow;
     const unhighlighted = highlight('Issue 8');
     title('Issue 9').focus();
     assert.equal(window.getComputedStyle(title('Issue 9')).outline, 'none', 'the title draws no focus ring of its own');

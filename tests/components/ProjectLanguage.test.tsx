@@ -9,6 +9,7 @@ import { message } from '../../app/shared/messages';
 import type { ProjectView } from '../../app/shared/model';
 import { provideWorkbench } from './support/workbench';
 import { githubView } from './support/forge';
+import { selectElement } from './support/elements';
 
 afterEach(cleanup);
 
@@ -57,7 +58,7 @@ for (const language of ['en', 'zh-CN'] as const) {
     await user.type(path, '/原样/new');
     await screen.findByRole('region', { name: en ? 'After saving' : '保存后' });
     assert.equal(
-      document.querySelector('.repository-current')!.textContent,
+      selectElement('.repository-current').textContent,
       en ? 'Not boundBind in the GitHub sidebar' : '未绑定在 GitHub 侧边栏绑定',
     );
     await user.click(screen.getByRole('button', { name: en ? 'Change and restart' : '更改并重启' }));

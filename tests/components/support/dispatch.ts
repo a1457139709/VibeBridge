@@ -5,6 +5,7 @@ import type { Snapshot } from '../../../app/shared/model';
 import type { IssueDetail } from '../../../app/shared/forge/forge';
 import { issue, page, renderWorkbench, sidebar, summary } from './forge-lists';
 import { githubCapabilities } from './forge';
+import { requireValue } from './elements';
 
 /** Alpha's resident panel runs Codex on "Alpha session"; its tray panel runs Claude Code, Busy on "Fix it"; a second
  * resident panel has no run. Beta's panel belongs to another project. */
@@ -56,9 +57,12 @@ export async function listed(
   return { ...f, dispatches: requests };
 }
 export const row = (number: number) =>
-  within(sidebar())
-    .getAllByRole('listitem')
-    .find(item => within(item).queryByText(`#${number}`))!;
+  requireValue(
+    within(sidebar())
+      .getAllByRole('listitem')
+      .find(item => within(item).queryByText(`#${number}`)),
+    `the row of #${number}`,
+  );
 export const dispatchButton = (number: number) => within(row(number)).getByRole('button', { name: 'Dispatch' });
 /** The time `hours` hours ago, as a record stores it. */
 export const hoursAgo = (hours: number) => new Date(Date.now() - hours * 3600e3).toISOString();

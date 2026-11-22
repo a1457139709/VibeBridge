@@ -8,6 +8,7 @@ import { SettingsPage, type SettingsPageActions } from '../../app/renderer/setti
 import { defaultSettings, type SettingsSaveResult } from '../../app/shared/settings/settings';
 import type { CommandCheck, Settings } from '../../app/shared/model';
 import { deferred, provideWorkbench } from './support/workbench';
+import { requireValue, requireElement, selectElement } from './support/elements';
 
 afterEach(cleanup);
 
@@ -124,9 +125,9 @@ test('save and leave submits all changed categories together and allows leaving 
   fireEvent.keyDown(binding, { key: 'k', code: 'KeyK', metaKey: true });
   let leave!: Promise<boolean>;
   act(() => {
-    leave = ref.current!.requestLeave();
+    leave = requireValue(ref.current, 'the settings page').requestLeave();
   });
-  assert.match(screen.getByRole('dialog').textContent!, /Agent, Appearance, Keyboard shortcuts/);
+  assert.match(screen.getByRole('dialog').textContent ?? '', /Agent, Appearance, Keyboard shortcuts/);
   await click(user, 'Save and return');
   const patch = {
     agents: { ...saved.agents, codex: { command: '/new-codex', args: [] } },
@@ -140,11 +141,11 @@ test('save and leave submits all changed categories together and allows leaving 
     saveSettings.mock.calls.map(call => call.arguments),
     [[patch]],
   );
-  assert.equal(await ref.current!.requestLeave(), false);
+  assert.equal(await requireValue(ref.current, 'the settings page').requestLeave(), false);
   assert.equal(screen.getByRole<HTMLButtonElement>('button', { name: '‹ Back' }).disabled, true);
   await act(async () => pending.resolve({ ok: true, settings: { ...saved, ...patch } }));
   assert.equal(await leave, true);
-  assert.equal(await ref.current!.requestLeave(), true);
+  assert.equal(await requireValue(ref.current, 'the settings page').requestLeave(), true);
 });
 
 test('validation failure reveals field errors, retains every draft and blocks leaving until corrected', async () => {
@@ -163,7 +164,7 @@ test('validation failure reveals field errors, retains every draft and blocks le
   await user.click(screen.getByRole('radio', { name: 'Dark' }));
   let leave!: Promise<boolean>;
   act(() => {
-    leave = ref.current!.requestLeave();
+    leave = requireValue(ref.current, 'the settings page').requestLeave();
   });
   await click(user, 'Save and return');
   assert.equal(await leave, false);
@@ -187,7 +188,7 @@ test('storage and unavailable failures keep drafts and block leaving, then allow
     await user.type(command(), '/preserved');
     let leave!: Promise<boolean>;
     act(() => {
-      leave = ref.current!.requestLeave();
+      leave = requireValue(ref.current, 'the settings page').requestLeave();
     });
     await click(user, 'Save and return');
     assert.equal(await leave, false);
@@ -203,7 +204,7 @@ test('storage and unavailable failures keep drafts and block leaving, then allow
     }));
     provideWorkbench({ saveSettings });
     act(() => {
-      leave = ref.current!.requestLeave();
+      leave = requireValue(ref.current, 'the settings page').requestLeave();
     });
     await click(user, 'Save and return');
     assert.equal(await leave, true);
@@ -222,8 +223,8 @@ test('a pending ordinary save blocks repeated submissions and draft mutation', a
   const { user, ref } = renderSettings(saved);
   await user.type(command(), '-edited');
   act(() => {
-    fireEvent.submit(command().closest('form')!);
-    fireEvent.submit(command().closest('form')!);
+    fireEvent.submit(requireValue(command().closest('form'), 'the command form'));
+    fireEvent.submit(requireValue(command().closest('form'), 'the command form'));
   });
   await click(user, 'Save');
   await click(user, 'Appearance');
@@ -231,36 +232,36 @@ test('a pending ordinary save blocks repeated submissions and draft mutation', a
   await user.type(command(), '-late');
   assert.equal(command().value, 'codex-edited');
   assert.equal(saveSettings.mock.callCount(), 1);
-  assert.equal(await ref.current!.requestLeave(), false);
+  assert.equal(await requireValue(ref.current, 'the settings page').requestLeave(), false);
   await act(async () =>
     pending.resolve({
       ok: true,
       settings: { ...saved, agents: { ...saved.agents, codex: { command: 'codex-edited', args: [] } } },
     }),
   );
-  assert.equal(await ref.current!.requestLeave(), true);
+  assert.equal(await requireValue(ref.current, 'the settings page').requestLeave(), true);
 });
 
 test('cancel keeps a draft, discard allows leaving without saving, and unmount cancels a pending leave decision', async () => {
   provideWorkbench({});
   const { user, ref } = renderSettings();
-  assert.equal(await ref.current!.requestLeave(), true);
+  assert.equal(await requireValue(ref.current, 'the settings page').requestLeave(), true);
   await user.type(command(), '-draft');
   let leave!: Promise<boolean>;
   act(() => {
-    leave = ref.current!.requestLeave();
+    leave = requireValue(ref.current, 'the settings page').requestLeave();
   });
-  assert.equal(await ref.current!.requestLeave(), false);
+  assert.equal(await requireValue(ref.current, 'the settings page').requestLeave(), false);
   await click(user, 'Cancel');
   assert.equal(await leave, false);
   assert.equal(command().value, 'codex-draft');
   act(() => {
-    leave = ref.current!.requestLeave();
+    leave = requireValue(ref.current, 'the settings page').requestLeave();
   });
   await click(user, 'Don’t save');
   assert.equal(await leave, true);
   act(() => {
-    leave = ref.current!.requestLeave();
+    leave = requireValue(ref.current, 'the settings page').requestLeave();
   });
   cleanup();
   assert.equal(await leave, false);
@@ -301,11 +302,11 @@ test('during a settings conflict every leave asks to fix the conflicting categor
   const { user, ref } = renderSettings(shortcutConflictSettings());
   let leave!: Promise<boolean>;
   act(() => {
-    leave = ref.current!.requestLeave();
+    leave = requireValue(ref.current, 'the settings page').requestLeave();
   });
   const dialog = screen.getByRole('dialog');
   assert.equal(
-    dialog.querySelector('p')!.textContent,
+    selectElement('p', dialog).textContent,
     'Settings conflict in: Keyboard shortcuts. Fix and save them before returning.',
   );
   assert.deepEqual(
@@ -316,7 +317,7 @@ test('during a settings conflict every leave asks to fix the conflicting categor
   assert.equal(await leave, false);
   await user.type(command(), '-draft');
   act(() => {
-    leave = ref.current!.requestLeave();
+    leave = requireValue(ref.current, 'the settings page').requestLeave();
   });
   assert.deepEqual(
     [...screen.getByRole('dialog').querySelectorAll('p')].map(paragraph => paragraph.textContent),
@@ -350,7 +351,7 @@ test('save and return during a settings conflict submits the conflicting categor
   const { user, ref } = renderSettings(settings);
   let leave!: Promise<boolean>;
   act(() => {
-    leave = ref.current!.requestLeave();
+    leave = requireValue(ref.current, 'the settings page').requestLeave();
   });
   await click(user, 'Save and return');
   assert.equal(await leave, false);
@@ -396,7 +397,7 @@ test('Workflows sits between Agent and Appearance, and saves the workflow switch
     'grill-me {url}',
   ]);
   assert.ok(
-    screen.getAllByRole('radio', { name: 'Submit' }).every(radio => (radio as HTMLInputElement).checked),
+    screen.getAllByRole('radio', { name: 'Submit' }).every(radio => requireElement(radio, HTMLInputElement).checked),
     'every command submits by default',
   );
   assert.equal(screen.queryByRole('textbox'), null, 'commands cannot be added or edited');

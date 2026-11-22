@@ -11,6 +11,7 @@ import type { PanelView, Snapshot, WorkbenchEvent } from '../../app/shared/model
 import type { ProcessingState } from '../../app/shared/processing-status';
 import { provideWorkbench } from './support/workbench';
 import { githubView } from './support/forge';
+import { requireValue, focusedElement } from './support/elements';
 
 afterEach(cleanup);
 
@@ -92,7 +93,10 @@ function fixture() {
   return {
     snapshot,
     member: (id: string) =>
-      [...snapshot.projects[0].panels, ...snapshot.projects[0].tray].find(panel => panel.id === id)!,
+      requireValue(
+        [...snapshot.projects[0].panels, ...snapshot.projects[0].tray].find(panel => panel.id === id),
+        `panel ${id}`,
+      ),
     located,
     user: userEvent.setup(),
     update: async () =>
@@ -135,13 +139,13 @@ test('keyboard users can choose members, switch lists and return to the triggeri
   const done = await screen.findByRole('button', { name: '2 Done' });
   done.focus();
   await user.keyboard('{Enter}');
-  assert.match(document.activeElement!.textContent!, /Session first/);
+  assert.match(focusedElement().textContent ?? '', /Session first/);
   await user.keyboard('{ArrowDown}');
-  assert.match(document.activeElement!.textContent!, /Session second/);
+  assert.match(focusedElement().textContent ?? '', /Session second/);
   await user.keyboard('{Home}');
-  assert.match(document.activeElement!.textContent!, /Session first/);
+  assert.match(focusedElement().textContent ?? '', /Session first/);
   await user.keyboard('{End}');
-  assert.match(document.activeElement!.textContent!, /Session second/);
+  assert.match(focusedElement().textContent ?? '', /Session second/);
   await user.keyboard('{Escape}');
   assert.ok(!screen.queryByRole('dialog'));
   assert.equal(document.activeElement, done);
@@ -166,7 +170,7 @@ test('keyboard users can choose members, switch lists and return to the triggeri
 test('open lists follow live membership and titles, retain keyboard control after removal, and reset on project changes', async () => {
   const { user, snapshot, member, update, located } = fixture();
   await user.click(await screen.findByRole('button', { name: '2 Done' }));
-  member('second').run!.title = 'Renamed session';
+  requireValue(member('second').run, 'the second run').title = 'Renamed session';
   member('first').status = 'busy';
   await update();
   assert.ok(screen.getByRole('button', { name: '1 Done' }));
@@ -195,15 +199,15 @@ test('clicking blank space in the summary dismisses the list', async () => {
   const { user } = fixture();
   const done = await screen.findByRole('button', { name: '2 Done' });
   await user.click(done);
-  await user.click(done.parentElement!);
+  await user.click(requireValue(done.parentElement, 'the summary'));
   assert.ok(!screen.queryByRole('dialog'));
 });
 
 test('language changes update an open list without replacing it or translating real session titles', async () => {
   const { user, snapshot, member, update, located } = fixture();
   await screen.findByRole('button', { name: '2 Done' });
-  delete member('first').run!.title;
-  member('second').run!.title = 'Untitled task';
+  delete requireValue(member('first').run, 'the first run').title;
+  requireValue(member('second').run, 'the second run').title = 'Untitled task';
   await update();
   await user.click(screen.getByRole('button', { name: '2 Done' }));
   const list = screen.getByRole('dialog', { name: 'Done' });

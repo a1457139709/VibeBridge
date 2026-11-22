@@ -15,6 +15,7 @@ import {
   sidebar,
   stubSidebarApis,
 } from './support/forge-lists';
+import { requireValue } from './support/elements';
 
 afterEach(cleanup);
 before(stubSidebarApis);
@@ -132,7 +133,9 @@ test('a pull request page failure keeps the rows under a stale notice, and fills
   (await request(4)).answer(failed('transient', 'API rate limit exceeded'));
   const stale = await within(sidebar()).findByText('Data may be stale');
   assert.deepEqual(rows(), ['Change 1'], 'the old rows stay');
-  await user.click(within(stale.parentElement!).getByRole('button', { name: 'Retry' }));
+  await user.click(
+    within(requireValue(stale.parentElement, 'the stale notice')).getByRole('button', { name: 'Retry' }),
+  );
   (await request(5)).answer(page([pullRequest(2)]));
   await waitFor(() => assert.deepEqual(rows(), ['Change 2']));
   assert.equal(within(sidebar()).queryByText('Data may be stale'), null);
