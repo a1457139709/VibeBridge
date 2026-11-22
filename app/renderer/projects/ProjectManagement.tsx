@@ -17,7 +17,6 @@ export function ProjectNavigationItem({
 }: {
   project: ProjectView;
   openProject(id: string): void;
-  /** Opens the forge sidebar where the project's binding is made or changed. */
   openBinding(project: ProjectView): void;
   children: ReactNode;
 }) {
@@ -111,8 +110,6 @@ export function ProjectNavigationItem({
   );
 }
 
-/** The repositories the project can bind as listed for `directory`, the directory being edited, so its `origin` can be
- * told; undefined while they are read, when they cannot be, and for a null directory, which reads nothing. */
 function useListedForDirectory(projectId: string, directory: string | null) {
   const [listed, setListed] = useState<Extract<RepositoryChoices, { ok: true }>>();
   useEffect(() => {
@@ -132,8 +129,6 @@ function useListedForDirectory(projectId: string, directory: string | null) {
   return listed;
 }
 
-/** The edit-project dialog. It edits name and directory; the Repository Binding shows read-only, with a link to the
- * forge sidebar where it is made or changed. */
 export function ProjectEditor({
   project,
   close,
@@ -143,7 +138,6 @@ export function ProjectEditor({
   project: ProjectView;
   close(): void;
   openProject(id: string): void;
-  /** Closes the dialog and opens the forge sidebar on the project's binding. */
   openBinding(): void;
 }) {
   const { t, text } = useLocalization();
@@ -164,7 +158,6 @@ export function ProjectEditor({
   const boundRepository = project.repository;
   const inspected = inspection.path === directoryInput ? inspection.result : undefined;
   const checking = !!directoryInput && !inspected;
-  /** Another project that already uses the chosen directory. */
   const duplicate =
     inspected?.existingProjectId && inspected.existingProjectId !== project.id
       ? inspected.existingProjectId
@@ -179,16 +172,13 @@ export function ProjectEditor({
         : duplicate
           ? t('duplicateEdit', { name: requireValue(inspected.existingProjectName, "the existing project's name") })
           : '';
-  /** The directory the project moves to on save, when it changes. */
   const newDirectory =
     inspected?.valid && !duplicate && inspected.directory !== original.directory ? inspected.directory : undefined;
   const changedDirectory = newDirectory !== undefined;
   const edited = name.trim() !== original.name || directoryInput !== original.directory;
-  // A bound project's new directory may have an origin that points elsewhere; the binding does not follow it.
   const listed = useListedForDirectory(project.id, boundRepository ? (newDirectory ?? null) : null);
   const originElsewhere = originElsewhereThanBinding(boundRepository, listed);
   const canSave = !busy && !choosing && !checking && !nameError && !directoryError;
-  // Open before the fields' effects run: a field can take focus only inside an open dialog.
   useLayoutEffect(() => {
     const element = requireValue(dialog.current, 'the edit project dialog');
     element.showModal();
@@ -348,7 +338,6 @@ export function ProjectEditor({
               </span>
             </div>
           </div>
-          {/* Every consequence of saving is listed here, above the buttons that save; this is the confirmation. */}
           {changedDirectory && (
             <section className="save-impact" aria-label={t('afterSave')}>
               <b>{t('afterSave')}</b>

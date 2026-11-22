@@ -46,9 +46,6 @@ db.exec(`PRAGMA journal_mode=WAL; PRAGMA foreign_keys=ON;
   DROP TABLE IF EXISTS dispatch_records;
 `);
 
-// Stored content is read in its current format only: anything else fails the whole load and leaves the file untouched.
-// Columns other than layout, panels.agent and the repository's are read as the tables declare them; SQLite stores what
-// it is given, so one that holds something else is reported like any other invalid field.
 const projectRowSchema = z.object({ id: z.string(), name: z.string(), directory: z.string(), layout: z.unknown() });
 const panelRowSchema = z.object({ id: z.string(), agent: z.unknown() });
 const dispatchRowSchema = z.object({
@@ -63,7 +60,6 @@ const dispatchRowSchema = z.object({
 });
 const filledSchema = z.string().min(1);
 
-/** The project a stored row belongs to, as an invalid row names it. */
 interface StoredProject {
   id: string;
   name: string;
@@ -72,8 +68,6 @@ interface StoredProject {
 const invalidProjectData = (project: StoredProject, field: string) =>
   new Error(message('projectDataInvalid', { file, field, id: project.id, name: project.name }));
 
-/** `stored`, a row of `table` that belongs to `project`, as `schema` reads it; the first column `schema` does not
- * accept is reported as the project's invalid field. */
 function readRow<Row>(schema: z.ZodType<Row>, stored: Record<string, unknown>, table: string, project: StoredProject) {
   const row = schema.safeParse(stored);
   if (!row.success) throw invalidProjectData(project, `${table}.${String(row.error.issues[0]?.path[0])}`);
@@ -101,7 +95,6 @@ function readProject(row: Record<string, unknown>): Project {
   return { id, name, directory, layout, panels };
 }
 
-/** A repository reference stored in `table`'s row: the forge must be one the Workbench has an adapter for, and host, ID and path must be set. */
 function readRepository(table: string, row: Record<string, unknown>, project: StoredProject): RepositoryReference {
   const filled = (field: string) => {
     const value = filledSchema.safeParse(row[field]);
@@ -113,7 +106,6 @@ function readRepository(table: string, row: Record<string, unknown>, project: St
   return { forge: forge.data, host: filled('host'), id: filled('repository_id'), path: filled('path') };
 }
 
-/** Each project's Repository Binding. */
 function readBindings(projects: Project[]): Record<string, RepositoryReference> {
   const bindings: Record<string, RepositoryReference> = {};
   const read = db.prepare('SELECT * FROM bound_repositories WHERE project_id=?');
@@ -124,8 +116,6 @@ function readBindings(projects: Project[]): Record<string, RepositoryReference> 
   return bindings;
 }
 
-/** Every Dispatch Record of a project that exists, oldest first. The repository and Agent type must be ones the
- * Workbench knows. */
 function readDispatchRecords(): DispatchRecord[] {
   return db
     .prepare(
@@ -152,7 +142,6 @@ function readDispatchRecords(): DispatchRecord[] {
     });
 }
 
-/** Where each sidebar's preferences are stored; `location` names that place when what is stored there is invalid. */
 const sidebarStorage: Record<Sidebar, { read: string; write: string; location: string }> = {
   navigation: {
     location: 'navigation',
@@ -167,7 +156,6 @@ const sidebarStorage: Record<Sidebar, { read: string; write: string; location: s
   },
 };
 
-/** A sidebar's stored preferences, or its defaults when none are stored. */
 function readSidebar(sidebar: Sidebar): SidebarPreferences {
   const { read, location: field } = sidebarStorage[sidebar];
   const stored = db.prepare(read).get()?.preferences;
@@ -239,7 +227,6 @@ function deleteProject(projectId: string, nextActiveProjectId: string | null) {
   });
 }
 
-/** Everything the store holds. */
 function load(): StoredContent {
   const workspace = db.prepare('SELECT active_project FROM workspace WHERE id=1').get();
   const projects = db.prepare('SELECT * FROM projects ORDER BY rowid').all().map(readProject);
@@ -259,7 +246,6 @@ function load(): StoredContent {
   };
 }
 
-/** Carries out a request: the stored content for a load, nothing for a write. */
 function perform(request: StorageRequest): StoredContent | void {
   switch (request.operation) {
     case 'load':
@@ -289,8 +275,6 @@ function perform(request: StorageRequest): StoredContent | void {
 
 const port = parentPort;
 if (!port) throw new Error("The storage worker runs only as the Project Store's worker thread");
-// Requests come only from the Project Store in this process; each is read by the protocol both sides share, and one
-// that does not fit is answered with an error, or dropped when it carries no id to answer.
 const reply = (message: StorageReply) => port.postMessage(message);
 port.on('message', (received: unknown) => {
   const sent = storageMessageSchema.safeParse(received);

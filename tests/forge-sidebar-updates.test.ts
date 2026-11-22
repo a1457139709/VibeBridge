@@ -4,10 +4,6 @@ import { ghDouble, type GhIssue, type GhPullRequest } from './support/gh-double'
 import { boundWorkbench, day, forgeAccount, showList, shownDetail, shownLists } from './support/bound-workbench';
 import type { ForgeLists } from '../app/shared/forge/sidebar-data';
 
-// The Forge sidebar's background update reads the first page again, the visible rows by number, and the open detail
-// (docs/adr/0008-forge-sidebar-data-lives-in-the-main-process.md).
-
-/** 30 open issues, #1 the oldest, created a day apart. */
 const thirtyIssues: GhIssue[] = Array.from({ length: 30 }, (_, index) => ({
   number: index + 1,
   title: `Issue ${index + 1}`,
@@ -16,7 +12,6 @@ const thirtyIssues: GhIssue[] = Array.from({ length: 30 }, (_, index) => ({
   labels: [],
 }));
 
-/** What each `gh` call asked of GitHub: a search, the items it read by number, or one item's detail. */
 const asked = (calls: string[][]) =>
   calls.map(args => {
     const query = args.find(arg => arg.startsWith('query='));
@@ -29,7 +24,6 @@ const asked = (calls: string[][]) =>
     return `detail ${number.slice('number='.length)}`;
   });
 
-/** The sidebar shows the project, its window behind the others: no update runs until the window comes to the front. */
 const behind = (projectId: string) => ({ visible: true, foreground: false, projectId });
 const inFront = (projectId: string) => ({ visible: true, foreground: true, projectId });
 

@@ -217,7 +217,6 @@ test('after a background update adds rows, a refresh still reloads through the p
   await updated;
   await data.showRows('alpha', [5, 6]);
   const refreshed = data.refresh('alpha');
-  // The rows the update added push each row after them down the forge's pages: rows 5 and 6 now sit on a fourth.
   for (const [count, cursor, answer] of [
     [5, null, page([8, 7], 'p2')],
     [6, 'p2', page([1, 2], 'p3')],

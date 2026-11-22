@@ -76,7 +76,6 @@ function SettingsEditor({
   const leaveDialog = useRef<HTMLDialogElement>(null);
   const leaveDecision = useRef<(leave: boolean) => void>(undefined);
   const dirty = dirtySettingsCategories(draft, saved);
-  // A settings conflict lives in the saved settings, so leaving requires saving its category.
   const savedConflicts = settingsConflicts(saved);
   const conflicting = settingsCategories
     .filter(category => savedConflicts.some(issue => issue.category === category.id))

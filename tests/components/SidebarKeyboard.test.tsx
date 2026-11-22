@@ -9,7 +9,6 @@ import { selectElement, focusedElement } from './support/elements';
 afterEach(cleanup);
 before(stubSidebarApis);
 
-/** #10 has the open sub-issues #12 and #13; #12 is also on the page. */
 const parentWithTwoOpenSubIssues = () =>
   page([
     issue(20),
@@ -17,10 +16,8 @@ const parentWithTwoOpenSubIssues = () =>
     issue(10, { subIssues: { closed: 0, total: 2, issues: [summary(12), summary(13)] } }),
     issue(5),
   ]);
-/** The list row title focus is on. */
 const focusedRow = () => document.activeElement?.closest('.forge-row')?.querySelector('.forge-row-title')?.textContent;
 const titleButton = (title: string) => within(sidebar()).getByRole('button', { name: title });
-/** Presses a key where focus is, at once; the test asserts its effect right after. */
 const press = (key: string) => fireEvent.keyDown(focusedElement(), { key });
 
 async function listedTree() {
@@ -93,7 +90,6 @@ test('in the list ← on an issue with no sub-issues shown and → on a top-leve
   assert.equal(focusedRow(), 'Issue 20', 'a top-level issue has no parent to go to');
 });
 
-/** The open detail, if any. */
 const detail = () => document.querySelector<HTMLElement>('.forge-detail');
 
 test("Space or Enter opens the row's detail with focus inside, and → or Esc return to the issue's list row", async () => {

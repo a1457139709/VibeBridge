@@ -2,8 +2,6 @@ const { spawn } = require('node:child_process');
 const { readFileSync } = require('node:fs');
 const readline = require('node:readline');
 
-// External CLI double: reads Claude's session settings and executes native
-// command hooks. It has no knowledge of the Workbench reporting protocol.
 let settings = {};
 const args = process.argv.slice(2);
 for (let index = 0; index < args.length && args[index] !== '--'; index++) {
@@ -42,14 +40,10 @@ async function emit(payload, malformed) {
       ),
   );
 }
-// With --late-session the double reports its session only when the test sends SessionStart, as a CLI still starting
-// up would, and its typed input marks when it did, so a test can read what was typed before and after.
 const lateSession = args.includes('--late-session');
 let pending = (lateSession ? Promise.resolve() : emit({ hook_event_name: 'SessionStart', source: 'startup' })).then(
   () => console.log('CLI-DOUBLE-READY'),
 );
-// With --raw-input the double reads the terminal byte by byte, as an interactive CLI does: bracketed pastes and
-// Enter (\r) are typed input, kept apart from the test's own messages, which end in \n.
 let typed = '';
 function lines(onLine) {
   if (!args.includes('--raw-input')) {
@@ -67,8 +61,7 @@ function lines(onLine) {
         if (end < 0) return;
         typed += buffer.slice(0, end + 6);
         buffer = buffer.slice(end + 6);
-      } else if ('\x1b[200~'.startsWith(buffer))
-        return; // empty, or a paste start split across reads
+      } else if ('\x1b[200~'.startsWith(buffer)) return;
       else {
         const next = buffer[0];
         buffer = buffer.slice(1);
@@ -89,9 +82,7 @@ lines(line => {
       if (message.context) console.log(`CONTEXT:${process.env.VIBEBRIDGE_STATUS_CONTEXT}`);
       if (message.settings) console.log(`SETTINGS:${JSON.stringify(settings)}`);
       if (message.arguments) console.log(`ARGUMENTS:${JSON.stringify(args)}`);
-      // Facts too large for one terminal input line arrive as a file.
       const payload = message.payloadFile ? JSON.parse(readFileSync(message.payloadFile, 'utf8')) : message.payload;
-      // Marked before the hooks run: the Workbench may answer the report while they are still running.
       if (lateSession && payload?.hook_event_name === 'SessionStart') typed += '[SessionStart]';
       if (payload) await emit(payload, message.malformed);
       if (message.output) console.log(message.output);

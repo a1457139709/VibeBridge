@@ -5,9 +5,6 @@ import type { ReportNotice } from '../common/Notices';
 import { focusTerminal, terminalHasFocus } from './terminals';
 import { errorMessage } from '../../shared/caught-error';
 
-// `selected` is always a resident panel. `maximized` is the one panel occupying the
-// layout area: a resident panel, or the open tray panel (its ephemeral maximize).
-// The panel receiving keyboard input is the maximized one, else the selected one.
 interface View {
   selected?: string;
   maximized?: string;
@@ -46,8 +43,6 @@ function validView(project: ProjectView | undefined, view?: View): View {
 }
 const sameView = (a: View, b: View) => a.selected === b.selected && a.maximized === b.maximized;
 
-// Private execution state shared by the two hooks. Workspace replacement only
-// disconnects its DOM; the root retains the accepted operation and project views.
 function createLocation(initial: Host, onViewChange: () => void) {
   let host = initial;
   const views = new Map<string, View>();
@@ -92,8 +87,6 @@ function createLocation(initial: Host, onViewChange: () => void) {
     cancel();
     focusBlocked = true;
     focusedKey = undefined;
-    // A fallback view keeps the workspace usable, but is not an input target
-    // authorized by the cancelled request. Wait for an explicit new selection.
     if (document.activeElement instanceof HTMLElement && connection?.canvas.contains(document.activeElement))
       document.activeElement.blur();
   }
@@ -120,13 +113,9 @@ function createLocation(initial: Host, onViewChange: () => void) {
   }
   function focus(projectId: string, panelId?: string) {
     const runId = runningId(panel(projectId, panelId));
-    // focus() dispatches focus events synchronously. These are feedback, not a
-    // user command replacing the operation that caused them.
     focusing = true;
     try {
       if (runId) return focusTerminal(runId);
-      // The panel is displayed, but it has no input receiver. In particular a
-      // keyboard command must not leave input going to the previous terminal.
       if (document.activeElement instanceof HTMLElement && connection?.canvas.contains(document.activeElement))
         document.activeElement.blur();
       return true;
@@ -186,8 +175,6 @@ function createLocation(initial: Host, onViewChange: () => void) {
     )
       return;
     const active = document.activeElement;
-    // Snapshot changes may update the displayed selection while a control or
-    // list owns the keyboard. Only an explicit location may take that focus.
     if (
       !operation &&
       focusedKey !== undefined &&
@@ -252,7 +239,6 @@ function createLocation(initial: Host, onViewChange: () => void) {
       if (operation.animated) operation.animated = source ? await animate(source.canvas, false) : false;
       if (current !== operation) return;
       if (panelId && inTray(target, panelId)) setView(projectId, { ...view(target), maximized: panelId });
-      // A maximized resident panel hands its maximize to the located one; an open tray panel collapses.
       else if (panelId)
         setView(projectId, {
           selected: panelId,
@@ -261,8 +247,6 @@ function createLocation(initial: Host, onViewChange: () => void) {
       suspended = false;
       host.showWorkbench();
       operation.stage = 'activating';
-      // This IPC cannot be recalled. A late result may change the snapshot, but
-      // only the still-current operation may schedule focus or report success.
       await host.activateProject(projectId);
       if (current !== operation) return;
       operation.stage = 'presenting';
@@ -274,8 +258,6 @@ function createLocation(initial: Host, onViewChange: () => void) {
       }
     }
   }
-  /** Applies a panel action to the active project's view; true when it applied. Selecting moves no input
-   * focus; focusing and toggling maximize also give the panel's terminal the input. */
   function applyPanelAction(
     projectId: string,
     panelId: string,
@@ -299,8 +281,6 @@ function createLocation(initial: Host, onViewChange: () => void) {
     const maximized =
       action === 'toggleMaximize' ? (previous.maximized === panelId ? undefined : panelId) : previous.maximized;
     setView(projectId, { selected: ephemeral ? previous.selected : panelId, maximized });
-    // Header/maximize actions accept input at once when their terminal is
-    // already visible. Only an unmounted/hidden target needs a frame.
     const next = inputTarget(view(target));
     if (action !== 'select' && connection?.projectId === projectId && focus(projectId, next)) {
       focusedKey = focusKey(projectId, next);
@@ -374,13 +354,10 @@ function createLocation(initial: Host, onViewChange: () => void) {
     toggleMaximize(projectId: string, panelId: string) {
       applyPanelAction(projectId, panelId, 'toggleMaximize');
     },
-    /** Collapses the open tray panel, if any, back into the tray. */
     collapse(projectId: string) {
       const open = view(project(projectId)).maximized;
       if (open && inTray(project(projectId), open)) applyPanelAction(projectId, open, 'toggleMaximize');
     },
-    /** Opens a newly added tray panel; any open tray panel returns to the tray. The new panel
-     * may not be in the snapshot yet, so the view is set without validation. */
     openAddedPanel(projectId: string, panelId: string) {
       if (disposed || suspended || host.snapshot?.activeProjectId !== projectId) return;
       cancel();
@@ -420,7 +397,6 @@ export function usePanelLocation(host: Host) {
     openProject: location.openProject,
     locatePanel: location.locatePanel,
     leaveWorkbench: location.leaveWorkbench,
-    // Consumed only by the paired hook; callers pass the handle as a whole.
     [workspaceConnection]: location,
   };
 }
@@ -451,12 +427,10 @@ export function useWorkspacePanelLocation(
     focus: (panelId: string) => connection.focus(project.id, panelId),
     selectFocusedPanel: (panelId: string) => connection.selectFocusedPanel(project.id, panelId),
     toggleMaximize: (panelId: string) => connection.toggleMaximize(project.id, panelId),
-    /** Opens a tray panel as the ephemeral maximize; an open tray panel returns to the tray. */
     openTrayPanel: (panelId: string) => {
       if (view.maximized !== panelId) connection.toggleMaximize(project.id, panelId);
     },
     collapse: () => connection.collapse(project.id),
-    /** Reopens a tray panel collapsed for a request that failed, unless a panel has since taken the layout area. */
     reopen: (panelId: string) => {
       if (!location.view(project.id).maximized) connection.toggleMaximize(project.id, panelId);
     },

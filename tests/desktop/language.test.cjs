@@ -15,7 +15,6 @@ module.exports = {
     const before = await f.snapshot();
     await evaluate(`window.languageScreens = [...document.querySelectorAll('.terminal-screen')]; void 0;`);
 
-    // Keep an unfinished input line in a real PTY while settings take focus.
     const pending = JSON.stringify({ id: 'input-across-language', output: 'INPUT-PRESERVED\n' });
     for (const character of pending) window.webContents.sendInputEvent({ type: 'char', keyCode: character });
     await until(
@@ -54,8 +53,6 @@ module.exports = {
     await click('放弃更改');
     await click('通用');
 
-    // Native surfaces consume the saved preference. Only the system boundary
-    // is intercepted; the production menu and dialog call paths still execute.
     const openDialog = dialog.showOpenDialog,
       messageDialog = dialog.showMessageBox;
     let directoryOptions, quitOptions;
@@ -155,7 +152,6 @@ module.exports = {
         () => evaluate(`document.documentElement.lang === ${JSON.stringify(language)}`),
         `interface switched to ${language}`,
       );
-      // Names of a different length re-centre the open list under the summary.
       assert.ok(
         await evaluate(`(() => {
         const list = document.querySelector('.summary-list').getBoundingClientRect();

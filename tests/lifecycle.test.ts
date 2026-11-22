@@ -17,7 +17,6 @@ const alive = (pid: number) => {
     return false;
   }
 };
-/** What the main fixture reports once its project runs and its terminal host has an orphan. */
 interface Ready {
   snapshot: Snapshot;
   host: number;
@@ -44,7 +43,6 @@ test('a surviving terminal manager cleans all projects after main-process SIGKIL
   const main = fork(join(__dirname, 'workbench-process.cjs'), [directory], {
     stdio: ['ignore', 'inherit', 'inherit', 'ipc'],
   });
-  // The same program outside the workbench must remain alive.
   const unrelated = spawn(testNode, [resolve('tests/fixtures/interactive.cjs'), 'orphan-child'], { stdio: 'ignore' });
   let pids: number[] = [];
   try {
@@ -81,9 +79,7 @@ test('a surviving terminal manager cleans all projects after main-process SIGKIL
     for (const pid of pids) {
       try {
         process.kill(pid, 'SIGKILL');
-      } catch {
-        /* already cleaned */
-      }
+      } catch {}
     }
     await rm(directory, { recursive: true, force: true });
   }
@@ -113,7 +109,6 @@ test('quit requests termination before forcing a refusing run, and keeps its pan
     const run = runsOf(workbench.snapshot())[0];
     await until(() => output.includes('READY:'));
     await workbench.runs.input(run.id, 'resist stream');
-    // This consumer withholds parser credit. Signals must still reach a paused run and cleanup stay bounded.
     await until(() => output.length >= 128 * 1024);
     const started = Date.now();
     await workbench.quit();

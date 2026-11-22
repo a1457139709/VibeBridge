@@ -20,8 +20,6 @@ import {
 } from './github-fields';
 import type { Answered } from './forge';
 
-// One pull request's read-only detail from GitHub: its timeline and what stands between it and a merge.
-
 const checkContextSchema = z.discriminatedUnion('__typename', [
   z.object({
     __typename: z.literal('CheckRun'),
@@ -93,8 +91,6 @@ const pullRequestDetailSchema = z.object({
     }),
   }),
 });
-// Closing issues may be in other repositories; their URLs say where.
-// `refUpdateRule` is the base branch's protection as the viewer may read it; `isRequired` asks whether a check is required for this pull request.
 const pullRequestDetailQuery = `query($owner: String!, $name: String!, $number: Int!) {
   repository(owner: $owner, name: $name) { ${answeringFields} url viewerPermission mergeCommitAllowed squashMergeAllowed rebaseMergeAllowed pullRequest(number: $number) {
     number title state isDraft createdAt url bodyHTML author { login } headRefName baseRefName
@@ -115,7 +111,6 @@ const reviewDecision = {
   REVIEW_REQUIRED: 'required',
 } as const;
 const conflicts = { MERGEABLE: 'none', CONFLICTING: 'conflicting', UNKNOWN: 'unknown' } as const;
-/** A check run's result: pending until it completes, then by its conclusion; neutral, skipped and stale runs do not count against a merge. */
 const checkRunResult = (status: string, conclusion: string | null): Check['result'] =>
   status !== 'COMPLETED' || conclusion === null
     ? 'pending'
@@ -145,8 +140,6 @@ const reviewVerdict = {
   DISMISSED: 'dismissed',
 } as const;
 
-/** One pull request of the repository with its rendered body, timeline and merge requirements, and the repository that
- * answered at its path. */
 export async function fetchPullRequestDetail(
   { host, path }: RepositoryReference,
   number: number,
@@ -154,7 +147,6 @@ export async function fetchPullRequestDetail(
   const [owner, name] = path.split('/');
   const { repository } = await graphql(host, pullRequestDetailQuery, { owner, name, number }, pullRequestDetailSchema);
   const { pullRequest: pull } = repository;
-  // A pending review is the viewer's own, not yet submitted. Replies to code comments arrive as reviews without a summary.
   const reviews = pull.reviews.nodes.flatMap(({ state, submittedAt, ...review }) =>
     state === 'PENDING' || submittedAt === null ? [] : [{ ...review, state, submittedAt }],
   );

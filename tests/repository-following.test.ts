@@ -15,13 +15,9 @@ import {
 import type { ForgeLists } from '../app/shared/forge/sidebar-data';
 import { interactiveWorkbench, until } from './support/interactive-workbench';
 
-// A Repository Binding follows its repository by ID: reads check it in their own request and locate it only when that
-// check fails; writes trust the last read (docs/adr/0006-forges-sit-behind-an-interface.md).
-
 const account = { account: 'octo', repositories: ['octo/tools', 'Octo/VibeBridge', 'acme/forge'] };
 const github = (path: string, id: string): RepositoryReference => ({ forge: 'github', host: 'github.com', id, path });
 
-/** A project bound to octo/tools, the repository's ID, and a way to read the project's binding. */
 async function boundToTools(context: test.TestContext, scope: string) {
   const double = await ghDouble(context, account);
   const f = await interactiveWorkbench(scope);
@@ -33,7 +29,6 @@ async function boundToTools(context: test.TestContext, scope: string) {
   return { double, f, projectId: project.id, id: repository.id, bound };
 }
 
-/** What each `gh` call asked of GitHub: a GraphQL query and the path it named, a REST path, or a write and its repository. */
 const asked = (calls: string[][]) =>
   calls.map(args => {
     if (args[1] === 'graphql') {
@@ -86,7 +81,6 @@ for (const [move, redirects, calls] of [
   [
     'renamed while GitHub redirects its former path',
     { 'octo/tools': 'octo/tools-x' },
-    // The answer at the former path names the repository's ID and new path; the search there is not trusted.
     ['graphql octo/tools', 'graphql octo/tools-x'],
   ],
   [
@@ -211,7 +205,6 @@ test("a new repository at a deleted bound repository's path is not the bound one
 
 test("following a renamed repository keeps the project's kept rows; rebinding or unbinding drops them at once", async context => {
   const { double, f, projectId, id } = await boundToTools(context, 'kept-rows-binding');
-  /** The lists the sidebar shows at once on declaring the project's issues, before the forge answers. */
   const shownAtOnce = async () => {
     let first: ForgeLists | undefined;
     const stop = f.workbench.subscribe(event => {

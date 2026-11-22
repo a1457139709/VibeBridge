@@ -35,8 +35,6 @@ const scrollTo = (scrollTop: number) => {
 const renderedNumbers = () =>
   [...sidebar().querySelectorAll<HTMLElement>('[data-issue]')].map(row => Number(row.dataset.issue));
 
-/** The Workbench with two pages of issues 1–20 loaded, ten to a page, in a view five rows high, scrolled so the top
- * row in view is issue 13, 20px past its top. */
 async function scrolledLongList() {
   Object.assign(listGeometry, { viewport: 200, row: 40 });
   const workbench = renderWorkbench();

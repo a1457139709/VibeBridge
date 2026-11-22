@@ -80,11 +80,8 @@ export const failed = (kind: ForgeFailure['kind'], detail = '', account: string 
   account,
 });
 
-/** The size of the sidebar's scrolled rows, which the test DOM does not lay out: how tall the scroll area is, and each
- * row in it. A test sets them; they start tall enough to show every row a test lists. */
 export const listGeometry = { viewport: 10_000, row: 40 };
 const scrollTops = new WeakMap<Element, number>();
-/** Lays out the sidebar's scroll area and its rows by `listGeometry`; any other element keeps the test DOM's no layout. */
 function stubListGeometry() {
   const { prototype } = window.HTMLElement;
   const scrollArea = (element: Element) => element.matches('.forge-scroll');
@@ -113,7 +110,6 @@ function stubListGeometry() {
   });
 }
 
-/** The browser APIs the Workbench needs that the test DOM lacks. */
 export function stubSidebarApis() {
   stubLayoutApis();
   stubListGeometry();
@@ -121,7 +117,6 @@ export function stubSidebarApis() {
   window.HTMLElement.prototype.checkVisibility = () => true;
 }
 
-/** A list page the main process asks the forge for; `list` names the list it is for. */
 interface Request {
   list: 'issues' | 'pullRequests';
   projectId: string;
@@ -130,10 +125,6 @@ interface Request {
   fail(error: Error): void;
 }
 
-/** The Workbench with two bound projects and the sidebar open. The sidebar's data is the main process's own module, and
- * every list page it asks the forge for waits until the test answers it. `api` adds or replaces Workbench calls and
- * forge answers; `forge` holds the forge answers, for a test to change as it goes; `publish` sends the snapshot as the
- * test changed it. */
 export function renderWorkbench(capabilities = githubCapabilities, api: Partial<DesktopAPI> & ForgeAnswers = {}) {
   const snapshot: Snapshot = {
     navigation: { visible: true, width: 212 },
@@ -188,7 +179,6 @@ export function renderWorkbench(capabilities = githubCapabilities, api: Partial<
   const sidebarCalls = forgeSidebarData(forge, event => {
     for (const listener of listeners) listener(event);
   });
-  /** The numbers of the rows the sidebar declared it renders, the latest last. */
   const shownRows: number[][] = [];
   provideWorkbench({
     fetchSnapshot: async () => structuredClone(snapshot),
@@ -217,7 +207,6 @@ export function renderWorkbench(capabilities = githubCapabilities, api: Partial<
     ...calls,
   });
   render(<App />);
-  /** The latest request, once it is made. */
   const request = (count: number) =>
     waitFor(() => {
       assert.equal(requests.length, count, 'requests made');

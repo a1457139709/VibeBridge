@@ -98,7 +98,6 @@ test('only the launch credentials associate a report, and rejected reports publi
       launches: [{ run: first }, { run: second }],
     } = await f.create('codex', 2);
     const state = (id: string) => statusOf(f.workbench.snapshot(), id);
-    // Both runs report the same CLI session identity; only launch credentials associate a report.
     await f.send(first.id, { payload: { hook_event_name: 'Stop' } });
     await f.send(second.id, { payload: { hook_event_name: 'UserPromptSubmit' } });
     assert.equal(state(first.id), 'done');
@@ -203,7 +202,6 @@ test('observation loss leaves a usable terminal and recovery requires fresh reli
 
 test('after the reporter shuts down, silence and liveness keep the run in Error', async t => {
   const directory = await testDirectory(t, 'processing-status');
-  // The test owns time: any timer ProcessingStatus started would fire on tick.
   t.mock.timers.enable({ apis: ['setTimeout', 'setInterval'] });
   let changes = 0;
   const processing = new ProcessingStatus(() => {

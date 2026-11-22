@@ -32,23 +32,18 @@ import { requireValue } from '../common/required';
 interface DocumentProps {
   project: ProjectView & { repository: RepositoryReference };
   issue: IssueDetail;
-  /** Opens an issue or pull request of the bound repository in the detail. */
   open(item: DetailItem): void;
-  /** Opens a clicked link of the bound repository in the detail. */
   followLink(event: MouseEvent): void;
   actions: Actions;
   dispatch: IssueDispatch;
 }
 
-/** What the detail shows of dispatching an issue: its Dispatch, and its Dispatch Records, oldest first. */
 export interface IssueDispatch {
   button: ReactNode;
   records: DispatchRecordView[];
   host: DispatchRecordsHost;
 }
 
-/** One issue as its detail shows it: the parent, title, state, labels and Dispatch, its Dispatch Records, the relation graph, the pull requests
- * that close it, then the body, sub-issues and comments in the forge's own rendering, filtered, and its direct actions last. */
 export function IssueDocument({ project, issue, open, followLink, actions, dispatch }: DocumentProps) {
   const { t } = useLocalization();
   const { capabilities } = project;
@@ -154,9 +149,6 @@ function StatePill({ issue }: { issue: IssueDetail }) {
   );
 }
 
-/** The small graph at the top of the detail, only of issues and only of live blocking: the open blockers on the left, the issue
- * in the middle, and on the right the open issues it still blocks while it is open. It sits on its own plate, each column
- * coloured by its relation. Nothing to draw, no graph. */
 function RelationGraph({
   issue,
   blockers: left,
@@ -171,10 +163,8 @@ function RelationGraph({
   return <Graph issue={issue} left={left} right={right} follow={follow} />;
 }
 
-/** A blocking relation the graph draws as an edge: an open blocker of the issue, or an open issue it blocks. */
 type BlockingRelation = 'blockedBy' | 'blocking';
 const blockingRelations: readonly BlockingRelation[] = ['blockedBy', 'blocking'];
-/** A graph column, named by its nodes' relation to the issue; the issue itself is `self`. */
 type Relation = BlockingRelation | 'self';
 
 const rowHeight = 28,
@@ -207,13 +197,11 @@ function Graph({
   ];
   const columnWidth = (width - padding * 2 - gap * 2) / 3;
   const rows = Math.max(left.length, right.length, 1);
-  // Shorter columns are centred against the tallest.
   const at = (column: number, row: number) => ({
     x: padding + column * (columnWidth + gap),
     y: headHeight + (row + (rows - columns[column].nodes.length) / 2) * rowHeight,
   });
   const height = headHeight + rows * rowHeight + 4;
-  // An edge, its arrow and its column head take the colour of the relation's column.
   const edge = (
     from: { x: number; y: number },
     to: { x: number; y: number },
@@ -302,9 +290,6 @@ function Graph({
   );
 }
 
-/** The pull requests that close the issue on merge, closed ones included, apart from the issue graph and drawn as pull
- * requests. An open or draft one shows its checks conclusion. One of the bound repository opens in the detail; another
- * repository's opens in the browser. */
 function ClosingPullRequests({
   pullRequests,
   links,

@@ -51,13 +51,9 @@ function ensure(runId: string): Screen {
   terminal.loadAddon(fit);
   const element = document.createElement('div');
   element.className = 'terminal-screen';
-  // xterm pauses rendering while its screen is out of view and applies a new size only when it
-  // renders again, yet sizes its scroll area at once. A scroll position clamped to that mismatch
-  // reads as the user scrolling up, and the screen stops following output, so fitting waits for view.
   const fitInView = () => {
     if (screen.inView && element.clientWidth && element.clientHeight) fit.fit();
   };
-  // xterm's own observer resumes rendering in the same notification; fit on the frame after it.
   const view = new IntersectionObserver(entries => {
     screen.inView = entries[entries.length - 1].isIntersecting;
     if (screen.inView) requestAnimationFrame(fitInView);
@@ -72,7 +68,6 @@ function ensure(runId: string): Screen {
     unacknowledgedOutput: 0,
   };
   screens.set(runId, screen);
-  // Input sent just before the run ended is rejected after its exit disposed this screen; only a live screen reports.
   terminal.onData(data => {
     void window.workbench.sendInput(runId, data).catch(error => {
       if (screens.get(runId) === screen) report(errorMessage(error));
@@ -82,7 +77,6 @@ function ensure(runId: string): Screen {
     void window.workbench.resizeRun(runId, cols, rows).catch(error => report(errorMessage(error)));
   });
   terminal.attachCustomKeyEventHandler(event => {
-    // xterm sends Shift+Enter as Enter's carriage return; Agent CLIs read the CSI u form as a prompt newline.
     if (
       event.key === 'Enter' &&
       event.shiftKey &&
@@ -161,8 +155,6 @@ export function terminalHasFocus() {
   return [...screens.values()].some(screen => document.activeElement === screen.terminal.textarea);
 }
 
-// Measure a rendered row's font and spacing as one unit. Grid pixels and terminal
-// cols/rows can update on different frames during fit, so their quotient is unsafe.
 export function terminalCellSize(runId?: string) {
   const screen = runId ? screens.get(runId) : undefined;
   const row = screen?.element.querySelector<HTMLElement>('.xterm-rows > div');

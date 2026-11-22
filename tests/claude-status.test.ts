@@ -6,7 +6,6 @@ import type { Payload } from '../app/main/agent-status/adapter';
 import { claude } from '../app/main/agent-status/claude/status';
 import { observe } from './support/interpreter';
 
-/** A Claude run whose session has started, fed facts as its Status Reporter sends them. */
 function started() {
   const accept = observe(claude, { session_id: 'session' });
   accept({ hook_event_name: 'SessionStart', source: 'startup' });
@@ -89,7 +88,6 @@ test('an Error discards tools in progress, so a later permission request matches
   check({ hook_event_name: 'Unclassified' }, 'error');
   check({ hook_event_name: 'PreToolUse', tool_name: 'Bash', tool_use_id: 'after', tool_input_hash: 'same' }, 'busy');
   check({ hook_event_name: 'PermissionRequest', tool_name: 'Bash', tool_input_hash: 'same' }, 'needs-input');
-  // The result of a tool from before the Error cannot answer the new request.
   check(
     { hook_event_name: 'PostToolUse', tool_name: 'Bash', tool_use_id: 'before', tool_input_hash: 'same' },
     'needs-input',

@@ -2,18 +2,15 @@ import { readFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import ts from 'typescript';
 
-// Workbench coordinates work across feature modules (docs/adr/0007-workbench-only-coordinates.md).
 const workbench = join('app', 'main', 'workbench.ts');
 const failures = [];
 
-/** A call of a method on one of the instance's fields: `this.field.method(...)`. */
 const fieldCall = node =>
   ts.isCallExpression(node) &&
   ts.isPropertyAccessExpression(node.expression) &&
   ts.isPropertyAccessExpression(node.expression.expression) &&
   node.expression.expression.expression.kind === ts.SyntaxKind.ThisKeyword;
 
-/** A method whose body is one call on a field, as a return or a statement, forwards a call it adds nothing to. */
 function findForwarders(source) {
   const found = [];
   const visit = node => {

@@ -11,7 +11,6 @@ import { testNode } from './support/test-node';
 const project = { id: 'project-a', name: 'Stored' };
 const layout = { axis: 'row', ratio: 0.5, first: { panel: 'panel-a' }, second: { panel: 'panel-b' } };
 
-// The database schema comes from the workbench itself; rows are written directly to stand in for stored content.
 async function storedWorkbench(context: TestContext, scope: string, change: (database: DatabaseSync) => void) {
   const directory = await testDirectory(context, scope);
   await (await Workbench.open(directory)).quit();
@@ -30,7 +29,6 @@ async function storedWorkbench(context: TestContext, scope: string, change: (dat
   return { directory, file };
 }
 
-/** Opening fails with the given message, which names the database and each expected detail, and the database is unchanged. */
 async function assertRejected(directory: string, file: string, reason: RegExp, details: string[]) {
   const before = await readFile(file);
   const error = await Workbench.open(directory).then(
@@ -80,7 +78,6 @@ test('a stored panel with an unknown Agent type keeps the workbench closed and t
   await assertRejected(directory, file, /projectDataInvalid/, ['panels.agent', project.id, project.name]);
 });
 
-// SQLite keeps a blob in a TEXT column and text in an INTEGER one, so a column can hold what its table does not declare.
 const blob = Uint8Array.from([0xff]);
 for (const [field, change] of [
   ['projects.directory', database => database.prepare('UPDATE projects SET directory=?').run(blob)],

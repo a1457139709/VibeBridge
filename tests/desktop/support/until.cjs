@@ -1,6 +1,5 @@
 const { inspect } = require('node:util');
 
-// A hung renderer may never answer the context's own query; the timeout must still be reported.
 const describe = context => {
   let timer;
   const limit = new Promise((_resolve, reject) => {
@@ -9,8 +8,6 @@ const describe = context => {
   return Promise.race([Promise.resolve().then(context), limit]).finally(() => clearTimeout(timer));
 };
 
-// Polls `check` until it returns a truthy value. `label` names the awaited behaviour; a timeout reports it with
-// the last value `check` returned and, when given, the text `context` describes, such as recent terminal output.
 module.exports = async function until(check, label, { timeout = 10000, context } = {}) {
   if (typeof label !== 'string' || !label.trim())
     throw new TypeError('A desktop wait needs a label naming the awaited behaviour.');

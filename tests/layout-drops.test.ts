@@ -80,7 +80,6 @@ test('a panel dropped into an empty layout occupies the whole layout area', () =
 
 test('rearranging a resident panel removes it from its place before placing it', () => {
   const layout: Layout = { axis: 'row', ratio: 0.5, first: { panel: 'a' }, second: { panel: 'b' } };
-  // Two panels stack top and bottom by filling a side.
   assert.deepEqual(boxes(dropIntoLayout(layout, 'b', { kind: 'fill', side: 'top' })), {
     b: { x: 0, y: 0, width: 1, height: 0.5 },
     a: { x: 0, y: 0.5, width: 1, height: 0.5 },
@@ -100,7 +99,6 @@ test('rearranging a resident panel removes it from its place before placing it',
     c: { x: 0.5, y: 0, width: 0.25, height: 1 },
     a: { x: 0.75, y: 0, width: 0.25, height: 1 },
   });
-  // A panel alone in the layout fills the whole area again.
   assert.deepEqual(boxes(dropIntoLayout({ panel: 'a' }, 'a', { kind: 'fill', side: 'right' })), {
     a: { x: 0, y: 0, width: 1, height: 1 },
   });

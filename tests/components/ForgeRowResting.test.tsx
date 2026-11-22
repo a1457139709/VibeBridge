@@ -20,7 +20,6 @@ const { t } = localize('en');
 afterEach(cleanup);
 before(stubSidebarApis);
 
-/** Renders the sidebar with issues 9 and 8 listed, recording each row the sidebar reports the pointer or focus rests on. */
 async function restingRows() {
   const reported: (DetailItem | null)[] = [];
   const rendered = renderWorkbench(undefined, {

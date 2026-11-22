@@ -50,9 +50,6 @@ module.exports = {
     await settle({ [a]: [0, 0, 0.5, 1], [b]: [0.5, 0, 0.5, 0.5], [c]: [0.5, 0.5, 0.5, 0.5] });
     const press = id => pressOn(`[data-panel-id="${id}"] .panel-header`);
 
-    // Edge: the dragged panel fills the bottom of the layout area, so two panels stack top and bottom.
-    // While a resident panel is dragged, the empty tray's drop target covers the bottom of the layout
-    // area, so the layout's bottom edge sits just above the tray.
     await press(a);
     const canvas = await rect('.canvas'),
       tray = await rect('.panel-tray');
@@ -62,7 +59,6 @@ module.exports = {
     release(point);
     await settle({ [a]: [0, 0.5, 1, 0.5], [b]: [0, 0, 1, 0.25], [c]: [0, 0.25, 1, 0.25] });
 
-    // Perimeter: outside the middle third, the target splits on the side nearest the pointer.
     let target = await rect(`[data-panel-id="${a}"]`);
     point = { x: Math.round(target.left + target.width * 0.1), y: Math.round(target.top + target.height / 2) };
     await press(c);
@@ -71,7 +67,6 @@ module.exports = {
     release(point);
     await settle({ [a]: [0.5, 0.5, 0.5, 0.5], [b]: [0, 0, 1, 0.5], [c]: [0, 0.5, 0.5, 0.5] });
 
-    // Middle: the middle third swaps with the target.
     target = await rect(`[data-panel-id="${a}"]`);
     point = { x: Math.round(target.left + target.width / 2), y: Math.round(target.top + target.height / 2) };
     await press(b);
@@ -81,7 +76,6 @@ module.exports = {
     await settle(final);
     const saved = (await project()).layout;
 
-    // Esc cancels a drag over a valid drop; releasing over the dragged panel itself is not a drop.
     target = await rect(`[data-panel-id="${c}"]`);
     point = { x: Math.round(target.left + target.width / 2), y: Math.round(target.top + target.height / 2) };
     await press(a);

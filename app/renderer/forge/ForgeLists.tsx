@@ -37,7 +37,6 @@ import { useScrolledRows } from './scrolled-rows';
 import { SidebarHead } from './SidebarHead';
 import { useRowResting } from './row-resting';
 
-/** Each tab's own texts. */
 const tabText = {
   issues: {
     name: 'issuesTab',
@@ -57,13 +56,10 @@ const tabText = {
 const openNoFilter: ListFilter = { search: '', state: 'open', labels: [] };
 const noRows = { loaded: null, failed: null };
 const nothingLoaded: ListsData = { issues: noRows, pullRequests: noRows, loading: false };
-/** Where an issue's open dispatch menu is: on its list row or in the detail. */
 interface OpenMenu {
   issue: number;
   place: 'row' | 'detail';
 }
-/** The project's lists as the main process pushes them; nothing loaded until the first push. A push that settles a
- * request calls `settled`. */
 function usePushedLists(projectId: string, settled: () => void) {
   const [lists, setLists] = useState<ListsData>(nothingLoaded);
   useEffect(
@@ -78,7 +74,6 @@ function usePushedLists(projectId: string, settled: () => void) {
   return lists;
 }
 
-/** Whether the window is in the foreground, following it as it comes to the front or goes behind. */
 function useWindowForeground() {
   const [foreground, setForeground] = useState(() => document.hasFocus());
   useEffect(() => {
@@ -94,7 +89,6 @@ function useWindowForeground() {
   return foreground;
 }
 
-/** The tab the lists show and each tab's filter, which the sidebar keeps per project and binding while the app runs. */
 export interface ListsView {
   tab: ForgeListTab;
   filters: Record<ForgeListTab, ListFilter>;
@@ -104,7 +98,6 @@ export const openListsView: ListsView = {
   filters: { issues: openNoFilter, pullRequests: openNoFilter },
 };
 
-/** The detail's resize edge, owned by the sidebar, and where it reports whether a detail is open. */
 export interface DetailHost {
   startResize(event: ReactPointerEvent<HTMLDivElement>): void;
   onDetailOpenChange(open: boolean): void;
@@ -112,45 +105,27 @@ export interface DetailHost {
 
 interface Props {
   project: ProjectView & { repository: RepositoryReference };
-  /** Turns the sidebar to its change-binding page. */
   changeBinding(): void;
   detailHost: DetailHost;
-  /** Dispatching from an issue row or its detail; the lists add what happens once a dispatch went through. */
   dispatchHost: Omit<DispatchHost, 'onDispatched'>;
-  /** The tab and filters the lists last showed for this project and binding, and where they report a change. */
   view: ListsView;
   rememberView(view: ListsView): void;
   ref?: Ref<ForgeListsActions>;
 }
 
-/** The issue shortcuts, answered while focus is in the sidebar. */
 export interface ForgeListsActions {
-  /** Acts on the issue focus is on, its list row or the detail showing it: opens the dispatch menu of an open issue
-   * where focus is, on its row or in the detail, or locates the panel of its latest dispatch a panel is on. Returns
-   * false, leaving the key to go on, when there is no such issue. */
   runIssueShortcut(action: IssueShortcutAction): boolean;
 }
 
-/** The bound repository's lists: a persistent Refresh, the Issues and Pull requests tabs, each with its own
- * search, filters, rows and failure, and the forge failure states. The main process holds the rows
- * (docs/adr/0008-forge-sidebar-data-lives-in-the-main-process.md); this view declares the tab and filter it shows and
- * renders what is pushed. Only the rows in view render, and it declares them too. The owner mounts it per project and
- * repository, on the tab and filters it last showed: opening the sidebar or returning to a project shows the rows the
- * main process kept at once. It reports whether it shows and whether the window is in the foreground, and the main
- * process updates the rows in the background. Clicking a row opens its detail beside the list, which this view
- * declares too; links followed inside the detail stack up, so Back returns to the item before. */
 export function ForgeLists({ project, changeBinding, detailHost, dispatchHost, view, rememberView, ref }: Props) {
   const { t, text } = useLocalization();
   const [tab, setTab] = useState<ForgeListTab>(view.tab);
   const [filters, setFilters] = useState<Record<ForgeListTab, ListFilter>>(view.filters);
   useEffect(() => rememberView({ tab, filters }), [tab, filters]);
-  /** A forge failure the detail met; it stands for the current tab's failure until a request settles the lists. */
   const [detailFailure, setDetailFailure] = useState<FailedPage | null>(null);
   const lists = usePushedLists(project.id, () => setDetailFailure(null));
   const { loading } = lists;
-  /** The filter each tab last declared, to tell typing in its search from another change. */
   const declared = useRef<Record<ForgeListTab, ListFilter | null>>({ issues: null, pullRequests: null });
-  /** The items opened in the detail, the shown one last; empty when the detail is closed. */
   const [opened, setOpened] = useState<DetailItem[]>([]);
   const detailItem = opened.at(-1);
   const detailOpen = detailItem !== undefined;
@@ -162,10 +137,8 @@ export function ForgeLists({ project, changeBinding, detailHost, dispatchHost, v
     setOpened(stack =>
       stack.at(-1)?.kind === item.kind && stack.at(-1)?.number === item.number ? stack : [...stack, item],
     );
-  /** The number of the item of `kind` the detail shows, if any. */
   const selected = (kind: DetailItem['kind']) => (detailItem?.kind === kind ? detailItem.number : undefined);
 
-  /** Sends a declaration to the main process; one that is refused is reported. */
   const declare = (declaration: Promise<void>) =>
     void declaration.catch(error => dispatchHost.report(errorMessage(error)));
   const { scrollArea, scrollElement, holdScrollArea, rowsHost, keepReadingPosition, rowTitle } = useScrolledRows(
@@ -173,15 +146,11 @@ export function ForgeLists({ project, changeBinding, detailHost, dispatchHost, v
     lists,
     declare,
   );
-  /** The sidebar's one refresh: the current tab, from its first page through the page in view, and the open detail;
-   * the list then returns to where it was being read. */
   const refresh = () => {
     keepReadingPosition();
     declare(window.workbench.refreshForgeList(project.id));
   };
-  /** The item the detail was last declared to show. */
   const declaredDetail = useRef<DetailItem | null>(null);
-  /** Declares the item the detail shows, or that it is closed; the main process loads it on each declaration. */
   const showDetail = (item: DetailItem | null) => {
     declaredDetail.current = item;
     declare(window.workbench.showForgeDetail(project.id, item));
@@ -192,14 +161,10 @@ export function ForgeLists({ project, changeBinding, detailHost, dispatchHost, v
     if (item?.kind !== last?.kind || item?.number !== last?.number) showDetail(item);
   }, [detailItem?.kind, detailItem?.number]);
   useRowResting(scrollElement, item => declare(window.workbench.reportForgeRowResting(project.id, item)));
-  /** Reports that a direct action or dispatch changed `item`; the main process reloads what shows it. */
   const reportChanged = (item: DetailItem) => declare(window.workbench.reportForgeItemChanged(project.id, item));
-  /** The Dispatch whose menu is open, on an issue's list row or in the detail; one menu opens at a time. */
   const [openMenu, setOpenMenu] = useState<OpenMenu>();
-  /** An issue's Dispatch on its list row or in the detail, holding whether its menu is open. */
   const dispatchButton = (issue: Pick<IssueSummary, 'number' | 'title'>, place: OpenMenu['place']) => {
     const isThisMenu = (menu?: OpenMenu) => menu?.issue === issue.number && menu.place === place;
-    // Filling a panel closes the detail, as focus moves into that panel, before the change is reported.
     const host: DispatchHost = {
       ...dispatchHost,
       onDispatched(delivery) {
@@ -224,14 +189,12 @@ export function ForgeLists({ project, changeBinding, detailHost, dispatchHost, v
   };
   const dispatchRecordsOf = (issueNumber: number) =>
     project.dispatches.filter(record => record.issueNumber === issueNumber);
-  /** An open issue's dispatch action and the skill of its latest dispatch. */
   const issueAction = (issue: IssueSummary) => (
     <>
       {dispatchButton(issue, 'row')}
       <LatestDispatchSkill records={dispatchRecordsOf(issue.number)} host={dispatchHost} />
     </>
   );
-  /** The detail's Dispatch and Dispatch Records of an issue. */
   const issueDispatch = (issue: IssueDetail): IssueDispatch => ({
     button: dispatchButton(issue, 'detail'),
     records: dispatchRecordsOf(issue.number),
@@ -250,15 +213,12 @@ export function ForgeLists({ project, changeBinding, detailHost, dispatchHost, v
         if (location) dispatchHost.locate(location.projectId, location.panelId);
         return true;
       }
-      // The menu opens where focus is: on the issue's list row, or in the detail on its own Dispatch, which needs no
-      // list row showing. Only an open issue has Dispatch.
       const scope = focusedRow?.row ?? detailPane;
       if (!scope || !holdsDispatch(scope)) return false;
       setOpenMenu({ issue: issueNumber, place: focusedRow ? 'row' : 'detail' });
       return true;
     },
   }));
-  // Opening the sidebar puts focus in it before the list arrives; the first rows to arrive take it on to the first row.
   const awaitingFirstRows = useRef(true);
   const firstRowsLoaded = !!lists[tab].loaded?.items.length;
   useEffect(() => {
@@ -267,8 +227,6 @@ export function ForgeLists({ project, changeBinding, detailHost, dispatchHost, v
     if (document.activeElement === scrollArea.current?.closest('.forge-sidebar'))
       rowTitleIn(scrollArea.current)?.focus();
   }, [firstRowsLoaded]);
-  /** Closes the detail and returns focus to the list row of the item it shows, or else of the one it opened from; with
-   * no such row in the list, to the list itself, so focus stays in the sidebar. */
   const closeDetail = () => {
     const title = opened
       .toReversed()
@@ -277,7 +235,6 @@ export function ForgeLists({ project, changeBinding, detailHost, dispatchHost, v
     setOpened([]);
     (title ?? scrollArea.current)?.focus();
   };
-  /** Opens a list row's item in the detail, with focus in it; the row of the one item the detail shows closes it. */
   const openFromList = (item: DetailItem) => {
     const only = opened.length === 1 ? opened[0] : undefined;
     if (only?.kind === item.kind && only.number === item.number) closeDetail();
@@ -285,7 +242,6 @@ export function ForgeLists({ project, changeBinding, detailHost, dispatchHost, v
   };
   const showForgeFailure = (failure: ForgeFailure) => setDetailFailure({ ok: false, failure, account: null });
 
-  // The current tab is declared when it shows and whenever its filter changes; typing in the search settles first.
   useEffect(() => {
     const filter = filters[tab],
       last = declared.current[tab];

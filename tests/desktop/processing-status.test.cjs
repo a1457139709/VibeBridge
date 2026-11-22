@@ -42,12 +42,10 @@ module.exports = {
         label,
       );
     }
-    // Real keyboard focus must expose the same label, without clearing Done.
     await evaluate(`document.querySelector('[data-panel-id="${runs[3].panelId}"] .processing-status').focus()`);
     assert.equal(await evaluate('document.activeElement.getAttribute("aria-label")'), 'Done');
     assert.equal(statusOf(await evaluate('window.workbench.fetchSnapshot()'), runs[3].id), 'done');
 
-    // What keeps the status icons from their settled presentation, or nothing once they have it.
     const geometryProblems = async () => {
       const problems = [];
       const result = await evaluate(`(() => {
@@ -69,7 +67,6 @@ module.exports = {
         if (icon.static !== (!icon.busy || reducedMotion))
           problems.push(`${icon.label} moves only while Busy and motion is allowed`);
       }
-      // Every rendered Busy icon, in panels and navigation, turns in one shared phase.
       const phases =
         await evaluate(`[...document.querySelectorAll('.processing-busy svg')].flatMap(icon => icon.getAnimations())
         .map(animation => animation.currentTime % ${busyPeriod})`);
@@ -88,7 +85,6 @@ module.exports = {
         { context: () => problems.join('\n') },
       );
     };
-    // The host's own motion setting must not decide the result; emulate each preference explicitly.
     console.log(
       `Host prefers reduced motion: ${await evaluate("matchMedia('(prefers-reduced-motion: reduce)').matches")}`,
     );
@@ -99,7 +95,7 @@ module.exports = {
       });
     await motion('no-preference');
     let reducedMotion = false;
-    const busyPeriod = 1500; // processing-spin duration in processing-status.css
+    const busyPeriod = 1500;
     for (const language of ['en', 'zh-CN']) {
       await evaluate(`window.workbench.saveSettings({ language: ${JSON.stringify(language)} })`);
       await until(
@@ -138,8 +134,6 @@ module.exports = {
           await checkGeometry();
         }
       }
-      // Drag actual split handles to a compact row, then the enforced width/height
-      // minima. The status/type pair stays horizontal in all three presentations.
       window.setContentSize(1280, 860);
       await until(() => evaluate('document.documentElement.clientWidth === 1280'), 'window content is 1280px wide');
       for (const [axis, size, presentation] of [
@@ -154,7 +148,6 @@ module.exports = {
             : { axis, ratio: 1 / ids.length, first: { panel: ids[0] }, second: rest(ids.slice(1)) };
         const layout = { axis, ratio: 0.5, first: { panel: runs[0].panelId }, second: rest(remaining) };
         await evaluate(`window.workbench.saveLayout(${JSON.stringify(projectId)}, ${JSON.stringify(layout)})`);
-        // The first panel takes the saved half along the axis, the other panels share the rest.
         await until(
           () =>
             evaluate(`(slot => slot.style.${axis === 'row' ? 'width' : 'height'} === '50%'
@@ -167,8 +160,6 @@ module.exports = {
         const handle = await evaluate(`(() => { const rect = document.querySelector('.divider').getBoundingClientRect();
           const canvas = document.querySelector('.canvas').getBoundingClientRect();
           return { x: Math.round(rect.x + rect.width / 2), y: Math.round(rect.y + rect.height / 2), left: canvas.left, top: canvas.top }; })()`);
-        // Electron's button identifies the changed button; modifiers carry the
-        // held buttons across movement so Chromium retains pointer capture.
         window.webContents.sendInputEvent({
           type: 'mouseDown',
           x: handle.x,
@@ -177,8 +168,6 @@ module.exports = {
           modifiers: ['leftbuttondown'],
           clickCount: 1,
         });
-        // Native input dispatch is asynchronous. Observe capture and preview before
-        // releasing, then require a persisted resize before starting another drag.
         await until(
           () => evaluate('document.querySelector(".canvas").classList.contains("resizing")'),
           'layout area captured the divider for resizing',

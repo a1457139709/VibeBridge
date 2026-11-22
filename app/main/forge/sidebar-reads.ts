@@ -21,8 +21,6 @@ import type {
 } from '../../shared/forge/sidebar-data';
 import { errorMessage } from '../../shared/caught-error';
 
-/** Where the Forge sidebar's data comes from, and where it goes. Each read is of a project's bound repository, or of the
- * repositories the project can bind. */
 export interface ForgeSidebarSources {
   issuePage(projectId: string, query: ListQuery): Promise<IssuePage>;
   pullRequestPage(projectId: string, query: ListQuery): Promise<PullRequestPage>;
@@ -31,13 +29,10 @@ export interface ForgeSidebarSources {
   repositoryChoices(projectId: string): Promise<RepositoryChoices>;
   issueDetail(projectId: string, number: number): Promise<IssueDetailResult>;
   pullRequestDetail(projectId: string, number: number): Promise<PullRequestDetailResult>;
-  /** How the project's forge presents itself, for a failure outside the forge. */
   forge(projectId: string): ForgePresentation;
   emit(event: ForgeSidebarEvent): void;
 }
 
-/** Asks `read` of the sources; a failure outside the forge (the request itself) is reported like a transient one, with
- * its reason, as `failed` shapes it. */
 async function fromSources<T>(
   sources: ForgeSidebarSources,
   projectId: string,
@@ -51,7 +46,6 @@ async function fromSources<T>(
   }
 }
 
-/** Asks the forge for a page of `tab`. */
 export function readPage<T extends ForgeListTab>(
   sources: ForgeSidebarSources,
   projectId: string,
@@ -65,7 +59,6 @@ export function readPage<T extends ForgeListTab>(
   return fromSources(sources, projectId, reads[tab], failure => ({ ok: false, failure, account: null }));
 }
 
-/** Asks the forge for the items of `tab` with these numbers, with no search. */
 export function readByNumber(
   sources: ForgeSidebarSources,
   projectId: string,
@@ -81,7 +74,6 @@ export function readByNumber(
   );
 }
 
-/** Asks the forge for the item's detail. */
 export function readItem(sources: ForgeSidebarSources, projectId: string, item: DetailItem): Promise<DetailResult> {
   const read = item.kind === 'issue' ? sources.issueDetail : sources.pullRequestDetail;
   return fromSources<DetailResult>(
@@ -92,7 +84,6 @@ export function readItem(sources: ForgeSidebarSources, projectId: string, item: 
   );
 }
 
-/** Asks the forge for the repositories the project can bind. */
 export function readRepositoryChoices(sources: ForgeSidebarSources, projectId: string): Promise<RepositoryChoices> {
   return fromSources<RepositoryChoices>(
     sources,

@@ -4,11 +4,6 @@ import { agentNames, type PanelView } from '../../shared/model';
 import { ProcessingStatusIcon } from '../common/ProcessingStatusIcon';
 import type { PointerEvent, Ref } from 'react';
 
-/** The ephemeral panel tray: one card per tray panel, left to right in tray order. Cards
- * shrink to fit instead of overflowing; the narrowest keeps the Agent colour and status.
- * A card can be dragged into the layout area, and the tray takes resident panels dropped on it.
- * An empty tray takes no space and shows only as the drop target while a resident panel is dragged.
- * The card a collapsed panel has just flown into flashes once. */
 export function PanelTray({
   panels,
   openPanelId,

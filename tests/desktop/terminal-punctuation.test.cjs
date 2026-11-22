@@ -1,10 +1,7 @@
 const assert = require('node:assert/strict');
 const { runsOf } = require('./support/panel-views.cjs');
 
-// Full-width punctuation alone and in adjacent pairs, the shapes Chromium's punctuation trimming squeezes.
 const line = 'ab你好，世界。这是测试：（）［］｛｝「」『』【】《》〈〉〔〕、；．END';
-// The line keeps to single-unit characters, ASCII in one cell and the rest in two, so a prefix's
-// length in cells follows from its characters.
 const cellsOf = prefix => prefix.split('').reduce((count, char) => count + (char.charCodeAt(0) < 0x80 ? 1 : 2), 0);
 
 module.exports = {
@@ -17,7 +14,6 @@ module.exports = {
       'terminal shows READY:',
     );
     await evaluate('document.querySelector(".xterm-helper-textarea").focus()');
-    // xterm draws its cursor once the user has typed.
     window.webContents.sendInputEvent({ type: 'char', keyCode: 'k' });
     await until(
       () => evaluate('document.querySelector(".xterm-rows").textContent.includes("INPUT:k")'),
@@ -43,7 +39,6 @@ module.exports = {
           ),
         'IME composition view active and positioned',
       );
-      // Each drawn position, or a description of where it is off its cell.
       const offGrid = async () => {
         const { chars, cursor, composition } = await evaluate(`(() => {
           const row = document.querySelector('.xterm-rows > div');
@@ -59,7 +54,6 @@ module.exports = {
         if (chars.length < line.length) return [`the first row draws ${chars.length} of ${line.length} characters`];
         const origin = chars[0].left;
         const cell = chars[1].left - origin;
-        // A squeezed mark shifts later text by about 0.8 cells; a quarter cell absorbs sub-pixel rounding.
         const check = (left, column, label) =>
           left !== undefined && Math.abs(left - (origin + column * cell)) < cell / 4
             ? []

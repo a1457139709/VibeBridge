@@ -1,7 +1,6 @@
 import { SyncIcon } from '@primer/octicons-react';
 import { useLocalization } from '../common/Localization';
 
-/** The sidebar's header: the repository, or that none is bound, with Change binding for a bound one's lists, and the persistent Refresh. */
 export function SidebarHead({
   title,
   refresh,

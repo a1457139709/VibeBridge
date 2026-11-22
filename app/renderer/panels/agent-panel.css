@@ -151,7 +151,6 @@
 .agent-panel[data-tiny='true'] .panel-menu {
   display: none;
 }
-/* Preserve the original terminal and input while the title occupies the compact panel. */
 .agent-panel[data-tiny='true'] .terminal-container {
   position: absolute;
   inset: 0;
@@ -173,7 +172,6 @@
   z-index: 31;
   opacity: 0.5;
 }
-/* Suppress paint only: the real terminal keeps its geometry, selection and input focus. */
 .panel-drag-hidden {
   opacity: 0;
 }
@@ -200,7 +198,6 @@
 .dragging .panel-header {
   cursor: grabbing;
 }
-/* Placing a tray panel shows the resident layout even while a tray panel is open over it. */
 .canvas.placing > .panel-slot {
   visibility: visible !important;
 }
@@ -222,7 +219,6 @@
   flex-shrink: 0;
 }
 
-/* The locator owns its two 100ms halves; layout interpolation would add a second transition. */
 .locating-panel .panel-slot {
   transition: none;
 }

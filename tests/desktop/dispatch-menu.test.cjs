@@ -1,7 +1,5 @@
 const assert = require('node:assert/strict');
 
-/** Whether near every corner the element is inside the window and draws itself, so nothing clips or covers it. The points
- * sit inside its rounded corners, which hit testing leaves to what is beneath. */
 const drawnWhole = selector => `(() => {
   const element = document.querySelector(${JSON.stringify(selector)});
   if (!element) return false;
@@ -9,7 +7,6 @@ const drawnWhole = selector => `(() => {
   return [[box.left + inset, box.top + inset], [box.right - inset, box.top + inset], [box.left + inset, box.bottom - inset], [box.right - inset, box.bottom - inset]]
     .every(([x, y]) => x >= 0 && y >= 0 && x <= innerWidth && y <= innerHeight && element.contains(document.elementFromPoint(x, y)));
 })()`;
-/** The text of each target drawn with a background. */
 const highlighted = `[...document.querySelectorAll('.dispatch-targets [role=menuitem]')]
   .filter(item => getComputedStyle(item).backgroundColor !== 'rgba(0, 0, 0, 0)').map(item => item.textContent)`;
 
@@ -33,7 +30,6 @@ module.exports = {
     const { window, evaluate, until, click } = context;
     const { rect, center } = require('./support/dragging.cjs')(context);
     const project = snapshot.projects[0];
-    // Bound as Bind in the Forge sidebar binds octo/desktop.
     await evaluate(`(async () => window.workbench.bindRepository(${JSON.stringify(project.id)},
       (await window.workbench.fetchRepositoryChoices(${JSON.stringify(project.id)}, ${JSON.stringify(project.directory)}))
         .repositories.find(item => item.path === 'octo/desktop')))()`);
@@ -42,8 +38,6 @@ module.exports = {
       () => evaluate('document.querySelector(".forge-row-title")?.textContent === "Dispatched issue"'),
       'issue row listed',
     );
-    // A pointer left where an item has just been drawn does not enter it, so each point moves there from a corner. The
-    // move back waits until the corner is hovered: two moves sent at once can merge into none.
     const point = async selector => {
       const target = center(await rect(selector));
       window.webContents.sendInputEvent({ type: 'mouseMove', x: 1, y: 1 });
@@ -71,7 +65,6 @@ module.exports = {
           'issue detail open with its Dispatch',
         );
       }
-      // The window as it opens, then short: a height any screen fits.
       for (const height of [null, 480]) {
         if (height) {
           window.setContentSize(1280, height);
@@ -88,7 +81,6 @@ module.exports = {
           () => evaluate('document.activeElement?.classList.contains("dispatch-menu")'),
           `dispatch menu open from the ${place}`,
         );
-        // The last command opens its targets lowest, leftwards over the workspace.
         await point('.dispatch-menu > [role=menuitem]:last-of-type');
         await until(
           () => evaluate('!!document.querySelector(".dispatch-targets")'),
@@ -107,7 +99,6 @@ module.exports = {
       }
     }
 
-    // Pointing at a target moves the cursor there; a key moving it on leaves only the cursor highlighted.
     await evaluate('document.querySelector(".forge-detail .dispatch-button").click()');
     await until(() => evaluate('document.activeElement?.classList.contains("dispatch-menu")'), 'dispatch menu open');
     await point('.dispatch-menu > [role=menuitem]:last-of-type');
@@ -133,7 +124,6 @@ module.exports = {
       "only the cursor's target highlighted",
     );
 
-    // Each Agent type keeps its type color: the new Codex target's icon matches the Codex panel's in the workspace.
     const colors = await evaluate(`[...document.querySelectorAll('.dispatch-targets [role=menuitem]')].slice(0, 3)
       .map(item => getComputedStyle(item.querySelector('.agent-mark')).color)`);
     const panelColor = await evaluate(

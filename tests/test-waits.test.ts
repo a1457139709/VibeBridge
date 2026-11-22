@@ -5,7 +5,6 @@ import { dirname, resolve } from 'node:path';
 import test, { type TestContext } from 'node:test';
 import { testDirectory } from './support/directory';
 
-// Builds a promise expression for a fixture's source, so this file holds no wait the check would report.
 const promise = (body: string) => `new Promise(${body})`;
 
 async function fixture(context: TestContext) {

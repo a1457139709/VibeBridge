@@ -13,7 +13,6 @@ import { selectElement } from './support/elements';
 afterEach(cleanup);
 before(stubSidebarApis);
 
-/** The Workbench with Alpha's issues listed and the detail of `issue` open; `change` sets up the snapshot. */
 async function opened(issue: IssueDetail, change: (snapshot: Snapshot) => void = () => {}) {
   const f = await listed(undefined, change);
   f.forge.issueDetail = async () => ({ ok: true, issue });
@@ -23,7 +22,6 @@ async function opened(issue: IssueDetail, change: (snapshot: Snapshot) => void =
 }
 const pane = () => within(sidebar()).getByRole('region', { name: 'Issue detail' });
 const records = () => within(pane()).getByRole('region', { name: /^Dispatch records/ });
-/** A record that is `hours` old. */
 const aged = (hours: number, location: DispatchRecordView['location'], extra: Partial<DispatchRecordView> = {}) =>
   record(9, location, { dispatchedAt: new Date(Date.now() - hours * 3600e3).toISOString(), ...extra });
 
@@ -62,7 +60,6 @@ test("a closed issue's detail has no Dispatch", async () => {
 });
 
 const { t } = localize('en');
-/** The parts of a record's one line as the user reads them: its text, and each image's name. */
 const line = (item: HTMLElement) =>
   [...item.querySelectorAll<HTMLElement>(':scope > *')].map(part =>
     part.getAttribute('role') === 'img' ? part.getAttribute('aria-label') : part.textContent,

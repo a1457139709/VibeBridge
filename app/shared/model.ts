@@ -37,20 +37,15 @@ export interface Project {
   panels: Panel[];
   layout: Layout | null;
 }
-// Type aliases rather than interfaces: the settings schema's loose objects carry an index signature.
 export type AgentCommand = {
   command: string;
   args: string[];
 };
-/** The layouts a project's panels can start in, as the settings offer them. */
 export const defaultLayouts = ['auto', 'row', 'column'] as const;
 export type DefaultLayout = (typeof defaultLayouts)[number];
-/** The interface languages, as the settings offer them. */
 export const languages = ['en', 'zh-CN'] as const;
 export type Language = (typeof languages)[number];
-/** Whether the open forge sidebar squeezes the layout area or overlays it. */
 export type SidebarCoexistence = 'squeeze' | 'overlay';
-/** Whether an open issue or pull request detail overlays the layout area or squeezes it. */
 export type DetailCoexistence = 'overlay' | 'squeeze';
 export interface Settings {
   language: Language;
@@ -71,9 +66,7 @@ export interface Run {
   pid?: number;
   title?: string;
 }
-/** A run that is starting or running; it has not failed or stopped. */
 export const isLiveRun = (run?: Run) => run?.state === 'running' || run?.state === 'starting';
-// An unconfirmed launch may still be running; only a failed one is known not to have started.
 export type LaunchResult =
   | { outcome: 'started'; run: Run; agent: AgentType }
   | { outcome: 'failed'; run: Run; agent: AgentType }
@@ -82,7 +75,6 @@ export interface ProjectCreation {
   project: Project;
   launches: LaunchResult[];
 }
-/** Everything the edit-project form saves; the Repository Binding is changed only in the forge sidebar. */
 export interface ProjectEdit {
   name: string;
   directory: string;
@@ -96,15 +88,11 @@ export interface PanelCreation {
   panel: Panel;
   launch: LaunchResult;
 }
-/** A sidebar's open state and width, one for the whole app. */
 export interface SidebarPreferences {
   visible: boolean;
   width: number;
 }
 export const sidebarPreferencesSchema = z.strictObject({ visible: z.boolean(), width: z.number() });
-/** The app's sidebars, each named by its key in the snapshot: its preferences before any are saved, the narrowest
- * width that keeps its content whole, and the message for preferences that cannot be saved. A sidebar has no widest
- * width: the window bounds how it is drawn and dragged, never what is stored. */
 export const sidebars = {
   navigation: { defaults: { visible: true, width: 212 }, minWidth: 168, invalidMessage: 'navigationInvalid' },
   forgeSidebar: { defaults: { visible: false, width: 380 }, minWidth: 300, invalidMessage: 'forgeSidebarInvalid' },
@@ -112,15 +100,7 @@ export const sidebars = {
 const sidebarIds = ['navigation', 'forgeSidebar'] as const;
 export type Sidebar = (typeof sidebarIds)[number];
 export const sidebarSchema = z.enum(sidebarIds);
-/** A panel with its current run, whatever that run's state, and the processing state it displays. */
 export type PanelView = Panel & { run?: Run; status?: ProcessingState };
-/** A project as the snapshot shows it. `panels` are its resident panels, placed by `layout`;
- * `tray` holds its ephemeral panels in the order they joined. The stored Project keeps only
- * the resident panels' configuration and layout; the tray lives in memory for one app run.
- * `repository` is its Repository Binding, stored apart from the project, or null when unbound; `forge` is the
- * Forge its forge sidebar shows: the bound one, else the one an unbound project binds from; `capabilities` are
- * the features that Forge declares, and the sidebar shows only those. `dispatches` are its Dispatch Records for the bound
- * repository, oldest first; records for other repositories stay stored but are not shown. */
 export type ProjectView = Omit<Project, 'panels'> & {
   panels: PanelView[];
   tray: PanelView[];
@@ -179,7 +159,6 @@ export function arrange(ids: string[], preference: DefaultLayout = 'auto'): Layo
   return ids.length ? arrangePanels(ids, preference) : null;
 }
 
-/** The layout of one or more panels. */
 function arrangePanels(ids: string[], preference: DefaultLayout = 'auto'): Layout {
   if (ids.length === 1) return { panel: ids[0] };
   if (preference !== 'auto')
@@ -228,20 +207,15 @@ const layoutDepth = (node: Layout): number =>
   'panel' in node ? 0 : 1 + Math.max(layoutDepth(node.first), layoutDepth(node.second));
 const panelIds = (node: Layout): string[] =>
   'panel' in node ? [node.panel] : [...panelIds(node.first), ...panelIds(node.second)];
-/** A layout whose structure is valid, whichever panels it places. */
 export const layoutSchema = layoutNodeSchema.refine(layout => layoutDepth(layout) <= 10);
 
-/** The panel IDs a layout places, in order. */
 export const layoutPanelIds = (layout: Layout | null): string[] => (layout ? panelIds(layout) : []);
 
-/** A project holds at most this many panels, resident and tray together. */
 export const panelLimit = 10;
-/** Every panel of a project: its resident panels, then its tray panels in tray order. */
 export const projectPanels = <P extends Panel>({ panels, tray }: { panels: P[]; tray: P[] }) => [...panels, ...tray];
 export const panelLimitReached = (project: { panels: Panel[]; tray: Panel[] }) =>
   projectPanels(project).length >= panelLimit;
 
-/** The branch path from the root to a panel in a layout, or null when the layout does not place it. */
 export function panelPath(layout: Layout | null, panelId: string): ('first' | 'second')[] | null {
   if (!layout) return null;
   if ('panel' in layout) return layout.panel === panelId ? [] : null;
@@ -251,14 +225,12 @@ export function panelPath(layout: Layout | null, panelId: string): ('first' | 's
   return second && ['second', ...second];
 }
 
-/** A layout whose structure is valid, whichever panels it places. */
 export function parseLayoutStructure(value: unknown): Layout | null {
   const parsed = layoutSchema.nullable().safeParse(value);
   if (!parsed.success) throw new Error(message('layoutInvalid'));
   return parsed.data;
 }
 
-/** A layout of the given panels: its structure is valid and it places each panel exactly once. */
 export function parseLayout(value: unknown, panels: Panel[]): Layout | null {
   const layout = parseLayoutStructure(value);
   const ids = layoutPanelIds(layout);

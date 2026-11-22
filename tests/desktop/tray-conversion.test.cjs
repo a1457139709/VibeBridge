@@ -21,7 +21,6 @@ module.exports = {
     );
     const runs = Object.fromEntries(panelViews({ projects: [await project()] }).map(panel => [panel.id, panel.run.id]));
     const tray = async () => (await project()).tray.map(panel => panel.id);
-    // Converting changes where panels are, never their runs.
     const settle = async (expected, expectedTray) => {
       await until(
         async () => JSON.stringify(await tray()) === JSON.stringify(expectedTray),
@@ -39,7 +38,6 @@ module.exports = {
     const card = id => `[data-tray-panel-id="${id}"]`;
     await settle({ [a]: [0, 0, 0.5, 1], [b]: [0.5, 0, 0.5, 1] }, [t1, t2]);
 
-    // Perimeter: a card dropped outside the middle third splits that panel on the nearest side.
     let target = await rect(`[data-panel-id="${b}"]`);
     let point = { x: Math.round(target.left + target.width * 0.1), y: Math.round(target.top + target.height / 2) };
     await press(card(t1));
@@ -53,7 +51,6 @@ module.exports = {
       'a drag does not open the card',
     );
 
-    // Middle: a card swaps with the panel, which joins the end of the tray.
     target = await rect(`[data-panel-id="${a}"]`);
     point = center(target);
     await press(card(t2));
@@ -61,7 +58,6 @@ module.exports = {
     release(point);
     await settle({ [t2]: [0, 0, 0.5, 1], [t1]: [0.5, 0, 0.25, 1], [b]: [0.75, 0, 0.25, 1] }, [a]);
 
-    // Edge: a card dropped on the edge band fills that whole side of the layout area.
     const canvas = await rect('.canvas');
     point = { x: Math.round(canvas.left + canvas.width / 4), y: Math.round(canvas.bottom - 8) };
     await press(card(a));
@@ -73,7 +69,6 @@ module.exports = {
       [],
     );
 
-    // A resident panel's header dropped on the tray makes it ephemeral; the others fill its space as when it closes.
     point = center(await rect('.panel-tray'));
     await press(`[data-panel-id="${t1}"] .panel-header`);
     await hover(point, 'Drop preview: pi moves to the tray');
@@ -81,7 +76,6 @@ module.exports = {
     const layout = { [t2]: [0, 0, 0.5, 0.5], [b]: [0.5, 0, 0.5, 0.5], [a]: [0, 0.5, 1, 0.5] };
     await settle(layout, [t1]);
 
-    // Esc cancels a drag over a valid drop; releasing outside the layout area and the tray is not a drop.
     point = center(await rect(`[data-panel-id="${a}"]`));
     await press(card(t1));
     await hover(point, 'Swap preview: pi and Codex');
@@ -105,7 +99,6 @@ module.exports = {
     );
     await settle(layout, [t1]);
 
-    // Empty layout: the open tray panel's header dropped anywhere in the layout area makes it the whole layout.
     for (const id of [t2, b, a])
       await evaluate(`window.workbench.moveToTray(${JSON.stringify(projectId)}, ${JSON.stringify(id)})`);
     await until(

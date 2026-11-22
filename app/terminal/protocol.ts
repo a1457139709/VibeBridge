@@ -2,9 +2,6 @@ import { z } from 'zod';
 import type { CommandCheck, Run, TerminalEvent } from '../shared/model';
 import type { ProcessIdentity } from './processes';
 
-// The messages the main process and its terminal host exchange over the child process's IPC channel. Each side
-// parses what it receives with these schemas and types what it sends by them, so both read one definition.
-
 export const runSchema: z.ZodType<Run> = z.object({
   id: z.string(),
   projectId: z.string(),
@@ -17,7 +14,6 @@ export const commandCheckSchema: z.ZodType<CommandCheck> = z.discriminatedUnion(
   z.object({ available: z.literal(true), path: z.string() }),
   z.object({ available: z.literal(false), message: z.string() }),
 ]);
-/** The result of an operation that replies with nothing but its completion. */
 export const completionSchema = z.void();
 
 const terminalEventSchema: z.ZodType<TerminalEvent> = z.discriminatedUnion('kind', [
@@ -34,7 +30,6 @@ const processIdentitySchema: z.ZodType<ProcessIdentity> = z.object({
   owner: z.string().optional(),
 });
 
-/** What the host is asked to start: a run of `command` in `directory` for a project's panel. */
 const runStartSchema = z.object({
   id: z.string(),
   panelId: z.string(),
@@ -46,8 +41,6 @@ const runStartSchema = z.object({
 export type RunStart = z.infer<typeof runStartSchema>;
 
 const requestIdSchema = z.number();
-/** A request the host replies to under `id`: `start` with a Run, `check-command` with a CommandCheck, the others
- * with their completion. */
 const operationSchema = z.discriminatedUnion('operation', [
   z.object({ id: requestIdSchema, operation: z.literal('start'), value: runStartSchema }),
   z.object({ id: requestIdSchema, operation: z.literal('check-command'), value: z.string() }),
@@ -65,19 +58,13 @@ const operationSchema = z.discriminatedUnion('operation', [
   z.object({ id: requestIdSchema, operation: z.literal('shutdown') }),
 ]);
 export type HostOperation = z.infer<typeof operationSchema>;
-/** A message the host receives: an operation, or the terminal's report that it parsed `characters` of a run's output,
- * which takes no reply. */
 export const hostRequestSchema = z.union([
   operationSchema,
   z.object({ operation: z.literal('output-consumed'), value: z.object({ runId: z.string(), characters: z.number() }) }),
 ]);
 export type HostRequest = z.infer<typeof hostRequestSchema>;
-/** The ID a received message carries, to reply under when the rest of it cannot be read. */
 export const requestIdOf = (value: unknown) => z.object({ id: requestIdSchema }).safeParse(value).data?.id;
 
-/** A message the main process receives from the host: a terminal event, the processes its runs own, a failure off
- * any request, or the reply to the request under `id`. A reply's result is read by the schema of the operation it
- * answers. */
 export const hostReportSchema = z.discriminatedUnion('kind', [
   z.object({ kind: z.literal('event'), event: terminalEventSchema }),
   z.object({ kind: z.literal('processes'), processes: z.array(processIdentitySchema) }),

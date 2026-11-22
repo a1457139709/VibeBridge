@@ -55,8 +55,6 @@ export function createResizePreview(
     const delta = (divider.axis === 'row' ? pointer.clientX : pointer.clientY) - start;
     const ratio = originalRatio + delta / (dimension * (divider.axis === 'row' ? box.width : box.height));
     node.ratio = lower <= upper ? Math.max(lower, Math.min(upper, ratio)) : originalRatio;
-    // While an undersized leaf grows, it cannot surrender that space on reversal.
-    // Once it reaches its normal minimum, ordinary bidirectional resizing resumes.
     lower = Math.max(lower, Math.min(node.ratio, firstMinimum));
     upper = Math.min(upper, Math.max(node.ratio, secondMaximum));
     next = candidate;

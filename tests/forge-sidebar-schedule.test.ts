@@ -17,12 +17,8 @@ import {
   sidebarData,
 } from './support/sidebar-data-sources';
 
-// The Forge sidebar's data updates in the background every 5 minutes while the sidebar shows a project in the
-// foreground, and an update reported while one runs joins it (docs/adr/0008-forge-sidebar-data-lives-in-the-main-process.md).
-
 const inFront: ForgeSidebarPresence = { visible: true, foreground: true, projectId: 'alpha' };
 const minute = 60_000;
-/** What each read asks for: a page, an item's detail, or items by number. */
 const asked = (reads: ReturnType<typeof sidebarData>['reads']) =>
   reads.map(({ query, item, byNumber }) => query ?? item ?? byNumber);
 

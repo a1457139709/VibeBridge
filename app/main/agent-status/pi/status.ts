@@ -10,15 +10,11 @@ interface Evidence {
   compactionFailed?: boolean;
 }
 
-/** The reporter runs inside the pi process, subscribes to no child session and delivers
- * its reports in order through one queue, so there is no separate identity to verify.
- */
 class PiInterpreter implements StatusInterpreter {
   private evidence: Evidence = {};
   private currentSession?: string;
 
   accept(event: Payload): Outcome {
-    // The reporter samples the session manager with each fact; pi replaces sessions in order.
     if (typeof event.sessionId === 'string' && event.sessionId) this.currentSession = event.sessionId;
     switch (event.type) {
       case 'session_start':
@@ -53,8 +49,6 @@ class PiInterpreter implements StatusInterpreter {
         this.evidence.state = 'busy';
         break;
       case 'session_before_compact':
-        // An earlier extension can start another manual compaction before this
-        // observer receives the first completion. Keep the original idle result.
         this.evidence.beforeCompaction ??= this.evidence.state ?? 'error';
         this.evidence.state = 'busy';
         break;
@@ -79,8 +73,6 @@ class PiInterpreter implements StatusInterpreter {
         if (message && typeof message === 'object' && 'role' in message && message.role === 'assistant') {
           this.evidence.stopReason =
             'stopReason' in message && typeof message.stopReason === 'string' ? message.stopReason : undefined;
-          // Threshold compaction may fail between tool turns without another
-          // agent_start. A newer assistant outcome supersedes that failure.
           delete this.evidence.compactionFailed;
         }
         return 'keep';
@@ -93,8 +85,6 @@ class PiInterpreter implements StatusInterpreter {
         const reason = this.evidence.stopReason;
         delete this.evidence.stopReason;
         delete this.evidence.beforeCompaction;
-        // A run can be cancelled after its last assistant message, so settlement
-        // can confirm interruption without an assistant stopReason of aborted.
         const interrupted = event.aborted === true || reason === 'aborted';
         this.evidence.state = interrupted
           ? event.isIdle === true && event.hasPendingMessages === false
@@ -116,7 +106,6 @@ class PiInterpreter implements StatusInterpreter {
       case 'message_start':
       case 'message_update':
         return 'keep';
-      // Quit, reload and session replacement unload the reporter: nothing is observed until it loads again.
       case 'session_shutdown':
         this.currentSession = undefined;
         return 'error';

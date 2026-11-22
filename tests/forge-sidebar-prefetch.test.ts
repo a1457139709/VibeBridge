@@ -5,9 +5,6 @@ import { boundWorkbench, day, forgeAccount, issueDetail } from './support/bound-
 import { byNumber, detail, detailTitle, forge, issue, shownIssues, sidebarData } from './support/sidebar-data-sources';
 import { lastOf } from './support/expected';
 
-// A row the pointer or keyboard focus rests on is likely opened next: after 150ms its detail is read into the kept
-// details, so opening it shows at once.
-
 const three = { kind: 'issue', number: 3 } as const;
 
 test('a detail is read once the pointer or focus rested 150ms on its row; leaving sooner reads nothing', async context => {

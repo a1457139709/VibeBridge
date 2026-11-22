@@ -23,11 +23,8 @@ import type { ProjectStore } from '../persistence/storage';
 import type { RunSupervision } from '../runs/run-supervision';
 import type { DispatchTargets } from '../dispatch';
 
-/** Each project's Agent panels: resident panels and their layout, the tray of ephemeral panels, and which projects
- * have started their panels. Callers find the project and serialize the work; this module only changes its panels. */
 export class ProjectPanels {
   private startedProjects = new Set<string>();
-  // Each project's tray: its ephemeral panels in the order they joined. Never stored.
   private trays = new Map<string, Panel[]>();
   constructor(
     private store: Pick<ProjectStore, 'save'>,
@@ -35,24 +32,20 @@ export class ProjectPanels {
     private agents: () => Settings['agents'],
     private changed: () => void,
   ) {}
-  /** The project's resident and tray panels as the snapshot shows them. */
   view(project: Project): { panels: PanelView[]; tray: PanelView[] } {
     const view = (panel: Panel) => this.supervision.panelView(panel);
     return { panels: project.panels.map(view), tray: this.tray(project.id).map(view) };
   }
-  /** Resident panels, then tray panels. */
   all(project: Project) {
     return projectPanels({ panels: project.panels, tray: this.tray(project.id) });
   }
   private tray(projectId: string) {
     return this.trays.get(projectId) ?? [];
   }
-  /** Starts the panel's Agent as the Agent settings give its type, with `args` after the configured ones. */
   private startPanel(project: Project, panel: Panel, args: string[] = []) {
     const command = this.agents()[panel.agent];
     return this.supervision.start(project, panel, { ...command, args: [...command.args, ...args] });
   }
-  /** Starts the project's resident panels the first time it opens; a project started before starts nothing. */
   async startOnFirstOpen(project: Project): Promise<LaunchResult[]> {
     if (this.startedProjects.has(project.id)) return [];
     this.startedProjects.add(project.id);
@@ -60,24 +53,19 @@ export class ProjectPanels {
     for (const panel of project.panels) launches.push(await this.startPanel(project, panel));
     return launches;
   }
-  // Undoes the addition of panels whose Agent never started, for Project Setup. Restored layouts keep
-  // their failed panels; this is neither closing a panel nor a run exit.
   async withdraw(project: Project, launches: LaunchResult[]) {
     const panelIds = launches.filter(launch => launch.outcome === 'failed').map(launch => launch.run.panelId);
     if (panelIds.length) await this.removePanels(project, panelIds);
   }
-  /** Restarts the resident panels of a started project whose directory changed; a project not started yet starts nothing. */
   async restart(project: Project): Promise<{ launches: LaunchResult[]; error?: string }> {
     const launches: LaunchResult[] = [];
     if (!this.startedProjects.has(project.id)) return { launches };
-    // Tray panels keep running in the directory they started in.
     const failures = await this.supervision.stopPanels(project.panels);
     if (failures.length)
       return { launches, error: message('projectRestartFailed', { reasons: failures.map(nestedMessage) }) };
     for (const panel of project.panels) launches.push(await this.startPanel(project, panel));
     return { launches };
   }
-  /** Arranges and saves the resident panels of a project that has panels but no layout. */
   async arrangeIfUnlaid(project: Project, defaultLayout: Settings['defaultLayout']) {
     if (!project.layout && project.panels.length) {
       project.layout = arrange(
@@ -87,7 +75,6 @@ export class ProjectPanels {
       await this.store.save(project);
     }
   }
-  /** Adds a panel to the end of the project's tray and starts its Agent, with `args` after the configured ones. The layout is unchanged. */
   async add(project: Project, agent: AgentType, args?: string[]): Promise<PanelCreation> {
     if (!agentTypes.includes(agent)) throw new Error(message('agentInvalid'));
     const tray = this.tray(project.id);
@@ -99,7 +86,6 @@ export class ProjectPanels {
     if (launch.outcome === 'failed') this.removeFromTray(project.id, panel.id);
     return { panel: structuredClone(panel), launch };
   }
-  /** Where a dispatch to the project can go: one of its panels, or a new panel that joins its tray. */
   targets(project: Project): DispatchTargets {
     return {
       panel: id => {
@@ -114,7 +100,6 @@ export class ProjectPanels {
     await this.supervision.stopPanel(panelId);
     await this.remove(project, panelId);
   }
-  /** Removes a panel from the tray or the layout and releases its run. */
   async remove(project: Project, panelId: string) {
     if (this.tray(project.id).some(panel => panel.id === panelId)) this.removeFromTray(project.id, panelId);
     else await this.removePanels(project, [panelId]);
@@ -138,18 +123,12 @@ export class ProjectPanels {
     this.supervision.releasePanels(panelIds);
     this.changed();
   }
-  /**
-   * Makes a tray panel resident with the target layout the renderer computed for the drop.
-   * The layout places the resident panels plus this one; a swap leaves out the one resident
-   * panel whose position this one takes, and that panel joins the end of the tray. Runs are untouched.
-   */
   async place(project: Project, panelId: string, layout: Layout) {
     const panel = this.tray(project.id).find(p => p.id === panelId);
     if (!panel) throw new Error(message('panelMissing'));
     const structure = parseLayoutStructure(layout);
     const placed = layoutPanelIds(structure);
     const replaced = project.panels.filter(resident => !placed.includes(resident.id));
-    // A swap is valid only when the placed panel takes the position of the one panel it replaces.
     const takesReplacedPosition =
       replaced.length === 1 &&
       String(panelPath(structure, panelId)) === String(panelPath(project.layout, replaced[0].id));
@@ -161,7 +140,6 @@ export class ProjectPanels {
       ...replaced,
     ]);
   }
-  /** Makes a resident panel ephemeral: it joins the end of the tray and the other resident panels fill its space as when it closes. Its run is untouched. */
   async toTray(project: Project, panelId: string) {
     const panel = project.panels.find(p => p.id === panelId);
     if (!panel) throw new Error(message('panelMissing'));
@@ -175,7 +153,6 @@ export class ProjectPanels {
       [...this.tray(project.id), panel],
     );
   }
-  /** Saves which panels are resident, then publishes the project with its new tray. */
   private async changeResidency(project: Project, next: Project, tray: Panel[]) {
     await this.store.save(next);
     Object.assign(project, next);
@@ -187,11 +164,9 @@ export class ProjectPanels {
     this.changed();
     await this.store.save(project);
   }
-  /** Stops every panel of a project about to be deleted and returns why any failed to stop. */
   stop(project: Project) {
     return this.supervision.stopPanels(this.all(project));
   }
-  /** Once the project's deletion is stored: releases its panels and drops its tray and started mark. */
   forget(project: Project) {
     this.supervision.releasePanels(this.all(project).map(panel => panel.id));
     this.trays.delete(project.id);

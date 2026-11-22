@@ -10,21 +10,17 @@ import { pi } from '../agent-status/pi/status';
 import { message, nestedMessage } from '../../shared/messages';
 import { errorMessage } from '../../shared/caught-error';
 
-// CLI protocol differences stay behind this closed table.
 const adapters: Record<AgentType, StatusAdapter> = { codex, claude, pi };
 
 const report = z.looseObject({ payload: z.unknown() });
 const launchCredentials = z.looseObject({ runId: z.string(), token: z.string(), agent: z.string() });
-// Observation loss belongs to the Status Reporter transport; adapters see only CLI facts.
 const reportPayload = z.union([
   z.looseObject({ observation: z.literal('lost') }),
   z.record(z.string(), z.unknown()).refine(payload => !('observation' in payload)),
 ]);
 
-/** Receives the first session ID an observed run reports. */
 export type SessionReceiver = (sessionId: string) => void;
 
-/** A wait for an observed run's first session report: handed its session ID, or told it is dropped with the observation. */
 interface SessionWait {
   handOver: SessionReceiver;
   onReleased?: () => void;
@@ -38,21 +34,12 @@ interface Observation {
   state?: ProcessingState;
   sessionId?: string;
   interpreter: StatusInterpreter;
-  /** Waits for the run's first session report; dropped with the observation. */
   sessionWaits: SessionWait[];
-  /** Whether the run has reported ready; once it has, nothing waits for its first ready report. */
   reportedReady: boolean;
-  /** Waits for the run's first ready report; dropped with the observation. */
   readyWaits: (() => void)[];
   cleanup?: () => Promise<void>;
 }
 
-/** Run-scoped ingestion and display state; see docs/processing-status.md for the report format.
- * prepare precedes launch, trackRunState uses only terminal-host facts. Reports during startup
- * are retained but invisible until running. Stopping revokes credentials; no result persists.
- * A running instance without a reliable observation is Error, never inferred from PTY data.
- * The callback publishes a complete Workbench snapshot after an accepted visible change.
- */
 export class ProcessingStatus {
   private observations = new Map<string, Observation>();
   private server?: Server;
@@ -92,7 +79,7 @@ export class ProcessingStatus {
       };
     } catch {
       return { command, extraEnvironment: {} };
-    } // Observation must never prevent a terminal launch.
+    }
   }
 
   trackRunState(run: Run) {
@@ -112,7 +99,6 @@ export class ProcessingStatus {
     if (observation?.cleanup) {
       const task = observation.cleanup();
       this.cleanups.add(task);
-      // Retain failures for close() to report, without interrupting host events.
       void task.then(
         () => this.cleanups.delete(task),
         () => {},
@@ -120,15 +106,10 @@ export class ProcessingStatus {
     }
   }
 
-  /** The session the observed run is on now; none once its observation is released. */
   sessionId(runId: string) {
     return this.observations.get(runId)?.sessionId;
   }
 
-  /** Hands the run's session ID to `handOver` once it has one: at once if it already has, else on
-   * its first session report. `onReleased` is told when the observation is released first. False when
-   * the run is not observed, so it can never report one.
-   */
   awaitFirstSession(runId: string, handOver: SessionReceiver, onReleased?: () => void) {
     const observation = this.observations.get(runId);
     if (!observation) return false;
@@ -137,9 +118,6 @@ export class ProcessingStatus {
     return true;
   }
 
-  /** Calls `onFirstReady` on the run's first ready report: at once if it has reported ready before, whatever
-   * it shows now. Dropped when the observation is released first. False when the run is not observed, so it can never report one.
-   */
   awaitFirstReady(runId: string, onFirstReady: () => void) {
     const observation = this.observations.get(runId);
     if (!observation) return false;
@@ -148,7 +126,6 @@ export class ProcessingStatus {
     return true;
   }
 
-  /** The processing state the run displays: only a running instance has one. */
   status(run: Run): ProcessingState | undefined {
     return run.state === 'running' ? (this.observations.get(run.id)?.state ?? 'error') : undefined;
   }
@@ -201,7 +178,6 @@ export class ProcessingStatus {
     if (!event.success) return 400;
     const credentials = launchCredentials.safeParse(event.data);
     const observation = credentials.success ? this.observations.get(credentials.data.runId) : undefined;
-    // Authenticate this launch before interpreting even an unfamiliar event.
     if (
       !credentials.success ||
       !observation?.accepting ||

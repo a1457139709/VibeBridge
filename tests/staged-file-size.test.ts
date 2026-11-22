@@ -7,7 +7,6 @@ import test from 'node:test';
 async function fixture() {
   await mkdir('work', { recursive: true });
   const directory = await mkdtemp(resolve('work/staged-file-size-'));
-  // The test repository reads no system or user Git configuration, and Husky runs its hooks.
   const env = {
     ...process.env,
     GIT_CONFIG_GLOBAL: '/dev/null',
@@ -34,7 +33,6 @@ async function fixture() {
       await copyFile(file, `${directory}/${file}`);
     }
     const { scripts } = JSON.parse(await readFile('package.json', 'utf8'));
-    // The existing commit-gate test covers the full check chain; isolate file-size behavior here.
     await writeFile(
       `${directory}/package.json`,
       JSON.stringify({ private: true, type: 'module', scripts: { prepare: scripts.prepare, check: 'node --version' } }),
@@ -109,7 +107,6 @@ test('only staged blobs count, including both directions of partial staging', as
     const indexBefore = f.git('ls-files', '--stage');
     assert.equal(f.check().status, 1);
     assert.equal(f.git('ls-files', '--stage'), indexBefore);
-    // Commits selecting paths use an alternate index, which the hook must honor.
     const alternateIndex = `${f.directory}/alternate-index`;
     const loaded = f.run('git', ['read-tree', '--empty'], { GIT_INDEX_FILE: alternateIndex });
     assert.equal(loaded.status, 0, loaded.stderr);

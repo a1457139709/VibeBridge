@@ -1,6 +1,5 @@
 import { request } from 'node:http';
 
-// Runs inside the Agent CLI process, bundled into each Status Reporter.
 type Payload = Record<string, unknown>;
 export interface ReportingContext {
   url: string;
@@ -9,7 +8,6 @@ export interface ReportingContext {
   token: string;
 }
 
-/** This launch's reporting context, or undefined unless it names this Agent Type and a loopback listener. */
 export function reportingContext(agent: string): ReportingContext | undefined {
   try {
     const context = JSON.parse(process.env.VIBEBRIDGE_STATUS_CONTEXT ?? '{}');
@@ -28,7 +26,6 @@ export function reportingContext(agent: string): ReportingContext | undefined {
   }
 }
 
-/** Post one main-run report. Resolves whether it was processed; never rejects or outlives its timeout. */
 export function report(context: ReportingContext, payload: Payload): Promise<boolean> {
   const body = JSON.stringify({ runId: context.runId, agent: context.agent, token: context.token, payload });
   return new Promise(resolve => {
@@ -70,9 +67,6 @@ async function readAndReport(context: ReportingContext, select: (raw: Payload) =
   await report(context, payload);
 }
 
-/** A short-lived command-hook reporter: no hook decisions, output, model context or background
- * process. Observation failure never rejects input or keeps a turn alive.
- */
 export function runCommandHookReporter(agent: string, select: (raw: Payload) => Payload) {
   const context = reportingContext(agent);
   void (context ? readAndReport(context, select) : Promise.resolve()).catch(() => {}).finally(() => process.exit(0));

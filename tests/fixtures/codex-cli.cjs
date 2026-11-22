@@ -2,8 +2,6 @@ const { parse } = require('smol-toml');
 const { spawn } = require('node:child_process');
 const readline = require('node:readline');
 
-// External CLI double: consume Codex's launch flags and invoke its command-hook
-// protocol. It deliberately knows nothing about Workbench's reporting transport.
 const hooks = {};
 const args = process.argv.slice(2);
 for (let index = 0; index < args.length; index++) {
@@ -23,12 +21,8 @@ for (let index = 0; index < args.length; index++) {
   if (config.hooks) Object.assign(hooks, config.hooks);
 }
 const session = `session-${process.pid}`;
-// As in Codex, a hook that fails or outlives its timeout does not stop the event; the double
-// reports it as HOOK-FAILED or HOOK-TIMEOUT so the test sees why instead of waiting.
-/** Runs one command hook; resolves to its HOOK-FAILED or HOOK-TIMEOUT report, or undefined when it succeeded. */
 function runHook(handler, input) {
   return new Promise(resolve => {
-    // Its own process group, so a timeout also stops whatever the shell started.
     const child = spawn('/bin/sh', ['-c', handler.command], { stdio: ['pipe', 'pipe', 'pipe'], detached: true });
     let timedOut = false;
     const timer =
@@ -46,7 +40,6 @@ function runHook(handler, input) {
       clearTimeout(timer);
       resolve(`HOOK-FAILED:${error.message}`);
     });
-    // 'close' follows the hook's last output, so that output arrives before the ACK.
     child.once('close', (code, signal) => {
       clearTimeout(timer);
       resolve(

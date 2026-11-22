@@ -33,7 +33,6 @@ const cwd = process.argv.includes('--encode-cwd') ? Buffer.from(process.cwd()).t
 process.stdout.write(`READY:${process.pid}:${cwd}\r\n`);
 process.stdin.on('data', data => {
   const text = data.toString();
-  // Clears the screen and writes the line on its first row, leaving the cursor right after it, as a CLI's prompt does while the user types.
   if (text.startsWith('print:')) {
     process.stdout.write(`\x1b[2J\x1b[H${text.slice(6)}`);
     return;
@@ -47,7 +46,6 @@ process.stdin.on('data', data => {
     process.on('SIGHUP', () => {});
   }
   if (text.includes('stream')) {
-    // Keep the signal-handler fixture responsive even when macOS blocks a synchronous TTY writer.
     if (process.argv[2] === '--termination-file')
       spawn(process.execPath, [__filename, 'stream-child'], { stdio: ['ignore', process.stdout, 'ignore'] });
     else stream();

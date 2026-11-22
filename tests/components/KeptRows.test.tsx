@@ -17,9 +17,6 @@ import {
 } from './support/forge-lists';
 import { requireInstance } from './support/elements';
 
-// The sidebar keeps each project's rows between views and updates them in the background
-// (docs/adr/0008-forge-sidebar-data-lives-in-the-main-process.md).
-
 const { t } = localize('en');
 const loadMore = () => within(sidebar()).getByRole('button', { name: t('loadMore') });
 

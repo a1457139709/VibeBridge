@@ -20,7 +20,6 @@ module.exports = {
     await click('Other navigation project');
     await until(async () => (await snapshot()).activeProjectId !== project.id, 'Other navigation project active');
 
-    // The group starts collapsed; expanding it is not a navigation preference.
     const group = `document.querySelector('[data-project-id="${project.id}"] .ephemeral-toggle')`;
     await until(
       () => evaluate(`${group}?.getAttribute('aria-expanded') === 'false'`),
@@ -36,7 +35,6 @@ module.exports = {
     );
     assert.deepEqual((await snapshot()).navigation, navigation);
 
-    // Clicking the entry switches to its project and opens the panel as the ephemeral maximize.
     await evaluate(
       `document.querySelector('[data-project-id="${project.id}"] [data-locate-panel-id="${trayPanelId}"]').click()`,
     );

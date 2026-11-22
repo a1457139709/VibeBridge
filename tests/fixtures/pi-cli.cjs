@@ -2,8 +2,6 @@ const readline = require('node:readline');
 const { pathToFileURL } = require('node:url');
 const { resolve } = require('node:path');
 
-// External CLI double: loads invocation extensions and supplies the official
-// callback/context boundary. It does not know the status reporting protocol.
 const args = process.argv.slice(2);
 const handlers = new Map();
 let idle = true;
@@ -38,7 +36,6 @@ async function load() {
       if (args[i] === '-e' || args[i] === '--extension')
         (await import(pathToFileURL(resolve(args[++i])).href)).default(api);
     }
-  // Pi loads discovered extensions after explicit invocation extensions.
   const discovered = args.indexOf('--discovered-extension');
   if (discovered >= 0) (await import(pathToFileURL(resolve(args[discovered + 1])).href)).default(api);
   await emit({ type: 'session_start' });

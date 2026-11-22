@@ -91,8 +91,6 @@
 .summary-panel:focus-visible {
   outline-offset: -2px;
 }
-/* The named summary plus room for ＋ on both sides stops fitting near this width in either language;
-   all names collapse together, leaving icons and counts. */
 @container workspace-toolbar (max-width: 560px) {
   .project-summary {
     gap: 0;

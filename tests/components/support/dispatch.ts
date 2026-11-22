@@ -7,8 +7,6 @@ import { issue, page, renderWorkbench, sidebar, summary } from './forge-lists';
 import { githubCapabilities } from './forge';
 import { requireValue } from '../../../app/renderer/common/required';
 
-/** Alpha's resident panel runs Codex on "Alpha session"; its tray panel runs Claude Code, Busy on "Fix it"; a second
- * resident panel has no run. Beta's panel belongs to another project. */
 export function withPanels(snapshot: Snapshot) {
   const alpha = snapshot.projects[0];
   alpha.panels[0].status = 'ready';
@@ -21,11 +19,9 @@ export function withPanels(snapshot: Snapshot) {
   });
 }
 
-/** The panel a dispatch goes to: the one it names, or a new one. */
 export const panelOf = (request: DispatchRequest) =>
   request.target.kind === 'panel' ? request.target.panelId : 'new-panel';
 
-/** The Workbench with Alpha's issues 9 and 8 listed; `dispatch` answers dispatches. */
 export async function listed(
   dispatch: (
     projectId: string,
@@ -42,13 +38,10 @@ export async function listed(
       requests.push([projectId, request]);
       return dispatch(projectId, request);
     },
-    // The detail is only opened, never answered.
     issueDetail: () => new Promise(() => {}),
-    // Focus rests on the dispatched row; reading it ahead would add reads beside the ones these tests count.
     reportForgeRowResting: async () => {},
   });
   const first = await f.request(1);
-  // The app has subscribed once it asks for the list.
   withPanels(f.snapshot);
   change(f.snapshot);
   f.publish();
@@ -64,9 +57,7 @@ export const row = (number: number) =>
     `the row of #${number}`,
   );
 export const dispatchButton = (number: number) => within(row(number)).getByRole('button', { name: 'Dispatch' });
-/** The time `hours` hours ago, as a record stores it. */
 export const hoursAgo = (hours: number) => new Date(Date.now() - hours * 3600e3).toISOString();
-/** A dispatch record of an issue, located on a panel or on none. */
 export const record = (
   issue: number,
   location: DispatchRecordView['location'],
@@ -80,9 +71,7 @@ export const record = (
   location,
   ...extra,
 });
-/** The open dispatch menu. */
 export const menu = (number = 9) => screen.getByRole('menu', { name: `Dispatch #${number}` });
-/** An issue's detail as the forge answers it: open, with no body, relations or comments. */
 export const issueDetail = (number: number, extra: Partial<IssueDetail> = {}): IssueDetail => ({
   ...summary(number),
   url: `https://github.com/octo/alpha/issues/${number}`,

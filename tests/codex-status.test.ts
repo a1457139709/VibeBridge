@@ -4,7 +4,6 @@ import type { Payload } from '../app/main/agent-status/adapter';
 import { codex } from '../app/main/agent-status/codex/status';
 import { observe } from './support/interpreter';
 
-/** A Codex run whose session has started, fed facts as its Status Reporter sends them. */
 function started(defaults: Payload = {}) {
   const accept = observe(codex, { session_id: 'session', ...defaults });
   accept({ hook_event_name: 'SessionStart', source: 'startup' });

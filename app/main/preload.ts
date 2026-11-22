@@ -2,7 +2,6 @@ import { message } from '../shared/messages';
 import { contextBridge, ipcRenderer } from 'electron';
 import { desktopChannels, workbenchEventChannel, type DesktopAPI, type DesktopRequest } from '../shared/api';
 
-/** Sends a request on its channel with the arguments the contract gives it; the main process parses them. */
 const invoke = <R extends DesktopRequest>(request: R, ...args: Parameters<DesktopAPI[R]>) =>
   ipcRenderer.invoke(desktopChannels[request], ...args);
 

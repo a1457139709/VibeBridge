@@ -19,7 +19,6 @@ import { requireInstance, selectElement } from './support/elements';
 afterEach(cleanup);
 before(() => {
   stubLayoutApis();
-  // Switching projects disconnects the workspace from the panel locator, which checks its animation's effect.
   for (const target of [globalThis, window]) Object.assign(target, { KeyframeEffect: class {} });
   window.HTMLElement.prototype.checkVisibility = () => true;
 });
@@ -95,7 +94,6 @@ function renderWorkbench(
     ...forgeSidebarData(
       {
         repositoryChoices: repositoryChoices ?? (async () => choices),
-        // A bound project's lists stay loading: these tests are about what the sidebar shows around them.
         issuePage: () => new Promise(() => {}),
       },
       event => {
@@ -158,7 +156,6 @@ test('Command+Alt+B opens the sidebar with focus inside wherever focus is, and c
   );
 });
 
-/** The width a region is drawn at, as the app body hands it to the region's CSS. */
 const drawnWidth = (region: 'navigation' | 'forge-sidebar') =>
   selectElement('.app-body').style.getPropertyValue(`--${region}-width`);
 function resizeWindow(width: number) {
@@ -202,7 +199,6 @@ const listed = (origin: string | null, paths = ['octo/tools', 'octo/unbound', 'a
   repositories: paths.map(path => githubRepository(path)),
 });
 
-/** The Workbench with the unbound project's sidebar open; binding records its calls and binds as asked. */
 async function unboundSidebar(choices: () => Promise<RepositoryChoices>, bind?: () => Promise<void>) {
   const binds: [string, RepositoryReference][] = [];
   const rendered = renderWorkbench(

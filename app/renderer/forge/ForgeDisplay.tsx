@@ -21,14 +21,9 @@ import type {
 } from '../../shared/forge/forge';
 import type { DetailItem } from '../../shared/forge/sidebar-data';
 
-// How the forge sidebar's lists and details show an issue's state, labels, age, sub-issue progress and blockers,
-// a pull request's state and checks, and the posts and links of a detail.
-
-/** The item a link to `url` names when it is an issue or pull request of the bound repository, else null. */
 export function linkedItem(url: string, links: ForgeLinks): DetailItem | null {
   for (const kind of ['issue', 'pullRequest'] as const) {
     const prefix = kind === 'issue' ? links.issuePrefix : links.pullRequestPrefix;
-    // Repository paths in a forge's URLs may differ in case from the bound one.
     if (!url.toLowerCase().startsWith(prefix.toLowerCase())) continue;
     const match = /^(\d+)(?:[?#].*)?$/.exec(url.slice(prefix.length));
     if (match) return { kind, number: Number(match[1]) };
@@ -36,7 +31,6 @@ export function linkedItem(url: string, links: ForgeLinks): DetailItem | null {
   return null;
 }
 
-/** A reference to an issue or pull request of `kind`: one of the bound repository opens in the detail, any other in the browser. */
 export function ItemReference({
   kind,
   url,
@@ -66,7 +60,6 @@ export function ItemReference({
   );
 }
 
-/** A message whose values are elements: `format` receives a marker per slot, and each marker in its text becomes that slot's element. */
 export function withElements(
   format: (markers: Record<string, string>) => string,
   slots: Record<string, ReactNode>,
@@ -77,7 +70,6 @@ export function withElements(
     .map((part, index) => (index % 2 ? <span key={index}>{slots[part]}</span> : part));
 }
 
-/** A body, comment or review summary: who wrote it, the review's verdict if any, and when; then the forge's HTML through the filter. */
 export function Post({
   author,
   createdAt,
@@ -106,11 +98,8 @@ export function Post({
   );
 }
 
-/** How an issue stands: open, or closed as completed, not planned or a duplicate (completed when the forge does not tell). */
 export const issueDisplayState = (issue: Pick<IssueSummary, 'state' | 'closedAs'>) =>
   issue.state === 'open' ? ('open' as const) : (issue.closedAs ?? 'completed');
-/** Each state's octicon and colour, as the forge shows them (open green, completed purple, not planned or duplicate grey),
- * with the name an icon gives it and the shorter one a state pill shows. */
 export const issueStates = {
   open: { Icon: IssueOpenedIcon, tone: 'open', name: 'issueOpen', short: 'stateOpen' },
   completed: { Icon: IssueClosedIcon, tone: 'done', name: 'issueCompleted', short: 'stateCompleted' },
@@ -118,7 +107,6 @@ export const issueStates = {
   duplicate: { Icon: SkipIcon, tone: 'skipped', name: 'issueDuplicate', short: 'stateDuplicate' },
 } as const;
 
-/** An issue's state octicon in the forge's colour. A decorative icon sits next to text that already names the state. */
 export function IssueIcon({
   issue,
   size = 16,
@@ -141,7 +129,6 @@ export function IssueIcon({
   );
 }
 
-/** A label in the forge's colour; with `onClick` it is a button. */
 export function Label({ label, onClick }: { label: ForgeLabel; onClick?(): void }) {
   const style: CSSProperties = { '--label': `#${label.color}` };
   return onClick ? (
@@ -162,7 +149,6 @@ export function Label({ label, onClick }: { label: ForgeLabel; onClick?(): void 
   );
 }
 
-/** How long ago `iso` was, in words; a month or more gives the date. */
 export function relativeTime(iso: string, { t, language }: ReturnType<typeof useLocalization>) {
   const date = new Date(iso);
   const seconds = (Date.now() - date.getTime()) / 1000;
@@ -186,7 +172,6 @@ export function RelativeTime({ iso }: { iso: string }) {
   );
 }
 
-/** How many of an issue's sub-issues are closed, as a bar and a count; the hint says it in words. */
 export function Progress({ closed, total }: SubIssueProgress) {
   const { t } = useLocalization();
   return (
@@ -199,8 +184,6 @@ export function Progress({ closed, total }: SubIssueProgress) {
   );
 }
 
-/** The blocked mark as the forge shows it: the blocked icon and the blockers, with how many more the forge did not list;
- * the hint names them. */
 export function BlockedMark({ by, unlisted = 0 }: { by: { reference: string; title: string }[]; unlisted?: number }) {
   const { t } = useLocalization();
   const more = unlisted ? [t('moreBlockers', { count: unlisted })] : [];
@@ -218,8 +201,6 @@ export function BlockedMark({ by, unlisted = 0 }: { by: { reference: string; tit
   );
 }
 
-/** The forge's pull request octicons and colours: open green, draft grey, merged purple, closed red; with the name an
- * icon gives the state and the shorter one a state pill shows. */
 const pullRequestStates = {
   open: { Icon: GitPullRequestIcon, tone: 'open', name: 'pullRequestOpen', short: 'stateOpen' },
   draft: { Icon: GitPullRequestDraftIcon, tone: 'skipped', name: 'pullRequestDraft', short: 'stateDraft' },
@@ -227,7 +208,6 @@ const pullRequestStates = {
   closed: { Icon: GitPullRequestClosedIcon, tone: 'failed', name: 'pullRequestClosed', short: 'stateClosed' },
 } as const;
 
-/** A pull request's state octicon in the forge's colour; inside an element with its own hint, it gives none. */
 export function PullRequestIcon({
   state,
   size = 16,
@@ -246,7 +226,6 @@ export function PullRequestIcon({
   );
 }
 
-/** A pull request's state as a pill: its icon and name on the state's colour. */
 export function PullRequestPill({ state }: { state: PullRequestState }) {
   const { t } = useLocalization();
   const { tone, short } = pullRequestStates[state];
@@ -258,14 +237,12 @@ export function PullRequestPill({ state }: { state: PullRequestState }) {
   );
 }
 
-/** Each checks conclusion's mark, name and colour. */
 const conclusions = {
   passed: { mark: '✓', name: 'checksPassed', tone: 'open' },
   failed: { mark: '✗', name: 'checksFailed', tone: 'failed' },
   pending: { mark: '●', name: 'checksPending', tone: 'pending' },
 } as const;
 
-/** The checks conclusion of an open or draft pull request; nothing for a merged or closed one, or one without checks. */
 export function OpenPullRequestChecks({ state, checks }: { state: PullRequestState; checks: ChecksConclusion }) {
   const { t } = useLocalization();
   if ((state !== 'open' && state !== 'draft') || checks === 'none') return null;

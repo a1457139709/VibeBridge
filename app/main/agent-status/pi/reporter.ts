@@ -14,8 +14,6 @@ interface Delivery {
   lost: boolean;
 }
 const key = Symbol.for('vibebridge.pi.status.delivery');
-/** The delivery queues of this process, kept on the global object so a reloaded extension module finds them. Only this
- * module, in any of its loads, writes the slot `key` names, and only with a `Map<string, Delivery>`, so a Map found there is that one. */
 function processDeliveries(): Map<string, Delivery> {
   const kept: unknown = Reflect.get(globalThis, key);
   if (kept instanceof Map) return kept;
@@ -23,18 +21,12 @@ function processDeliveries(): Map<string, Delivery> {
   Reflect.set(globalThis, key, deliveries);
   return deliveries;
 }
-/** A field of an event's object value; undefined when the value is not an object. */
 const fieldOf = (value: unknown, name: string): unknown =>
   typeof value === 'object' && value !== null ? Reflect.get(value, name) : undefined;
 
-/** Loaded only by this invocation's --extension. No tools, UI, commands, hook
- * decisions or child-session subscriptions are installed by this observer.
- */
 export default function install(pi: ExtensionAPI) {
   const reporting = reportingContext('pi');
   if (!reporting) return;
-  // Pi /reload can replace the extension module within the same process. Keep
-  // one delivery queue for this launch across those loads, so reports stay in order.
   const deliveries = processDeliveries();
   let delivery = deliveries.get(reporting.token);
   if (!delivery) {
@@ -70,8 +62,6 @@ export default function install(pi: ExtensionAPI) {
           payload.message = { role: fieldOf(event.message, 'role'), stopReason: fieldOf(event.message, 'stopReason') };
         }
         if (name === 'agent_end') {
-          // Later user extensions can replace message_end.message. This loop's
-          // agent_end messages have passed those handlers; never read old history.
           const messages = Array.isArray(event.messages) ? event.messages : [];
           const assistant = messages.findLast(message => message?.role === 'assistant');
           payload.finalStopReason = typeof assistant?.stopReason === 'string' ? assistant.stopReason : null;
@@ -86,13 +76,10 @@ export default function install(pi: ExtensionAPI) {
         payload = { observation: 'lost' };
       }
       if (!('observation' in payload) && name !== 'session_shutdown') {
-        // The session ID only locates the run's panel; a context that cannot name it still reports status.
         try {
           payload.sessionId = piContext.sessionManager.getSessionId();
         } catch {}
       }
-      // UI lifecycle callbacks are not awaited by Pi. Enqueue synchronously so
-      // their delivery cannot overtake agent/tool callbacks from this instance.
       source.pending = source.pending
         .then(async () => {
           if (source.lost && !(await send({ observation: 'lost' }))) return;

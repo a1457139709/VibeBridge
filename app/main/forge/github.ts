@@ -49,7 +49,6 @@ const issueSchema = z.object({
   }),
   issueDependenciesSummary: z.object({ blockedBy: z.number() }),
 });
-/** A list page: the repository's labels, the open and closed counts, and one page of search results. */
 const listPageSchema = <Node extends z.ZodType>(node: Node) =>
   z.object({
     repository: z.object({ ...answeringSchema, labels: z.object({ nodes: z.array(labelSchema) }) }),
@@ -60,7 +59,6 @@ const listPageSchema = <Node extends z.ZodType>(node: Node) =>
       nodes: z.array(node),
     }),
   });
-/** An issue as a list holds it, with its place in the issue tree. */
 const listedIssueSchema = issueSchema.extend({
   parent: z.object({ number: z.number(), repository: repositorySchema }).nullable(),
   subIssuesSummary: z.object({ total: z.number(), completed: z.number() }),
@@ -80,11 +78,8 @@ const listedPullRequestSchema = z.object({
 });
 const issuePageSchema = listPageSchema(listedIssueSchema);
 const pullRequestPageSchema = listPageSchema(listedPullRequestSchema);
-// Sub-issues and blockers come from their own fields (`parent`, `subIssues`, `blockedBy`), not search qualifiers.
-// `blockedBy` lists open and closed blockers alike; `issueDependenciesSummary.blockedBy` counts the open ones, also those past the listed window.
 const issueFields = `number title state stateReason createdAt labels(first: 20) { nodes { name color } } repository { nameWithOwner }
       blockedBy(first: 20) { nodes { number title state repository { nameWithOwner } } } issueDependenciesSummary { blockedBy }`;
-/** A list page query whose search results carry `nodes`. GitHub's issue search also finds pull requests (is:pr). */
 const listPageQuery = (
   nodes: string,
 ) => `query($owner: String!, $name: String!, $search: String!, $openSearch: String!, $closedSearch: String!, $after: String) {
@@ -100,25 +95,20 @@ const listedIssueFields = `${issueFields}
       parent { number repository { nameWithOwner } }
       subIssuesSummary { total completed }
       subIssues(first: 50) { nodes { ${issueFields} } }`;
-// The checks conclusion is the status check rollup of the latest commit.
 const listedPullRequestFields = `number title state isDraft createdAt author { login }
       labels(first: 20) { nodes { name color } }
       commits(last: 1) { nodes { commit { statusCheckRollup { state } } } }`;
 const issuePageQuery = listPageQuery(`... on Issue { ${listedIssueFields} }`);
 const pullRequestPageQuery = listPageQuery(`... on PullRequest { ${listedPullRequestFields} }`);
 
-/** A query for the repository's issues or pull requests with these numbers, each under its own field, with no search. */
 const byNumberQuery = (item: 'issue' | 'pullRequest', fields: string, numbers: number[]) =>
   `query($owner: String!, $name: String!) { repository(owner: $owner, name: $name) { ${answeringFields}
     ${numbers.map(number => `n${number}: ${item}(number: ${number}) { ${fields} }`).join('\n    ')} } }`;
-/** The answer to a query by number: the repository, and each number's item, or null when it has none. */
 const byNumberSchema = <Node extends z.ZodType>(node: Node) =>
   z.object({ repository: z.object(answeringSchema).catchall(node.nullable()) });
 
-/** GitHub repository paths are case-insensitive. */
 const samePath = (a: string, b: string) => a.toLowerCase() === b.toLowerCase();
 
-/** An issue's own fields, and the open issues blocking it; a blocker in another repository names it. */
 function issueSummary(issue: z.infer<typeof issueSchema>, path: string): IssueSummary {
   const blockedBy = issue.blockedBy.nodes
     .filter(blocker => blocker.state === 'OPEN')
@@ -138,7 +128,6 @@ function issueSummary(issue: z.infer<typeof issueSchema>, path: string): IssueSu
   };
 }
 
-/** An issue as a list holds it: its own fields, and its parent and sub-issues in the same repository. */
 function listedIssue(issue: z.infer<typeof listedIssueSchema>, path: string): ListedIssue {
   return {
     ...issueSummary(issue, path),
@@ -153,7 +142,6 @@ function listedIssue(issue: z.infer<typeof listedIssueSchema>, path: string): Li
   };
 }
 
-/** A pull request as a list holds it. */
 const listedPullRequest = (pull: z.infer<typeof listedPullRequestSchema>): PullRequestSummary => ({
   number: pull.number,
   title: pull.title,
@@ -164,8 +152,6 @@ const listedPullRequest = (pull: z.infer<typeof listedPullRequestSchema>): PullR
   labels: pull.labels.nodes,
 });
 
-/** Reads the repository's items with these numbers in one request, as `schema` reads each; a number with no item of
- * the kind asked is left out. */
 async function byNumber<Node extends z.ZodType>(
   { host, path }: RepositoryReference,
   item: 'issue' | 'pullRequest',
@@ -184,8 +170,6 @@ async function byNumber<Node extends z.ZodType>(
   return { repository, items: found.filter((item): item is z.infer<Node> => item !== null && item !== undefined) };
 }
 
-/** GitHub search text for the filter, of issues or pull requests. A number (with or without #) matches the number;
- * other words match the title. A pull request is:closed when it is closed or merged. */
 function listSearch(path: string, kind: 'issue' | 'pr', { search, state, labels }: ListFilter) {
   const quote = (text: string) => `"${text.replace(/"/g, '')}"`;
   const term = search.trim();
@@ -204,7 +188,6 @@ function listSearch(path: string, kind: 'issue' | 'pr', { search, state, labels 
   ].join(' ');
 }
 
-/** Runs a list page query for the filter's page and its open and closed counts. */
 function listPage<T>(
   query: string,
   schema: z.ZodType<T>,
@@ -227,7 +210,6 @@ function listPage<T>(
     schema,
   );
 }
-/** The next page's cursor, the labels and counts; the caller maps the items. */
 const pageFrame = (data: {
   repository: { labels: { nodes: ForgeLabel[] } };
   open: { issueCount: number };
@@ -239,8 +221,6 @@ const pageFrame = (data: {
   counts: { open: data.open.issueCount, closed: data.closed.issueCount },
 });
 
-/** The `gh` subcommand for each direct action; writes go through `gh issue` and `gh pr`, not the API. With a method flag and
- * no message, `gh pr merge` merges at once with GitHub's default commit message and keeps the branch. */
 const actionArgs = (action: DirectAction): string[] => {
   const number = String(action.number);
   switch (action.kind) {
@@ -264,7 +244,6 @@ const outputLines = (text: string) =>
     .filter(Boolean);
 const escapeRegExp = (text: string) => text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 
-/** The data of a read, and the repository that answered it at the path the read named. */
 const answered = <T>(repository: { databaseId: number; nameWithOwner: string }, data: T) => ({
   answeredBy: answeredBy(repository),
   data,
@@ -287,7 +266,6 @@ export const github: Forge = {
     return (await gh(host, ['api', 'user', '--jq', '.login'])).trim();
   },
   async repositories(host) {
-    // The REST `id` is the GraphQL `databaseId`: a number GitHub keeps through renames and transfers.
     return outputLines(
       await gh(host, [
         'api',
@@ -302,7 +280,6 @@ export const github: Forge = {
     });
   },
   remotePath(host, url) {
-    // owner/repo from a remote URL on the host in HTTPS, SSH or scp-like form.
     const at = escapeRegExp(host);
     const match = url
       .trim()
@@ -322,8 +299,6 @@ export const github: Forge = {
   },
   async locate({ host, id, path }) {
     if (!/^\d+$/.test(id)) throw new ForgeError('inaccessible', '');
-    // GitHub answers a renamed or transferred repository at its former path while a redirect stays there; the ID tells
-    // whether the one answering is still this repository.
     const [owner, name] = path.split('/');
     let notAtPath: ForgeError | undefined;
     try {
@@ -333,9 +308,6 @@ export const github: Forge = {
       if (!(error instanceof ForgeError) || error.kind !== 'inaccessible') throw error;
       notAtPath = error;
     }
-    // With no redirect left, or another repository at the path, only the ID finds it. `repositories/{id}` is not in
-    // GitHub's documented REST API, so it is asked only then. When it cannot find the repository either, GitHub's
-    // answer for the path says more than its 404 for the ID.
     try {
       return (await gh(host, ['api', `repositories/${id}`, '--jq', '.full_name'])).trim();
     } catch (error) {

@@ -12,7 +12,6 @@ async function fail(error) {
   if (window && !window.isDestroyed()) {
     await require('./evidence.cjs')(window).catch(error => console.error('Capture failed:', error));
   }
-  // Let the product perform its normal run cleanup even after an assertion fails.
   app.once('will-quit', () => app.exit(1));
   app.quit();
 }

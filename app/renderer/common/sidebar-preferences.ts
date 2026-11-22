@@ -10,15 +10,11 @@ interface Options {
   sidebar: Sidebar;
   snapshot?: Snapshot;
   api: Pick<DesktopAPI, 'saveSidebar' | 'subscribe'>;
-  /** Which way dragging the resize edge to the right changes the width: 1 for an edge on the right, -1 for one on the left. */
   edge: 1 | -1;
   widestOnResize: WidestOnResize;
   report(message: string): void;
 }
 
-/** A sidebar's open state and width as the stored preferences hold them. Toggling and resizing show at once
- * and are saved; a failed save returns to the stored preferences. A newer operation replaces a pending one,
- * and snapshots never replace the preview of a pending operation. Keep it in the main window's lifetime. */
 export function useSidebarPreferences(options: Options) {
   const {
     sidebar,
@@ -29,9 +25,7 @@ export function useSidebarPreferences(options: Options) {
   const latest = useRef(options);
   latest.current = options;
   const [preferences, setPreferences] = useState<SidebarPreferences>(defaults);
-  /** The preferences no operation is changing: the base of the next toggle or resize, shown when none is pending. */
   const settled = useRef<SidebarPreferences>(defaults);
-  /** The preferences the main process last stored, which a pending operation falls back to when it fails. */
   const stored = useRef<SidebarPreferences>(defaults);
   const initialized = useRef(false);
   const pending = useRef<object | undefined>(undefined);
@@ -44,8 +38,6 @@ export function useSidebarPreferences(options: Options) {
     }
   }, [snapshot]);
   useLayoutEffect(() => {
-    // Observe the preferences at delivery time, independently of React's batching of App snapshots. Old
-    // writes remain known for failure recovery, but cannot become the base of another operation or replace its preview while pending.
     const unsubscribe = subscribe(event => {
       if (event.kind !== 'snapshot') return;
       initialized.current = true;
@@ -85,7 +77,6 @@ export function useSidebarPreferences(options: Options) {
         latest.current.report(errorMessage(error));
       });
   }
-  /** Shows or hides the sidebar; returns whether it is now visible. */
   function toggle() {
     if (!latest.current.snapshot) return preferences.visible;
     const next = { ...settled.current, visible: !preferences.visible };

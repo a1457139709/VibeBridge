@@ -1,27 +1,11 @@
 const { appendFileSync, readFileSync, writeFileSync } = require('node:fs');
 const { issueDetail, pullRequestDetail } = require('./gh-cli-details.cjs');
 
-// A `gh` CLI double. The test writes the account's state to the JSON file named by VIBEBRIDGE_GH_DOUBLE:
-// { account, repositories: ["owner/repo" | { id, path }, …], redirects?: { "former/path": "owner/repo" }, labels?: [{ name, color }],
-//   issues?: [{ number, title, state, stateReason?, createdAt, labels,
-//   author?, assignees?, bodyHTML?, comments?, parent?, blockedBy?, closedBy? }],
-//   pullRequests?: [{ number, title, state: OPEN|MERGED|CLOSED, isDraft?, createdAt?, author?: login|null, labels?, checks?: rollup state }],
-//   permission?, failure?: { code, stdout?, stderr? } } (tests/support/gh-double.ts describes each field).
-// A failure answers every command the way `gh` fails, with that exit code and output. `gh api graphql` answers
-// like GitHub: a repository the account does not list is NOT_FOUND unless a redirect leads from its path to one it lists, the search reads the qualifiers it is given,
-// listing pull requests for is:pr and issues otherwise, and `repository.issue` answers one issue with its relations, or NOT_FOUND.
-// A query asking for `repository { databaseId nameWithOwner }` is told the ID and current path of the repository answering at the asked path.
-// A query asking for issues or pull requests by number, each under its own field (`n12: issue(number: 12)`), answers
-// each as a list page holds it; a number with none of that kind answers null beside a NOT_FOUND error, and gh fails.
-// With answerOnceAsked, each command answers only once that many commands were asked, and fails when they are not.
-// `gh issue close|reopen` and `gh pr merge|close|reopen` change the state file and answer with GitHub's text.
 const state = JSON.parse(readFileSync(process.env.VIBEBRIDGE_GH_DOUBLE, 'utf8'));
 const args = process.argv.slice(2);
-// Every command is logged, one JSON array of its arguments per line, for the test to count what was asked.
 const log = `${process.env.VIBEBRIDGE_GH_DOUBLE}.calls`;
 appendFileSync(log, `${JSON.stringify(args)}\n`);
 if (state.answerOnceAsked) awaitAsked(state.answerOnceAsked);
-/** The listed repositories with their IDs: one named by its path alone has an ID that follows from the path. */
 const repositories = state.repositories.map(entry =>
   typeof entry === 'string'
     ? {
@@ -30,7 +14,6 @@ const repositories = state.repositories.map(entry =>
       }
     : entry,
 );
-/** The listed repository at `path`, or the one a redirect leads to from it, or undefined. */
 function repositoryAt(path) {
   const same = other => other.toLowerCase() === path.toLowerCase();
   const target = Object.entries(state.redirects ?? {}).find(([from]) => same(from))?.[1];
@@ -64,7 +47,6 @@ function fields(list) {
   }
   return values;
 }
-/** A write subcommand as gh runs it against GitHub: it changes the item, prints how it went, and fails with GitHub's text. */
 function write(noun, verb, number, options) {
   const fail = message => {
     process.stderr.write(`${message}\n`);
@@ -126,13 +108,11 @@ function write(noun, verb, number, options) {
     done(`✓ Reopened pull request ${name}`);
   }
 }
-/** Saves the changed state and reports success the way gh does, on standard error. */
 function done(message) {
   writeFileSync(process.env.VIBEBRIDGE_GH_DOUBLE, JSON.stringify(state));
   process.stderr.write(`${message}\n`);
 }
 
-/** `gh api repositories/{id} --jq .full_name`: the path of the listed repository with that ID, or GitHub's 404. */
 function byId(id) {
   const found = repositories.find(item => item.id === id);
   if (found) return process.stdout.write(`${found.path}\n`);
@@ -140,8 +120,6 @@ function byId(id) {
   process.exit(1);
 }
 
-/** Waits until `count` commands were asked since the test last read them; commands asked one after another, each waiting
- * for the one before to answer, never get there, and fail. */
 function awaitAsked(count) {
   const asked = () => readFileSync(log, 'utf8').split('\n').filter(Boolean).length;
   const pause = new Int32Array(new SharedArrayBuffer(4));
@@ -173,7 +151,6 @@ function graphql({ query, owner, name, search, openSearch, closedSearch, after, 
     process.exit(1);
   }
   const path = repository.path;
-  // Every read names the repository answering at the asked path, by its ID and current path, when it asks for them.
   const answering = /databaseId nameWithOwner/.test(query) ? { databaseId: repository.id, nameWithOwner: path } : {};
   const byNumber = [...query.matchAll(/(n\d+): (issue|pullRequest)\(number: (\d+)\)/g)];
   if (byNumber.length) return itemsByNumber(byNumber, path, answering, blockerWindow);
@@ -204,8 +181,6 @@ function graphql({ query, owner, name, search, openSearch, closedSearch, after, 
   );
 }
 
-/** The issues or pull requests asked by number, each under its field; a number with none answers null and a NOT_FOUND
- * error, and gh fails as GitHub's answer has errors. */
 function itemsByNumber(fields, path, answering, blockerWindow) {
   const repository = { ...answering };
   const errors = [];
@@ -231,7 +206,6 @@ function itemsByNumber(fields, path, answering, blockerWindow) {
   }
 }
 
-/** An issue as a list page holds it: its own fields, its parent and its sub-issues. */
 function listedIssueNode(issue, path, blockerWindow) {
   const children = (state.issues ?? [])
     .filter(child => child.parent === issue.number)
@@ -247,7 +221,6 @@ function listedIssueNode(issue, path, blockerWindow) {
   };
 }
 
-/** A pull request's fields as GitHub's GraphQL API names them. */
 function pullRequestNode(pull) {
   return {
     number: pull.number,
@@ -265,7 +238,6 @@ function isPullRequestSearch(search) {
   return /(^|\s)is:pr(\s|$)/.test(search);
 }
 
-/** An issue's own fields and its blockers, as GitHub's GraphQL API names them. */
 function node(issue, path, blockerWindow) {
   const own = other => ({ number: other.number, title: other.title, state: other.state });
   const blocker = entry =>
@@ -281,15 +253,11 @@ function node(issue, path, blockerWindow) {
     createdAt: issue.createdAt,
     labels: { nodes: issue.labels },
     repository: { nameWithOwner: path },
-    // Like GitHub, the listed blockers stop at the query's window, open and closed alike; the summary counts every open one.
     blockedBy: { nodes: blockers.slice(0, blockerWindow) },
     issueDependenciesSummary: { blockedBy: blockers.filter(other => other.state === 'OPEN').length },
   };
 }
 
-/** The issues, or for is:pr the pull requests, a GitHub search finds, newest first. Qualifiers: repo:, is:issue|pr,
- * is:open|closed (closed includes merged), label:"…", sort:created-desc, in:title; other words are terms, and a number
- * term without in:title matches the number. */
 function searchIssues(search) {
   const tokens = search.match(/(?:[\w-]+:)?"[^"]*"|\S+/g) ?? [];
   const unquote = text => text.replace(/^"|"$/g, '');

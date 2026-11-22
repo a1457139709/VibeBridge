@@ -1,6 +1,5 @@
 import type { englishForgeSidebar } from './en-forge-sidebar';
 
-/** Chinese texts of the forge sidebar: its lists, details and direct actions. */
 export const chineseForgeSidebar: Record<keyof typeof englishForgeSidebar, string> = {
   noRepositoryBound: '未绑定仓库',
   otherRepositoryAnswers: '{path} 处是另一个仓库',

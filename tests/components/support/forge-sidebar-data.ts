@@ -14,8 +14,6 @@ import type { WorkbenchEvent } from '../../../app/shared/model';
 import { ForgeSidebarData } from '../../../app/main/forge/forge-sidebar-data';
 import { githubForge } from './forge';
 
-/** What the forge answers the main process's Forge sidebar data with, per project. A read the test does not answer
- * fails. Each read asks the answer the object holds then, so a test may change it as it goes. */
 export interface ForgeAnswers {
   issuePage?(projectId: string, query: ListQuery): Promise<IssuePage>;
   pullRequestPage?(projectId: string, query: ListQuery): Promise<PullRequestPage>;
@@ -28,8 +26,6 @@ export interface ForgeAnswers {
 
 const unanswered = (read: string) => Promise.reject(new Error(`Unexpected forge read: ${read}`));
 
-/** The Workbench calls of the Forge sidebar's data, backed by the main process's own module over `answers`; what it
- * pushes goes to `emit`. `directoryOf` names each project's directory. */
 export function forgeSidebarData(
   answers: ForgeAnswers,
   emit: (event: ForgeSidebarEvent) => void,
@@ -63,7 +59,6 @@ export function forgeSidebarData(
   } satisfies Partial<DesktopAPI>;
 }
 
-/** Where a test's Workbench pushes events: `subscribe` for the Workbench API, and `emit` to push one. */
 export function workbenchEvents() {
   const listeners = new Set<(event: WorkbenchEvent) => void>();
   return {

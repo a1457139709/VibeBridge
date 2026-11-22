@@ -29,9 +29,6 @@ const events = [
   'ElicitationResult',
 ];
 
-/** Augment only the effective invocation settings. Lower layers, trust and policy
- * remain Claude's responsibility. Never rewrite a user's settings file.
- */
 async function prepare({ command, directory, resourceDirectory }: Launch): Promise<PreparedLaunch> {
   const boundary = command.args.indexOf('--');
   const args = command.args.slice(0, boundary < 0 ? undefined : boundary);
@@ -63,8 +60,6 @@ async function prepare({ command, directory, resourceDirectory }: Launch): Promi
   let settingsArg = settingsJson;
   let cleanup: (() => Promise<void>) | undefined;
   if (value !== undefined && !value.trimStart().startsWith('{')) {
-    // File settings can contain secrets. Preserve their file boundary rather
-    // than exposing all contents to process argument inspection.
     const temporary = await mkdtemp(join(resolve(resourceDirectory), 'claude-status-'));
     cleanup = () => rm(temporary, { recursive: true, force: true });
     try {
@@ -122,10 +117,6 @@ class ClaudeInterpreter implements StatusInterpreter {
     this.elicitations.clear();
   }
 
-  /** The event as the current session takes it, or nothing when it is stale or a repeat. Independent hook
-   * processes share no order, so only recognizably stale events drop. A PermissionRequest without a tool
-   * gains the one active tool whose input it matches, if exactly one does.
-   */
   private admitEvent(event: Payload, session: string): Payload | undefined {
     const name = event.hook_event_name;
     if (name === 'SessionStart') {
@@ -147,9 +138,6 @@ class ClaudeInterpreter implements StatusInterpreter {
     if (this.endedSessions.has(session) || (this.currentSession && this.currentSession !== session)) return;
     this.currentSession ??= session;
     if (name === 'SessionEnd') {
-      // Resuming reports the old segment's SessionEnd and the new SessionStart under one
-      // prompt_id. A SessionEnd processed after its paired start belongs to the segment
-      // before it and keeps the session.
       if (this.sessionStartPromptId !== undefined && event.prompt_id === this.sessionStartPromptId) return event;
       this.endedSessions.add(session);
       this.currentSession = undefined;
@@ -201,8 +189,6 @@ class ClaudeInterpreter implements StatusInterpreter {
         typeof event.tool_input_hash === 'string'
           ? [...this.activeTools].filter(([, hash]) => hash === event.tool_input_hash)
           : [];
-      // Never resolve an unidentified wait by tool name or by an ambiguous
-      // input match. A later main-turn fact can still establish a fresh state.
       const { tool_input_hash: _hash, ...unidentified } = event;
       return candidates.length === 1 ? { ...unidentified, tool_use_id: candidates[0][0] } : unidentified;
     }
@@ -247,7 +233,6 @@ class ClaudeInterpreter implements StatusInterpreter {
       case 'PreCompact':
       case 'PostCompact':
         return waiting ? 'needs-input' : 'busy';
-      // A turn ends only when no Spawned Task it started is still running.
       case 'Stop':
         return Array.isArray(event.background_tasks) && event.background_tasks.some(task => task?.status === 'running')
           ? 'busy'

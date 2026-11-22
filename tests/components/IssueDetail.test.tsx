@@ -66,7 +66,6 @@ interface Request {
   fail(error: Error): void;
 }
 
-/** The Workbench with a bound project, its sidebar open on one page of issues. Every detail request waits until the test answers it. */
 function renderWorkbench(
   issues: ListedIssue[],
   capabilities: ForgeCapabilities = githubCapabilities,
@@ -400,12 +399,9 @@ test('the pull requests that close the issue on merge sit in their own block, cl
   );
 });
 
-// The PTY follows the terminal's box, and the terminal fills the layout area: a detail that leaves the layout area's
-// classes and styles as they were leaves the PTY its size. The desktop suite shows the squeezing detail resizing it.
 test('an overlaying detail leaves the layout area as it was, and a squeezing one narrows it until it closes', async () => {
   for (const detailCoexistence of ['overlay', 'squeeze'] as const) {
     const { user, request } = renderWorkbench([summary(7)], githubCapabilities, { detailCoexistence });
-    // What the layout area is laid out by: whether a detail squeezes it, and the widths of the regions beside it.
     const layoutArea = () => {
       const body = selectElement('.app-body');
       return [

@@ -59,7 +59,6 @@
 .dispatch-menu {
   outline: none;
 }
-/* Pointing at an item moves the cursor to it, so the cursor alone marks an item. */
 .dispatch-menu button:hover:not(:disabled) {
   background: none;
 }
@@ -219,7 +218,6 @@ button.dispatch-skill:hover {
 .dispatch-records ul .dispatch-record:first-child {
   border-top: 0;
 }
-/* The parts of a record's line read `when · Agent type · skill · session ID`. */
 .dispatch-record > * + *::before {
   content: '·';
   margin-right: 6px;

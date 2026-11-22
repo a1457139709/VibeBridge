@@ -13,10 +13,6 @@ import { selectElement } from './support/elements';
 
 afterEach(cleanup);
 before(() => {
-  // jsdom has no layout, frames, media queries or pointer capture. The layout area is 800×600, each panel slot
-  // covers the share its inline position gives it and everything else (such as the tray) has no area, so
-  // drops are hit tested against the displayed layout.
-  // Only the layout area reports itself visible: panels report no layout, so terminals are not measured.
   stubLayoutApis();
   const area = new window.DOMRect(0, 0, 800, 600);
   Object.assign(window.HTMLElement.prototype, {
@@ -55,8 +51,6 @@ const sideBySide = (left: string, right: string): Layout => ({
   second: { panel: right },
 });
 
-// Codex on the left and Claude Code on the right, with pi in the tray. A save never returns on its own: the test
-// emits the saved snapshot.
 async function renderWorkbench() {
   const snapshot: Snapshot = {
     navigation: { visible: true, width: 212 },
@@ -81,7 +75,6 @@ async function renderWorkbench() {
     ],
   };
   const saves: (Layout | null)[] = [];
-  // Placing a tray panel or moving a resident panel to the tray are the other changes a release can request.
   const otherChanges: string[] = [];
   let listener: (event: WorkbenchEvent) => void = () => {};
   provideWorkbench({
@@ -110,7 +103,6 @@ async function renderWorkbench() {
     canvas,
     saves,
     otherChanges,
-    // The main process saves layouts and reports the project as it is after each one, all in one task.
     saved: (...changes: ((project: Snapshot['projects'][number]) => void)[]) =>
       act(() => {
         for (const change of changes) {
@@ -121,8 +113,6 @@ async function renderWorkbench() {
   };
 }
 
-// Presses a resident panel's header, or a tray card, and moves to the given window point. A tray card reports no
-// area here, so it is pressed at a point below the 800×600 layout area, where the tray lies.
 function press(panelId: string, to: { x: number; y: number }) {
   const handle =
     document.querySelector<HTMLElement>(`.canvas > [data-panel-id="${panelId}"] .panel-header`) ??
@@ -144,7 +134,6 @@ test('a drag started before the previous drop is saved survives that save return
   press('codex', right).release();
   assert.deepEqual(saves, [sideBySide('claude', 'codex')]);
 
-  // The drop is displayed at once; Claude Code is dragged back before the save returns.
   const drag = press('claude', right);
   assert.ok(canvas.classList.contains('dragging'));
   await saved(project => {
@@ -160,7 +149,6 @@ test('a snapshot that keeps the saved layout leaves a drag on an unsaved drop ru
   const { canvas, saved } = await renderWorkbench();
   press('codex', right).release();
   press('claude', right);
-  // Another change, such as a run title, arrives while the drop is still being saved.
   await saved(project => {
     requireValue(project.panels[0].run, 'the run').title = 'Renamed';
   });
@@ -225,7 +213,6 @@ test('a saved layout returning to the one before a drop is drawn when both saves
   const { saves, saved } = await renderWorkbench();
   press('codex', right).release();
   assert.deepEqual(saves, [sideBySide('claude', 'codex')]);
-  // The drop's save and another save restoring the earlier layout arrive before the renderer draws again.
   await saved(
     project => {
       project.layout = sideBySide('claude', 'codex');

@@ -1,5 +1,3 @@
-// Creates a project through the project creation guide; its panels become resident panels.
-// `counts` assigns Agents by their displayed names, e.g. { Codex: 2, pi: 1 }.
 module.exports = async (
   { evaluate, until, click, fill, directory },
   name = 'Desktop project',

@@ -19,7 +19,6 @@ interface ManagedRun {
   draining: boolean;
 }
 const runs = new Map<string, ManagedRun>();
-/** A variable the Workbench sets when it starts this host as its child process. */
 function workbenchVariable(name: 'VIBEBRIDGE_HOST_OWNER' | 'VIBEBRIDGE_FAULT_FILE'): string {
   const value = process.env[name];
   if (!value) throw new Error(`${name} is unset: the terminal host runs only as the Workbench's child process`);
@@ -28,7 +27,6 @@ function workbenchVariable(name: 'VIBEBRIDGE_HOST_OWNER' | 'VIBEBRIDGE_FAULT_FIL
 const owner = workbenchVariable('VIBEBRIDGE_HOST_OWNER');
 let environment: Promise<Record<string, string>> | undefined;
 let shuttingDown = false;
-// A peer can die between the connected check and the write. Let disconnect own cleanup.
 const send = (message: HostReport) => {
   if (process.connected) process.send?.(message, () => {});
 };
@@ -49,8 +47,6 @@ const sampler = setInterval(() => {
 }, 500);
 
 function drainAfterKill(entry: ManagedRun) {
-  // macOS can wait for PTY output to drain while reaping a killed producer. After SIGKILL
-  // only the finite kernel buffer remains; forward it without waiting for a lost renderer.
   entry.draining = true;
   entry.terminal.resume();
 }
@@ -141,7 +137,6 @@ async function performOperation(request: HostOperation) {
         titles(data);
         entry.unacknowledgedOutput += data.length;
         emitEvent({ kind: 'output', runId: id, data });
-        // Credit covers every hop through IPC and xterm's parser. Do not truncate output.
         if (!entry.draining && entry.unacknowledgedOutput >= 128 * 1024) {
           terminal.pause();
           entry.paused = true;
@@ -163,9 +158,7 @@ async function performOperation(request: HostOperation) {
     }
   }
   const entry = runs.get(request.value.runId);
-  // Layout transitions may finish after a panel has stopped. Only input requires a live target.
   if (request.operation === 'resize' && (!entry || entry.stopping)) return;
-  // A stopping run still shows its panel until cleanup ends; drop typing or terminal replies meanwhile.
   if (request.operation === 'input' && entry?.stopping) return;
   if (!entry || entry.stopping) throw new Error(message('runInvalid'));
   if (request.operation === 'input') {
@@ -190,7 +183,6 @@ process.on('message', (received: unknown) => {
     return;
   }
   const request = parsed.data;
-  // Parser acknowledgements must not wait behind a stop/start operation.
   if (request.operation === 'output-consumed') {
     const entry = runs.get(request.value.runId);
     const { characters } = request.value;

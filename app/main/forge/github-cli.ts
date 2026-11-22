@@ -3,22 +3,16 @@ import { z } from 'zod';
 import { resolveExecutable } from '../../terminal/environment';
 import { ForgeError } from './forge';
 
-// The GitHub adapter's only way to GitHub: the `gh` CLI, its failures sorted into the forge failure kinds.
-
-/** Runs `gh`, found on PATH, against `host` with the account it has active there, and returns its standard output.
- * The Workbench never reads or stores a token. */
 export async function gh(host: string, args: string[]): Promise<string> {
   return (await ghOutput(host, args)).stdout;
 }
 
-/** Runs `gh` against `host` and returns what it printed: a write subcommand reports on standard error. */
 export async function ghOutput(host: string, args: string[]): Promise<{ stdout: string; stderr: string }> {
   const { failure, stdout, stderr } = await run(host, args);
   if (failure) throw failure;
   return { stdout, stderr };
 }
 
-/** Runs `gh` against `host`: what it printed, and the failure it ended in, if any. */
 async function run(
   host: string,
   args: string[],
@@ -51,8 +45,6 @@ async function run(
   });
 }
 
-/** Exit code 4 is gh's "authentication required"; 401 and 404 come from the REST API, NOT_FOUND from GraphQL. A write
- * subcommand prints only GraphQL's message, which names a repository the account cannot see. */
 function classifyFailure(code: number | null, stdout: string, stderr: string) {
   const detail = stderr.trim() || stdout.trim();
   if (code === 4 || /\bHTTP 401\b/.test(stderr)) return new ForgeError('loggedOut', detail);
@@ -65,8 +57,6 @@ function classifyFailure(code: number | null, stdout: string, stderr: string) {
   return new ForgeError('transient', detail);
 }
 
-/** Runs a GraphQL query on `host` and reads its data with `schema`; output gh did not fail on but that does not fit is a transient failure.
- * A number variable is sent as a GraphQL Int (`-F`), a string as a String (`-f`). */
 export async function graphql<T>(
   host: string,
   query: string,
@@ -78,9 +68,6 @@ export async function graphql<T>(
   return graphqlData(stdout, schema);
 }
 
-/** Runs a GraphQL query on `host` whose fields under the top-level one may each name an item the forge does not have,
- * and reads its data with `schema`. GitHub answers such a field with null and a NOT_FOUND error beside the data, and `gh`
- * fails on it: those errors alone leave the data standing. Any other failure stands. */
 export async function graphqlAllowingMissing<T>(
   host: string,
   query: string,
@@ -104,7 +91,6 @@ const missingItemsSchema = z.object({
   data: z.record(z.string(), z.object({}).passthrough()),
   errors: z.array(z.object({ type: z.literal('NOT_FOUND'), path: z.array(z.unknown()).min(2) })).min(1),
 });
-/** Whether a failed GraphQL answer holds its data, failing only on fields under the top-level one that found nothing. */
 function onlyMissingItems(output: string) {
   try {
     return missingItemsSchema.safeParse(JSON.parse(output)).success;

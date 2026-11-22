@@ -3,11 +3,9 @@ import { dropIntoLayout, layoutBoxes, type Drop, type Side } from '../../shared/
 import { localize } from '../../shared/localization/localization';
 import { requireElement, requireValue } from '../common/required';
 
-// The band along each edge of the layout area that fills that whole side: a fixed value, not a setting.
 const edgeBand = 24;
 const sideNames = { top: 'sideTop', bottom: 'sideBottom', left: 'sideLeft', right: 'sideRight' } as const;
 
-// A frozen copy is only a paint surface. It never owns a terminal, input or a layout.
 function frozenCopy(element: HTMLElement) {
   const copy = element.cloneNode(true);
   if (!(copy instanceof HTMLElement)) throw new Error('A panel copy is not an element');
@@ -39,11 +37,6 @@ const nearest = (box: DOMRect, x: number, y: number): Side =>
     ] as const
   ).reduce((best, edge) => (edge[1] < best[1] ? edge : best))[0];
 
-/**
- * Where a pointer drops a dragged panel. The edge band of the layout area fills that side; the middle third
- * (in width and in height) of another resident panel swaps with it; the rest of that panel splits it on
- * the edge nearest the pointer. Hit testing uses the areas from before the drag, never a displayed preview.
- */
 export function dropAt(
   canvas: DOMRect,
   panels: { id: string; box: DOMRect }[],
@@ -72,16 +65,9 @@ export function dropAt(
     : { kind: 'split', panel: target.id, side: nearest(box, x, y) };
 }
 
-/** What releasing a dragged panel does: the layout it produces, or (for a resident panel) moving it to the tray. */
 export type DragResult = { kind: 'layout'; layout: Layout } | { kind: 'tray' };
-// Where a dragged panel would land: in the layout, or (for a resident panel) on the tray.
 type Target = Drop | { kind: 'tray' };
 
-/**
- * Previews dragging a panel. A resident panel is dragged from its slot and can also be dropped on the tray.
- * A tray panel is dragged from `element` (its card or its open panel) and placed into the layout; with no
- * resident panels, dropping it anywhere in the layout area makes it the whole layout.
- */
 export function createDragPreview({
   event,
   canvas,
@@ -98,9 +84,7 @@ export function createDragPreview({
   source: Panel;
   panels: Panel[];
   layout: Layout | null;
-  /** The dragged tray panel's visible element; omitted for a resident panel. */
   element?: HTMLElement;
-  /** The tray, a drop target for a resident panel. */
   tray?: HTMLElement | null;
   language?: Language;
   onDragStart(): void;
@@ -129,12 +113,10 @@ export function createDragPreview({
   const dragged = resident ?? trayImage(requireValue(element, 'the dragged tray panel element'));
   const agent = agentNames[source.agent];
   const trayArea = resident && tray ? tray.getBoundingClientRect() : undefined;
-  // An empty tray lies over the bottom of the layout area (panel-tray.css); the layout's drops, edge band included, sit above it.
   const dropArea =
     trayArea?.height && trayArea.top > area.top && trayArea.top < area.bottom
       ? new DOMRect(area.x, area.y, area.width, trayArea.top - area.y)
       : area;
-  // While a tray panel is placed, the open tray panel steps aside so every resident panel is a visible target.
   const covering = resident
     ? []
     : [...canvas.querySelectorAll<HTMLElement>('.panel-slot')].filter(
@@ -145,7 +127,6 @@ export function createDragPreview({
     drop: Target | undefined,
     next: DragResult | undefined;
   let ghost: HTMLDivElement | undefined, preview: HTMLDivElement | undefined, hidden: HTMLElement | undefined;
-  // A labelled picture over the given window area.
   const figure = (className: string, label: string, box: { x: number; y: number; width: number; height: number }) => {
     const element = document.createElement('div');
     element.className = className;
@@ -166,7 +147,6 @@ export function createDragPreview({
   };
   const outline = (label: string, box: { x: number; y: number; width: number; height: number }) =>
     figure(`panel-drop-preview ${source.agent}`, label, box);
-  // The area the dragged panel takes in a layout, in window coordinates.
   const placed = (result: Layout) => {
     const box = requireValue(layoutBoxes(result).panels.get(source.id), 'the dragged panel in the layout');
     return {
@@ -187,7 +167,6 @@ export function createDragPreview({
     element.setAttribute('aria-label', t('swapPreview', { first: agent, second: agentNames[other.panel.agent] }));
     hidden = other.element;
     hidden.classList.add('panel-drag-hidden');
-    // A resident target moves into the dragged panel's slot; a target replaced by a tray panel leaves for the tray.
     element.append(
       resident
         ? layer(
@@ -200,7 +179,6 @@ export function createDragPreview({
     );
     return element;
   };
-  // A drop preview outlines the area the dragged panel takes in the resulting layout.
   const dropPreview = (drop: Exclude<Drop, { kind: 'swap' }>, result: Layout) =>
     outline(
       !original
@@ -234,7 +212,6 @@ export function createDragPreview({
       preview = outline(t('trayPreview', { agent }), requireValue(trayArea, 'the tray area'));
     } else {
       const result = dropIntoLayout(original, source.id, drop);
-      // A drop that leaves the layout as it is (such as a lone panel filling a side) is not a valid drop.
       if (JSON.stringify(result) === JSON.stringify(original)) return;
       next = { kind: 'layout', layout: result };
       preview = drop.kind === 'swap' ? swapPreview(drop.panel, result) : dropPreview(drop, result);
@@ -277,7 +254,6 @@ export function createDragPreview({
   return {
     move,
     result(release: PointerEvent): DragResult | undefined {
-      // Pointerup may be delivered without a final pointermove.
       move(release);
       return moving ? next : undefined;
     },

@@ -5,7 +5,6 @@ import { mkdir, readFile, writeFile, rm } from 'node:fs/promises';
 import { Workbench } from '../app/main/workbench';
 import { testDirectory } from './support/directory';
 
-// nextPanel is written with closePanel's binding; maximizePanel is missing and its default matches nothing.
 async function writeShortcutConflict(directory: string) {
   const contents = JSON.stringify({
     theme: 'dark',

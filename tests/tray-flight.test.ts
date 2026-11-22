@@ -3,7 +3,6 @@ import assert from 'node:assert/strict';
 import { canFly } from '../app/renderer/workspace/tray-flight';
 import { fromPartial } from '@total-typescript/shoehorn';
 
-/** A panel that can animate, as an element in a browser can. */
 const animatable = fromPartial<Element>({ animate() {} });
 
 function prefersReducedMotion(reduced: boolean) {

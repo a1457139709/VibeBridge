@@ -12,10 +12,6 @@ interface Context {
   pendingMessages?: boolean;
 }
 
-/** A pi run whose session has started. Facts carry the extension context the Status Reporter
- * reads: pi is busy from agent_start until agent_settled unless a fact says otherwise, and
- * agent_end carries the final assistant outcome of its loop.
- */
 function started() {
   const accept = observe(pi);
   let idle = true,
@@ -174,8 +170,6 @@ test('pi overlapping manual compactions retain the prior idle result until the l
       check(assistant(prior === 'done' ? 'stop' : 'error'), 'busy');
       check({ type: 'agent_settled' }, prior);
     }
-    // An earlier user extension starts B while handling A's completion.
-    // The observer receives B's before-callback before A's completion.
     check({ type: 'session_before_compact', reason: 'manual' }, 'busy', { idle: false });
     check({ type: 'session_before_compact', reason: 'manual' }, 'busy', { idle: false });
     check({ type: 'session_compact', reason: 'manual', willRetry: false }, 'busy', { idle: false });

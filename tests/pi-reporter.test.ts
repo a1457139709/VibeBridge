@@ -72,7 +72,6 @@ test('pi preserves explicit extensions and arguments', async () => {
   try {
     const source = `export default pi => { pi.on('session_start', async () => { console.log('EXISTING_EXTENSION_OK'); }); };`;
     await writeFile(join(f.directory, 'existing.mjs'), source);
-    // The CLI resolves user paths relative to its project, just as pi does.
     const {
       launches: [{ run }],
     } = await f.create();
@@ -94,8 +93,6 @@ test('pi preserves explicit extensions and arguments', async () => {
   }
 });
 
-/** The test is the transport for in-process reporters: each report is held until the test delivers it.
- * Restore the real transport and environment with the returned `restore`. */
 function holdReports(runId: string) {
   const requests: { payload: Record<string, unknown>; deliver(): void }[] = [];
   const original = http.request;
@@ -152,8 +149,6 @@ function holdReports(runId: string) {
 }
 
 type Handler = (event: object, context: object) => Promise<void>;
-/** pi /reload loads a fresh copy of the extension module within the same process. The CLI double's
- * import cache would reuse one module, so these tests load each copy themselves. */
 async function loadReporter(instance: string) {
   const handlers = new Map<string, Handler>();
   const module = await import(`${pathToFileURL(join(__dirname, 'pi-reporter.mjs')).href}?${instance}`);
@@ -164,7 +159,6 @@ async function loadReporter(instance: string) {
     return handler({ type }, { isIdle: () => false, hasPendingMessages: () => false, ...context });
   };
 }
-// No report waits on I/O, so once queued callbacks have run, every report that can be sent has been.
 const settled = () => new Promise(resolve => setImmediate(resolve));
 
 test("pi /reload keeps delivering through the launch's one queue, so a reloaded reporter waits for earlier reports", async () => {

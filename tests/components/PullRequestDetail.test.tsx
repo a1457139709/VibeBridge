@@ -61,7 +61,6 @@ interface Request {
   answer(result: IssueDetailResult | PullRequestDetailResult): void;
 }
 
-/** The Workbench with a bound project and its sidebar open, listing one pull request and one issue. Every detail request waits until the test answers it. */
 function renderWorkbench({
   capabilities = githubCapabilities,
   closingPullRequests = [],
@@ -148,7 +147,6 @@ const mergeArea = () => within(pane()).getByRole('region', { name: 'Merge requir
 const rowOf = (name: string) =>
   requireInstance(within(mergeArea()).getByText(name, { selector: 'b' }).closest('.forge-merge-row'), HTMLElement);
 
-/** Opens pull request #12 from the list and answers its detail. */
 async function openPullRequest(pullRequest: PullRequestDetail, options: Parameters<typeof renderWorkbench>[0] = {}) {
   const view = renderWorkbench(options);
   await view.user.click(

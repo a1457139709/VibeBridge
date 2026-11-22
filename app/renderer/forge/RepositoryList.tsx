@@ -6,22 +6,15 @@ import type { ShownRepositoryChoices } from '../../shared/forge/sidebar-data';
 import './repository-list.css';
 
 interface Props {
-  /** The repositories as the main process pushes them; null while they are being read. */
   choices: ShownRepositoryChoices;
   retry(): void;
-  /** The project's binding, marked current and kept in the list even when the account no longer lists it. */
   boundRepository: RepositoryReference | null;
   selection: RepositoryReference | null;
   pick(repository: RepositoryReference): void;
   disabled?: boolean;
-  /** Focuses the search box, or Retry, once it is drawn. */
   autoFocus?: boolean;
 }
 
-/** The account's repositories, searchable, with the one `origin` points at first; while loading, or when the list
- * cannot be read, its place says so and offers Retry. Focus stays in the search box, picking with the pointer too, and
- * there ↑/↓ move through the ones shown, without wrapping, keeping the one reached in view; Enter or Space picks it.
- * Pointing at one reaches it too, and a new search reaches none until a key moves. */
 export function RepositoryList({
   choices,
   retry,
@@ -33,7 +26,6 @@ export function RepositoryList({
 }: Props) {
   const { t } = useLocalization();
   const [query, setQuery] = useState('');
-  /** The path of the repository the keys have reached. */
   const [highlightedPath, setHighlightedPath] = useState<string>();
   const listId = useId();
   const optionId = (path: string) => `${listId}-${path}`;
@@ -108,7 +100,6 @@ export function RepositoryList({
         }}
         onKeyDown={keydown}
       />
-      {/* Pressing the list keeps focus in the search box, where its keys are answered. */}
       <div
         className="repository-list"
         id={listId}

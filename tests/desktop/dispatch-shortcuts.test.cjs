@@ -1,6 +1,5 @@
 const assert = require('node:assert/strict');
 
-/** Presses ⌘ and a letter as the keyboard does. */
 const press = (window, keyCode) => {
   window.webContents.sendInputEvent({ type: 'keyDown', keyCode, modifiers: ['meta'] });
   window.webContents.sendInputEvent({ type: 'keyUp', keyCode, modifiers: ['meta'] });
@@ -26,7 +25,6 @@ module.exports = {
     const context = await require('./support/terminal-waits.cjs')(base);
     const { window, evaluate, until, click } = context;
     const project = snapshot.projects[0];
-    // Bound as Bind in the Forge sidebar binds octo/desktop.
     await evaluate(`(async () => window.workbench.bindRepository(${JSON.stringify(project.id)},
       (await window.workbench.fetchRepositoryChoices(${JSON.stringify(project.id)}, ${JSON.stringify(project.directory)}))
         .repositories.find(item => item.path === 'octo/desktop')))()`);
@@ -36,7 +34,6 @@ module.exports = {
       'issue row listed',
     );
 
-    // With focus on the issue's row, ⌘D opens its dispatch menu.
     await click('Dispatched issue');
     await until(() => evaluate('!!document.querySelector(".forge-detail")'), 'issue detail open');
     await evaluate('document.querySelector(".forge-row-title").focus()');
@@ -49,8 +46,6 @@ module.exports = {
     window.webContents.sendInputEvent({ type: 'keyUp', keyCode: 'Escape' });
     await until(() => evaluate('!document.querySelector(".dispatch-menu")'), 'dispatch menu closed');
 
-    // With the issue still selected but focus in the terminal, ⌘D and ⌘L go on to the terminal's input. The workbench
-    // stops a key it takes before it gets there, so the terminal receiving the key shows the workbench left it alone.
     await evaluate(`window.terminalKeys = [];
       const input = document.querySelector('.canvas .xterm-helper-textarea');
       input.addEventListener('keydown', event => { if (event.metaKey) window.terminalKeys.push(event.code); });

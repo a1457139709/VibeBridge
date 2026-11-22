@@ -9,31 +9,24 @@ import { createResizePreview } from './panel-resize';
 export interface PanelInteractionContext {
   language?: Language;
   projectId: string;
-  // The latest saved layout, never the temporary layout emitted by presentLayout.
   layout: Layout | null;
-  // Resident panels.
   panels: (Panel & { runId?: string })[];
-  // Tray panels in tray order, and the tray element a resident panel can be dropped on.
   tray: Panel[];
   trayElement: HTMLElement | null;
   visible: boolean;
   maximizedPanelId?: string;
   presentLayout(layout: Layout | null): void;
   commitLayout(layout: Layout): void;
-  // Valid drops that change which panels are resident.
   placeInLayout(panelId: string, layout: Layout): void;
   moveToTray(panelId: string): void;
 }
 
-// Update after each DOM commit (including title/run changes). The module owns
-// observation; the caller only renders layouts and persists valid commits.
 export function createPanelInteractions(canvas: HTMLElement, context: PanelInteractionContext) {
   let current = context;
   let displayed = context.layout;
   let layoutKey = JSON.stringify(context.layout);
   let disposed = false,
     suppressClick = false;
-  // `base` is the displayed layout the gesture was computed from; a saved layout equal to it leaves the gesture valid.
   let active: { kind: 'drag' | 'resize'; cancel(): void; bounds: DOMRect; base: string } | undefined;
   let frame: number | undefined;
   const observed = new Map<string, { panel: HTMLElement; container: HTMLElement; runId?: string }>();
@@ -118,10 +111,7 @@ export function createPanelInteractions(canvas: HTMLElement, context: PanelInter
   window.addEventListener('resize', cancel);
   window.addEventListener('keydown', keydown, true);
   document.addEventListener('visibilitychange', hidden);
-  // A drag from a tray card ends with a click on the card, outside the canvas.
   document.addEventListener('click', click, true);
-  // Ignore overlapping starts until the active pointer finishes or is cancelled.
-  // In particular a second pointer must not take over the first pointer's capture.
   const pointerAvailable = (event: PointerEvent) =>
     !disposed &&
     !active &&
@@ -129,7 +119,6 @@ export function createPanelInteractions(canvas: HTMLElement, context: PanelInter
     event.button === 0 &&
     canvas.isConnected &&
     canvas.getClientRects().length;
-  // Rearranging resident panels needs them on screen: nothing may be maximized.
   const available = (event: PointerEvent) => pointerAvailable(event) && !current.maximizedPanelId && displayed;
   const track = <T>(
     kind: 'drag' | 'resize',
@@ -169,8 +158,6 @@ export function createPanelInteractions(canvas: HTMLElement, context: PanelInter
       if (disposed) return;
       const nextKey = JSON.stringify(next.layout);
       const sameProject = current.projectId === next.projectId;
-      // A drop is shown before its save returns. When the saved layout becomes the one the active gesture
-      // was computed from, the gesture and the displayed layout are still current.
       const changedLayout = (!sameProject || layoutKey !== nextKey) && !(sameProject && active?.base === nextKey);
       const invalidated =
         changedLayout ||
@@ -186,16 +173,11 @@ export function createPanelInteractions(canvas: HTMLElement, context: PanelInter
       syncPanels();
       applyCompactLayouts();
     },
-    /**
-     * Drags a resident panel by its header to another place in the layout or onto the tray, or a tray panel
-     * by its card or open panel header into the layout. `handle` is the element the pointer went down on.
-     */
     startDrag(event: PointerEvent, handle: HTMLElement, panelId: string) {
       const control = event.target instanceof Element ? event.target.closest('button, [role="menu"]') : null;
       if (control && control !== handle) return;
       const resident = current.panels.find(panel => panel.id === panelId);
       const source = resident ?? current.tray.find(panel => panel.id === panelId);
-      // A tray panel can be placed while it (or another tray panel) is open, but not over a maximized resident panel.
       if (
         !source ||
         (resident

@@ -33,10 +33,6 @@ function inline(value: unknown): string {
   return JSON.stringify(value);
 }
 
-/** Add only session-layer handlers. Lower config layers remain Codex's responsibility;
- * command-line handlers are retained when our event arrays are appended to that layer.
- * Trust stays in Codex's native /hooks UI. The stable command contains no run secrets.
- */
 function withReporterHooks(command: AgentCommand): AgentCommand {
   const hooks: Record<string, unknown> = {};
   const boundary = command.args.indexOf('--');
@@ -67,7 +63,6 @@ function withReporterHooks(command: AgentCommand): AgentCommand {
       `hooks.${event}=${inline([...existing, { hooks: [{ type: 'command', command: reporter, timeout: 3 }] }])}`,
     ];
   });
-  // Native TUI must stay within the terminal host's run, not attach to a shared daemon.
   added.push('-c', 'features.daemon_auto_start=false');
   return { ...command, args: [...args, ...added, ...(boundary < 0 ? [] : command.args.slice(boundary))] };
 }
@@ -79,7 +74,6 @@ class CodexInterpreter implements StatusInterpreter {
   private oldTurns = new Set<string>();
   private seen = new Set<string>();
   private waits = new Set<string>();
-  /** An async question the user has not answered: it outlives its tool result, the turn and turn changes. */
   private unansweredAsyncQuestion = false;
 
   accept(event: Payload): Outcome {
@@ -100,10 +94,6 @@ class CodexInterpreter implements StatusInterpreter {
     return this.currentSession;
   }
 
-  /** Interpret identity only after the outer run capability was authenticated.
-   * Only identifiable ended sessions, turns and repeated source boundaries
-   * are excluded.
-   */
   private admitFacts(event: Payload, session: string): Payload | undefined {
     const name = event.hook_event_name;
     if (name === 'SessionStart') {
@@ -118,8 +108,6 @@ class CodexInterpreter implements StatusInterpreter {
       return event;
     }
     if (this.endedSessions.has(session) || (this.currentSession && this.currentSession !== session)) return;
-    // A user may trust hooks after startup. A fresh main event can establish the
-    // association; directory, session ID and parent ID never authorize a run.
     this.currentSession ??= session;
     if (name === 'SessionEnd') {
       this.endedSessions.add(session);
@@ -136,8 +124,6 @@ class CodexInterpreter implements StatusInterpreter {
         this.waits.clear();
       }
       const tool = typeof event.tool_use_id === 'string' ? event.tool_use_id : undefined;
-      // Stop hooks can request continuation and submit again within a turn.
-      // A turn ID alone is not a unique event ID.
       if (tool) {
         const key = JSON.stringify([session, turn, name, tool]);
         if (this.seen.has(key)) return;
@@ -150,9 +136,7 @@ class CodexInterpreter implements StatusInterpreter {
   private classify(event: Payload): Transition {
     const name = event.hook_event_name;
     const tool = typeof event.tool_use_id === 'string' ? event.tool_use_id : '';
-    // Native Interrupt is root-only and dispatched after detaching the active turn.
     const interrupted = name === 'Interrupt' && typeof event.turn_id === 'string' && event.turn_id !== '';
-    // The native handler awaits the answer in every mode; Plan-only blocking just disables auto-resolution.
     if (name === 'PermissionRequest' || (name === 'PreToolUse' && event.tool_name === 'request_user_input')) {
       this.waits.add(tool || (name === 'PreToolUse' ? 'request_user_input' : ''));
       return 'needs-input';
@@ -161,7 +145,6 @@ class CodexInterpreter implements StatusInterpreter {
       if (tool) this.waits.delete(tool);
       else if (event.tool_name === 'request_user_input') this.waits.delete('request_user_input');
     }
-    // Any user input counts as the answer; the conversation is never read.
     const answered =
       name === 'UserPromptSubmit' || (name === 'SessionStart' && event.source !== 'compact') || interrupted;
     if (answered || name === 'Stop') this.waits.clear();

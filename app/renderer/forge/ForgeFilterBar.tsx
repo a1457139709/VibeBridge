@@ -3,7 +3,6 @@ import type { ForgeLabel, ListCounts, ListFilter } from '../../shared/forge/forg
 import { Label } from './ForgeDisplay';
 import { usePopover } from '../common/popover';
 
-/** A list's search, its open and closed switch with their counts, and the label filter: every chosen label must be present. */
 export function FilterBar({
   searchLabel,
   filter,
@@ -11,7 +10,6 @@ export function FilterBar({
   labels,
   counts,
 }: {
-  /** The search field's name, after the list it searches. */
   searchLabel: string;
   filter: ListFilter;
   setFilter(update: (filter: ListFilter) => ListFilter): void;

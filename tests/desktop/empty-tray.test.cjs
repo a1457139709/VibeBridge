@@ -37,7 +37,6 @@ module.exports = {
     const workspace = await rect('.workspace');
     await settle([], { [a]: [0, 0, 0.5, 1], [b]: [0.5, 0, 0.5, 1] });
 
-    // With no ephemeral panels the tray takes no space: the layout area reaches the workspace bottom.
     assert.equal(
       await border('.workspace-toolbar', 'Bottom'),
       '1px solid',
@@ -49,13 +48,11 @@ module.exports = {
       'the layout area reaches the bottom of the workspace',
     );
 
-    // Dragging a resident panel shows the empty tray as a drop target along the bottom, over the layout area.
     await press(`[data-panel-id="${a}"] .panel-header`);
     assert.equal(await trayShown(), true);
     const strip = await rect('.panel-tray');
     assert.equal(Math.round(strip.bottom), Math.round(workspace.bottom));
     assert.equal(await border('.panel-tray', 'Top'), '1px solid', 'a line separates the tray from the layout area');
-    // The bottom edge band sits just above the tray and still fills the bottom of the layout area.
     const canvas = await rect('.canvas');
     await hover(
       { x: Math.round(canvas.left + canvas.width / 4), y: Math.round(strip.top - 8) },
@@ -64,7 +61,6 @@ module.exports = {
     const point = center(strip);
     await hover(point, 'Drop preview: Codex moves to the tray');
 
-    // Cancelling the drag hides the empty tray again and changes nothing.
     context.window.webContents.sendInputEvent({ type: 'keyDown', keyCode: 'Escape' });
     await until(
       () => evaluate('!document.querySelector(".canvas").classList.contains("dragging")'),
@@ -75,7 +71,6 @@ module.exports = {
     await until(async () => !(await trayShown()), 'empty tray hidden after the cancelled drag');
     await settle([], { [a]: [0, 0, 0.5, 1], [b]: [0.5, 0, 0.5, 1] });
 
-    // Dropping the header on the empty tray makes the panel ephemeral; the tray then stays below the layout area.
     await press(`[data-panel-id="${a}"] .panel-header`);
     await hover(point, 'Drop preview: Codex moves to the tray');
     release(point);
@@ -86,7 +81,6 @@ module.exports = {
       'a tray holding a panel sits below the layout area',
     );
 
-    // The move-to-tray action does the same as dropping the header on the tray, and leaves the panel collapsed.
     await evaluate(
       `document.querySelector('[data-panel-id="${b}"] .panel-actions button[aria-label="Move to tray"]').click()`,
     );

@@ -14,7 +14,6 @@ import {
   type StorageRequest,
 } from './storage-protocol';
 
-/** A request waiting for its reply: `settle` reads the reply's result by the schema its request expects. */
 interface PendingRequest {
   settle(result: unknown): void;
   reject(error: Error): void;
@@ -54,7 +53,6 @@ export class ProjectStore {
     await mkdir(directory, { recursive: true });
     return new ProjectStore(directory);
   }
-  /** Sends `request` and resolves with the worker's result as `result` reads it. */
   private request<T>(request: StorageRequest, result: z.ZodType<T>): Promise<T> {
     if (this.failure) return Promise.reject(this.failure);
     return new Promise((resolve, reject) => {
@@ -69,7 +67,6 @@ export class ProjectStore {
       this.worker.postMessage(sent);
     });
   }
-  /** Sends a request that writes; it resolves once the write completed. */
   private write(request: StorageRequest) {
     return this.request(request, completionSchema);
   }
@@ -79,15 +76,12 @@ export class ProjectStore {
   save(project: Project) {
     return this.write({ operation: 'save', project });
   }
-  /** Stores a project's Repository Binding, replacing any it has. */
   bind(projectId: string, repository: RepositoryReference) {
     return this.write({ operation: 'bind', projectId, repository });
   }
-  /** Removes a project's Repository Binding. */
   unbind(projectId: string) {
     return this.write({ operation: 'unbind', projectId });
   }
-  /** Appends a Dispatch Record. */
   appendDispatchRecord(record: DispatchRecord) {
     return this.write({ operation: 'dispatch', record });
   }
