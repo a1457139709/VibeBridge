@@ -8,7 +8,7 @@ export function usePopover<Root extends HTMLElement>() {
   useEffect(() => {
     if (!open) return;
     const outside = (event: PointerEvent) => {
-      if (!root.current?.contains(event.target as Node)) setOpen(false);
+      if (!(event.target instanceof Node && root.current?.contains(event.target))) setOpen(false);
     };
     const escape = (event: KeyboardEvent) => {
       if (event.key === 'Escape') {

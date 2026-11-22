@@ -6,8 +6,10 @@ import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 const showDelay = 400;
 const gap = 6,
   margin = 8;
-const hinted = (target: EventTarget | null) =>
-  (target as Element | null)?.closest?.<HTMLElement>('[data-hint]') ?? null;
+const hinted = (target: EventTarget | null) => {
+  const found = target instanceof Element ? target.closest('[data-hint]') : null;
+  return found instanceof HTMLElement ? found : null;
+};
 
 /** Shows the hint of the hovered or keyboard-focused element, below it or above it near the window bottom. */
 export function HoverHints() {

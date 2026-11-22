@@ -1,6 +1,7 @@
 import { agentNames, type Panel, type Layout, type Language } from '../../shared/model';
 import { dropIntoLayout, layoutBoxes, type Drop, type Side } from '../../shared/layout';
 import { localize } from '../../shared/localization/localization';
+import { requireElement, requireValue } from '../common/required';
 
 // The band along each edge of the layout area that fills that whole side: a fixed value, not a setting.
 const edgeBand = 24;
@@ -8,7 +9,8 @@ const sideNames = { top: 'sideTop', bottom: 'sideBottom', left: 'sideLeft', righ
 
 // A frozen copy is only a paint surface. It never owns a terminal, input or a layout.
 function frozenCopy(element: HTMLElement) {
-  const copy = element.cloneNode(true) as HTMLElement;
+  const copy = element.cloneNode(true);
+  if (!(copy instanceof HTMLElement)) throw new Error('A panel copy is not an element');
   copy.inert = true;
   copy.removeAttribute('id');
   copy.querySelectorAll('[id]').forEach(node => node.removeAttribute('id'));
@@ -107,8 +109,8 @@ export function createDragPreview({
   const original = structuredClone(layout);
   const area = canvas.getBoundingClientRect();
   const images = panels.map(panel => {
-    const slot = canvas.querySelector<HTMLElement>(`[data-panel-id="${panel.id}"]`)!;
-    const element = slot.querySelector<HTMLElement>('.agent-panel')!;
+    const slot = requireElement(canvas, `[data-panel-id="${panel.id}"]`);
+    const element = requireElement(slot, '.agent-panel');
     return {
       panel,
       element,
@@ -118,12 +120,13 @@ export function createDragPreview({
     };
   });
   const resident = images.find(image => image.panel.id === source.id);
-  const dragged = resident ?? {
+  const trayImage = (element: HTMLElement) => ({
     panel: source,
-    element: element!,
-    box: element!.getBoundingClientRect(),
-    image: frozenCopy(element!),
-  };
+    element,
+    box: element.getBoundingClientRect(),
+    image: frozenCopy(element),
+  });
+  const dragged = resident ?? trayImage(requireValue(element, 'the dragged tray panel element'));
   const agent = agentNames[source.agent];
   const trayArea = resident && tray ? tray.getBoundingClientRect() : undefined;
   // An empty tray lies over the bottom of the layout area (panel-tray.css); the layout's drops, edge band included, sit above it.
@@ -165,7 +168,7 @@ export function createDragPreview({
     figure(`panel-drop-preview ${source.agent}`, label, box);
   // The area the dragged panel takes in a layout, in window coordinates.
   const placed = (result: Layout) => {
-    const box = layoutBoxes(result).panels.get(source.id)!;
+    const box = requireValue(layoutBoxes(result).panels.get(source.id), 'the dragged panel in the layout');
     return {
       x: area.x + box.x * area.width,
       y: area.y + box.y * area.height,
@@ -174,7 +177,10 @@ export function createDragPreview({
     };
   };
   const swapPreview = (target: string, result: Layout) => {
-    const other = images.find(image => image.panel.id === target)!;
+    const other = requireValue(
+      images.find(image => image.panel.id === target),
+      'the swap target panel',
+    );
     const element = document.createElement('div');
     element.className = 'panel-swap-preview';
     element.setAttribute('role', 'img');
@@ -204,7 +210,13 @@ export function createDragPreview({
           : t('splitPreview', {
               agent,
               side: t(sideNames[drop.side]),
-              target: agentNames[images.find(image => image.panel.id === drop.panel)!.panel.agent],
+              target:
+                agentNames[
+                  requireValue(
+                    images.find(image => image.panel.id === drop.panel),
+                    'the split target panel',
+                  ).panel.agent
+                ],
             }),
       placed(result),
     );
@@ -219,7 +231,7 @@ export function createDragPreview({
     if (!drop) return;
     if (drop.kind === 'tray') {
       next = { kind: 'tray' };
-      preview = outline(t('trayPreview', { agent }), trayArea!);
+      preview = outline(t('trayPreview', { agent }), requireValue(trayArea, 'the tray area'));
     } else {
       const result = dropIntoLayout(original, source.id, drop);
       // A drop that leaves the layout as it is (such as a lone panel filling a side) is not a valid drop.
@@ -257,8 +269,9 @@ export function createDragPreview({
       );
       document.body.append(ghost);
     }
-    ghost!.style.left = `${pointer.clientX - offset.x}px`;
-    ghost!.style.top = `${pointer.clientY - offset.y}px`;
+    const image = requireValue(ghost, 'the drag image');
+    image.style.left = `${pointer.clientX - offset.x}px`;
+    image.style.top = `${pointer.clientY - offset.y}px`;
     show(target(pointer.clientX, pointer.clientY));
   };
   return {

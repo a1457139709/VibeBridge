@@ -6,6 +6,7 @@ import { originElsewhereThanBinding, type RepositoryChoices } from '../../shared
 import { projectNameError, projectNameHasControls } from '../../shared/project-name';
 import { LaunchResults } from './LaunchResults';
 import { errorMessage } from '../../shared/error-message';
+import { requireValue } from '../common/required';
 import './project-management.css';
 
 export function ProjectNavigationItem({
@@ -28,7 +29,7 @@ export function ProjectNavigationItem({
     if (!menu) return;
     menuElement.current?.querySelector('button')?.focus();
     const outside = (event: PointerEvent) => {
-      if (!menuElement.current?.contains(event.target as Node)) setMenu(undefined);
+      if (!(event.target instanceof Node && menuElement.current?.contains(event.target))) setMenu(undefined);
     };
     const escape = (event: KeyboardEvent) => {
       if (event.key === 'Escape') {
@@ -163,7 +164,11 @@ export function ProjectEditor({
   const boundRepository = project.repository;
   const inspected = inspection.path === directoryInput ? inspection.result : undefined;
   const checking = !!directoryInput && !inspected;
-  const duplicate = inspected?.existingProjectId && inspected.existingProjectId !== project.id;
+  /** Another project that already uses the chosen directory. */
+  const duplicate =
+    inspected?.existingProjectId && inspected.existingProjectId !== project.id
+      ? inspected.existingProjectId
+      : undefined;
   const nameError = text(nameInputError || projectNameError(name));
   const directoryError = !directoryInput
     ? t('directoryRequired')
@@ -172,17 +177,20 @@ export function ProjectEditor({
       : !inspected?.valid
         ? t('directoryInvalid')
         : duplicate
-          ? t('duplicateEdit', { name: inspected.existingProjectName! })
+          ? t('duplicateEdit', { name: requireValue(inspected.existingProjectName, "the existing project's name") })
           : '';
-  const changedDirectory = !!inspected?.valid && !duplicate && inspected.directory !== original.directory;
+  /** The directory the project moves to on save, when it changes. */
+  const newDirectory =
+    inspected?.valid && !duplicate && inspected.directory !== original.directory ? inspected.directory : undefined;
+  const changedDirectory = newDirectory !== undefined;
   const edited = name.trim() !== original.name || directoryInput !== original.directory;
   // A bound project's new directory may have an origin that points elsewhere; the binding does not follow it.
-  const listed = useListedForDirectory(project.id, boundRepository && changedDirectory ? inspected.directory! : null);
+  const listed = useListedForDirectory(project.id, boundRepository ? (newDirectory ?? null) : null);
   const originElsewhere = originElsewhereThanBinding(boundRepository, listed);
   const canSave = !busy && !choosing && !checking && !nameError && !directoryError;
   // Open before the fields' effects run: a field can take focus only inside an open dialog.
   useLayoutEffect(() => {
-    const element = dialog.current!;
+    const element = requireValue(dialog.current, 'the edit project dialog');
     element.showModal();
     return () => element.close();
   }, []);
@@ -198,7 +206,7 @@ export function ProjectEditor({
         .catch(error => {
           if (live) {
             setInspection({ path: directoryInput, result: { valid: false } });
-            setError(error.message);
+            setError(errorMessage(error));
           }
         });
     }, 180);
@@ -323,11 +331,7 @@ export function ProjectEditor({
             <div id="edit-project-directory-status" className="field-status" aria-live="polite">
               {checking ? t('checkingDirectory') : <span className="error-text">{directoryError}</span>}
               {duplicate && (
-                <button
-                  type="button"
-                  className="open-existing-project"
-                  onClick={() => openProject(inspected!.existingProjectId!)}
-                >
+                <button type="button" className="open-existing-project" onClick={() => openProject(duplicate)}>
                   {t('openExisting')}
                 </button>
               )}
@@ -352,7 +356,7 @@ export function ProjectEditor({
                 <dt>{t('directory')}</dt>
                 <dd>
                   <span className="project-path">
-                    {original.directory} → {inspected!.directory}
+                    {original.directory} → {newDirectory}
                   </span>
                   <p>{t('currentRuns', { count: running })}</p>
                   <p>
@@ -365,14 +369,14 @@ export function ProjectEditor({
                   </p>
                   <p>{t('directoryHistory')}</p>
                 </dd>
-                {originElsewhere && (
+                {originElsewhere && boundRepository && (
                   <>
                     <dt>{t('repository')}</dt>
                     <dd>
                       <p>
                         {t('originElsewhereThanBinding', {
                           origin: originElsewhere.path,
-                          repository: boundRepository!.path,
+                          repository: boundRepository.path,
                         })}
                       </p>
                     </dd>
@@ -417,7 +421,7 @@ function DeleteProject({ project, close }: { project: Project; close(): void }) 
   const [busy, setBusy] = useState(false),
     [error, setError] = useState('');
   useEffect(() => {
-    const element = dialog.current!;
+    const element = requireValue(dialog.current, 'the delete project dialog');
     element.showModal();
     return () => element.close();
   }, []);

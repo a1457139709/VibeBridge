@@ -77,8 +77,9 @@ export function VirtualRows({
     let changed = false;
     for (const [offset, item] of [...items].entries()) {
       const key = keys[start + offset];
-      const height = (item as HTMLElement).offsetHeight;
-      if (key === undefined || measured.current.get(key) === height) continue;
+      if (key === undefined || !(item instanceof HTMLElement)) continue;
+      const height = item.offsetHeight;
+      if (measured.current.get(key) === height) continue;
       measured.current.set(key, height);
       changed = true;
     }

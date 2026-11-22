@@ -1,4 +1,3 @@
-import type { CSSProperties } from 'react';
 import { useLocalization } from '../common/Localization';
 import {
   defaultShortcuts,
@@ -59,7 +58,7 @@ export function ShortcutSettings({
           <div
             className={`shortcut-row ${conflict ? 'shortcut-conflict' : ''}`}
             key={action}
-            style={conflict ? ({ '--conflict-color': conflictColors[groupIndex] } as CSSProperties) : undefined}
+            style={conflict ? { '--conflict-color': conflictColors[groupIndex] } : undefined}
           >
             <div>
               <label htmlFor={`shortcut-${action}`}>{text(shortcutNames[action])}</label>

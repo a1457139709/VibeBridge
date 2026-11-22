@@ -1,10 +1,11 @@
 import { terminalCellSize } from './terminals';
+import { requireClosest, requireElement } from '../common/required';
 
 // Measure a bounded title in the actual UI font. Compact chrome has its own
 // dimensions so measuring it never depends on the current row/stacked layout.
 function panelMetrics(panel: HTMLElement) {
-  const header = panel.querySelector<HTMLElement>('.panel-header')!;
-  const title = header.querySelector<HTMLElement>('.session-title')!;
+  const header = requireElement(panel, '.panel-header');
+  const title = requireElement(header, '.session-title');
   const textStyle = getComputedStyle(title),
     heading = getComputedStyle(header),
     style = getComputedStyle(panel);
@@ -29,7 +30,7 @@ function panelMetrics(panel: HTMLElement) {
   const statusWidth = status ? status.getBoundingClientRect().width + gap : 0;
   const line = parseFloat(textStyle.lineHeight);
   const headerHeight = pixels('--panel-header-height');
-  const actions = header.querySelector<HTMLElement>('.panel-actions')!;
+  const actions = requireElement(header, '.panel-actions');
   return {
     // Half the bounded prefix permits two lines; icon/gap remain available even
     // when an independently shortened panel needs a single-row strip.
@@ -59,7 +60,7 @@ export function panelMinimumSize(panel: HTMLElement) {
 }
 
 export function applyCompactLayout(container: HTMLElement, runId?: string) {
-  const panel = container.closest<HTMLElement>('.agent-panel')!;
+  const panel = requireClosest(container, '.agent-panel');
   // A hidden settings/project view has no layout, not a genuinely tiny panel.
   if (!panel.getClientRects().length) return;
   const cell = terminalCellSize(runId);
