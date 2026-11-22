@@ -215,6 +215,7 @@ export const chinese: Record<keyof typeof english, string> = {
   sidebarDataInvalid: '{file} 中的 {field} 无效',
   workspaceDataInvalid: '{file} 中的 {field} 无效',
   storageOperationUnknown: '未知保存操作',
+  storageRequestInvalid: '项目存储请求无效',
   storageReplyInvalid: '项目存储回复无效',
   failureRecordFailed: '故障记录保存失败：{reason}',
   terminalHostExited: '终端管理进程已结束（{reason}）',

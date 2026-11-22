@@ -219,6 +219,7 @@ export const english = {
   sidebarDataInvalid: '{file} contains invalid {field}',
   workspaceDataInvalid: '{file} contains invalid {field}',
   storageOperationUnknown: 'Unknown storage operation',
+  storageRequestInvalid: 'Invalid request to project storage',
   storageReplyInvalid: 'Invalid reply from project storage',
   failureRecordFailed: 'Could not save the failure record: {reason}',
   terminalHostExited: 'Terminal manager exited ({reason})',

@@ -14,10 +14,17 @@ import {
 } from '../../shared/model';
 import { forgeIdSchema, type RepositoryReference } from '../../shared/forge/forge';
 import type { DispatchRecord } from '../dispatch';
-import type { StorageReply, StorageRequest, StoredContent } from './storage';
+import {
+  storageMessageIdSchema,
+  storageMessageSchema,
+  storageWorkerDataSchema,
+  type StorageReply,
+  type StorageRequest,
+  type StoredContent,
+} from './storage-protocol';
 import { errorMessage } from '../../shared/caught-error';
 
-const file: string = workerData.file;
+const { file } = storageWorkerDataSchema.parse(workerData);
 const db = new DatabaseSync(file);
 db.exec(`PRAGMA journal_mode=WAL; PRAGMA foreign_keys=ON;
   CREATE TABLE IF NOT EXISTS projects (id TEXT PRIMARY KEY, name TEXT NOT NULL, directory TEXT NOT NULL UNIQUE, layout TEXT);
@@ -282,9 +289,17 @@ function perform(request: StorageRequest): StoredContent | void {
 
 const port = parentPort;
 if (!port) throw new Error("The storage worker runs only as the Project Store's worker thread");
-// Requests come only from the Project Store in this process, typed by the protocol both sides share.
+// Requests come only from the Project Store in this process; each is read by the protocol both sides share, and one
+// that does not fit is answered with an error, or dropped when it carries no id to answer.
 const reply = (message: StorageReply) => port.postMessage(message);
-port.on('message', ({ id, request }: { id: number; request: StorageRequest }) => {
+port.on('message', (received: unknown) => {
+  const sent = storageMessageSchema.safeParse(received);
+  if (!sent.success) {
+    const unread = storageMessageIdSchema.safeParse(received);
+    if (unread.success) reply({ kind: 'error', id: unread.data.id, message: message('storageRequestInvalid') });
+    return;
+  }
+  const { id, request } = sent.data;
   try {
     reply({ kind: 'result', id, result: perform(request) });
   } catch (error) {

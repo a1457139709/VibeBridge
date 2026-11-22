@@ -3,66 +3,16 @@ import { Worker } from 'node:worker_threads';
 import { mkdir } from 'node:fs/promises';
 import { join } from 'node:path';
 import { z } from 'zod';
-import {
-  agentTypeSchema,
-  layoutSchema,
-  sidebarPreferencesSchema,
-  type Sidebar,
-  type SidebarPreferences,
-  type Project,
-} from '../../shared/model';
-import { repositoryReferenceSchema, type RepositoryReference } from '../../shared/forge/forge';
+import type { Sidebar, SidebarPreferences, Project } from '../../shared/model';
+import type { RepositoryReference } from '../../shared/forge/forge';
 import type { DispatchRecord } from '../dispatch';
-
-/** A request the Project Store sends its storage worker, named by its operation. */
-export type StorageRequest =
-  | { operation: 'load' }
-  | { operation: 'save'; project: Project }
-  | { operation: 'bind'; projectId: string; repository: RepositoryReference }
-  | { operation: 'unbind'; projectId: string }
-  | { operation: 'dispatch'; record: DispatchRecord }
-  | { operation: 'sidebar'; sidebar: Sidebar; preferences: SidebarPreferences }
-  | { operation: 'delete'; projectId: string; nextActiveProjectId: string | null }
-  | { operation: 'active'; projectId: string }
-  | { operation: 'close' };
-
-const projectSchema: z.ZodType<Project> = z.object({
-  id: z.string(),
-  name: z.string(),
-  directory: z.string(),
-  panels: z.array(z.object({ id: z.string(), agent: agentTypeSchema })),
-  layout: layoutSchema.nullable(),
-});
-const dispatchRecordSchema: z.ZodType<DispatchRecord> = z.object({
-  projectId: z.string(),
-  repository: repositoryReferenceSchema,
-  issue: z.number(),
-  dispatchedAt: z.string(),
-  agent: agentTypeSchema,
-  skill: z.string(),
-  text: z.string(),
-  sessionId: z.string(),
-});
-/** What a load reads from the store: the projects, each one's Repository Binding, the Dispatch Records, the
- * active project, and each sidebar's preferences. */
-const storedContentSchema = z.object({
-  projects: z.array(projectSchema),
-  bindings: z.record(z.string(), repositoryReferenceSchema),
-  dispatches: z.array(dispatchRecordSchema),
-  activeProjectId: z.string().nullable(),
-  navigation: sidebarPreferencesSchema,
-  forgeSidebar: sidebarPreferencesSchema,
-}) satisfies z.ZodType<Record<Sidebar, SidebarPreferences>>;
-export type StoredContent = z.infer<typeof storedContentSchema>;
-/** The result of a request that writes: its completion. */
-const completionSchema = z.void();
-
-/** The storage worker's reply to the request under `id`: its result, or the message of the error it failed with. */
-const storageReplySchema = z.discriminatedUnion('kind', [
-  z.object({ kind: z.literal('result'), id: z.number(), result: z.unknown().optional() }),
-  z.object({ kind: z.literal('error'), id: z.number(), message: z.string() }),
-]);
-export type StorageReply = z.infer<typeof storageReplySchema>;
+import {
+  completionSchema,
+  storageReplySchema,
+  storedContentSchema,
+  type StorageMessage,
+  type StorageRequest,
+} from './storage-protocol';
 
 /** A request waiting for its reply: `settle` reads the reply's result by the schema its request expects. */
 interface PendingRequest {
@@ -115,7 +65,8 @@ export class ProjectStore {
         else reject(new Error(message('storageReplyInvalid')));
       };
       this.pending.set(id, { settle, reject });
-      this.worker.postMessage({ id, request });
+      const sent: StorageMessage = { id, request };
+      this.worker.postMessage(sent);
     });
   }
   /** Sends a request that writes; it resolves once the write completed. */
