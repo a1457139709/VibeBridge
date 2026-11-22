@@ -1,3 +1,4 @@
+import { fromPartial } from '@total-typescript/shoehorn';
 import type { DesktopAPI } from '../../../app/shared/api';
 
 export function deferred<T>() {
@@ -13,10 +14,12 @@ export function deferred<T>() {
 // The preload API is the component's external boundary. Unexpected calls fail
 // instead of silently returning a permissive default.
 export function provideWorkbench(methods: Partial<DesktopAPI>) {
-  window.workbench = new Proxy(methods, {
-    get(target, key) {
-      if (key in target) return Reflect.get(target, key);
-      throw new Error(`Unexpected workbench call: ${String(key)}`);
-    },
-  }) as DesktopAPI;
+  window.workbench = fromPartial<DesktopAPI>(
+    new Proxy(methods, {
+      get(target, key) {
+        if (key in target) return Reflect.get(target, key);
+        throw new Error(`Unexpected workbench call: ${String(key)}`);
+      },
+    }),
+  );
 }
