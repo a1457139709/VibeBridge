@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { useLocalization } from '../common/Localization';
 import { usePopover } from '../common/popover';
 import './direct-actions.css';
-import { mergeBlocks } from './merge-requirements';
+import { mergeBlockedReasons } from './merge-requirements';
 import type {
   DirectAction,
   ForgeCapabilities,
@@ -125,21 +125,6 @@ export function ReopenPullRequest({ pullRequest, actions }: { pullRequest: PullR
       {actions.performing ? t('actionWorking') : t('reopenPullRequest')}
     </button>
   );
-}
-
-function mergeBlockedReasons(
-  pullRequest: PullRequestDetail,
-  forge: string,
-  t: ReturnType<typeof useLocalization>['t'],
-) {
-  const reason = {
-    draft: () => t('mergeBlockedDraft'),
-    dirty: () => t('mergeBlockedDirty'),
-    behind: () => t('mergeBlockedBehind', { base: pullRequest.base }),
-    blocked: () => t('mergeBlockedBlocked', { forge }),
-    unknown: () => t('mergeBlockedUnknown', { forge }),
-  };
-  return mergeBlocks(pullRequest).map(block => reason[block]());
 }
 
 export function PullRequestActions({

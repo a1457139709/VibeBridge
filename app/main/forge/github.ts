@@ -149,6 +149,7 @@ function listedIssue(issue: z.infer<typeof listedIssueSchema>, path: string): Li
       issues: issue.subIssues.nodes
         .filter(child => samePath(child.repository.nameWithOwner, path))
         .map(child => issueSummary(child, path)),
+      unlisted: Math.max(0, issue.subIssuesSummary.total - issue.subIssues.nodes.length),
     },
   };
 }
@@ -199,6 +200,21 @@ function listSearch(path: string, kind: 'issue' | 'pr', { search, state, labels 
   ].join(' ');
 }
 
+async function withLaterLabelPages(
+  host: string,
+  owner: string,
+  name: string,
+  firstPage: z.infer<typeof labelPageSchema>,
+) {
+  const labels = [...firstPage.nodes];
+  for (let page = firstPage.pageInfo; page.hasNextPage && page.endCursor !== null;) {
+    const later = await graphql(host, labelPageQuery, { owner, name, after: page.endCursor }, laterLabelPageSchema);
+    labels.push(...later.repository.labels.nodes);
+    page = later.repository.labels.pageInfo;
+  }
+  return labels;
+}
+
 async function listPage<T extends z.infer<ReturnType<typeof listPageSchema>>>(
   query: string,
   schema: z.ZodType<T>,
@@ -220,12 +236,10 @@ async function listPage<T extends z.infer<ReturnType<typeof listPageSchema>>>(
     },
     schema,
   );
-  const labels = [...data.repository.labels.nodes];
-  for (let page = data.repository.labels.pageInfo; page.hasNextPage && page.endCursor !== null;) {
-    const later = await graphql(host, labelPageQuery, { owner, name, after: page.endCursor }, laterLabelPageSchema);
-    labels.push(...later.repository.labels.nodes);
-    page = later.repository.labels.pageInfo;
-  }
+  const labels =
+    cursor === null
+      ? await withLaterLabelPages(host, owner, name, data.repository.labels)
+      : data.repository.labels.nodes;
   return {
     data,
     frame: {

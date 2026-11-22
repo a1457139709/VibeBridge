@@ -102,7 +102,13 @@ test('a pull request timeline holds comments and review summaries in time order,
           { author: 'carol', state: 'COMMENTED', submittedAt: day(13), bodyHTML: '' },
           { author: 'mona', state: 'APPROVED', submittedAt: day(15), bodyHTML: '<p>LGTM</p>' },
           { author: 'bob', state: 'DISMISSED', submittedAt: day(15), bodyHTML: '<p>Outdated.</p>' },
-          { author: 'octo', state: 'PENDING', submittedAt: null, bodyHTML: '<p>Not submitted.</p>' },
+          {
+            author: 'octo',
+            state: 'PENDING',
+            createdAt: day(14),
+            submittedAt: null,
+            bodyHTML: '<p>Not submitted.</p>',
+          },
         ],
       }),
     ],
@@ -149,6 +155,13 @@ test('a long pull request timeline holds the latest 100 comments and reviews, an
         comments: Array.from({ length: 5 }, (_, index) => comment(index + 1)),
         reviews: [review(3), ...Array.from({ length: 100 }, (_, index) => review(50 + index, ''))],
       }),
+      change(14, {
+        comments: Array.from({ length: 150 }, (_, index) => comment(2 * index)),
+        reviews: [
+          { author: 'octo', state: 'PENDING', createdAt: minute(1), submittedAt: null, bodyHTML: '<p>Old draft.</p>' },
+          { author: 'octo', state: 'PENDING', createdAt: minute(251), submittedAt: null, bodyHTML: '<p>Draft.</p>' },
+        ],
+      }),
     ],
   });
   const f = await boundWorkbench('pull-request-detail-long-timeline');
@@ -168,6 +181,12 @@ test('a long pull request timeline holds the latest 100 comments and reviews, an
       [hidden.timeline, hidden.earlierEntries],
       [[], 6],
       'comments older than the oldest review GitHub returned wait behind the notice with the review it left out',
+    );
+    const pending = await detail(14);
+    assert.deepEqual(
+      [pending.timeline.length, pending.timeline[0].html, pending.earlierEntries],
+      [100, '<p>Comment at 100.</p>', 51],
+      'an unsubmitted review older than the timeline counts among the earlier entries; a newer one does not',
     );
   } finally {
     await f.close();
@@ -215,8 +234,8 @@ test("a pull request detail carries GitHub's merge state, review decision, and h
     assert.deepEqual(await merge(18), ['blocked', null]);
     assert.deepEqual(
       [(await detail(19)).state, (await detail(19)).mergeState],
-      ['draft', 'blocked'],
-      'a draft says so through its state; the merge state GitHub reports for it reads as blocked',
+      ['draft', null],
+      'a draft says so through its state alone; the DRAFT merge state GitHub reports for it carries no merge state',
     );
   } finally {
     await f.close();
@@ -366,6 +385,51 @@ test('a pull request with more than 100 checks lists the first 100 and still cou
         116,
         100,
         'shard 99',
+      ],
+    );
+  } finally {
+    await f.close();
+  }
+});
+
+test('a check state GitHub reports that the sidebar does not know reads as its raw value in the neutral group, and the detail still reads', async context => {
+  await ghDouble(context, {
+    ...forgeAccount,
+    pullRequests: [
+      change(12, {
+        checks: 'SUPERSEDED',
+        checkRuns: [
+          { name: 'unit tests', status: 'COMPLETED', conclusion: 'SUPERSEDED' },
+          { name: 'e2e', status: 'PARKED', conclusion: null },
+          { context: 'ci/legacy', state: 'RETIRED', targetUrl: null },
+        ],
+      }),
+    ],
+  });
+  const f = await boundWorkbench('pull-request-detail-unknown-checks');
+  try {
+    const result = await pullRequestDetail(f.workbench, f.projectId, 12);
+    assert.ok(result.ok);
+    const { checks } = result.pullRequest;
+    const unrecognized = (raw: string) => ({ outcome: 'unrecognized', raw, tone: 'neutral' });
+    assert.deepEqual(
+      [
+        checks.state,
+        checks.counts,
+        checks.listed.map(({ outcome, tone, ...listed }) => ({
+          outcome,
+          tone,
+          raw: 'raw' in listed ? listed.raw : null,
+        })),
+      ],
+      [
+        unrecognized('SUPERSEDED'),
+        [
+          { ...unrecognized('SUPERSEDED'), count: 1 },
+          { ...unrecognized('PARKED'), count: 1 },
+          { ...unrecognized('RETIRED'), count: 1 },
+        ],
+        [unrecognized('SUPERSEDED'), unrecognized('PARKED'), unrecognized('RETIRED')],
       ],
     );
   } finally {

@@ -1,7 +1,6 @@
 import { z } from 'zod';
 import type {
   Check,
-  CheckOutcome,
   CheckState,
   PullRequestDetail,
   RepositoryReference,
@@ -9,7 +8,6 @@ import type {
 } from '../../shared/forge/forge';
 import { graphql } from './github-cli';
 import {
-  checksState,
   issueReference,
   issueReferenceFields,
   issueReferenceSchema,
@@ -26,25 +24,12 @@ import {
 } from './github-fields';
 import type { Answered } from './forge';
 
-const checkRunStatus = z.enum(['QUEUED', 'IN_PROGRESS', 'WAITING', 'PENDING', 'REQUESTED', 'COMPLETED']);
-const checkConclusion = z.enum([
-  'SUCCESS',
-  'FAILURE',
-  'CANCELLED',
-  'TIMED_OUT',
-  'ACTION_REQUIRED',
-  'STARTUP_FAILURE',
-  'NEUTRAL',
-  'SKIPPED',
-  'STALE',
-]);
-const checkRunState = z.union([checkRunStatus, checkConclusion]);
 const checkContextSchema = z.discriminatedUnion('__typename', [
   z.object({
     __typename: z.literal('CheckRun'),
     name: z.string(),
-    status: checkRunStatus,
-    conclusion: checkConclusion.nullable(),
+    status: z.string(),
+    conclusion: z.string().nullable(),
     title: z.string().nullable(),
     startedAt: z.string().nullable(),
     completedAt: z.string().nullable(),
@@ -55,14 +40,13 @@ const checkContextSchema = z.discriminatedUnion('__typename', [
   z.object({
     __typename: z.literal('StatusContext'),
     context: z.string(),
-    state: checksState,
+    state: z.string(),
     description: z.string().nullable(),
     targetUrl: z.string().nullable(),
     isRequired: z.boolean(),
   }),
 ]);
-const stateCountsSchema = <State extends z.ZodType>(state: State) =>
-  z.array(z.object({ state, count: z.number() })).nullable();
+const stateCountsSchema = z.array(z.object({ state: z.string(), count: z.number() })).nullable();
 const pullRequestDetailSchema = z.object({
   repository: z.object({
     ...answeringSchema,
@@ -94,6 +78,7 @@ const pullRequestDetailSchema = z.object({
           z.object({
             author: loginSchema,
             state: z.enum(['PENDING', 'COMMENTED', 'APPROVED', 'CHANGES_REQUESTED', 'DISMISSED']),
+            createdAt: z.string(),
             submittedAt: z.string().nullable(),
             bodyHTML: z.string(),
           }),
@@ -109,11 +94,11 @@ const pullRequestDetailSchema = z.object({
             commit: z.object({
               statusCheckRollup: z
                 .object({
-                  state: checksState,
+                  state: z.string(),
                   contexts: z.object({
                     totalCount: z.number(),
-                    checkRunCountsByState: stateCountsSchema(checkRunState),
-                    statusContextCountsByState: stateCountsSchema(checksState),
+                    checkRunCountsByState: stateCountsSchema,
+                    statusContextCountsByState: stateCountsSchema,
                     nodes: z.array(checkContextSchema),
                   }),
                 })
@@ -133,7 +118,7 @@ const pullRequestDetailQuery = `query($owner: String!, $name: String!, $number: 
     labels(first: 20) { nodes { name color } }
     closingIssuesReferences(first: ${relatedLimit}) { nodes { ${issueReferenceFields} } }
     comments(last: ${timelineLimit}) { totalCount nodes { author { login } createdAt bodyHTML } }
-    reviews(last: ${timelineLimit}) { totalCount nodes { author { login } state submittedAt bodyHTML } }
+    reviews(last: ${timelineLimit}) { totalCount nodes { author { login } state createdAt submittedAt bodyHTML } }
     reviewDecision mergeStateStatus isMergeQueueEnabled checksUrl
     commits(last: 1) { nodes { commit { statusCheckRollup { state contexts(first: ${checksLimit}) {
       totalCount checkRunCountsByState { state count } statusContextCountsByState { state count }
@@ -157,32 +142,36 @@ const mergeState = {
   DIRTY: 'dirty',
   BEHIND: 'behind',
   BLOCKED: 'blocked',
-  DRAFT: 'blocked',
+  DRAFT: null,
   UNKNOWN: 'unknown',
 } as const;
-const checkStates = {
-  QUEUED: { outcome: 'queued', tone: 'pending' },
-  IN_PROGRESS: { outcome: 'inProgress', tone: 'pending' },
-  WAITING: { outcome: 'waiting', tone: 'pending' },
-  PENDING: { outcome: 'pending', tone: 'pending' },
-  REQUESTED: { outcome: 'requested', tone: 'pending' },
-  EXPECTED: { outcome: 'expected', tone: 'pending' },
-  COMPLETED: { outcome: 'completed', tone: 'neutral' },
-  SUCCESS: { outcome: 'success', tone: 'passed' },
-  FAILURE: { outcome: 'failure', tone: 'failed' },
-  ERROR: { outcome: 'error', tone: 'failed' },
-  CANCELLED: { outcome: 'cancelled', tone: 'failed' },
-  TIMED_OUT: { outcome: 'timedOut', tone: 'failed' },
-  ACTION_REQUIRED: { outcome: 'actionRequired', tone: 'failed' },
-  STARTUP_FAILURE: { outcome: 'startupFailure', tone: 'failed' },
-  NEUTRAL: { outcome: 'neutral', tone: 'neutral' },
-  SKIPPED: { outcome: 'skipped', tone: 'neutral' },
-  STALE: { outcome: 'stale', tone: 'neutral' },
-} as const satisfies Record<z.infer<typeof checkRunState> | z.infer<typeof checksState>, CheckState>;
+const checkStates = new Map<string, CheckState>(
+  Object.entries({
+    QUEUED: { outcome: 'queued', tone: 'pending' },
+    IN_PROGRESS: { outcome: 'inProgress', tone: 'pending' },
+    WAITING: { outcome: 'waiting', tone: 'pending' },
+    PENDING: { outcome: 'pending', tone: 'pending' },
+    REQUESTED: { outcome: 'requested', tone: 'pending' },
+    EXPECTED: { outcome: 'expected', tone: 'pending' },
+    COMPLETED: { outcome: 'completed', tone: 'neutral' },
+    SUCCESS: { outcome: 'success', tone: 'passed' },
+    FAILURE: { outcome: 'failure', tone: 'failed' },
+    ERROR: { outcome: 'error', tone: 'failed' },
+    CANCELLED: { outcome: 'cancelled', tone: 'failed' },
+    TIMED_OUT: { outcome: 'timedOut', tone: 'failed' },
+    ACTION_REQUIRED: { outcome: 'actionRequired', tone: 'failed' },
+    STARTUP_FAILURE: { outcome: 'startupFailure', tone: 'failed' },
+    NEUTRAL: { outcome: 'neutral', tone: 'neutral' },
+    SKIPPED: { outcome: 'skipped', tone: 'neutral' },
+    STALE: { outcome: 'stale', tone: 'neutral' },
+  } as const satisfies Record<string, CheckState>),
+);
+const checkState = (raw: string): CheckState =>
+  checkStates.get(raw) ?? { outcome: 'unrecognized', raw, tone: 'neutral' };
 const check = (context: z.infer<typeof checkContextSchema>): Check =>
   context.__typename === 'CheckRun'
     ? {
-        ...checkStates[context.status === 'COMPLETED' && context.conclusion ? context.conclusion : context.status],
+        ...checkState(context.status === 'COMPLETED' && context.conclusion ? context.conclusion : context.status),
         workflow: context.checkSuite?.workflowRun?.workflow.name ?? null,
         name: context.name,
         description: context.title,
@@ -192,7 +181,7 @@ const check = (context: z.infer<typeof checkContextSchema>): Check =>
         url: context.permalink,
       }
     : {
-        ...checkStates[context.state],
+        ...checkState(context.state),
         workflow: null,
         name: context.context,
         description: context.description,
@@ -204,17 +193,18 @@ const check = (context: z.infer<typeof checkContextSchema>): Check =>
 type FetchedPullRequest = z.infer<typeof pullRequestDetailSchema>['repository']['pullRequest'];
 function pullRequestChecks(pull: FetchedPullRequest) {
   const rollup = pull.commits.nodes[0]?.commit.statusCheckRollup;
-  const counts = new Map<CheckOutcome, CheckState & { count: number }>();
+  const counts = new Map<string, CheckState & { count: number }>();
   for (const { state, count } of [
     ...(rollup?.contexts.checkRunCountsByState ?? []),
     ...(rollup?.contexts.statusContextCountsByState ?? []),
   ]) {
-    const known = checkStates[state];
-    const counted = counts.get(known.outcome);
-    if (count) counts.set(known.outcome, { ...known, count: (counted?.count ?? 0) + count });
+    const counting = checkState(state);
+    const key = counting.outcome === 'unrecognized' ? `unrecognized ${counting.raw}` : counting.outcome;
+    const counted = counts.get(key);
+    if (count) counts.set(key, { ...counting, count: (counted?.count ?? 0) + count });
   }
   return {
-    state: rollup ? checkStates[rollup.state] : null,
+    state: rollup ? checkState(rollup.state) : null,
     counts: [...counts.values()],
     total: rollup?.contexts.totalCount ?? 0,
     url: pull.checksUrl,
@@ -228,14 +218,11 @@ const reviewVerdict = {
   DISMISSED: 'dismissed',
 } as const;
 
-const oldestFetched = (connection: { totalCount: number; nodes: unknown[] }, times: string[]) =>
-  connection.totalCount > connection.nodes.length ? times.toSorted()[0] : undefined;
+const leftOutBefore = (connection: { totalCount: number; nodes: unknown[] }, fetchedTimes: string[]) =>
+  connection.totalCount > connection.nodes.length ? fetchedTimes.toSorted()[0] : undefined;
 
 function latestTimeline({ comments, reviews }: FetchedPullRequest) {
-  const submitted = reviews.nodes.flatMap(({ state, submittedAt, ...review }) =>
-    state === 'PENDING' || submittedAt === null ? [] : [{ ...review, state, submittedAt }],
-  );
-  const fetched: { entry: TimelineEntry; shown: boolean }[] = [
+  const fetched: { entry: TimelineEntry; entersTimeline: boolean }[] = [
     ...comments.nodes.map(comment => ({
       entry: {
         author: comment.author?.login ?? null,
@@ -243,39 +230,39 @@ function latestTimeline({ comments, reviews }: FetchedPullRequest) {
         html: comment.bodyHTML,
         verdict: null,
       },
-      shown: true,
+      entersTimeline: true,
     })),
-    ...submitted.map(review => ({
+    ...reviews.nodes.map(({ state, submittedAt, createdAt, ...review }) => ({
       entry: {
         author: review.author?.login ?? null,
-        createdAt: review.submittedAt,
+        createdAt: submittedAt ?? createdAt,
         html: review.bodyHTML,
-        verdict: reviewVerdict[review.state],
+        verdict: state === 'PENDING' ? null : reviewVerdict[state],
       },
-      shown: !!review.bodyHTML.trim(),
+      entersTimeline: state !== 'PENDING' && submittedAt !== null && !!review.bodyHTML.trim(),
     })),
   ].sort((a, b) => a.entry.createdAt.localeCompare(b.entry.createdAt));
-  const cutoff = [
-    oldestFetched(
+  const timelineStart = [
+    leftOutBefore(
       comments,
       comments.nodes.map(comment => comment.createdAt),
     ),
-    oldestFetched(
+    leftOutBefore(
       reviews,
-      submitted.map(review => review.submittedAt),
+      reviews.nodes.map(review => review.submittedAt ?? review.createdAt),
     ),
   ]
     .filter(time => time !== undefined)
     .toSorted()
     .at(-1);
   const timeline: TimelineEntry[] = [];
-  let walked = reviews.nodes.length - submitted.length;
-  for (const { entry, shown } of fetched.reverse()) {
-    if (timeline.length === timelineLimit || (cutoff !== undefined && entry.createdAt < cutoff)) break;
-    walked++;
-    if (shown) timeline.unshift(entry);
+  let coveredEntries = 0;
+  for (const { entry, entersTimeline } of fetched.reverse()) {
+    if (timeline.length === timelineLimit || (timelineStart !== undefined && entry.createdAt < timelineStart)) break;
+    coveredEntries++;
+    if (entersTimeline) timeline.unshift(entry);
   }
-  return { timeline, earlierEntries: comments.totalCount + reviews.totalCount - walked };
+  return { timeline, earlierEntries: comments.totalCount + reviews.totalCount - coveredEntries };
 }
 
 export async function fetchPullRequestDetail(

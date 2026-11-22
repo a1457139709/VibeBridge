@@ -365,6 +365,7 @@ for (const [state, mergeState, reasons] of [
   ['open', 'unknown', [t('mergeBlockedUnknown', { forge: 'GitHub' })]],
   ['draft', 'blocked', [t('mergeBlockedDraft'), t('mergeBlockedBlocked', { forge: 'GitHub' })]],
   ['draft', 'clean', [t('mergeBlockedDraft')]],
+  ['draft', null, [t('mergeBlockedDraft')]],
 ] as const) {
   test(`${state === 'draft' ? 'a draft' : 'an open'} pull request whose merge state is ${mergeState} ${reasons.length ? 'cannot be merged and says why' : 'can be merged'}`, async () => {
     await openPullRequest({ pullRequest: pullDetail(12, { state, mergeState }) });

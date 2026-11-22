@@ -1,10 +1,10 @@
-import type { MouseEvent } from 'react';
+import { useId, type MouseEvent, type ReactNode } from 'react';
 import { useLocalization } from '../common/Localization';
 import type {
   Check,
   CheckOutcome,
+  CheckState,
   ForgeCapabilities,
-  MergeState,
   PullRequestDetail,
   RepositoryReference,
   ReviewVerdict,
@@ -15,6 +15,7 @@ import {
   IssueIcon,
   ItemReference,
   Label,
+  MoreOnForge,
   Post,
   PullRequestIcon,
   PullRequestPill,
@@ -22,7 +23,7 @@ import {
   withElements,
 } from './ForgeDisplay';
 import type { DetailItem } from '../../shared/forge/sidebar-data';
-import { checkDuration, checkTones, unlistedChecks } from './merge-requirements';
+import { checkDuration, checkTones, mergeStates, unlistedChecks, type Translate } from './merge-requirements';
 import './pull-request-detail.css';
 
 interface Props {
@@ -137,57 +138,100 @@ const outcomeNames = {
   stale: 'checkStale',
 } as const satisfies Record<CheckOutcome, string>;
 
-function Duration({ check }: { check: Check }) {
-  const { t } = useLocalization();
+const outcomeText = (state: CheckState, t: Translate) =>
+  state.outcome === 'unrecognized' ? state.raw : t(outcomeNames[state.outcome]);
+
+function durationText(check: Check, t: Translate) {
   const duration = checkDuration(check);
   if (!duration) return null;
-  return (
-    <span className="forge-check-duration">
-      {duration.unit === 'hours'
-        ? t('durationHours', duration)
-        : duration.unit === 'minutes'
-          ? t('durationMinutes', duration)
-          : t('durationSeconds', duration)}
-    </span>
-  );
+  if (duration.unit === 'hours') return t('durationHours', duration);
+  if (duration.unit === 'minutes') return t('durationMinutes', duration);
+  return t('durationSeconds', duration);
 }
 
 function CheckItem({ check, requiredChecks }: { check: Check; requiredChecks: boolean }) {
   const { t } = useLocalization();
+  const id = useId();
   const { mark, tone } = checkTones[check.tone];
+  const duration = durationText(check, t);
+  const describedBy = [`${id}-outcome`, duration && `${id}-duration`, check.description && `${id}-description`];
   return (
-    <div className="forge-merge-check">
+    <li
+      className="forge-merge-check"
+      aria-labelledby={`${id}-name`}
+      aria-describedby={describedBy.filter(Boolean).join(' ')}
+    >
       <span className={`forge-${tone}`}>{mark}</span>
       <span className="forge-check-text">
         <span className="forge-check-line">
-          <span className="forge-ellipsis forge-check-name">
+          <span className="forge-ellipsis" id={`${id}-name`}>
             {check.workflow ? `${check.workflow} / ${check.name}` : check.name}
           </span>
           {requiredChecks && check.required && <span className="forge-required">{t('requiredCheck')}</span>}
           <span className="forge-spacer" />
-          <span className={`forge-${tone} forge-check-outcome`}>{t(outcomeNames[check.outcome])}</span>
-          <Duration check={check} />
+          <span className={`forge-${tone}`} id={`${id}-outcome`}>
+            {outcomeText(check, t)}
+          </span>
+          {duration && (
+            <span className="forge-check-duration" id={`${id}-duration`}>
+              {duration}
+            </span>
+          )}
           {check.url && (
             <a href={check.url} target="_blank" rel="noreferrer">
               {t('checkLog')}
             </a>
           )}
         </span>
-        {check.description && <span className="forge-ellipsis forge-check-description">{check.description}</span>}
+        {check.description && (
+          <span className="forge-ellipsis forge-check-description" id={`${id}-description`}>
+            {check.description}
+          </span>
+        )}
       </span>
-    </div>
+    </li>
   );
 }
 
-const mergeStates = {
-  clean: { mark: '✓', tone: 'open' },
-  hasHooks: { mark: '✓', tone: 'open' },
-  unstable: { mark: '●', tone: 'pending' },
-  dirty: { mark: '✗', tone: 'failed' },
-  behind: { mark: '✗', tone: 'failed' },
-  blocked: { mark: '✗', tone: 'failed' },
-  unknown: { mark: '●', tone: 'pending' },
-} as const satisfies Record<MergeState, { mark: string; tone: string }>;
+function MergeRow({
+  mark,
+  tone,
+  name,
+  text,
+  children,
+}: {
+  mark: string;
+  tone: string;
+  name: string;
+  text: string;
+  children?: ReactNode;
+}) {
+  const id = useId();
+  const head = (
+    <>
+      <span className={`forge-${tone}`}>{mark}</span>
+      <b id={`${id}-name`}>{name}</b>
+      <span id={`${id}-text`}>{text}</span>
+    </>
+  );
+  return (
+    <div
+      className={children ? 'forge-merge-row column' : 'forge-merge-row'}
+      role="group"
+      aria-labelledby={`${id}-name`}
+      aria-describedby={`${id}-text`}
+    >
+      {children ? (
+        <>
+          <div className="forge-merge-row-head">{head}</div>
+          {children}
+        </>
+      ) : (
+        head
+      )}
+    </div>
+  );
+}
 
 function MergeArea({
   pullRequest,
@@ -225,58 +269,52 @@ function MergeArea({
     reviewRequired: { mark: '●', tone: 'pending', text: t('reviewRequired') },
     none: { mark: '●', tone: 'skipped', text: t('reviewNotRequired') },
   }[pullRequest.reviewDecision ?? 'none'];
-  const { checks } = pullRequest;
+  const { checks, mergeState } = pullRequest;
   const checksHead = checks.state
     ? {
         ...checkTones[checks.state.tone],
         text: t('checksState', {
-          outcome: t(outcomeNames[checks.state.outcome]),
-          counts: checks.counts.map(({ outcome, count }) =>
-            t('checkCount', { outcome: t(outcomeNames[outcome]), count }),
+          outcome: outcomeText(checks.state, t),
+          counts: checks.counts.map(counted =>
+            t('checkCount', { outcome: outcomeText(counted, t), count: counted.count }),
           ),
         }),
       }
     : { mark: '–', tone: 'skipped', text: t('checksNone') };
   const unlisted = unlistedChecks(pullRequest);
-  const merge = {
-    ...mergeStates[pullRequest.mergeState],
-    text: {
-      clean: () => t('mergeStateClean'),
-      hasHooks: () => t('mergeStateClean'),
-      unstable: () => t('mergeStateUnstable'),
-      dirty: () => t('mergeStateDirty', { base: pullRequest.base }),
-      behind: () => t('mergeStateBehind', { base: pullRequest.base }),
-      blocked: () => t('mergeStateBlocked'),
-      unknown: () => t('mergeStateUnknown', { forge }),
-    }[pullRequest.mergeState](),
-  };
-  const row = (mark: string, tone: string, name: string, text: React.ReactNode) => (
-    <div className="forge-merge-row">
-      <span className={`forge-${tone}`}>{mark}</span>
-      <b>{name}</b>
-      <span>{text}</span>
-    </div>
-  );
+  const merge = mergeState && mergeStates[mergeState];
   return (
     <section className="forge-merge" aria-label={label}>
-      {row(review.mark, review.tone, t('reviewRow'), review.text)}
-      <div className="forge-merge-row column">
-        <div className="forge-merge-row-head">
-          <span className={`forge-${checksHead.tone}`}>{checksHead.mark}</span>
-          <b>{t('checksRow')}</b>
-          <span>{checksHead.text}</span>
-        </div>
-        {checks.listed.map((check, index) => (
-          <CheckItem key={index} check={check} requiredChecks={capabilities.requiredChecks} />
-        ))}
-        {!!unlisted && (
-          <a className="forge-more-checks" href={checks.url} target="_blank" rel="noreferrer">
-            {t('moreChecks', { count: unlisted, forge })}
-          </a>
+      <MergeRow {...review} name={t('reviewRow')} />
+      <MergeRow {...checksHead} name={t('checksRow')}>
+        {!!checks.listed.length && (
+          <ul className="forge-merge-checks">
+            {checks.listed.map((check, index) => (
+              <CheckItem key={index} check={check} requiredChecks={capabilities.requiredChecks} />
+            ))}
+          </ul>
         )}
-      </div>
-      {row(merge.mark, merge.tone, t('mergeStateRow'), merge.text)}
-      {pullRequest.state === 'draft' && row('●', 'skipped', t('draftRow'), t('draftNote', { forge }))}
+        {!!unlisted && (
+          <MoreOnForge
+            message="moreChecks"
+            count={unlisted}
+            forge={forge}
+            url={checks.url}
+            className="forge-more-checks"
+          />
+        )}
+      </MergeRow>
+      {merge && (
+        <MergeRow
+          mark={merge.mark}
+          tone={merge.tone}
+          name={t('mergeStateRow')}
+          text={merge.text({ t, base: pullRequest.base, forge })}
+        />
+      )}
+      {pullRequest.state === 'draft' && (
+        <MergeRow mark="●" tone="skipped" name={t('draftRow')} text={t('draftNote', { forge })} />
+      )}
       <PullRequestActions pullRequest={pullRequest} capabilities={capabilities} forge={forge} actions={actions} />
     </section>
   );

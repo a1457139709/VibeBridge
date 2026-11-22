@@ -89,7 +89,7 @@ export interface BlockerReference {
 export interface ListedIssue extends IssueSummary {
   url: string;
   parent: number | null;
-  subIssues: { closed: number; total: number; issues: IssueSummary[] };
+  subIssues: { closed: number; total: number; issues: IssueSummary[]; unlisted: number };
 }
 
 export type PullRequestState = 'open' | 'draft' | 'merged' | 'closed';
@@ -180,32 +180,28 @@ export interface TimelineEntry extends ForgeComment {
 
 export type ReviewDecision = 'approved' | 'changesRequested' | 'reviewRequired';
 export type MergeState = 'clean' | 'hasHooks' | 'unstable' | 'dirty' | 'behind' | 'blocked' | 'unknown';
-export const checkOutcomes = [
-  'queued',
-  'inProgress',
-  'waiting',
-  'pending',
-  'requested',
-  'expected',
-  'completed',
-  'success',
-  'failure',
-  'error',
-  'cancelled',
-  'timedOut',
-  'actionRequired',
-  'startupFailure',
-  'neutral',
-  'skipped',
-  'stale',
-] as const;
-export type CheckOutcome = (typeof checkOutcomes)[number];
+export type CheckOutcome =
+  | 'queued'
+  | 'inProgress'
+  | 'waiting'
+  | 'pending'
+  | 'requested'
+  | 'expected'
+  | 'completed'
+  | 'success'
+  | 'failure'
+  | 'error'
+  | 'cancelled'
+  | 'timedOut'
+  | 'actionRequired'
+  | 'startupFailure'
+  | 'neutral'
+  | 'skipped'
+  | 'stale';
 export type CheckTone = 'passed' | 'failed' | 'pending' | 'neutral';
-export interface CheckState {
-  outcome: CheckOutcome;
-  tone: CheckTone;
-}
-export interface Check extends CheckState {
+export type CheckState =
+  { outcome: CheckOutcome; tone: CheckTone } | { outcome: 'unrecognized'; raw: string; tone: 'neutral' };
+export type Check = CheckState & {
   workflow: string | null;
   name: string;
   description: string | null;
@@ -213,7 +209,7 @@ export interface Check extends CheckState {
   startedAt: string | null;
   completedAt: string | null;
   url: string | null;
-}
+};
 export interface PullRequestChecks {
   state: CheckState | null;
   counts: (CheckState & { count: number })[];
@@ -234,7 +230,7 @@ export interface PullRequestDetail extends Omit<PullRequestSummary, 'checks'> {
   links: ForgeLinks;
   reviewDecision: ReviewDecision | null;
   checks: PullRequestChecks;
-  mergeState: MergeState;
+  mergeState: MergeState | null;
   mergeOptions: { methods: MergeMethod[]; queue: boolean };
   canWrite: boolean;
 }

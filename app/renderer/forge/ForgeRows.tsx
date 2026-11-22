@@ -11,6 +11,7 @@ import {
   BlockedMark,
   IssueIcon,
   Label,
+  MoreOnForge,
   OpenPullRequestChecks,
   Progress,
   PullRequestIcon,
@@ -113,7 +114,9 @@ export function IssueTree({
     const isExpanded = !!withSubIssues && expanded.has(issue.number);
     const showClosed = showingClosed.has(issue.number);
     const shown = showClosed ? [...listed, ...folded] : listed;
-    const unlisted = withSubIssues ? Math.max(0, withSubIssues.subIssues.total - children.length) : 0;
+    const unlisted = withSubIssues
+      ? Math.max(0, withSubIssues.subIssues.unlisted - (children.length - withSubIssues.subIssues.issues.length))
+      : 0;
     return (
       <li key={issue.number}>
         <IssueRow
@@ -150,9 +153,13 @@ export function IssueTree({
               </button>
             )}
             {withSubIssues && !!unlisted && (
-              <a className="forge-fold forge-more-link" href={withSubIssues.url} target="_blank" rel="noreferrer">
-                {t('moreSubIssues', { count: unlisted, forge })}
-              </a>
+              <MoreOnForge
+                message="moreSubIssues"
+                count={unlisted}
+                forge={forge}
+                url={withSubIssues.url}
+                className="forge-fold"
+              />
             )}
           </div>
         )}

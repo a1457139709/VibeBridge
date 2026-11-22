@@ -25,7 +25,7 @@ export const issue = (number: number): ListedIssue => ({
   blockedBy: [],
   unlistedBlockers: 0,
   parent: null,
-  subIssues: { closed: 0, total: 0, issues: [] },
+  subIssues: { closed: 0, total: 0, issues: [], unlisted: 0 },
 });
 export const detail = (
   number: number,

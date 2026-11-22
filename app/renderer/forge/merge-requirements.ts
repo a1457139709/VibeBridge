@@ -1,4 +1,5 @@
 import type { Check, CheckTone, MergeState, PullRequestDetail } from '../../shared/forge/forge';
+import type { localize } from '../../shared/localization/localization';
 
 export const checkTones: Record<CheckTone, { mark: string; tone: string }> = {
   passed: { mark: '✓', tone: 'open' },
@@ -29,16 +30,57 @@ export function checkDuration({
 export const unlistedChecks = ({ checks }: Pick<PullRequestDetail, 'checks'>) =>
   Math.max(0, checks.total - checks.listed.length);
 
-export type MergeBlock = 'draft' | 'dirty' | 'behind' | 'blocked' | 'unknown';
-const stateBlocks: Record<MergeState, MergeBlock | null> = {
-  clean: null,
-  hasHooks: null,
-  unstable: null,
-  dirty: 'dirty',
-  behind: 'behind',
-  blocked: 'blocked',
-  unknown: 'unknown',
+export type Translate = ReturnType<typeof localize>['t'];
+interface MergeContext {
+  t: Translate;
+  base: string;
+  forge: string;
+}
+interface MergeStateView {
+  mark: string;
+  tone: string;
+  text(context: MergeContext): string;
+  blockedBecause: ((context: MergeContext) => string) | null;
+}
+
+export const mergeStates: Record<MergeState, MergeStateView> = {
+  clean: { mark: '✓', tone: 'open', text: ({ t }) => t('mergeStateClean'), blockedBecause: null },
+  hasHooks: { mark: '✓', tone: 'open', text: ({ t }) => t('mergeStateClean'), blockedBecause: null },
+  unstable: { mark: '●', tone: 'pending', text: ({ t }) => t('mergeStateUnstable'), blockedBecause: null },
+  dirty: {
+    mark: '✗',
+    tone: 'failed',
+    text: ({ t, base }) => t('mergeStateDirty', { base }),
+    blockedBecause: ({ t }) => t('mergeBlockedDirty'),
+  },
+  behind: {
+    mark: '✗',
+    tone: 'failed',
+    text: ({ t, base }) => t('mergeStateBehind', { base }),
+    blockedBecause: ({ t, base }) => t('mergeBlockedBehind', { base }),
+  },
+  blocked: {
+    mark: '✗',
+    tone: 'failed',
+    text: ({ t }) => t('mergeStateBlocked'),
+    blockedBecause: ({ t, forge }) => t('mergeBlockedBlocked', { forge }),
+  },
+  unknown: {
+    mark: '●',
+    tone: 'pending',
+    text: ({ t, forge }) => t('mergeStateUnknown', { forge }),
+    blockedBecause: ({ t, forge }) => t('mergeBlockedUnknown', { forge }),
+  },
 };
 
-export const mergeBlocks = ({ state, mergeState }: Pick<PullRequestDetail, 'state' | 'mergeState'>): MergeBlock[] =>
-  [state === 'draft' ? 'draft' : null, stateBlocks[mergeState]].filter((block): block is MergeBlock => block !== null);
+export function mergeBlockedReasons(
+  { state, mergeState, base }: Pick<PullRequestDetail, 'state' | 'mergeState' | 'base'>,
+  forge: string,
+  t: Translate,
+): string[] {
+  const blockedBecause = mergeState && mergeStates[mergeState].blockedBecause;
+  return [
+    ...(state === 'draft' ? [t('mergeBlockedDraft')] : []),
+    ...(blockedBecause ? [blockedBecause({ t, base, forge })] : []),
+  ];
+}

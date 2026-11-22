@@ -15,6 +15,7 @@ export interface GhIssue {
   bodyHTML?: string;
   comments?: { author: string | null; createdAt: string; bodyHTML: string }[];
   parent?: number;
+  foreignSubIssues?: { path: string; number: number; title: string; state: 'OPEN' | 'CLOSED' }[];
   blockedBy?: (number | { path: string; number: number; title: string; state: 'OPEN' | 'CLOSED' })[];
   closedBy?: number[];
 }
@@ -27,7 +28,7 @@ export interface GhPullRequest {
   createdAt?: string;
   author?: string | null;
   labels?: { name: string; color: string }[];
-  checks?: 'SUCCESS' | 'FAILURE' | 'ERROR' | 'PENDING' | 'EXPECTED' | null;
+  checks?: string | null;
   head?: string;
   base?: string;
   bodyHTML?: string;
@@ -36,6 +37,7 @@ export interface GhPullRequest {
   reviews?: {
     author: string | null;
     state: 'PENDING' | 'COMMENTED' | 'APPROVED' | 'CHANGES_REQUESTED' | 'DISMISSED';
+    createdAt?: string;
     submittedAt: string | null;
     bodyHTML: string;
   }[];
@@ -55,7 +57,7 @@ export interface GhPullRequest {
       }
     | {
         context: string;
-        state: 'SUCCESS' | 'FAILURE' | 'ERROR' | 'PENDING' | 'EXPECTED';
+        state: string;
         targetUrl: string | null;
         description?: string;
         required?: boolean;

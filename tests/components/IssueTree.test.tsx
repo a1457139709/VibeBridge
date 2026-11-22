@@ -19,6 +19,7 @@ const tree = () =>
       subIssues: {
         closed: 1,
         total: 3,
+        unlisted: 0,
         issues: [summary(12), summary(11, { state: 'closed', closedAs: 'completed' }), summary(13, { labels: [bug] })],
       },
     }),
@@ -104,27 +105,37 @@ test('an issue blocked by more open issues than the forge listed counts the rest
   );
 });
 
-test('an expanded parent with more sub-issues than the forge listed says how many more and links the issue on the forge', async () => {
+test('an expanded parent whose sub-issues the forge cut short says how many more and links the issue on the forge', async () => {
   const { user, request } = renderWorkbench();
   (await request(1)).answer(
     page([
       issue(10, {
-        subIssues: { closed: 0, total: 55, issues: Array.from({ length: 50 }, (_, index) => summary(100 + index)) },
+        subIssues: {
+          closed: 0,
+          total: 55,
+          unlisted: 5,
+          issues: Array.from({ length: 50 }, (_, index) => summary(100 + index)),
+        },
       }),
-      issue(9, { subIssues: { closed: 0, total: 1, issues: [summary(5)] } }),
+      issue(200, { parent: 10 }),
+      issue(9, { subIssues: { closed: 0, total: 3, unlisted: 0, issues: [summary(5)] } }),
     ]),
   );
   for (const expand of await within(sidebar()).findAllByRole('button', { name: t('showSubIssues') }))
     await user.click(expand);
   const more = within(within(sidebar()).getByRole('group', { name: t('subIssuesOf', { number: 10 }) })).getByRole(
     'link',
-    { name: t('moreSubIssues', { count: 5, forge: 'GitHub' }) },
+    { name: t('moreSubIssues', { count: 4, forge: 'GitHub' }) },
   );
-  assert.equal(more.getAttribute('href'), 'https://github.com/octo/alpha/issues/10');
+  assert.equal(
+    more.getAttribute('href'),
+    'https://github.com/octo/alpha/issues/10',
+    'a sub-issue the cap left out but the list loaded is not counted again',
+  );
   assert.equal(
     within(within(sidebar()).getByRole('group', { name: t('subIssuesOf', { number: 9 }) })).queryByRole('link'),
     null,
-    'a parent whose sub-issues are all listed links nothing',
+    'sub-issues of another repository that the list cannot show are not counted as left out',
   );
 });
 
@@ -132,9 +143,9 @@ test('a parent shows the progress button only when the list holds sub-issues to 
   const { user, request } = renderWorkbench();
   (await request(1)).answer(
     page([
-      issue(30, { subIssues: { closed: 0, total: 4, issues: [] } }),
+      issue(30, { subIssues: { closed: 0, total: 4, unlisted: 0, issues: [] } }),
       issue(21, { parent: 20 }),
-      issue(20, { subIssues: { closed: 0, total: 0, issues: [] } }),
+      issue(20, { subIssues: { closed: 0, total: 0, unlisted: 0, issues: [] } }),
     ]),
   );
   await waitFor(() => assert.deepEqual(rows(), ['Issue 30', 'Issue 20']));
@@ -174,6 +185,7 @@ test('listing closed issues, an expanded parent shows its closed sub-issues and 
         subIssues: {
           closed: 1,
           total: 3,
+          unlisted: 0,
           issues: [summary(12), summary(13, { state: 'closed', closedAs: 'completed' }), summary(11)],
         },
       }),
@@ -189,6 +201,8 @@ test('an issue whose parent arrives with Load more moves under it', async () => 
   (await request(1)).answer(page([issue(12, { parent: 10 })], 'next'));
   await waitFor(() => assert.deepEqual(rows(), ['Issue 12']));
   await user.click(within(sidebar()).getByRole('button', { name: 'Load more' }));
-  (await request(2)).answer(page([issue(10, { subIssues: { closed: 0, total: 1, issues: [summary(12)] } })]));
+  (await request(2)).answer(
+    page([issue(10, { subIssues: { closed: 0, total: 1, unlisted: 0, issues: [summary(12)] } })]),
+  );
   await waitFor(() => assert.deepEqual(rows(), ['Issue 10']));
 });

@@ -202,6 +202,7 @@ function pullRequestDetail(state, path, number, answering, query) {
               nodes: latest(pull.reviews ?? [], 'reviews').map(review => ({
                 author: review.author === null ? null : { login: review.author },
                 state: review.state,
+                createdAt: review.createdAt ?? review.submittedAt,
                 submittedAt: review.submittedAt,
                 bodyHTML: review.bodyHTML,
               })),

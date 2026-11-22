@@ -234,15 +234,19 @@ function listedIssueNode(issue, path, blockerWindow, subIssueWindow) {
   const children = (state.issues ?? [])
     .filter(child => child.parent === issue.number)
     .sort((a, b) => a.number - b.number);
+  const foreign = (issue.foreignSubIssues ?? []).map(child =>
+    node({ ...child, createdAt: issue.createdAt, labels: [] }, child.path, blockerWindow),
+  );
+  const childNodes = [...foreign, ...children.map(child => node(child, path, blockerWindow))];
   return {
     ...node(issue, path, blockerWindow),
     parent: issue.parent === undefined ? null : { number: issue.parent, repository: { nameWithOwner: path } },
     subIssuesSummary: {
-      total: children.length,
-      completed: children.filter(child => child.state === 'CLOSED').length,
+      total: childNodes.length,
+      completed: childNodes.filter(child => child.state === 'CLOSED').length,
     },
     url: `https://github.com/${path}/issues/${issue.number}`,
-    subIssues: { nodes: children.slice(0, subIssueWindow).map(child => node(child, path, blockerWindow)) },
+    subIssues: { nodes: childNodes.slice(0, subIssueWindow) },
   };
 }
 

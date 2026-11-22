@@ -184,6 +184,27 @@ export function Progress({ closed, total }: SubIssueProgress) {
   );
 }
 
+export function MoreOnForge({
+  message,
+  count,
+  forge,
+  url,
+  className = '',
+}: {
+  message: 'moreSubIssues' | 'moreChecks';
+  count: number;
+  forge: string;
+  url: string;
+  className?: string;
+}) {
+  const { t } = useLocalization();
+  return (
+    <a className={`forge-more-link ${className}`} href={url} target="_blank" rel="noreferrer">
+      {t(message, { count, forge })}
+    </a>
+  );
+}
+
 export function BlockedMark({ by, unlisted = 0 }: { by: { reference: string; title: string }[]; unlisted?: number }) {
   const { t } = useLocalization();
   const more = unlisted ? [t('moreBlockers', { count: unlisted })] : [];

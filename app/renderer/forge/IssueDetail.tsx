@@ -20,6 +20,7 @@ import {
   ItemReference,
   Label,
   linkedItem,
+  MoreOnForge,
   OpenPullRequestChecks,
   Post,
   Progress,
@@ -122,12 +123,12 @@ export function IssueDocument({ project, issue, open, followLink, actions, dispa
               </button>
             ))}
             {issue.subIssueProgress.total > subIssues.length && (
-              <a className="forge-more-link" href={issue.url} target="_blank" rel="noreferrer">
-                {t('moreSubIssues', {
-                  count: issue.subIssueProgress.total - subIssues.length,
-                  forge: project.forge.name,
-                })}
-              </a>
+              <MoreOnForge
+                message="moreSubIssues"
+                count={issue.subIssueProgress.total - subIssues.length}
+                forge={project.forge.name}
+                url={issue.url}
+              />
             )}
           </section>
         )}
