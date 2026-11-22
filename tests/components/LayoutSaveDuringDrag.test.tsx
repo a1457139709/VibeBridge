@@ -8,6 +8,7 @@ import type { Layout, PanelView, Snapshot, WorkbenchEvent } from '../../app/shar
 import { stubLayoutApis } from './support/no-layout';
 import { provideWorkbench } from './support/workbench';
 import { githubView } from './support/forge';
+import { requireValue, selectElement } from './support/elements';
 
 afterEach(cleanup);
 before(() => {
@@ -78,7 +79,7 @@ async function renderWorkbench() {
       },
     ],
   };
-  const saves: Layout[] = [];
+  const saves: (Layout | null)[] = [];
   // Placing a tray panel or moving a resident panel to the tray are the other changes a release can request.
   const otherChanges: string[] = [];
   let listener: (event: WorkbenchEvent) => void = () => {};
@@ -92,7 +93,7 @@ async function renderWorkbench() {
     activateProject: async () => {},
     saveSidebar: async () => {},
     saveLayout: async (_project, layout) => {
-      saves.push(layout!);
+      saves.push(layout);
     },
     placeInLayout: async (_project, panelId) => {
       otherChanges.push(`place ${panelId}`);
@@ -103,7 +104,7 @@ async function renderWorkbench() {
   });
   render(<App />);
   await screen.findAllByText('Session codex');
-  const canvas = document.querySelector<HTMLElement>('.canvas')!;
+  const canvas = selectElement('.canvas');
   return {
     canvas,
     saves,
@@ -124,7 +125,7 @@ async function renderWorkbench() {
 function press(panelId: string, to: { x: number; y: number }) {
   const handle =
     document.querySelector<HTMLElement>(`.canvas > [data-panel-id="${panelId}"] .panel-header`) ??
-    document.querySelector<HTMLElement>(`[data-tray-panel-id="${panelId}"]`)!;
+    selectElement(`[data-tray-panel-id="${panelId}"]`);
   const box = handle.getBoundingClientRect();
   const start = box.width
     ? { clientX: box.left + box.width / 2, clientY: box.top + box.height / 2 }
@@ -160,7 +161,7 @@ test('a snapshot that keeps the saved layout leaves a drag on an unsaved drop ru
   press('claude', right);
   // Another change, such as a run title, arrives while the drop is still being saved.
   await saved(project => {
-    project.panels[0].run!.title = 'Renamed';
+    requireValue(project.panels[0].run, 'the run').title = 'Renamed';
   });
   assert.ok(canvas.classList.contains('dragging'));
   assert.ok(swapPreview('Swap preview: Claude Code and Codex'));
@@ -178,7 +179,7 @@ test('a drag is cancelled when the saved layout becomes a different one', async 
   assert.equal(swapPreview('Swap preview: Codex and Claude Code'), null);
   drag.release();
   assert.deepEqual(saves, []);
-  const codex = document.querySelector<HTMLElement>('[data-panel-id="codex"]')!;
+  const codex = selectElement('[data-panel-id="codex"]');
   assert.deepEqual([codex.style.top, codex.style.height], ['0%', '50%']);
 });
 
@@ -232,6 +233,6 @@ test('a saved layout returning to the one before a drop is drawn when both saves
       project.layout = sideBySide('codex', 'claude');
     },
   );
-  const codex = document.querySelector<HTMLElement>('[data-panel-id="codex"]')!;
+  const codex = selectElement('[data-panel-id="codex"]');
   assert.equal(codex.style.left, '0%');
 });

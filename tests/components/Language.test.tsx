@@ -9,6 +9,7 @@ import { defaultSettings, type SettingsSaveResult } from '../../app/shared/setti
 import { deferred, provideWorkbench } from './support/workbench';
 import { message } from '../../app/shared/messages';
 import type { Settings } from '../../app/shared/model';
+import { requireValue } from './support/elements';
 
 afterEach(cleanup);
 
@@ -77,7 +78,7 @@ test('discard, restore defaults and cancel leave preserve the effective language
   await user.selectOptions(language, 'en');
   let leave!: Promise<boolean>;
   act(() => {
-    leave = ref.current!.requestLeave();
+    leave = requireValue(ref.current, 'the settings page').requestLeave();
   });
   await user.click(screen.getByRole('button', { name: '取消' }));
   assert.equal(await leave, false);
@@ -85,15 +86,15 @@ test('discard, restore defaults and cancel leave preserve the effective language
   await user.click(screen.getByRole('button', { name: 'Agent' }));
   await user.type(screen.getAllByRole('textbox', { name: '启动命令' })[0], '-draft');
   act(() => {
-    leave = ref.current!.requestLeave();
+    leave = requireValue(ref.current, 'the settings page').requestLeave();
   });
-  assert.match(screen.getByRole('dialog').textContent!, /通用、Agent/);
+  assert.match(screen.getByRole('dialog').textContent ?? '', /通用、Agent/);
   await user.click(screen.getByRole('button', { name: '保存并返回' }));
   assert.deepEqual(patches, [
     { language: 'en', agents: { ...saved.agents, codex: { command: 'codex-draft', args: [] } } },
   ]);
   await user.click(screen.getByRole('button', { name: '通用' }));
-  assert.equal(await ref.current!.requestLeave(), false);
+  assert.equal(await requireValue(ref.current, 'the settings page').requestLeave(), false);
   assert.ok(screen.getByRole<HTMLButtonElement>('button', { name: '保存' }).disabled);
   await act(async () => pending.resolve({ ok: false, kind: 'storage', message: message('settingsWriteFailed') }));
   assert.equal(await leave, false);
@@ -151,7 +152,7 @@ test('validation keeps language drafts, translates command checks and conflicts,
   await user.clear(screen.getAllByRole('textbox', { name: 'Launch command' })[0]);
   let leave!: Promise<boolean>;
   act(() => {
-    leave = ref.current!.requestLeave();
+    leave = requireValue(ref.current, 'the settings page').requestLeave();
   });
   await user.click(screen.getByRole('button', { name: 'Save and return' }));
   assert.equal(await leave, false);
@@ -159,7 +160,7 @@ test('validation keeps language drafts, translates command checks and conflicts,
   assert.ok(screen.getByText('Launch command is required'));
   await user.type(screen.getAllByRole('textbox', { name: 'Launch command' })[0], '/fixed');
   act(() => {
-    leave = ref.current!.requestLeave();
+    leave = requireValue(ref.current, 'the settings page').requestLeave();
   });
   await user.click(screen.getByRole('button', { name: 'Save and return' }));
   assert.equal(await leave, true);

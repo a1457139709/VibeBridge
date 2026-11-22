@@ -19,6 +19,7 @@ import { deferred, provideWorkbench } from './workbench';
 import { githubCapabilities, githubForge, githubView, githubRepository } from './forge';
 import { stubLayoutApis } from './no-layout';
 import { forgeSidebarData, type ForgeAnswers } from './forge-sidebar-data';
+import { selectElement } from './elements';
 
 const project = (id: string, name: string, capabilities: ForgeCapabilities): ProjectView => ({
   id,
@@ -150,8 +151,12 @@ export function renderWorkbench(capabilities = githubCapabilities, api: Partial<
     for (const listener of listeners) listener({ kind: 'snapshot', snapshot: structuredClone(snapshot) });
   };
   const requests: Request[] = [];
-  const listRequest = (list: Request['list'], projectId: string, query: ListQuery) => {
-    const answer = deferred<IssuePage | Page<PullRequestSummary>>();
+  const listRequest = <ListPage extends IssuePage | Page<PullRequestSummary>>(
+    list: Request['list'],
+    projectId: string,
+    query: ListQuery,
+  ) => {
+    const answer = deferred<ListPage>();
     requests.push({ list, projectId, query: structuredClone(query), answer: answer.resolve, fail: answer.reject });
     return answer.promise;
   };
@@ -173,10 +178,10 @@ export function renderWorkbench(capabilities = githubCapabilities, api: Partial<
         origin: null,
         repositories: [githubRepository('octo/alpha')],
       })),
-    issuePage: issuePage ?? ((projectId, query) => listRequest('issues', projectId, query) as Promise<IssuePage>),
+    issuePage: issuePage ?? ((projectId, query) => listRequest<IssuePage>('issues', projectId, query)),
     pullRequestPage:
       pullRequestPage ??
-      ((projectId, query) => listRequest('pullRequests', projectId, query) as Promise<Page<PullRequestSummary>>),
+      ((projectId, query) => listRequest<Page<PullRequestSummary>>('pullRequests', projectId, query)),
     issueDetail,
     pullRequestDetail,
   };
@@ -226,5 +231,5 @@ export const refresh = () => within(sidebar()).getByRole('button', { name: 'Refr
 export const rows = () =>
   within(sidebar())
     .queryAllByRole('listitem')
-    .map(row => row.querySelector('.forge-row-title')!.textContent);
+    .map(row => selectElement('.forge-row-title', row).textContent);
 export const openNoFilter = { search: '', state: 'open', labels: [] };

@@ -30,7 +30,7 @@ test('parents start collapsed behind a progress button that expands their sub-is
   );
   const expand = within(sidebar()).getByRole('button', { name: 'Show sub-issues' });
   assert.equal(expand.getAttribute('aria-expanded'), 'false');
-  assert.match(expand.textContent!, /▸.*1\/3/);
+  assert.match(expand.textContent ?? '', /▸.*1\/3/);
   await user.click(expand);
   assert.deepEqual(rows(), ['Issue 14', 'Issue 10', 'Issue 12', 'Issue 13']);
   const children = within(sidebar()).getByRole('group', { name: 'Sub-issues of #10' });
@@ -58,7 +58,7 @@ test('parents start collapsed behind a progress button that expands their sub-is
   assert.deepEqual(rows(), ['Issue 14', 'Issue 10', 'Issue 12', 'Issue 13']);
   const collapse = within(sidebar()).getByRole('button', { name: 'Hide sub-issues' });
   assert.equal(collapse.getAttribute('aria-expanded'), 'true');
-  assert.match(collapse.textContent!, /▾/);
+  assert.match(collapse.textContent ?? '', /▾/);
   await user.click(collapse);
   assert.deepEqual(rows(), ['Issue 14', 'Issue 10']);
   assert.equal(requests.length, 1, 'expanding fetches nothing');

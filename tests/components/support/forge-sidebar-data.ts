@@ -34,18 +34,7 @@ export function forgeSidebarData(
   answers: ForgeAnswers,
   emit: (event: ForgeSidebarEvent) => void,
   directoryOf: (projectId: string) => string = projectId => `/work/${projectId}`,
-): Pick<
-  DesktopAPI,
-  | 'showForgeList'
-  | 'reportForgeSidebarPresence'
-  | 'loadMoreForgeList'
-  | 'showForgeRows'
-  | 'refreshForgeList'
-  | 'showRepositoryChoices'
-  | 'showForgeDetail'
-  | 'reportForgeRowResting'
-  | 'reportForgeItemChanged'
-> {
+) {
   const data = new ForgeSidebarData({
     issuePage: (projectId, query) => answers.issuePage?.(projectId, query) ?? unanswered('issuePage'),
     pullRequestPage: (projectId, query) => answers.pullRequestPage?.(projectId, query) ?? unanswered('pullRequestPage'),
@@ -71,7 +60,7 @@ export function forgeSidebarData(
     showForgeDetail: (projectId, item) => data.showDetail(projectId, item),
     reportForgeRowResting: (projectId, item) => data.reportRestingOn(projectId, item),
     reportForgeItemChanged: (projectId, item) => data.reloadChanged(projectId, item),
-  };
+  } satisfies Partial<DesktopAPI>;
 }
 
 /** Where a test's Workbench pushes events: `subscribe` for the Workbench API, and `emit` to push one. */
