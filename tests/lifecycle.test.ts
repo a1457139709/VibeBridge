@@ -8,6 +8,7 @@ import type { Snapshot } from '../app/shared/model';
 import { runsOf, storedProjects } from './support/panel-views';
 import { testNode } from './support/test-node';
 import { pidOf } from './support/expected';
+import { killUnlessExited } from './support/process-cleanup';
 
 const alive = (pid: number) => {
   try {
@@ -76,11 +77,7 @@ test('a surviving terminal manager cleans all projects after main-process SIGKIL
   } finally {
     main.kill('SIGKILL');
     unrelated.kill('SIGKILL');
-    for (const pid of pids) {
-      try {
-        process.kill(pid, 'SIGKILL');
-      } catch {}
-    }
+    for (const pid of pids) killUnlessExited(pid);
     await rm(directory, { recursive: true, force: true });
   }
 });
