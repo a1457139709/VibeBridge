@@ -67,14 +67,19 @@ module.exports = {
         if (icon.static !== (!icon.busy || reducedMotion))
           problems.push(`${icon.label} moves only while Busy and motion is allowed`);
       }
-      const phases =
+      const spins =
         await evaluate(`[...document.querySelectorAll('.processing-busy svg')].flatMap(icon => icon.getAnimations())
-        .map(animation => animation.currentTime % ${busyPeriod})`);
+        .map(animation => ({ name: animation.animationName, time: animation.currentTime, period: animation.effect.getTiming().duration }))`);
+      const busyPeriod = spins[0]?.period;
+      const phases = spins.map(spin => spin.time % busyPeriod);
       if (!reducedMotion) {
-        if (!phases.length) problems.push('no Busy animation');
+        if (!spins.length) problems.push('no Busy animation');
+        else if (!(busyPeriod > 0)) problems.push(`Busy animation period ${busyPeriod}`);
+        if (spins.some(spin => spin.name !== 'processing-spin' || spin.period !== busyPeriod))
+          problems.push(`Busy animations ${JSON.stringify(spins)}`);
         if (phases.some(phase => Math.min(Math.abs(phase - phases[0]), busyPeriod - Math.abs(phase - phases[0])) >= 50))
           problems.push(`Busy phases ${phases}`);
-      } else if (phases.length) problems.push(`Busy animations under reduced motion: ${phases}`);
+      } else if (spins.length) problems.push(`Busy animations under reduced motion: ${phases}`);
       return problems;
     };
     const checkGeometry = async () => {
@@ -95,7 +100,6 @@ module.exports = {
       });
     await motion('no-preference');
     let reducedMotion = false;
-    const busyPeriod = 1500;
     for (const language of ['en', 'zh-CN']) {
       await evaluate(`window.workbench.saveSettings({ language: ${JSON.stringify(language)} })`);
       await until(
