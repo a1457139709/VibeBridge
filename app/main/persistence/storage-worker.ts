@@ -13,6 +13,7 @@ import {
 } from '../../shared/model';
 import { forgeIdSchema, type RepositoryReference } from '../../shared/forge/forge';
 import type { DispatchRecord } from '../dispatch';
+import { errorMessage } from '../../shared/error-message';
 
 const file: string = workerData.file;
 const db = new DatabaseSync(file);
@@ -225,6 +226,6 @@ parentPort!.on('message', ({ id, operation, value }) => {
     else throw new Error(message('storageOperationUnknown'));
     parentPort!.postMessage({ id, result });
   } catch (error) {
-    parentPort!.postMessage({ id, error: error instanceof Error ? error.message : String(error) });
+    parentPort!.postMessage({ id, error: errorMessage(error) });
   }
 });

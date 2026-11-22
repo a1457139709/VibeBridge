@@ -19,6 +19,7 @@ import type {
   ForgeListTab,
   ForgeSidebarEvent,
 } from '../../shared/forge/sidebar-data';
+import { errorMessage } from '../../shared/error-message';
 
 /** Where the Forge sidebar's data comes from, and where it goes. Each read is of a project's bound repository, or of the
  * repositories the project can bind. */
@@ -46,7 +47,7 @@ async function fromSources<T>(
   try {
     return await read();
   } catch (error) {
-    return failed({ kind: 'transient', detail: (error as Error).message, forge: sources.forge(projectId) });
+    return failed({ kind: 'transient', detail: errorMessage(error), forge: sources.forge(projectId) });
   }
 }
 

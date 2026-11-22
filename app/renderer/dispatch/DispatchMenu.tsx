@@ -23,6 +23,7 @@ import type { DispatchRequest, DispatchTarget } from '../../shared/dispatch';
 import { displayShortcut } from '../../shared/settings/shortcuts';
 import type { IssueSummary } from '../../shared/forge/forge';
 import type { DispatchRecordsHost } from './DispatchRecords';
+import { errorMessage } from '../../shared/error-message';
 import './dispatch.css';
 
 /** What dispatching needs from the sidebar around it. */
@@ -208,7 +209,7 @@ export function DispatchButton({
       else button.current?.focus();
       host.onDispatched(delivery);
     } catch (error) {
-      host.report((error as Error).message);
+      host.report(errorMessage(error));
       button.current?.focus();
     }
   }

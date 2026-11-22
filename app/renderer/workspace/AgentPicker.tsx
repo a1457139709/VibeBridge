@@ -3,6 +3,7 @@ import { useEffect, useRef, useState } from 'react';
 import { message } from '../../shared/messages';
 import { agentNames, agentTypes } from '../../shared/model';
 import { agentIcons } from '../common/agent-icons';
+import { errorMessage } from '../../shared/error-message';
 
 export function AgentPicker({
   projectId,
@@ -56,7 +57,7 @@ export function AgentPicker({
                 setFailure({ error: message('launchFailed'), offerAgentSettings: true });
               else setFailure({ error: launch.reason, offerAgentSettings: false });
             } catch (error) {
-              setFailure({ error: (error as Error).message, offerAgentSettings: false });
+              setFailure({ error: errorMessage(error), offerAgentSettings: false });
             } finally {
               setBusy(false);
             }

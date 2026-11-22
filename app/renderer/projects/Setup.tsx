@@ -15,6 +15,7 @@ import {
 import { LaunchResults } from './LaunchResults';
 import { layoutBoxes } from '../../shared/layout';
 import { projectNameError, projectNameFromDirectory, projectNameHasControls } from '../../shared/project-name';
+import { errorMessage } from '../../shared/error-message';
 
 function Stepper({
   label,
@@ -132,7 +133,7 @@ export function Setup({
       setNameTouched(true);
       setDirectoryTouched(true);
     } catch (error) {
-      report((error as Error).message);
+      report(errorMessage(error));
     } finally {
       setChoosing(false);
     }
@@ -155,7 +156,7 @@ export function Setup({
       if (launches.every(launch => launch.outcome === 'started')) onSetupFinished(project.id);
       else setLaunchReport({ projectId: project.id, launches });
     } catch (error) {
-      report((error as Error).message);
+      report(errorMessage(error));
     } finally {
       pending.current = false;
       setBusy(false);

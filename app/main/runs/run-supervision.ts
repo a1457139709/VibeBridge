@@ -15,6 +15,7 @@ import {
 import { ProcessingStatus, type SessionReceiver } from './processing-status';
 import { sessionTitle } from './session-title';
 import { TerminalClient } from './terminal-client';
+import { errorMessage } from '../../shared/error-message';
 
 export type Terminal = Pick<
   TerminalClient,
@@ -177,7 +178,7 @@ export class RunSupervision {
         outcome: 'unconfirmed',
         run: structuredClone(run),
         agent: panel.agent,
-        reason: message('launchUnconfirmed', { reason: nestedMessage((error as Error).message) }),
+        reason: message('launchUnconfirmed', { reason: nestedMessage(errorMessage(error)) }),
       };
     }
   }
@@ -196,7 +197,7 @@ export class RunSupervision {
         failures.push(
           message('panelFailure', {
             number: ids.indexOf(run.panelId) + 1,
-            reason: nestedMessage((error as Error).message),
+            reason: nestedMessage(errorMessage(error)),
           }),
         );
       }

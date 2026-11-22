@@ -4,6 +4,7 @@ import type { ProjectView } from '../../shared/model';
 import { sameRepository, type RepositoryReference } from '../../shared/forge/forge';
 import type { ShownRepositoryChoices } from '../../shared/forge/sidebar-data';
 import { RepositoryList } from './RepositoryList';
+import { errorMessage } from '../../shared/error-message';
 import './sidebar-binding.css';
 
 /** The repositories the project can bind, as the main process pushes them once this page declares it shows them;
@@ -53,7 +54,7 @@ function useBindingCall() {
         await call();
         onSucceeded?.();
       } catch (failure) {
-        setError((failure as Error).message);
+        setError(errorMessage(failure));
       } finally {
         setBusy(false);
       }

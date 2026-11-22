@@ -5,6 +5,7 @@ import { randomUUID } from 'node:crypto';
 import type { AgentCommand, CommandCheck, Run, TerminalEvent } from '../../shared/model';
 import { stopProcesses, type ProcessIdentity } from '../../terminal/processes';
 import { recordFailure } from '../../terminal/failure';
+import { errorMessage } from '../../shared/error-message';
 
 export class TerminalClient {
   private child: ChildProcess;
@@ -62,7 +63,7 @@ export class TerminalClient {
             await stopProcesses(this.processes, this.owner);
           } catch (error) {
             cleanupError = error;
-            onFailure((error as Error).message);
+            onFailure(errorMessage(error));
           }
           await recordFailure(faultFile, 'terminal', error.message, cleanupError);
         })().catch(error => onFailure(message('failureRecordFailed', { reason: nestedMessage(error.message) })));
