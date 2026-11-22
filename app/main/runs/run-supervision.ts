@@ -131,7 +131,9 @@ export class RunSupervision {
       }
       if (event.kind === 'title') {
         // Agents animate a spinner in the terminal title while busy; only a new session title is a change.
-        const title = sessionTitle(this.expectedRuns.get(run.panelId)!.agent, event.title);
+        const expected = this.expectedRuns.get(run.panelId);
+        if (!expected) return;
+        const title = sessionTitle(expected.agent, event.title);
         if (title === run.title) return;
         if (title) run.title = title;
         else delete run.title;

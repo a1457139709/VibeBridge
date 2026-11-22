@@ -31,7 +31,7 @@ export async function readLoginEnvironment(): Promise<Record<string, string>> {
   return environment;
 }
 
-export async function resolveExecutable(command: string, environment: Record<string, string>): Promise<string> {
+export async function resolveExecutable(command: string, environment: { PATH?: string }): Promise<string> {
   const paths = isAbsolute(command)
     ? [command]
     : command.includes('/')

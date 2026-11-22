@@ -37,10 +37,11 @@ export interface Project {
   panels: Panel[];
   layout: Layout | null;
 }
-export interface AgentCommand {
+// Type aliases rather than interfaces: the settings schema's loose objects carry an index signature.
+export type AgentCommand = {
   command: string;
   args: string[];
-}
+};
 export type DefaultLayout = 'auto' | 'row' | 'column';
 export type Language = 'en' | 'zh-CN';
 /** Whether the open forge sidebar squeezes the layout area or overlays it. */
@@ -169,14 +170,18 @@ export function validateDraft(draft: ProjectDraft): void {
 }
 
 export function arrange(ids: string[], preference: DefaultLayout = 'auto'): Layout | null {
-  if (!ids.length) return null;
+  return ids.length ? arrangePanels(ids, preference) : null;
+}
+
+/** The layout of one or more panels. */
+function arrangePanels(ids: string[], preference: DefaultLayout = 'auto'): Layout {
   if (ids.length === 1) return { panel: ids[0] };
   if (preference !== 'auto')
     return {
       axis: preference,
       ratio: 1 / ids.length,
       first: { panel: ids[0] },
-      second: arrange(ids.slice(1), preference)!,
+      second: arrangePanels(ids.slice(1), preference),
     };
   if (ids.length === 3)
     return {
@@ -189,8 +194,8 @@ export function arrange(ids: string[], preference: DefaultLayout = 'auto'): Layo
   return {
     axis: ids.length > 2 ? 'column' : 'row',
     ratio: half / ids.length,
-    first: arrange(ids.slice(0, half))!,
-    second: arrange(ids.slice(half))!,
+    first: arrangePanels(ids.slice(0, half)),
+    second: arrangePanels(ids.slice(half)),
   };
 }
 

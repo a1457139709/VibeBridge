@@ -180,8 +180,8 @@ async function byNumber<Node extends z.ZodType>(
     { owner, name },
     byNumberSchema(node),
   );
-  const found = numbers.map(number => repository[`n${number}`] as z.infer<Node> | null);
-  return { repository, items: found.filter(item => item !== null && item !== undefined) as z.infer<Node>[] };
+  const found: (z.infer<Node> | null | undefined)[] = numbers.map(number => repository[`n${number}`]);
+  return { repository, items: found.filter((item): item is z.infer<Node> => item !== null && item !== undefined) };
 }
 
 /** GitHub search text for the filter, of issues or pull requests. A number (with or without #) matches the number;

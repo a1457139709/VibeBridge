@@ -63,7 +63,12 @@ export class ProcessingStatus {
     private resourceDirectory: string,
   ) {}
 
-  async prepare(runId: string, agent: AgentType, command: AgentCommand, directory: string) {
+  async prepare(
+    runId: string,
+    agent: AgentType,
+    command: AgentCommand,
+    directory: string,
+  ): Promise<{ command: AgentCommand; extraEnvironment: Record<string, string> }> {
     const observation: Observation = {
       agent,
       token: randomUUID(),
@@ -86,7 +91,7 @@ export class ProcessingStatus {
         },
       };
     } catch {
-      return { command, extraEnvironment: {} as Record<string, string> };
+      return { command, extraEnvironment: {} };
     } // Observation must never prevent a terminal launch.
   }
 

@@ -14,7 +14,17 @@ interface Delivery {
   lost: boolean;
 }
 const key = Symbol.for('vibebridge.pi.status.delivery');
-const runtime = globalThis as typeof globalThis & { [key]?: Map<string, Delivery> };
+/** The delivery queues of this process, kept on the global object so a reloaded extension module finds them. */
+function processDeliveries(): Map<string, Delivery> {
+  const kept: unknown = Reflect.get(globalThis, key);
+  if (kept instanceof Map) return kept;
+  const deliveries = new Map<string, Delivery>();
+  Reflect.set(globalThis, key, deliveries);
+  return deliveries;
+}
+/** A field of an event's object value; undefined when the value is not an object. */
+const fieldOf = (value: unknown, name: string): unknown =>
+  typeof value === 'object' && value !== null ? Reflect.get(value, name) : undefined;
 
 /** Loaded only by this invocation's --extension. No tools, UI, commands, hook
  * decisions or child-session subscriptions are installed by this observer.
@@ -24,7 +34,7 @@ export default function install(pi: ExtensionAPI) {
   if (!reporting) return;
   // Pi /reload can replace the extension module within the same process. Keep
   // one delivery queue for this launch across those loads, so reports stay in order.
-  const deliveries = (runtime[key] ??= new Map());
+  const deliveries = processDeliveries();
   let delivery = deliveries.get(reporting.token);
   if (!delivery) {
     delivery = { pending: Promise.resolve(), lost: false };
@@ -56,8 +66,7 @@ export default function install(pi: ExtensionAPI) {
       try {
         payload = { type: event.type, isIdle: piContext.isIdle(), hasPendingMessages: piContext.hasPendingMessages() };
         if (name === 'message_end') {
-          const message = event.message as Payload | undefined;
-          payload.message = { role: message?.role, stopReason: message?.stopReason };
+          payload.message = { role: fieldOf(event.message, 'role'), stopReason: fieldOf(event.message, 'stopReason') };
         }
         if (name === 'agent_end') {
           // Later user extensions can replace message_end.message. This loop's

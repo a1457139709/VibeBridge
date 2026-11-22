@@ -18,12 +18,18 @@ interface ManagedRun {
   draining: boolean;
 }
 const runs = new Map<string, ManagedRun>();
-const owner = process.env.VIBEBRIDGE_HOST_OWNER!;
+/** A variable the Workbench sets when it starts this host as its child process. */
+function workbenchVariable(name: 'VIBEBRIDGE_HOST_OWNER' | 'VIBEBRIDGE_FAULT_FILE'): string {
+  const value = process.env[name];
+  if (!value) throw new Error(`${name} is unset: the terminal host runs only as the Workbench's child process`);
+  return value;
+}
+const owner = workbenchVariable('VIBEBRIDGE_HOST_OWNER');
 let environment: Promise<Record<string, string>> | undefined;
 let shuttingDown = false;
 // A peer can die between the connected check and the write. Let disconnect own cleanup.
 const send = (message: unknown) => {
-  if (process.connected) process.send!(message, () => {});
+  if (process.connected) process.send?.(message, () => {});
 };
 const emitEvent = (value: TerminalEvent) => send({ event: value });
 let sampling: Promise<void> | undefined;
@@ -104,14 +110,21 @@ async function performOperation(operation: string, value: any) {
     }
   }
   if (operation === 'start') {
-    const { id, panelId, projectId, directory, command, extraEnvironment } = value as {
+    const {
+      id,
+      panelId,
+      projectId,
+      directory,
+      command,
+      extraEnvironment,
+    }: {
       id: string;
       panelId: string;
       projectId: string;
       directory: string;
       command: AgentCommand;
       extraEnvironment: Record<string, string>;
-    };
+    } = value;
     try {
       environment ??= readLoginEnvironment();
       const env = await environment;
@@ -125,10 +138,10 @@ async function performOperation(operation: string, value: any) {
         rows: 24,
       });
       const run: Run = { id, panelId, projectId, pid: terminal.pid, state: 'running' };
-      const entry = {
+      const entry: ManagedRun = {
         run,
         terminal,
-        processes: [] as ProcessIdentity[],
+        processes: [],
         stopping: false,
         unacknowledgedOutput: 0,
         paused: false,
@@ -201,7 +214,7 @@ process.on('message', (message: any) => {
     } catch (error) {
       send({ id: message.id, error: errorMessage(error) });
     }
-    if (message.operation === 'shutdown' && process.connected) process.disconnect!();
+    if (message.operation === 'shutdown' && process.connected) process.disconnect?.();
   });
 });
 process.on('disconnect', () => {
@@ -214,7 +227,12 @@ process.on('disconnect', () => {
       cleanupError = error;
     }
     if (unexpected)
-      await recordFailure(process.env.VIBEBRIDGE_FAULT_FILE!, 'main', message('mainDisconnected'), cleanupError);
+      await recordFailure(
+        workbenchVariable('VIBEBRIDGE_FAULT_FILE'),
+        'main',
+        message('mainDisconnected'),
+        cleanupError,
+      );
     else if (cleanupError) console.error(cleanupError);
   })()
     .catch(error => console.error(message('failureRecordFailed', { reason: nestedMessage(error.message) })))

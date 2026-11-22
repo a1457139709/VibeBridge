@@ -58,13 +58,11 @@ export function readPage<T extends ForgeListTab>(
   tab: T,
   query: ListQuery,
 ): Promise<Page<ForgeListItems[T]>> {
-  const read = tab === 'issues' ? sources.issuePage : sources.pullRequestPage;
-  return fromSources(
-    sources,
-    projectId,
-    () => read(projectId, query) as Promise<Page<ForgeListItems[T]>>,
-    failure => ({ ok: false, failure, account: null }),
-  );
+  const reads: { [K in ForgeListTab]: () => Promise<Page<ForgeListItems[K]>> } = {
+    issues: () => sources.issuePage(projectId, query),
+    pullRequests: () => sources.pullRequestPage(projectId, query),
+  };
+  return fromSources(sources, projectId, reads[tab], failure => ({ ok: false, failure, account: null }));
 }
 
 /** Asks the forge for the items of `tab` with these numbers, with no search. */

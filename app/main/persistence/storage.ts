@@ -6,6 +6,18 @@ import type { Sidebar, SidebarPreferences, Project } from '../../shared/model';
 import type { RepositoryReference } from '../../shared/forge/forge';
 import type { DispatchRecord } from '../dispatch';
 
+/** A request the Project Store sends its storage worker, named by its operation. */
+export type StorageRequest =
+  | { operation: 'load' }
+  | { operation: 'save'; project: Project }
+  | { operation: 'bind'; projectId: string; repository: RepositoryReference }
+  | { operation: 'unbind'; projectId: string }
+  | { operation: 'dispatch'; record: DispatchRecord }
+  | { operation: 'sidebar'; sidebar: Sidebar; preferences: SidebarPreferences }
+  | { operation: 'delete'; projectId: string; nextActiveProjectId: string | null }
+  | { operation: 'active'; projectId: string }
+  | { operation: 'close' };
+
 export class ProjectStore {
   private worker: Worker;
   private sequence = 0;
@@ -33,12 +45,12 @@ export class ProjectStore {
     await mkdir(directory, { recursive: true });
     return new ProjectStore(directory);
   }
-  private request<T>(operation: string, value?: unknown): Promise<T> {
+  private request<T>(request: StorageRequest): Promise<T> {
     if (this.failure) return Promise.reject(this.failure);
     return new Promise((resolve, reject) => {
       const id = ++this.sequence;
       this.pending.set(id, { resolve, reject });
-      this.worker.postMessage({ id, operation, value });
+      this.worker.postMessage({ id, request });
     });
   }
   load() {
@@ -49,35 +61,35 @@ export class ProjectStore {
         dispatches: DispatchRecord[];
         activeProjectId: string | null;
       } & Record<Sidebar, SidebarPreferences>
-    >('load');
+    >({ operation: 'load' });
   }
   save(project: Project) {
-    return this.request<void>('save', project);
+    return this.request<void>({ operation: 'save', project });
   }
   /** Stores a project's Repository Binding, replacing any it has. */
   bind(projectId: string, repository: RepositoryReference) {
-    return this.request<void>('bind', { projectId, repository });
+    return this.request<void>({ operation: 'bind', projectId, repository });
   }
   /** Removes a project's Repository Binding. */
   unbind(projectId: string) {
-    return this.request<void>('unbind', projectId);
+    return this.request<void>({ operation: 'unbind', projectId });
   }
   /** Appends a Dispatch Record. */
   appendDispatchRecord(record: DispatchRecord) {
-    return this.request<void>('dispatch', record);
+    return this.request<void>({ operation: 'dispatch', record });
   }
   saveSidebar(sidebar: Sidebar, preferences: SidebarPreferences) {
-    return this.request<void>('sidebar', { sidebar, preferences });
+    return this.request<void>({ operation: 'sidebar', sidebar, preferences });
   }
   deleteProject(id: string, nextActiveProjectId: string | null) {
-    return this.request<void>('delete', { id, activeProjectId: nextActiveProjectId });
+    return this.request<void>({ operation: 'delete', projectId: id, nextActiveProjectId });
   }
   saveActiveProject(id: string) {
-    return this.request<void>('active', id);
+    return this.request<void>({ operation: 'active', projectId: id });
   }
   async close() {
     try {
-      await this.request('close');
+      await this.request({ operation: 'close' });
     } finally {
       await this.worker.terminate();
     }

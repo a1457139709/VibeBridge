@@ -83,7 +83,7 @@ const dropped = new Set([
 ]);
 /** Media the page cannot load (its content security policy allows only its own images); each becomes a link to the file. */
 const media = new Set(['img', 'video', 'source']);
-const safeUrl = (url: string | null) => !!url && /^(https?:|mailto:)/i.test(url.trim());
+const safeUrl = (url: string | null): url is string => !!url && /^(https?:|mailto:)/i.test(url.trim());
 
 /** The forge's HTML with every element and attribute outside the allowlist removed. Links keep only http(s) and mailto
  * targets and open outside the page; checkboxes are read-only; images and videos become links to their files. */
@@ -97,11 +97,11 @@ export function filterForgeHtml(html: string): string {
 function filterChildren(parent: ParentNode) {
   for (const node of [...parent.childNodes]) {
     if (node.nodeType === Node.TEXT_NODE) continue;
-    if (node.nodeType !== Node.ELEMENT_NODE) {
+    if (!(node instanceof Element)) {
       node.remove();
       continue;
     }
-    const element = node as Element;
+    const element = node;
     const name = element.localName;
     if (dropped.has(name)) {
       element.remove();
@@ -144,7 +144,7 @@ function mediaLink(element: Element): Node {
   if (!safeUrl(source)) return document.createTextNode(element.getAttribute('alt') ?? '');
   if (element.parentElement?.closest('a')) return document.createTextNode(`${name} ↗`);
   const link = document.createElement('a');
-  link.setAttribute('href', source!);
+  link.setAttribute('href', source);
   link.setAttribute('target', '_blank');
   link.setAttribute('rel', 'noreferrer');
   link.textContent = `${name} ↗`;

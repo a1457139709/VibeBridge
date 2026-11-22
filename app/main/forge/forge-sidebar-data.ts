@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { itemNumberSchema, itemsPerRead, type ListFilter, type Page } from '../../shared/forge/forge';
+import { itemNumberSchema, itemsPerRead, type ListFilter } from '../../shared/forge/forge';
 import {
   detailItemSchema,
   forgeListViewSchema,
@@ -41,6 +41,11 @@ interface OpenDetail {
 }
 
 const tabOf = (item: DetailItem): ForgeListTab => (item.kind === 'issue' ? 'issues' : 'pullRequests');
+/** The list `tab` holds, typed by its tab. */
+function tabList<T extends ForgeListTab>(lists: ForgeLists, tab: T): TabList<ForgeListItems[T]> {
+  const tabs: { [K in ForgeListTab]: TabList<ForgeListItems[K]> } = lists;
+  return tabs[tab];
+}
 
 /** The Forge sidebar's data (docs/adr/0008-forge-sidebar-data-lives-in-the-main-process.md): each project's lists, the
  * item its detail shows, and the repositories its binding pages offer. The renderer declares what it shows, reports
@@ -283,23 +288,23 @@ export class ForgeSidebarData {
     joining: Joining,
     pages: number,
   ) {
-    const before = shown.lists[tab] as TabList<ForgeListItems[T]>;
+    const before = tabList(shown.lists, tab);
     this.settle(projectId, shown, { ...shown.lists, loading: true });
     const items: ForgeListItems[T][] = [];
     const pageEnds: number[] = [];
-    let page: Page<ForgeListItems[T]> | undefined;
     // The pages follow one another: each asks from where the one before ended.
-    for (let cursor = joining === 'append' ? before.loaded!.nextCursor : null; pages > 0; pages--) {
-      page = await readPage(this.sources, projectId, tab, { filter, cursor });
+    let cursor = joining === 'append' ? (before.loaded?.nextCursor ?? null) : null;
+    let page = await readPage(this.sources, projectId, tab, { filter, cursor });
+    for (;;) {
       if (shown.request !== request || this.lists.get(projectId) !== shown) return;
       if (!page.ok) break;
       items.push(...page.items);
       pageEnds.push(items.length);
-      if (!(cursor = page.nextCursor)) break;
+      if (!(cursor = page.nextCursor) || --pages < 1) break;
+      page = await readPage(this.sources, projectId, tab, { filter, cursor });
     }
     shown.request = null;
-    const previous = shown.lists[tab] as TabList<ForgeListItems[T]>;
-    const joined = joinedPages(previous, shown.pageEnds[tab], filter, joining, page!, items, pageEnds);
+    const joined = joinedPages(tabList(shown.lists, tab), shown.pageEnds[tab], filter, joining, page, items, pageEnds);
     shown.pageEnds[tab] = joined.pageEnds;
     this.settle(projectId, shown, { ...shown.lists, [tab]: joined.rows, loading: false });
   }

@@ -9,6 +9,7 @@ import {
   shortcutConflictMessage,
   shortcutFormatError,
 } from './shortcuts';
+import { recordOf } from '../record-of';
 
 export const defaultSettings = (): Settings => ({
   language: 'en',
@@ -44,8 +45,7 @@ const shortcut = z
 // result is always valid; saving reports each invalid field. Unknown keys pass through both.
 function settingsSchema(reading: boolean) {
   const defaults = defaultSettings();
-  const field = <T extends z.ZodType>(schema: T, fallback: unknown) =>
-    reading ? schema.catch(fallback as z.output<T>) : schema;
+  const field = <T extends z.ZodType>(schema: T, fallback: z.output<T>) => (reading ? schema.catch(fallback) : schema);
   const object = <T extends z.ZodRawShape>(shape: T, error: string) => z.looseObject(shape, { error });
   return z.looseObject(
     {
@@ -65,9 +65,10 @@ function settingsSchema(reading: boolean) {
       ),
       agents: field(
         object(
-          Object.fromEntries(
-            agentTypes.map(type => [
-              type,
+          recordOf(
+            agentTypes,
+            type => type,
+            type =>
               field(
                 object(
                   {
@@ -78,7 +79,6 @@ function settingsSchema(reading: boolean) {
                 ),
                 defaults.agents[type],
               ),
-            ]),
           ),
           message('settingsInvalid'),
         ),
@@ -86,16 +86,21 @@ function settingsSchema(reading: boolean) {
       ),
       shortcuts: field(
         object(
-          Object.fromEntries(shortcutActions.map(action => [action, field(shortcut, defaults.shortcuts[action])])),
+          recordOf(
+            shortcutActions,
+            action => action,
+            action => field(shortcut, defaults.shortcuts[action]),
+          ),
           message('shortcutInvalid'),
         ),
         defaults.shortcuts,
       ),
       workflows: field(
         object(
-          Object.fromEntries(
-            workflows.map(workflow => [
-              workflow.id,
+          recordOf(
+            workflows,
+            workflow => workflow.id,
+            workflow =>
               field(
                 object(
                   {
@@ -131,7 +136,6 @@ function settingsSchema(reading: boolean) {
                 ),
                 defaults.workflows[workflow.id],
               ),
-            ]),
           ),
           message('workflowsInvalid'),
         ),
@@ -148,8 +152,7 @@ const saveSchema = settingsSchema(false);
 export function readSettings(value: unknown): Settings {
   const result = readSchema.safeParse(value);
   if (!result.success) throw new Error(result.error.issues[0].message);
-  // Object.fromEntries erases the Agent type and action keys the schema guarantees.
-  return result.data as unknown as Settings;
+  return result.data;
 }
 
 // Navigation, draft selection and validation all follow this definition's order. A category's
@@ -187,8 +190,12 @@ export type SettingsSaveResult =
   | { ok: false; kind: 'validation'; issues: SettingsIssue[] }
   | { ok: false; kind: 'storage' | 'unavailable'; message: string };
 
-const categoryOf = (key: PropertyKey) =>
-  settingsCategories.find(category => (category.keys as readonly PropertyKey[]).includes(key))!.id;
+/** The category a settings key belongs to; every key the schema checks belongs to one. */
+function categoryOf(key: PropertyKey): SettingsCategory {
+  const category = settingsCategories.find(category => category.keys.some(categoryKey => categoryKey === key));
+  if (!category) throw new Error(`Settings key ${String(key)} belongs to no settings category`);
+  return category.id;
+}
 
 export function settingsConflicts(settings: Settings): SettingsIssue[] {
   return settingsCategories.flatMap(category =>

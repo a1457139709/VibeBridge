@@ -46,7 +46,7 @@ export class RepositoryBindings {
     const bound = this.get(projectId);
     const choices = await repositoryChoices(bound, directory);
     const listed = choices.ok && choices.repositories.find(item => sameRepository(item, bound));
-    if (listed && listed.path !== bound!.path) follow(listed);
+    if (listed && bound && listed.path !== bound.path) follow(listed);
     return choices;
   }
   /** The repository as a fresh list from its forge shows it, for `bind`; throws when the list cannot be read or does
@@ -77,7 +77,7 @@ export class RepositoryBindings {
    * was rebound, unbound or deleted meanwhile, or the path is unchanged. Runs in the Workbench's operation queue. */
   async follow(projectId: string, found: RepositoryReference) {
     const bound = this.get(projectId);
-    if (!sameRepository(bound, found) || bound!.path === found.path) return false;
+    if (!bound || !sameRepository(bound, found) || bound.path === found.path) return false;
     await this.store.bind(projectId, found);
     this.bindings.set(projectId, found);
     return true;

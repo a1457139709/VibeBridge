@@ -185,13 +185,13 @@ export class Workbench {
     return this.operation(async () => {
       validateDraft(draft);
       const directory = await this.inspectDirectory(draft.directory);
-      if (!directory.valid) throw new Error(message('projectDirectoryInvalid'));
+      if (!directory.valid || directory.directory === undefined) throw new Error(message('projectDirectoryInvalid'));
       if (directory.existingProjectId) throw new Error(message('projectDirectoryExists'));
       const panels = assignedAgents(draft).map(agent => ({ id: randomUUID(), agent }));
       const project = {
         id: randomUUID(),
         name: draft.name.trim(),
-        directory: directory.directory!,
+        directory: directory.directory,
         panels,
         layout: arrange(
           panels.map(p => p.id),
@@ -215,10 +215,10 @@ export class Workbench {
       const nameError = projectNameError(edit.name);
       if (nameError) throw new Error(nameError);
       const directory = await this.inspectDirectory(edit.directory);
-      if (!directory.valid) throw new Error(message('projectDirectoryInvalid'));
+      if (!directory.valid || directory.directory === undefined) throw new Error(message('projectDirectoryInvalid'));
       if (directory.existingProjectId && directory.existingProjectId !== id)
-        throw new Error(message('projectDuplicate', { name: directory.existingProjectName! }));
-      const next = { ...project, name: edit.name.trim(), directory: directory.directory! };
+        throw new Error(message('projectDuplicate', { name: this.project(directory.existingProjectId).name }));
+      const next = { ...project, name: edit.name.trim(), directory: directory.directory };
       const changedDirectory = project.directory !== next.directory;
       if (!changedDirectory && project.name === next.name) return { project: structuredClone(project), launches: [] };
       await this.store.save(next);

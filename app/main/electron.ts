@@ -1,4 +1,4 @@
-import { app, BrowserWindow, dialog, ipcMain, Menu, nativeTheme, shell } from 'electron';
+import { app, BrowserWindow, dialog, ipcMain, Menu, nativeTheme, shell, type MessageBoxOptions } from 'electron';
 import { join } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { Workbench, WorkbenchOpenError } from './workbench';
@@ -65,11 +65,15 @@ function updateNativeLanguage(next: Language) {
   );
 }
 
+/** Shows a message box on the window, or on its own while there is no window. */
+const showMessageBox = (options: MessageBoxOptions) =>
+  window ? dialog.showMessageBox(window, options) : dialog.showMessageBox(options);
+
 async function requestQuit() {
   if (exiting || confirming) return;
   confirming = true;
   const { t, text } = localize(language);
-  const answer = await dialog.showMessageBox(window!, {
+  const answer = await showMessageBox({
     type: 'question',
     message: t('quitQuestion'),
     detail: t('quitDetail'),
@@ -84,7 +88,7 @@ async function requestQuit() {
   try {
     await (await opening).quit();
   } catch (error) {
-    await dialog.showMessageBox(window!, {
+    await showMessageBox({
       type: 'error',
       message: t('quitError'),
       detail: text(errorMessage(error)),
@@ -106,7 +110,7 @@ app.on('window-all-closed', () => {
 
 void app.whenReady().then(async () => {
   const page = pathToFileURL(join(__dirname, 'renderer/index.html')).href;
-  window = new BrowserWindow({
+  const mainWindow = new BrowserWindow({
     width: 1280,
     height: 860,
     title: 'VibeBridge',
@@ -119,18 +123,19 @@ void app.whenReady().then(async () => {
       sandbox: true,
     },
   });
-  window.on('close', event => {
+  window = mainWindow;
+  mainWindow.on('close', event => {
     if (!exiting) {
       event.preventDefault();
       void requestQuit();
     }
   });
-  window.webContents.setWindowOpenHandler(({ url }) => {
+  mainWindow.webContents.setWindowOpenHandler(({ url }) => {
     // The links forge HTML keeps (http, https and mailto) open in the system's own apps.
     if (/^(https?:\/\/|mailto:)/i.test(url)) void shell.openExternal(url);
     return { action: 'deny' };
   });
-  window.webContents.on('will-navigate', event => event.preventDefault());
+  mainWindow.webContents.on('will-navigate', event => event.preventDefault());
   updateNativeLanguage(language);
   opening = Workbench.open(app.getPath('userData'), nativeTheme.shouldUseDarkColors);
   void opening
@@ -141,12 +146,12 @@ void app.whenReady().then(async () => {
           updateNativeLanguage(event.snapshot.settings.language);
       });
       nativeTheme.themeSource = workbench.snapshot().resolvedTheme;
-      window?.setBackgroundColor(workbench.snapshot().resolvedTheme === 'dark' ? '#141414' : '#f5f5f5');
+      mainWindow.setBackgroundColor(workbench.snapshot().resolvedTheme === 'dark' ? '#141414' : '#f5f5f5');
     })
     .catch(() => {});
   void opening.catch(error => {
     if (error instanceof WorkbenchOpenError) updateNativeLanguage(error.language);
-    return dialog.showMessageBox(window!, {
+    return dialog.showMessageBox(mainWindow, {
       type: 'error',
       message: localize(language).t('workbenchReadFailed'),
       detail: localize(language).text(error.message),
@@ -155,7 +160,7 @@ void app.whenReady().then(async () => {
   // Install handlers before showing the page, while disk work completes asynchronously.
   const handle = (name: string, action: (workbench: Workbench, ...args: any[]) => unknown) => {
     ipcMain.handle(`workbench:${name}`, async (event, ...args) => {
-      if (event.sender !== window!.webContents || event.senderFrame?.url !== page)
+      if (event.sender !== mainWindow.webContents || event.senderFrame?.url !== page)
         throw new Error(message('requestInvalid'));
       try {
         return await action(await opening, ...args);
@@ -232,13 +237,13 @@ void app.whenReady().then(async () => {
   handle('send-input', (workbench, run, data) => workbench.runs.input(run, data));
   handle('resize-run', (workbench, run, cols, rows) => workbench.runs.resize(run, cols, rows));
   ipcMain.on('workbench:acknowledge-output', (event, run, characters) => {
-    if (event.sender === window!.webContents && event.senderFrame?.url === page) {
+    if (event.sender === mainWindow.webContents && event.senderFrame?.url === page) {
       void opening.then(workbench => workbench.runs.acknowledgeOutput(run, characters));
     }
   });
   handle('choose-directory', async () => {
     const { t } = localize(language);
-    const choice = await dialog.showOpenDialog(window!, {
+    const choice = await dialog.showOpenDialog(mainWindow, {
       title: t('chooseDirectory'),
       buttonLabel: t('selectDirectory'),
       properties: ['openDirectory'],
@@ -253,10 +258,10 @@ void app.whenReady().then(async () => {
     if (ready) return;
     ready = true;
     workbench.subscribe(event => {
-      if (window && !window.isDestroyed()) window.webContents.send('workbench:event', event);
+      if (!mainWindow.isDestroyed()) mainWindow.webContents.send('workbench:event', event);
     });
     const active = workbench.snapshot().activeProjectId;
     if (active) await workbench.activateProject(active);
   });
-  await window.loadURL(page);
+  await mainWindow.loadURL(page);
 });

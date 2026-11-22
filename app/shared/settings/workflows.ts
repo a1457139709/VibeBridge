@@ -1,5 +1,6 @@
 import type { MessageId } from '../messages';
 import type { AgentType } from '../model';
+import { recordOf } from '../record-of';
 
 /** One dispatch command: which skill to call and its argument template. */
 export interface WorkflowCommand {
@@ -45,27 +46,28 @@ export const deliveries = ['submit', 'fill'] as const;
 /** Submit sends the command; fill only types it into the input. */
 export type Delivery = (typeof deliveries)[number];
 export const defaultDelivery: Delivery = 'submit';
-export interface WorkflowSettings {
+// A type alias rather than an interface: the settings schema's loose objects carry an index signature.
+export type WorkflowSettings = {
   enabled: boolean;
   commands: Record<string, { delivery: Delivery }>;
-}
+};
 
 export const defaultWorkflowSettings = (): Record<WorkflowId, WorkflowSettings> =>
-  Object.fromEntries(
-    workflows.map(workflow => [
-      workflow.id,
-      {
-        enabled: workflow.enabledByDefault,
-        commands: Object.fromEntries(workflow.commands.map(command => [command.id, { delivery: defaultDelivery }])),
-      },
-    ]),
-  ) as Record<WorkflowId, WorkflowSettings>;
+  recordOf(
+    workflows,
+    workflow => workflow.id,
+    workflow => ({
+      enabled: workflow.enabledByDefault,
+      commands: Object.fromEntries(workflow.commands.map(command => [command.id, { delivery: defaultDelivery }])),
+    }),
+  );
+const isWorkflowId = (id: string): id is WorkflowId => workflows.some(workflow => workflow.id === id);
 
 /** A command of a built-in workflow, or undefined when the catalog has no such workflow or command. */
 export const workflowCommand = (workflowId: string, commandId: string) => {
   const workflow = workflows.find(workflow => workflow.id === workflowId);
-  const command = workflow?.commands.find(command => command.id === commandId);
-  return workflow && command && { workflow, command: command as WorkflowCommand };
+  const command: WorkflowCommand | undefined = workflow?.commands.find(command => command.id === commandId);
+  return workflow && command && { workflow, command };
 };
 
 /** The other delivery: an inverted dispatch uses the other one for that dispatch only. */
@@ -75,7 +77,8 @@ export const commandDelivery = (
   settings: Record<WorkflowId, WorkflowSettings>,
   workflowId: string,
   commandId: string,
-): Delivery => settings[workflowId as WorkflowId]?.commands[commandId]?.delivery ?? defaultDelivery;
+): Delivery =>
+  (isWorkflowId(workflowId) ? settings[workflowId]?.commands[commandId]?.delivery : undefined) ?? defaultDelivery;
 
 /** How each Agent type calls a skill from its input; a new Agent type adds its entry here. */
 export const skillInvocations: Record<AgentType, (skill: string, args: string) => string> = {
