@@ -14,7 +14,8 @@ interface Delivery {
   lost: boolean;
 }
 const key = Symbol.for('vibebridge.pi.status.delivery');
-/** The delivery queues of this process, kept on the global object so a reloaded extension module finds them. */
+/** The delivery queues of this process, kept on the global object so a reloaded extension module finds them. Only this
+ * module, in any of its loads, writes the slot `key` names, and only with a `Map<string, Delivery>`, so a Map found there is that one. */
 function processDeliveries(): Map<string, Delivery> {
   const kept: unknown = Reflect.get(globalThis, key);
   if (kept instanceof Map) return kept;
