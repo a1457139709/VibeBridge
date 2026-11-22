@@ -19,6 +19,7 @@ import { deferred, provideWorkbench } from './support/workbench';
 import { forgeSidebarData } from './support/forge-sidebar-data';
 import { githubCapabilities, githubForge, githubView, githubRepository } from './support/forge';
 import { issue as listedIssue } from './support/forge-lists';
+import { requireElement, selectElement } from './support/elements';
 
 const { t } = localize('en');
 
@@ -170,10 +171,12 @@ test('clicking a row opens its detail beside the list, with the author, comment 
   });
   await within(pane()).findByRole('heading', { name: 'Issue detail #7' });
   assert.ok(within(pane()).getByText('Completed'), 'the state pill names how it was closed');
-  const meta = within(pane())
-    .getByText(/opened/)
-    .closest('.forge-doc-meta')!;
-  assert.match(meta.textContent!, /mona opened 3h ago · 2 comments · Assignees: octo, hubot/);
+  const meta = requireElement(
+    within(pane())
+      .getByText(/opened/)
+      .closest('.forge-doc-meta'),
+  );
+  assert.match(meta.textContent ?? '', /mona opened 3h ago · 2 comments · Assignees: octo, hubot/);
   assert.ok(within(pane()).getByText('The body.'));
   assert.ok(within(pane()).getByText('Resolution: overlay.'));
   assert.ok(within(pane()).getByText('Deleted user'), 'a comment from a deleted account names no one');
@@ -403,7 +406,7 @@ test('an overlaying detail leaves the layout area as it was, and a squeezing one
     const { user, request } = renderWorkbench([summary(7)], githubCapabilities, { detailCoexistence });
     // What the layout area is laid out by: whether a detail squeezes it, and the widths of the regions beside it.
     const layoutArea = () => {
-      const body = document.querySelector<HTMLElement>('.app-body')!;
+      const body = selectElement('.app-body');
       return [
         body.className,
         ...['--navigation-width', '--forge-sidebar-width'].map(name => body.style.getPropertyValue(name)),

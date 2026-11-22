@@ -14,6 +14,7 @@ import {
   type ProjectDraft,
 } from '../../app/shared/model';
 import { deferred, provideWorkbench } from './support/workbench';
+import { requireValue } from './support/elements';
 
 afterEach(cleanup);
 
@@ -84,8 +85,8 @@ test('creation submits once while pending, retains a failed draft and retries su
   const create = screen.getByRole<HTMLButtonElement>('button', { name: 'Create and start' });
   await waitFor(() => assert.equal(create.disabled, false));
   act(() => {
-    fireEvent.submit(create.closest('form')!);
-    fireEvent.submit(create.closest('form')!);
+    fireEvent.submit(requireValue(create.closest('form'), 'the setup form'));
+    fireEvent.submit(requireValue(create.closest('form'), 'the setup form'));
   });
   assert.equal(createProject.mock.callCount(), 1);
   assert.deepEqual(createProject.mock.calls[0].arguments, [validDraft]);

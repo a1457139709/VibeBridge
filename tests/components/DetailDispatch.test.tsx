@@ -8,6 +8,7 @@ import type { Snapshot } from '../../app/shared/model';
 import { localize } from '../../app/shared/localization/localization';
 import { sidebar, stubSidebarApis } from './support/forge-lists';
 import { issueDetail as detail, listed, record, row } from './support/dispatch';
+import { selectElement } from './support/elements';
 
 afterEach(cleanup);
 before(stubSidebarApis);
@@ -28,8 +29,8 @@ const aged = (hours: number, location: DispatchRecordView['location'], extra: Pa
 
 test("an open issue's detail has a Dispatch beside its state and labels that opens the same menu as its row", async () => {
   const f = await opened(detail(9));
-  const head = pane().querySelector('.forge-doc-head')!;
-  await f.user.click(within(head as HTMLElement).getByRole('button', { name: 'Dispatch' }));
+  const head = selectElement('.forge-doc-head', pane());
+  await f.user.click(within(head).getByRole('button', { name: 'Dispatch' }));
   const menu = await waitFor(() => screen.getByRole('menu', { name: 'Dispatch #9' }));
   await waitFor(() => assert.equal(document.activeElement, menu));
   assert.equal(within(menu).getAllByRole('menuitem').length, 12);

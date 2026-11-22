@@ -4,16 +4,21 @@ import test, { afterEach, before } from 'node:test';
 import { cleanup, fireEvent, screen, waitFor, within } from '@testing-library/react';
 import { stubSidebarApis, sidebar } from './support/forge-lists';
 import { issueDetail, listed, menu, record, row } from './support/dispatch';
+import { requireValue, selectElement, focusedElement } from './support/elements';
 
 afterEach(cleanup);
 before(stubSidebarApis);
 
 /** Presses a key with ⌘ where focus is; true when nothing took it, so it goes on to where focus is. */
 const pressCommandKey = (code: 'KeyD' | 'KeyL') =>
-  fireEvent.keyDown(document.activeElement!, { key: code.at(-1)!.toLowerCase(), code, metaKey: true });
+  fireEvent.keyDown(focusedElement(), {
+    key: requireValue(code.at(-1), 'the key code').toLowerCase(),
+    code,
+    metaKey: true,
+  });
 /** The open detail, once it shows the issue. */
 async function detailOf(number: number) {
-  const detail = await waitFor(() => document.querySelector<HTMLElement>('.forge-detail')!);
+  const detail = await waitFor(() => selectElement('.forge-detail'));
   await within(detail).findByRole('heading', { name: `Issue ${number} #${number}` });
   return detail;
 }

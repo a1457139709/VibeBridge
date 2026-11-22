@@ -14,6 +14,7 @@ import {
   sidebar,
   stubSidebarApis,
 } from './support/forge-lists';
+import { selectElement } from './support/elements';
 
 const { t } = localize('en');
 
@@ -26,7 +27,7 @@ before(stubSidebarApis);
 
 const issues = (from: number, to: number) => Array.from({ length: to - from + 1 }, (_, index) => issue(from + index));
 const titles = (numbers: number[]) => numbers.map(number => `Issue ${number}`);
-const scrollArea = () => sidebar().querySelector<HTMLElement>('.forge-scroll')!;
+const scrollArea = () => selectElement('.forge-scroll', sidebar());
 const scrollTo = (scrollTop: number) => {
   scrollArea().scrollTop = scrollTop;
   fireEvent.scroll(scrollArea());
@@ -85,7 +86,7 @@ test('Refresh returns to the old place in the list when the issue at the top of 
 test("closing the detail returns focus to its issue's row, scrolling back to it when it went out of view", async () => {
   const { user } = await scrolledLongList();
   await user.click(within(sidebar()).getByRole('button', { name: 'Issue 13' }));
-  const detail = await waitFor(() => document.querySelector<HTMLElement>('.forge-detail')!);
+  const detail = await waitFor(() => selectElement('.forge-detail'));
   scrollTo(0);
   await waitFor(() => assert.ok(!rows().includes('Issue 13')));
   await user.click(within(detail).getByRole('button', { name: t('closeDetail') }));

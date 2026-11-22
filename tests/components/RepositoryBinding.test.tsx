@@ -9,6 +9,7 @@ import type { ProjectEdit, ProjectView } from '../../app/shared/model';
 import type { RepositoryChoices, RepositoryReference } from '../../app/shared/forge/forge';
 import { provideWorkbench } from './support/workbench';
 import { githubForge, githubRepository, githubView } from './support/forge';
+import { selectElement } from './support/elements';
 
 afterEach(cleanup);
 
@@ -61,7 +62,7 @@ async function openEditor() {
   return user;
 }
 
-const repositoryRow = () => document.querySelector('.repository-current')!.textContent;
+const repositoryRow = () => selectElement('.repository-current').textContent;
 const closed = () => waitFor(() => assert.equal(screen.queryByRole('dialog'), null));
 
 async function moveDirectory(user: ReturnType<typeof userEvent.setup>) {

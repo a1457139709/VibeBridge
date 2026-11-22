@@ -21,7 +21,7 @@ test('the startup settings conflict dialog cannot be dismissed and offers only t
   const user = userEvent.setup();
   const dialog = screen.getByRole<HTMLDialogElement>('dialog', { name: 'Settings conflict' });
   assert.equal(dialog.open, true);
-  assert.match(dialog.textContent!, /Keyboard shortcuts settings/);
+  assert.match(dialog.textContent ?? '', /Keyboard shortcuts settings/);
   assert.equal(fireEvent(dialog, new Event('cancel', { cancelable: true })), false);
   act(() => {
     dialog.close();

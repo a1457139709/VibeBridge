@@ -10,6 +10,7 @@ import type { ProcessingState } from '../../app/shared/processing-status';
 import { stubLayoutApis } from './support/no-layout';
 import { provideWorkbench } from './support/workbench';
 import { githubView } from './support/forge';
+import { requireValue, selectElement } from './support/elements';
 
 afterEach(cleanup);
 before(() => {
@@ -62,7 +63,10 @@ function renderWorkbench(change: (snapshot: Snapshot) => void = () => {}) {
 
 test('the workspace toolbar holds the project summary of resident and tray panels and shows no project name, directory or panel count', async () => {
   renderWorkbench();
-  const toolbar = (await screen.findByRole('button', { name: 'Add Agent' })).closest('header')!;
+  const toolbar = requireValue(
+    (await screen.findByRole('button', { name: 'Add Agent' })).closest('header'),
+    'the toolbar',
+  );
   const summary = within(toolbar).getByRole('region', { name: 'Current project summary' });
   assert.deepEqual(
     within(summary)
@@ -98,7 +102,7 @@ test("Escape in an open tray panel's terminal goes to the terminal and leaves th
   const user = renderWorkbench();
   const tray = await screen.findByRole('region', { name: 'Ephemeral panel tray' });
   await user.click(within(tray).getByRole('button', { name: /Session first-ephemeral/ }));
-  document.querySelector<HTMLElement>('.canvas > [data-panel-id="first-ephemeral"] .xterm-helper-textarea')!.focus();
+  selectElement('.canvas > [data-panel-id="first-ephemeral"] .xterm-helper-textarea').focus();
   await user.keyboard('{Escape}');
   assert.deepEqual(
     within(tray)

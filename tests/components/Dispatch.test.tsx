@@ -20,7 +20,7 @@ test('Dispatch opens the commands of the enabled workflow, each marked Submit or
   // Each command opens its targets leftwards, behind a caret.
   const commands = within(menu)
     .getAllByRole('menuitem')
-    .map(item => item.textContent!.replace(/^‹/, ''));
+    .map(item => (item.textContent ?? '').replace(/^‹/, ''));
   assert.deepEqual(commands.slice(0, 3), ['grill-with-docsSubmit', 'to-specFill only', 'to-ticketsSubmit']);
   assert.equal(commands.length, 12);
   assert.equal(within(menu).queryByText("Matt's workflow"), null);
