@@ -177,7 +177,7 @@ _Avoid_：代码托管平台、issue tracker（只管 issue，没有仓库与 pu
 _Avoid_：从项目目录推断的仓库、任意粘贴的仓库地址、项目目录、多仓库项目
 
 **Forge 侧边栏（Forge Sidebar）**：
-主窗口右侧显示当前项目所绑定仓库的 issue 与 pull request、并从中派发的区域，标题按所绑定的 Forge 显示；未绑定的项目只显示空状态与绑定入口。开关状态与宽度全应用共用一份，打开时按设置挤压或覆盖布局区域，在设置页时仍然显示。
+主窗口右侧显示当前项目所绑定仓库的 issue 与 pull request、并从中派发的区域，供扫一眼 Forge 给出的状态与结论，完整内容留在 Forge 上；标题按所绑定的 Forge 显示；未绑定的项目只显示空状态与绑定入口。开关状态与宽度全应用共用一份，打开时按设置挤压或覆盖布局区域，在设置页时仍然显示。
 _Avoid_：Issue 侧边栏（它也显示 pull request）、GitHub 侧边栏（Forge 不止 GitHub）、项目导航、详情
 
 **Pull request**：
