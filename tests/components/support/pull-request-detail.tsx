@@ -38,7 +38,7 @@ export const detail = (number: number, extra: Partial<PullRequestDetail> = {}): 
     reviewDecision: null,
     checks: { state: null, counts: [], total: 0, url: `${repositoryUrl}/pull/${number}/checks`, listed: [] },
     mergeState: 'clean',
-    mergeOptions: { methods: ['merge', 'squash', 'rebase'], queue: false },
+    mergeOptions: { methods: ['merge', 'squash', 'rebase'], defaultMethod: 'merge', queue: false },
     canWrite: true,
     ...extra,
   };

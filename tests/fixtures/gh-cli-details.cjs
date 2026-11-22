@@ -176,6 +176,7 @@ function pullRequestDetail(state, path, number, answering, query) {
           mergeCommitAllowed: allowed.merge,
           squashMergeAllowed: allowed.squash,
           rebaseMergeAllowed: allowed.rebase,
+          viewerDefaultMergeMethod: state.defaultMergeMethod ?? 'MERGE',
           pullRequest: {
             number: pull.number,
             title: pull.title,

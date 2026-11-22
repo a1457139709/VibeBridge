@@ -197,6 +197,7 @@ test("a pull request detail carries GitHub's merge state, review decision, and h
   await ghDouble(context, {
     ...forgeAccount,
     mergeMethods: { merge: false, squash: true, rebase: true },
+    defaultMergeMethod: 'REBASE',
     pullRequests: [
       change(12, { reviewDecision: 'CHANGES_REQUESTED', mergeStateStatus: 'DIRTY', mergeQueue: true }),
       change(13, { reviewDecision: 'APPROVED', mergeStateStatus: 'CLEAN' }),
@@ -220,7 +221,7 @@ test("a pull request detail carries GitHub's merge state, review decision, and h
       state: 'open',
       mergeState: 'dirty',
       reviewDecision: 'changesRequested',
-      mergeOptions: { methods: ['squash', 'rebase'], queue: true },
+      mergeOptions: { methods: ['squash', 'rebase'], defaultMethod: 'rebase', queue: true },
     });
     const merge = async (number: number) => {
       const { mergeState, reviewDecision } = await detail(number);

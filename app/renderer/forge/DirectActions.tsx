@@ -37,7 +37,6 @@ const actionName = (action: DirectAction) =>
       reopenPullRequest: 'reopenPullRequest',
     }) as const
   )[action.kind];
-let lastMergeMethod: MergeMethod | null = null;
 
 export function ActionFailure({ actions }: { actions: Actions }) {
   const { t } = useLocalization();
@@ -141,15 +140,14 @@ export function PullRequestActions({
   const { t } = useLocalization();
   const menu = usePopover<HTMLSpanElement>();
   const [confirming, setConfirming] = useState(false);
-  const [chosen, setChosen] = useState(lastMergeMethod);
+  const [chosen, setChosen] = useState(pullRequest.mergeOptions.defaultMethod);
   if (!pullRequest.canWrite) return null;
   const busy = actions.performing !== null;
   const methods = pullRequest.mergeOptions.methods.filter(method => capabilities.mergeMethods.includes(method));
-  const method = chosen && methods.includes(chosen) ? chosen : (methods[0] ?? null);
+  const method = methods.includes(chosen) ? chosen : (methods[0] ?? null);
   const reasons = mergeBlockedReasons(pullRequest, forge, t);
   const blocked = !!reasons.length || !method;
   const choose = (next: MergeMethod) => {
-    lastMergeMethod = next;
     setChosen(next);
     setConfirming(false);
     menu.setOpen(false);

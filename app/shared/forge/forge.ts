@@ -231,7 +231,7 @@ export interface PullRequestDetail extends Omit<PullRequestSummary, 'checks'> {
   reviewDecision: ReviewDecision | null;
   checks: PullRequestChecks;
   mergeState: MergeState | null;
-  mergeOptions: { methods: MergeMethod[]; queue: boolean };
+  mergeOptions: { methods: MergeMethod[]; defaultMethod: MergeMethod; queue: boolean };
   canWrite: boolean;
 }
 export type PullRequestDetailResult =

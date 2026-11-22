@@ -68,7 +68,7 @@ const pullDetail = (number: number, extra: Partial<PullRequestDetail> = {}): Pul
     reviewDecision: null,
     checks: { state: null, counts: [], total: 0, url: `${repositoryUrl}/pull/${number}/checks`, listed: [] },
     mergeState: 'clean',
-    mergeOptions: { methods: ['merge', 'squash', 'rebase'], queue: false },
+    mergeOptions: { methods: ['merge', 'squash', 'rebase'], defaultMethod: 'merge', queue: false },
     canWrite: true,
     ...extra,
   };
@@ -315,6 +315,40 @@ test('with no write access to the repository, a detail shows no action buttons',
   assert.deepEqual(mergeButtons(), []);
 });
 
+test('the method menu lists only the methods the repository allows and starts from the forge default method', async () => {
+  const forge: Forge = {
+    pullRequest: pullDetail(12, {
+      mergeOptions: { methods: ['squash', 'rebase'], defaultMethod: 'rebase', queue: false },
+    }),
+  };
+  const { user, action } = await openPullRequest(forge);
+  await user.click(within(pullPane()).getByRole('button', { name: 'Choose a merge method' }));
+  const menu = within(pullPane()).getByRole('menu', { name: 'Choose a merge method' });
+  assert.deepEqual(
+    within(menu)
+      .getAllByRole('menuitemradio')
+      .map(item => [item.textContent, item.getAttribute('aria-checked')]),
+    [
+      ['Squash and merge', 'false'],
+      ['Rebase and merge', 'true'],
+    ],
+  );
+  await user.click(within(menu).getByRole('menuitemradio', { name: 'Squash and merge' }));
+  await user.click(within(pullPane()).getByRole('button', { name: 'Squash and merge' }));
+  await user.click(within(pullPane()).getByRole('button', { name: 'Confirm: squash and merge' }));
+  assert.deepEqual((await action(1)).action, { kind: 'merge', number: 12, method: 'squash' });
+});
+
+test('when the forge default method is not one the repository allows, merging starts from the first allowed method', async () => {
+  const forge: Forge = {
+    pullRequest: pullDetail(12, {
+      mergeOptions: { methods: ['squash', 'rebase'], defaultMethod: 'merge', queue: false },
+    }),
+  };
+  await openPullRequest(forge);
+  within(pullPane()).getByRole('button', { name: 'Squash and merge' });
+});
+
 test('merging takes two clicks in place: the method, then its confirmation', async () => {
   const forge: Forge = { pullRequest: pullDetail(12) };
   const { user, action } = await openPullRequest(forge);
@@ -382,7 +416,9 @@ for (const [state, mergeState, reasons] of [
 }
 
 test('a repository that merges through a merge queue greys out merging and links the pull request on the forge', async () => {
-  const forge: Forge = { pullRequest: pullDetail(12, { mergeOptions: { methods: ['squash'], queue: true } }) };
+  const forge: Forge = {
+    pullRequest: pullDetail(12, { mergeOptions: { methods: ['squash'], defaultMethod: 'squash', queue: true } }),
+  };
   await openPullRequest(forge);
   const merge = within(pullPane()).getByRole('button', { name: 'Merge' });
   assert.ok(merge.hasAttribute('disabled'));
@@ -392,29 +428,4 @@ test('a repository that merges through a merge queue greys out merging and links
     within(note).getByRole('link', { name: 'Open on GitHub ↗' }).getAttribute('href'),
     `${repositoryUrl}/pull/12`,
   );
-});
-
-test('the method menu lists only the methods the repository allows and remembers the last one chosen', async () => {
-  const forge: Forge = {
-    pullRequest: pullDetail(12, { mergeOptions: { methods: ['squash', 'rebase'], queue: false } }),
-  };
-  const { user, action } = await openPullRequest(forge);
-  await user.click(within(pullPane()).getByRole('button', { name: 'Squash and merge' }));
-  await user.click(within(pullPane()).getByRole('button', { name: 'Choose a merge method' }));
-  const menu = within(pullPane()).getByRole('menu', { name: 'Choose a merge method' });
-  assert.deepEqual(
-    within(menu)
-      .getAllByRole('menuitemradio')
-      .map(item => item.textContent),
-    ['Squash and merge', 'Rebase and merge'],
-  );
-  await user.click(within(menu).getByRole('menuitemradio', { name: 'Rebase and merge' }));
-  await user.click(within(pullPane()).getByRole('button', { name: 'Rebase and merge' }));
-  await user.click(within(pullPane()).getByRole('button', { name: 'Confirm: rebase and merge' }));
-  assert.deepEqual((await action(1)).action, { kind: 'merge', number: 12, method: 'rebase' });
-  cleanup();
-
-  forge.pullRequest = pullDetail(12);
-  await openPullRequest(forge);
-  within(pullPane()).getByRole('button', { name: 'Rebase and merge' });
 });
