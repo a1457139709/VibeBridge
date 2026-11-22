@@ -4,6 +4,7 @@ import test, { afterEach, before } from 'node:test';
 import { cleanup, fireEvent, screen, waitFor, within } from '@testing-library/react';
 import { issue, page, pullRequest, renderWorkbench, sidebar, stubSidebarApis, summary } from './support/forge-lists';
 import { issueDetail, listed, record, row } from './support/dispatch';
+import { selectElement, focusedElement } from './support/elements';
 
 afterEach(cleanup);
 before(stubSidebarApis);
@@ -20,7 +21,7 @@ const parentWithTwoOpenSubIssues = () =>
 const focusedRow = () => document.activeElement?.closest('.forge-row')?.querySelector('.forge-row-title')?.textContent;
 const titleButton = (title: string) => within(sidebar()).getByRole('button', { name: title });
 /** Presses a key where focus is, at once; the test asserts its effect right after. */
-const press = (key: string) => fireEvent.keyDown(document.activeElement!, { key });
+const press = (key: string) => fireEvent.keyDown(focusedElement(), { key });
 
 async function listedTree() {
   const f = renderWorkbench(undefined, { issueDetail: () => new Promise(() => {}) });
@@ -111,7 +112,7 @@ test("Space or Enter opens the row's detail with focus inside, and → or Esc re
   assert.equal(focusedRow(), 'Issue 10');
   await user.keyboard('{ArrowDown}{Enter}');
   await waitFor(() => assert.ok(detail()?.contains(document.activeElement)));
-  within(detail()!).getByRole('button', { name: 'Close' }).focus();
+  within(selectElement('.forge-detail')).getByRole('button', { name: 'Close' }).focus();
   await user.keyboard('{Escape}');
   await waitFor(() => assert.equal(detail(), null));
   assert.equal(focusedRow(), 'Issue 5');
@@ -137,7 +138,7 @@ test('closing a detail whose items have no list row showing puts focus on the li
   await waitFor(() => assert.ok(detail()?.contains(document.activeElement)));
   await user.click(within(sidebar()).getByRole('button', { name: 'Hide sub-issues' }));
   await waitFor(() => assert.equal(within(sidebar()).queryByRole('button', { name: 'Issue 12' }), null));
-  detail()!.querySelector<HTMLElement>('.forge-detail-scroll')!.focus();
+  selectElement('.forge-detail-scroll', selectElement('.forge-detail')).focus();
   await user.keyboard('{Escape}');
   await waitFor(() => assert.equal(detail(), null));
   assert.equal(
@@ -191,9 +192,7 @@ test("in an issue's detail Tab reaches its Dispatch and dispatch records, and Es
   }
   assert.ok(reached.includes('Dispatch ▾'), `Dispatch is reached: ${reached.join(' | ')}`);
   assert.ok(reached.includes('implement'), `the record's skill link is reached: ${reached.join(' | ')}`);
-  await f.user.click(
-    within(pane.querySelector<HTMLElement>('.forge-doc-head')!).getByRole('button', { name: 'Dispatch' }),
-  );
+  await f.user.click(within(selectElement('.forge-doc-head', pane)).getByRole('button', { name: 'Dispatch' }));
   await waitFor(() => assert.ok(screen.getByRole('menu')));
   await f.user.keyboard('{Escape}');
   await waitFor(() => assert.equal(screen.queryByRole('menu'), null));

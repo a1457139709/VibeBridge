@@ -34,6 +34,8 @@ jobs:
       - if: ${{ !cancelled() && steps.install.outcome == 'success' }}
         run: npm run check:test-waits
       - if: ${{ !cancelled() && steps.install.outcome == 'success' }}
+        run: npm run check:lint
+      - if: ${{ !cancelled() && steps.install.outcome == 'success' }}
         run: npm run typecheck
       - if: ${{ !cancelled() && steps.install.outcome == 'success' }}
         run: npm run build

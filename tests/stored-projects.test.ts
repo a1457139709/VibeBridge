@@ -6,6 +6,7 @@ import { DatabaseSync } from 'node:sqlite';
 import { Workbench, WorkbenchOpenError } from '../app/main/workbench';
 import { testDirectory } from './support/directory';
 import { storedProjects } from './support/panel-views';
+import { testNode } from './support/test-node';
 
 const project = { id: 'project-a', name: 'Stored' };
 const layout = { axis: 'row', ratio: 0.5, first: { panel: 'panel-a' }, second: { panel: 'panel-b' } };
@@ -49,7 +50,7 @@ test('projects without panels and navigation that was never saved reopen as stor
   let workbench = await Workbench.open(directory);
   try {
     const agents = workbench.snapshot().settings.agents;
-    agents.codex = { command: process.env.VIBEBRIDGE_TEST_NODE!, args: [resolve('tests/fixtures/interactive.cjs')] };
+    agents.codex = { command: testNode, args: [resolve('tests/fixtures/interactive.cjs')] };
     await workbench.saveSettings({ agents });
     await workbench.createProject({ name: 'Arranged', directory, total: 2, counts: { codex: 2, claude: 0, pi: 0 } });
     await mkdir(join(directory, 'empty'));
@@ -79,6 +80,24 @@ test('a stored panel with an unknown Agent type keeps the workbench closed and t
   await assertRejected(directory, file, /projectDataInvalid/, ['panels.agent', project.id, project.name]);
 });
 
+// SQLite keeps a blob in a TEXT column and text in an INTEGER one, so a column can hold what its table does not declare.
+const blob = Uint8Array.from([0xff]);
+for (const [field, change] of [
+  ['projects.directory', database => database.prepare('UPDATE projects SET directory=?').run(blob)],
+  ['panels.id', database => database.prepare('UPDATE panels SET id=? WHERE id=?').run(blob, 'panel-b')],
+  [
+    'dispatches_with_skill.issue',
+    database =>
+      database.exec(`INSERT INTO dispatches_with_skill VALUES ('${project.id}', 'github', 'github.com', '42',
+        'octo/tools', 'seven', '2026-01-01T00:00:00Z', 'claude', 'implement', '/implement', 'session-a');`),
+  ],
+] satisfies [string, (database: DatabaseSync) => void][]) {
+  test(`a stored ${field} that is not what its table declares keeps the workbench closed and the database unchanged`, async context => {
+    const { directory, file } = await storedWorkbench(context, 'stored-undeclared-column', change);
+    await assertRejected(directory, file, /projectDataInvalid/, [field, project.id, project.name]);
+  });
+}
+
 for (const [behavior, stored] of [
   ['is not JSON', '{"axis":'],
   ['has an invalid structure', JSON.stringify({ ...layout, ratio: 1 })],
@@ -104,6 +123,13 @@ for (const [behavior, stored] of [
     await assertRejected(directory, file, /sidebarDataInvalid/, ['navigation']);
   });
 }
+
+test('a stored active project that is not a project ID keeps the workbench closed and the database unchanged', async context => {
+  const { directory, file } = await storedWorkbench(context, 'stored-invalid-active-project', database =>
+    database.prepare('INSERT INTO workspace (id, active_project) VALUES (1,?)').run(blob),
+  );
+  await assertRejected(directory, file, /workspaceDataInvalid/, ['workspace.active_project']);
+});
 
 const storedBinding = ['github', 'github.com', '42', 'group/sub/repo'];
 for (const [behavior, row, field] of [

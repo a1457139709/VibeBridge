@@ -2,6 +2,7 @@ import test from 'node:test';
 import type { ForgeLists } from '../app/shared/forge/sidebar-data';
 import assert from 'node:assert/strict';
 import { ghDouble, type GhPullRequest } from './support/gh-double';
+import { fromAny } from '@total-typescript/shoehorn';
 import {
   boundWorkbench,
   day,
@@ -171,7 +172,7 @@ test('a refused direct action comes back as a forge failure with the forge text 
     double.uninstall();
     assert.deepEqual(await failure({ kind: 'reopenIssue', number: 3 }), ['notInstalled', '']);
     await assert.rejects(
-      f.workbench.performDirectAction(f.projectId, { kind: 'merge', number: 14, method: 'octopus' } as never),
+      f.workbench.performDirectAction(f.projectId, fromAny({ kind: 'merge', number: 14, method: 'octopus' })),
       'only a known action is carried out',
     );
   } finally {

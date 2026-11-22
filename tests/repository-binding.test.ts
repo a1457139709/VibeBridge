@@ -13,6 +13,7 @@ import {
 import { ghDouble } from './support/gh-double';
 import { bindListed } from './support/bound-workbench';
 import { interactiveWorkbench } from './support/interactive-workbench';
+import { fromAny } from '@total-typescript/shoehorn';
 
 const account = { account: 'octo', repositories: ['octo/tools', 'Octo/VibeBridge', 'acme/forge'] };
 /** A GitHub repository reference; the ID is one the forge does not list unless a test took it from a listing. */
@@ -47,7 +48,7 @@ test('the repository origin points at is offered by default, and binding writes 
       'a listed path with an ID the forge does not list',
     );
     await assert.rejects(
-      f.workbench.bindRepository(project.id, { forge: 'github', path: 'octo/tools' } as RepositoryReference),
+      f.workbench.bindRepository(project.id, fromAny({ forge: 'github', path: 'octo/tools' })),
       /repositoryNotListed/,
       'a reference without host and ID',
     );
@@ -158,7 +159,8 @@ test('a failed list check leaves a bound project bound as it was', async context
     const bound = f.workbench.snapshot().projects[0].repository;
     const choices = await f.workbench.fetchRepositoryChoices(project.id, f.directory);
     assert.ok(choices.ok);
-    const forge = choices.repositories.find(item => item.path === 'acme/forge')!;
+    const forge = choices.repositories.find(item => item.path === 'acme/forge');
+    assert.ok(forge);
     await double.set({ ...account, failure: { code: 1, stderr: 'HTTP 502: Bad Gateway\n' } });
     await assert.rejects(f.workbench.bindRepository(project.id, forge), /bindListFailed/);
     await double.set({ ...account, repositories: ['octo/tools'] });

@@ -2,6 +2,7 @@ import { Terminal, type ITheme } from '@xterm/xterm';
 import { FitAddon } from '@xterm/addon-fit';
 import { projectPanels, type Language, type ProjectView, type WorkbenchEvent } from '../../shared/model';
 import { localize } from '../../shared/localization/localization';
+import { errorMessage } from '../../shared/caught-error';
 
 interface Screen {
   terminal: Terminal;
@@ -74,11 +75,11 @@ function ensure(runId: string): Screen {
   // Input sent just before the run ended is rejected after its exit disposed this screen; only a live screen reports.
   terminal.onData(data => {
     void window.workbench.sendInput(runId, data).catch(error => {
-      if (screens.get(runId) === screen) report(error.message);
+      if (screens.get(runId) === screen) report(errorMessage(error));
     });
   });
   terminal.onResize(({ cols, rows }) => {
-    void window.workbench.resizeRun(runId, cols, rows).catch(error => report(error.message));
+    void window.workbench.resizeRun(runId, cols, rows).catch(error => report(errorMessage(error)));
   });
   terminal.attachCustomKeyEventHandler(event => {
     // xterm sends Shift+Enter as Enter's carriage return; Agent CLIs read the CSI u form as a prompt newline.

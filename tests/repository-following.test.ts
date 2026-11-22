@@ -28,14 +28,20 @@ async function boundToTools(context: test.TestContext, scope: string) {
   const { project } = await f.create('Followed');
   await bindListed(f.workbench, project.id, 'octo/tools');
   const bound = () => f.workbench.snapshot().projects[0].repository;
-  return { double, f, projectId: project.id, id: bound()!.id, bound };
+  const repository = bound();
+  assert.ok(repository);
+  return { double, f, projectId: project.id, id: repository.id, bound };
 }
 
 /** What each `gh` call asked of GitHub: a GraphQL query and the path it named, a REST path, or a write and its repository. */
 const asked = (calls: string[][]) =>
   calls.map(args => {
     if (args[1] === 'graphql') {
-      const field = (key: string) => args.find(arg => arg.startsWith(`${key}=`))!.slice(key.length + 1);
+      const field = (key: string) => {
+        const arg = args.find(arg => arg.startsWith(`${key}=`));
+        assert.ok(arg, `the query names its ${key}`);
+        return arg.slice(key.length + 1);
+      };
       return `graphql ${field('owner')}/${field('name')}`;
     }
     if (args[0] === 'api') return `api ${args[1]}`;

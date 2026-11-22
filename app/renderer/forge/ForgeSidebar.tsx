@@ -10,6 +10,7 @@ import { ForgeLists, openListsView, type DetailHost, type ForgeListsActions, typ
 import { SidebarHead } from './SidebarHead';
 import type { DispatchTarget } from '../../shared/dispatch';
 import { capturePointer } from '../common/pointer-capture';
+import { requireValue } from '../common/required';
 import type { ReportNotice } from '../common/Notices';
 import { draggedWidth, type WidestOnResize } from '../common/region-widths';
 import './forge-sidebar.css';
@@ -66,7 +67,7 @@ export function useForgeSidebar(host: Host, api: Pick<DesktopAPI, 'saveSidebar' 
       event.preventDefault();
       // The detail's right edge is the sidebar's left edge: dragging its left edge leftwards widens it.
       const start = event.clientX,
-        from = event.currentTarget.parentElement!.getBoundingClientRect().width,
+        from = requireValue(event.currentTarget.parentElement, 'the issue detail').getBoundingClientRect().width,
         widest = host.widestOnResize('detail');
       capturePointer(event.currentTarget, event.pointerId, {
         move: pointer => setWidth(draggedWidth(from - (pointer.clientX - start), detailWidth.min, widest)),
@@ -78,7 +79,7 @@ export function useForgeSidebar(host: Host, api: Pick<DesktopAPI, 'saveSidebar' 
   /** The project with its binding: the lists are mounted per this, and the change-binding page shows only for it. */
   const bindingKey = project && keyOfBinding(project);
   useLayoutEffect(() => {
-    if (sidebarOpen && focusOnOpen.current) element.current!.focus();
+    if (sidebarOpen && focusOnOpen.current) requireValue(element.current, 'the forge sidebar').focus();
     focusOnOpen.current = false;
   }, [sidebarOpen, focusRequest]);
   // The intent is set first: the snapshot of the save may already draw the open sidebar.
@@ -135,7 +136,7 @@ export function useForgeSidebar(host: Host, api: Pick<DesktopAPI, 'saveSidebar' 
         {sidebarOpen ? <SidebarCollapseIcon size={16} /> : <SidebarExpandIcon size={16} />}
       </button>
     ),
-    sidebar: sidebarOpen && project && (
+    sidebar: sidebarOpen && project && snapshot && (
       <aside
         ref={element}
         tabIndex={-1}
@@ -158,27 +159,27 @@ export function useForgeSidebar(host: Host, api: Pick<DesktopAPI, 'saveSidebar' 
               back={() => {
                 setChangingBindingOf(undefined);
                 // The page's controls leave with it; focus stays in the sidebar.
-                element.current!.focus();
+                requireValue(element.current, 'the forge sidebar').focus();
               }}
             />
           </>
-        ) : project.repository ? (
+        ) : project.repository && bindingKey ? (
           // Mounted per project and repository: returning to a project shows the tab and filters it last showed, and
           // rebinding starts from open with no filter.
           <ForgeLists
             ref={listsActions}
             key={bindingKey}
-            view={listsViews.current.get(bindingKey!) ?? openListsView}
-            rememberView={view => void listsViews.current.set(bindingKey!, view)}
+            view={listsViews.current.get(bindingKey) ?? openListsView}
+            rememberView={view => void listsViews.current.set(bindingKey, view)}
             project={{ ...project, repository: project.repository }}
             changeBinding={() => setChangingBindingOf(bindingKey)}
             detailHost={detail}
             dispatchHost={{
-              workflows: snapshot!.settings.workflows,
-              openMenuShortcut: snapshot!.settings.shortcuts.openDispatchMenu,
+              workflows: snapshot.settings.workflows,
+              openMenuShortcut: snapshot.settings.shortcuts.openDispatchMenu,
               lastTargets,
               locate: host.locatePanel,
-              locateBinding: snapshot!.settings.shortcuts.locateDispatchedPanel,
+              locateBinding: snapshot.settings.shortcuts.locateDispatchedPanel,
               report: host.report,
               rememberLastTarget: (command, target) => setLastTargets(targets => new Map(targets).set(command, target)),
             }}

@@ -29,7 +29,9 @@ test('placing a tray panel into the layout and moving a resident panel to the tr
     await f.workbench.runs.input(run.id, 'placed');
     await until(() => f.output(run.id).includes('INPUT:placed'));
 
-    const residentRun = view.panels.find(panel => panel.id === left.id)!.run!;
+    const resident = view.panels.find(panel => panel.id === left.id);
+    assert.ok(resident?.run);
+    const residentRun = resident.run;
     await f.workbench.moveToTray(project.id, left.id);
     view = f.workbench.snapshot().projects[0];
     assert.deepEqual(

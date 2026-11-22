@@ -25,6 +25,7 @@ import {
 import type { ProjectView } from '../../shared/model';
 import { latestLocatableRecord } from '../../shared/dispatch';
 import type { IssueShortcutAction } from '../../shared/settings/shortcuts';
+import { errorMessage } from '../../shared/caught-error';
 import { ForgeDetailPane } from './ForgeDetail';
 import type { IssueDispatch } from './IssueDetail';
 import { FilterBar } from './ForgeFilterBar';
@@ -166,7 +167,7 @@ export function ForgeLists({ project, changeBinding, detailHost, dispatchHost, v
 
   /** Sends a declaration to the main process; one that is refused is reported. */
   const declare = (declaration: Promise<void>) =>
-    void declaration.catch((error: Error) => dispatchHost.report(error.message));
+    void declaration.catch(error => dispatchHost.report(errorMessage(error)));
   const { scrollArea, scrollElement, holdScrollArea, rowsHost, keepReadingPosition, rowTitle } = useScrolledRows(
     project.id,
     lists,
@@ -251,8 +252,8 @@ export function ForgeLists({ project, changeBinding, detailHost, dispatchHost, v
       }
       // The menu opens where focus is: on the issue's list row, or in the detail on its own Dispatch, which needs no
       // list row showing. Only an open issue has Dispatch.
-      const scope = focusedRow?.row ?? detailPane!;
-      if (!holdsDispatch(scope)) return false;
+      const scope = focusedRow?.row ?? detailPane;
+      if (!scope || !holdsDispatch(scope)) return false;
       setOpenMenu({ issue: issueNumber, place: focusedRow ? 'row' : 'detail' });
       return true;
     },
@@ -383,6 +384,7 @@ export function ForgeLists({ project, changeBinding, detailHost, dispatchHost, v
     setFilters(all => ({ ...all, [tab]: update(all[tab]) }));
   const addLabel = (name: string) =>
     setFilter(f => (f.labels.includes(name) ? f : { ...f, labels: [...f.labels, name] }));
+  const pullRequests = lists.pullRequests.loaded;
   return (
     <>
       {head}
@@ -426,12 +428,12 @@ export function ForgeLists({ project, changeBinding, detailHost, dispatchHost, v
             renderAction={issueAction}
           />
         )}
-        {lists.pullRequests.loaded && tab === 'pullRequests' && (
+        {pullRequests && tab === 'pullRequests' && (
           <VirtualRows
             host={rowsHost}
-            keys={lists.pullRequests.loaded.items.map(item => item.number)}
+            keys={pullRequests.items.map(item => item.number)}
             row={index => {
-              const item = lists.pullRequests.loaded!.items[index];
+              const item = pullRequests.items[index];
               return (
                 <li key={item.number}>
                   <PullRequestRow

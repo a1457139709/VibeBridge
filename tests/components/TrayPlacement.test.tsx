@@ -11,6 +11,8 @@ import type { WorkbenchEvent } from '../../app/shared/model';
 import { deferred, provideWorkbench } from './support/workbench';
 import { githubView } from './support/forge';
 import { stubLayoutApis } from './support/no-layout';
+import { requireValue } from '../../app/renderer/common/required';
+import { selectElement } from './support/elements';
 
 afterEach(cleanup);
 const { t } = localize('en');
@@ -103,7 +105,10 @@ function renderWorkbench(resident = false) {
       // The main process moves the panel from the layout to the tray's end; `publish` delivers that snapshot.
       moved.push(request);
       const [project] = snapshot.projects;
-      const panel = project.panels.find(item => item.id === request[1])!;
+      const panel = requireValue(
+        project.panels.find(item => item.id === request[1]),
+        'the placed panel',
+      );
       Object.assign(project, {
         layout: null,
         panels: project.panels.filter(item => item !== panel),
@@ -145,7 +150,7 @@ test('a rejected placement leaves the open tray panel open', async () => {
 test("a resident panel's move-to-tray action moves it to the tray without opening it", async () => {
   const { user, moved } = renderWorkbench(true);
   await screen.findByRole('region', { name: t('panelTray') });
-  const header = document.querySelector<HTMLElement>('.canvas [data-panel-id="resident"] .panel-actions')!;
+  const header = selectElement('.canvas [data-panel-id="resident"] .panel-actions');
   const actions = within(header).getAllByRole('button');
   assert.deepEqual(
     actions.map(action => action.getAttribute('aria-label')),
@@ -159,7 +164,7 @@ test("a resident panel's move-to-tray action moves it to the tray without openin
 test('moving the maximized resident panel to the tray leaves it collapsed in the tray', async () => {
   const { user, moved, publish } = renderWorkbench(true);
   await screen.findByRole('region', { name: t('panelTray') });
-  const actions = () => document.querySelector<HTMLElement>('.canvas [data-panel-id="resident"] .panel-actions')!;
+  const actions = () => selectElement('.canvas [data-panel-id="resident"] .panel-actions');
   await user.click(within(actions()).getByRole('button', { name: t('enlargePanel') }));
   await user.click(within(actions()).getByRole('button', { name: t('moveToTray') }));
   assert.deepEqual(moved, [['project', 'resident']]);
@@ -199,7 +204,7 @@ function recordAnimations(reducedMotion: boolean) {
   return started;
 }
 afterEach(() => {
-  delete (window.HTMLElement.prototype as Partial<HTMLElement>).animate;
+  Reflect.deleteProperty(window.HTMLElement.prototype, 'animate');
   const area = new window.DOMRect(0, 0, 800, 600);
   Object.assign(window.HTMLElement.prototype, { getBoundingClientRect: () => area });
   stubLayoutApis();

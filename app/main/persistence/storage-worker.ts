@@ -1,6 +1,7 @@
 import { message } from '../../shared/messages';
 import { parentPort, workerData } from 'node:worker_threads';
 import { DatabaseSync } from 'node:sqlite';
+import { z } from 'zod';
 import {
   agentTypeSchema,
   sidebars,
@@ -13,8 +14,17 @@ import {
 } from '../../shared/model';
 import { forgeIdSchema, type RepositoryReference } from '../../shared/forge/forge';
 import type { DispatchRecord } from '../dispatch';
+import {
+  storageMessageIdSchema,
+  storageMessageSchema,
+  storageWorkerDataSchema,
+  type StorageReply,
+  type StorageRequest,
+  type StoredContent,
+} from './storage-protocol';
+import { errorMessage } from '../../shared/caught-error';
 
-const file: string = workerData.file;
+const { file } = storageWorkerDataSchema.parse(workerData);
 const db = new DatabaseSync(file);
 db.exec(`PRAGMA journal_mode=WAL; PRAGMA foreign_keys=ON;
   CREATE TABLE IF NOT EXISTS projects (id TEXT PRIMARY KEY, name TEXT NOT NULL, directory TEXT NOT NULL UNIQUE, layout TEXT);
@@ -37,79 +47,107 @@ db.exec(`PRAGMA journal_mode=WAL; PRAGMA foreign_keys=ON;
 `);
 
 // Stored content is read in its current format only: anything else fails the whole load and leaves the file untouched.
-// Columns other than layout and panels.agent are kept as the table constraints store them.
+// Columns other than layout, panels.agent and the repository's are read as the tables declare them; SQLite stores what
+// it is given, so one that holds something else is reported like any other invalid field.
+const projectRowSchema = z.object({ id: z.string(), name: z.string(), directory: z.string(), layout: z.unknown() });
+const panelRowSchema = z.object({ id: z.string(), agent: z.unknown() });
+const dispatchRowSchema = z.object({
+  project_id: z.string(),
+  project_name: z.string(),
+  issue: z.number(),
+  dispatched_at: z.string(),
+  agent: z.unknown(),
+  skill: z.string(),
+  text: z.string(),
+  session_id: z.string(),
+});
+const filledSchema = z.string().min(1);
+
+/** The project a stored row belongs to, as an invalid row names it. */
+interface StoredProject {
+  id: string;
+  name: string;
+}
+
+const invalidProjectData = (project: StoredProject, field: string) =>
+  new Error(message('projectDataInvalid', { file, field, id: project.id, name: project.name }));
+
+/** `stored`, a row of `table` that belongs to `project`, as `schema` reads it; the first column `schema` does not
+ * accept is reported as the project's invalid field. */
+function readRow<Row>(schema: z.ZodType<Row>, stored: Record<string, unknown>, table: string, project: StoredProject) {
+  const row = schema.safeParse(stored);
+  if (!row.success) throw invalidProjectData(project, `${table}.${String(row.error.issues[0]?.path[0])}`);
+  return row.data;
+}
+
 function readProject(row: Record<string, unknown>): Project {
-  const {
-    id,
-    name,
-    directory,
-    layout: storedLayout,
-  } = row as { id: string; name: string; directory: string; layout: string };
-  const invalid = (field: string) => new Error(message('projectDataInvalid', { file, field, id, name }));
+  const owner = { id: String(row.id), name: String(row.name) };
+  const { id, name, directory, layout: storedLayout } = readRow(projectRowSchema, row, 'projects', owner);
   const panels = db
     .prepare('SELECT id, agent FROM panels WHERE project_id=? ORDER BY position')
     .all(id)
-    .map((panel): Panel => {
+    .map((stored): Panel => {
+      const panel = readRow(panelRowSchema, stored, 'panels', { id, name });
       const agent = agentTypeSchema.safeParse(panel.agent);
-      if (!agent.success) throw invalid('panels.agent');
-      return { id: panel.id as string, agent: agent.data };
+      if (!agent.success) throw invalidProjectData({ id, name }, 'panels.agent');
+      return { id: panel.id, agent: agent.data };
     });
   let layout;
   try {
-    layout = parseLayout(JSON.parse(storedLayout), panels);
+    layout = parseLayout(JSON.parse(z.string().parse(storedLayout)), panels);
   } catch {
-    throw invalid('layout');
+    throw invalidProjectData({ id, name }, 'layout');
   }
   return { id, name, directory, layout, panels };
 }
 
 /** A repository reference stored in `table`'s row: the forge must be one the Workbench has an adapter for, and host, ID and path must be set. */
-function readRepository(table: string, row: Record<string, unknown>, project: Project): RepositoryReference {
-  const invalid = (field: string) =>
-    new Error(message('projectDataInvalid', { file, field: `${table}.${field}`, id: project.id, name: project.name }));
+function readRepository(table: string, row: Record<string, unknown>, project: StoredProject): RepositoryReference {
+  const filled = (field: string) => {
+    const value = filledSchema.safeParse(row[field]);
+    if (!value.success) throw invalidProjectData(project, `${table}.${field}`);
+    return value.data;
+  };
   const forge = forgeIdSchema.safeParse(row.forge);
-  if (!forge.success) throw invalid('forge');
-  for (const field of ['host', 'repository_id', 'path']) if (!row[field]) throw invalid(field);
-  return { forge: forge.data, host: row.host as string, id: row.repository_id as string, path: row.path as string };
+  if (!forge.success) throw invalidProjectData(project, `${table}.forge`);
+  return { forge: forge.data, host: filled('host'), id: filled('repository_id'), path: filled('path') };
 }
 
 /** Each project's Repository Binding. */
 function readBindings(projects: Project[]): Record<string, RepositoryReference> {
   const bindings: Record<string, RepositoryReference> = {};
-  for (const row of db.prepare('SELECT * FROM bound_repositories').all()) {
-    const project = projects.find(project => project.id === row.project_id)!;
-    bindings[project.id] = readRepository('bound_repositories', row, project);
+  const read = db.prepare('SELECT * FROM bound_repositories WHERE project_id=?');
+  for (const project of projects) {
+    const row = read.get(project.id);
+    if (row) bindings[project.id] = readRepository('bound_repositories', row, project);
   }
   return bindings;
 }
 
-/** Every Dispatch Record, oldest first. The repository and Agent type must be ones the Workbench knows. */
-function readDispatchRecords(projects: Project[]): DispatchRecord[] {
+/** Every Dispatch Record of a project that exists, oldest first. The repository and Agent type must be ones the
+ * Workbench knows. */
+function readDispatchRecords(): DispatchRecord[] {
   return db
-    .prepare('SELECT * FROM dispatches_with_skill WHERE project_id IN (SELECT id FROM projects) ORDER BY rowid')
+    .prepare(
+      `SELECT dispatches_with_skill.*, projects.name AS project_name FROM dispatches_with_skill
+      JOIN projects ON projects.id = dispatches_with_skill.project_id ORDER BY dispatches_with_skill.rowid`,
+    )
     .all()
-    .map(row => {
-      const project = projects.find(project => project.id === row.project_id)!;
-      const repository = readRepository('dispatches_with_skill', row, project);
+    .map(stored => {
+      const project = { id: String(stored.project_id), name: String(stored.project_name) };
+      const row = readRow(dispatchRowSchema, stored, 'dispatches_with_skill', project);
+      const repository = readRepository('dispatches_with_skill', stored, project);
       const agent = agentTypeSchema.safeParse(row.agent);
-      if (!agent.success)
-        throw new Error(
-          message('projectDataInvalid', {
-            file,
-            field: 'dispatches_with_skill.agent',
-            id: project.id,
-            name: project.name,
-          }),
-        );
+      if (!agent.success) throw invalidProjectData(project, 'dispatches_with_skill.agent');
       return {
         projectId: project.id,
         repository,
-        issue: row.issue as number,
-        dispatchedAt: row.dispatched_at as string,
+        issue: row.issue,
+        dispatchedAt: row.dispatched_at,
         agent: agent.data,
-        skill: row.skill as string,
-        text: row.text as string,
-        sessionId: row.session_id as string,
+        skill: row.skill,
+        text: row.text,
+        sessionId: row.session_id,
       };
     });
 }
@@ -135,7 +173,7 @@ function readSidebar(sidebar: Sidebar): SidebarPreferences {
   const stored = db.prepare(read).get()?.preferences;
   if (stored === null || stored === undefined) return sidebars[sidebar].defaults;
   try {
-    return sidebarPreferencesSchema.parse(JSON.parse(stored as string));
+    return sidebarPreferencesSchema.parse(JSON.parse(z.string().parse(stored)));
   } catch {
     throw new Error(message('sidebarDataInvalid', { file, field }));
   }
@@ -168,63 +206,103 @@ function saveProject(project: Project) {
   project.panels.forEach((panel, position) => insert.run(panel.id, project.id, panel.agent, position));
 }
 
-parentPort!.on('message', ({ id, operation, value }) => {
+function saveActiveProject(projectId: string | null) {
+  db.prepare(
+    'INSERT INTO workspace (id, active_project) VALUES (1,?) ON CONFLICT(id) DO UPDATE SET active_project=excluded.active_project',
+  ).run(projectId);
+}
+
+function appendDispatchRecord(record: DispatchRecord) {
+  const { forge, host, id: repositoryId, path } = record.repository;
+  db.prepare('INSERT INTO dispatches_with_skill VALUES (?,?,?,?,?,?,?,?,?,?,?)').run(
+    record.projectId,
+    forge,
+    host,
+    repositoryId,
+    path,
+    record.issue,
+    record.dispatchedAt,
+    record.agent,
+    record.skill,
+    record.text,
+    record.sessionId,
+  );
+}
+
+function deleteProject(projectId: string, nextActiveProjectId: string | null) {
+  transaction(() => {
+    db.prepare('DELETE FROM panels WHERE project_id=?').run(projectId);
+    db.prepare('DELETE FROM dispatches_with_skill WHERE project_id=?').run(projectId);
+    db.prepare('DELETE FROM bound_repositories WHERE project_id=?').run(projectId);
+    db.prepare('DELETE FROM projects WHERE id=?').run(projectId);
+    saveActiveProject(nextActiveProjectId);
+  });
+}
+
+/** Everything the store holds. */
+function load(): StoredContent {
+  const workspace = db.prepare('SELECT active_project FROM workspace WHERE id=1').get();
+  const projects = db.prepare('SELECT * FROM projects ORDER BY rowid').all().map(readProject);
+  const activeProject = z
+    .string()
+    .nullable()
+    .safeParse(workspace?.active_project ?? null);
+  if (!activeProject.success)
+    throw new Error(message('workspaceDataInvalid', { file, field: 'workspace.active_project' }));
+  return {
+    projects,
+    bindings: readBindings(projects),
+    dispatches: readDispatchRecords(),
+    navigation: readSidebar('navigation'),
+    forgeSidebar: readSidebar('forgeSidebar'),
+    activeProjectId: activeProject.data,
+  };
+}
+
+/** Carries out a request: the stored content for a load, nothing for a write. */
+function perform(request: StorageRequest): StoredContent | void {
+  switch (request.operation) {
+    case 'load':
+      return load();
+    case 'save':
+      return transaction(() => saveProject(request.project));
+    case 'bind':
+      return bind(request.projectId, request.repository);
+    case 'unbind':
+      db.prepare('DELETE FROM bound_repositories WHERE project_id=?').run(request.projectId);
+      return;
+    case 'dispatch':
+      return appendDispatchRecord(request.record);
+    case 'delete':
+      return deleteProject(request.projectId, request.nextActiveProjectId);
+    case 'active':
+      return saveActiveProject(request.projectId);
+    case 'sidebar':
+      db.prepare(sidebarStorage[request.sidebar].write).run(JSON.stringify(request.preferences));
+      return;
+    case 'close':
+      return db.close();
+    default:
+      throw new Error(message('storageOperationUnknown'));
+  }
+}
+
+const port = parentPort;
+if (!port) throw new Error("The storage worker runs only as the Project Store's worker thread");
+// Requests come only from the Project Store in this process; each is read by the protocol both sides share, and one
+// that does not fit is answered with an error, or dropped when it carries no id to answer.
+const reply = (message: StorageReply) => port.postMessage(message);
+port.on('message', (received: unknown) => {
+  const sent = storageMessageSchema.safeParse(received);
+  if (!sent.success) {
+    const unread = storageMessageIdSchema.safeParse(received);
+    if (unread.success) reply({ kind: 'error', id: unread.data.id, message: message('storageRequestInvalid') });
+    return;
+  }
+  const { id, request } = sent.data;
   try {
-    let result: unknown;
-    if (operation === 'load') {
-      const workspace = db.prepare('SELECT active_project FROM workspace WHERE id=1').get();
-      const projects = db.prepare('SELECT * FROM projects ORDER BY rowid').all().map(readProject);
-      result = {
-        projects,
-        bindings: readBindings(projects),
-        dispatches: readDispatchRecords(projects),
-        navigation: readSidebar('navigation'),
-        forgeSidebar: readSidebar('forgeSidebar'),
-        activeProjectId: workspace?.active_project ?? null,
-      };
-    } else if (operation === 'save') transaction(() => saveProject(value as Project));
-    else if (operation === 'bind') {
-      const { projectId, repository } = value as { projectId: string; repository: RepositoryReference };
-      bind(projectId, repository);
-    } else if (operation === 'unbind') {
-      db.prepare('DELETE FROM bound_repositories WHERE project_id=?').run(value as string);
-    } else if (operation === 'dispatch') {
-      const record = value as DispatchRecord;
-      const { forge, host, id: repositoryId, path } = record.repository;
-      db.prepare('INSERT INTO dispatches_with_skill VALUES (?,?,?,?,?,?,?,?,?,?,?)').run(
-        record.projectId,
-        forge,
-        host,
-        repositoryId,
-        path,
-        record.issue,
-        record.dispatchedAt,
-        record.agent,
-        record.skill,
-        record.text,
-        record.sessionId,
-      );
-    } else if (operation === 'delete')
-      transaction(() => {
-        db.prepare('DELETE FROM panels WHERE project_id=?').run(value.id);
-        db.prepare('DELETE FROM dispatches_with_skill WHERE project_id=?').run(value.id);
-        db.prepare('DELETE FROM bound_repositories WHERE project_id=?').run(value.id);
-        db.prepare('DELETE FROM projects WHERE id=?').run(value.id);
-        db.prepare(
-          'INSERT INTO workspace (id, active_project) VALUES (1,?) ON CONFLICT(id) DO UPDATE SET active_project=excluded.active_project',
-        ).run(value.activeProjectId);
-      });
-    else if (operation === 'active') {
-      db.prepare(
-        'INSERT INTO workspace (id, active_project) VALUES (1,?) ON CONFLICT(id) DO UPDATE SET active_project=excluded.active_project',
-      ).run(value);
-    } else if (operation === 'sidebar') {
-      const { sidebar, preferences } = value as { sidebar: Sidebar; preferences: SidebarPreferences };
-      db.prepare(sidebarStorage[sidebar].write).run(JSON.stringify(preferences));
-    } else if (operation === 'close') db.close();
-    else throw new Error(message('storageOperationUnknown'));
-    parentPort!.postMessage({ id, result });
+    reply({ kind: 'result', id, result: perform(request) });
   } catch (error) {
-    parentPort!.postMessage({ id, error: error instanceof Error ? error.message : String(error) });
+    reply({ kind: 'error', id, message: errorMessage(error) });
   }
 });

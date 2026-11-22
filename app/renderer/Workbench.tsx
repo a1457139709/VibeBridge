@@ -1,6 +1,6 @@
 import { HoverHints } from './common/HoverHints';
 import { Localization, useLocalization } from './common/Localization';
-import { useEffect, useRef, useState, type CSSProperties } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { flushSync } from 'react-dom';
 import type {} from '../shared/api';
 import { newDraft, type Snapshot } from '../shared/model';
@@ -16,6 +16,8 @@ import { SettingsConflictDialog } from './settings/SettingsConflict';
 import { shortcutActions, shortcutFromEvent } from '../shared/settings/shortcuts';
 import type { SettingsCategory } from '../shared/settings/settings';
 import { configureTerminals, reconcileTerminals, applyTerminalEvent, setTerminalLanguage } from './panels/terminals';
+import { errorMessage } from '../shared/caught-error';
+import { requireValue } from './common/required';
 
 /** The application shell: system bar, project navigation, and the current page. */
 export function App() {
@@ -72,7 +74,7 @@ function WorkbenchView({ snapshot, setSnapshot }: { snapshot?: Snapshot; setSnap
         });
         await window.workbench.reportRendererReady();
       })
-      .catch(error => report(error.message));
+      .catch(error => report(errorMessage(error)));
     return () => unsubscribe();
   }, []);
   async function leaveSettings(action: () => void = () => {}) {
@@ -84,7 +86,7 @@ function WorkbenchView({ snapshot, setSnapshot }: { snapshot?: Snapshot; setSnap
         action();
       }
     } catch (error) {
-      report((error as Error).message);
+      report(errorMessage(error));
     } finally {
       leavingSettings.current = false;
     }
@@ -117,7 +119,7 @@ function WorkbenchView({ snapshot, setSnapshot }: { snapshot?: Snapshot; setSnap
   const drawn = useRef<Record<Region, RegionFit>>(undefined);
   const widestOnResize: WidestOnResize = region => {
     setLastResized(region);
-    return drawn.current![region].widest;
+    return requireValue(drawn.current, 'the drawn regions')[region].widest;
   };
   const navigation = useProjectNavigation({
     snapshot: snapshot,
@@ -162,7 +164,7 @@ function WorkbenchView({ snapshot, setSnapshot }: { snapshot?: Snapshot; setSnap
       if (
         !snapshot ||
         !document.hasFocus() ||
-        (event.target as HTMLElement).closest('[data-shortcut-recorder]') ||
+        (event.target instanceof Element && event.target.closest('[data-shortcut-recorder]')) ||
         document.querySelector('dialog[open]')
       )
         return;
@@ -206,13 +208,11 @@ function WorkbenchView({ snapshot, setSnapshot }: { snapshot?: Snapshot; setSnap
       </header>
       <div
         className={`app-body ${forgeSidebar.shown && forgeSidebar.overlay ? 'forge-sidebar-yield' : ''} ${forgeSidebar.detail.squeeze ? 'forge-detail-squeeze' : ''}`}
-        style={
-          {
-            '--navigation-width': `${fits.navigation.width}px`,
-            '--forge-sidebar-width': `${fits.forgeSidebar.width}px`,
-            '--forge-detail-width': `${fits.detail.width}px`,
-          } as CSSProperties
-        }
+        style={{
+          '--navigation-width': `${fits.navigation.width}px`,
+          '--forge-sidebar-width': `${fits.forgeSidebar.width}px`,
+          '--forge-detail-width': `${fits.detail.width}px`,
+        }}
       >
         {navigation.sidebar}
         <main>

@@ -12,7 +12,7 @@ export function useRowResting(scrollArea: HTMLElement | null, report: (item: Det
     if (!scrollArea) return;
     let resting: { row: Element; item: DetailItem } | null = null;
     const restOn = (target: EventTarget | null) => {
-      const found = target && scrollArea.contains(target as Node) ? listRowOf(target as Element) : null;
+      const found = target instanceof Element && scrollArea.contains(target) ? listRowOf(target) : null;
       const changed = !sameItem(resting?.item ?? null, found?.item ?? null);
       resting = found;
       if (changed) reportLatest.current(found?.item ?? null);

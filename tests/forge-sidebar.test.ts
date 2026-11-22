@@ -50,7 +50,7 @@ test('unreadable stored forge sidebar preferences fail opening and leave the fil
   await assert.rejects(Workbench.open(directory), /forge_sidebar/);
   const reread = new DatabaseSync(`${directory}/projects.sqlite`);
   assert.equal(
-    (reread.prepare('SELECT preferences FROM forge_sidebar').get() as { preferences: string }).preferences,
+    reread.prepare('SELECT preferences FROM forge_sidebar').get()?.preferences,
     '{"visible":"yes","width":400}',
   );
   reread.close();

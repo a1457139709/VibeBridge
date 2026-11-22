@@ -2,6 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import type { ForgeSidebarPresence } from '../app/shared/forge/sidebar-data';
 import { openNoFilter } from './support/bound-workbench';
+import { lastOf } from './support/expected';
 import {
   byNumber,
   detail,
@@ -38,7 +39,7 @@ test('nothing updates while the sidebar is hidden or its window is behind; showi
       `the first page updates once ${trigger}`,
     );
     assert.deepEqual([numbers(lists()), lists()?.loading], [[1], true], 'the kept rows show meanwhile');
-    reads.at(-1)!.answer(page([1]));
+    lastOf(reads).answer(page([1]));
     await updated;
   }
   const before = reads.length;
@@ -189,7 +190,7 @@ test('a project whose lists were dropped for a sixth updates afresh once shown a
     [['p1', { filter: openNoFilter, cursor: null }]],
     'the update reads its first page',
   );
-  reads.at(-1)!.answer(page([1]));
+  lastOf(reads).answer(page([1]));
   await updated;
 });
 
@@ -220,7 +221,7 @@ test('the 50 details used last are kept across projects: a kept one shows at onc
   const { data, reads, shownDetail } = sidebarData();
   for (let number = 1; number <= 51; number++) {
     const opened = data.showDetail(number % 2 ? 'alpha' : 'beta', { kind: 'issue', number });
-    reads.at(-1)!.answer(detail(number, `Kept ${number}`));
+    lastOf(reads).answer(detail(number, `Kept ${number}`));
     await opened;
   }
   const count = reads.length;

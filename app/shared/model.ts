@@ -37,12 +37,17 @@ export interface Project {
   panels: Panel[];
   layout: Layout | null;
 }
-export interface AgentCommand {
+// Type aliases rather than interfaces: the settings schema's loose objects carry an index signature.
+export type AgentCommand = {
   command: string;
   args: string[];
-}
-export type DefaultLayout = 'auto' | 'row' | 'column';
-export type Language = 'en' | 'zh-CN';
+};
+/** The layouts a project's panels can start in, as the settings offer them. */
+export const defaultLayouts = ['auto', 'row', 'column'] as const;
+export type DefaultLayout = (typeof defaultLayouts)[number];
+/** The interface languages, as the settings offer them. */
+export const languages = ['en', 'zh-CN'] as const;
+export type Language = (typeof languages)[number];
 /** Whether the open forge sidebar squeezes the layout area or overlays it. */
 export type SidebarCoexistence = 'squeeze' | 'overlay';
 /** Whether an open issue or pull request detail overlays the layout area or squeezes it. */
@@ -103,8 +108,10 @@ export const sidebarPreferencesSchema = z.strictObject({ visible: z.boolean(), w
 export const sidebars = {
   navigation: { defaults: { visible: true, width: 212 }, minWidth: 168, invalidMessage: 'navigationInvalid' },
   forgeSidebar: { defaults: { visible: false, width: 380 }, minWidth: 300, invalidMessage: 'forgeSidebarInvalid' },
-} as const satisfies Record<string, { defaults: SidebarPreferences; minWidth: number; invalidMessage: MessageId }>;
-export type Sidebar = keyof typeof sidebars;
+} as const satisfies Record<Sidebar, { defaults: SidebarPreferences; minWidth: number; invalidMessage: MessageId }>;
+const sidebarIds = ['navigation', 'forgeSidebar'] as const;
+export type Sidebar = (typeof sidebarIds)[number];
+export const sidebarSchema = z.enum(sidebarIds);
 /** A panel with its current run, whatever that run's state, and the processing state it displays. */
 export type PanelView = Panel & { run?: Run; status?: ProcessingState };
 /** A project as the snapshot shows it. `panels` are its resident panels, placed by `layout`;
@@ -169,14 +176,18 @@ export function validateDraft(draft: ProjectDraft): void {
 }
 
 export function arrange(ids: string[], preference: DefaultLayout = 'auto'): Layout | null {
-  if (!ids.length) return null;
+  return ids.length ? arrangePanels(ids, preference) : null;
+}
+
+/** The layout of one or more panels. */
+function arrangePanels(ids: string[], preference: DefaultLayout = 'auto'): Layout {
   if (ids.length === 1) return { panel: ids[0] };
   if (preference !== 'auto')
     return {
       axis: preference,
       ratio: 1 / ids.length,
       first: { panel: ids[0] },
-      second: arrange(ids.slice(1), preference)!,
+      second: arrangePanels(ids.slice(1), preference),
     };
   if (ids.length === 3)
     return {
@@ -189,8 +200,8 @@ export function arrange(ids: string[], preference: DefaultLayout = 'auto'): Layo
   return {
     axis: ids.length > 2 ? 'column' : 'row',
     ratio: half / ids.length,
-    first: arrange(ids.slice(0, half))!,
-    second: arrange(ids.slice(half))!,
+    first: arrangePanels(ids.slice(0, half)),
+    second: arrangePanels(ids.slice(half)),
   };
 }
 
@@ -217,7 +228,8 @@ const layoutDepth = (node: Layout): number =>
   'panel' in node ? 0 : 1 + Math.max(layoutDepth(node.first), layoutDepth(node.second));
 const panelIds = (node: Layout): string[] =>
   'panel' in node ? [node.panel] : [...panelIds(node.first), ...panelIds(node.second)];
-const layoutSchema = layoutNodeSchema.refine(layout => layoutDepth(layout) <= 10).nullable();
+/** A layout whose structure is valid, whichever panels it places. */
+export const layoutSchema = layoutNodeSchema.refine(layout => layoutDepth(layout) <= 10);
 
 /** The panel IDs a layout places, in order. */
 export const layoutPanelIds = (layout: Layout | null): string[] => (layout ? panelIds(layout) : []);
@@ -241,7 +253,7 @@ export function panelPath(layout: Layout | null, panelId: string): ('first' | 's
 
 /** A layout whose structure is valid, whichever panels it places. */
 export function parseLayoutStructure(value: unknown): Layout | null {
-  const parsed = layoutSchema.safeParse(value);
+  const parsed = layoutSchema.nullable().safeParse(value);
   if (!parsed.success) throw new Error(message('layoutInvalid'));
   return parsed.data;
 }

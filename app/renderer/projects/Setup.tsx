@@ -15,6 +15,8 @@ import {
 import { LaunchResults } from './LaunchResults';
 import { layoutBoxes } from '../../shared/layout';
 import { projectNameError, projectNameFromDirectory, projectNameHasControls } from '../../shared/project-name';
+import { errorMessage } from '../../shared/caught-error';
+import { requireValue } from '../common/required';
 
 function Stepper({
   label,
@@ -74,6 +76,8 @@ export function Setup({
   const pending = useRef(false);
   const inspected = inspection?.path === draft.directory ? inspection.result : undefined;
   const checking = !!draft.directory && !inspected;
+  /** The project that already uses the chosen directory. */
+  const existingProjectId = inspected?.existingProjectId;
   const nameError = text(projectNameError(draft.name));
   const nameMessage = text(nameInputError) || (nameTouched || draft.name.trim() ? nameError : '');
   const directoryMessage = !draft.directory
@@ -85,7 +89,9 @@ export function Setup({
       : !inspected?.valid
         ? t('directoryInvalid')
         : inspected.existingProjectId
-          ? t('duplicateCreate', { name: inspected.existingProjectName! })
+          ? t('duplicateCreate', {
+              name: requireValue(inspected.existingProjectName, "the existing project's name"),
+            })
           : '';
   const assigned = agentTypes.reduce((sum, type) => sum + draft.counts[type], 0);
   const canCreate =
@@ -109,7 +115,7 @@ export function Setup({
         .catch(error => {
           if (live) {
             setInspection({ path: draft.directory, result: { valid: false } });
-            report(error.message);
+            report(errorMessage(error));
           }
         });
     }, 180);
@@ -132,7 +138,7 @@ export function Setup({
       setNameTouched(true);
       setDirectoryTouched(true);
     } catch (error) {
-      report((error as Error).message);
+      report(errorMessage(error));
     } finally {
       setChoosing(false);
     }
@@ -155,7 +161,7 @@ export function Setup({
       if (launches.every(launch => launch.outcome === 'started')) onSetupFinished(project.id);
       else setLaunchReport({ projectId: project.id, launches });
     } catch (error) {
-      report((error as Error).message);
+      report(errorMessage(error));
     } finally {
       pending.current = false;
       setBusy(false);
@@ -247,18 +253,14 @@ export function Setup({
         <div
           id="project-directory-status"
           className="directory-status field-status"
-          hidden={!checking && !directoryMessage && !inspected?.existingProjectId}
+          hidden={!checking && !directoryMessage && !existingProjectId}
           aria-live="polite"
         >
           {checking
             ? t('checkingDirectory')
             : directoryMessage && <span className="error-text">{directoryMessage}</span>}
-          {inspected?.existingProjectId && (
-            <button
-              type="button"
-              className="open-existing-project"
-              onClick={() => openProject(inspected.existingProjectId!)}
-            >
+          {existingProjectId && (
+            <button type="button" className="open-existing-project" onClick={() => openProject(existingProjectId)}>
               {t('openExisting')}
             </button>
           )}
@@ -271,7 +273,7 @@ export function Setup({
           aria-label={t('readOnlyPreview')}
         >
           {preview.map((id, index) => {
-            const box = boxes.get(id)!;
+            const box = requireValue(boxes.get(id), `preview panel ${id}`);
             const type = types[index];
             const position = {
               left: `${box.x * 100}%`,

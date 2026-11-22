@@ -3,6 +3,7 @@ import { spawnSync } from 'node:child_process';
 import { chmod, copyFile, mkdir, mkdtemp, readFile, readdir, rm, writeFile } from 'node:fs/promises';
 import { resolve } from 'node:path';
 import test from 'node:test';
+import { testNode } from './support/test-node';
 
 async function fixture() {
   await mkdir('work', { recursive: true });
@@ -12,12 +13,11 @@ async function fixture() {
   await copyFile('scripts/test-desktop.mjs', `${directory}/scripts/test-desktop.mjs`);
   await mkdir(`${directory}/node_modules/electron/dist`, { recursive: true });
   await writeFile(`${directory}/node_modules/electron/path.txt`, 'test-electron');
-  const node = process.env.VIBEBRIDGE_TEST_NODE!;
   const binary = `${directory}/node_modules/electron/dist/test-electron`;
   // Substitute only the external Electron process; exercise the real runner CLI.
   await writeFile(
     binary,
-    `#!${node}
+    `#!${testNode}
 const { appendFileSync } = require('node:fs');
 const suite = require(process.env.VIBEBRIDGE_TEST_SUITE);
 const reopen = !!process.env.VIBEBRIDGE_TEST_REOPEN;
@@ -32,7 +32,7 @@ Promise.resolve().then(() => (reopen ? suite.reopen : suite.run)({ directory, re
     directory,
     write: (name: string, source: string) => writeFile(`${directory}/tests/desktop/${name}`, source),
     run: (...args: string[]) =>
-      spawnSync(node, ['scripts/test-desktop.mjs', ...args], {
+      spawnSync(testNode, ['scripts/test-desktop.mjs', ...args], {
         cwd: directory,
         encoding: 'utf8',
         timeout: 10000,
@@ -116,7 +116,7 @@ test('desktop execution refuses local machines before launching Electron, but li
   try {
     await f.write('smoke.test.cjs', 'module.exports = { run() {} };');
     const run = (...args: string[]) =>
-      spawnSync(process.env.VIBEBRIDGE_TEST_NODE!, ['scripts/test-desktop.mjs', ...args], {
+      spawnSync(testNode, ['scripts/test-desktop.mjs', ...args], {
         cwd: f.directory,
         encoding: 'utf8',
         env: { ...process.env, CI: '', GITHUB_ACTIONS: '', RUNNER_OS: '' },

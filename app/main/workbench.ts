@@ -41,13 +41,14 @@ import {
 } from './forge/results';
 import { Dispatches, type DispatchRecord } from './dispatch';
 import type { DispatchRequest } from '../shared/dispatch';
+import { errorMessage } from '../shared/caught-error';
 
 export class WorkbenchOpenError extends Error {
   constructor(
     error: unknown,
     readonly language: Language,
   ) {
-    super(error instanceof Error ? error.message : String(error), { cause: error });
+    super(errorMessage(error), { cause: error });
   }
 }
 
@@ -125,7 +126,7 @@ export class Workbench {
     try {
       settings = await settingsFile.read();
     } catch (error) {
-      errors.push((error as Error).message);
+      errors.push(errorMessage(error));
     }
     let store: ProjectStore | undefined;
     try {
@@ -184,13 +185,13 @@ export class Workbench {
     return this.operation(async () => {
       validateDraft(draft);
       const directory = await this.inspectDirectory(draft.directory);
-      if (!directory.valid) throw new Error(message('projectDirectoryInvalid'));
+      if (!directory.valid || directory.directory === undefined) throw new Error(message('projectDirectoryInvalid'));
       if (directory.existingProjectId) throw new Error(message('projectDirectoryExists'));
       const panels = assignedAgents(draft).map(agent => ({ id: randomUUID(), agent }));
       const project = {
         id: randomUUID(),
         name: draft.name.trim(),
-        directory: directory.directory!,
+        directory: directory.directory,
         panels,
         layout: arrange(
           panels.map(p => p.id),
@@ -214,10 +215,10 @@ export class Workbench {
       const nameError = projectNameError(edit.name);
       if (nameError) throw new Error(nameError);
       const directory = await this.inspectDirectory(edit.directory);
-      if (!directory.valid) throw new Error(message('projectDirectoryInvalid'));
+      if (!directory.valid || directory.directory === undefined) throw new Error(message('projectDirectoryInvalid'));
       if (directory.existingProjectId && directory.existingProjectId !== id)
-        throw new Error(message('projectDuplicate', { name: directory.existingProjectName! }));
-      const next = { ...project, name: edit.name.trim(), directory: directory.directory! };
+        throw new Error(message('projectDuplicate', { name: this.project(directory.existingProjectId).name }));
+      const next = { ...project, name: edit.name.trim(), directory: directory.directory };
       const changedDirectory = project.directory !== next.directory;
       if (!changedDirectory && project.name === next.name) return { project: structuredClone(project), launches: [] };
       await this.store.save(next);
@@ -290,7 +291,7 @@ export class Workbench {
   private follow(projectId: string, found: RepositoryReference) {
     void this.operation(async () => {
       if (await this.bindings.follow(projectId, found)) this.publishSnapshot();
-    }).catch(error => this.reportError((error as Error).message));
+    }).catch(error => this.reportError(errorMessage(error)));
   }
   /** Dispatches an issue of the project's bound repository with a command of an enabled workflow to one of its panels
    * that has a run, or to a new panel that joins its tray, and records the dispatch on the session that takes it. */

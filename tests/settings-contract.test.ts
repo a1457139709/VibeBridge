@@ -4,6 +4,7 @@ import assert from 'node:assert/strict';
 import { readFile, writeFile } from 'node:fs/promises';
 import { Workbench } from '../app/main/workbench';
 import { testDirectory } from './support/directory';
+import { fromAny } from '@total-typescript/shoehorn';
 
 const mattCommands = [
   'grill-with-docs',
@@ -170,9 +171,9 @@ test('the sidebar and detail coexistence chosen in Appearance are saved and read
     workbench = await Workbench.open(directory);
     assert.equal(workbench.snapshot().settings.sidebarCoexistence, 'overlay');
     assert.equal(workbench.snapshot().settings.detailCoexistence, 'squeeze');
-    const invalid = await workbench.saveSettings({ sidebarCoexistence: 'float' as never });
+    const invalid = await workbench.saveSettings({ sidebarCoexistence: fromAny('float') });
     assert.equal(invalid.ok, false);
-    const invalidDetail = await workbench.saveSettings({ detailCoexistence: 'beside' as never });
+    const invalidDetail = await workbench.saveSettings({ detailCoexistence: fromAny('beside') });
     assert.equal(invalidDetail.ok, false);
   } finally {
     await workbench.quit();
@@ -263,7 +264,7 @@ test('workflow choices are saved and read back, unknown workflows and commands s
     const invalid = await workbench.saveSettings({
       workflows: {
         ...saved,
-        matt: { ...saved.matt, commands: { ...saved.matt.commands, tdd: { delivery: 'paste' as never } } },
+        matt: { ...saved.matt, commands: { ...saved.matt.commands, tdd: fromAny({ delivery: 'paste' }) } },
       },
     });
     assert.ok(!invalid.ok && invalid.kind === 'validation');

@@ -27,6 +27,7 @@ import type { RunSupervision, PanelLocation } from './runs/run-supervision';
 import type { SessionReceiver } from './runs/processing-status';
 import type { ProjectStore } from './persistence/storage';
 import { forges } from './forge/forges';
+import { errorMessage } from '../shared/caught-error';
 
 /** A Dispatch Record as stored: append-only, pointing at the session that took the dispatch, never at a panel
  * (docs/adr/0003-dispatch-records-point-to-sessions.md). */
@@ -189,7 +190,7 @@ export class Dispatches {
         () =>
           void this.supervision
             .input(runId, bracketedPaste(dispatch.text))
-            .catch(error => this.report((error as Error).message)),
+            .catch(error => this.report(errorMessage(error))),
       );
     this.changed();
     return panel.id;
@@ -230,7 +231,7 @@ export class Dispatches {
       await this.store.appendDispatchRecord(record);
     } catch (error) {
       stored = false;
-      this.report((error as Error).message);
+      this.report(errorMessage(error));
     }
     onStoreAnswered?.();
     if (stored) this.records.push(record);

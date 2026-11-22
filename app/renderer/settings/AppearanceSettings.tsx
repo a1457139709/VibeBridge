@@ -1,5 +1,5 @@
 import { useLocalization } from '../common/Localization';
-import type { Settings } from '../../shared/model';
+import { defaultLayouts, type Settings } from '../../shared/model';
 
 export function AppearanceSettings({
   draft,
@@ -67,7 +67,10 @@ export function AppearanceSettings({
         aria-invalid={!!fieldError('defaultLayout') || undefined}
         aria-describedby={fieldError('defaultLayout') ? 'layout-error' : undefined}
         value={defaultLayout}
-        onChange={event => changeDraft({ defaultLayout: event.target.value as Settings['defaultLayout'] })}
+        onChange={event => {
+          const chosen = defaultLayouts.find(layout => layout === event.target.value);
+          if (chosen) changeDraft({ defaultLayout: chosen });
+        }}
       >
         <option value="auto">{t('layoutAuto')}</option>
         <option value="row">{t('layoutRow')}</option>

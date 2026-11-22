@@ -3,6 +3,8 @@ import { useEffect, useRef, useState } from 'react';
 import { message } from '../../shared/messages';
 import { agentNames, agentTypes } from '../../shared/model';
 import { agentIcons } from '../common/agent-icons';
+import { errorMessage } from '../../shared/caught-error';
+import { requireValue } from '../common/required';
 
 export function AgentPicker({
   projectId,
@@ -22,7 +24,7 @@ export function AgentPicker({
   const [busy, setBusy] = useState(false);
   const [failure, setFailure] = useState<{ error: string; offerAgentSettings: boolean }>();
   useEffect(() => {
-    const element = dialog.current!;
+    const element = requireValue(dialog.current, 'the agent picker dialog');
     element.showModal();
     return () => element.close();
   }, []);
@@ -56,7 +58,7 @@ export function AgentPicker({
                 setFailure({ error: message('launchFailed'), offerAgentSettings: true });
               else setFailure({ error: launch.reason, offerAgentSettings: false });
             } catch (error) {
-              setFailure({ error: (error as Error).message, offerAgentSettings: false });
+              setFailure({ error: errorMessage(error), offerAgentSettings: false });
             } finally {
               setBusy(false);
             }

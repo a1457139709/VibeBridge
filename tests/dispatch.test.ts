@@ -5,6 +5,7 @@ import { bindListed, day, forgeAccount } from './support/bound-workbench';
 import { fixture, until } from './support/cli-double';
 import { Workbench } from '../app/main/workbench';
 import { message } from '../app/shared/messages';
+import { firstCapture } from './support/expected';
 
 const issue = (number: number) => ({
   number,
@@ -34,7 +35,8 @@ async function dispatching(context: test.TestContext, { lateSession = false } = 
   /** What the CLI double has received as typed input, apart from the test's own messages. */
   const typed = async (runId = run.id) => {
     await f.send(runId, undefined, { typed: true });
-    return JSON.parse(f.output(runId).match(/TYPED:([^\r\n]*)\r\n(?![\s\S]*TYPED:)/)![1]) as string;
+    const text: string = JSON.parse(firstCapture(f.output(runId), /TYPED:([^\r\n]*)\r\n(?![\s\S]*TYPED:)/));
+    return text;
   };
   const records = () => f.workbench.snapshot().projects[0].dispatches;
   const dispatch = (number: number) =>
@@ -54,12 +56,14 @@ async function dispatching(context: test.TestContext, { lateSession = false } = 
       target: { kind: 'new', agent: 'claude' },
       invertDelivery: invert,
     });
-    const panel = f.workbench.snapshot().projects[0].tray.find(panel => panel.id === panelId)!;
+    const panel = f.workbench.snapshot().projects[0].tray.find(panel => panel.id === panelId);
+    assert.ok(panel?.run, 'the new panel is in the tray with a run');
+    const { run } = panel;
     await until(
-      () => f.output(panel.run!.id).includes('CLI-DOUBLE-READY'),
-      () => f.output(panel.run!.id),
+      () => f.output(run.id).includes('CLI-DOUBLE-READY'),
+      () => f.output(run.id),
     );
-    return panel.run!;
+    return run;
   };
   /** Reports that the run's CLI started on its session, and so is ready. */
   const start = (runId: string) => f.send(runId, { hook_event_name: 'SessionStart', source: 'startup' });
@@ -232,7 +236,7 @@ test('submitting to a new panel launches it in the tray with the command after t
       [run.panelId],
     );
     await f.send(run.id, undefined, { arguments: true });
-    const args = JSON.parse(f.output(run.id).match(/ARGUMENTS:([^\r\n]+)/)![1]) as string[];
+    const args: string[] = JSON.parse(firstCapture(f.output(run.id), /ARGUMENTS:([^\r\n]+)/));
     assert.deepEqual(args.slice(0, 3), [
       '--raw-input',
       '--late-session',
@@ -248,7 +252,7 @@ test('filling a new panel pastes the command once it reports ready, without pres
   try {
     const run = await f.dispatchNew(7, true);
     await f.send(run.id, undefined, { arguments: true });
-    const args = JSON.parse(f.output(run.id).match(/ARGUMENTS:([^\r\n]+)/)![1]) as string[];
+    const args: string[] = JSON.parse(firstCapture(f.output(run.id), /ARGUMENTS:([^\r\n]+)/));
     assert.deepEqual(args.slice(0, 2), ['--raw-input', '--late-session'], 'the configured arguments only');
     assert.ok(!args.some(arg => arg.includes('/implement')));
     // The paste is sent to the terminal while the ready report is answered, so it is in before the double acknowledges.

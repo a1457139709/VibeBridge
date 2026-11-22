@@ -5,6 +5,8 @@ import { resolve } from 'node:path';
 import { Workbench } from '../app/main/workbench';
 import type { WorkbenchEvent } from '../app/shared/model';
 import { runsOf, storedProjects } from './support/panel-views';
+import { testNode } from './support/test-node';
+import { firstCapture, pidOf } from './support/expected';
 
 async function until(check: () => boolean) {
   const deadline = Date.now() + 5000;
@@ -27,7 +29,7 @@ test('projects share a terminal host while retaining independent runs, backgroun
   try {
     const settings = workbench.snapshot().settings;
     settings.agents.codex = {
-      command: process.env.VIBEBRIDGE_TEST_NODE!,
+      command: testNode,
       args: [resolve('tests/fixtures/interactive.cjs')],
     };
     await workbench.saveSettings(settings);
@@ -38,8 +40,9 @@ test('projects share a terminal host while retaining independent runs, backgroun
     const { project: first } = await create('First', directory);
     const { project: second } = await create('Second', secondDirectory);
     const runs = runsOf(workbench.snapshot());
-    const firstRun = runs.find(run => run.projectId === first.id)!;
-    const secondRun = runs.find(run => run.projectId === second.id)!;
+    const firstRun = runs.find(run => run.projectId === first.id);
+    const secondRun = runs.find(run => run.projectId === second.id);
+    assert.ok(firstRun && secondRun);
     assert.notEqual(firstRun.id, secondRun.id);
     assert.notEqual(firstRun.panelId, secondRun.panelId);
     await until(
@@ -47,7 +50,7 @@ test('projects share a terminal host while retaining independent runs, backgroun
     );
     for (const run of runs) await workbench.runs.input(run.id, 'host');
     await until(() => runs.every(run => /HOST:(\d+)/.test(output(run.id))));
-    assert.equal(output(firstRun.id).match(/HOST:(\d+)/)![1], output(secondRun.id).match(/HOST:(\d+)/)![1]);
+    assert.equal(firstCapture(output(firstRun.id), /HOST:(\d+)/), firstCapture(output(secondRun.id), /HOST:(\d+)/));
     await workbench.activateProject(first.id);
     await workbench.runs.input(firstRun.id, 'later');
     await workbench.activateProject(second.id);
@@ -64,7 +67,7 @@ test('projects share a terminal host while retaining independent runs, backgroun
     await workbench.activateProject(second.id);
     await workbench.closePanel(first.id, first.panels[0].id);
     assert.deepEqual(storedProjects(workbench.snapshot()).find(project => project.id === first.id)?.panels, []);
-    assert.throws(() => process.kill(firstRun.pid!, 0));
+    assert.throws(() => process.kill(pidOf(firstRun), 0));
     await workbench.runs.input(secondRun.id, 'still-running');
     await until(() => output(secondRun.id).includes('INPUT:still-running'));
   } finally {

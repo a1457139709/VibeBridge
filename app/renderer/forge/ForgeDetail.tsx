@@ -23,6 +23,7 @@ import { idleActions, type Actions, type ActionState } from './DirectActions';
 import { IssueDocument, type IssueDispatch } from './IssueDetail';
 import { PullRequestDocument } from './PullRequestDetail';
 import { withoutShortcutModifier } from '../../shared/settings/shortcuts';
+import { errorMessage } from '../../shared/caught-error';
 
 interface Props {
   project: ProjectView & { repository: RepositoryReference };
@@ -97,9 +98,8 @@ export function ForgeDetailPane({
   const keydown = (event: React.KeyboardEvent) => {
     if (
       event.defaultPrevented ||
-      (event.target as HTMLElement).closest(
-        'input, textarea, select, [contenteditable="true"], [role="menu"], [role="listbox"]',
-      )
+      (event.target instanceof Element &&
+        event.target.closest('input, textarea, select, [contenteditable="true"], [role="menu"], [role="listbox"]'))
     )
       return;
     if (event.key === 'Escape' || (event.key === 'ArrowRight' && withoutShortcutModifier(event))) {
@@ -121,7 +121,7 @@ export function ForgeDetailPane({
     } catch (error) {
       result = {
         ok: false,
-        failure: { kind: 'transient', detail: text((error as Error).message), forge: project.forge },
+        failure: { kind: 'transient', detail: text(errorMessage(error)), forge: project.forge },
       };
     }
     if (shownItem.current.kind !== kind || shownItem.current.number !== number) return;
@@ -138,7 +138,7 @@ export function ForgeDetailPane({
   };
   // Links in the forge's HTML: an issue or pull request of the bound repository opens here; the filter sends the rest to the browser.
   const followLink = (links: ForgeLinks) => (event: MouseEvent) => {
-    const href = (event.target as Element).closest('a')?.getAttribute('href');
+    const href = event.target instanceof Element ? event.target.closest('a')?.getAttribute('href') : undefined;
     const linked = href ? linkedItem(href, links) : null;
     if (!linked) return;
     event.preventDefault();

@@ -5,6 +5,7 @@ import type { RepositoryChoices } from '../app/shared/forge/forge';
 import type { ShownRepositoryChoices } from '../app/shared/forge/sidebar-data';
 import { openNoFilter } from './support/bound-workbench';
 import { detail, forge, numbers, page, sidebarData } from './support/sidebar-data-sources';
+import { lastOf } from './support/expected';
 
 test('only the latest request settles the lists: an answer for a filter no longer shown is dropped', async () => {
   const { data, reads, lists } = sidebarData();
@@ -264,7 +265,7 @@ test('a failed reread of the open detail keeps its shown answer beside the failu
   };
   for (const [reread, start] of Object.entries(rereads)) {
     const settled = start();
-    reads.at(-1)!.answer({ ok: false, failure });
+    lastOf(reads).answer({ ok: false, failure });
     await settled;
     assert.deepEqual(
       shownDetail(),
@@ -273,7 +274,7 @@ test('a failed reread of the open detail keeps its shown answer beside the failu
     );
   }
   const updated = data.refresh('alpha');
-  reads.at(-1)!.answer(detail(3, 'After'));
+  lastOf(reads).answer(detail(3, 'After'));
   await updated;
   assert.deepEqual(shownDetail(), { item, result: detail(3, 'After'), failed: null }, 'the next answer clears it');
 });

@@ -5,6 +5,7 @@ import { resolve } from 'node:path';
 import { Workbench } from '../app/main/workbench';
 import { testDirectory } from './support/directory';
 import { runsOf, storedProjects } from './support/panel-views';
+import { testNode } from './support/test-node';
 
 test('saved preferences apply at their intended boundaries and manual edits apply on reopen', async context => {
   const directory = await testDirectory(context, 'settings-persistence');
@@ -14,7 +15,7 @@ test('saved preferences apply at their intended boundaries and manual edits appl
     assert.equal(workbench.snapshot().resolvedTheme, 'dark');
     const settings = workbench.snapshot().settings;
     settings.agents.codex = {
-      command: process.env.VIBEBRIDGE_TEST_NODE!,
+      command: testNode,
       args: [resolve('tests/fixtures/interactive.cjs')],
     };
     settings.agents.claude = settings.agents.codex;

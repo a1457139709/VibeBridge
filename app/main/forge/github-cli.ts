@@ -25,7 +25,7 @@ async function run(
 ): Promise<{ failure: ForgeError | null; stdout: string; stderr: string }> {
   let program: string;
   try {
-    program = await resolveExecutable('gh', process.env as Record<string, string>);
+    program = await resolveExecutable('gh', process.env);
   } catch {
     throw new ForgeError('notInstalled', '');
   }
@@ -40,7 +40,7 @@ async function run(
       },
       (error, stdout, stderr) => {
         if (!error) return resolve({ failure: null, stdout, stderr });
-        const code = (error as { code?: unknown }).code;
+        const code = error.code;
         const failure =
           code === 'ENOENT'
             ? new ForgeError('notInstalled', '')

@@ -1,5 +1,5 @@
 import { useLocalization } from '../common/Localization';
-import type { Settings } from '../../shared/model';
+import { languages, type Settings } from '../../shared/model';
 
 export function GeneralSettings({
   language,
@@ -18,7 +18,10 @@ export function GeneralSettings({
         id="interface-language"
         data-settings-field="language"
         value={language}
-        onChange={event => changeDraft({ language: event.target.value as Settings['language'] })}
+        onChange={event => {
+          const chosen = languages.find(language => language === event.target.value);
+          if (chosen) changeDraft({ language: chosen });
+        }}
       >
         <option value="en" lang="en">
           English

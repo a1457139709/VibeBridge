@@ -5,6 +5,7 @@ import { access, readFile, stat, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { fixture, until } from './support/cli-double';
 import { showing, statusOf } from './support/panel-views';
+import { firstCapture } from './support/expected';
 
 test('Claude loads the invocation hooks, and unreadable hook input becomes Error until a fresh fact', async () => {
   const f = await fixture('claude');
@@ -128,24 +129,25 @@ test('file-based Claude settings stay private and each run cleans only its own i
     } = await f.create(2);
     await f.send(run.id, { hook_event_name: 'UserPromptSubmit' }, { arguments: true, settings: true });
     assert.equal(f.state(run.id), 'busy');
-    const args: string[] = JSON.parse(f.output(run.id).match(/ARGUMENTS:([^\r\n]+)/)![1]);
+    const args: string[] = JSON.parse(firstCapture(f.output(run.id), /ARGUMENTS:([^\r\n]+)/));
     assert.ok(
       !args.some(arg => arg.includes('private-value-for-test')),
       'file contents must not become process arguments',
     );
-    launchSettings = args[args.lastIndexOf('--settings') + 1];
-    assert.notEqual(launchSettings, './private-settings.json');
-    assert.equal((await stat(launchSettings)).mode & 0o777, 0o600);
-    assert.deepEqual(JSON.parse(await readFile(launchSettings, 'utf8')).env, original.env);
+    const settings = args[args.lastIndexOf('--settings') + 1];
+    launchSettings = settings;
+    assert.notEqual(settings, './private-settings.json');
+    assert.equal((await stat(settings)).mode & 0o777, 0o600);
+    assert.deepEqual(JSON.parse(await readFile(settings, 'utf8')).env, original.env);
     await f.send(other.id, {}, { arguments: true });
-    const otherArgs: string[] = JSON.parse(f.output(other.id).match(/ARGUMENTS:([^\r\n]+)/)![1]);
+    const otherArgs: string[] = JSON.parse(firstCapture(f.output(other.id), /ARGUMENTS:([^\r\n]+)/));
     const otherSettings = otherArgs[otherArgs.lastIndexOf('--settings') + 1];
-    assert.notEqual(launchSettings, otherSettings);
+    assert.notEqual(settings, otherSettings);
     await f.workbench.closePanel(project.id, run.panelId);
-    await until(() => !existsSync(launchSettings!));
+    await until(() => !existsSync(settings));
     assert.ok(existsSync(otherSettings));
     await f.workbench.quit();
-    await assert.rejects(access(launchSettings), { code: 'ENOENT' });
+    await assert.rejects(access(settings), { code: 'ENOENT' });
     await assert.rejects(access(otherSettings), { code: 'ENOENT' });
     assert.deepEqual(JSON.parse(await readFile(join(f.directory, 'private-settings.json'), 'utf8')), original);
   } finally {

@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
+import { fromAny } from '@total-typescript/shoehorn';
 const until: (
   check: () => unknown,
   label: string,
@@ -15,7 +16,7 @@ test('desktop waits resolve once the check holds', async () => {
 test('desktop waits require a label naming the awaited behaviour', async () => {
   let calls = 0;
   await assert.rejects(
-    until(() => ++calls, undefined as unknown as string),
+    until(() => ++calls, fromAny(undefined)),
     /label/,
   );
   await assert.rejects(

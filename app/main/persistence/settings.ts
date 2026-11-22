@@ -10,6 +10,7 @@ import {
   settingsIssues,
   type SettingsSaveResult,
 } from '../../shared/settings/settings';
+import { errorCode, errorMessage } from '../../shared/caught-error';
 export { defaultSettings } from '../../shared/settings/settings';
 
 export class SettingsFile {
@@ -20,9 +21,9 @@ export class SettingsFile {
     try {
       return readSettings(JSON.parse(await readFile(join(this.directory, 'settings.json'), 'utf8')));
     } catch (error) {
-      if ((error as NodeJS.ErrnoException).code === 'ENOENT') return defaultSettings();
+      if (errorCode(error) === 'ENOENT') return defaultSettings();
       this.readable = false;
-      throw new Error(message('settingsReadFailed', { reason: nestedMessage((error as Error).message) }), {
+      throw new Error(message('settingsReadFailed', { reason: nestedMessage(errorMessage(error)) }), {
         cause: error,
       });
     }
@@ -42,7 +43,7 @@ export class SettingsFile {
       await this.write(settings);
       return { ok: true, settings };
     } catch (error) {
-      return { ok: false, kind: 'storage', message: (error as Error).message };
+      return { ok: false, kind: 'storage', message: errorMessage(error) };
     }
   }
   private write(settings: Settings): Promise<void> {

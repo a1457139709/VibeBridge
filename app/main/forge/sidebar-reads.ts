@@ -19,6 +19,7 @@ import type {
   ForgeListTab,
   ForgeSidebarEvent,
 } from '../../shared/forge/sidebar-data';
+import { errorMessage } from '../../shared/caught-error';
 
 /** Where the Forge sidebar's data comes from, and where it goes. Each read is of a project's bound repository, or of the
  * repositories the project can bind. */
@@ -46,7 +47,7 @@ async function fromSources<T>(
   try {
     return await read();
   } catch (error) {
-    return failed({ kind: 'transient', detail: (error as Error).message, forge: sources.forge(projectId) });
+    return failed({ kind: 'transient', detail: errorMessage(error), forge: sources.forge(projectId) });
   }
 }
 
@@ -57,13 +58,11 @@ export function readPage<T extends ForgeListTab>(
   tab: T,
   query: ListQuery,
 ): Promise<Page<ForgeListItems[T]>> {
-  const read = tab === 'issues' ? sources.issuePage : sources.pullRequestPage;
-  return fromSources(
-    sources,
-    projectId,
-    () => read(projectId, query) as Promise<Page<ForgeListItems[T]>>,
-    failure => ({ ok: false, failure, account: null }),
-  );
+  const reads: { [K in ForgeListTab]: () => Promise<Page<ForgeListItems[K]>> } = {
+    issues: () => sources.issuePage(projectId, query),
+    pullRequests: () => sources.pullRequestPage(projectId, query),
+  };
+  return fromSources(sources, projectId, reads[tab], failure => ({ ok: false, failure, account: null }));
 }
 
 /** Asks the forge for the items of `tab` with these numbers, with no search. */

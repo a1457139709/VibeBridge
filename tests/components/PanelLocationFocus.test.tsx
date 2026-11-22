@@ -8,6 +8,8 @@ import { defaultSettings } from '../../app/shared/settings/settings';
 import type { PanelView, Snapshot, WorkbenchEvent } from '../../app/shared/model';
 import { provideWorkbench } from './support/workbench';
 import { githubView } from './support/forge';
+import { requireValue } from '../../app/renderer/common/required';
+import { selectElement } from './support/elements';
 
 // Frames run only when the test runs them, so every frame a pending location could use has run before an assertion.
 const frames = new Map<number, FrameRequestCallback>();
@@ -131,7 +133,7 @@ async function renderWorkbench() {
       document.activeElement?.classList.contains('xterm-helper-textarea')
         ? document.activeElement.closest<HTMLElement>('[data-panel-id]')?.dataset.panelId
         : undefined,
-    locating: () => document.querySelector('.workbench-page')!.classList.contains('locating-panel'),
+    locating: () => selectElement('.workbench-page').classList.contains('locating-panel'),
     open: () => user.click(screen.getByRole('button', { name: /^\d+ Done$/ })),
     async choose(panelId: string) {
       await this.open();
@@ -147,7 +149,12 @@ async function renderWorkbench() {
       act(() => {
         const [project] = snapshot.projects;
         Object.assign(project, {
-          layout: { panel: project.panels.find(item => item.id !== panelId)!.id },
+          layout: {
+            panel: requireValue(
+              project.panels.find(item => item.id !== panelId),
+              'another panel',
+            ).id,
+          },
           panels: project.panels.filter(item => item.id !== panelId),
         });
         listener({ kind: 'snapshot', snapshot: structuredClone(snapshot) });

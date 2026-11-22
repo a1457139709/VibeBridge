@@ -18,6 +18,7 @@ import { deferred, provideWorkbench } from './support/workbench';
 import { forgeSidebarData, workbenchEvents } from './support/forge-sidebar-data';
 import { githubForge, githubView, githubRepository } from './support/forge';
 import { issue as listedIssue, pullRequest as listedPullRequest, stubSidebarApis } from './support/forge-lists';
+import { requireValue } from '../../app/renderer/common/required';
 
 afterEach(cleanup);
 before(stubSidebarApis);
@@ -152,16 +153,16 @@ function renderWorkbench(forge: Forge) {
         },
         issuesByNumber: async (_, numbers) => {
           reads.rows++;
-          const { title, state, closedAs } = forge.issue!;
+          const { title, state, closedAs } = requireValue(forge.issue, 'the forge issue');
           return { ok: true, items: numbers.includes(3) ? [listedIssue(3, { title, state, closedAs })] : [] };
         },
         issueDetail: async () => {
           reads.issue++;
-          return { ok: true, issue: structuredClone(forge.issue!) };
+          return { ok: true, issue: structuredClone(requireValue(forge.issue, 'the forge issue')) };
         },
         pullRequestDetail: async () => {
           reads.pullRequest++;
-          return { ok: true, pullRequest: structuredClone(forge.pullRequest!) };
+          return { ok: true, pullRequest: structuredClone(requireValue(forge.pullRequest, 'the forge pull request')) };
         },
       },
       events.emit,
@@ -396,7 +397,7 @@ test('a repository that merges through a merge queue greys out merging and links
   await openPullRequest(forge);
   const merge = within(pullPane()).getByRole('button', { name: 'Merge' });
   assert.ok(merge.hasAttribute('disabled'));
-  const note = merge.parentElement!;
+  const note = requireValue(merge.parentElement, 'the merge note');
   assert.match(note.textContent ?? '', /This repository merges through a merge queue/);
   assert.equal(
     within(note).getByRole('link', { name: 'Open on GitHub ↗' }).getAttribute('href'),

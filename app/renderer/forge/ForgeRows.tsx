@@ -19,6 +19,7 @@ import {
 import type { DetailItem } from '../../shared/forge/sidebar-data';
 import { withoutShortcutModifier } from '../../shared/settings/shortcuts';
 import { VirtualRows, type VirtualRowsHost } from './VirtualRows';
+import { requireClosest, requireValue } from '../common/required';
 
 /** A list row's title is the button that opens its item; the row names its item in an attribute. */
 const rowTitleClass = 'forge-row-title',
@@ -48,8 +49,10 @@ export function listRowOf(element: Element) {
 
 /** The row title a key was pressed on without a modifier, if any: a list's keys act only from a row. */
 const keyedRowTitle = (event: React.KeyboardEvent) => {
-  const target = event.target as HTMLElement;
-  return target.matches(rowTitleSelector) && withoutShortcutModifier(event) ? target : null;
+  const { target } = event;
+  return target instanceof HTMLElement && target.matches(rowTitleSelector) && withoutShortcutModifier(event)
+    ? target
+    : null;
 };
 
 /** The keys of a list of rows, answered from the row focus is on: ↑/↓ move to the row above or below, without
@@ -171,15 +174,18 @@ export function IssueTree({
     const title = keyedRowTitle(event);
     if (!title || (event.key !== 'ArrowLeft' && event.key !== 'ArrowRight')) return;
     event.preventDefault();
-    const item = title.closest('li')!;
-    const { number } = issueRowOf(title)!;
+    const item = requireClosest(title, 'li');
+    const { number } = requireValue(issueRowOf(title), 'the issue row');
     const parent = !!item.querySelector(':scope > .forge-row .forge-progress-toggle');
     const isExpanded = parent && expanded.has(number);
     if (event.key === 'ArrowLeft') {
       if (isExpanded) rowTitleIn(item.querySelector(':scope > .forge-sub-issues .forge-row'))?.focus();
       else if (parent) setExpanded(set => flip(set, number));
     } else if (isExpanded) setExpanded(set => flip(set, number));
-    else rowTitleIn(item.parentElement!.closest('li')?.querySelector(':scope > .forge-row'))?.focus();
+    else
+      rowTitleIn(
+        requireValue(item.parentElement, 'the issue list').closest('li')?.querySelector(':scope > .forge-row'),
+      )?.focus();
   };
   return (
     <VirtualRows

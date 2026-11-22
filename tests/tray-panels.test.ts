@@ -4,6 +4,7 @@ import { mkdir } from 'node:fs/promises';
 import { join } from 'node:path';
 import { runsOf } from './support/panel-views';
 import { alive, interactiveWorkbench, until } from './support/interactive-workbench';
+import { firstCapture, pidOf } from './support/expected';
 
 const fixture = () => interactiveWorkbench('tray-panels');
 
@@ -24,7 +25,7 @@ test('directory restart restarts resident panels while tray panels keep their ru
       [project.panels[0].id],
     );
     assert.notEqual(result.launches[0].run.id, resident.id);
-    assert.equal(alive(resident.pid!), false);
+    assert.equal(alive(pidOf(resident)), false);
     const view = f.workbench.snapshot().projects[0];
     assert.deepEqual(
       view.tray.map(panel => [panel.id, panel.run?.id, panel.run?.state]),
@@ -49,9 +50,9 @@ test('deleting a project and quitting the Workbench both end tray panel runs', a
     await until(() => [deleted, quitting].every(run => f.output(run.id).includes('READY:')));
     await f.workbench.runs.input(deleted.id, 'orphan');
     await until(() => /ORPHAN:(\d+)/.test(f.output(deleted.id)));
-    const orphan = Number(f.output(deleted.id).match(/ORPHAN:(\d+)/)![1]);
+    const orphan = Number(firstCapture(f.output(deleted.id), /ORPHAN:(\d+)/));
     await f.workbench.deleteProject(project.id);
-    assert.equal(alive(deleted.pid!), false);
+    assert.equal(alive(pidOf(deleted)), false);
     assert.equal(alive(orphan), false);
     await assert.rejects(f.workbench.runs.input(deleted.id, 'stale'), /runInvalid/);
     assert.deepEqual(
@@ -59,7 +60,7 @@ test('deleting a project and quitting the Workbench both end tray panel runs', a
       [kept.id],
     );
     await f.workbench.quit();
-    assert.equal(alive(quitting.pid!), false);
+    assert.equal(alive(pidOf(quitting)), false);
   } finally {
     await f.close();
   }

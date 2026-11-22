@@ -1,9 +1,10 @@
 import test, { afterEach } from 'node:test';
 import assert from 'node:assert/strict';
 import { canFly } from '../app/renderer/workspace/tray-flight';
+import { fromPartial } from '@total-typescript/shoehorn';
 
 /** A panel that can animate, as an element in a browser can. */
-const animatable = { animate() {} } as unknown as Element;
+const animatable = fromPartial<Element>({ animate() {} });
 
 function prefersReducedMotion(reduced: boolean) {
   Object.assign(globalThis, {
@@ -11,7 +12,7 @@ function prefersReducedMotion(reduced: boolean) {
   });
 }
 afterEach(() => {
-  delete (globalThis as { matchMedia?: unknown }).matchMedia;
+  Reflect.deleteProperty(globalThis, 'matchMedia');
 });
 
 test('a tray panel flies between its card and the layout area while motion is not reduced', () => {

@@ -95,7 +95,7 @@ const validKey = (key: string) =>
 export function shortcutFormatError(binding: unknown): string | undefined {
   if (typeof binding !== 'string') return message('shortcutInvalid');
   const parts = binding.split('+'),
-    key = parts.pop()!;
+    key = parts.pop() ?? '';
   const modifiers = ['Command', 'Control', 'Alt', 'Shift'].filter(modifier => parts.includes(modifier));
   if (
     !validKey(key) ||

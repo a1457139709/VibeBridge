@@ -1,3 +1,4 @@
+import assert from 'node:assert/strict';
 import type { IssueDetailResult, ListFilter, PullRequestDetailResult } from '../../app/shared/forge/forge';
 import type { DetailItem, DetailResult, ForgeListTab, ForgeLists } from '../../app/shared/forge/sidebar-data';
 import type { Workbench } from '../../app/main/workbench';
@@ -11,7 +12,8 @@ export const day = (n: number) => new Date(Date.UTC(2026, 0, 1 + n)).toISOString
 
 /** Binds the project to the repository the forge lists at `path`, as picking it in the Forge sidebar does. */
 export async function bindListed(workbench: Workbench, projectId: string, path: string) {
-  const project = workbench.snapshot().projects.find(item => item.id === projectId)!;
+  const project = workbench.snapshot().projects.find(item => item.id === projectId);
+  assert.ok(project);
   const choices = await workbench.fetchRepositoryChoices(projectId, project.directory);
   const repository = choices.ok && choices.repositories.find(item => item.path === path);
   if (!repository) throw new Error(`The forge does not list ${path}`);
@@ -76,8 +78,18 @@ export async function shownDetail(
   return shown;
 }
 /** The issue the detail shows once the sidebar opens it. */
-export const issueDetail = (workbench: Workbench, projectId: string, number: number) =>
-  shownDetail(workbench, projectId, { kind: 'issue', number }) as Promise<IssueDetailResult>;
+export async function issueDetail(workbench: Workbench, projectId: string, number: number): Promise<IssueDetailResult> {
+  const result = await shownDetail(workbench, projectId, { kind: 'issue', number });
+  if ('pullRequest' in result) throw new Error(`The detail shows pull request ${number}`);
+  return result;
+}
 /** The pull request the detail shows once the sidebar opens it. */
-export const pullRequestDetail = (workbench: Workbench, projectId: string, number: number) =>
-  shownDetail(workbench, projectId, { kind: 'pullRequest', number }) as Promise<PullRequestDetailResult>;
+export async function pullRequestDetail(
+  workbench: Workbench,
+  projectId: string,
+  number: number,
+): Promise<PullRequestDetailResult> {
+  const result = await shownDetail(workbench, projectId, { kind: 'pullRequest', number });
+  if ('issue' in result) throw new Error(`The detail shows issue ${number}`);
+  return result;
+}

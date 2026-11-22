@@ -1,14 +1,17 @@
+import assert from 'node:assert/strict';
 import { mkdir } from 'node:fs/promises';
 import { resolve } from 'node:path';
 import { Workbench } from '../../app/main/workbench';
 import { runsOf } from '../support/panel-views';
+import { testNode } from '../support/test-node';
+import { firstCapture } from '../support/expected';
 
 void (async () => {
   const directory = process.argv[2];
   const workbench = await Workbench.open(directory);
   const settings = workbench.snapshot().settings;
   settings.agents.codex = {
-    command: process.env.VIBEBRIDGE_TEST_NODE!,
+    command: testNode,
     args: [resolve('tests/fixtures/interactive.cjs')],
   };
   await workbench.saveSettings(settings);
@@ -32,10 +35,11 @@ void (async () => {
     if (Date.now() > deadline) throw new Error('Fixture did not create orphan');
     await new Promise(resolve => setTimeout(resolve, 20));
   }
-  process.send!({
+  assert.ok(process.send, 'the fixture runs as a forked child');
+  process.send({
     snapshot: workbench.snapshot(),
-    host: Number(output.match(/HOST:(\d+)/)![1]),
-    orphan: Number(output.match(/ORPHAN:(\d+)/)![1]),
+    host: Number(firstCapture(output, /HOST:(\d+)/)),
+    orphan: Number(firstCapture(output, /ORPHAN:(\d+)/)),
   });
 })().catch(error => {
   console.error(error);

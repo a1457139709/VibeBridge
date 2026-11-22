@@ -15,6 +15,7 @@ import {
   sidebar,
   stubSidebarApis,
 } from './support/forge-lists';
+import { requireInstance } from './support/elements';
 
 // The sidebar keeps each project's rows between views and updates them in the background
 // (docs/adr/0008-forge-sidebar-data-lives-in-the-main-process.md).
@@ -51,7 +52,7 @@ test('search, state and labels are sent to the forge, each tab keeps its own, an
 
   await user.click(within(sidebar()).getByRole('tab', { name: 'Pull requests' }));
   assert.equal(
-    (within(sidebar()).getByRole('searchbox', { name: 'Search pull requests' }) as HTMLInputElement).value,
+    requireInstance(within(sidebar()).getByRole('searchbox', { name: 'Search pull requests' }), HTMLInputElement).value,
     '',
     'the other tab has its own filter',
   );
@@ -87,7 +88,10 @@ test('search, state and labels are sent to the forge, each tab keeps its own, an
     },
     'switching back updates the filter it showed',
   );
-  assert.equal((within(sidebar()).getByRole('searchbox', { name: 'Search issues' }) as HTMLInputElement).value, '#4');
+  assert.equal(
+    requireInstance(within(sidebar()).getByRole('searchbox', { name: 'Search issues' }), HTMLInputElement).value,
+    '#4',
+  );
   assert.ok(within(sidebar()).getByText(t('noMatchingIssues')), 'its kept rows show while they update');
   assert.equal(refresh().getAttribute('aria-busy'), 'true');
   alpha.answer(page([issue(4)]));

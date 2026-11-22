@@ -3,7 +3,11 @@ import assert from 'node:assert/strict';
 import { commandText, workflows } from '../app/shared/settings/workflows';
 
 const issue = { url: 'https://github.com/acme/app/issues/7', number: 7, title: 'Fix the {url} parser' };
-const command = (id: string) => workflows[0].commands.find(command => command.id === id)!;
+function command(id: string) {
+  const found = workflows[0].commands.find(command => command.id === id);
+  assert.ok(found, `the workflow has command ${id}`);
+  return found;
+}
 
 test('a command is written in the skill call syntax of each Agent type', () => {
   assert.equal(commandText('claude', command('to-spec'), issue), '/to-spec https://github.com/acme/app/issues/7');

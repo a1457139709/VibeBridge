@@ -8,6 +8,7 @@ import { codex } from '../agent-status/codex/status';
 import { claude } from '../agent-status/claude/status';
 import { pi } from '../agent-status/pi/status';
 import { message, nestedMessage } from '../../shared/messages';
+import { errorMessage } from '../../shared/caught-error';
 
 // CLI protocol differences stay behind this closed table.
 const adapters: Record<AgentType, StatusAdapter> = { codex, claude, pi };
@@ -62,7 +63,12 @@ export class ProcessingStatus {
     private resourceDirectory: string,
   ) {}
 
-  async prepare(runId: string, agent: AgentType, command: AgentCommand, directory: string) {
+  async prepare(
+    runId: string,
+    agent: AgentType,
+    command: AgentCommand,
+    directory: string,
+  ): Promise<{ command: AgentCommand; extraEnvironment: Record<string, string> }> {
     const observation: Observation = {
       agent,
       token: randomUUID(),
@@ -85,7 +91,7 @@ export class ProcessingStatus {
         },
       };
     } catch {
-      return { command, extraEnvironment: {} as Record<string, string> };
+      return { command, extraEnvironment: {} };
     } // Observation must never prevent a terminal launch.
   }
 
@@ -237,7 +243,7 @@ export class ProcessingStatus {
       throw new AggregateError(
         failures,
         message('statusCleanupFailed', {
-          reasons: failures.map(error => nestedMessage(error instanceof Error ? error.message : String(error))),
+          reasons: failures.map(error => nestedMessage(errorMessage(error))),
         }),
       );
   }

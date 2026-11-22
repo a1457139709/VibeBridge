@@ -3,6 +3,7 @@ import type { PanelView, ProjectView, Snapshot } from '../../shared/model';
 import { localize } from '../../shared/localization/localization';
 import type { ReportNotice } from '../common/Notices';
 import { focusTerminal, terminalHasFocus } from './terminals';
+import { errorMessage } from '../../shared/caught-error';
 
 // `selected` is always a resident panel. `maximized` is the one panel occupying the
 // layout area: a resident panel, or the open tray panel (its ephemeral maximize).
@@ -269,7 +270,7 @@ function createLocation(initial: Host, onViewChange: () => void) {
     } catch (error) {
       if (current === operation) {
         cancel();
-        host.report((error as Error).message);
+        host.report(errorMessage(error));
       }
     }
   }
@@ -375,9 +376,8 @@ function createLocation(initial: Host, onViewChange: () => void) {
     },
     /** Collapses the open tray panel, if any, back into the tray. */
     collapse(projectId: string) {
-      const current = view(project(projectId));
-      if (inTray(project(projectId), current.maximized))
-        applyPanelAction(projectId, current.maximized!, 'toggleMaximize');
+      const open = view(project(projectId)).maximized;
+      if (open && inTray(project(projectId), open)) applyPanelAction(projectId, open, 'toggleMaximize');
     },
     /** Opens a newly added tray panel; any open tray panel returns to the tray. The new panel
      * may not be in the snapshot yet, so the view is set without validation. */

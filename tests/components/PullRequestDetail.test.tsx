@@ -18,6 +18,7 @@ import { deferred, provideWorkbench } from './support/workbench';
 import { forgeSidebarData, workbenchEvents } from './support/forge-sidebar-data';
 import { githubCapabilities, githubView, githubRepository } from './support/forge';
 import { issue as listedIssue, pullRequest as listedPullRequest, stubSidebarApis } from './support/forge-lists';
+import { requireInstance, selectElement } from './support/elements';
 
 afterEach(cleanup);
 before(stubSidebarApis);
@@ -94,8 +95,8 @@ function renderWorkbench({
     projects: [project],
   };
   const requests: Request[] = [];
-  const ask = (kind: Request['kind'], number: number) => {
-    const answer = deferred<IssueDetailResult | PullRequestDetailResult>();
+  const ask = <Result extends IssueDetailResult | PullRequestDetailResult>(kind: Request['kind'], number: number) => {
+    const answer = deferred<Result>();
     requests.push({ kind, number, answer: answer.resolve });
     return answer.promise;
   };
@@ -124,10 +125,10 @@ function renderWorkbench({
           counts: { open: 1, closed: 0 },
         }),
         issueDetail: async (_, number) => {
-          const result = (await ask('issue', number)) as IssueDetailResult;
+          const result = await ask<IssueDetailResult>('issue', number);
           return result.ok ? { ...result, issue: { ...result.issue, closingPullRequests } } : result;
         },
-        pullRequestDetail: (_, number) => ask('pullRequest', number) as Promise<PullRequestDetailResult>,
+        pullRequestDetail: (_, number) => ask<PullRequestDetailResult>('pullRequest', number),
       },
       events.emit,
     ),
@@ -145,7 +146,7 @@ const sidebar = () => screen.getByRole('complementary', { name: 'GitHub' });
 const pane = () => within(sidebar()).getByRole('region', { name: 'Pull request detail' });
 const mergeArea = () => within(pane()).getByRole('region', { name: 'Merge requirements' });
 const rowOf = (name: string) =>
-  within(mergeArea()).getByText(name, { selector: 'b' }).closest('.forge-merge-row') as HTMLElement;
+  requireInstance(within(mergeArea()).getByText(name, { selector: 'b' }).closest('.forge-merge-row'), HTMLElement);
 
 /** Opens pull request #12 from the list and answers its detail. */
 async function openPullRequest(pullRequest: PullRequestDetail, options: Parameters<typeof renderWorkbench>[0] = {}) {
@@ -182,7 +183,7 @@ test('a pull request row opens its detail: title, state, head into base, the cha
   const doc = within(pane());
   assert.ok(doc.getByText('Open', { selector: '.forge-pill' }));
   assert.match(
-    pane().querySelector('.forge-pull-branches')!.textContent!,
+    selectElement('.forge-pull-branches', pane()).textContent ?? '',
     /^mona wants to merge feat\/detail into main · 2d ago$/,
   );
   assert.equal(
@@ -225,14 +226,9 @@ test('the body, comments and review summaries follow in time order, reviews with
     'hubot 3h agoRebased.',
     'alice Approved 2h agoLGTM',
   ]);
-  const code = pane().querySelector('.forge-code-comments')!;
-  assert.match(code.textContent!, /5 code comments/);
-  assert.equal(
-    within(code as HTMLElement)
-      .getByRole('link')
-      .getAttribute('href'),
-    `${repositoryUrl}/pull/12/files`,
-  );
+  const code = selectElement('.forge-code-comments', pane());
+  assert.match(code.textContent ?? '', /5 code comments/);
+  assert.equal(within(code).getByRole('link').getAttribute('href'), `${repositoryUrl}/pull/12/files`);
   assert.ok(!within(pane()).queryByRole('button', { name: /Approve/ }), 'no approve button');
 });
 
@@ -257,9 +253,9 @@ test('a blocked pull request lists its failing and running checks with their log
     ),
   ].map(name => name.textContent);
   assert.deepEqual(rows, ['Review', 'Checks', 'Conflicts', 'Draft'], 'in order: review, checks, conflicts, draft');
-  assert.match(rowOf('Review').textContent!, /Changes requested; needs another review/);
+  assert.match(rowOf('Review').textContent ?? '', /Changes requested; needs another review/);
   const checks = rowOf('Checks');
-  assert.match(checks.textContent!, /1 failed, 1 running, 3 passed/);
+  assert.match(checks.textContent ?? '', /1 failed, 1 running, 3 passed/);
   const listed = () => [...checks.querySelectorAll('.forge-merge-check')].map(item => item.textContent);
   assert.deepEqual(listed(), ['✗unit testsRequiredChecks failedLog ↗', '●e2eChecks runningLog ↗']);
   assert.equal(
@@ -274,17 +270,17 @@ test('a blocked pull request lists its failing and running checks with their log
   ]);
   await user.click(within(checks).getByRole('button', { name: 'Hide passed checks' }));
   assert.equal(listed().length, 2);
-  assert.match(rowOf('Conflicts').textContent!, /Conflicts with main; resolve them first/);
-  assert.match(rowOf('Draft').textContent!, /Can be merged once marked ready for review \(on GitHub\)/);
+  assert.match(rowOf('Conflicts').textContent ?? '', /Conflicts with main; resolve them first/);
+  assert.match(rowOf('Draft').textContent ?? '', /Can be merged once marked ready for review \(on GitHub\)/);
 });
 
 test('a pull request ready to merge shows an approved review, passing checks and no conflicts', async () => {
   await openPullRequest(
     detail(12, { review: { state: 'approved', requiredApprovals: 1 }, checks: [check('lint', 'passed')] }),
   );
-  assert.match(rowOf('Review').textContent!, /Approved/);
-  assert.match(rowOf('Checks').textContent!, /^✓Checks1 passed/);
-  assert.match(rowOf('Conflicts').textContent!, /No conflicts/);
+  assert.match(rowOf('Review').textContent ?? '', /Approved/);
+  assert.match(rowOf('Checks').textContent ?? '', /^✓Checks1 passed/);
+  assert.match(rowOf('Conflicts').textContent ?? '', /No conflicts/);
   assert.equal(within(mergeArea()).queryByText('Draft'), null);
 });
 
@@ -295,9 +291,9 @@ for (const [review, text] of [
 ] as const) {
   test(`a review ${review.state} with ${review.requiredApprovals ?? 'unknown'} required approvals reads: ${text}`, async () => {
     await openPullRequest(detail(12, { review, conflicts: 'unknown' }));
-    assert.match(rowOf('Review').textContent!, new RegExp(text));
-    assert.match(rowOf('Checks').textContent!, /No checks/);
-    assert.match(rowOf('Conflicts').textContent!, /Checking for conflicts/);
+    assert.match(rowOf('Review').textContent ?? '', new RegExp(text));
+    assert.match(rowOf('Checks').textContent ?? '', /No checks/);
+    assert.match(rowOf('Conflicts').textContent ?? '', /Checking for conflicts/);
   });
 }
 

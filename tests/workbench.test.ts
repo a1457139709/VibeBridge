@@ -7,6 +7,8 @@ import { Workbench } from '../app/main/workbench';
 import { testDirectory } from './support/directory';
 import type { WorkbenchEvent } from '../app/shared/model';
 import { runsOf, storedProjects } from './support/panel-views';
+import { testNode } from './support/test-node';
+import { pidOf } from './support/expected';
 
 async function until(check: () => boolean) {
   const deadline = Date.now() + 5000;
@@ -60,7 +62,7 @@ test('confirmed projects start independent runs in the selected directory and re
     const settings = workbench.snapshot().settings;
     for (const type of ['codex', 'claude', 'pi'] as const)
       settings.agents[type] = {
-        command: process.env.VIBEBRIDGE_TEST_NODE!,
+        command: testNode,
         args: [resolve('tests/fixtures/interactive.cjs')],
       };
     await workbench.saveSettings(settings);
@@ -114,7 +116,7 @@ test('quit cleans up runs and detached children while preserving the saved works
   try {
     const settings = workbench.snapshot().settings;
     settings.agents.codex = {
-      command: process.env.VIBEBRIDGE_TEST_NODE!,
+      command: testNode,
       args: [resolve('tests/fixtures/interactive.cjs')],
     };
     await workbench.saveSettings(settings);
@@ -149,7 +151,7 @@ test('quit cleans up runs and detached children while preserving the saved works
     await workbench.quit();
     await saving;
     assert.ok(Date.now() - quitStarted < 1800, 'cooperative runs should not wait for the two-second force deadline');
-    for (const pid of [...oldRuns.map(r => r.pid!), childPid]) assert.throws(() => process.kill(pid, 0));
+    for (const pid of [...oldRuns.map(pidOf), childPid]) assert.throws(() => process.kill(pid, 0));
     workbench = await Workbench.open(dataDirectory);
     assert.equal(workbench.snapshot().activeProjectId, project.id);
     assert.deepEqual(workbench.snapshot().projects[0].layout, layout);
@@ -176,7 +178,7 @@ test('the panel limit counts resident and tray panels together, and a failed lau
   try {
     const settings = workbench.snapshot().settings;
     settings.agents.pi = {
-      command: process.env.VIBEBRIDGE_TEST_NODE!,
+      command: testNode,
       args: [resolve('tests/fixtures/interactive.cjs')],
     };
     await workbench.saveSettings(settings);

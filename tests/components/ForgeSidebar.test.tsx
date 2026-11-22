@@ -13,6 +13,8 @@ import { stubLayoutApis } from './support/no-layout';
 import { provideWorkbench } from './support/workbench';
 import { forgeSidebarData, type ForgeAnswers } from './support/forge-sidebar-data';
 import { githubForge, githubView, githubRepository } from './support/forge';
+import { requireValue } from '../../app/renderer/common/required';
+import { requireInstance, selectElement } from './support/elements';
 
 afterEach(cleanup);
 before(() => {
@@ -113,7 +115,8 @@ const shownSidebar = () =>
     assert.ok(element, 'the sidebar is shown');
     return element;
   });
-const toggle = () => document.querySelector('.system-bar')!.lastElementChild as HTMLButtonElement;
+const openedSidebar = () => requireValue(sidebar(), 'the opened sidebar');
+const toggle = () => requireInstance(selectElement('.system-bar').lastElementChild, HTMLButtonElement);
 
 test('the button at the right end of the system bar opens the sidebar for the current project, with focus inside, and closes it', async () => {
   const { user, saved } = renderWorkbench();
@@ -126,7 +129,7 @@ test('the button at the right end of the system bar opens the sidebar for the cu
   assert.equal(toggle().textContent, '', 'the toggle shows no count');
   assert.equal(sidebar(), null);
   await user.click(toggle());
-  const opened = sidebar()!;
+  const opened = openedSidebar();
   assert.ok(within(opened).getByText('octo/bound'));
   assert.ok(opened.contains(document.activeElement), 'focus moves into the sidebar');
   assert.equal(toggle().getAttribute('aria-label'), 'Hide the GitHub sidebar');
@@ -141,10 +144,10 @@ test('the button at the right end of the system bar opens the sidebar for the cu
 test('Command+Alt+B opens the sidebar with focus inside wherever focus is, and closes it when open', async () => {
   const { user, saved } = renderWorkbench();
   await screen.findByRole('button', { name: 'Show the GitHub sidebar' });
-  document.querySelector<HTMLElement>('.xterm-helper-textarea')!.focus();
+  selectElement('.xterm-helper-textarea').focus();
   await user.keyboard('{Meta>}{Alt>}b{/Alt}{/Meta}');
-  assert.ok(sidebar()!.contains(document.activeElement));
-  document.querySelector<HTMLElement>('.xterm-helper-textarea')!.focus();
+  assert.ok(openedSidebar().contains(document.activeElement));
+  selectElement('.xterm-helper-textarea').focus();
   await user.keyboard('{Meta>}{Alt>}b{/Alt}{/Meta}');
   assert.equal(sidebar(), null);
   await waitFor(() =>
@@ -157,7 +160,7 @@ test('Command+Alt+B opens the sidebar with focus inside wherever focus is, and c
 
 /** The width a region is drawn at, as the app body hands it to the region's CSS. */
 const drawnWidth = (region: 'navigation' | 'forge-sidebar') =>
-  document.querySelector<HTMLElement>('.app-body')!.style.getPropertyValue(`--${region}-width`);
+  selectElement('.app-body').style.getPropertyValue(`--${region}-width`);
 function resizeWindow(width: number) {
   Object.defineProperty(window, 'innerWidth', { configurable: true, value: width });
   act(() => void window.dispatchEvent(new Event('resize')));
@@ -168,11 +171,11 @@ test('the sidebar follows the current project and stays on the settings page', a
   assert.ok(within(await shownSidebar()).getByText('octo/bound'));
   assert.equal(drawnWidth('forge-sidebar'), '420px');
   await user.click(screen.getByRole('button', { name: 'Unbound project' }));
-  await waitFor(() => assert.ok(within(sidebar()!).getByText('No repository bound')));
-  assert.equal(within(sidebar()!).queryByText('octo/bound'), null);
+  await waitFor(() => assert.ok(within(openedSidebar()).getByText('No repository bound')));
+  assert.equal(within(openedSidebar()).queryByText('octo/bound'), null);
   await user.click(screen.getByRole('button', { name: 'Global settings' }));
   await screen.findByRole('button', { name: '‹ Back' });
-  assert.ok(within(sidebar()!).getByText('No repository bound'));
+  assert.ok(within(openedSidebar()).getByText('No repository bound'));
 });
 
 test('a narrower window draws the sidebar narrower without changing its remembered width, and a wider one restores it', async t => {
@@ -209,7 +212,10 @@ async function unboundSidebar(choices: () => Promise<RepositoryChoices>, bind?: 
       bindRepository: async (id, repository) => {
         binds.push([id, repository]);
         await bind?.();
-        rendered.snapshot.projects.find(item => item.id === id)!.repository = repository;
+        requireValue(
+          rendered.snapshot.projects.find(item => item.id === id),
+          `project ${id}`,
+        ).repository = repository;
         rendered.publish();
       },
     },
@@ -229,8 +235,8 @@ test('an unbound project whose origin points at a listed repository offers to bi
   assert.equal(within(opened).queryByRole('button', { name: 'Undo' }), null);
   await user.click(bind);
   assert.deepEqual(binds, [['unbound', githubRepository('octo/unbound')]]);
-  await waitFor(() => assert.ok(within(sidebar()!).getByText('octo/unbound', { selector: 'header *' })));
-  assert.ok(within(sidebar()!).getByRole('button', { name: 'Change binding' }), 'the bound lists show');
+  await waitFor(() => assert.ok(within(openedSidebar()).getByText('octo/unbound', { selector: 'header *' })));
+  assert.ok(within(openedSidebar()).getByRole('button', { name: 'Change binding' }), 'the bound lists show');
 });
 
 test('Choose another repository… lists origin first and picked, Bind Y binds the one picked, and Back returns focus to the origin card', async () => {
@@ -264,7 +270,10 @@ test('Choose another repository… lists origin first and picked, Bind Y binds t
 test('from the search box ↑/↓ move through the listed repositories, Enter or Space picks the one reached, and picking with the pointer keeps focus there', async () => {
   const { user, opened } = await unboundSidebar(async () => listed('octo/unbound'));
   await user.click(await within(opened).findByRole('button', { name: 'Choose another repository…' }));
-  const search = (await within(opened).findByRole('searchbox', { name: 'Search repositories' })) as HTMLInputElement;
+  const search = requireInstance(
+    await within(opened).findByRole('searchbox', { name: 'Search repositories' }),
+    HTMLInputElement,
+  );
   const reached = () => document.getElementById(search.getAttribute('aria-activedescendant') ?? '')?.dataset.path;
   const picked = () =>
     within(opened)
@@ -307,7 +316,7 @@ test('without an origin on the list, the list shows with nothing picked and Bind
     ),
   );
   assert.equal(within(opened).queryByRole('option', { selected: true }), null);
-  assert.equal((within(opened).getByRole('button', { name: 'Bind' }) as HTMLButtonElement).disabled, true);
+  assert.equal(requireInstance(within(opened).getByRole('button', { name: 'Bind' }), HTMLButtonElement).disabled, true);
   await user.click(within(opened).getByRole('option', { name: 'octo/tools' }));
   await user.click(within(opened).getByRole('button', { name: 'Bind octo/tools' }));
   assert.deepEqual(binds, [['unbound', githubRepository('octo/tools')]]);
@@ -318,13 +327,18 @@ test('a list that fails after a pick binds nothing: Bind is unavailable until th
     listed(null),
     { ok: false, failure: { kind: 'transient', detail: 'HTTP 502', forge: githubForge } },
   ];
-  const { user, binds, opened, snapshot, publish } = await unboundSidebar(async () => answers.shift()!);
+  const { user, binds, opened, snapshot, publish } = await unboundSidebar(async () =>
+    requireValue(answers.shift(), 'a repository list answer'),
+  );
   await user.click(await within(opened).findByRole('option', { name: 'octo/tools' }));
   assert.ok(within(opened).getByRole('button', { name: 'Bind octo/tools' }));
-  snapshot.projects.find(item => item.id === 'unbound')!.directory = '/elsewhere';
+  requireValue(
+    snapshot.projects.find(item => item.id === 'unbound'),
+    'the unbound project',
+  ).directory = '/elsewhere';
   publish();
   await within(opened).findByText('Could not read the repository list: HTTP 502');
-  assert.equal((within(opened).getByRole('button', { name: 'Bind' }) as HTMLButtonElement).disabled, true);
+  assert.equal(requireInstance(within(opened).getByRole('button', { name: 'Bind' }), HTMLButtonElement).disabled, true);
   assert.deepEqual(binds, []);
 });
 
@@ -335,7 +349,7 @@ test('a forge failure takes the place of the list with its reason and Retry, and
     { ok: false, failure: { kind: 'transient', detail: 'HTTP 502', forge: githubForge } },
     listed(null),
   ];
-  const { user, opened } = await unboundSidebar(async () => answers.shift()!);
+  const { user, opened } = await unboundSidebar(async () => requireValue(answers.shift(), 'a repository list answer'));
   for (const reason of [
     'Could not find gh; install it to bind a repository.',
     'gh is logged out. Run gh auth login, then retry.',
@@ -364,7 +378,7 @@ test('a bind whose list check fails writes nothing, says why in place, and can b
   assert.ok(within(opened).getByText('No repository bound'), 'the project is still unbound');
   fail = false;
   await user.click(within(opened).getByRole('button', { name: 'Bind octo/unbound' }));
-  await waitFor(() => assert.ok(within(sidebar()!).getByText('octo/unbound', { selector: 'header *' })));
+  await waitFor(() => assert.ok(within(openedSidebar()).getByText('octo/unbound', { selector: 'header *' })));
   assert.equal(binds.length, 2);
 });
 
@@ -378,7 +392,7 @@ test("Edit project's link on a bound project closes the dialog and opens the sid
   const { user } = renderWorkbench();
   const dialog = await editProject(user, 'Bound project');
   assert.equal(
-    dialog.querySelector('.repository-current')!.textContent,
+    selectElement('.repository-current', dialog).textContent,
     'octo/boundChange or unbind in the GitHub sidebar',
   );
   await user.click(within(dialog).getByRole('button', { name: 'Change or unbind in the GitHub sidebar' }));
@@ -392,7 +406,7 @@ test("Edit project's link on a bound project closes the dialog and opens the sid
 test("Edit project's link on an unbound project makes it current and opens the sidebar on its unbound state", async () => {
   const { user, snapshot } = renderWorkbench();
   const dialog = await editProject(user, 'Unbound project');
-  assert.equal(dialog.querySelector('.repository-current')!.textContent, 'Not boundBind in the GitHub sidebar');
+  assert.equal(selectElement('.repository-current', dialog).textContent, 'Not boundBind in the GitHub sidebar');
   await user.click(within(dialog).getByRole('button', { name: 'Bind in the GitHub sidebar' }));
   await waitFor(() => assert.equal(screen.queryByRole('dialog'), null));
   await waitFor(() => assert.equal(snapshot.activeProjectId, 'unbound'));

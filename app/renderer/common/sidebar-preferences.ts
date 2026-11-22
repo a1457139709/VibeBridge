@@ -1,7 +1,9 @@
 import { useLayoutEffect, useRef, useState, type PointerEvent } from 'react';
 import type { DesktopAPI } from '../../shared/api';
 import { sidebars, type Sidebar, type SidebarPreferences, type Snapshot } from '../../shared/model';
+import { errorMessage } from '../../shared/caught-error';
 import { capturePointer } from './pointer-capture';
+import { requireValue } from './required';
 import { draggedWidth, type WidestOnResize } from './region-widths';
 
 interface Options {
@@ -80,7 +82,7 @@ export function useSidebarPreferences(options: Options) {
         pending.current = undefined;
         settled.current = stored.current;
         setPreferences(settled.current);
-        latest.current.report(error.message);
+        latest.current.report(errorMessage(error));
       });
   }
   /** Shows or hides the sidebar; returns whether it is now visible. */
@@ -103,7 +105,7 @@ export function useSidebarPreferences(options: Options) {
     const base = settled.current;
     const element = event.currentTarget,
       start = event.clientX;
-    const width = element.parentElement!.getBoundingClientRect().width;
+    const width = requireValue(element.parentElement, 'the sidebar').getBoundingClientRect().width;
     let next = bounded(width);
     const move = (pointer: globalThis.PointerEvent) => {
       next = bounded(width + edge * (pointer.clientX - start));

@@ -4,6 +4,7 @@ import type { ProjectView } from '../../shared/model';
 import { sameRepository, type RepositoryReference } from '../../shared/forge/forge';
 import type { ShownRepositoryChoices } from '../../shared/forge/sidebar-data';
 import { RepositoryList } from './RepositoryList';
+import { errorMessage } from '../../shared/caught-error';
 import './sidebar-binding.css';
 
 /** The repositories the project can bind, as the main process pushes them once this page declares it shows them;
@@ -15,7 +16,7 @@ function useShownRepositoryChoices({ id: projectId, directory, forge }: ProjectV
   const show = () =>
     void window.workbench
       .showRepositoryChoices(projectId)
-      .catch((error: Error) => setChoices({ ok: false, failure: { kind: 'transient', detail: error.message, forge } }));
+      .catch(error => setChoices({ ok: false, failure: { kind: 'transient', detail: errorMessage(error), forge } }));
   useEffect(() => {
     setChoices(null);
     const stop = window.workbench.subscribe(event => {
@@ -53,7 +54,7 @@ function useBindingCall() {
         await call();
         onSucceeded?.();
       } catch (failure) {
-        setError((failure as Error).message);
+        setError(errorMessage(failure));
       } finally {
         setBusy(false);
       }

@@ -19,11 +19,14 @@ const thirtyIssues: GhIssue[] = Array.from({ length: 30 }, (_, index) => ({
 /** What each `gh` call asked of GitHub: a search, the items it read by number, or one item's detail. */
 const asked = (calls: string[][]) =>
   calls.map(args => {
-    const query = args.find(arg => arg.startsWith('query='))!;
+    const query = args.find(arg => arg.startsWith('query='));
+    assert.ok(query, 'every call sends a query');
     if (args.some(arg => arg.startsWith('search='))) return 'search';
     const read = [...query.matchAll(/(issue|pullRequest)\(number: (\d+)\)/g)];
     if (read.length) return `${read[0][1]} ${read.map(match => match[2]).join(',')}`;
-    return `detail ${args.find(arg => arg.startsWith('number='))!.slice('number='.length)}`;
+    const number = args.find(arg => arg.startsWith('number='));
+    assert.ok(number, 'a detail read names its number');
+    return `detail ${number.slice('number='.length)}`;
   });
 
 /** The sidebar shows the project, its window behind the others: no update runs until the window comes to the front. */
@@ -53,7 +56,8 @@ test('a background update searches the first page again and reads the visible ro
       f.workbench.forgeSidebar.reportPresence(inFront(f.projectId)),
     );
     assert.deepEqual((await double.calls().then(asked)).sort(), ['issue 3,2,1', 'search']);
-    const rows = lists.issues.loaded!.items;
+    assert.ok(lists.issues.loaded);
+    const rows = lists.issues.loaded.items;
     assert.equal(rows.length, 30, 'no row is dropped');
     assert.deepEqual(
       rows.slice(-3).map(({ number, title, state, closedAs }) => ({ number, title, state, closedAs })),

@@ -15,6 +15,7 @@ import {
 import { ProcessingStatus, type SessionReceiver } from './processing-status';
 import { sessionTitle } from './session-title';
 import { TerminalClient } from './terminal-client';
+import { errorMessage } from '../../shared/caught-error';
 
 export type Terminal = Pick<
   TerminalClient,
@@ -130,7 +131,9 @@ export class RunSupervision {
       }
       if (event.kind === 'title') {
         // Agents animate a spinner in the terminal title while busy; only a new session title is a change.
-        const title = sessionTitle(this.expectedRuns.get(run.panelId)!.agent, event.title);
+        const expected = this.expectedRuns.get(run.panelId);
+        if (!expected) return;
+        const title = sessionTitle(expected.agent, event.title);
         if (title === run.title) return;
         if (title) run.title = title;
         else delete run.title;
@@ -177,7 +180,7 @@ export class RunSupervision {
         outcome: 'unconfirmed',
         run: structuredClone(run),
         agent: panel.agent,
-        reason: message('launchUnconfirmed', { reason: nestedMessage((error as Error).message) }),
+        reason: message('launchUnconfirmed', { reason: nestedMessage(errorMessage(error)) }),
       };
     }
   }
@@ -196,7 +199,7 @@ export class RunSupervision {
         failures.push(
           message('panelFailure', {
             number: ids.indexOf(run.panelId) + 1,
-            reason: nestedMessage((error as Error).message),
+            reason: nestedMessage(errorMessage(error)),
           }),
         );
       }
