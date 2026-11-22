@@ -1,8 +1,5 @@
 import { useLocalization } from '../common/Localization';
-import type { Settings } from '../../shared/model';
-
-/** The languages the select offers, one per option. */
-const languages = ['en', 'zh-CN'] as const satisfies readonly Settings['language'][];
+import { languages, type Settings } from '../../shared/model';
 
 export function GeneralSettings({
   language,

@@ -42,8 +42,12 @@ export type AgentCommand = {
   command: string;
   args: string[];
 };
-export type DefaultLayout = 'auto' | 'row' | 'column';
-export type Language = 'en' | 'zh-CN';
+/** The layouts a project's panels can start in, as the settings offer them. */
+export const defaultLayouts = ['auto', 'row', 'column'] as const;
+export type DefaultLayout = (typeof defaultLayouts)[number];
+/** The interface languages, as the settings offer them. */
+export const languages = ['en', 'zh-CN'] as const;
+export type Language = (typeof languages)[number];
 /** Whether the open forge sidebar squeezes the layout area or overlays it. */
 export type SidebarCoexistence = 'squeeze' | 'overlay';
 /** Whether an open issue or pull request detail overlays the layout area or squeezes it. */

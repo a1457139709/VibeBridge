@@ -1,6 +1,6 @@
 import { z } from 'zod';
 import { message } from '../messages';
-import { agentNames, agentTypes, type AgentType, type Settings } from '../model';
+import { agentNames, agentTypes, defaultLayouts, languages, type AgentType, type Settings } from '../model';
 import { defaultDelivery, defaultWorkflowSettings, deliveries, workflows } from './workflows';
 import {
   defaultShortcuts,
@@ -49,10 +49,10 @@ function settingsSchema(reading: boolean) {
   const object = <T extends z.ZodRawShape>(shape: T, error: string) => z.looseObject(shape, { error });
   return z.looseObject(
     {
-      language: field(z.enum(['en', 'zh-CN'], { error: message('languageInvalid') }), defaults.language),
+      language: field(z.enum(languages, { error: message('languageInvalid') }), defaults.language),
       theme: field(z.enum(['system', 'dark', 'light'], { error: message('themeInvalid') }), defaults.theme),
       defaultLayout: field(
-        z.enum(['auto', 'row', 'column'], { error: message('layoutPreferenceInvalid') }),
+        z.enum(defaultLayouts, { error: message('layoutPreferenceInvalid') }),
         defaults.defaultLayout,
       ),
       sidebarCoexistence: field(

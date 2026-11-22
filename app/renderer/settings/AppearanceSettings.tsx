@@ -1,8 +1,5 @@
 import { useLocalization } from '../common/Localization';
-import type { Settings } from '../../shared/model';
-
-/** The layouts the default layout select offers, one per option. */
-const defaultLayouts = ['auto', 'row', 'column'] as const satisfies readonly Settings['defaultLayout'][];
+import { defaultLayouts, type Settings } from '../../shared/model';
 
 export function AppearanceSettings({
   draft,
