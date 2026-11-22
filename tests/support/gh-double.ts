@@ -63,6 +63,7 @@ export interface GhState {
   pullRequests?: GhPullRequest[];
   labels?: { name: string; color: string }[];
   mergeMethods?: { merge?: boolean; squash?: boolean; rebase?: boolean };
+  defaultMergeMethod?: 'MERGE' | 'SQUASH' | 'REBASE';
   permission?: 'ADMIN' | 'MAINTAIN' | 'WRITE' | 'TRIAGE' | 'READ';
   answerOnceAsked?: number;
   failure?: { code: number; stdout?: string; stderr?: string };

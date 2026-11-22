@@ -134,6 +134,7 @@ test('a pull request detail says what stands between it and a merge: the review,
   await ghDouble(context, {
     ...forgeAccount,
     mergeMethods: { merge: false, squash: true, rebase: true },
+    defaultMergeMethod: 'REBASE',
     pullRequests: [
       change(12, {
         reviewDecision: 'CHANGES_REQUESTED',
@@ -178,7 +179,7 @@ test('a pull request detail says what stands between it and a merge: the review,
       [
         { state: 'changesRequested', requiredApprovals: 2 },
         'conflicting',
-        { methods: ['squash', 'rebase'], queue: true },
+        { methods: ['squash', 'rebase'], defaultMethod: 'rebase', queue: true },
       ],
     );
     const ready = await detail(13);

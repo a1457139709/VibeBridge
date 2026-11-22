@@ -45,6 +45,7 @@ const pullRequestDetailSchema = z.object({
     mergeCommitAllowed: z.boolean(),
     squashMergeAllowed: z.boolean(),
     rebaseMergeAllowed: z.boolean(),
+    viewerDefaultMergeMethod: z.enum(['MERGE', 'SQUASH', 'REBASE']),
     pullRequest: z.object({
       number: z.number(),
       title: z.string(),
@@ -92,7 +93,7 @@ const pullRequestDetailSchema = z.object({
   }),
 });
 const pullRequestDetailQuery = `query($owner: String!, $name: String!, $number: Int!) {
-  repository(owner: $owner, name: $name) { ${answeringFields} url viewerPermission mergeCommitAllowed squashMergeAllowed rebaseMergeAllowed pullRequest(number: $number) {
+  repository(owner: $owner, name: $name) { ${answeringFields} url viewerPermission mergeCommitAllowed squashMergeAllowed rebaseMergeAllowed viewerDefaultMergeMethod pullRequest(number: $number) {
     number title state isDraft createdAt url bodyHTML author { login } headRefName baseRefName
     labels(first: 20) { nodes { name color } }
     closingIssuesReferences(first: ${relatedLimit}) { nodes { ${issueReferenceFields} } }
@@ -111,6 +112,7 @@ const reviewDecision = {
   REVIEW_REQUIRED: 'required',
 } as const;
 const conflicts = { MERGEABLE: 'none', CONFLICTING: 'conflicting', UNKNOWN: 'unknown' } as const;
+const mergeMethod = { MERGE: 'merge', SQUASH: 'squash', REBASE: 'rebase' } as const;
 const checkRunResult = (status: string, conclusion: string | null): Check['result'] =>
   status !== 'COMPLETED' || conclusion === null
     ? 'pending'
@@ -199,6 +201,7 @@ export async function fetchPullRequestDetail(
       )
         .filter(([, allowed]) => allowed)
         .map(([method]) => method),
+      defaultMethod: mergeMethod[repository.viewerDefaultMergeMethod],
       queue: pull.isMergeQueueEnabled,
     },
     canWrite: canWrite(repository.viewerPermission),

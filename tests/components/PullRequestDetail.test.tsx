@@ -43,7 +43,7 @@ const detail = (number: number, extra: Partial<PullRequestDetail> = {}): PullReq
     review: { state: 'notRequired', requiredApprovals: null },
     checks: [],
     conflicts: 'none',
-    mergeOptions: { methods: ['merge', 'squash', 'rebase'], queue: false },
+    mergeOptions: { methods: ['merge', 'squash', 'rebase'], defaultMethod: 'merge', queue: false },
     canWrite: true,
     ...extra,
   };
