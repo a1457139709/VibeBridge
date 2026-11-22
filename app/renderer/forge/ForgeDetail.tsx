@@ -19,7 +19,7 @@ import type {
 import type { DetailItem, ShownDetail } from '../../shared/forge/sidebar-data';
 import type { ProjectView } from '../../shared/model';
 import { linkedItem } from './ForgeDisplay';
-import { idleActions, type Actions, type ActionState, type MergeMethodMemory } from './DirectActions';
+import { idleActions, type Actions, type ActionState } from './DirectActions';
 import { IssueDocument, type IssueDispatch } from './IssueDetail';
 import { PullRequestDocument } from './PullRequestDetail';
 import { withoutShortcutModifier } from '../../shared/settings/shortcuts';
@@ -37,7 +37,6 @@ interface Props {
   reportChanged(item: DetailItem): void;
   showForgeFailure(failure: ForgeFailure): void;
   issueDispatch(issue: IssueDetail): IssueDispatch;
-  mergeMethodMemory: MergeMethodMemory;
 }
 
 const kindText = {
@@ -57,7 +56,6 @@ export function ForgeDetailPane({
   reportChanged,
   showForgeFailure,
   issueDispatch,
-  mergeMethodMemory,
 }: Props) {
   const { t, text } = useLocalization();
   const [loaded, setLoaded] = useState<ShownDetail | null>(null);
@@ -114,7 +112,6 @@ export function ForgeDetailPane({
   };
   const actions: Actions = {
     ...actionState,
-    ...mergeMethodMemory,
     perform: action => void perform(action),
     dismiss: () => setActionState(state => ({ ...state, failed: null })),
   };

@@ -27,7 +27,6 @@ import { latestLocatableRecord } from '../../shared/dispatch';
 import type { IssueShortcutAction } from '../../shared/settings/shortcuts';
 import { errorMessage } from '../../shared/caught-error';
 import { ForgeDetailPane } from './ForgeDetail';
-import type { MergeMethodMemory } from './DirectActions';
 import type { IssueDispatch } from './IssueDetail';
 import { FilterBar } from './ForgeFilterBar';
 import { DispatchButton, holdsDispatch, type DispatchHost } from '../dispatch/DispatchMenu';
@@ -99,7 +98,7 @@ export const openListsView: ListsView = {
   filters: { issues: openNoFilter, pullRequests: openNoFilter },
 };
 
-export interface DetailHost extends MergeMethodMemory {
+export interface DetailHost {
   startResize(event: ReactPointerEvent<HTMLDivElement>): void;
   onDetailOpenChange(open: boolean): void;
 }
@@ -431,7 +430,6 @@ export function ForgeLists({ project, changeBinding, detailHost, dispatchHost, v
           reportChanged={reportChanged}
           showForgeFailure={showForgeFailure}
           issueDispatch={issueDispatch}
-          mergeMethodMemory={detailHost}
         />
       )}
     </>

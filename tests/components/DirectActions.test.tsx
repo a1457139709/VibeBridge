@@ -320,7 +320,7 @@ test('with no write access to the repository, a detail shows no action buttons',
   assert.deepEqual(mergeButtons(), []);
 });
 
-test('the method menu lists only the methods the repository allows and remembers the last one chosen until the Workbench restarts', async () => {
+test('the method menu lists only the methods the repository allows, and a pull request opened again starts from its first method', async () => {
   const forge: Forge = {
     pullRequest: pullDetail(12, { mergeOptions: { methods: ['squash', 'rebase'], queue: false } }),
   };
@@ -342,11 +342,7 @@ test('the method menu lists only the methods the repository allows and remembers
   forge.pullRequest = pullDetail(12);
   await user.click(within(pullPane()).getByRole('button', { name: 'Close' }));
   await user.click(await within(sidebar()).findByRole('button', { name: 'Read-only detail' }));
-  await within(pullPane()).findByRole('button', { name: 'Rebase and merge' });
-  cleanup();
-
-  await openPullRequest(forge);
-  within(pullPane()).getByRole('button', { name: 'Create a merge commit' });
+  await within(pullPane()).findByRole('button', { name: 'Create a merge commit' });
 });
 
 test('merging takes two clicks in place: the method, then its confirmation', async () => {
