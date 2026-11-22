@@ -41,13 +41,14 @@ import {
 } from './forge/results';
 import { Dispatches, type DispatchRecord } from './dispatch';
 import type { DispatchRequest } from '../shared/dispatch';
+import { errorMessage } from '../shared/error-message';
 
 export class WorkbenchOpenError extends Error {
   constructor(
     error: unknown,
     readonly language: Language,
   ) {
-    super(error instanceof Error ? error.message : String(error), { cause: error });
+    super(errorMessage(error), { cause: error });
   }
 }
 
@@ -125,7 +126,7 @@ export class Workbench {
     try {
       settings = await settingsFile.read();
     } catch (error) {
-      errors.push((error as Error).message);
+      errors.push(errorMessage(error));
     }
     let store: ProjectStore | undefined;
     try {
@@ -290,7 +291,7 @@ export class Workbench {
   private follow(projectId: string, found: RepositoryReference) {
     void this.operation(async () => {
       if (await this.bindings.follow(projectId, found)) this.publishSnapshot();
-    }).catch(error => this.reportError((error as Error).message));
+    }).catch(error => this.reportError(errorMessage(error)));
   }
   /** Dispatches an issue of the project's bound repository with a command of an enabled workflow to one of its panels
    * that has a run, or to a new panel that joins its tray, and records the dispatch on the session that takes it. */

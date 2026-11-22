@@ -5,6 +5,7 @@ import type { AgentCommand, Run, TerminalEvent } from '../shared/model';
 import { readLoginEnvironment, resolveExecutable } from './environment';
 import { ownedProcessTree, readProcessTable, stopProcesses, type ProcessIdentity } from './processes';
 import { recordFailure } from './failure';
+import { errorMessage } from '../shared/error-message';
 
 interface ManagedRun {
   run: Run;
@@ -98,7 +99,7 @@ async function performOperation(operation: string, value: any) {
     } catch (error) {
       return {
         available: false,
-        message: message('commandUnavailable', { reason: nestedMessage((error as Error).message) }),
+        message: message('commandUnavailable', { reason: nestedMessage(errorMessage(error)) }),
       };
     }
   }
@@ -198,7 +199,7 @@ process.on('message', (message: any) => {
     try {
       send({ id: message.id, result: await performOperation(message.operation, message.value) });
     } catch (error) {
-      send({ id: message.id, error: (error as Error).message });
+      send({ id: message.id, error: errorMessage(error) });
     }
     if (message.operation === 'shutdown' && process.connected) process.disconnect!();
   });

@@ -8,6 +8,7 @@ import { codex } from '../agent-status/codex/status';
 import { claude } from '../agent-status/claude/status';
 import { pi } from '../agent-status/pi/status';
 import { message, nestedMessage } from '../../shared/messages';
+import { errorMessage } from '../../shared/error-message';
 
 // CLI protocol differences stay behind this closed table.
 const adapters: Record<AgentType, StatusAdapter> = { codex, claude, pi };
@@ -237,7 +238,7 @@ export class ProcessingStatus {
       throw new AggregateError(
         failures,
         message('statusCleanupFailed', {
-          reasons: failures.map(error => nestedMessage(error instanceof Error ? error.message : String(error))),
+          reasons: failures.map(error => nestedMessage(errorMessage(error))),
         }),
       );
   }

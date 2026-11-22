@@ -3,6 +3,7 @@ import type { PanelView, ProjectView, Snapshot } from '../../shared/model';
 import { localize } from '../../shared/localization/localization';
 import type { ReportNotice } from '../common/Notices';
 import { focusTerminal, terminalHasFocus } from './terminals';
+import { errorMessage } from '../../shared/error-message';
 
 // `selected` is always a resident panel. `maximized` is the one panel occupying the
 // layout area: a resident panel, or the open tray panel (its ephemeral maximize).
@@ -269,7 +270,7 @@ function createLocation(initial: Host, onViewChange: () => void) {
     } catch (error) {
       if (current === operation) {
         cancel();
-        host.report((error as Error).message);
+        host.report(errorMessage(error));
       }
     }
   }

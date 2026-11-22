@@ -23,6 +23,7 @@ import { idleActions, type Actions, type ActionState } from './DirectActions';
 import { IssueDocument, type IssueDispatch } from './IssueDetail';
 import { PullRequestDocument } from './PullRequestDetail';
 import { withoutShortcutModifier } from '../../shared/settings/shortcuts';
+import { errorMessage } from '../../shared/error-message';
 
 interface Props {
   project: ProjectView & { repository: RepositoryReference };
@@ -121,7 +122,7 @@ export function ForgeDetailPane({
     } catch (error) {
       result = {
         ok: false,
-        failure: { kind: 'transient', detail: text((error as Error).message), forge: project.forge },
+        failure: { kind: 'transient', detail: text(errorMessage(error)), forge: project.forge },
       };
     }
     if (shownItem.current.kind !== kind || shownItem.current.number !== number) return;

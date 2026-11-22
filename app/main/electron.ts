@@ -6,6 +6,7 @@ import type { Language } from '../shared/model';
 import { localize } from '../shared/localization/localization';
 import { message } from '../shared/messages';
 import { readLoginEnvironment } from '../terminal/environment';
+import { errorMessage } from '../shared/error-message';
 
 app.setName('VibeBridge');
 // Also permits isolated local acceptance runs without touching the user's projects.
@@ -86,7 +87,7 @@ async function requestQuit() {
     await dialog.showMessageBox(window!, {
       type: 'error',
       message: t('quitError'),
-      detail: text((error as Error).message),
+      detail: text(errorMessage(error)),
     });
   }
   exiting = true;

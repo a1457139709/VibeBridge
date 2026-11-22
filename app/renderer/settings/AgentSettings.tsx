@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { useLocalization } from '../common/Localization';
 import { agentIcons } from '../common/agent-icons';
 import { agentNames, agentTypes, type AgentCommand, type CommandCheck, type Settings } from '../../shared/model';
+import { errorMessage } from '../../shared/error-message';
 
 function AgentFields({
   type,
@@ -34,7 +35,7 @@ function AgentFields({
       const result = await window.workbench.checkCommand(value.command);
       if (request === revision.current) setCheck(result);
     } catch (error) {
-      if (request === revision.current) setCheck({ available: false, message: (error as Error).message });
+      if (request === revision.current) setCheck({ available: false, message: errorMessage(error) });
     } finally {
       if (request === revision.current) setChecking(false);
     }

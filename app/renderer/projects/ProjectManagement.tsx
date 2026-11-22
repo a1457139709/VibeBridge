@@ -5,6 +5,7 @@ import { type DirectoryResult, type Project, type ProjectEditResult, type Projec
 import { originElsewhereThanBinding, type RepositoryChoices } from '../../shared/forge/forge';
 import { projectNameError, projectNameHasControls } from '../../shared/project-name';
 import { LaunchResults } from './LaunchResults';
+import { errorMessage } from '../../shared/error-message';
 import './project-management.css';
 
 export function ProjectNavigationItem({
@@ -215,7 +216,7 @@ export function ProjectEditor({
       if (outcome.error || outcome.launches.length) setResult(outcome);
       else close();
     } catch (error) {
-      setError((error as Error).message);
+      setError(errorMessage(error));
     } finally {
       setBusy(false);
     }
@@ -309,7 +310,7 @@ export function ProjectEditor({
                   const selected = await window.workbench.chooseDirectory();
                   if (selected !== null) setDirectoryInput(selected);
                 } catch (error) {
-                  setError((error as Error).message);
+                  setError(errorMessage(error));
                 } finally {
                   setChoosing(false);
                 }
@@ -452,7 +453,7 @@ function DeleteProject({ project, close }: { project: Project; close(): void }) 
               await window.workbench.deleteProject(project.id);
               close();
             } catch (error) {
-              setError((error as Error).message);
+              setError(errorMessage(error));
             } finally {
               setBusy(false);
             }
