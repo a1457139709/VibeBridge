@@ -4,7 +4,8 @@ import test, { afterEach, before } from 'node:test';
 import { cleanup, fireEvent, screen, waitFor, within } from '@testing-library/react';
 import { stubSidebarApis, sidebar } from './support/forge-lists';
 import { issueDetail, listed, menu, record, row } from './support/dispatch';
-import { requireValue, selectElement, focusedElement } from './support/elements';
+import { requireValue } from '../../app/renderer/common/required';
+import { selectElement, focusedElement } from './support/elements';
 
 afterEach(cleanup);
 before(stubSidebarApis);

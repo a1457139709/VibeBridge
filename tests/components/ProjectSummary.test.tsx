@@ -11,7 +11,8 @@ import type { PanelView, Snapshot, WorkbenchEvent } from '../../app/shared/model
 import type { ProcessingState } from '../../app/shared/processing-status';
 import { provideWorkbench } from './support/workbench';
 import { githubView } from './support/forge';
-import { requireValue, focusedElement } from './support/elements';
+import { requireValue } from '../../app/renderer/common/required';
+import { focusedElement } from './support/elements';
 
 afterEach(cleanup);
 

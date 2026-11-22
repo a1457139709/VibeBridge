@@ -9,7 +9,7 @@ import { defaultSettings, type SettingsSaveResult } from '../../app/shared/setti
 import { deferred, provideWorkbench } from './support/workbench';
 import { message } from '../../app/shared/messages';
 import type { Settings } from '../../app/shared/model';
-import { requireValue } from './support/elements';
+import { requireValue } from '../../app/renderer/common/required';
 
 afterEach(cleanup);
 

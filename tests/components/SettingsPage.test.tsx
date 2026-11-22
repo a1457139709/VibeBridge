@@ -8,7 +8,8 @@ import { SettingsPage, type SettingsPageActions } from '../../app/renderer/setti
 import { defaultSettings, type SettingsSaveResult } from '../../app/shared/settings/settings';
 import type { CommandCheck, Settings } from '../../app/shared/model';
 import { deferred, provideWorkbench } from './support/workbench';
-import { requireValue, requireElement, selectElement } from './support/elements';
+import { requireValue } from '../../app/renderer/common/required';
+import { requireInstance, selectElement } from './support/elements';
 
 afterEach(cleanup);
 
@@ -397,7 +398,7 @@ test('Workflows sits between Agent and Appearance, and saves the workflow switch
     'grill-me {url}',
   ]);
   assert.ok(
-    screen.getAllByRole('radio', { name: 'Submit' }).every(radio => requireElement(radio, HTMLInputElement).checked),
+    screen.getAllByRole('radio', { name: 'Submit' }).every(radio => requireInstance(radio, HTMLInputElement).checked),
     'every command submits by default',
   );
   assert.equal(screen.queryByRole('textbox'), null, 'commands cannot be added or edited');

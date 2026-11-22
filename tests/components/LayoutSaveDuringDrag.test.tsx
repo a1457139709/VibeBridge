@@ -8,7 +8,8 @@ import type { Layout, PanelView, Snapshot, WorkbenchEvent } from '../../app/shar
 import { stubLayoutApis } from './support/no-layout';
 import { provideWorkbench } from './support/workbench';
 import { githubView } from './support/forge';
-import { requireValue, selectElement } from './support/elements';
+import { requireValue } from '../../app/renderer/common/required';
+import { selectElement } from './support/elements';
 
 afterEach(cleanup);
 before(() => {

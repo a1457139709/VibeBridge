@@ -10,7 +10,8 @@ import type { ProcessingState } from '../../app/shared/processing-status';
 import { stubLayoutApis } from './support/no-layout';
 import { provideWorkbench } from './support/workbench';
 import { githubView } from './support/forge';
-import { requireValue, selectElement } from './support/elements';
+import { requireValue } from '../../app/renderer/common/required';
+import { selectElement } from './support/elements';
 
 afterEach(cleanup);
 before(() => {

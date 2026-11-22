@@ -19,7 +19,7 @@ import { deferred, provideWorkbench } from './support/workbench';
 import { forgeSidebarData } from './support/forge-sidebar-data';
 import { githubCapabilities, githubForge, githubView, githubRepository } from './support/forge';
 import { issue as listedIssue } from './support/forge-lists';
-import { requireElement, selectElement } from './support/elements';
+import { requireInstance, selectElement } from './support/elements';
 
 const { t } = localize('en');
 
@@ -171,10 +171,11 @@ test('clicking a row opens its detail beside the list, with the author, comment 
   });
   await within(pane()).findByRole('heading', { name: 'Issue detail #7' });
   assert.ok(within(pane()).getByText('Completed'), 'the state pill names how it was closed');
-  const meta = requireElement(
+  const meta = requireInstance(
     within(pane())
       .getByText(/opened/)
       .closest('.forge-doc-meta'),
+    HTMLElement,
   );
   assert.match(meta.textContent ?? '', /mona opened 3h ago · 2 comments · Assignees: octo, hubot/);
   assert.ok(within(pane()).getByText('The body.'));

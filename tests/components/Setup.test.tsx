@@ -14,7 +14,7 @@ import {
   type ProjectDraft,
 } from '../../app/shared/model';
 import { deferred, provideWorkbench } from './support/workbench';
-import { requireValue } from './support/elements';
+import { requireValue } from '../../app/renderer/common/required';
 
 afterEach(cleanup);
 

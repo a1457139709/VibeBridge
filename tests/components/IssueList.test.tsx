@@ -18,7 +18,8 @@ import {
   sidebar,
   stubSidebarApis,
 } from './support/forge-lists';
-import { requireValue, requireElement, selectElement } from './support/elements';
+import { requireValue } from '../../app/renderer/common/required';
+import { requireInstance, selectElement } from './support/elements';
 
 const { t } = localize('en');
 
@@ -172,7 +173,7 @@ test('Change binding turns the sidebar to its change-binding page, and ← Back 
 test('picking another repository states what rebinding does, and Rebind to Y rebinds at once and returns to the lists', async () => {
   const { user, calls, request } = await changeBindingPage();
   assert.equal(
-    requireElement(within(sidebar()).getByRole('button', { name: 'Rebind' }), HTMLButtonElement).disabled,
+    requireInstance(within(sidebar()).getByRole('button', { name: 'Rebind' }), HTMLButtonElement).disabled,
     true,
   );
   await user.click(await within(sidebar()).findByRole('option', { name: /octo\/renamed/ }));
@@ -205,7 +206,7 @@ test('a bound repository the forge lists at a new path is listed once, there, as
     ['octo/renamedorigin', 'octo/alpha-xcurrent'],
   );
   assert.equal(
-    requireElement(within(sidebar()).getByRole('button', { name: 'Rebind' }), HTMLButtonElement).disabled,
+    requireInstance(within(sidebar()).getByRole('button', { name: 'Rebind' }), HTMLButtonElement).disabled,
     true,
   );
 });
@@ -297,7 +298,7 @@ test('the current issue row is the one highlight: strong while the list has focu
     await waitFor(() => assert.deepEqual(rows(), ['Issue 9', 'Issue 8']));
     const title = (name: string) => within(sidebar()).getByRole('button', { name });
     const highlight = (name: string) =>
-      window.getComputedStyle(requireElement(title(name).closest('.forge-row'))).boxShadow;
+      window.getComputedStyle(requireInstance(title(name).closest('.forge-row'), HTMLElement)).boxShadow;
     const unhighlighted = highlight('Issue 8');
     title('Issue 9').focus();
     assert.equal(window.getComputedStyle(title('Issue 9')).outline, 'none', 'the title draws no focus ring of its own');

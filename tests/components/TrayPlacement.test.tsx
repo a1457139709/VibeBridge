@@ -11,7 +11,8 @@ import type { WorkbenchEvent } from '../../app/shared/model';
 import { deferred, provideWorkbench } from './support/workbench';
 import { githubView } from './support/forge';
 import { stubLayoutApis } from './support/no-layout';
-import { requireValue, selectElement } from './support/elements';
+import { requireValue } from '../../app/renderer/common/required';
+import { selectElement } from './support/elements';
 
 afterEach(cleanup);
 const { t } = localize('en');

@@ -8,7 +8,8 @@ import { defaultSettings } from '../../app/shared/settings/settings';
 import type { PanelView, Snapshot, WorkbenchEvent } from '../../app/shared/model';
 import { provideWorkbench } from './support/workbench';
 import { githubView } from './support/forge';
-import { requireValue, selectElement } from './support/elements';
+import { requireValue } from '../../app/renderer/common/required';
+import { selectElement } from './support/elements';
 
 // Frames run only when the test runs them, so every frame a pending location could use has run before an assertion.
 const frames = new Map<number, FrameRequestCallback>();

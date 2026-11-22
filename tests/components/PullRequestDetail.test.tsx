@@ -18,7 +18,7 @@ import { deferred, provideWorkbench } from './support/workbench';
 import { forgeSidebarData, workbenchEvents } from './support/forge-sidebar-data';
 import { githubCapabilities, githubView, githubRepository } from './support/forge';
 import { issue as listedIssue, pullRequest as listedPullRequest, stubSidebarApis } from './support/forge-lists';
-import { requireElement, selectElement } from './support/elements';
+import { requireInstance, selectElement } from './support/elements';
 
 afterEach(cleanup);
 before(stubSidebarApis);
@@ -146,7 +146,7 @@ const sidebar = () => screen.getByRole('complementary', { name: 'GitHub' });
 const pane = () => within(sidebar()).getByRole('region', { name: 'Pull request detail' });
 const mergeArea = () => within(pane()).getByRole('region', { name: 'Merge requirements' });
 const rowOf = (name: string) =>
-  requireElement(within(mergeArea()).getByText(name, { selector: 'b' }).closest('.forge-merge-row'));
+  requireInstance(within(mergeArea()).getByText(name, { selector: 'b' }).closest('.forge-merge-row'), HTMLElement);
 
 /** Opens pull request #12 from the list and answers its detail. */
 async function openPullRequest(pullRequest: PullRequestDetail, options: Parameters<typeof renderWorkbench>[0] = {}) {

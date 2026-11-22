@@ -5,7 +5,7 @@ import type { Snapshot } from '../../../app/shared/model';
 import type { IssueDetail } from '../../../app/shared/forge/forge';
 import { issue, page, renderWorkbench, sidebar, summary } from './forge-lists';
 import { githubCapabilities } from './forge';
-import { requireValue } from './elements';
+import { requireValue } from '../../../app/renderer/common/required';
 
 /** Alpha's resident panel runs Codex on "Alpha session"; its tray panel runs Claude Code, Busy on "Fix it"; a second
  * resident panel has no run. Beta's panel belongs to another project. */

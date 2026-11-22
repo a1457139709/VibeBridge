@@ -18,7 +18,7 @@ import { deferred, provideWorkbench } from './support/workbench';
 import { forgeSidebarData, workbenchEvents } from './support/forge-sidebar-data';
 import { githubForge, githubView, githubRepository } from './support/forge';
 import { issue as listedIssue, pullRequest as listedPullRequest, stubSidebarApis } from './support/forge-lists';
-import { requireValue } from './support/elements';
+import { requireValue } from '../../app/renderer/common/required';
 
 afterEach(cleanup);
 before(stubSidebarApis);

@@ -15,7 +15,7 @@ import {
   sidebar,
   stubSidebarApis,
 } from './support/forge-lists';
-import { requireValue } from './support/elements';
+import { requireValue } from '../../app/renderer/common/required';
 
 afterEach(cleanup);
 before(stubSidebarApis);

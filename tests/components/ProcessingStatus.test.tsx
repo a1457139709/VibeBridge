@@ -10,7 +10,7 @@ import { defaultSettings } from '../../app/main/persistence/settings';
 import type { Snapshot, WorkbenchEvent } from '../../app/shared/model';
 import { provideWorkbench } from './support/workbench';
 import { githubView } from './support/forge';
-import { requireValue } from './support/elements';
+import { requireValue } from '../../app/renderer/common/required';
 
 afterEach(cleanup);
 
