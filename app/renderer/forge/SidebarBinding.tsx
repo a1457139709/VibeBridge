@@ -16,7 +16,7 @@ function useShownRepositoryChoices({ id: projectId, directory, forge }: ProjectV
   const show = () =>
     void window.workbench
       .showRepositoryChoices(projectId)
-      .catch((error: Error) => setChoices({ ok: false, failure: { kind: 'transient', detail: error.message, forge } }));
+      .catch(error => setChoices({ ok: false, failure: { kind: 'transient', detail: errorMessage(error), forge } }));
   useEffect(() => {
     setChoices(null);
     const stop = window.workbench.subscribe(event => {

@@ -1,6 +1,7 @@
 import type { Layout } from '../../shared/model';
 import { layoutBoxes, type Divider } from '../../shared/layout';
 import { panelMinimumSize } from './panel-measurement';
+import { requireElement, requireValue } from '../common/required';
 
 export function createResizePreview(
   canvas: HTMLElement,
@@ -25,9 +26,9 @@ export function createResizePreview(
   const leaves = (branch: Layout): string[] =>
     'panel' in branch ? [branch.panel] : [...leaves(branch.first), ...leaves(branch.second)];
   const required = (id: string, share: number) => {
-    const box = positions.panels.get(id)!;
-    const slot = canvas.querySelector<HTMLElement>(`[data-panel-id="${id}"]`)!;
-    const panel = slot.querySelector<HTMLElement>('.agent-panel')!;
+    const box = requireValue(positions.panels.get(id), `panel ${id} in the layout`);
+    const slot = requireElement(canvas, `[data-panel-id="${id}"]`);
+    const panel = requireElement(slot, '.agent-panel');
     const slotStyle = getComputedStyle(slot);
     const minimum = panelMinimumSize(panel);
     const row = divider.axis === 'row';

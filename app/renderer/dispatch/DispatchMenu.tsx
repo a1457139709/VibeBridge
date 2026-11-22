@@ -24,6 +24,7 @@ import { displayShortcut } from '../../shared/settings/shortcuts';
 import type { IssueSummary } from '../../shared/forge/forge';
 import type { DispatchRecordsHost } from './DispatchRecords';
 import { errorMessage } from '../../shared/error-message';
+import { requireValue } from '../common/required';
 import './dispatch.css';
 
 /** What dispatching needs from the sidebar around it. */
@@ -129,7 +130,7 @@ export function DispatchButton({
     setCommandIndex(0);
     menu.current?.focus();
     const outside = (event: PointerEvent) => {
-      if (!root.current?.contains(event.target as Node)) setOpen(false);
+      if (!(event.target instanceof Node && root.current?.contains(event.target))) setOpen(false);
     };
     const trackAlt = (event: KeyboardEvent) => setInverting(event.altKey);
     const place = () => {
@@ -274,7 +275,12 @@ export function DispatchButton({
               <Fragment key={commandKey(item)}>
                 {workflowCount > 1 && startsWorkflow && (
                   <h4 className="dispatch-workflow">
-                    {t(workflows.find(workflow => workflow.id === workflowId)!.name)}
+                    {t(
+                      requireValue(
+                        workflows.find(workflow => workflow.id === workflowId),
+                        "the command's workflow",
+                      ).name,
+                    )}
                   </h4>
                 )}
                 {command.separatorBefore && <hr />}

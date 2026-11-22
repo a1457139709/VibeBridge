@@ -1,6 +1,7 @@
 import type { Language, Layout, Panel } from '../../shared/model';
 import type { Divider } from '../../shared/layout';
 import { capturePointer } from '../common/pointer-capture';
+import { requireClosest } from '../common/required';
 import { createDragPreview } from './panel-drag';
 import { applyCompactLayout } from './panel-measurement';
 import { createResizePreview } from './panel-resize';
@@ -86,7 +87,7 @@ export function createPanelInteractions(canvas: HTMLElement, context: PanelInter
       if (observed.has(panel.id)) continue;
       const container = canvas.querySelector<HTMLElement>(`[data-panel-id="${panel.id}"] .terminal-container`);
       if (!container) continue;
-      const element = container.closest<HTMLElement>('.agent-panel')!;
+      const element = requireClosest(container, '.agent-panel');
       observed.set(panel.id, { panel: element, container, runId: panel.runId });
       observer.observe(element);
     }
@@ -102,9 +103,10 @@ export function createPanelInteractions(canvas: HTMLElement, context: PanelInter
     if (document.hidden) cancel();
   };
   const click = (event: MouseEvent) => {
-    const target = event.target as HTMLElement;
+    const target = event.target;
     if (
       suppressClick &&
+      target instanceof Element &&
       (target.closest('.tray-card') || (target.closest('.panel-header') && !target.closest('button, [role="menu"]')))
     ) {
       suppressClick = false;
@@ -189,17 +191,16 @@ export function createPanelInteractions(canvas: HTMLElement, context: PanelInter
      * by its card or open panel header into the layout. `handle` is the element the pointer went down on.
      */
     startDrag(event: PointerEvent, handle: HTMLElement, panelId: string) {
-      const control = (event.target as HTMLElement).closest('button, [role="menu"]');
+      const control = event.target instanceof Element ? event.target.closest('button, [role="menu"]') : null;
       if (control && control !== handle) return;
       const resident = current.panels.find(panel => panel.id === panelId);
-      const ephemeral = current.tray.find(panel => panel.id === panelId);
+      const source = resident ?? current.tray.find(panel => panel.id === panelId);
       // A tray panel can be placed while it (or another tray panel) is open, but not over a maximized resident panel.
       if (
-        resident
+        !source ||
+        (resident
           ? !available(event)
-          : !ephemeral ||
-            !pointerAvailable(event) ||
-            current.panels.some(panel => panel.id === current.maximizedPanelId)
+          : !pointerAvailable(event) || current.panels.some(panel => panel.id === current.maximizedPanelId))
       )
         return;
       event.preventDefault();
@@ -207,7 +208,7 @@ export function createPanelInteractions(canvas: HTMLElement, context: PanelInter
       const preview = createDragPreview({
         event,
         canvas,
-        source: (resident ?? ephemeral)!,
+        source,
         panels: current.panels,
         layout: displayed,
         element: resident ? undefined : (handle.closest<HTMLElement>('.agent-panel') ?? handle),
@@ -226,9 +227,10 @@ export function createPanelInteractions(canvas: HTMLElement, context: PanelInter
       });
     },
     startResize(event: PointerEvent, handle: HTMLElement, divider: Divider) {
-      if (!available(event)) return;
+      const layout = displayed;
+      if (!available(event) || !layout) return;
       event.preventDefault();
-      const preview = createResizePreview(canvas, displayed!, divider, event, present);
+      const preview = createResizePreview(canvas, layout, divider, event, present);
       if (preview)
         track('resize', event, handle, preview, next => {
           present(next);

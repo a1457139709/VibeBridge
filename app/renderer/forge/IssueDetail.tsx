@@ -27,6 +27,7 @@ import {
   RelativeTime,
 } from './ForgeDisplay';
 import type { DetailItem } from '../../shared/forge/sidebar-data';
+import { requireValue } from '../common/required';
 
 interface DocumentProps {
   project: ProjectView & { repository: RepositoryReference };
@@ -196,7 +197,7 @@ function Graph({
   const [width, setWidth] = useState(560);
   useEffect(() => {
     const observer = new ResizeObserver(([entry]) => setWidth(entry.contentRect.width));
-    observer.observe(host.current!);
+    observer.observe(requireValue(host.current, 'the relations graph'));
     return () => observer.disconnect();
   }, []);
   const columns: { name: Relation; head: string; nodes: IssueReference[] }[] = [

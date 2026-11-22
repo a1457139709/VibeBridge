@@ -23,11 +23,13 @@ import { mountTerminal } from '../panels/terminals';
 import { AgentPicker } from './AgentPicker';
 import { createPanelInteractions, type PanelInteractionContext } from '../panels/panel-interactions';
 import type { ShortcutAction } from '../../shared/settings/shortcuts';
+import { errorMessage } from '../../shared/error-message';
 import { useWorkspacePanelLocation, type PanelLocation } from '../panels/panel-location';
 import { ProcessingStatusIcon } from '../common/ProcessingStatusIcon';
 import { PanelTray } from './PanelTray';
 import { useTrayFlight } from './tray-flight';
 import { ProjectSummary } from './ProjectSummary';
+import { requireValue } from '../common/required';
 
 export interface WorkspaceActions {
   runShortcut(action: ShortcutAction): boolean;
@@ -83,7 +85,7 @@ function AgentPanel({
       <div
         className={`agent-panel ${focused ? 'focused' : ''}`}
         onMouseDown={event => {
-          if (!(event.target as HTMLElement).closest('.panel-header')) select();
+          if (!(event.target instanceof Element && event.target.closest('.panel-header'))) select();
         }}
         onFocusCapture={focusChanged}
       >
@@ -149,7 +151,7 @@ export function Workspace({
   const atPanelLimit = panelLimitReached(project);
   const flight = useTrayFlight({ openPanelId: openTrayPanel?.id, canvas, tray, collapse: panelLocation.collapse });
   const saveLayout = (next: Layout) => {
-    void window.workbench.saveLayout(project.id, next).catch(error => report(error.message));
+    void window.workbench.saveLayout(project.id, next).catch(error => report(errorMessage(error)));
   };
   const placeInLayout = (panelId: string, next: Layout) => {
     // The layout area returns to the resident layout, where the placed panel lives; a rejected placement changes nothing.
@@ -157,13 +159,13 @@ export function Workspace({
     panelLocation.collapse();
     void window.workbench.placeInLayout(project.id, panelId, next).catch(error => {
       if (open) panelLocation.reopen(open);
-      report(error.message);
+      report(errorMessage(error));
     });
   };
   const moveToTray = (panelId: string) => {
     // A panel moved to the tray waits there collapsed, so a maximized resident panel is restored first.
     if (maximized === panelId) panelLocation.toggleMaximize(panelId);
-    void window.workbench.moveToTray(project.id, panelId).catch(error => report(error.message));
+    void window.workbench.moveToTray(project.id, panelId).catch(error => report(errorMessage(error)));
   };
   useLayoutEffect(() => {
     const context: PanelInteractionContext = {
@@ -181,7 +183,7 @@ export function Workspace({
       moveToTray,
     };
     if (interactions.current) interactions.current.update(context);
-    else interactions.current = createPanelInteractions(canvas.current!, context);
+    else interactions.current = createPanelInteractions(requireValue(canvas.current, 'the layout area'), context);
   });
   useLayoutEffect(
     () => () => {
@@ -191,7 +193,7 @@ export function Workspace({
     [],
   );
   const close = (panelId: string) => {
-    void window.workbench.closePanel(project.id, panelId).catch(error => report(error.message));
+    void window.workbench.closePanel(project.id, panelId).catch(error => report(errorMessage(error)));
   };
   // Resident and open tray panels differ only in where they sit and in their first action.
   const agentPanel = (panel: PanelView, position: CSSProperties, isFocused: boolean, action: ReactNode) => (
@@ -221,8 +223,9 @@ export function Workspace({
         setAdding(true);
         return true;
       }
-      if (action === 'closePanel' && (maximized ?? focused)) {
-        close((maximized ?? focused)!);
+      const closing = maximized ?? focused;
+      if (action === 'closePanel' && closing) {
+        close(closing);
         return true;
       }
       // Panel keys follow the resident layout: an open tray panel returns to the tray first.

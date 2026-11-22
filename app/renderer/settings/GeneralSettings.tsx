@@ -1,6 +1,9 @@
 import { useLocalization } from '../common/Localization';
 import type { Settings } from '../../shared/model';
 
+/** The languages the select offers, one per option. */
+const languages = ['en', 'zh-CN'] as const satisfies readonly Settings['language'][];
+
 export function GeneralSettings({
   language,
   fieldError,
@@ -18,7 +21,10 @@ export function GeneralSettings({
         id="interface-language"
         data-settings-field="language"
         value={language}
-        onChange={event => changeDraft({ language: event.target.value as Settings['language'] })}
+        onChange={event => {
+          const chosen = languages.find(language => language === event.target.value);
+          if (chosen) changeDraft({ language: chosen });
+        }}
       >
         <option value="en" lang="en">
           English

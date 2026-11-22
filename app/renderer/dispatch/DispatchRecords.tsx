@@ -6,6 +6,7 @@ import { agentIcons } from '../common/agent-icons';
 import { agentNames } from '../../shared/model';
 import { displayShortcut } from '../../shared/settings/shortcuts';
 import type { DispatchRecordView } from '../../shared/dispatch';
+import { errorMessage } from '../../shared/error-message';
 import './dispatch.css';
 
 /** What showing Dispatch Records needs from the sidebar around them. */
@@ -64,7 +65,7 @@ function SessionId({ id, report }: { id: string; report: ReportNotice }) {
       onClick={() =>
         void navigator.clipboard.writeText(id).then(
           () => report(t('sessionIdCopied'), 'success'),
-          (error: Error) => report(error.message),
+          error => report(errorMessage(error)),
         )
       }
     >

@@ -72,7 +72,7 @@ export function ProjectSummary({ panels, locate }: { panels: PanelView[]; locate
   useEffect(() => {
     if (!open) return;
     const outside = (event: PointerEvent) => {
-      const target = event.target as Node;
+      const target = event.target instanceof Node ? event.target : null;
       if (!list.current?.contains(target) && ![...triggers.current.values()].some(button => button.contains(target)))
         close();
     };
@@ -134,13 +134,14 @@ export function ProjectSummary({ panels, locate }: { panels: PanelView[]; locate
           role="dialog"
           aria-label={t(open)}
           onFocusCapture={event => {
-            focusedMember.current = (event.target as HTMLElement).closest('li')?.dataset.runId;
+            focusedMember.current =
+              event.target instanceof Element ? event.target.closest('li')?.dataset.runId : undefined;
           }}
           onKeyDown={event => {
             if (!['ArrowDown', 'ArrowUp', 'Home', 'End'].includes(event.key)) return;
             const members = [...event.currentTarget.querySelectorAll<HTMLButtonElement>('li button')];
             if (!members.length) return;
-            const index = members.indexOf(document.activeElement as HTMLButtonElement);
+            const index = members.findIndex(member => member === document.activeElement);
             const next =
               event.key === 'Home'
                 ? 0

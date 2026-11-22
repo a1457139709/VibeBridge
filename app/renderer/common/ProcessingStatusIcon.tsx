@@ -33,7 +33,8 @@ const shapes: Record<ProcessingState, ReactNode> = {
 // Anchoring each Busy rotation to the document timeline origin keeps every Busy icon in one phase,
 // however late its animation starts; it also re-anchors after reduced motion is lifted.
 function alignRotation(event: AnimationEvent<HTMLElement>) {
-  for (const animation of (event.target as Element).getAnimations()) animation.startTime = 0;
+  if (!(event.target instanceof Element)) return;
+  for (const animation of event.target.getAnimations()) animation.startTime = 0;
 }
 
 export function ProcessingStatusIcon({ state, focusable = false }: { state?: ProcessingState; focusable?: boolean }) {

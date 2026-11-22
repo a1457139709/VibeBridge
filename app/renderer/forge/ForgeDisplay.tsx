@@ -143,7 +143,7 @@ export function IssueIcon({
 
 /** A label in the forge's colour; with `onClick` it is a button. */
 export function Label({ label, onClick }: { label: ForgeLabel; onClick?(): void }) {
-  const style = { '--label': `#${label.color}` } as CSSProperties;
+  const style: CSSProperties = { '--label': `#${label.color}` };
   return onClick ? (
     <button
       className="forge-label clickable"
