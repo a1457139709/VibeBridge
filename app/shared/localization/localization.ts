@@ -9,6 +9,8 @@ import {
 import { english } from './locales/en';
 import { chinese } from './locales/zh-CN';
 
+export const catalogs: Record<Language, Record<MessageId, string>> = { en: english, 'zh-CN': chinese };
+
 export function localize(language: Language) {
   const separator = language === 'zh-CN' ? '、' : ', ';
   const valueText = (value: MessageValue): string => {
@@ -17,9 +19,7 @@ export function localize(language: Language) {
     return value.map(valueText).join(separator);
   };
   function format(id: MessageId, values: MessageValues = {}): string {
-    return (language === 'zh-CN' ? chinese : english)[id].replace(/\{(\w+)\}/g, (_, key: string) =>
-      valueText(values[key] ?? ''),
-    );
+    return catalogs[language][id].replace(/\{(\w+)\}/g, (_, key: string) => valueText(values[key] ?? ''));
   }
   function localizeText(value: string): string {
     const input = value.replace(/^Error invoking remote method '[^']+': Error: /, '');
