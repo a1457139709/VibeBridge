@@ -20,6 +20,7 @@ import { githubCapabilities, githubForge, githubView, githubRepository } from '.
 import { stubLayoutApis } from './no-layout';
 import { forgeSidebarData, type ForgeAnswers } from './forge-sidebar-data';
 import { selectElement } from './elements';
+import { t } from './localization';
 
 const project = (id: string, name: string, capabilities: ForgeCapabilities): ProjectView => ({
   id,
@@ -216,8 +217,16 @@ export function renderWorkbench(capabilities = githubCapabilities, api: Partial<
   return { user: userEvent.setup(), requests, request, snapshot, publish, forge, shownRows };
 }
 
-export const sidebar = () => screen.getByRole('complementary', { name: 'GitHub' });
-export const refresh = () => within(sidebar()).getByRole('button', { name: 'Refresh' });
+export const sidebar = () => screen.getByRole('complementary', { name: githubForge.name });
+export const refresh = () => within(sidebar()).getByRole('button', { name: t('refresh') });
+export const shows = (text: string, root: Element = sidebar()) => !!root.textContent?.includes(text);
+export const sidebarTitle = () => selectElement('.forge-sidebar-repository', sidebar()).textContent;
+export function stateFilter(state: 'open' | 'closed', count: number) {
+  const name = `${t(state === 'open' ? 'filterOpen' : 'filterClosed')} ${count}`;
+  return within(sidebar()).getByRole('button', { name });
+}
+export const labelsFilter = () =>
+  within(sidebar()).getByRole('button', { name: name => name.startsWith(t('labelsFilter')) });
 export const rows = () =>
   within(sidebar())
     .queryAllByRole('listitem')

@@ -14,6 +14,7 @@ import {
   sidebar,
   stubSidebarApis,
 } from './support/forge-lists';
+import { selectElement } from './support/elements';
 
 afterEach(cleanup);
 before(stubSidebarApis);
@@ -35,7 +36,7 @@ const titleOf = (name: string) => within(sidebar()).getByRole('button', { name }
 test('the pointer resting on a row reports its item once, moving to another reports that one, and leaving the rows reports none', async () => {
   const { user, reported } = await restingRows();
   await user.hover(titleOf('Issue 9'));
-  await user.hover(within(sidebar()).getByText('#9'));
+  await user.hover(selectElement('[data-issue="9"] .forge-row-number', sidebar()));
   await user.hover(titleOf('Issue 8'));
   await user.unhover(titleOf('Issue 8'));
   await user.hover(within(sidebar()).getByRole('tab', { name: t('issuesTab') }));

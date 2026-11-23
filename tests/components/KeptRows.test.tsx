@@ -5,16 +5,21 @@ import { act, cleanup, screen, waitFor, within } from '@testing-library/react';
 import { t } from './support/localization';
 import {
   bug,
+  docs,
   failed,
   issue,
   openNoFilter,
   page,
+  labelsFilter,
   refresh,
   renderWorkbench,
   rows,
+  shows,
   sidebar,
+  stateFilter,
   stubSidebarApis,
 } from './support/forge-lists';
+import { githubForge } from './support/forge';
 import { requireInstance } from './support/elements';
 
 const loadMore = () => within(sidebar()).getByRole('button', { name: t('loadMore') });
@@ -23,10 +28,11 @@ afterEach(cleanup);
 before(stubSidebarApis);
 
 test('search, state and labels are sent to the forge, each tab keeps its own, and switching back to a project shows its filter and kept rows while they update', async () => {
-  const { user, request } = renderWorkbench();
+  const { user, request, snapshot } = renderWorkbench();
+  const [alpha, beta] = snapshot.projects;
   (await request(1)).answer(page([issue(1)]));
   await waitFor(() => assert.deepEqual(rows(), ['Issue 1']));
-  await user.type(within(sidebar()).getByRole('searchbox', { name: 'Search issues' }), '#4');
+  await user.type(within(sidebar()).getByRole('searchbox', { name: t('searchIssues') }), '#4');
   const searched = await request(2);
   assert.deepEqual(
     searched.query.filter,
@@ -34,21 +40,22 @@ test('search, state and labels are sent to the forge, each tab keeps its own, an
     'one request after typing settles',
   );
   searched.answer(page([issue(4)]));
-  await user.click(within(sidebar()).getByRole('button', { name: 'Closed 2' }));
+  await user.click(stateFilter('closed', 2));
   const closed = await request(3);
   assert.deepEqual(closed.query.filter, { search: '#4', state: 'closed', labels: [] });
   closed.answer(page([]));
-  await user.click(within(sidebar()).getByRole('button', { name: /^Labels/ }));
-  await user.click(within(sidebar()).getByRole('menuitemcheckbox', { name: 'bug' }));
-  await user.click(within(sidebar()).getByRole('menuitemcheckbox', { name: 'docs' }));
+  await user.click(labelsFilter());
+  await user.click(within(sidebar()).getByRole('menuitemcheckbox', { name: bug.name }));
+  await user.click(within(sidebar()).getByRole('menuitemcheckbox', { name: docs.name }));
   const labelled = await request(5);
   assert.deepEqual(labelled.query.filter, { search: '#4', state: 'closed', labels: ['bug', 'docs'] });
   labelled.answer(page([]));
-  await waitFor(() => assert.ok(within(sidebar()).getByText('No matching issues')));
+  await waitFor(() => assert.ok(shows(t('noMatchingIssues'))));
 
-  await user.click(within(sidebar()).getByRole('tab', { name: 'Pull requests' }));
+  await user.click(within(sidebar()).getByRole('tab', { name: t('pullRequestsTab') }));
   assert.equal(
-    requireInstance(within(sidebar()).getByRole('searchbox', { name: 'Search pull requests' }), HTMLInputElement).value,
+    requireInstance(within(sidebar()).getByRole('searchbox', { name: t('searchPullRequests') }), HTMLInputElement)
+      .value,
     '',
     'the other tab has its own filter',
   );
@@ -59,7 +66,7 @@ test('search, state and labels are sent to the forge, each tab keeps its own, an
     query: { filter: openNoFilter, cursor: null },
   });
   pullRequests.answer(page([]));
-  await user.click(within(sidebar()).getByRole('tab', { name: 'Issues' }));
+  await user.click(within(sidebar()).getByRole('tab', { name: t('issuesTab') }));
   const back = await request(7);
   assert.deepEqual(
     back.query.filter,
@@ -68,29 +75,29 @@ test('search, state and labels are sent to the forge, each tab keeps its own, an
   );
   back.answer(page([]));
 
-  await user.click(screen.getByRole('button', { name: 'Beta' }));
-  const beta = await request(8);
-  assert.deepEqual(beta, { ...beta, projectId: 'beta', query: { filter: openNoFilter, cursor: null } });
-  beta.answer(page([issue(3)]));
+  await user.click(screen.getByRole('button', { name: beta.name }));
+  const betaRequest = await request(8);
+  assert.deepEqual(betaRequest, { ...betaRequest, projectId: 'beta', query: { filter: openNoFilter, cursor: null } });
+  betaRequest.answer(page([issue(3)]));
   await waitFor(() => assert.deepEqual(rows(), ['Issue 3']));
-  await user.click(screen.getByRole('button', { name: 'Alpha' }));
-  const alpha = await request(9);
+  await user.click(screen.getByRole('button', { name: alpha.name }));
+  const alphaRequest = await request(9);
   assert.deepEqual(
-    alpha,
+    alphaRequest,
     {
-      ...alpha,
+      ...alphaRequest,
       projectId: 'alpha',
       query: { filter: { search: '#4', state: 'closed', labels: ['bug', 'docs'] }, cursor: null },
     },
     'switching back updates the filter it showed',
   );
   assert.equal(
-    requireInstance(within(sidebar()).getByRole('searchbox', { name: 'Search issues' }), HTMLInputElement).value,
+    requireInstance(within(sidebar()).getByRole('searchbox', { name: t('searchIssues') }), HTMLInputElement).value,
     '#4',
   );
-  assert.ok(within(sidebar()).getByText(t('noMatchingIssues')), 'its kept rows show while they update');
+  assert.ok(shows(t('noMatchingIssues')), 'its kept rows show while they update');
   assert.equal(refresh().getAttribute('aria-busy'), 'true');
-  alpha.answer(page([issue(4)]));
+  alphaRequest.answer(page([issue(4)]));
   await waitFor(() => assert.deepEqual(rows(), ['Issue 4']));
 });
 
@@ -98,8 +105,8 @@ test('reopening the sidebar or bringing the window to the front shows the kept r
   const { user, request } = renderWorkbench();
   (await request(1)).answer(page([issue(1)], 'next'));
   await waitFor(() => assert.deepEqual(rows(), ['Issue 1']));
-  await user.click(screen.getByRole('button', { name: t('closeForgeSidebar', { forge: 'GitHub' }) }));
-  await user.click(screen.getByRole('button', { name: t('openForgeSidebar', { forge: 'GitHub' }) }));
+  await user.click(screen.getByRole('button', { name: t('closeForgeSidebar', { forge: githubForge.name }) }));
+  await user.click(screen.getByRole('button', { name: t('openForgeSidebar', { forge: githubForge.name }) }));
   const reopened = await request(2);
   assert.deepEqual(reopened.query, { filter: openNoFilter, cursor: null });
   assert.deepEqual(rows(), ['Issue 1'], 'the kept rows show before the forge answers');
@@ -114,7 +121,7 @@ test('reopening the sidebar or bringing the window to the front shows the kept r
   assert.equal(refresh().getAttribute('aria-busy'), 'true', 'the refresh icon spins while the update runs');
   assert.ok(loadMore().hasAttribute('disabled'), 'Load more waits for the update');
   inFront.answer(failed('transient', 'HTTP 502'));
-  await waitFor(() => assert.ok(within(sidebar()).getByText(t('dataMayBeStale'))));
+  await waitFor(() => assert.ok(shows(t('dataMayBeStale'))));
   assert.deepEqual(rows(), ['Issue 2', 'Issue 1'], 'the rows stay beside the notice');
   assert.ok(!loadMore().hasAttribute('disabled'), 'Load more is available again');
 });
