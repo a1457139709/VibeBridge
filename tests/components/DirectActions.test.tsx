@@ -18,9 +18,9 @@ import { forgeSidebarData, workbenchEvents } from './support/forge-sidebar-data'
 import { githubForge, githubView, githubRepository } from './support/forge';
 import { issue as listedIssue, pullRequest as listedPullRequest, stubSidebarApis } from './support/forge-lists';
 import { requireValue } from '../../app/renderer/common/required';
-import { selectElement } from './support/elements';
+import { descriptionParts } from './support/elements';
 import { t } from './support/localization';
-import { detailHeading, forgeSidebar } from './support/sidebar-queries';
+import { alertMessages, detailHeading, forgeSidebar } from './support/sidebar-queries';
 
 afterEach(cleanup);
 before(stubSidebarApis);
@@ -268,13 +268,12 @@ test('a failed action shows the forge text under the buttons with Retry until di
   await user.click(within(issuePane()).getByRole('button', { name: t('closeIssue') }));
   (await action(1)).answer(failure('HTTP 502: Server Error (https://api.github.com/graphql)'));
   const alert = await within(issuePane()).findByRole('alert');
-  assert.equal(
-    selectElement(':scope > span', alert).textContent,
+  assert.deepEqual(descriptionParts(within(alert).getByRole('button', { name: t('retry') })), [
     t('actionFailed', {
       action: t('closeAsCompleted'),
       reason: 'HTTP 502: Server Error (https://api.github.com/graphql)',
     }),
-  );
+  ]);
   assert.ok(
     !within(issuePane())
       .getByRole('button', { name: t('closeIssue') })
@@ -306,12 +305,7 @@ test('an action that finds the forge CLI missing or logged out puts the sidebar 
   await missing.user.click(within(issuePane()).getByRole('button', { name: t('closeIssue') }));
   const notInstalled: ForgeFailure = { kind: 'notInstalled', detail: '', forge: githubForge };
   (await missing.action(1)).answer({ ok: false, failure: notInstalled });
-  await waitFor(() =>
-    assert.equal(
-      forgeSidebar().querySelector('.forge-sidebar-state > p')?.textContent,
-      t('forgeCliMissing', { cli: githubForge.cli }),
-    ),
-  );
+  await waitFor(() => assert.deepEqual(alertMessages(), [t('forgeCliMissing', { cli: githubForge.cli })]));
   assert.equal(
     within(forgeSidebar()).queryByRole('region', { name: t('issueDetail') }),
     null,
@@ -387,7 +381,7 @@ test('merging takes two clicks in place: the method, then its confirmation', asy
   );
   forge.pullRequest = pullDetail(12, { state: 'merged' });
   merge.answer({ ok: true, detail: '' });
-  await waitFor(() => assert.equal(pullPane().querySelector('.forge-merge-row')?.textContent, t('stateMerged')));
+  await within(pullPane()).findByRole('group', { name: t('stateMerged') });
   assert.equal(within(pullPane()).queryByRole('alert'), null);
   assert.deepEqual(mergeButtons(), [], 'a merged pull request has no actions');
 });
@@ -404,8 +398,7 @@ test('a pull request closes, and a closed one reopens', async () => {
   assert.deepEqual((await action(2)).action, { kind: 'reopenPullRequest', number: 12 });
 });
 
-const mergeReasons = () =>
-  [...pullPane().querySelectorAll('.forge-merge-why > .forge-muted')].map(reason => reason.textContent);
+const mergeReasons = () => descriptionParts(within(pullPane()).getByRole('button', { name: t('chooseMergeMethod') }));
 const mergeDisabled = () =>
   [t('mergeMethodMerge'), t('chooseMergeMethod')].map(name =>
     within(pullPane()).getByRole('button', { name }).hasAttribute('disabled'),
@@ -446,8 +439,8 @@ test('a repository that merges through a merge queue greys out merging and links
   await openPullRequest(forge);
   const merge = within(pullPane()).getByRole('button', { name: t('mergeButton') });
   assert.ok(merge.hasAttribute('disabled'));
+  assert.deepEqual(descriptionParts(merge), [t('mergeQueueNote')]);
   const note = requireValue(merge.parentElement, 'the merge note');
-  assert.equal(note.textContent, `${t('mergeButton')}${t('mergeQueueNote')}${t('openOnForge', { forge: forgeName })}`);
   assert.equal(
     within(note)
       .getByRole('link', { name: t('openOnForge', { forge: forgeName }) })

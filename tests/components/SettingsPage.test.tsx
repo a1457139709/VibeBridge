@@ -10,7 +10,7 @@ import type { CommandCheck, Settings } from '../../app/shared/model';
 import { message } from '../../app/shared/messages';
 import { deferred, provideWorkbench } from './support/workbench';
 import { requireValue } from '../../app/renderer/common/required';
-import { requireInstance, selectElement } from './support/elements';
+import { descriptionParts, requireInstance, selectElement } from './support/elements';
 import { t } from './support/localization';
 
 afterEach(cleanup);
@@ -34,8 +34,6 @@ const click = (user: ReturnType<typeof userEvent.setup>, name: string) =>
   user.click(screen.getByRole('button', { name }));
 const command = () => screen.getAllByRole<HTMLInputElement>('textbox', { name: t('launchCommand') })[0];
 const startsWith = (prefix: string) => (name: string) => name.startsWith(prefix);
-const dialogParagraphs = () =>
-  [...screen.getByRole('dialog').querySelectorAll('p')].map(paragraph => paragraph.textContent);
 
 test('category drafts survive switching, and ordinary save submits only the current category', async () => {
   const saved = defaultSettings();
@@ -134,7 +132,7 @@ test('save and leave submits all changed categories together and allows leaving 
   act(() => {
     leave = requireValue(ref.current, 'the settings page').requestLeave();
   });
-  assert.deepEqual(dialogParagraphs(), [
+  assert.deepEqual(descriptionParts(screen.getByRole('dialog')), [
     t('settingsUnsaved', { categories: [t('agents'), t('appearance'), t('shortcuts')] }),
   ]);
   await click(user, t('saveAndReturn'));
@@ -326,7 +324,7 @@ test('during a settings conflict every leave asks to fix the conflicting categor
     leave = requireValue(ref.current, 'the settings page').requestLeave();
   });
   const conflict = t('settingsLeaveConflict', { categories: [t('shortcuts')] });
-  assert.deepEqual(dialogParagraphs(), [conflict]);
+  assert.deepEqual(descriptionParts(screen.getByRole('dialog')), [conflict]);
   assert.deepEqual(
     within(screen.getByRole('dialog'))
       .getAllByRole('button')
@@ -339,7 +337,10 @@ test('during a settings conflict every leave asks to fix the conflicting categor
   act(() => {
     leave = requireValue(ref.current, 'the settings page').requestLeave();
   });
-  assert.deepEqual(dialogParagraphs(), [conflict, t('settingsUnsaved', { categories: [t('agents')] })]);
+  assert.deepEqual(descriptionParts(screen.getByRole('dialog')), [
+    conflict,
+    t('settingsUnsaved', { categories: [t('agents')] }),
+  ]);
   await click(user, t('cancel'));
   assert.equal(await leave, false);
 });

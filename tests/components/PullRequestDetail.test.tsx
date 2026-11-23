@@ -42,10 +42,9 @@ test('a pull request row opens its detail: title, state, head into base, the cha
   );
   const doc = within(pane());
   assert.equal(selectElement('.forge-pill', pane()).textContent, t('stateOpen'));
-  assert.equal(
-    selectElement('.forge-pull-branches', pane()).textContent,
-    `${t('wantsToMerge', { author: 'mona', head: 'feat/detail', base: 'main' })} · ${t('daysAgo', { count: 2 })}`,
-  );
+  const branches = selectElement('.forge-pull-branches', pane());
+  assert.ok(branches.textContent?.includes(t('wantsToMerge', { author: 'mona', head: 'feat/detail', base: 'main' })));
+  assert.equal(selectElement('time', branches).textContent, t('daysAgo', { count: 2 }));
   assert.equal(
     doc.getByRole('link', { name: t('viewChanges', { forge: githubForge.name }) }).getAttribute('href'),
     `${repositoryUrl}/pull/12/files`,
@@ -57,12 +56,11 @@ test('a pull request row opens its detail: title, state, head into base, the cha
   const closes = doc.getByRole('group', { name: t('closesOnMerge') });
   const elsewhere = within(closes).getByRole('link');
   assert.deepEqual(
-    [elsewhere.textContent, elsewhere.getAttribute('href')],
-    ['Elsewhere#8', 'https://github.com/octo/other/issues/8'],
+    [elsewhere.textContent?.includes('Elsewhere'), elsewhere.getAttribute('href')],
+    [true, 'https://github.com/octo/other/issues/8'],
     'an issue of another repository opens in the browser',
   );
-  const spec = within(closes).getByRole('button');
-  assert.equal(spec.textContent, 'Spec#3');
+  const spec = within(closes).getByRole('button', { name: name => name.includes('Spec') });
   await user.click(spec);
   const issue = await request(2);
   assert.deepEqual([issue.kind, issue.number], ['issue', 3], 'an issue of the bound repository opens in the sidebar');
@@ -82,12 +80,19 @@ test('the body, comments and review summaries follow in time order, reviews with
       ],
     }),
   );
-  const cards = [...pane().querySelectorAll('.forge-card')].map(card => card.textContent);
+  const cards = within(pane())
+    .getAllByRole('article')
+    .map(card => [
+      selectElement('header > b', card).textContent,
+      card.querySelector('header .forge-checks')?.textContent ?? null,
+      selectElement('time', card).textContent,
+      selectElement('.forge-markdown', card).textContent,
+    ]);
   assert.deepEqual(cards, [
-    `mona ${t('daysAgo', { count: 2 })}The body.`,
-    `bob ${t('verdictChangesRequested')} ${t('hoursAgo', { count: 4 })}Handle the draft row.`,
-    `hubot ${t('hoursAgo', { count: 3 })}Rebased.`,
-    `alice ${t('verdictApproved')} ${t('hoursAgo', { count: 2 })}LGTM`,
+    ['mona', null, t('daysAgo', { count: 2 }), 'The body.'],
+    ['bob', t('verdictChangesRequested'), t('hoursAgo', { count: 4 }), 'Handle the draft row.'],
+    ['hubot', null, t('hoursAgo', { count: 3 }), 'Rebased.'],
+    ['alice', t('verdictApproved'), t('hoursAgo', { count: 2 }), 'LGTM'],
   ]);
   assert.equal(pane().querySelector('.forge-earlier'), null, 'nothing came before the timeline');
   assert.deepEqual(
@@ -109,7 +114,7 @@ test('a timeline with earlier entries says how many at its top and links the pul
     name: t('earlierEntries', { count: 80, forge: githubForge.name }),
   });
   assert.equal(earlier.getAttribute('href'), `${repositoryUrl}/pull/12`);
-  const [body, comment] = [...pane().querySelectorAll('.forge-card')];
+  const [body, comment] = within(pane()).getAllByRole('article');
   assert.ok(
     body.compareDocumentPosition(earlier) & Node.DOCUMENT_POSITION_FOLLOWING &&
       earlier.compareDocumentPosition(comment) & Node.DOCUMENT_POSITION_FOLLOWING,

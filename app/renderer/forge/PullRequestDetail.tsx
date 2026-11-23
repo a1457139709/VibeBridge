@@ -154,7 +154,13 @@ function CheckItem({ check, requiredChecks }: { check: Check; requiredChecks: bo
   const id = useId();
   const { mark, tone } = checkTones[check.tone];
   const duration = durationText(check, t);
-  const describedBy = [`${id}-outcome`, duration && `${id}-duration`, check.description && `${id}-description`];
+  const required = requiredChecks && check.required;
+  const describedBy = [
+    required && `${id}-required`,
+    `${id}-outcome`,
+    duration && `${id}-duration`,
+    check.description && `${id}-description`,
+  ];
   return (
     <li
       className="forge-merge-check"
@@ -167,7 +173,11 @@ function CheckItem({ check, requiredChecks }: { check: Check; requiredChecks: bo
           <span className="forge-ellipsis" id={`${id}-name`}>
             {check.workflow ? `${check.workflow} / ${check.name}` : check.name}
           </span>
-          {requiredChecks && check.required && <span className="forge-required">{t('requiredCheck')}</span>}
+          {required && (
+            <span className="forge-required" id={`${id}-required`}>
+              {t('requiredCheck')}
+            </span>
+          )}
           <span className="forge-spacer" />
           <span className={`forge-${tone}`} id={`${id}-outcome`}>
             {outcomeText(check, t)}
@@ -245,13 +255,14 @@ function MergeArea({
   actions: Actions;
 }) {
   const { t } = useLocalization();
+  const endedState = useId();
   const label = t('mergeRequirements');
   if (pullRequest.state === 'merged' || pullRequest.state === 'closed')
     return (
       <section className="forge-merge" aria-label={label}>
-        <div className="forge-merge-row">
+        <div className="forge-merge-row" role="group" aria-labelledby={endedState}>
           <PullRequestIcon state={pullRequest.state} hint={false} />
-          {t(pullRequest.state === 'merged' ? 'stateMerged' : 'closedWithoutMerging')}
+          <span id={endedState}>{t(pullRequest.state === 'merged' ? 'stateMerged' : 'closedWithoutMerging')}</span>
           <span className="forge-spacer" />
           <ReopenPullRequest pullRequest={pullRequest} actions={actions} />
         </div>

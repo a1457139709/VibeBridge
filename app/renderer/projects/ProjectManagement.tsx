@@ -1,5 +1,5 @@
 import { useLocalization } from '../common/Localization';
-import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from 'react';
+import { useEffect, useId, useLayoutEffect, useRef, useState, type ReactNode } from 'react';
 import { type Project, type ProjectEditResult, type ProjectView } from '../../shared/model';
 import { originElsewhereThanBinding, type RepositoryChoices } from '../../shared/forge/forge';
 import {
@@ -157,6 +157,7 @@ export function ProjectEditor({
     [choosing, setChoosing] = useState(false),
     [error, setError] = useState('');
   const [result, setResult] = useState<ProjectEditResult>();
+  const repositoryPath = useId();
   const boundRepository = project.repository;
   const directoryField = presentDirectoryField({
     input: directoryInput,
@@ -231,7 +232,7 @@ export function ProjectEditor({
       <h2>{result ? t('projectEditResult') : t('editProject')}</h2>
       {result ? (
         <>
-          <p>{t('projectSaved', { name: result.project.name })}</p>
+          <p role="status">{t('projectSaved', { name: result.project.name })}</p>
           <p className="project-path">{result.project.directory}</p>
           {result.error && (
             <p className="error-text" role="alert">
@@ -333,9 +334,17 @@ export function ProjectEditor({
           <div className="repository-field">
             <span className="repository-label">{t('repository')}</span>
             <div className="repository-current">
-              <span className="repository-path">{boundRepository ? <b>{boundRepository.path}</b> : t('notBound')}</span>
+              <span className="repository-path" id={repositoryPath}>
+                {boundRepository ? <b>{boundRepository.path}</b> : t('notBound')}
+              </span>
               <span className="repository-current-actions">
-                <button type="button" className="text-link" disabled={busy} onClick={openBinding}>
+                <button
+                  type="button"
+                  className="text-link"
+                  disabled={busy}
+                  onClick={openBinding}
+                  aria-describedby={repositoryPath}
+                >
                   {t(boundRepository ? 'changeBindingInSidebar' : 'bindInSidebar', { forge: project.forge.name })}
                 </button>
               </span>

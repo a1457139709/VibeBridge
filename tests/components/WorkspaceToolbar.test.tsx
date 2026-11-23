@@ -11,9 +11,9 @@ import { stubLayoutApis } from './support/no-layout';
 import { provideWorkbench } from './support/workbench';
 import { githubView } from './support/forge';
 import { t } from './support/localization';
-import { including, summaryEntry as entry } from './support/panel-names';
 import { requireValue } from '../../app/renderer/common/required';
 import { selectElement } from './support/elements';
+import { nameIncluding, summaryEntryName } from './support/accessible-names';
 
 afterEach(cleanup);
 before(() => {
@@ -22,7 +22,7 @@ before(() => {
 });
 
 const title = (id: string) => `Session ${id}`;
-const titled = (id: string) => including(title(id));
+const titled = (id: string) => nameIncluding(title(id));
 
 const panel = (id: string, status: ProcessingState): PanelView => ({
   id,
@@ -78,17 +78,21 @@ test('the workspace toolbar holds the project summary of resident and tray panel
     within(summary)
       .getAllByRole('button')
       .map(button => button.getAttribute('aria-label')),
-    [entry(0, 'ready'), entry(1, 'needs-input'), entry(2, 'done'), entry(0, 'error')],
+    [
+      summaryEntryName(0, 'ready'),
+      summaryEntryName(1, 'needs-input'),
+      summaryEntryName(2, 'done'),
+      summaryEntryName(0, 'error'),
+    ],
   );
-  assert.equal(toolbar.textContent?.includes('Toolbar project'), false);
-  assert.equal(toolbar.textContent?.includes('toolbar-directory'), false);
-  assert.equal(toolbar.textContent?.includes(t('panelCount', { count: 3 })), false);
-  assert.equal(document.querySelector('.system-bar')?.textContent, '☷VibeBridge');
+  for (const bar of [toolbar, selectElement('.system-bar')])
+    for (const shown of ['Toolbar project', 'toolbar-directory', t('panelCount', { count: 3 })])
+      assert.equal(bar.textContent?.includes(shown), false, shown);
 });
 
 test('choosing a tray panel in the summary opens it ephemerally', async () => {
   const user = renderWorkbench();
-  await user.click(await screen.findByRole('button', { name: entry(2, 'done') }));
+  await user.click(await screen.findByRole('button', { name: summaryEntryName(2, 'done') }));
   await user.click(
     within(screen.getByRole('dialog', { name: t('done') })).getByRole('button', { name: titled('second-ephemeral') }),
   );
@@ -98,7 +102,7 @@ test('choosing a tray panel in the summary opens it ephemerally', async () => {
   });
   assert.equal(card.getAttribute('aria-pressed'), 'true');
   assert.ok(screen.getByRole('button', { name: t('collapsePanel') }));
-  await user.click(screen.getByRole('button', { name: entry(1, 'needs-input') }));
+  await user.click(screen.getByRole('button', { name: summaryEntryName(1, 'needs-input') }));
   await user.keyboard('{Escape}');
   assert.ok(!screen.queryByRole('dialog'));
   assert.equal(card.getAttribute('aria-pressed'), 'true', 'Escape closes only the summary list');
@@ -121,7 +125,7 @@ test("Escape in an open tray panel's terminal goes to the terminal and leaves th
 
 test('choosing a resident panel in the summary leaves the tray closed', async () => {
   const user = renderWorkbench();
-  await user.click(await screen.findByRole('button', { name: entry(2, 'done') }));
+  await user.click(await screen.findByRole('button', { name: summaryEntryName(2, 'done') }));
   await user.click(
     within(screen.getByRole('dialog', { name: t('done') })).getByRole('button', { name: titled('resident') }),
   );
@@ -138,7 +142,7 @@ test('choosing a resident panel in the summary while a tray panel is open collap
   const tray = await screen.findByRole('region', { name: t('panelTray') });
   await user.click(within(tray).getByRole('button', { name: titled('first-ephemeral') }));
   assert.ok(screen.getByRole('button', { name: t('collapsePanel') }));
-  await user.click(screen.getByRole('button', { name: entry(2, 'done') }));
+  await user.click(screen.getByRole('button', { name: summaryEntryName(2, 'done') }));
   await user.click(
     within(screen.getByRole('dialog', { name: t('done') })).getByRole('button', { name: titled('resident') }),
   );

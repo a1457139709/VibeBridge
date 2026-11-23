@@ -9,9 +9,9 @@ import type { PanelView, Snapshot, WorkbenchEvent } from '../../app/shared/model
 import { provideWorkbench } from './support/workbench';
 import { githubView } from './support/forge';
 import { t } from './support/localization';
-import { including, summaryEntry as entry } from './support/panel-names';
 import { requireValue } from '../../app/renderer/common/required';
 import { selectElement } from './support/elements';
+import { nameIncluding, summaryEntryName } from './support/accessible-names';
 
 const frames = new Map<number, FrameRequestCallback>();
 let nextFrame = 0;
@@ -124,7 +124,7 @@ async function renderWorkbench() {
     saveLayout: async () => {},
   });
   render(<App />);
-  await screen.findByRole('button', { name: entry(snapshot.projects[0].panels.length, 'done') });
+  await screen.findByRole('button', { name: summaryEntryName(snapshot.projects[0].panels.length, 'done') });
   const user = userEvent.setup();
   return {
     focused: () =>
@@ -132,12 +132,13 @@ async function renderWorkbench() {
         ? document.activeElement.closest<HTMLElement>('[data-panel-id]')?.dataset.panelId
         : undefined,
     locating: () => selectElement('.workbench-page').classList.contains('locating-panel'),
-    open: () => user.click(screen.getByRole('button', { name: entry(snapshot.projects[0].panels.length, 'done') })),
+    open: () =>
+      user.click(screen.getByRole('button', { name: summaryEntryName(snapshot.projects[0].panels.length, 'done') })),
     async choose(panelId: string) {
       await this.open();
       await user.click(
         within(screen.getByRole('dialog', { name: t('done') })).getByRole('button', {
-          name: including(title(panelId)),
+          name: nameIncluding(title(panelId)),
         }),
       );
       await runFrame();

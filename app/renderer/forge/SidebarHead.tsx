@@ -15,7 +15,9 @@ export function SidebarHead({
   const { t } = useLocalization();
   return (
     <header className="forge-sidebar-head">
-      <span className="forge-sidebar-repository">{title}</span>
+      <span className="forge-sidebar-repository" role="heading" aria-level={2}>
+        {title}
+      </span>
       {changeBinding && (
         <button className="forge-head-text" onClick={changeBinding}>
           {t('changeBinding')}

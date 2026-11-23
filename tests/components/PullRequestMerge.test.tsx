@@ -19,6 +19,7 @@ import {
   openPullRequest,
 } from './support/pull-request-detail';
 import { t } from './support/localization';
+import { descriptionParts } from './support/elements';
 import type { CheckState } from '../../app/shared/forge/forge';
 import { githubCapabilities, githubForge } from './support/forge';
 
@@ -26,11 +27,14 @@ afterEach(cleanup);
 before(stubSidebarApis);
 
 const checkItems = () => within(rowOf(t('checksRow'))).queryAllByRole('listitem');
-const shownCheck = (name: string, ...describedBy: string[]) =>
-  within(rowOf(t('checksRow'))).getByRole('listitem', { name, description: describedBy.join(' ') });
+const shownCheck = (name: string, ...description: string[]) => {
+  const item = within(rowOf(t('checksRow'))).getByRole('listitem', { name });
+  assert.deepEqual(descriptionParts(item), description, name);
+  return item;
+};
 const checkMarks = (item: HTMLElement) => ({
   tone: item.querySelector(':scope > span')?.className,
-  required: item.querySelector('.forge-required')?.textContent === t('requiredCheck'),
+  required: descriptionParts(item).includes(t('requiredCheck')),
   log:
     within(item)
       .queryByRole('link', { name: t('checkLog') })
@@ -81,9 +85,10 @@ test("the checks show GitHub's overall state and every count, then each check in
     ),
   );
   const shown = [
-    shownCheck('CI / lint', t('checkSuccess')),
+    shownCheck('CI / lint', t('requiredCheck'), t('checkSuccess')),
     shownCheck(
       'CI / unit tests',
+      t('requiredCheck'),
       t('checkTimedOut'),
       t('durationMinutes', { minutes: 30, seconds: 5 }),
       'Timed out after 30 minutes',
@@ -200,7 +205,11 @@ for (const [state, text] of [
     await openPullRequest(
       detail(12, { state, mergeState: 'dirty', checks: checks([check('lint', failure)]), canWrite: false }),
     );
-    assert.equal(mergeArea().textContent, text);
+    assert.deepEqual(
+      within(mergeArea()).getAllByRole('group'),
+      [within(mergeArea()).getByRole('group', { name: text })],
+      'only the end state shows',
+    );
   });
 }
 
@@ -208,5 +217,5 @@ test('a forge without required checks marks none', async () => {
   await openPullRequest(detail(12, { checks: checks([check('unit tests', failure, { required: true })]) }), {
     capabilities: { ...githubCapabilities, requiredChecks: false },
   });
-  assert.equal(mergeArea().querySelector('.forge-required'), null);
+  assert.equal(descriptionParts(checkItems()[0]).includes(t('requiredCheck')), false);
 });

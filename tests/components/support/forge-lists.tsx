@@ -219,8 +219,6 @@ export function renderWorkbench(capabilities = githubCapabilities, api: Partial<
 }
 
 export const refresh = () => within(forgeSidebar()).getByRole('button', { name: t('refresh') });
-export const shows = (text: string, root: Element = forgeSidebar()) => !!root.textContent?.includes(text);
-export const sidebarTitle = () => selectElement('.forge-sidebar-repository', forgeSidebar()).textContent;
 export const stateFilter = (state: 'open' | 'closed', count: number) =>
   within(forgeSidebar()).getByRole('button', {
     name: name => name.startsWith(t(state === 'open' ? 'filterOpen' : 'filterClosed')) && name.endsWith(String(count)),

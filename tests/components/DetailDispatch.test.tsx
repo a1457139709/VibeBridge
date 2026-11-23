@@ -8,20 +8,20 @@ import type { Snapshot } from '../../app/shared/model';
 import { t } from './support/localization';
 import { stubSidebarApis } from './support/forge-lists';
 import {
-  commandItem,
   issueButton,
   issueDetail as detail,
   listed,
   menu,
-  naming,
   record,
   targetsMenu,
   trayTitle,
+  commandNamed,
 } from './support/dispatch';
 import { agentNames } from '../../app/shared/model';
 import { requireValue } from '../../app/renderer/common/required';
 import { selectElement } from './support/elements';
 import { forgeSidebar, detailHeading } from './support/sidebar-queries';
+import { nameIncluding } from './support/accessible-names';
 
 afterEach(cleanup);
 before(stubSidebarApis);
@@ -49,8 +49,10 @@ test("an open issue's detail has a Dispatch beside its state and labels that ope
   const shown = await waitFor(() => menu());
   await waitFor(() => assert.equal(document.activeElement, shown));
   assert.equal(within(shown).getAllByRole('menuitem').length, 12);
-  await f.user.hover(within(shown).getByRole('menuitem', commandItem(implement, ['submit'])));
-  await f.user.click(within(await waitFor(() => targetsMenu(implement))).getByRole('menuitem', naming(trayTitle)));
+  await f.user.hover(within(shown).getByRole('menuitem', commandNamed(implement, ['submit'])));
+  await f.user.click(
+    within(await waitFor(() => targetsMenu(implement))).getByRole('menuitem', { name: nameIncluding(trayTitle) }),
+  );
   await waitFor(() =>
     assert.deepEqual(f.dispatches, [
       [

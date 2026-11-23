@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type ReactNode } from 'react';
+import { useEffect, useId, useRef, useState, type ReactNode } from 'react';
 import { useLocalization } from '../common/Localization';
 import type { ProjectView } from '../../shared/model';
 import { sameRepository, type RepositoryReference } from '../../shared/forge/forge';
@@ -76,6 +76,7 @@ export function UnboundRepository({ project }: { project: ProjectView }) {
   const [picked, setPicked] = useState<RepositoryReference>();
   const call = useBindingCall();
   const cardFocus = useFocusHandoff();
+  const cardLabel = useId();
   const selection = listed ? (picked ?? listed.origin ?? null) : null;
   const bind = (repository: RepositoryReference) =>
     void call.run(() => window.workbench.bindRepository(project.id, repository));
@@ -88,8 +89,8 @@ export function UnboundRepository({ project }: { project: ProjectView }) {
     );
   if (origin && !choosingOther)
     return (
-      <div className="binding-pane binding-card">
-        <p>{t('projectUnbound', { forge: project.forge.name })}</p>
+      <div className="binding-pane binding-card" role="group" aria-labelledby={cardLabel}>
+        <p id={cardLabel}>{t('projectUnbound', { forge: project.forge.name })}</p>
         <div className="binding-origin">
           <span className="muted">{t('originPointsAt')}</span>
           <b className="repository-path">{origin.path}</b>
@@ -156,20 +157,17 @@ export function ChangeBinding({
   const unbindFocus = useFocusHandoff();
   const rebindTarget = listed && picked && !sameRepository(picked, boundRepository) ? picked : undefined;
   let consequence: ReactNode = null;
-  if (unbinding)
-    consequence = (
-      <p className="binding-consequence">
-        {t('unbindConsequence')}
-        {t('unbindImpact')}
-      </p>
-    );
+  const consequenceId = useId();
+  const describedByConsequence = `${consequenceId}-what ${consequenceId}-impact`;
+  const consequenceOf = (what: string, impact: string) => (
+    <p className="binding-consequence">
+      <span id={`${consequenceId}-what`}>{what}</span>
+      <span id={`${consequenceId}-impact`}>{impact}</span>
+    </p>
+  );
+  if (unbinding) consequence = consequenceOf(t('unbindConsequence'), t('unbindImpact'));
   else if (rebindTarget)
-    consequence = (
-      <p className="binding-consequence">
-        {t('rebindConsequence', { repository: rebindTarget.path })}
-        {t('rebindImpact')}
-      </p>
-    );
+    consequence = consequenceOf(t('rebindConsequence', { repository: rebindTarget.path }), t('rebindImpact'));
   return (
     <div className="binding-pane">
       <button className="binding-link" onClick={back}>
@@ -210,6 +208,7 @@ export function ChangeBinding({
             <button
               className="danger"
               disabled={call.busy}
+              aria-describedby={describedByConsequence}
               onClick={() => void call.run(() => window.workbench.unbindRepository(project.id), back)}
             >
               {call.busy ? t('changingBinding') : t('unbind')}
@@ -233,6 +232,7 @@ export function ChangeBinding({
             <button
               className="primary"
               disabled={!rebindTarget || call.busy}
+              aria-describedby={rebindTarget ? describedByConsequence : undefined}
               onClick={() =>
                 rebindTarget && void call.run(() => window.workbench.bindRepository(project.id, rebindTarget), back)
               }

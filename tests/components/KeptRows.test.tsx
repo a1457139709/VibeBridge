@@ -14,13 +14,12 @@ import {
   refresh,
   renderWorkbench,
   rows,
-  shows,
   stateFilter,
   stubSidebarApis,
 } from './support/forge-lists';
 import { githubForge } from './support/forge';
 import { requireInstance } from './support/elements';
-import { forgeSidebar } from './support/sidebar-queries';
+import { forgeSidebar, statusMessages } from './support/sidebar-queries';
 
 const loadMore = () => within(forgeSidebar()).getByRole('button', { name: t('loadMore') });
 
@@ -50,7 +49,7 @@ test('search, state and labels are sent to the forge, each tab keeps its own, an
   const labelled = await request(5);
   assert.deepEqual(labelled.query.filter, { search: '#4', state: 'closed', labels: ['bug', 'docs'] });
   labelled.answer(page([]));
-  await waitFor(() => assert.ok(shows(t('noMatchingIssues'))));
+  await waitFor(() => assert.ok(statusMessages().includes(t('noMatchingIssues'))));
 
   await user.click(within(forgeSidebar()).getByRole('tab', { name: t('pullRequestsTab') }));
   assert.equal(
@@ -95,7 +94,7 @@ test('search, state and labels are sent to the forge, each tab keeps its own, an
     requireInstance(within(forgeSidebar()).getByRole('searchbox', { name: t('searchIssues') }), HTMLInputElement).value,
     '#4',
   );
-  assert.ok(shows(t('noMatchingIssues')), 'its kept rows show while they update');
+  assert.ok(statusMessages().includes(t('noMatchingIssues')), 'its kept rows show while they update');
   assert.equal(refresh().getAttribute('aria-busy'), 'true');
   alphaRequest.answer(page([issue(4)]));
   await waitFor(() => assert.deepEqual(rows(), ['Issue 4']));
@@ -121,7 +120,7 @@ test('reopening the sidebar or bringing the window to the front shows the kept r
   assert.equal(refresh().getAttribute('aria-busy'), 'true', 'the refresh icon spins while the update runs');
   assert.ok(loadMore().hasAttribute('disabled'), 'Load more waits for the update');
   inFront.answer(failed('transient', 'HTTP 502'));
-  await waitFor(() => assert.ok(shows(t('dataMayBeStale'))));
+  await waitFor(() => assert.ok(statusMessages().includes(t('dataMayBeStale'))));
   assert.deepEqual(rows(), ['Issue 2', 'Issue 1'], 'the rows stay beside the notice');
   assert.ok(!loadMore().hasAttribute('disabled'), 'Load more is available again');
 });

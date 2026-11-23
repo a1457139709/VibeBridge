@@ -13,10 +13,9 @@ import { Setup } from '../../app/renderer/projects/Setup';
 import { provideWorkbench } from './support/workbench';
 import { localize } from '../../app/shared/localization/localization';
 import { t } from './support/localization';
-import { selectElement } from './support/elements';
 
 const zh = localize('zh-CN').t;
-const notices = () => within(selectElement('.notices'));
+const notices = (translate = t) => within(screen.getByRole('region', { name: translate('notices') }));
 
 afterEach(cleanup);
 
@@ -71,15 +70,15 @@ test('switching language preserves project input and old notice identity and exp
   assert.equal(screen.getByRole<HTMLInputElement>('textbox', { name: zh('projectName') }), input);
   assert.equal(input.value, 'Untitled task 原样');
   assert.ok(screen.getByRole('textbox', { name: zh('projectName'), description: zh('nameControls') }));
-  assert.equal(notices().getByRole('alert'), notice);
+  assert.equal(notices(zh).getByRole('alert'), notice);
   assert.equal(notice.textContent?.includes(zh('environmentFailed')), true);
-  const saved = notices().getByRole('status');
+  const saved = notices(zh).getByRole('status');
   assert.equal(saved.textContent?.includes(zh('settingsSaved')), true);
   act(() => context.mock.timers.tick(999));
-  assert.equal(notices().getByRole('alert'), notice);
+  assert.equal(notices(zh).getByRole('alert'), notice);
   act(() => context.mock.timers.tick(1));
-  assert.equal(notices().queryByRole('alert'), null);
-  assert.equal(notices().getByRole('status'), saved);
+  assert.equal(notices(zh).queryByRole('alert'), null);
+  assert.equal(notices(zh).getByRole('status'), saved);
   act(() => context.mock.timers.tick(1000));
-  assert.equal(notices().queryByRole('status'), null);
+  assert.equal(notices(zh).queryByRole('status'), null);
 });

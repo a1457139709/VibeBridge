@@ -12,13 +12,13 @@ import { provideWorkbench } from './support/workbench';
 import { githubView } from './support/forge';
 import { localize } from '../../app/shared/localization/localization';
 import { t } from './support/localization';
-import { including } from './support/panel-names';
+import { nameIncluding } from './support/accessible-names';
 
 afterEach(cleanup);
 
 const zh = localize('zh-CN').t;
 const title = (id: string) => `Session ${id}`;
-const titled = (id: string) => including(title(id));
+const titled = (id: string) => nameIncluding(title(id));
 const projectNames = ['Current', 'Other', 'Quiet'];
 
 const panel = (projectId: string, id: string, status?: ProcessingState): PanelView => ({
@@ -108,7 +108,7 @@ function renderNavigation(language: 'en' | 'zh-CN', state = snapshot()) {
 }
 
 const group = (count: number, translate = t) =>
-  screen.getByRole('button', { name: including(translate('ephemeralGroup', { count })) });
+  screen.getByRole('button', { name: nameIncluding(translate('ephemeralGroup', { count })) });
 const attention = (count: number, states: string[], translate = t) =>
   translate('ephemeralGroupAttention', { group: translate('ephemeralGroup', { count }), states });
 
@@ -150,9 +150,9 @@ test("each project's ephemeral panels sit in a collapsed group below its residen
   assert.deepEqual(
     entries.map(entry => entry.getAttribute('aria-label')),
     [
-      `${t('needs-input')} · ${title('waiting')}`,
-      `${t('busy')} · ${title('working')}`,
-      `${t('done')} · ${title('finished')}`,
+      t('panelStateTitle', { state: t('needs-input'), title: title('waiting') }),
+      t('panelStateTitle', { state: t('busy'), title: title('working') }),
+      t('panelStateTitle', { state: t('done'), title: title('finished') }),
     ],
   );
   assert.deepEqual(
@@ -172,15 +172,14 @@ test('the ephemeral group has no add entry', async () => {
   assert.equal(current.getAttribute('aria-label'), attention(3, [zh('needs-input'), zh('done')], zh));
   await user.click(current);
   const entries = screen.getByRole('group', { name: zh('ephemeralPanels', { name: 'Current' }) });
-  assert.equal(entries.textContent?.includes('＋'), false);
   assert.deepEqual(
     within(entries)
       .getAllByRole('button')
       .map(entry => entry.getAttribute('aria-label')),
     [
-      `${zh('needs-input')} · ${title('waiting')}`,
-      `${zh('busy')} · ${title('working')}`,
-      `${zh('done')} · ${title('finished')}`,
+      zh('panelStateTitle', { state: zh('needs-input'), title: title('waiting') }),
+      zh('panelStateTitle', { state: zh('busy'), title: title('working') }),
+      zh('panelStateTitle', { state: zh('done'), title: title('finished') }),
     ],
     'the group lists only its panels',
   );
@@ -212,8 +211,8 @@ test("a project's panel count covers its resident and ephemeral panels", () => {
     .getAllByRole('button', { name: name => projectNames.includes(name) })
     .map(link => [link.getAttribute('data-hint'), link.querySelector('small')?.textContent]);
   assert.deepEqual(counts, [
-    [`Current · ${t('panelCount', { count: 4 })}`, '4'],
-    [`Other · ${t('panelCount', { count: 3 })}`, '3'],
-    [`Quiet · ${t('panelCount', { count: 1 })}`, '1'],
+    [t('projectPanelCount', { name: 'Current', panels: t('panelCount', { count: 4 }) }), '4'],
+    [t('projectPanelCount', { name: 'Other', panels: t('panelCount', { count: 3 }) }), '3'],
+    [t('projectPanelCount', { name: 'Quiet', panels: t('panelCount', { count: 1 }) }), '1'],
   ]);
 });

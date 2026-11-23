@@ -5,7 +5,6 @@ import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testi
 import { userEvent } from '@testing-library/user-event';
 import { App } from '../../app/renderer/Workbench';
 import { t } from './support/localization';
-import { including } from './support/panel-names';
 import { defaultSettings } from '../../app/shared/settings/settings';
 import type { Layout, Snapshot } from '../../app/shared/model';
 import type { WorkbenchEvent } from '../../app/shared/model';
@@ -14,6 +13,7 @@ import { githubView } from './support/forge';
 import { stubLayoutApis } from './support/no-layout';
 import { requireValue } from '../../app/renderer/common/required';
 import { selectElement } from './support/elements';
+import { nameIncluding } from './support/accessible-names';
 
 afterEach(cleanup);
 
@@ -132,7 +132,7 @@ function drag(handle: HTMLElement) {
 test('a rejected placement leaves the open tray panel open', async () => {
   const { user, placed, requests } = renderWorkbench();
   const tray = await screen.findByRole('region', { name: t('panelTray') });
-  const card = within(tray).getByRole('button', { name: including(ephemeralTitle) });
+  const card = within(tray).getByRole('button', { name: nameIncluding(ephemeralTitle) });
   await user.click(card);
   assert.ok(screen.getByRole('button', { name: t('collapsePanel') }));
 
@@ -215,7 +215,7 @@ test('an open tray panel grows from its card, and collapsing it flies it back in
   const started = recordAnimations(false);
   const { user } = renderWorkbench();
   const tray = await screen.findByRole('region', { name: t('panelTray') });
-  const card = within(tray).getByRole('button', { name: including(ephemeralTitle) });
+  const card = within(tray).getByRole('button', { name: nameIncluding(ephemeralTitle) });
   const slot = () => document.querySelector('.canvas [data-panel-id="ephemeral"]');
   await user.click(card);
   assert.deepEqual(
@@ -242,7 +242,7 @@ test('with reduced motion the tray panel opens and collapses at once', async () 
   recordAnimations(true);
   const { user } = renderWorkbench();
   const tray = await screen.findByRole('region', { name: t('panelTray') });
-  const card = within(tray).getByRole('button', { name: including(ephemeralTitle) });
+  const card = within(tray).getByRole('button', { name: nameIncluding(ephemeralTitle) });
   await user.click(card);
   await user.click(screen.getByRole('button', { name: t('collapsePanel') }));
   await waitFor(() => assert.equal(card.getAttribute('aria-pressed'), 'false'));

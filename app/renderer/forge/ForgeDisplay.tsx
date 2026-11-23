@@ -175,7 +175,12 @@ export function RelativeTime({ iso }: { iso: string }) {
 export function Progress({ closed, total }: SubIssueProgress) {
   const { t } = useLocalization();
   return (
-    <span className="forge-progress" data-hint={t('subIssueProgress', { closed, total })}>
+    <span
+      className="forge-progress"
+      role="img"
+      aria-label={t('subIssueProgress', { closed, total })}
+      data-hint={t('subIssueProgress', { closed, total })}
+    >
       <span className="forge-progress-bar">
         <span style={{ width: `${total ? (closed / total) * 100 : 0}%` }} />
       </span>
@@ -269,7 +274,7 @@ export function OpenPullRequestChecks({ state, checks }: { state: PullRequestSta
   if ((state !== 'open' && state !== 'draft') || checks === 'none') return null;
   const { mark, name, tone } = conclusions[checks];
   return (
-    <span className={`forge-checks forge-${tone}`}>
+    <span className={`forge-checks forge-${tone}`} role="img" aria-label={t(name)}>
       {mark} {t(name)}
     </span>
   );

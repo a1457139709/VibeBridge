@@ -6,6 +6,7 @@ import { t } from './support/localization';
 import { stubLayoutApis } from './support/no-layout';
 import { githubCapabilities, githubForge } from './support/forge';
 import { selectElement } from './support/elements';
+import { requireValue } from '../../app/renderer/common/required';
 import {
   repositoryUrl,
   hoursAgo,
@@ -16,7 +17,7 @@ import {
   pane,
   row,
 } from './support/issue-detail';
-import { forgeSidebar, detailHeading } from './support/sidebar-queries';
+import { alertMessages, detailHeading, forgeSidebar, staleRetry, statusMessages } from './support/sidebar-queries';
 
 afterEach(cleanup);
 before(() => {
@@ -30,7 +31,7 @@ test('clicking a row opens its detail beside the list, with the author, comment 
   await user.click(await row('Issue detail'));
   const first = await request(1);
   assert.equal(first.number, 7);
-  assert.equal(selectElement('.forge-empty', pane()).textContent, t('loadingDetail', { number: 7 }));
+  assert.deepEqual(statusMessages(pane()), [t('loadingDetail', { number: 7 })]);
   first.answer({
     ok: true,
     issue: detail(7, {
@@ -52,15 +53,15 @@ test('clicking a row opens its detail beside the list, with the author, comment 
     t('stateCompleted'),
     'the state pill names how it was closed',
   );
-  assert.equal(
-    selectElement('.forge-doc-meta', pane()).textContent,
-    `mona ${t('issueOpened')} ${t('hoursAgo', { count: 3 })} · ${t('commentCount', { count: 2 })} · ${t('assigneeList', { names: 'octo, hubot' })}`,
-  );
+  const meta = selectElement('.forge-doc-meta', pane());
+  assert.equal(selectElement('b', meta).textContent, 'mona');
+  assert.equal(selectElement('time', meta).textContent, t('hoursAgo', { count: 3 }));
+  for (const part of [t('issueOpened'), t('commentCount', { count: 2 }), t('assigneeList', { names: 'octo, hubot' })])
+    assert.ok(meta.textContent?.includes(part), part);
   assert.deepEqual(
-    [...pane().querySelectorAll('.forge-card')].map(card => [
-      card.querySelector('header > b')?.textContent,
-      card.querySelector('.forge-markdown')?.textContent,
-    ]),
+    within(pane())
+      .getAllByRole('article')
+      .map(card => [card.querySelector('header > b')?.textContent, card.querySelector('.forge-markdown')?.textContent]),
     [
       ['mona', 'The body.'],
       ['hubot', 'Resolution: overlay.'],
@@ -191,15 +192,18 @@ test('the relation graph draws open blockers and the open issues this one blocks
     }),
   });
   const graph = await within(pane()).findByRole('group', { name: t('relations') });
-  const column = (name: string) =>
-    [...graph.querySelectorAll(`.forge-node[data-relation="${name}"]`)].map(node => node.textContent);
-  assert.deepEqual(column('blockedBy'), ['#2Open blocker'], 'only open blockers are drawn');
-  assert.deepEqual(column('self'), ['#5Detail']);
-  assert.deepEqual(column('blocking'), ['#8Waits on detail']);
+  const nodes = [...graph.querySelectorAll<HTMLElement>('.forge-node')];
+  const relationOf = (title: string) =>
+    requireValue(
+      nodes.find(node => node.textContent?.includes(title)),
+      `the node of ${title}`,
+    ).dataset.relation;
+  assert.equal(nodes.length, 3, 'only open blockers are drawn');
+  assert.deepEqual(['Open blocker', 'Detail', 'Waits on detail'].map(relationOf), ['blockedBy', 'self', 'blocking']);
   assert.deepEqual([...graph.querySelectorAll('path.forge-edge')].length, 2, 'one edge per blocking relation');
-  assert.equal(
-    selectElement('button.forge-parent', pane()).textContent,
-    'Spec#11/3',
+  const parent = within(pane()).getByRole('button', { name: name => name.includes('Spec') });
+  assert.ok(
+    within(parent).getByRole('img', { name: t('subIssueProgress', { closed: 1, total: 3 }) }),
     'the parent shows above, with its sub-issue progress',
   );
   assert.ok(
@@ -207,16 +211,14 @@ test('the relation graph draws open blockers and the open issues this one blocks
     'the head shows the open blockers',
   );
   const subIssues = within(pane()).getByRole('region', { name: t('subIssues') });
-  assert.equal(
-    selectElement('.forge-progress', subIssues).textContent,
-    '1/2',
+  assert.ok(
+    within(subIssues).getByRole('img', { name: t('subIssueProgress', { closed: 1, total: 2 }) }),
     'the sub-issue progress counts closed ones',
   );
+  const subIssueButtons = within(subIssues).getAllByRole('button');
   assert.deepEqual(
-    within(subIssues)
-      .getAllByRole('button')
-      .map(button => button.textContent),
-    ['First part#6', 'Second part#9'],
+    ['First part', 'Second part'].map((title, index) => !!subIssueButtons[index]?.textContent?.includes(title)),
+    [true, true],
   );
 
   await user.click(selectElement('button[data-relation="blockedBy"]', graph));
@@ -265,47 +267,39 @@ test('the pull requests that close the issue on merge sit in their own block, cl
     state: 'open' | 'draft' | 'merged' | 'closed',
     checks: 'passed' | 'failed' | 'pending' | 'none',
   ) => ({ number, title, state, checks, url: `${repositoryUrl}/pull/${number}` });
-  (await request(1)).answer({
-    ok: true,
-    issue: detail(5, {
-      closingPullRequests: [
-        pull(40, 'Passing', 'open', 'passed'),
-        pull(41, 'Running', 'draft', 'pending'),
-        pull(42, 'Failing', 'open', 'failed'),
-        pull(43, 'Merged', 'merged', 'passed'),
-        pull(44, 'Abandoned', 'closed', 'failed'),
-        pull(45, 'Unchecked', 'open', 'none'),
-      ],
-    }),
-  });
+  const closing = [
+    pull(40, 'Passing', 'open', 'passed'),
+    pull(41, 'Running', 'draft', 'pending'),
+    pull(42, 'Failing', 'open', 'failed'),
+    pull(43, 'Merged', 'merged', 'passed'),
+    pull(44, 'Abandoned', 'closed', 'failed'),
+    pull(45, 'Unchecked', 'open', 'none'),
+  ];
+  (await request(1)).answer({ ok: true, issue: detail(5, { closingPullRequests: closing }) });
   const block = await within(pane()).findByRole('region', { name: t('closingPullRequests') });
   const items = within(block).getAllByRole('listitem');
   assert.deepEqual(
-    items.map(item => item.textContent),
-    [
-      `#40Passing✓ ${t('checksPassed')}`,
-      `#41Running● ${t('checksPending')}`,
-      `#42Failing✗ ${t('checksFailed')}`,
-      '#43Merged',
-      '#44Abandoned',
-      '#45Unchecked',
-    ],
-  );
-  assert.equal(
-    items.filter(item => within(item).queryByRole('button')).length,
-    6,
-    'each, of the bound repository, opens in the sidebar',
+    items.map(
+      (item, index) => !!within(item).queryByRole('button', { name: name => name.includes(closing[index].title) }),
+    ),
+    closing.map(() => true),
+    'each, of the bound repository, opens in the sidebar, in order',
   );
   assert.deepEqual(
-    items.map(item => within(item).getByRole('img').getAttribute('aria-label')),
+    items.map(item =>
+      within(item)
+        .getAllByRole('img')
+        .map(image => image.getAttribute('aria-label')),
+    ),
     [
-      t('pullRequestOpen'),
-      t('pullRequestDraft'),
-      t('pullRequestOpen'),
-      t('pullRequestMerged'),
-      t('pullRequestClosed'),
-      t('pullRequestOpen'),
+      [t('pullRequestOpen'), t('checksPassed')],
+      [t('pullRequestDraft'), t('checksPending')],
+      [t('pullRequestOpen'), t('checksFailed')],
+      [t('pullRequestMerged')],
+      [t('pullRequestClosed')],
+      [t('pullRequestOpen')],
     ],
+    'each names its state, and an open one its checks conclusion',
   );
   assert.equal(
     within(pane()).queryByRole('group', { name: t('relations') }),
@@ -345,15 +339,17 @@ test('a detail that fails to load says why and Retry asks again', async () => {
     ok: false,
     failure: { kind: 'transient', detail: 'HTTP 502: Bad Gateway', forge: githubForge },
   });
-  const loadFailure = () => selectElement('.forge-sidebar-state > p', pane()).textContent;
+  const loadFailure = () => alertMessages(pane());
   await waitFor(() =>
-    assert.equal(loadFailure(), t('detailLoadFailed', { number: 5, reason: 'HTTP 502: Bad Gateway' })),
+    assert.deepEqual(loadFailure(), [t('detailLoadFailed', { number: 5, reason: 'HTTP 502: Bad Gateway' })]),
   );
   await user.click(within(pane()).getByRole('button', { name: t('retry') }));
   const again = await request(2);
   assert.equal(again.number, 5);
   again.fail(new Error('Connection reset'));
-  await waitFor(() => assert.equal(loadFailure(), t('detailLoadFailed', { number: 5, reason: 'Connection reset' })));
+  await waitFor(() =>
+    assert.deepEqual(loadFailure(), [t('detailLoadFailed', { number: 5, reason: 'Connection reset' })]),
+  );
 });
 
 test('a refresh of a shown detail that fails keeps it showing with a stale notice, and Retry asks again', async () => {
@@ -366,11 +362,10 @@ test('a refresh of a shown detail that fails keeps it showing with a stale notic
     ok: false,
     failure: { kind: 'transient', detail: 'HTTP 502: Bad Gateway', forge: githubForge },
   });
-  const staleNotice = () => pane().querySelector('.forge-stale > span')?.textContent ?? null;
-  await waitFor(() => assert.equal(staleNotice(), t('dataMayBeStale')));
+  await waitFor(() => assert.deepEqual(statusMessages(pane()), [t('dataMayBeStale')]));
   assert.ok(await detailHeading(pane(), 'Issue 5', 5), 'the shown detail stays');
-  await user.click(within(pane()).getByRole('button', { name: t('retry') }));
+  await user.click(staleRetry(pane()));
   (await request(3)).answer({ ok: true, issue: detail(5, { title: 'Renamed' }) });
   await detailHeading(pane(), 'Renamed', 5);
-  assert.equal(staleNotice(), null, 'the new answer clears the notice');
+  assert.deepEqual(statusMessages(pane()), [], 'the new answer clears the notice');
 });

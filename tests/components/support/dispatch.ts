@@ -82,11 +82,11 @@ export const record = (
 export const menu = (number = 9) => screen.getByRole('menu', { name: t('dispatchMenu', { number }) });
 export const targetsMenu = (command: string) => screen.getByRole('menu', { name: t('dispatchTargets', { command }) });
 const deliveryMessage = { submit: 'deliverySubmit', fill: 'deliveryFill' } as const;
-const compact = (text: string) => text.replace(/\s/g, '');
-export const commandItem = (skill: string, deliveries: Delivery[] = ['submit', 'fill']) => ({
-  name: (name: string) => deliveries.some(delivery => compact(name) === compact(skill + t(deliveryMessage[delivery]))),
+export const commandNamed = (skill: string, deliveries: Delivery[] = ['submit', 'fill']) => ({
+  name: (name: string) =>
+    name.startsWith(skill) &&
+    deliveries.some(delivery => name.slice(skill.length).trim() === t(deliveryMessage[delivery])),
 });
-export const naming = (text: string) => ({ name: (name: string) => name.includes(text) });
 export const newTargetName = (agent: AgentType) => t('dispatchNew', { agent: agentNames[agent] });
 export const command = (skill: string, delivery: Delivery) => [skill, t(deliveryMessage[delivery])];
 export const newTarget = (agent: AgentType) => [newTargetName(agent), t('ephemeralPanel')];
@@ -94,15 +94,10 @@ export const panelTarget = (agent: AgentType, status: ProcessingState, title: st
   agentNames[agent],
   t(status),
   title,
-  [t(status), t(resident ? 'residentPanel' : 'ephemeralPanel')].join(' · '),
+  t(status),
+  t(resident ? 'residentPanel' : 'ephemeralPanel'),
 ];
-export const parts = (element: Element) =>
-  [...element.childNodes].flatMap(node => {
-    if (!(node instanceof Element)) return node.textContent ? [node.textContent] : [];
-    if (node.getAttribute('aria-hidden') === 'true') return [];
-    if (node.getAttribute('role') === 'img') return [node.getAttribute('aria-label') ?? ''];
-    return [node.textContent ?? ''];
-  });
+
 export const issueDetail = (number: number, extra: Partial<IssueDetail> = {}): IssueDetail => ({
   ...summary(number),
   url: `https://github.com/octo/alpha/issues/${number}`,

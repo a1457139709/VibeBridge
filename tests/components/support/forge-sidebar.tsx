@@ -109,14 +109,5 @@ export const shownSidebar = () =>
   });
 export const openedSidebar = () => requireValue(queryForgeSidebar(), 'the opened sidebar');
 export const toggle = () => requireInstance(selectElement('.system-bar').lastElementChild, HTMLButtonElement);
-export const sidebarTitle = () => selectElement('.forge-sidebar-repository', openedSidebar()).textContent;
-export const repositoryOption = (root: HTMLElement, path: string) =>
-  requireValue(
-    within(root)
-      .queryAllByRole('option')
-      .find(option => option.dataset.path === path),
-    `the option for ${path}`,
-  );
-export const boundNow = (root: HTMLElement) => selectElement('.binding-now b', root).textContent;
 export const bindButton = (root: HTMLElement) =>
   requireInstance(within(root).getByRole('button', { name: t('bind') }), HTMLButtonElement);

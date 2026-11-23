@@ -52,7 +52,10 @@ test("tray cards show each panel's Agent type, session title or placeholder and 
   assert.equal(cards.length, panels.length, 'the tray holds only panel cards');
   assert.deepEqual(
     cards.map(card => card.dataset.hint),
-    [`${agentNames.claude} · ${parserTitle}`, `${agentNames.pi} · ${t('untitled')}`],
+    [
+      t('agentPanelTitle', { agent: agentNames.claude, title: parserTitle }),
+      t('agentPanelTitle', { agent: agentNames.pi, title: t('untitled') }),
+    ],
   );
   assert.ok(cards[0].classList.contains('claude'));
   assert.ok(cards[1].classList.contains('pi'));
@@ -70,7 +73,7 @@ test('clicking a collapsed card opens it, and clicking the open card collapses i
   const { calls, rerender, user } = renderTray('zh-CN');
   const tray = screen.getByRole('region', { name: zh('panelTray') });
   const [titled, untitled] = within(tray).getAllByRole('button');
-  assert.equal(untitled.dataset.hint, `${agentNames.pi} · ${zh('untitled')}`);
+  assert.equal(untitled.dataset.hint, zh('agentPanelTitle', { agent: agentNames.pi, title: zh('untitled') }));
   assert.deepEqual(
     [titled, untitled].map(card => card.getAttribute('aria-pressed')),
     ['false', 'false'],

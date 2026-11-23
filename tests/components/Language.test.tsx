@@ -12,10 +12,9 @@ import type { Settings } from '../../app/shared/model';
 import { requireValue } from '../../app/renderer/common/required';
 import { localize } from '../../app/shared/localization/localization';
 import { t } from './support/localization';
+import { descriptionParts } from './support/elements';
 
 const zh = localize('zh-CN').t;
-const dialogParagraphs = () =>
-  [...screen.getByRole('dialog').querySelectorAll('p')].map(paragraph => paragraph.textContent);
 
 afterEach(cleanup);
 
@@ -98,7 +97,9 @@ test('discard, restore defaults and cancel leave preserve the effective language
   act(() => {
     leave = requireValue(ref.current, 'the settings page').requestLeave();
   });
-  assert.deepEqual(dialogParagraphs(), [zh('settingsUnsaved', { categories: [zh('general'), zh('agents')] })]);
+  assert.deepEqual(descriptionParts(screen.getByRole('dialog')), [
+    zh('settingsUnsaved', { categories: [zh('general'), zh('agents')] }),
+  ]);
   await user.click(screen.getByRole('button', { name: zh('saveAndReturn') }));
   assert.deepEqual(patches, [
     { language: 'en', agents: { ...saved.agents, codex: { command: 'codex-draft', args: [] } } },

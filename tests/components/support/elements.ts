@@ -13,3 +13,16 @@ export function selectElement(selector: string, root: ParentNode = document): HT
 export function focusedElement(): Element {
   return requireValue(document.activeElement, 'a focused element');
 }
+
+export const descriptionParts = (element: Element) =>
+  (element.getAttribute('aria-describedby') ?? '')
+    .split(' ')
+    .flatMap(id => document.getElementById(id)?.textContent ?? []);
+
+export const shownTextParts = (element: Element): string[] =>
+  [...element.childNodes].flatMap(node => {
+    if (!(node instanceof Element)) return node.textContent ? [node.textContent] : [];
+    if (node.getAttribute('aria-hidden') === 'true') return [];
+    if (node.getAttribute('role') === 'img') return [node.getAttribute('aria-label') ?? ''];
+    return node.children.length ? shownTextParts(node) : [node.textContent ?? ''];
+  });

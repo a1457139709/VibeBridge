@@ -159,7 +159,7 @@ export function ProjectSummary({ panels, locate }: { panels: PanelView[]; locate
                 <li key={panel.run?.id} data-run-id={panel.run?.id}>
                   <button
                     className={`summary-panel ${panel.agent}`}
-                    data-hint={`${agentNames[panel.agent]} · ${title}`}
+                    data-hint={t('agentPanelTitle', { agent: agentNames[panel.agent], title })}
                     onClick={() => {
                       setOpen(undefined);
                       locate(panel);

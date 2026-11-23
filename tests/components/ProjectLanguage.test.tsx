@@ -10,7 +10,6 @@ import { agentNames, type ProjectView } from '../../app/shared/model';
 import { localize } from '../../app/shared/localization/localization';
 import { provideWorkbench } from './support/workbench';
 import { githubForge, githubView } from './support/forge';
-import { selectElement } from './support/elements';
 
 afterEach(cleanup);
 
@@ -58,14 +57,16 @@ for (const language of ['en', 'zh-CN'] as const) {
     await user.clear(path);
     await user.type(path, '/原样/new');
     await screen.findByRole('region', { name: t('afterSave') });
-    assert.equal(
-      selectElement('.repository-current').textContent,
-      `${t('notBound')}${t('bindInSidebar', { forge: githubForge.name })}`,
+    assert.ok(
+      screen.getByRole('button', {
+        name: t('bindInSidebar', { forge: githubForge.name }),
+        description: t('notBound'),
+      }),
     );
     await user.click(screen.getByRole('button', { name: t('changeAndRestart') }));
     assert.deepEqual(calls, [['project', { name: project.name, directory: '/原样/new' }, true]]);
     const result = screen.getByRole('dialog');
-    assert.equal(selectElement('p', result).textContent, t('projectSaved', { name: project.name }));
+    assert.equal(within(result).getByRole('status').textContent, t('projectSaved', { name: project.name }));
     assert.deepEqual(
       within(result)
         .getAllByRole('listitem')
