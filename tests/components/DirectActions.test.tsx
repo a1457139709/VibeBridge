@@ -18,12 +18,15 @@ import { forgeSidebarData, workbenchEvents } from './support/forge-sidebar-data'
 import { githubForge, githubView, githubRepository } from './support/forge';
 import { issue as listedIssue, pullRequest as listedPullRequest, stubSidebarApis } from './support/forge-lists';
 import { requireValue } from '../../app/renderer/common/required';
+import { selectElement } from './support/elements';
 import { t } from './support/localization';
 
 afterEach(cleanup);
 before(stubSidebarApis);
 
 const repositoryUrl = 'https://github.com/octo/alpha';
+const issueTitle = 'Spec',
+  pullRequestTitle = 'Read-only detail';
 const links = { issuePrefix: `${repositoryUrl}/issues/`, pullRequestPrefix: `${repositoryUrl}/pull/` };
 const issueDetail = (number: number, extra: Partial<IssueDetail> = {}): IssueDetail => {
   const {
@@ -32,7 +35,7 @@ const issueDetail = (number: number, extra: Partial<IssueDetail> = {}): IssueDet
     parent: ___,
     subIssues: ____,
     ...summary
-  } = listedIssue(number, { title: 'Spec' });
+  } = listedIssue(number, { title: issueTitle });
   return {
     ...summary,
     url: `${repositoryUrl}/issues/${number}`,
@@ -53,7 +56,7 @@ const issueDetail = (number: number, extra: Partial<IssueDetail> = {}): IssueDet
   };
 };
 const pullDetail = (number: number, extra: Partial<PullRequestDetail> = {}): PullRequestDetail => {
-  const { checks: _, ...summary } = listedPullRequest(number, { title: 'Read-only detail' });
+  const { checks: _, ...summary } = listedPullRequest(number, { title: pullRequestTitle });
   return {
     ...summary,
     url: `${repositoryUrl}/pull/${number}`,
@@ -127,7 +130,7 @@ function renderWorkbench(forge: Forge) {
           reads.pages++;
           return {
             ok: true,
-            items: [listedIssue(3, { title: 'Spec' })],
+            items: [listedIssue(3, { title: issueTitle })],
             nextCursor: null,
             labels: [],
             counts: { open: 1, closed: 0 },
@@ -137,7 +140,7 @@ function renderWorkbench(forge: Forge) {
           reads.pages++;
           return {
             ok: true,
-            items: [listedPullRequest(12, { title: 'Read-only detail' })],
+            items: [listedPullRequest(12, { title: pullRequestTitle })],
             nextCursor: null,
             labels: [],
             counts: { open: 1, closed: 0 },
@@ -174,11 +177,16 @@ function renderWorkbench(forge: Forge) {
   return { user: userEvent.setup(), action, reads };
 }
 
-const sidebar = () => screen.getByRole('complementary', { name: 'GitHub' });
-const issuePane = () => within(sidebar()).getByRole('region', { name: 'Issue detail' });
-const pullPane = () => within(sidebar()).getByRole('region', { name: 'Pull request detail' });
+const sidebar = () => screen.getByRole('complementary', { name: githubForge.name });
+const issuePane = () => within(sidebar()).getByRole('region', { name: t('issueDetail') });
+const pullPane = () => within(sidebar()).getByRole('region', { name: t('pullRequestDetail') });
+const heading = (pane: HTMLElement, title: string, number: number) => {
+  const name = `${title} #${number}`;
+  return within(pane).findByRole('heading', { name });
+};
+const forgeName = githubForge.name;
 const mergeButtons = () =>
-  within(within(pullPane()).getByRole('region', { name: 'Merge requirements' }))
+  within(within(pullPane()).getByRole('region', { name: t('mergeRequirements') }))
     .queryAllByRole('button')
     .map(button => button.textContent);
 const failure = (detail: string): DirectActionResult => ({
@@ -189,18 +197,22 @@ const failure = (detail: string): DirectActionResult => ({
 async function openIssue(forge: Forge) {
   const view = renderWorkbench(forge);
   await view.user.click(
-    await within(await screen.findByRole('complementary', { name: 'GitHub' })).findByRole('button', { name: 'Spec' }),
+    await within(await screen.findByRole('complementary', { name: forgeName })).findByRole('button', {
+      name: issueTitle,
+    }),
   );
-  await within(issuePane()).findByRole('heading', { name: 'Spec #3' });
+  await heading(issuePane(), issueTitle, 3);
   return view;
 }
 async function openPullRequest(forge: Forge) {
   const view = renderWorkbench(forge);
   await view.user.click(
-    within(await screen.findByRole('complementary', { name: 'GitHub' })).getByRole('tab', { name: 'Pull requests' }),
+    within(await screen.findByRole('complementary', { name: forgeName })).getByRole('tab', {
+      name: t('pullRequestsTab'),
+    }),
   );
-  await view.user.click(await within(sidebar()).findByRole('button', { name: 'Read-only detail' }));
-  await within(pullPane()).findByRole('heading', { name: 'Read-only detail #12' });
+  await view.user.click(await within(sidebar()).findByRole('button', { name: pullRequestTitle }));
+  await heading(pullPane(), pullRequestTitle, 12);
   return view;
 }
 
@@ -210,17 +222,19 @@ test('Close issue closes it as completed, shows it working meanwhile, and on suc
   const pagesBefore = reads.pages,
     detailsBefore = reads.issue,
     rowsBefore = reads.rows;
-  await user.click(within(issuePane()).getByRole('button', { name: 'Close issue' }));
+  await user.click(within(issuePane()).getByRole('button', { name: t('closeIssue') }));
   const asked = await action(1);
   assert.deepEqual(asked.action, { kind: 'closeIssue', number: 3, reason: 'completed' });
-  await within(issuePane()).findByRole('button', { name: 'Working…' });
+  await within(issuePane()).findByRole('button', { name: t('actionWorking') });
   assert.ok(
-    within(issuePane()).getByRole('button', { name: 'More ways to close' }).hasAttribute('disabled'),
+    within(issuePane())
+      .getByRole('button', { name: t('moreCloseOptions') })
+      .hasAttribute('disabled'),
     'the other actions wait',
   );
   forge.issue = issueDetail(3, { state: 'closed', closedAs: 'completed' });
   asked.answer({ ok: true, detail: '✓ Closed issue octo/alpha#3 (Spec)' });
-  await within(issuePane()).findByRole('button', { name: 'Reopen issue' });
+  await within(issuePane()).findByRole('button', { name: t('reopenIssue') });
   await waitFor(() =>
     assert.deepEqual(
       [reads.issue - detailsBefore, reads.rows - rowsBefore, reads.pages - pagesBefore],
@@ -229,54 +243,63 @@ test('Close issue closes it as completed, shows it working meanwhile, and on suc
     ),
   );
   const row = within(sidebar()).getByRole('listitem');
-  assert.ok(within(row).getByLabelText('Closed as completed'), 'the row stays, showing the new state');
-  assert.equal(within(issuePane()).queryByRole('button', { name: 'Close issue' }), null);
+  assert.ok(within(row).getByRole('img', { name: t('issueCompleted') }), 'the row stays, showing the new state');
+  assert.equal(within(issuePane()).queryByRole('button', { name: t('closeIssue') }), null);
 });
 
 test('the close menu closes an issue as not planned, and a closed issue reopens', async () => {
   const forge: Forge = { issue: issueDetail(3) };
   const { user, action } = await openIssue(forge);
-  await user.click(within(issuePane()).getByRole('button', { name: 'More ways to close' }));
-  const menu = within(issuePane()).getByRole('menu', { name: 'More ways to close' });
+  await user.click(within(issuePane()).getByRole('button', { name: t('moreCloseOptions') }));
+  const menu = within(issuePane()).getByRole('menu', { name: t('moreCloseOptions') });
   assert.deepEqual(
     within(menu)
       .getAllByRole('menuitem')
       .map(item => item.textContent),
-    ['Close as completed', 'Close as not planned'],
+    [t('closeAsCompleted'), t('closeAsNotPlanned')],
   );
-  await user.click(within(menu).getByRole('menuitem', { name: 'Close as not planned' }));
+  await user.click(within(menu).getByRole('menuitem', { name: t('closeAsNotPlanned') }));
   const close = await action(1);
   assert.deepEqual(close.action, { kind: 'closeIssue', number: 3, reason: 'notPlanned' });
   forge.issue = issueDetail(3, { state: 'closed', closedAs: 'notPlanned' });
   close.answer({ ok: true, detail: '' });
-  await user.click(await within(issuePane()).findByRole('button', { name: 'Reopen issue' }));
+  await user.click(await within(issuePane()).findByRole('button', { name: t('reopenIssue') }));
   assert.deepEqual((await action(2)).action, { kind: 'reopenIssue', number: 3 });
 });
 
 test('a failed action shows the forge text under the buttons with Retry until dismissed or the next refresh', async () => {
   const forge: Forge = { issue: issueDetail(3) };
   const { user, action } = await openIssue(forge);
-  await user.click(within(issuePane()).getByRole('button', { name: 'Close issue' }));
+  await user.click(within(issuePane()).getByRole('button', { name: t('closeIssue') }));
   (await action(1)).answer(failure('HTTP 502: Server Error (https://api.github.com/graphql)'));
   const alert = await within(issuePane()).findByRole('alert');
   assert.equal(
-    within(alert).getByText(/failed/).textContent,
-    'Close as completed failed: HTTP 502: Server Error (https://api.github.com/graphql)',
+    selectElement(':scope > span', alert).textContent,
+    t('actionFailed', {
+      action: t('closeAsCompleted'),
+      reason: 'HTTP 502: Server Error (https://api.github.com/graphql)',
+    }),
   );
-  assert.ok(!within(issuePane()).getByRole('button', { name: 'Close issue' }).hasAttribute('disabled'));
+  assert.ok(
+    !within(issuePane())
+      .getByRole('button', { name: t('closeIssue') })
+      .hasAttribute('disabled'),
+  );
 
-  await user.click(within(alert).getByRole('button', { name: 'Retry' }));
+  await user.click(within(alert).getByRole('button', { name: t('retry') }));
   const retried = await action(2);
   assert.deepEqual(retried.action, { kind: 'closeIssue', number: 3, reason: 'completed' });
   await waitFor(() => assert.equal(within(issuePane()).queryByRole('alert'), null, 'retrying clears the failure'));
   retried.answer(failure('Still failing'));
-  await user.click(within(await within(issuePane()).findByRole('alert')).getByRole('button', { name: 'Dismiss' }));
+  await user.click(
+    within(await within(issuePane()).findByRole('alert')).getByRole('button', { name: t('dismissFailure') }),
+  );
   assert.equal(within(issuePane()).queryByRole('alert'), null);
 
-  await user.click(within(issuePane()).getByRole('button', { name: 'Close issue' }));
+  await user.click(within(issuePane()).getByRole('button', { name: t('closeIssue') }));
   (await action(3)).answer(failure('Again'));
   await within(issuePane()).findByRole('alert');
-  await user.click(within(sidebar()).getByRole('button', { name: 'Refresh' }));
+  await user.click(within(sidebar()).getByRole('button', { name: t('refresh') }));
   await waitFor(() =>
     assert.equal(within(issuePane()).queryByRole('alert'), null, 'the next refresh clears the failure'),
   );
@@ -285,30 +308,35 @@ test('a failed action shows the forge text under the buttons with Retry until di
 test('an action that finds the forge CLI missing or logged out puts the sidebar in that failure state', async () => {
   const forge: Forge = { issue: issueDetail(3), pullRequest: pullDetail(12) };
   const missing = await openIssue(forge);
-  await missing.user.click(within(issuePane()).getByRole('button', { name: 'Close issue' }));
+  await missing.user.click(within(issuePane()).getByRole('button', { name: t('closeIssue') }));
   const notInstalled: ForgeFailure = { kind: 'notInstalled', detail: '', forge: githubForge };
   (await missing.action(1)).answer({ ok: false, failure: notInstalled });
-  await within(sidebar()).findByText('Could not find gh. Install it to use the sidebar.');
+  await waitFor(() =>
+    assert.equal(
+      sidebar().querySelector('.forge-sidebar-state > p')?.textContent,
+      t('forgeCliMissing', { cli: githubForge.cli }),
+    ),
+  );
   assert.equal(
-    within(sidebar()).queryByRole('region', { name: 'Issue detail' }),
+    within(sidebar()).queryByRole('region', { name: t('issueDetail') }),
     null,
     'the failure fills the content area',
   );
   cleanup();
 
   const loggedOut = await openPullRequest(forge);
-  await loggedOut.user.click(within(pullPane()).getByRole('button', { name: 'Close PR' }));
+  await loggedOut.user.click(within(pullPane()).getByRole('button', { name: t('closePullRequest') }));
   (await loggedOut.action(1)).answer({
     ok: false,
     failure: { kind: 'loggedOut', detail: 'HTTP 401: Bad credentials', forge: githubForge },
   });
-  await within(sidebar()).findByRole('button', { name: 'Copy gh auth login' });
+  await within(sidebar()).findByRole('button', { name: t('copyCommand', { command: githubForge.loginCommand }) });
 });
 
 test('with no write access to the repository, a detail shows no action buttons', async () => {
   const forge: Forge = { issue: issueDetail(3, { canWrite: false }), pullRequest: pullDetail(12, { canWrite: false }) };
   await openIssue(forge);
-  assert.equal(within(issuePane()).queryByRole('button', { name: 'Close issue' }), null);
+  assert.equal(within(issuePane()).queryByRole('button', { name: t('closeIssue') }), null);
   cleanup();
   await openPullRequest(forge);
   assert.deepEqual(mergeButtons(), []);
@@ -321,20 +349,20 @@ test('the method menu lists only the methods the repository allows and starts fr
     }),
   };
   const { user, action } = await openPullRequest(forge);
-  await user.click(within(pullPane()).getByRole('button', { name: 'Choose a merge method' }));
-  const menu = within(pullPane()).getByRole('menu', { name: 'Choose a merge method' });
+  await user.click(within(pullPane()).getByRole('button', { name: t('chooseMergeMethod') }));
+  const menu = within(pullPane()).getByRole('menu', { name: t('chooseMergeMethod') });
   assert.deepEqual(
     within(menu)
       .getAllByRole('menuitemradio')
       .map(item => [item.textContent, item.getAttribute('aria-checked')]),
     [
-      ['Squash and merge', 'false'],
-      ['Rebase and merge', 'true'],
+      [t('mergeMethodSquash'), 'false'],
+      [t('mergeMethodRebase'), 'true'],
     ],
   );
-  await user.click(within(menu).getByRole('menuitemradio', { name: 'Squash and merge' }));
-  await user.click(within(pullPane()).getByRole('button', { name: 'Squash and merge' }));
-  await user.click(within(pullPane()).getByRole('button', { name: 'Confirm: squash and merge' }));
+  await user.click(within(menu).getByRole('menuitemradio', { name: t('mergeMethodSquash') }));
+  await user.click(within(pullPane()).getByRole('button', { name: t('mergeMethodSquash') }));
+  await user.click(within(pullPane()).getByRole('button', { name: t('confirmMergeSquash') }));
   assert.deepEqual((await action(1)).action, { kind: 'merge', number: 12, method: 'squash' });
 });
 
@@ -345,24 +373,26 @@ test('when the forge default method is not one the repository allows, merging st
     }),
   };
   await openPullRequest(forge);
-  within(pullPane()).getByRole('button', { name: 'Squash and merge' });
+  within(pullPane()).getByRole('button', { name: t('mergeMethodSquash') });
 });
 
 test('merging takes two clicks in place: the method, then its confirmation', async () => {
   const forge: Forge = { pullRequest: pullDetail(12) };
   const { user, action } = await openPullRequest(forge);
-  await user.click(within(pullPane()).getByRole('button', { name: 'Create a merge commit' }));
-  await user.click(within(pullPane()).getByRole('button', { name: 'Confirm: create a merge commit' }));
+  await user.click(within(pullPane()).getByRole('button', { name: t('mergeMethodMerge') }));
+  await user.click(within(pullPane()).getByRole('button', { name: t('confirmMergeMerge') }));
   const merge = await action(1);
   assert.deepEqual(merge.action, { kind: 'merge', number: 12, method: 'merge' });
-  await within(pullPane()).findByRole('button', { name: 'Merging…' });
+  await within(pullPane()).findByRole('button', { name: t('merging') });
   assert.ok(
-    within(pullPane()).getByRole('button', { name: 'Close PR' }).hasAttribute('disabled'),
+    within(pullPane())
+      .getByRole('button', { name: t('closePullRequest') })
+      .hasAttribute('disabled'),
     'the other actions wait',
   );
   forge.pullRequest = pullDetail(12, { state: 'merged' });
   merge.answer({ ok: true, detail: '' });
-  await within(pullPane()).findByText('Merged', { selector: '.forge-merge-row' });
+  await waitFor(() => assert.equal(pullPane().querySelector('.forge-merge-row')?.textContent, t('stateMerged')));
   assert.equal(within(pullPane()).queryByRole('alert'), null);
   assert.deepEqual(mergeButtons(), [], 'a merged pull request has no actions');
 });
@@ -370,21 +400,19 @@ test('merging takes two clicks in place: the method, then its confirmation', asy
 test('a pull request closes, and a closed one reopens', async () => {
   const forge: Forge = { pullRequest: pullDetail(12) };
   const { user, action } = await openPullRequest(forge);
-  await user.click(within(pullPane()).getByRole('button', { name: 'Close PR' }));
+  await user.click(within(pullPane()).getByRole('button', { name: t('closePullRequest') }));
   const close = await action(1);
   assert.deepEqual(close.action, { kind: 'closePullRequest', number: 12 });
   forge.pullRequest = pullDetail(12, { state: 'closed' });
   close.answer({ ok: true, detail: '' });
-  await user.click(await within(pullPane()).findByRole('button', { name: 'Reopen' }));
+  await user.click(await within(pullPane()).findByRole('button', { name: t('reopenPullRequest') }));
   assert.deepEqual((await action(2)).action, { kind: 'reopenPullRequest', number: 12 });
 });
 
 const mergeReasons = () =>
-  within(pullPane())
-    .queryAllByText(/./, { selector: '.forge-merge-why > .forge-muted' })
-    .map(reason => reason.textContent);
+  [...pullPane().querySelectorAll('.forge-merge-why > .forge-muted')].map(reason => reason.textContent);
 const mergeDisabled = () =>
-  ['Create a merge commit', 'Choose a merge method'].map(name =>
+  [t('mergeMethodMerge'), t('chooseMergeMethod')].map(name =>
     within(pullPane()).getByRole('button', { name }).hasAttribute('disabled'),
   );
 
@@ -394,9 +422,9 @@ for (const [state, mergeState, reasons] of [
   ['open', 'unstable', []],
   ['open', 'dirty', [t('mergeBlockedDirty')]],
   ['open', 'behind', [t('mergeBlockedBehind', { base: 'main' })]],
-  ['open', 'blocked', [t('mergeBlockedBlocked', { forge: 'GitHub' })]],
-  ['open', 'unknown', [t('mergeBlockedUnknown', { forge: 'GitHub' })]],
-  ['draft', 'blocked', [t('mergeBlockedDraft'), t('mergeBlockedBlocked', { forge: 'GitHub' })]],
+  ['open', 'blocked', [t('mergeBlockedBlocked', { forge: forgeName })]],
+  ['open', 'unknown', [t('mergeBlockedUnknown', { forge: forgeName })]],
+  ['draft', 'blocked', [t('mergeBlockedDraft'), t('mergeBlockedBlocked', { forge: forgeName })]],
   ['draft', 'clean', [t('mergeBlockedDraft')]],
   ['draft', null, [t('mergeBlockedDraft')]],
 ] as const) {
@@ -408,7 +436,9 @@ for (const [state, mergeState, reasons] of [
       [[blocked, blocked], blocked ? [t('cannotMerge', { reasons: [...reasons] })] : []],
     );
     assert.ok(
-      !within(pullPane()).getByRole('button', { name: 'Close PR' }).hasAttribute('disabled'),
+      !within(pullPane())
+        .getByRole('button', { name: t('closePullRequest') })
+        .hasAttribute('disabled'),
       'closing is never blocked',
     );
   });
@@ -419,12 +449,14 @@ test('a repository that merges through a merge queue greys out merging and links
     pullRequest: pullDetail(12, { mergeOptions: { methods: ['squash'], defaultMethod: 'squash', queue: true } }),
   };
   await openPullRequest(forge);
-  const merge = within(pullPane()).getByRole('button', { name: 'Merge' });
+  const merge = within(pullPane()).getByRole('button', { name: t('mergeButton') });
   assert.ok(merge.hasAttribute('disabled'));
   const note = requireValue(merge.parentElement, 'the merge note');
-  assert.match(note.textContent ?? '', /This repository merges through a merge queue/);
+  assert.equal(note.textContent, `${t('mergeButton')}${t('mergeQueueNote')}${t('openOnForge', { forge: forgeName })}`);
   assert.equal(
-    within(note).getByRole('link', { name: 'Open on GitHub ↗' }).getAttribute('href'),
+    within(note)
+      .getByRole('link', { name: t('openOnForge', { forge: forgeName }) })
+      .getAttribute('href'),
     `${repositoryUrl}/pull/12`,
   );
 });

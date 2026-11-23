@@ -20,7 +20,7 @@ import {
 } from './support/pull-request-detail';
 import { t } from './support/localization';
 import type { CheckState } from '../../app/shared/forge/forge';
-import { githubCapabilities } from './support/forge';
+import { githubCapabilities, githubForge } from './support/forge';
 
 afterEach(cleanup);
 before(stubSidebarApis);
@@ -30,7 +30,7 @@ const shownCheck = (name: string, ...describedBy: string[]) =>
   within(rowOf(t('checksRow'))).getByRole('listitem', { name, description: describedBy.join(' ') });
 const checkMarks = (item: HTMLElement) => ({
   tone: item.querySelector(':scope > span')?.className,
-  required: !!within(item).queryByText(t('requiredCheck')),
+  required: item.querySelector('.forge-required')?.textContent === t('requiredCheck'),
   log:
     within(item)
       .queryByRole('link', { name: t('checkLog') })
@@ -140,7 +140,7 @@ test('a check list GitHub cut short says how many more there are and links the c
     }),
   );
   const more = within(rowOf(t('checksRow'))).getByRole('link', {
-    name: t('moreChecks', { count: 16, forge: 'GitHub' }),
+    name: t('moreChecks', { count: 16, forge: githubForge.name }),
   });
   assert.equal(more.getAttribute('href'), `${repositoryUrl}/pull/12/checks`);
 });
@@ -155,7 +155,7 @@ const mergeRows = () => within(mergeArea()).getAllByRole('group');
 test('the merge requirements read, in order, the review decision, the checks, the merge state, and the draft', async () => {
   await openPullRequest(detail(12, { state: 'draft', reviewDecision: 'changesRequested', mergeState: 'blocked' }));
   assert.deepEqual(mergeRows(), [t('reviewRow'), t('checksRow'), t('mergeStateRow'), t('draftRow')].map(rowOf));
-  assert.ok(shownRow(t('draftRow'), t('draftNote', { forge: 'GitHub' })));
+  assert.ok(shownRow(t('draftRow'), t('draftNote', { forge: githubForge.name })));
 });
 
 test('a draft for which GitHub gives no merge state of its own is explained by the draft row alone', async () => {
@@ -182,7 +182,7 @@ for (const [mergeState, tone, text] of [
   ['dirty', 'failed', t('mergeStateDirty', { base: 'main' })],
   ['behind', 'failed', t('mergeStateBehind', { base: 'main' })],
   ['blocked', 'failed', t('mergeStateBlocked')],
-  ['unknown', 'pending', t('mergeStateUnknown', { forge: 'GitHub' })],
+  ['unknown', 'pending', t('mergeStateUnknown', { forge: githubForge.name })],
 ] as const) {
   test(`a merge state of ${mergeState} reads: ${text}`, async () => {
     await openPullRequest(detail(12, { mergeState }));
@@ -193,8 +193,8 @@ for (const [mergeState, tone, text] of [
 }
 
 for (const [state, text] of [
-  ['merged', 'Merged'],
-  ['closed', 'Closed without merging'],
+  ['merged', t('stateMerged')],
+  ['closed', t('closedWithoutMerging')],
 ] as const) {
   test(`a ${state} pull request's merge area says only that it is ${state}, not what blocked a merge`, async () => {
     await openPullRequest(
@@ -208,5 +208,5 @@ test('a forge without required checks marks none', async () => {
   await openPullRequest(detail(12, { checks: checks([check('unit tests', failure, { required: true })]) }), {
     capabilities: { ...githubCapabilities, requiredChecks: false },
   });
-  assert.equal(within(mergeArea()).queryByText(t('requiredCheck')), null);
+  assert.equal(mergeArea().querySelector('.forge-required'), null);
 });

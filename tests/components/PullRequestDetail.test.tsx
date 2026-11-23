@@ -12,9 +12,12 @@ import {
   detail,
   sidebar,
   pane,
+  heading,
+  listedIssueTitle,
   renderWorkbench,
   openPullRequest,
 } from './support/pull-request-detail';
+import { githubForge } from './support/forge';
 import { t } from './support/localization';
 
 afterEach(cleanup);
@@ -39,29 +42,33 @@ test('a pull request row opens its detail: title, state, head into base, the cha
     }),
   );
   const doc = within(pane());
-  assert.ok(doc.getByText('Open', { selector: '.forge-pill' }));
-  assert.match(
-    selectElement('.forge-pull-branches', pane()).textContent ?? '',
-    /^mona wants to merge feat\/detail into main · 2d ago$/,
+  assert.equal(selectElement('.forge-pill', pane()).textContent, t('stateOpen'));
+  assert.equal(
+    selectElement('.forge-pull-branches', pane()).textContent,
+    `${t('wantsToMerge', { author: 'mona', head: 'feat/detail', base: 'main' })} · ${t('daysAgo', { count: 2 })}`,
   );
   assert.equal(
-    doc.getByRole('link', { name: 'View changes on GitHub ↗' }).getAttribute('href'),
+    doc.getByRole('link', { name: t('viewChanges', { forge: githubForge.name }) }).getAttribute('href'),
     `${repositoryUrl}/pull/12/files`,
   );
-  assert.ok(doc.getByText('bug'));
-  const closes = doc.getByRole('group', { name: 'Closes on merge' });
-  assert.equal(
-    within(closes)
-      .getByRole('link', { name: /Elsewhere/ })
-      .getAttribute('href'),
-    'https://github.com/octo/other/issues/8',
+  assert.deepEqual(
+    [...pane().querySelectorAll('.forge-label')].map(label => label.textContent),
+    ['bug'],
+  );
+  const closes = doc.getByRole('group', { name: t('closesOnMerge') });
+  const elsewhere = within(closes).getByRole('link');
+  assert.deepEqual(
+    [elsewhere.textContent, elsewhere.getAttribute('href')],
+    ['Elsewhere#8', 'https://github.com/octo/other/issues/8'],
     'an issue of another repository opens in the browser',
   );
-  await user.click(within(closes).getByRole('button', { name: /Spec/ }));
+  const spec = within(closes).getByRole('button');
+  assert.equal(spec.textContent, 'Spec#3');
+  await user.click(spec);
   const issue = await request(2);
   assert.deepEqual([issue.kind, issue.number], ['issue', 3], 'an issue of the bound repository opens in the sidebar');
-  await user.click(within(sidebar()).getByRole('button', { name: 'Back' }));
-  await within(pane()).findByRole('heading', { name: 'Read-only detail #12' });
+  await user.click(within(sidebar()).getByRole('button', { name: t('detailBack') }));
+  await heading('Read-only detail', 12);
 });
 
 test('the body, comments and review summaries follow in time order, reviews with their verdict', async () => {
@@ -78,13 +85,17 @@ test('the body, comments and review summaries follow in time order, reviews with
   );
   const cards = [...pane().querySelectorAll('.forge-card')].map(card => card.textContent);
   assert.deepEqual(cards, [
-    'mona 2d agoThe body.',
-    'bob Changes requested 4h agoHandle the draft row.',
-    'hubot 3h agoRebased.',
-    'alice Approved 2h agoLGTM',
+    `mona ${t('daysAgo', { count: 2 })}The body.`,
+    `bob ${t('verdictChangesRequested')} ${t('hoursAgo', { count: 4 })}Handle the draft row.`,
+    `hubot ${t('hoursAgo', { count: 3 })}Rebased.`,
+    `alice ${t('verdictApproved')} ${t('hoursAgo', { count: 2 })}LGTM`,
   ]);
   assert.equal(pane().querySelector('.forge-earlier'), null, 'nothing came before the timeline');
-  assert.ok(!within(pane()).queryByRole('button', { name: /Approve/ }), 'no approve button');
+  assert.deepEqual(
+    within(selectElement('.forge-doc', pane())).getAllByRole('button'),
+    within(selectElement('.forge-merge-actions', pane())).getAllByRole('button'),
+    'the only buttons in the document are the merge actions, so there is no approve button',
+  );
 });
 
 test('a timeline with earlier entries says how many at its top and links the pull request on the forge', async () => {
@@ -95,7 +106,9 @@ test('a timeline with earlier entries says how many at its top and links the pul
       timeline: [{ author: 'hubot', createdAt: hoursAgo(3), html: '<p>Rebased.</p>', verdict: null }],
     }),
   );
-  const earlier = within(pane()).getByRole('link', { name: t('earlierEntries', { count: 80, forge: 'GitHub' }) });
+  const earlier = within(pane()).getByRole('link', {
+    name: t('earlierEntries', { count: 80, forge: githubForge.name }),
+  });
   assert.equal(earlier.getAttribute('href'), `${repositoryUrl}/pull/12`);
   const [body, comment] = [...pane().querySelectorAll('.forge-card')];
   assert.ok(
@@ -117,13 +130,15 @@ test('a pull request that closes an issue opens in the sidebar from the issue de
     closingPullRequests: [pull(12, `${repositoryUrl}/pull/12`), pull(40, 'https://github.com/octo/other/pull/40')],
   });
   await user.click(
-    await within(await screen.findByRole('complementary', { name: 'GitHub' })).findByRole('button', { name: 'Spec' }),
+    await within(await screen.findByRole('complementary', { name: githubForge.name })).findByRole('button', {
+      name: listedIssueTitle,
+    }),
   );
   const issue = await request(1);
   issue.answer({
     ok: true,
     issue: {
-      ...listedIssue(3, { title: 'Spec' }),
+      ...listedIssue(3, { title: listedIssueTitle }),
       url: `${repositoryUrl}/issues/3`,
       author: 'mona',
       assignees: [],
@@ -140,27 +155,27 @@ test('a pull request that closes an issue opens in the sidebar from the issue de
       canWrite: true,
     },
   });
-  const closing = await within(sidebar()).findByRole('region', {
-    name: 'Pull requests that close this issue on merge',
-  });
-  assert.equal(
-    within(closing)
-      .getByRole('link', { name: /Change 40/ })
-      .getAttribute('href'),
-    'https://github.com/octo/other/pull/40',
+  const closing = await within(sidebar()).findByRole('region', { name: t('closingPullRequests') });
+  const other = within(closing).getByRole('link');
+  assert.deepEqual(
+    [other.querySelector('.forge-row-number')?.textContent, other.getAttribute('href')],
+    ['#40', 'https://github.com/octo/other/pull/40'],
   );
-  await user.click(within(closing).getByRole('button', { name: /Change 12/ }));
+  const same = within(closing).getByRole('button');
+  assert.equal(same.querySelector('.forge-row-number')?.textContent, '#12');
+  await user.click(same);
   const opened = await request(2);
   assert.deepEqual([opened.kind, opened.number], ['pullRequest', 12]);
   opened.answer({ ok: true, pullRequest: detail(12, { title: 'Change 12' }) });
-  await within(pane()).findByRole('heading', { name: 'Change 12 #12' });
+  await heading('Change 12', 12);
 });
 
 test('a link to a pull request of the bound repository in the body opens it in the sidebar', async () => {
+  const linked = '#11';
   const { user, request } = await openPullRequest(
-    detail(12, { title: 'Linking', body: `<p>Follows <a href="${repositoryUrl}/pull/11">#11</a>.</p>` }),
+    detail(12, { title: 'Linking', body: `<p>Follows <a href="${repositoryUrl}/pull/11">${linked}</a>.</p>` }),
   );
-  await user.click(within(pane()).getByRole('link', { name: '#11' }));
+  await user.click(within(pane()).getByRole('link', { name: linked }));
   const next = await request(2);
   assert.deepEqual([next.kind, next.number], ['pullRequest', 11]);
 });

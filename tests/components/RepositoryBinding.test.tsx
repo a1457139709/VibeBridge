@@ -10,9 +10,11 @@ import type { RepositoryChoices, RepositoryReference } from '../../app/shared/fo
 import { provideWorkbench } from './support/workbench';
 import { githubForge, githubRepository, githubView } from './support/forge';
 import { selectElement } from './support/elements';
+import { t } from './support/localization';
 
 afterEach(cleanup);
 
+const projectName = 'Project';
 const github = (path: string) => githubRepository(path);
 const listed = async (directory: string): Promise<RepositoryChoices> => ({
   ok: true,
@@ -25,7 +27,7 @@ const listed = async (directory: string): Promise<RepositoryChoices> => ({
 function editor(repository: RepositoryReference | null, choices = listed) {
   const project: ProjectView = {
     id: 'project',
-    name: 'Project',
+    name: projectName,
     directory: '/work/project',
     panels: [],
     tray: [],
@@ -54,41 +56,48 @@ function editor(repository: RepositoryReference | null, choices = listed) {
 
 async function openEditor() {
   const user = userEvent.setup();
-  await user.click(screen.getByRole('button', { name: 'Project menu: Project' }));
-  await user.click(screen.getByRole('menuitem', { name: 'Edit project' }));
+  await user.click(screen.getByRole('button', { name: t('projectMenu', { name: projectName }) }));
+  await user.click(screen.getByRole('menuitem', { name: t('editProject') }));
   return user;
 }
 
 const repositoryRow = () => selectElement('.repository-current').textContent;
+const impactRegion = () => screen.getByRole('region', { name: t('afterSave') });
 const closed = () => waitFor(() => assert.equal(screen.queryByRole('dialog'), null));
 
 async function moveDirectory(user: ReturnType<typeof userEvent.setup>) {
-  const path = screen.getByRole('textbox', { name: 'Local directory' });
+  const path = screen.getByRole('textbox', { name: t('localDirectory') });
   await user.clear(path);
   await user.type(path, '/work/moved');
-  return within(await screen.findByRole('region', { name: 'After saving' }));
+  await screen.findByRole('region', { name: t('afterSave') });
 }
 
-for (const [state, repository, row] of [
-  ['an unbound', null, 'Not boundBind in the GitHub sidebar'],
-  ['a bound', github('octo/tools'), 'octo/toolsChange or unbind in the GitHub sidebar'],
+for (const [state, repository, path, sidebarHint] of [
+  ['an unbound', null, t('notBound'), t('bindInSidebar', { forge: githubForge.name })],
+  ['a bound', github('octo/tools'), 'octo/tools', t('changeBindingInSidebar', { forge: githubForge.name })],
 ] as const)
   test(`${state} project's Edit project edits only name and directory, shows the binding read-only, and saves only those two`, async () => {
     const { edits } = editor(repository);
     const user = await openEditor();
-    assert.equal(repositoryRow(), row);
+    assert.equal(repositoryRow(), `${path}${sidebarHint}`);
     assert.deepEqual(
       screen.getAllByRole('textbox').map(field => field.getAttribute('id')),
       ['edit-project-name', 'edit-project-directory'],
     );
     assert.equal(screen.queryByRole('listbox'), null, 'no repository list');
-    for (const name of ['Change', 'Unbind', "Don't bind", 'Undo'])
-      assert.equal(screen.queryByRole('button', { name }), null, `no ${name}`);
+    const dialog = within(screen.getByRole('dialog'));
+    assert.deepEqual(
+      dialog.getAllByRole('button'),
+      [t('chooseNewDirectory'), sidebarHint, t('cancel'), t('saveChanges')].map(name =>
+        dialog.getByRole('button', { name }),
+      ),
+      'no button changes the binding; the sidebar hint only points at the sidebar',
+    );
 
-    const name = screen.getByRole('textbox', { name: 'Project name' });
+    const name = screen.getByRole('textbox', { name: t('projectName') });
     await user.clear(name);
     await user.type(name, 'Renamed');
-    await user.click(screen.getByRole('button', { name: 'Save changes' }));
+    await user.click(screen.getByRole('button', { name: t('saveChanges') }));
     await closed();
     assert.deepEqual(edits, [{ edit: { name: 'Renamed', directory: '/work/project' }, restart: false }]);
   });
@@ -96,14 +105,16 @@ for (const [state, repository, row] of [
 test('a moved directory whose origin points elsewhere than the binding says so after saving, and the binding stays', async () => {
   const { edits } = editor(github('octo/tools'));
   const user = await openEditor();
-  const impact = await moveDirectory(user);
-  assert.ok(await impact.findByText('/work/project → /work/moved'));
-  assert.ok(
-    await impact.findByText(
-      "The new directory's origin points at acme/forge; the binding is still octo/tools. You can change it in the sidebar.",
+  await moveDirectory(user);
+  await waitFor(() =>
+    assert.ok(
+      impactRegion().textContent?.includes(
+        t('originElsewhereThanBinding', { origin: 'acme/forge', repository: 'octo/tools' }),
+      ),
     ),
   );
-  await user.click(screen.getByRole('button', { name: 'Change and restart' }));
+  assert.ok(impactRegion().textContent?.includes('/work/project → /work/moved'));
+  await user.click(screen.getByRole('button', { name: t('changeAndRestart') }));
   await closed();
   assert.deepEqual(edits, [{ edit: { name: 'Project', directory: '/work/moved' }, restart: true }]);
 });
@@ -115,7 +126,7 @@ test('a moved directory whose repositories cannot be listed still saves', async 
   }));
   const user = await openEditor();
   await moveDirectory(user);
-  await user.click(screen.getByRole('button', { name: 'Change without restarting' }));
+  await user.click(screen.getByRole('button', { name: t('changeWithoutRestart') }));
   await closed();
   assert.deepEqual(edits, [{ edit: { name: 'Project', directory: '/work/moved' }, restart: false }]);
 });
