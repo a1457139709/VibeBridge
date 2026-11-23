@@ -2,13 +2,14 @@ import assert from 'node:assert/strict';
 import { screen, waitFor, within } from '@testing-library/react';
 import type { DispatchRecordView, DispatchRequest } from '../../../app/shared/dispatch';
 import type { IssueDetail } from '../../../app/shared/forge/forge';
-import { issue, page, renderWorkbench, sidebar, summary } from './forge-lists';
+import { issue, page, renderWorkbench, summary } from './forge-lists';
 import { githubCapabilities } from './forge';
 import { requireValue } from '../../../app/renderer/common/required';
 import { agentNames, type AgentType, type Snapshot } from '../../../app/shared/model';
 import type { ProcessingState } from '../../../app/shared/processing-status';
 import type { Delivery } from '../../../app/shared/settings/workflows';
 import { t } from './localization';
+import { forgeSidebar } from './sidebar-queries';
 
 export const trayTitle = 'Fix it',
   residentTitle = 'Alpha session';
@@ -52,12 +53,12 @@ export async function listed(
   change(f.snapshot);
   f.publish();
   first.answer(page([issue(9), issue(8, { state: 'closed', closedAs: 'completed' })]));
-  await waitFor(() => assert.ok(within(sidebar()).getAllByRole('listitem').length === 2));
+  await waitFor(() => assert.ok(within(forgeSidebar()).getAllByRole('listitem').length === 2));
   return { ...f, dispatches: requests };
 }
 export const row = (number: number) =>
   requireValue(
-    within(sidebar())
+    within(forgeSidebar())
       .getAllByRole('listitem')
       .find(item => within(item).queryByRole('button', { name: summary(number).title })),
     `the row of #${number}`,
@@ -102,10 +103,6 @@ export const parts = (element: Element) =>
     if (node.getAttribute('role') === 'img') return [node.getAttribute('aria-label') ?? ''];
     return [node.textContent ?? ''];
   });
-export const detailHeading = (root: HTMLElement, number: number) => {
-  const name = `${summary(number).title} #${number}`;
-  return within(root).findByRole('heading', { name });
-};
 export const issueDetail = (number: number, extra: Partial<IssueDetail> = {}): IssueDetail => ({
   ...summary(number),
   url: `https://github.com/octo/alpha/issues/${number}`,

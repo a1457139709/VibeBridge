@@ -19,7 +19,13 @@ afterEach(cleanup);
 
 const states = ['ready', 'busy', 'needs-input', 'done', 'error'] as const;
 
-const startingTitle = 'Session starting';
+const startingRun = {
+  id: 'starting',
+  panelId: 'starting',
+  projectId: 'project',
+  state: 'starting',
+  title: 'Session starting',
+} as const;
 
 test("navigation reads each panel view's state, exposes all five states to keyboard users, and keeps background updates", async () => {
   const snapshot: Snapshot = {
@@ -47,13 +53,7 @@ test("navigation reads each panel view's state, exposes all five states to keybo
           {
             id: 'starting',
             agent: 'codex',
-            run: {
-              id: 'starting',
-              panelId: 'starting',
-              projectId: 'project',
-              state: 'starting',
-              title: startingTitle,
-            },
+            run: startingRun,
           },
         ],
         tray: [],
@@ -119,7 +119,7 @@ test("navigation reads each panel view's state, exposes all five states to keybo
     for (let step = 0; document.activeElement !== entry && step < 20; step++) await user.tab();
     assert.equal(document.activeElement, entry);
   }
-  const starting = screen.getByRole('button', { name: startingTitle });
+  const starting = screen.getByRole('button', { name: startingRun.title });
   assert.equal(within(starting).queryByRole('img'), null);
   await user.click(selectElement('[data-locate-panel-id="done"]'));
   assert.deepEqual(located, ['done']);

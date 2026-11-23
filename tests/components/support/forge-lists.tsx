@@ -21,6 +21,7 @@ import { stubLayoutApis } from './no-layout';
 import { forgeSidebarData, type ForgeAnswers } from './forge-sidebar-data';
 import { selectElement } from './elements';
 import { t } from './localization';
+import { forgeSidebar } from './sidebar-queries';
 
 const project = (id: string, name: string, capabilities: ForgeCapabilities): ProjectView => ({
   id,
@@ -217,18 +218,17 @@ export function renderWorkbench(capabilities = githubCapabilities, api: Partial<
   return { user: userEvent.setup(), requests, request, snapshot, publish, forge, shownRows };
 }
 
-export const sidebar = () => screen.getByRole('complementary', { name: githubForge.name });
-export const refresh = () => within(sidebar()).getByRole('button', { name: t('refresh') });
-export const shows = (text: string, root: Element = sidebar()) => !!root.textContent?.includes(text);
-export const sidebarTitle = () => selectElement('.forge-sidebar-repository', sidebar()).textContent;
-export function stateFilter(state: 'open' | 'closed', count: number) {
-  const name = `${t(state === 'open' ? 'filterOpen' : 'filterClosed')} ${count}`;
-  return within(sidebar()).getByRole('button', { name });
-}
+export const refresh = () => within(forgeSidebar()).getByRole('button', { name: t('refresh') });
+export const shows = (text: string, root: Element = forgeSidebar()) => !!root.textContent?.includes(text);
+export const sidebarTitle = () => selectElement('.forge-sidebar-repository', forgeSidebar()).textContent;
+export const stateFilter = (state: 'open' | 'closed', count: number) =>
+  within(forgeSidebar()).getByRole('button', {
+    name: name => name.startsWith(t(state === 'open' ? 'filterOpen' : 'filterClosed')) && name.endsWith(String(count)),
+  });
 export const labelsFilter = () =>
-  within(sidebar()).getByRole('button', { name: name => name.startsWith(t('labelsFilter')) });
+  within(forgeSidebar()).getByRole('button', { name: name => name.startsWith(t('labelsFilter')) });
 export const rows = () =>
-  within(sidebar())
+  within(forgeSidebar())
     .queryAllByRole('listitem')
     .map(row => selectElement('.forge-row-title', row).textContent);
 export const openNoFilter = { search: '', state: 'open', labels: [] };

@@ -12,6 +12,7 @@ import { githubForge, githubView, githubRepository } from './forge';
 import { requireValue } from '../../../app/renderer/common/required';
 import { requireInstance, selectElement } from './elements';
 import { t } from './localization';
+import { queryForgeSidebar } from './sidebar-queries';
 
 const project = (id: string, name: string, repository: ProjectView['repository']): ProjectView => ({
   id,
@@ -100,14 +101,13 @@ export const boundProject = 'Bound project',
   unboundProject = 'Unbound project';
 export const showSidebar = t('openForgeSidebar', { forge: githubForge.name }),
   hideSidebar = t('closeForgeSidebar', { forge: githubForge.name });
-export const sidebar = () => screen.queryByRole('complementary', { name: githubForge.name });
 export const shownSidebar = () =>
   waitFor(() => {
-    const element = sidebar();
+    const element = queryForgeSidebar();
     assert.ok(element, 'the sidebar is shown');
     return element;
   });
-export const openedSidebar = () => requireValue(sidebar(), 'the opened sidebar');
+export const openedSidebar = () => requireValue(queryForgeSidebar(), 'the opened sidebar');
 export const toggle = () => requireInstance(selectElement('.system-bar').lastElementChild, HTMLButtonElement);
 export const sidebarTitle = () => selectElement('.forge-sidebar-repository', openedSidebar()).textContent;
 export const repositoryOption = (root: HTMLElement, path: string) =>

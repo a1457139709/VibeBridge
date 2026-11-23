@@ -20,11 +20,11 @@ import {
   repositoryOption,
   showSidebar,
   shownSidebar,
-  sidebar,
   sidebarTitle,
   toggle,
   unboundProject,
 } from './support/forge-sidebar';
+import { queryForgeSidebar } from './support/sidebar-queries';
 
 afterEach(cleanup);
 before(() => {
@@ -38,14 +38,14 @@ test('the button at the right end of the system bar opens the sidebar for the cu
   await screen.findByRole('button', { name: showSidebar });
   assert.equal(toggle().getAttribute('aria-label'), showSidebar, 'the toggle is the last item of the system bar');
   assert.equal(toggle().textContent, '', 'the toggle shows no count');
-  assert.equal(sidebar(), null);
+  assert.equal(queryForgeSidebar(), null);
   await user.click(toggle());
   const opened = openedSidebar();
   assert.equal(sidebarTitle(), 'octo/bound');
   assert.ok(opened.contains(document.activeElement), 'focus moves into the sidebar');
   assert.equal(toggle().getAttribute('aria-label'), hideSidebar);
   await user.click(toggle());
-  assert.equal(sidebar(), null);
+  assert.equal(queryForgeSidebar(), null);
   assert.deepEqual(saved, [
     { visible: true, width: 380 },
     { visible: false, width: 380 },
@@ -60,7 +60,7 @@ test('Command+Alt+B opens the sidebar with focus inside wherever focus is, and c
   assert.ok(openedSidebar().contains(document.activeElement));
   selectElement('.xterm-helper-textarea').focus();
   await user.keyboard('{Meta>}{Alt>}b{/Alt}{/Meta}');
-  assert.equal(sidebar(), null);
+  assert.equal(queryForgeSidebar(), null);
   await waitFor(() =>
     assert.deepEqual(saved, [
       { visible: true, width: 380 },

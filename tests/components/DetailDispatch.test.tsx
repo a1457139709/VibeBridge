@@ -6,10 +6,9 @@ import type { IssueDetail } from '../../app/shared/forge/forge';
 import type { DispatchRecordView } from '../../app/shared/dispatch';
 import type { Snapshot } from '../../app/shared/model';
 import { t } from './support/localization';
-import { sidebar, stubSidebarApis } from './support/forge-lists';
+import { stubSidebarApis } from './support/forge-lists';
 import {
   commandItem,
-  detailHeading,
   issueButton,
   issueDetail as detail,
   listed,
@@ -22,6 +21,7 @@ import {
 import { agentNames } from '../../app/shared/model';
 import { requireValue } from '../../app/renderer/common/required';
 import { selectElement } from './support/elements';
+import { forgeSidebar, detailHeading } from './support/sidebar-queries';
 
 afterEach(cleanup);
 before(stubSidebarApis);
@@ -30,10 +30,10 @@ async function opened(issue: IssueDetail, change: (snapshot: Snapshot) => void =
   const f = await listed(undefined, change);
   f.forge.issueDetail = async () => ({ ok: true, issue });
   await f.user.click(issueButton(issue.number));
-  await detailHeading(pane(), issue.number);
+  await detailHeading(pane(), issue.title, issue.number);
   return f;
 }
-const pane = () => within(sidebar()).getByRole('region', { name: t('issueDetail') });
+const pane = () => within(forgeSidebar()).getByRole('region', { name: t('issueDetail') });
 const records = (count: number) => within(pane()).getByRole('region', { name: t('dispatchRecords', { count }) });
 const implement = 'implement',
   toSpec = 'to-spec',
@@ -78,10 +78,11 @@ const line = (item: HTMLElement) =>
   );
 
 test("Dispatch records list the issue's dispatches newest first, one line each: when, the Agent type, the skill and the session ID", async () => {
+  const located = aged(2, { projectId: 'beta', panelId: 'beta-panel' }, { skill: grillMe, sessionId: 'ccccdddd-1111' });
   const f = await opened(detail(9), snapshot => {
     snapshot.projects[0].dispatches = [
       aged(50, null, { agent: 'claude', skill: toSpec, sessionId: 'aaaabbbb-1111-2222-3333-444455556666' }),
-      aged(2, { projectId: 'beta', panelId: 'beta-panel' }, { skill: grillMe, sessionId: 'ccccdddd-1111' }),
+      located,
       aged(1, { projectId: 'alpha', panelId: 'tray' }, { skill: tdd, sessionId: undefined }),
       record(8, null),
     ];
@@ -115,7 +116,7 @@ test("Dispatch records list the issue's dispatches newest first, one line each: 
     f.snapshot.activeProjectId = id;
     f.publish();
   };
-  await f.user.click(within(shown[1]).getByRole('button', { name: grillMe }));
+  await f.user.click(within(shown[1]).getByRole('button', { name: located.skill }));
   await waitFor(() => assert.deepEqual(activated, ['beta']));
 });
 

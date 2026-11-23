@@ -14,13 +14,13 @@ import {
   renderWorkbench,
   rows,
   shows,
-  sidebar,
   stateFilter,
   stubSidebarApis,
 } from './support/forge-lists';
 import { githubForge } from './support/forge';
 import { t } from './support/localization';
 import { selectElement } from './support/elements';
+import { forgeSidebar } from './support/sidebar-queries';
 
 afterEach(cleanup);
 before(stubSidebarApis);
@@ -29,7 +29,7 @@ async function onPullRequests() {
   const workbench = renderWorkbench();
   (await workbench.request(1)).answer(page([issue(1)]));
   await waitFor(() => assert.deepEqual(rows(), ['Issue 1']));
-  await workbench.user.click(within(sidebar()).getByRole('tab', { name: t('pullRequestsTab') }));
+  await workbench.user.click(within(forgeSidebar()).getByRole('tab', { name: t('pullRequestsTab') }));
   return workbench;
 }
 
@@ -53,7 +53,7 @@ test('the Pull requests tab lists one page of rows with state, number, age, auth
     ),
   );
   await waitFor(() => assert.deepEqual(rows(), ['Change 9', 'Change 8', 'Change 7']));
-  const [passed, pending, failing] = within(sidebar()).getAllByRole('listitem');
+  const [passed, pending, failing] = within(forgeSidebar()).getAllByRole('listitem');
   assert.ok(within(passed).getByRole('img', { name: t('pullRequestOpen') }), 'the state icon names the state');
   assert.equal(selectElement('.forge-row-number', passed).textContent, '#9');
   assert.equal(selectElement('time', passed).textContent, t('daysAgo', { count: 2 }));
@@ -68,25 +68,29 @@ test('the Pull requests tab lists one page of rows with state, number, age, auth
   assert.ok(stateFilter('open', 7));
   assert.ok(stateFilter('closed', 2));
 
-  await user.click(within(sidebar()).getByRole('button', { name: t('loadMore') }));
+  await user.click(within(forgeSidebar()).getByRole('button', { name: t('loadMore') }));
   const more = await request(3);
   assert.deepEqual(more, { ...more, list: 'pullRequests', query: { filter: openNoFilter, cursor: 'next' } });
   more.answer(
     page([pullRequest(6, { state: 'merged', checks: 'failed' }), pullRequest(5, { state: 'closed', author: null })]),
   );
   await waitFor(() => assert.deepEqual(rows(), ['Change 9', 'Change 8', 'Change 7', 'Change 6', 'Change 5']));
-  const [merged, closed] = within(sidebar()).getAllByRole('listitem').slice(3);
+  const [merged, closed] = within(forgeSidebar()).getAllByRole('listitem').slice(3);
   assert.ok(within(merged).getByRole('img', { name: t('pullRequestMerged') }));
   assert.equal(merged.querySelector('.forge-checks'), null, 'a merged pull request shows no checks');
   assert.ok(within(closed).getByRole('img', { name: t('pullRequestClosed') }));
-  assert.equal(within(sidebar()).queryByRole('button', { name: t('loadMore') }), null, 'the last page offers no more');
+  assert.equal(
+    within(forgeSidebar()).queryByRole('button', { name: t('loadMore') }),
+    null,
+    'the last page offers no more',
+  );
 });
 
 test('the Pull requests tab sends its own search, state and labels, and Refresh reloads its first page', async () => {
   const { user, request } = await onPullRequests();
   (await request(2)).answer(page([pullRequest(1)]));
   await waitFor(() => assert.deepEqual(rows(), ['Change 1']));
-  await user.type(within(sidebar()).getByRole('searchbox', { name: t('searchPullRequests') }), 'tray');
+  await user.type(within(forgeSidebar()).getByRole('searchbox', { name: t('searchPullRequests') }), 'tray');
   const searched = await request(3);
   assert.deepEqual(searched, {
     ...searched,
@@ -100,7 +104,7 @@ test('the Pull requests tab sends its own search, state and labels, and Refresh 
   closed.answer(page([pullRequest(3, { state: 'merged' })]));
   await waitFor(() => assert.deepEqual(rows(), ['Change 3']));
   await user.click(labelsFilter());
-  await user.click(within(sidebar()).getByRole('menuitemcheckbox', { name: bug.name }));
+  await user.click(within(forgeSidebar()).getByRole('menuitemcheckbox', { name: bug.name }));
   const labelled = await request(5);
   assert.deepEqual(labelled.query.filter, { search: 'tray', state: 'closed', labels: ['bug'] });
   labelled.answer(page([]));
@@ -115,7 +119,7 @@ test('the Pull requests tab sends its own search, state and labels, and Refresh 
   again.answer(page([pullRequest(4, { state: 'closed' })]));
   await waitFor(() => assert.deepEqual(rows(), ['Change 4']));
 
-  await user.click(within(sidebar()).getByRole('tab', { name: t('issuesTab') }));
+  await user.click(within(forgeSidebar()).getByRole('tab', { name: t('issuesTab') }));
   const issues = await request(7);
   assert.deepEqual(
     issues,
@@ -128,7 +132,7 @@ test('a pull request page failure keeps the rows under a stale notice, and fills
   const { user, request } = await onPullRequests();
   (await request(2)).answer(failed('transient', 'HTTP 502: Bad Gateway'));
   await waitFor(() => assert.ok(shows(t('pullRequestsLoadFailed', { reason: 'HTTP 502: Bad Gateway' }))));
-  await user.click(within(sidebar()).getByRole('button', { name: t('retry') }));
+  await user.click(within(forgeSidebar()).getByRole('button', { name: t('retry') }));
   const retried = await request(3);
   assert.equal(retried.list, 'pullRequests');
   retried.answer(page([pullRequest(1)]));
@@ -137,7 +141,7 @@ test('a pull request page failure keeps the rows under a stale notice, and fills
   (await request(4)).answer(failed('transient', 'API rate limit exceeded'));
   await waitFor(() => assert.ok(shows(t('dataMayBeStale'))));
   assert.deepEqual(rows(), ['Change 1'], 'the old rows stay');
-  await user.click(within(selectElement('.forge-stale', sidebar())).getByRole('button', { name: t('retry') }));
+  await user.click(within(selectElement('.forge-stale', forgeSidebar())).getByRole('button', { name: t('retry') }));
   (await request(5)).answer(page([pullRequest(2)]));
   await waitFor(() => assert.deepEqual(rows(), ['Change 2']));
   assert.ok(!shows(t('dataMayBeStale')));
@@ -146,13 +150,13 @@ test('a pull request page failure keeps the rows under a stale notice, and fills
 test('a logged-out forge CLI on the Pull requests tab fills the sidebar, and Retry reloads pull requests', async () => {
   const { user, request } = await onPullRequests();
   (await request(2)).answer(failed('loggedOut', 'HTTP 401: Bad credentials'));
-  await within(sidebar()).findByRole('button', { name: t('copyCommand', { command: githubForge.loginCommand }) });
+  await within(forgeSidebar()).findByRole('button', { name: t('copyCommand', { command: githubForge.loginCommand }) });
   assert.equal(
-    within(sidebar()).queryByRole('tab', { name: t('pullRequestsTab') }),
+    within(forgeSidebar()).queryByRole('tab', { name: t('pullRequestsTab') }),
     null,
     'the state takes the whole content area',
   );
-  await user.click(within(sidebar()).getByRole('button', { name: t('retry') }));
+  await user.click(within(forgeSidebar()).getByRole('button', { name: t('retry') }));
   const retried = await request(3);
   assert.equal(retried.list, 'pullRequests');
   retried.answer(page([pullRequest(1)]));

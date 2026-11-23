@@ -11,10 +11,10 @@ import {
   refresh,
   renderWorkbench,
   rows,
-  sidebar,
   stubSidebarApis,
 } from './support/forge-lists';
 import { selectElement } from './support/elements';
+import { forgeSidebar } from './support/sidebar-queries';
 
 const shownGeometry = { ...listGeometry };
 afterEach(() => {
@@ -25,20 +25,20 @@ before(stubSidebarApis);
 
 const issues = (from: number, to: number) => Array.from({ length: to - from + 1 }, (_, index) => issue(from + index));
 const titles = (numbers: number[]) => numbers.map(number => `Issue ${number}`);
-const scrollArea = () => selectElement('.forge-scroll', sidebar());
+const scrollArea = () => selectElement('.forge-scroll', forgeSidebar());
 const scrollTo = (scrollTop: number) => {
   scrollArea().scrollTop = scrollTop;
   fireEvent.scroll(scrollArea());
 };
 const renderedNumbers = () =>
-  [...sidebar().querySelectorAll<HTMLElement>('[data-issue]')].map(row => Number(row.dataset.issue));
+  [...forgeSidebar().querySelectorAll<HTMLElement>('[data-issue]')].map(row => Number(row.dataset.issue));
 
 async function scrolledLongList() {
   Object.assign(listGeometry, { viewport: 200, row: 40 });
   const workbench = renderWorkbench();
   (await workbench.request(1)).answer(page(issues(1, 10), 'p2'));
   await waitFor(() => assert.ok(rows().includes('Issue 1')));
-  await workbench.user.click(within(sidebar()).getByRole('button', { name: t('loadMore') }));
+  await workbench.user.click(within(forgeSidebar()).getByRole('button', { name: t('loadMore') }));
   (await workbench.request(2)).answer(page(issues(11, 20)));
   await waitFor(() => assert.ok(!refresh().hasAttribute('disabled')));
   scrollTo(12 * 40 + 20);
@@ -81,7 +81,7 @@ test('Refresh returns to the old place in the list when the issue at the top of 
 
 test("closing the detail returns focus to its issue's row, scrolling back to it when it went out of view", async () => {
   const { user } = await scrolledLongList();
-  await user.click(within(sidebar()).getByRole('button', { name: issue(13).title }));
+  await user.click(within(forgeSidebar()).getByRole('button', { name: issue(13).title }));
   const detail = await waitFor(() => selectElement('.forge-detail'));
   scrollTo(0);
   await waitFor(() => assert.ok(!rows().includes('Issue 13')));

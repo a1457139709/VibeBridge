@@ -10,15 +10,14 @@ import {
   hoursAgo,
   links,
   detail,
-  sidebar,
   pane,
-  heading,
   listedIssueTitle,
   renderWorkbench,
   openPullRequest,
 } from './support/pull-request-detail';
 import { githubForge } from './support/forge';
 import { t } from './support/localization';
+import { forgeSidebar, detailHeading } from './support/sidebar-queries';
 
 afterEach(cleanup);
 before(stubSidebarApis);
@@ -67,8 +66,8 @@ test('a pull request row opens its detail: title, state, head into base, the cha
   await user.click(spec);
   const issue = await request(2);
   assert.deepEqual([issue.kind, issue.number], ['issue', 3], 'an issue of the bound repository opens in the sidebar');
-  await user.click(within(sidebar()).getByRole('button', { name: t('detailBack') }));
-  await heading('Read-only detail', 12);
+  await user.click(within(forgeSidebar()).getByRole('button', { name: t('detailBack') }));
+  await detailHeading(pane(), 'Read-only detail', 12);
 });
 
 test('the body, comments and review summaries follow in time order, reviews with their verdict', async () => {
@@ -155,7 +154,7 @@ test('a pull request that closes an issue opens in the sidebar from the issue de
       canWrite: true,
     },
   });
-  const closing = await within(sidebar()).findByRole('region', { name: t('closingPullRequests') });
+  const closing = await within(forgeSidebar()).findByRole('region', { name: t('closingPullRequests') });
   const other = within(closing).getByRole('link');
   assert.deepEqual(
     [other.querySelector('.forge-row-number')?.textContent, other.getAttribute('href')],
@@ -167,15 +166,15 @@ test('a pull request that closes an issue opens in the sidebar from the issue de
   const opened = await request(2);
   assert.deepEqual([opened.kind, opened.number], ['pullRequest', 12]);
   opened.answer({ ok: true, pullRequest: detail(12, { title: 'Change 12' }) });
-  await heading('Change 12', 12);
+  await detailHeading(pane(), 'Change 12', 12);
 });
 
 test('a link to a pull request of the bound repository in the body opens it in the sidebar', async () => {
-  const linked = '#11';
+  const link = { href: `${repositoryUrl}/pull/11`, text: '#11' };
   const { user, request } = await openPullRequest(
-    detail(12, { title: 'Linking', body: `<p>Follows <a href="${repositoryUrl}/pull/11">${linked}</a>.</p>` }),
+    detail(12, { title: 'Linking', body: `<p>Follows <a href="${link.href}">${link.text}</a>.</p>` }),
   );
-  await user.click(within(pane()).getByRole('link', { name: linked }));
+  await user.click(within(pane()).getByRole('link', { name: link.text }));
   const next = await request(2);
   assert.deepEqual([next.kind, next.number], ['pullRequest', 11]);
 });

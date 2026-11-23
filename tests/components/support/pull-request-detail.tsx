@@ -18,9 +18,10 @@ import { forgeSidebarData, workbenchEvents } from './forge-sidebar-data';
 import { githubCapabilities, githubForge, githubView, githubRepository } from './forge';
 import { t } from './localization';
 import { issue as listedIssue, pullRequest as listedPullRequest } from './forge-lists';
+import { forgeSidebar, detailHeading } from './sidebar-queries';
 
 export const repositoryUrl = 'https://github.com/octo/alpha';
-export const listedTitle = 'Read-only detail';
+export const listed = { title: 'Read-only detail' };
 export const listedIssueTitle = 'Spec';
 export const hoursAgo = (hours: number) => new Date(Date.now() - hours * 3600e3).toISOString();
 export const links = { issuePrefix: `${repositoryUrl}/issues/`, pullRequestPrefix: `${repositoryUrl}/pull/` };
@@ -140,7 +141,7 @@ export function renderWorkbench({
         }),
         pullRequestPage: async () => ({
           ok: true,
-          items: [listedPullRequest(12, { title: listedTitle })],
+          items: [listedPullRequest(12, { title: listed.title })],
           nextCursor: null,
           labels: [],
           counts: { open: 1, closed: 0 },
@@ -163,12 +164,7 @@ export function renderWorkbench({
   return { user: userEvent.setup(), request };
 }
 
-export const sidebar = () => screen.getByRole('complementary', { name: githubForge.name });
-export const pane = () => within(sidebar()).getByRole('region', { name: t('pullRequestDetail') });
-export const heading = (title: string, number: number) => {
-  const name = `${title} #${number}`;
-  return within(pane()).findByRole('heading', { name });
-};
+export const pane = () => within(forgeSidebar()).getByRole('region', { name: t('pullRequestDetail') });
 export const mergeArea = () => within(pane()).getByRole('region', { name: t('mergeRequirements') });
 export const rowOf = (name: string) => within(mergeArea()).getByRole('group', { name });
 export const shownRow = (name: string, description: string) =>
@@ -184,10 +180,10 @@ export async function openPullRequest(
       name: t('pullRequestsTab'),
     }),
   );
-  await view.user.click(await within(sidebar()).findByRole('button', { name: listedTitle }));
+  await view.user.click(await within(forgeSidebar()).findByRole('button', { name: listed.title }));
   const first = await view.request(1);
   assert.deepEqual([first.kind, first.number], ['pullRequest', 12]);
   first.answer({ ok: true, pullRequest });
-  await heading(pullRequest.title, 12);
+  await detailHeading(pane(), pullRequest.title, 12);
   return view;
 }

@@ -7,7 +7,7 @@ import { defaultShortcuts, displayShortcut } from '../../app/shared/settings/sho
 import { commandText, workflows } from '../../app/shared/settings/workflows';
 import type { AgentType } from '../../app/shared/model';
 import { requireValue } from '../../app/renderer/common/required';
-import { shows, sidebar, stubSidebarApis, summary } from './support/forge-lists';
+import { shows, stubSidebarApis, summary } from './support/forge-lists';
 import {
   command,
   commandItem,
@@ -29,6 +29,7 @@ import {
   trayTitle,
 } from './support/dispatch';
 import { selectElement } from './support/elements';
+import { forgeSidebar } from './support/sidebar-queries';
 
 afterEach(cleanup);
 before(stubSidebarApis);
@@ -139,7 +140,7 @@ test('filling a panel closes the detail, keeps the sidebar open and reloads the 
   await f.user.hover(within(menu()).getByRole('menuitem', submitImplement));
   await f.user.click(within(targetsMenu(implement)).getByRole('menuitem', naming(residentTitle)));
   await waitFor(() => assert.equal(document.querySelector('.forge-detail'), null));
-  assert.ok(sidebar());
+  assert.ok(forgeSidebar());
   await waitFor(() => assert.deepEqual(rowsAsked, [[9]], 'its row reloaded by number once dispatched'));
   assert.deepEqual(detailsAsked, [9], 'the detail read once, when opened');
 });
@@ -197,20 +198,21 @@ test('filling a new panel opens it as the temporary maximize once it joins the t
   );
   await waitFor(() => assert.equal(card.getAttribute('aria-pressed'), 'true'));
   await waitFor(() => assert.equal(document.querySelector('.forge-detail'), null));
-  assert.ok(sidebar());
+  assert.ok(forgeSidebar());
 });
 
 const skillOf = (number: number) => row(number).querySelector('.dispatch-skill');
 
 test("an issue row shows only its latest dispatch's skill: a link to its panel with its age in the hint", async () => {
+  const latest = record(9, { projectId: 'beta', panelId: 'beta-panel' }, { skill: grillMe, dispatchedAt: hoursAgo(2) });
   const f = await listed(undefined, snapshot => {
     snapshot.projects[0].dispatches = [
       record(9, null, { skill: toSpec }),
-      record(9, { projectId: 'beta', panelId: 'beta-panel' }, { skill: grillMe, dispatchedAt: hoursAgo(2) }),
+      latest,
       record(8, { projectId: 'beta', panelId: 'beta-panel' }),
     ];
   });
-  const skill = within(row(9)).getByRole('button', { name: grillMe });
+  const skill = within(row(9)).getByRole('button', { name: latest.skill });
   assert.equal(
     skill.getAttribute('data-hint'),
     t('dispatchSkillLocatable', {
@@ -232,13 +234,14 @@ test("an issue row shows only its latest dispatch's skill: a link to its panel w
 });
 
 test('an issue row shows a latest dispatch whose session no panel is on as grey text that locates nothing', async () => {
+  const latest = record(9, null, { skill: grillMe, dispatchedAt: hoursAgo(72) });
   await listed(undefined, snapshot => {
     snapshot.projects[0].dispatches = [
       record(9, { projectId: 'beta', panelId: 'beta-panel' }, { skill: toSpec }),
-      record(9, null, { skill: grillMe, dispatchedAt: hoursAgo(72) }),
+      latest,
     ];
   });
-  assert.equal(within(row(9)).queryByRole('button', { name: grillMe }), null);
+  assert.equal(within(row(9)).queryByRole('button', { name: latest.skill }), null);
   const skill = requireValue(skillOf(9), 'the skill of #9');
   assert.equal(skill.textContent, grillMe);
   assert.equal(

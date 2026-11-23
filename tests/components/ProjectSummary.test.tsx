@@ -23,8 +23,7 @@ afterEach(cleanup);
 const zh = localize('zh-CN').t;
 const title = (id: string) => `Session ${id}`;
 const titled = (id: string) => including(title(id));
-const outsideName = 'Outside',
-  renamed = 'Renamed session';
+const renamed = 'Renamed session';
 
 const panel = (id: string, status: ProcessingState): PanelView => ({
   id,
@@ -88,7 +87,7 @@ function fixture() {
     const active = state?.projects.find(project => project.id === state.activeProjectId);
     return (
       <Localization language={state?.settings.language ?? 'en'}>
-        <button>{outsideName}</button>
+        <button>Outside</button>
         {active && (
           <ProjectSummary
             key={active.id}
@@ -170,7 +169,7 @@ test('keyboard users can choose members, switch lists and return to the triggeri
   await user.click(screen.getByRole('button', { name: entry(1, 'needs-input') }));
   assert.ok(!screen.queryByRole('dialog'));
   await user.click(done);
-  await user.click(screen.getByRole('button', { name: outsideName }));
+  await user.click(screen.getAllByRole('button')[0]);
   assert.ok(!screen.queryByRole('dialog'));
   done.focus();
   await user.keyboard('{ArrowUp}{ArrowDown}{Enter}');

@@ -16,13 +16,13 @@ import {
   renderWorkbench,
   rows,
   shows,
-  sidebar,
   sidebarTitle,
   stateFilter,
   stubSidebarApis,
 } from './support/forge-lists';
 import { requireValue } from '../../app/renderer/common/required';
 import { requireInstance, selectElement } from './support/elements';
+import { forgeSidebar } from './support/sidebar-queries';
 
 afterEach(cleanup);
 before(stubSidebarApis);
@@ -33,7 +33,7 @@ test('the issue list shows one page of rows with their state, number, age and la
   assert.deepEqual(first, { ...first, projectId: 'alpha', query: { filter: openNoFilter, cursor: null } });
   first.answer(page([issue(9, { labels: [bug] }), issue(8)], 'next'));
   await waitFor(() => assert.deepEqual(rows(), ['Issue 9', 'Issue 8']));
-  const row = within(sidebar()).getAllByRole('listitem')[0];
+  const row = within(forgeSidebar()).getAllByRole('listitem')[0];
   assert.equal(selectElement('.forge-row-number', row).textContent, '#9');
   assert.equal(selectElement('time', row).textContent, t('hoursAgo', { count: 3 }));
   assert.ok(within(row).getByRole('button', { name: bug.name }));
@@ -41,13 +41,17 @@ test('the issue list shows one page of rows with their state, number, age and la
   assert.ok(row.querySelector('.forge-row-action'), 'the row keeps room for dispatch');
   assert.ok(stateFilter('open', 7));
   assert.ok(stateFilter('closed', 2));
-  await user.click(within(sidebar()).getByRole('button', { name: t('loadMore') }));
+  await user.click(within(forgeSidebar()).getByRole('button', { name: t('loadMore') }));
   const more = await request(2);
   assert.deepEqual(more.query, { filter: openNoFilter, cursor: 'next' });
   more.answer(page([issue(7, { state: 'closed', closedAs: 'notPlanned' })]));
   await waitFor(() => assert.deepEqual(rows(), ['Issue 9', 'Issue 8', 'Issue 7']));
-  assert.ok(within(sidebar()).getByRole('img', { name: t('issueNotPlanned') }));
-  assert.equal(within(sidebar()).queryByRole('button', { name: t('loadMore') }), null, 'the last page offers no more');
+  assert.ok(within(forgeSidebar()).getByRole('img', { name: t('issueNotPlanned') }));
+  assert.equal(
+    within(forgeSidebar()).queryByRole('button', { name: t('loadMore') }),
+    null,
+    'the last page offers no more',
+  );
 });
 
 test('Refresh is unavailable and shows progress while a request runs, and reloads the first page', async () => {
@@ -68,15 +72,15 @@ test('Refresh is unavailable and shows progress while a request runs, and reload
 test('a missing forge CLI fills the sidebar with install instructions, and Retry refreshes', async () => {
   const { user, request } = renderWorkbench();
   (await request(1)).answer(failed('notInstalled'));
-  const link = await within(sidebar()).findByRole('link', { name: t('installInstructions') });
+  const link = await within(forgeSidebar()).findByRole('link', { name: t('installInstructions') });
   assert.equal(link.getAttribute('href'), githubForge.installUrl);
   assert.ok(shows(t('forgeCliMissing', { cli: githubForge.cli })));
   assert.equal(
-    within(sidebar()).queryByRole('tab', { name: t('issuesTab') }),
+    within(forgeSidebar()).queryByRole('tab', { name: t('issuesTab') }),
     null,
     'the state takes the whole content area',
   );
-  await user.click(within(sidebar()).getByRole('button', { name: t('retry') }));
+  await user.click(within(forgeSidebar()).getByRole('button', { name: t('retry') }));
   (await request(2)).answer(page([issue(1)]));
   await waitFor(() => assert.deepEqual(rows(), ['Issue 1']));
 });
@@ -85,11 +89,13 @@ test('a logged-out forge CLI offers to copy the login command and Retry', async 
   const { user, request } = renderWorkbench();
   (await request(1)).answer(failed('loggedOut', 'HTTP 401: Bad credentials'));
   await user.click(
-    await within(sidebar()).findByRole('button', { name: t('copyCommand', { command: githubForge.loginCommand }) }),
+    await within(forgeSidebar()).findByRole('button', {
+      name: t('copyCommand', { command: githubForge.loginCommand }),
+    }),
   );
   assert.equal(await navigator.clipboard.readText(), githubForge.loginCommand);
   assert.ok(shows(t('forgeCliLoggedOut', { cli: githubForge.cli })));
-  await user.click(within(sidebar()).getByRole('button', { name: t('retry') }));
+  await user.click(within(forgeSidebar()).getByRole('button', { name: t('retry') }));
   await request(2);
 });
 
@@ -99,20 +105,20 @@ test('an inaccessible repository names the account and offers Retry and Change b
   await waitFor(() =>
     assert.ok(shows(t('repositoryInaccessible', { repository: 'octo/alpha', cli: githubForge.cli, account: 'octo' }))),
   );
-  await user.click(within(sidebar()).getByRole('button', { name: t('retry') }));
+  await user.click(within(forgeSidebar()).getByRole('button', { name: t('retry') }));
   (await request(2)).answer(failed('inaccessible', 'GraphQL: Could not resolve to a Repository', null));
   await waitFor(() =>
     assert.ok(shows(t('repositoryInaccessibleNoAccount', { repository: 'octo/alpha', cli: githubForge.cli }))),
   );
   await user.click(
     requireValue(
-      within(sidebar())
+      within(forgeSidebar())
         .getAllByRole('button', { name: t('changeBinding') })
         .find(button => !button.closest('header')),
       'the Change binding button outside the header',
     ),
   );
-  const search = await within(sidebar()).findByRole('searchbox', { name: t('searchRepositories') });
+  const search = await within(forgeSidebar()).findByRole('searchbox', { name: t('searchRepositories') });
   await waitFor(() =>
     assert.equal(document.activeElement, search, 'the change-binding page opens with focus in its search'),
   );
@@ -120,7 +126,7 @@ test('an inaccessible repository names the account and offers Retry and Change b
 
 const repositoryOption = (path: string) =>
   requireValue(
-    within(sidebar())
+    within(forgeSidebar())
       .getAllByRole('option')
       .find(option => option.dataset.path === path),
     `the option for ${path}`,
@@ -151,37 +157,37 @@ async function changeBindingPage(choices?: () => Promise<RepositoryChoices>) {
   });
   (await rendered.request(1)).answer(page([issue(1)]));
   await rendered.user.click(
-    within(selectElement('header', sidebar())).getByRole('button', { name: t('changeBinding') }),
+    within(selectElement('header', forgeSidebar())).getByRole('button', { name: t('changeBinding') }),
   );
-  await within(sidebar()).findByRole('button', { name: t('bindingBack') });
+  await within(forgeSidebar()).findByRole('button', { name: t('bindingBack') });
   return { ...rendered, calls };
 }
 
 test('Change binding turns the sidebar to its change-binding page, and ← Back returns to the lists with focus in the sidebar', async () => {
   const { user, request } = await changeBindingPage();
   assert.equal(screen.queryByRole('dialog'), null, 'no dialog opens');
-  assert.equal(selectElement('.binding-now b', sidebar()).textContent, 'octo/alpha');
-  const options = await within(sidebar()).findAllByRole('option');
+  assert.equal(selectElement('.binding-now b', forgeSidebar()).textContent, 'octo/alpha');
+  const options = await within(forgeSidebar()).findAllByRole('option');
   assert.deepEqual(
     options.map(option => option.textContent),
     [`octo/renamed${t('repositoryOrigin')}`, `octo/alpha${t('repositoryCurrent')}`],
     'origin first, and the current binding marked',
   );
-  await user.click(within(sidebar()).getByRole('button', { name: t('bindingBack') }));
+  await user.click(within(forgeSidebar()).getByRole('button', { name: t('bindingBack') }));
   (await request(2)).answer(page([issue(1)]));
   await waitFor(() => assert.deepEqual(rows(), ['Issue 1']));
-  await waitFor(() => assert.ok(sidebar().contains(document.activeElement), 'focus stays in the sidebar'));
+  await waitFor(() => assert.ok(forgeSidebar().contains(document.activeElement), 'focus stays in the sidebar'));
 });
 
 test('picking another repository states what rebinding does, and Rebind to Y rebinds at once and returns to the lists', async () => {
   const { user, calls, request } = await changeBindingPage();
   assert.equal(
-    requireInstance(within(sidebar()).getByRole('button', { name: t('rebind') }), HTMLButtonElement).disabled,
+    requireInstance(within(forgeSidebar()).getByRole('button', { name: t('rebind') }), HTMLButtonElement).disabled,
     true,
   );
   await user.click(await waitFor(() => repositoryOption('octo/renamed')));
   assert.ok(shows(t('rebindConsequence', { repository: 'octo/renamed' }) + t('rebindImpact')));
-  await user.click(within(sidebar()).getByRole('button', { name: t('rebindTo', { repository: 'octo/renamed' }) }));
+  await user.click(within(forgeSidebar()).getByRole('button', { name: t('rebindTo', { repository: 'octo/renamed' }) }));
   assert.deepEqual(calls, [['bind', 'alpha', githubRepository('octo/renamed')]]);
   const next = await request(2);
   assert.equal(next.projectId, 'alpha');
@@ -199,13 +205,13 @@ test('a bound repository the forge lists at a new path is listed once, there, as
       githubRepository('octo/renamed'),
     ],
   }));
-  const options = await within(sidebar()).findAllByRole('option');
+  const options = await within(forgeSidebar()).findAllByRole('option');
   assert.deepEqual(
     options.map(option => option.textContent),
     [`octo/renamed${t('repositoryOrigin')}`, `octo/alpha-x${t('repositoryCurrent')}`],
   );
   assert.equal(
-    requireInstance(within(sidebar()).getByRole('button', { name: t('rebind') }), HTMLButtonElement).disabled,
+    requireInstance(within(forgeSidebar()).getByRole('button', { name: t('rebind') }), HTMLButtonElement).disabled,
     true,
   );
 });
@@ -216,7 +222,7 @@ test('a binding changed elsewhere while the change-binding page shows returns th
   publish();
   (await request(2)).answer(page([issue(1)]));
   await waitFor(() => assert.deepEqual(rows(), ['Issue 1']));
-  assert.equal(within(sidebar()).queryByRole('button', { name: t('bindingBack') }), null);
+  assert.equal(within(forgeSidebar()).queryByRole('button', { name: t('bindingBack') }), null);
 });
 
 test('Unbind states what unbinding does before its own Unbind carries it out, Cancel steps back, and it works without gh', async () => {
@@ -225,18 +231,18 @@ test('Unbind states what unbinding does before its own Unbind carries it out, Ca
     failure: { kind: 'notInstalled', detail: '', forge: githubForge },
   }));
   await waitFor(() => assert.ok(shows(t('forgeNotInstalled', { cli: githubForge.cli }))));
-  await user.click(within(sidebar()).getByRole('button', { name: t('unbind') }));
+  await user.click(within(forgeSidebar()).getByRole('button', { name: t('unbind') }));
   const consequence = t('unbindConsequence') + t('unbindImpact');
   assert.ok(shows(consequence));
-  const cancel = within(sidebar()).getByRole('button', { name: t('cancel') });
+  const cancel = within(forgeSidebar()).getByRole('button', { name: t('cancel') });
   await waitFor(() => assert.equal(document.activeElement, cancel, 'focus moves to Cancel'));
   await user.click(cancel);
   assert.ok(!shows(consequence));
-  const unbind = within(sidebar()).getByRole('button', { name: t('unbind') });
+  const unbind = within(forgeSidebar()).getByRole('button', { name: t('unbind') });
   await waitFor(() => assert.equal(document.activeElement, unbind, 'focus returns to Unbind'));
   assert.deepEqual(calls, []);
-  await user.click(within(sidebar()).getByRole('button', { name: t('unbind') }));
-  await user.click(within(sidebar()).getByRole('button', { name: t('unbind') }));
+  await user.click(within(forgeSidebar()).getByRole('button', { name: t('unbind') }));
+  await user.click(within(forgeSidebar()).getByRole('button', { name: t('unbind') }));
   assert.deepEqual(calls, [['unbind', 'alpha']]);
   await waitFor(() => assert.equal(sidebarTitle(), t('noRepositoryBound')));
 });
@@ -245,15 +251,15 @@ test('a transient failure keeps the rows under a stale notice, and fills the sid
   const { user, request } = renderWorkbench();
   (await request(1)).answer(failed('transient', 'HTTP 502: Bad Gateway'));
   await waitFor(() => assert.ok(shows(t('issuesLoadFailed', { reason: 'HTTP 502: Bad Gateway' }))));
-  assert.equal(within(sidebar()).queryByRole('tab', { name: t('issuesTab') }), null);
-  await user.click(within(sidebar()).getByRole('button', { name: t('retry') }));
+  assert.equal(within(forgeSidebar()).queryByRole('tab', { name: t('issuesTab') }), null);
+  await user.click(within(forgeSidebar()).getByRole('button', { name: t('retry') }));
   (await request(2)).answer(page([issue(1)]));
   await waitFor(() => assert.deepEqual(rows(), ['Issue 1']));
   await user.click(refresh());
   (await request(3)).answer(failed('transient', 'API rate limit exceeded'));
   await waitFor(() => assert.ok(shows(t('dataMayBeStale'))));
   assert.deepEqual(rows(), ['Issue 1'], 'the old rows stay');
-  await user.click(within(selectElement('.forge-stale', sidebar())).getByRole('button', { name: t('retry') }));
+  await user.click(within(selectElement('.forge-stale', forgeSidebar())).getByRole('button', { name: t('retry') }));
   (await request(4)).answer(page([issue(2)]));
   await waitFor(() => assert.deepEqual(rows(), ['Issue 2']));
   assert.ok(!shows(t('dataMayBeStale')));
@@ -263,8 +269,8 @@ test('Load more pages the filter of the rows shown, even while a new search is s
   const { user, request } = renderWorkbench();
   (await request(1)).answer(page([issue(9)], 'next'));
   await waitFor(() => assert.deepEqual(rows(), ['Issue 9']));
-  await user.type(within(sidebar()).getByRole('searchbox', { name: t('searchIssues') }), 'x');
-  await user.click(within(sidebar()).getByRole('button', { name: t('loadMore') }));
+  await user.type(within(forgeSidebar()).getByRole('searchbox', { name: t('searchIssues') }), 'x');
+  await user.click(within(forgeSidebar()).getByRole('button', { name: t('loadMore') }));
   const more = await request(2);
   assert.deepEqual(more.query, { filter: openNoFilter, cursor: 'next' });
   more.answer(page([issue(8)]));
@@ -278,7 +284,7 @@ test('a request that fails outside the forge fills the sidebar with its reason a
   const { user, request } = renderWorkbench();
   (await request(1)).fail(new Error('No repository bound'));
   await waitFor(() => assert.ok(shows(t('issuesLoadFailed', { reason: 'No repository bound' }))));
-  await user.click(within(sidebar()).getByRole('button', { name: t('retry') }));
+  await user.click(within(forgeSidebar()).getByRole('button', { name: t('retry') }));
   (await request(2)).answer(page([issue(1)]));
   await waitFor(() => assert.deepEqual(rows(), ['Issue 1']));
 });
@@ -293,7 +299,7 @@ test('the current issue row is the one highlight: strong while the list has focu
     const { user, request } = renderWorkbench(undefined, { issueDetail: () => new Promise(() => {}) });
     (await request(1)).answer(page([issue(9), issue(8)]));
     await waitFor(() => assert.deepEqual(rows(), ['Issue 9', 'Issue 8']));
-    const title = (name: string) => within(sidebar()).getByRole('button', { name });
+    const title = (name: string) => within(forgeSidebar()).getByRole('button', { name });
     const highlight = (name: string) =>
       window.getComputedStyle(requireInstance(title(name).closest('.forge-row'), HTMLElement)).boxShadow;
     const unhighlighted = highlight('Issue 8');
@@ -302,7 +308,7 @@ test('the current issue row is the one highlight: strong while the list has focu
     const strong = highlight('Issue 9');
     assert.notEqual(strong, unhighlighted, 'the row focus is on is highlighted');
     await user.click(title('Issue 9'));
-    await waitFor(() => assert.ok(!sidebar().querySelector('.forge-rows')?.contains(document.activeElement)));
+    await waitFor(() => assert.ok(!forgeSidebar().querySelector('.forge-rows')?.contains(document.activeElement)));
     const faint = highlight('Issue 9');
     assert.notEqual(faint, unhighlighted, "the open issue's row stays highlighted once focus leaves the list");
     assert.notEqual(faint, strong, 'and its highlight fades');

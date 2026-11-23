@@ -8,8 +8,7 @@ import { HoverHints } from '../../app/renderer/common/HoverHints';
 afterEach(cleanup);
 
 const cardHint = 'Claude Code · Review the parser',
-  statusHint = 'Busy',
-  plainName = 'Plain';
+  statusHint = 'Busy';
 
 function renderHinted() {
   render(
@@ -20,7 +19,7 @@ function renderHinted() {
           ◌
         </span>
       </button>
-      <button>{plainName}</button>
+      <button>Plain</button>
       <HoverHints />
     </>,
   );
@@ -28,19 +27,20 @@ function renderHinted() {
 }
 
 const card = () => screen.getAllByRole('button')[0];
+const plain = () => screen.getAllByRole('button')[1];
 
 test('hovering an element with a hint shows the hint, and leaving it hides the hint', async () => {
   const user = renderHinted();
   await user.hover(card());
   assert.equal((await screen.findByRole('tooltip')).textContent, cardHint);
   await user.unhover(card());
-  await user.hover(screen.getByRole('button', { name: plainName }));
+  await user.hover(plain());
   await waitFor(() => assert.equal(screen.queryByRole('tooltip'), null));
 });
 
 test('a hint inside a hinted element replaces the outer hint while the pointer is over it', async () => {
   const user = renderHinted();
-  await user.hover(screen.getByRole('img', { name: statusHint }));
+  await user.hover(screen.getByRole('img'));
   await waitFor(() =>
     assert.deepEqual(
       screen.getAllByRole('tooltip').map(hint => hint.textContent),

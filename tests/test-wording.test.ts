@@ -60,6 +60,31 @@ test('the test wording check rejects text queries and hard-coded accessible name
   assert.match(result.stderr, /docs\/adr\/0009-tests-confirm-behaviour-not-wording\.md/);
 });
 
+test('the test wording check follows names bound in the same file to fixed text', async context => {
+  const f = await fixture(context);
+  await f.write(
+    'tests/components/View.test.tsx',
+    [
+      "const save = 'Save';",
+      'const name = `Project menu: ${project.name}`;',
+      "const entry = (count: number) => `${count} · ${t('done')}`;",
+      'function label(state: string) {',
+      '  return `${state}, ready`;',
+      '}',
+      "screen.getByRole('button', { name: save });",
+      "screen.getByRole('button', { name });",
+      "screen.getByRole('button', { name: entry(2) });",
+      "screen.getByRole('button', { name: label('a') });",
+      "screen.getByRole('button', { name: `${t('projectMenu')} ${project.name}` });",
+    ].join('\n'),
+  );
+
+  const result = f.run();
+
+  assert.equal(result.status, 1, result.stderr);
+  assert.deepEqual(reported(result.stderr), [['tests/components/View.test.tsx', 5, 0, '7, 8, 9, 10, 11']]);
+});
+
 test('the test wording check accepts localized names, structural queries, fixtures and desktop tests', async context => {
   const f = await fixture(context);
   await f.write(
@@ -70,6 +95,17 @@ test('the test wording check accepts localized names, structural queries, fixtur
       "const titleOf = (name: string) => screen.getByRole('button', { name });",
       "screen.getAllByRole('row');",
       "screen.getByRole('button', { name: `${t('projectMenu')}${project.name}` });",
+      'const forgeName = githubForge.name;',
+      "const saved = t('saved');",
+      'const titled = (count: number) => issue(count).title;',
+      "screen.getByRole('button', { name: forgeName });",
+      "screen.getByRole('button', { name: saved });",
+      "screen.getByRole('button', { name: titled(13) });",
+      "screen.getByRole('button', { name: issue(13).title });",
+      "screen.getByRole('button', { name: showSidebar });",
+      "screen.getByRole('button', { name: summaryEntry(2, 'done') });",
+      "const label = 'unrelated';",
+      "const named = (label: string) => screen.getByRole('button', { name: label });",
     ].join('\n'),
   );
   await f.write('tests/fixtures/workbench-process.ts', "screen.getByText('fixture');\n");

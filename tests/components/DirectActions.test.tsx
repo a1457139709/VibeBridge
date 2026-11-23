@@ -20,13 +20,13 @@ import { issue as listedIssue, pullRequest as listedPullRequest, stubSidebarApis
 import { requireValue } from '../../app/renderer/common/required';
 import { selectElement } from './support/elements';
 import { t } from './support/localization';
+import { detailHeading, forgeSidebar } from './support/sidebar-queries';
 
 afterEach(cleanup);
 before(stubSidebarApis);
 
 const repositoryUrl = 'https://github.com/octo/alpha';
-const issueTitle = 'Spec',
-  pullRequestTitle = 'Read-only detail';
+const titles = { issue: 'Spec', pullRequest: 'Read-only detail' };
 const links = { issuePrefix: `${repositoryUrl}/issues/`, pullRequestPrefix: `${repositoryUrl}/pull/` };
 const issueDetail = (number: number, extra: Partial<IssueDetail> = {}): IssueDetail => {
   const {
@@ -35,7 +35,7 @@ const issueDetail = (number: number, extra: Partial<IssueDetail> = {}): IssueDet
     parent: ___,
     subIssues: ____,
     ...summary
-  } = listedIssue(number, { title: issueTitle });
+  } = listedIssue(number, { title: titles.issue });
   return {
     ...summary,
     url: `${repositoryUrl}/issues/${number}`,
@@ -56,7 +56,7 @@ const issueDetail = (number: number, extra: Partial<IssueDetail> = {}): IssueDet
   };
 };
 const pullDetail = (number: number, extra: Partial<PullRequestDetail> = {}): PullRequestDetail => {
-  const { checks: _, ...summary } = listedPullRequest(number, { title: pullRequestTitle });
+  const { checks: _, ...summary } = listedPullRequest(number, { title: titles.pullRequest });
   return {
     ...summary,
     url: `${repositoryUrl}/pull/${number}`,
@@ -130,7 +130,7 @@ function renderWorkbench(forge: Forge) {
           reads.pages++;
           return {
             ok: true,
-            items: [listedIssue(3, { title: issueTitle })],
+            items: [listedIssue(3, { title: titles.issue })],
             nextCursor: null,
             labels: [],
             counts: { open: 1, closed: 0 },
@@ -140,7 +140,7 @@ function renderWorkbench(forge: Forge) {
           reads.pages++;
           return {
             ok: true,
-            items: [listedPullRequest(12, { title: pullRequestTitle })],
+            items: [listedPullRequest(12, { title: titles.pullRequest })],
             nextCursor: null,
             labels: [],
             counts: { open: 1, closed: 0 },
@@ -177,13 +177,8 @@ function renderWorkbench(forge: Forge) {
   return { user: userEvent.setup(), action, reads };
 }
 
-const sidebar = () => screen.getByRole('complementary', { name: githubForge.name });
-const issuePane = () => within(sidebar()).getByRole('region', { name: t('issueDetail') });
-const pullPane = () => within(sidebar()).getByRole('region', { name: t('pullRequestDetail') });
-const heading = (pane: HTMLElement, title: string, number: number) => {
-  const name = `${title} #${number}`;
-  return within(pane).findByRole('heading', { name });
-};
+const issuePane = () => within(forgeSidebar()).getByRole('region', { name: t('issueDetail') });
+const pullPane = () => within(forgeSidebar()).getByRole('region', { name: t('pullRequestDetail') });
 const forgeName = githubForge.name;
 const mergeButtons = () =>
   within(within(pullPane()).getByRole('region', { name: t('mergeRequirements') }))
@@ -198,10 +193,10 @@ async function openIssue(forge: Forge) {
   const view = renderWorkbench(forge);
   await view.user.click(
     await within(await screen.findByRole('complementary', { name: forgeName })).findByRole('button', {
-      name: issueTitle,
+      name: titles.issue,
     }),
   );
-  await heading(issuePane(), issueTitle, 3);
+  await detailHeading(issuePane(), titles.issue, 3);
   return view;
 }
 async function openPullRequest(forge: Forge) {
@@ -211,8 +206,8 @@ async function openPullRequest(forge: Forge) {
       name: t('pullRequestsTab'),
     }),
   );
-  await view.user.click(await within(sidebar()).findByRole('button', { name: pullRequestTitle }));
-  await heading(pullPane(), pullRequestTitle, 12);
+  await view.user.click(await within(forgeSidebar()).findByRole('button', { name: titles.pullRequest }));
+  await detailHeading(pullPane(), titles.pullRequest, 12);
   return view;
 }
 
@@ -242,7 +237,7 @@ test('Close issue closes it as completed, shows it working meanwhile, and on suc
       'one reload of the detail and the row by number, and no page',
     ),
   );
-  const row = within(sidebar()).getByRole('listitem');
+  const row = within(forgeSidebar()).getByRole('listitem');
   assert.ok(within(row).getByRole('img', { name: t('issueCompleted') }), 'the row stays, showing the new state');
   assert.equal(within(issuePane()).queryByRole('button', { name: t('closeIssue') }), null);
 });
@@ -299,7 +294,7 @@ test('a failed action shows the forge text under the buttons with Retry until di
   await user.click(within(issuePane()).getByRole('button', { name: t('closeIssue') }));
   (await action(3)).answer(failure('Again'));
   await within(issuePane()).findByRole('alert');
-  await user.click(within(sidebar()).getByRole('button', { name: t('refresh') }));
+  await user.click(within(forgeSidebar()).getByRole('button', { name: t('refresh') }));
   await waitFor(() =>
     assert.equal(within(issuePane()).queryByRole('alert'), null, 'the next refresh clears the failure'),
   );
@@ -313,12 +308,12 @@ test('an action that finds the forge CLI missing or logged out puts the sidebar 
   (await missing.action(1)).answer({ ok: false, failure: notInstalled });
   await waitFor(() =>
     assert.equal(
-      sidebar().querySelector('.forge-sidebar-state > p')?.textContent,
+      forgeSidebar().querySelector('.forge-sidebar-state > p')?.textContent,
       t('forgeCliMissing', { cli: githubForge.cli }),
     ),
   );
   assert.equal(
-    within(sidebar()).queryByRole('region', { name: t('issueDetail') }),
+    within(forgeSidebar()).queryByRole('region', { name: t('issueDetail') }),
     null,
     'the failure fills the content area',
   );
@@ -330,7 +325,7 @@ test('an action that finds the forge CLI missing or logged out puts the sidebar 
     ok: false,
     failure: { kind: 'loggedOut', detail: 'HTTP 401: Bad credentials', forge: githubForge },
   });
-  await within(sidebar()).findByRole('button', { name: t('copyCommand', { command: githubForge.loginCommand }) });
+  await within(forgeSidebar()).findByRole('button', { name: t('copyCommand', { command: githubForge.loginCommand }) });
 });
 
 test('with no write access to the repository, a detail shows no action buttons', async () => {

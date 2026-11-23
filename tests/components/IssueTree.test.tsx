@@ -2,19 +2,10 @@ import './support/dom';
 import assert from 'node:assert/strict';
 import test, { afterEach, before } from 'node:test';
 import { cleanup, waitFor, within } from '@testing-library/react';
-import {
-  bug,
-  issue,
-  page,
-  renderWorkbench,
-  rows,
-  sidebar,
-  stateFilter,
-  stubSidebarApis,
-  summary,
-} from './support/forge-lists';
+import { bug, issue, page, renderWorkbench, rows, stateFilter, stubSidebarApis, summary } from './support/forge-lists';
 import { githubCapabilities, githubForge } from './support/forge';
 import { t } from './support/localization';
+import { forgeSidebar } from './support/sidebar-queries';
 
 afterEach(cleanup);
 before(stubSidebarApis);
@@ -39,12 +30,12 @@ test('parents start collapsed behind a progress button that expands their sub-is
   await waitFor(() =>
     assert.deepEqual(rows(), ['Issue 14', 'Issue 10'], 'only issues without a parent on the page are at the top'),
   );
-  const expand = within(sidebar()).getByRole('button', { name: t('showSubIssues') });
+  const expand = within(forgeSidebar()).getByRole('button', { name: t('showSubIssues') });
   assert.equal(expand.getAttribute('aria-expanded'), 'false');
   assert.match(expand.textContent ?? '', /▸.*1\/3/);
   await user.click(expand);
   assert.deepEqual(rows(), ['Issue 14', 'Issue 10', 'Issue 12', 'Issue 13']);
-  const children = within(sidebar()).getByRole('group', { name: t('subIssuesOf', { number: 10 }) });
+  const children = within(forgeSidebar()).getByRole('group', { name: t('subIssuesOf', { number: 10 }) });
   assert.ok(within(children).getByRole('button', { name: bug.name }), 'a sub-issue keeps its whole row');
   assert.equal(
     within(children)
@@ -67,7 +58,7 @@ test('parents start collapsed behind a progress button that expands their sub-is
   );
   await user.click(within(children).getByRole('button', { name: t('hideClosedSubIssues') }));
   assert.deepEqual(rows(), ['Issue 14', 'Issue 10', 'Issue 12', 'Issue 13']);
-  const collapse = within(sidebar()).getByRole('button', { name: t('hideSubIssues') });
+  const collapse = within(forgeSidebar()).getByRole('button', { name: t('hideSubIssues') });
   assert.equal(collapse.getAttribute('aria-expanded'), 'true');
   assert.match(collapse.textContent ?? '', /▾/);
   await user.click(collapse);
@@ -88,10 +79,12 @@ test("a blocked issue shows the blockers' numbers, names them on hover, and keep
       issue(8),
     ]),
   );
-  const mark = await within(sidebar()).findByRole('img', { name: t('blockedBy', { issues: '#143, octo/other#7' }) });
+  const mark = await within(forgeSidebar()).findByRole('img', {
+    name: t('blockedBy', { issues: '#143, octo/other#7' }),
+  });
   assert.equal(mark.textContent, '#143, octo/other#7');
   assert.equal(mark.getAttribute('data-hint'), '#143 Sidebar shell\nocto/other#7 Upstream fix');
-  const [blocked, free] = within(sidebar()).getAllByRole('listitem');
+  const [blocked, free] = within(forgeSidebar()).getAllByRole('listitem');
   assert.ok(blocked.contains(mark));
   assert.ok(blocked.querySelector('.forge-row-action'), 'a blocked issue can still be dispatched');
   assert.equal(free.querySelector('.forge-blocked'), null);
@@ -106,10 +99,10 @@ test('an issue blocked by more open issues than the forge listed counts the rest
     ]),
   );
   const twoMore = t('moreBlockers', { count: 2 });
-  const mark = await within(sidebar()).findByRole('img', { name: t('blockedBy', { issues: `#143, ${twoMore}` }) });
+  const mark = await within(forgeSidebar()).findByRole('img', { name: t('blockedBy', { issues: `#143, ${twoMore}` }) });
   assert.equal(mark.getAttribute('data-hint'), `#143 Sidebar shell\n${twoMore}`);
   assert.ok(
-    within(sidebar()).getByRole('img', { name: t('blockedBy', { issues: t('moreBlockers', { count: 1 }) }) }),
+    within(forgeSidebar()).getByRole('img', { name: t('blockedBy', { issues: t('moreBlockers', { count: 1 }) }) }),
     'an issue none of whose open blockers is listed is still marked',
   );
 });
@@ -130,9 +123,9 @@ test('an expanded parent whose sub-issues the forge cut short says how many more
       issue(9, { subIssues: { closed: 0, total: 3, unlisted: 0, issues: [summary(5)] } }),
     ]),
   );
-  for (const expand of await within(sidebar()).findAllByRole('button', { name: t('showSubIssues') }))
+  for (const expand of await within(forgeSidebar()).findAllByRole('button', { name: t('showSubIssues') }))
     await user.click(expand);
-  const more = within(within(sidebar()).getByRole('group', { name: t('subIssuesOf', { number: 10 }) })).getByRole(
+  const more = within(within(forgeSidebar()).getByRole('group', { name: t('subIssuesOf', { number: 10 }) })).getByRole(
     'link',
     { name: t('moreSubIssues', { count: 4, forge: githubForge.name }) },
   );
@@ -142,7 +135,7 @@ test('an expanded parent whose sub-issues the forge cut short says how many more
     'a sub-issue the cap left out but the list loaded is not counted again',
   );
   assert.equal(
-    within(within(sidebar()).getByRole('group', { name: t('subIssuesOf', { number: 9 }) })).queryByRole('link'),
+    within(within(forgeSidebar()).getByRole('group', { name: t('subIssuesOf', { number: 9 }) })).queryByRole('link'),
     null,
     'sub-issues of another repository that the list cannot show are not counted as left out',
   );
@@ -158,7 +151,7 @@ test('a parent shows the progress button only when the list holds sub-issues to 
     ]),
   );
   await waitFor(() => assert.deepEqual(rows(), ['Issue 30', 'Issue 20']));
-  const buttons = within(sidebar()).getAllByRole('button', { name: t('showSubIssues') });
+  const buttons = within(forgeSidebar()).getAllByRole('button', { name: t('showSubIssues') });
   assert.equal(buttons.length, 1, 'a parent whose sub-issues are all outside the list has no button');
   await user.click(buttons[0]);
   assert.deepEqual(rows(), ['Issue 30', 'Issue 20', 'Issue 21'], 'a loaded sub-issue stays reachable under its parent');
@@ -177,9 +170,9 @@ for (const capabilities of [
     (await request(1)).answer(answer);
     await waitFor(() => assert.ok(rows().includes('Issue 14')));
     assert.deepEqual(rows(), capabilities.subIssues ? ['Issue 14', 'Issue 10'] : ['Issue 14', 'Issue 12', 'Issue 10']);
-    assert.equal(!!within(sidebar()).queryByRole('button', { name: t('showSubIssues') }), capabilities.subIssues);
+    assert.equal(!!within(forgeSidebar()).queryByRole('button', { name: t('showSubIssues') }), capabilities.subIssues);
     assert.equal(
-      !!within(sidebar()).queryByRole('img', { name: t('blockedBy', { issues: '#1' }) }),
+      !!within(forgeSidebar()).queryByRole('img', { name: t('blockedBy', { issues: '#1' }) }),
       capabilities.blocking,
     );
   });
@@ -203,16 +196,16 @@ test('listing closed issues, an expanded parent shows its closed sub-issues and 
       }),
     ]),
   );
-  await user.click(await within(sidebar()).findByRole('button', { name: t('showSubIssues') }));
+  await user.click(await within(forgeSidebar()).findByRole('button', { name: t('showSubIssues') }));
   assert.deepEqual(rows(), ['Issue 10', 'Issue 13']);
-  assert.equal(sidebar().querySelector('button.forge-fold'), null, 'no closed sub-issues are folded');
+  assert.equal(forgeSidebar().querySelector('button.forge-fold'), null, 'no closed sub-issues are folded');
 });
 
 test('an issue whose parent arrives with Load more moves under it', async () => {
   const { user, request } = renderWorkbench();
   (await request(1)).answer(page([issue(12, { parent: 10 })], 'next'));
   await waitFor(() => assert.deepEqual(rows(), ['Issue 12']));
-  await user.click(within(sidebar()).getByRole('button', { name: t('loadMore') }));
+  await user.click(within(forgeSidebar()).getByRole('button', { name: t('loadMore') }));
   (await request(2)).answer(
     page([issue(10, { subIssues: { closed: 0, total: 1, unlisted: 0, issues: [summary(12)] } })]),
   );

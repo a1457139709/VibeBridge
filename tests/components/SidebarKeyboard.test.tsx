@@ -2,11 +2,12 @@ import './support/dom';
 import assert from 'node:assert/strict';
 import test, { afterEach, before } from 'node:test';
 import { cleanup, fireEvent, screen, waitFor, within } from '@testing-library/react';
-import { issue, page, pullRequest, renderWorkbench, sidebar, stubSidebarApis, summary } from './support/forge-lists';
+import { issue, page, pullRequest, renderWorkbench, stubSidebarApis, summary } from './support/forge-lists';
 import { issueDetail, listed, record, row } from './support/dispatch';
 import { selectElement, focusedElement } from './support/elements';
 import { githubForge } from './support/forge';
 import { t } from './support/localization';
+import { forgeSidebar } from './support/sidebar-queries';
 
 afterEach(cleanup);
 before(stubSidebarApis);
@@ -19,7 +20,7 @@ const parentWithTwoOpenSubIssues = () =>
     issue(5),
   ]);
 const focusedRow = () => document.activeElement?.closest('.forge-row')?.querySelector('.forge-row-title')?.textContent;
-const titleButton = (title: string) => within(sidebar()).getByRole('button', { name: title });
+const titleButton = (title: string) => within(forgeSidebar()).getByRole('button', { name: title });
 const press = (key: string) => fireEvent.keyDown(focusedElement(), { key });
 
 async function listedTree() {
@@ -59,7 +60,7 @@ test('in the list ← expands the sub-issues and then enters the first, → goes
   await user.keyboard('{ArrowLeft}');
   await waitFor(() =>
     assert.equal(
-      within(sidebar())
+      within(forgeSidebar())
         .getByRole('button', { name: t('hideSubIssues') })
         .getAttribute('aria-expanded'),
       'true',
@@ -75,7 +76,7 @@ test('in the list ← expands the sub-issues and then enters the first, → goes
   await user.keyboard('{ArrowRight}');
   await waitFor(() =>
     assert.equal(
-      within(sidebar())
+      within(forgeSidebar())
         .getByRole('button', { name: t('showSubIssues') })
         .getAttribute('aria-expanded'),
       'false',
@@ -140,14 +141,14 @@ test('closing a detail whose items have no list row showing puts focus on the li
   (await waitFor(() => titleButton('Issue 12'))).focus();
   await user.keyboard('{Enter}');
   await waitFor(() => assert.ok(detail()?.contains(document.activeElement)));
-  await user.click(within(sidebar()).getByRole('button', { name: t('hideSubIssues') }));
-  await waitFor(() => assert.equal(within(sidebar()).queryByRole('button', { name: issue(12).title }), null));
+  await user.click(within(forgeSidebar()).getByRole('button', { name: t('hideSubIssues') }));
+  await waitFor(() => assert.equal(within(forgeSidebar()).queryByRole('button', { name: issue(12).title }), null));
   selectElement('.forge-detail-scroll', selectElement('.forge-detail')).focus();
   await user.keyboard('{Escape}');
   await waitFor(() => assert.equal(detail(), null));
   assert.equal(
     document.activeElement,
-    sidebar().querySelector('.forge-scroll'),
+    forgeSidebar().querySelector('.forge-scroll'),
     'focus stays in the sidebar, where the issue shortcuts are answered',
   );
 });
@@ -155,7 +156,7 @@ test('closing a detail whose items have no list row showing puts focus on the li
 test('the pull request list moves with ↑/↓ and opens a detail that → returns from', async () => {
   const { user, request } = renderWorkbench(undefined, { pullRequestDetail: () => new Promise(() => {}) });
   (await request(1)).answer(page([]));
-  await user.click(within(sidebar()).getByRole('tab', { name: t('pullRequestsTab') }));
+  await user.click(within(forgeSidebar()).getByRole('tab', { name: t('pullRequestsTab') }));
   (await request(2)).answer(page([pullRequest(31), pullRequest(30)]));
   (await waitFor(() => titleButton('Change 31'))).focus();
   await user.keyboard('{ArrowDown}');
@@ -172,7 +173,9 @@ test('opening the sidebar puts focus on the first row of its list once the list 
   (await request(1)).answer(parentWithTwoOpenSubIssues());
   await user.click(screen.getByRole('button', { name: t('closeForgeSidebar', { forge: githubForge.name }) }));
   await user.click(screen.getByRole('button', { name: t('openForgeSidebar', { forge: githubForge.name }) }));
-  await waitFor(() => assert.ok(sidebar().contains(document.activeElement), 'focus goes into the sidebar at once'));
+  await waitFor(() =>
+    assert.ok(forgeSidebar().contains(document.activeElement), 'focus goes into the sidebar at once'),
+  );
   (await request(2)).answer(parentWithTwoOpenSubIssues());
   await waitFor(() => assert.equal(focusedRow(), 'Issue 20'));
   await user.keyboard('{ArrowDown}');
@@ -187,7 +190,7 @@ test("in an issue's detail Tab reaches its Dispatch and dispatch records, and Es
   f.forge.issueDetail = async (_, number) => ({ ok: true, issue: issueDetail(number) });
   titleButton('Issue 9').focus();
   await f.user.keyboard('{Enter}');
-  const pane = await waitFor(() => within(sidebar()).getByRole('region', { name: t('issueDetail') }));
+  const pane = await waitFor(() => within(forgeSidebar()).getByRole('region', { name: t('issueDetail') }));
   await waitFor(() =>
     assert.ok(within(pane).getByRole('heading', { level: 2 }).textContent?.startsWith(issueDetail(9).title)),
   );

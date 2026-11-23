@@ -2,11 +2,12 @@ import './support/dom';
 import assert from 'node:assert/strict';
 import test, { afterEach, before } from 'node:test';
 import { cleanup, fireEvent, screen, waitFor, within } from '@testing-library/react';
-import { stubSidebarApis, sidebar } from './support/forge-lists';
-import { detailHeading, issueButton, issueDetail, listed, menu, record, row } from './support/dispatch';
+import { stubSidebarApis, summary } from './support/forge-lists';
+import { issueButton, issueDetail, listed, menu, record, row } from './support/dispatch';
 import { t } from './support/localization';
 import { requireValue } from '../../app/renderer/common/required';
-import { selectElement, focusedElement } from './support/elements';
+import { focusedElement } from './support/elements';
+import { forgeSidebar, detailHeading } from './support/sidebar-queries';
 
 afterEach(cleanup);
 before(stubSidebarApis);
@@ -18,8 +19,8 @@ const pressCommandKey = (code: 'KeyD' | 'KeyL') =>
     metaKey: true,
   });
 async function detailOf(number: number) {
-  const detail = await waitFor(() => selectElement('.forge-detail'));
-  await detailHeading(detail, number);
+  const detail = await within(forgeSidebar()).findByRole('region', { name: t('issueDetail') });
+  await detailHeading(detail, summary(number).title, number);
   return detail;
 }
 
@@ -61,7 +62,7 @@ test("from a detail whose list row is not showing, ⌘D opens the detail's dispa
   };
   await f.user.click(issueButton(9));
   const detail = await detailOf(9);
-  await f.user.click(within(sidebar()).getByRole('tab', { name: t('pullRequestsTab') }));
+  await f.user.click(within(forgeSidebar()).getByRole('tab', { name: t('pullRequestsTab') }));
   within(detail)
     .getByRole('button', { name: t('closeDetail') })
     .focus();

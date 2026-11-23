@@ -36,7 +36,6 @@ const command = () => screen.getAllByRole<HTMLInputElement>('textbox', { name: t
 const startsWith = (prefix: string) => (name: string) => name.startsWith(prefix);
 const dialogParagraphs = () =>
   [...screen.getByRole('dialog').querySelectorAll('p')].map(paragraph => paragraph.textContent);
-const tddCommand = 'tdd {url}';
 
 test('category drafts survive switching, and ordinary save submits only the current category', async () => {
   const saved = defaultSettings();
@@ -409,7 +408,7 @@ test('Workflows sits between Agent and Appearance, and saves the workflow switch
     'wayfinder {url}',
     'triage look at {url}',
     'diagnosing-bugs {url}',
-    tddCommand,
+    'tdd {url}',
     'prototype {url}',
     'research {url}',
     'grill-me {url}',
@@ -422,7 +421,9 @@ test('Workflows sits between Agent and Appearance, and saves the workflow switch
   );
   assert.equal(screen.queryByRole('textbox'), null, 'commands cannot be added or edited');
   await user.click(
-    within(screen.getByRole('radiogroup', { name: tddCommand })).getByRole('radio', { name: t('deliveryFill') }),
+    within(screen.getByRole('radiogroup', { name: startsWith('tdd ') })).getByRole('radio', {
+      name: t('deliveryFill'),
+    }),
   );
   await user.click(enabled);
   assert.equal(enabled.getAttribute('aria-checked'), 'false', 'clicking the switch turns the workflow off');

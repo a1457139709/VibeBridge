@@ -16,6 +16,7 @@ import { forgeSidebarData } from './forge-sidebar-data';
 import { githubCapabilities, githubForge, githubView, githubRepository } from './forge';
 import { t } from './localization';
 import { issue as listedIssue } from './forge-lists';
+import { forgeSidebar } from './sidebar-queries';
 
 export const repositoryUrl = 'https://github.com/octo/alpha';
 export const hoursAgo = (hours: number) => new Date(Date.now() - hours * 3600e3).toISOString();
@@ -131,10 +132,5 @@ export function renderWorkbench(
   return { user: userEvent.setup(), request };
 }
 
-export const sidebar = () => screen.getByRole('complementary', { name: githubForge.name });
-export const pane = () => within(sidebar()).getByRole('region', { name: t('issueDetail') });
-export const heading = (title: string, number: number) => {
-  const name = `${title} #${number}`;
-  return within(pane()).findByRole('heading', { name });
-};
-export const row = (title: string) => waitFor(() => within(sidebar()).getByRole('button', { name: title }));
+export const pane = () => within(forgeSidebar()).getByRole('region', { name: t('issueDetail') });
+export const row = (title: string) => waitFor(() => within(forgeSidebar()).getByRole('button', { name: title }));

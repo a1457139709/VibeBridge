@@ -13,11 +13,10 @@ import {
   reference,
   detail,
   renderWorkbench,
-  sidebar,
   pane,
   row,
-  heading,
 } from './support/issue-detail';
+import { forgeSidebar, detailHeading } from './support/sidebar-queries';
 
 afterEach(cleanup);
 before(() => {
@@ -47,7 +46,7 @@ test('clicking a row opens its detail beside the list, with the author, comment 
       ],
     }),
   });
-  await heading('Issue detail', 7);
+  await detailHeading(pane(), 'Issue detail', 7);
   assert.equal(
     selectElement('.forge-pill', pane()).textContent,
     t('stateCompleted'),
@@ -75,25 +74,27 @@ test('clicking a row opens its detail beside the list, with the author, comment 
       .getAttribute('href'),
     `${repositoryUrl}/issues/7`,
   );
-  assert.equal(within(sidebar()).getAllByRole('listitem').length, 2, 'the list stays visible');
+  assert.equal(within(forgeSidebar()).getAllByRole('listitem').length, 2, 'the list stays visible');
   await user.click(within(pane()).getByRole('button', { name: t('closeDetail') }));
-  assert.equal(within(sidebar()).queryByRole('region', { name: t('issueDetail') }), null);
+  assert.equal(within(forgeSidebar()).queryByRole('region', { name: t('issueDetail') }), null);
 });
 
 test('the body and comments pass the HTML filter, same-repository issue links open in the sidebar, and others go to the browser', async () => {
-  const sameRepository = '#3',
-    externalDocument = 'the doc',
-    scriptLink = 'this',
-    otherRepository = 'other/repo#3',
+  const linkText = {
+      sameRepository: '#3',
+      externalDocument: 'the doc',
+      script: 'this',
+      otherRepository: 'other/repo#3',
+    },
     emoji = '🎉';
-  const imageLink = (alt: string) => `${alt} ↗`;
+  const imageLink = (alt: string) => (name: string) => name.startsWith(alt);
   const { user, request } = renderWorkbench([summary(7)]);
   await user.click(await row('Issue 7'));
   (await request(1)).answer({
     ok: true,
     issue: detail(7, {
-      body: `<p onclick="steal()">See <a class="issue-link" href="https://github.com/Octo/Alpha/issues/3">${sameRepository}</a>, <a href="https://example.com/doc">${externalDocument}</a>
-      and <a href="javascript:steal()">${scriptLink}</a>.</p><script>steal()</script><style>p { display: none }</style>
+      body: `<p onclick="steal()">See <a class="issue-link" href="https://github.com/Octo/Alpha/issues/3">${linkText.sameRepository}</a>, <a href="https://example.com/doc">${linkText.externalDocument}</a>
+      and <a href="javascript:steal()">${linkText.script}</a>.</p><script>steal()</script><style>p { display: none }</style>
       <img src="https://user-images.githubusercontent.com/shot.png" alt="Screenshot">
       <a href="https://user-images.githubusercontent.com/linked.png"><img src="https://user-images.githubusercontent.com/linked.png" alt="Linked"></a>
       <iframe src="https://example.com"></iframe>
@@ -102,12 +103,12 @@ test('the body and comments pass the HTML filter, same-repository issue links op
         {
           author: 'hubot',
           createdAt: hoursAgo(1),
-          html: `<p>Merged in <a href="https://github.com/other/repo/issues/3">${otherRepository}</a>.</p><img src="x" onerror="steal()">`,
+          html: `<p>Merged in <a href="https://github.com/other/repo/issues/3">${linkText.otherRepository}</a>.</p><img src="x" onerror="steal()">`,
         },
       ],
     }),
   });
-  const external = await within(pane()).findByRole('link', { name: externalDocument });
+  const external = await within(pane()).findByRole('link', { name: linkText.externalDocument });
   const html = pane().innerHTML;
   for (const unsafe of [
     '<script',
@@ -126,7 +127,7 @@ test('the body and comments pass the HTML filter, same-repository issue links op
   assert.equal(external.parentElement?.tagName, 'P');
   assert.equal(
     [...pane().querySelectorAll('.forge-markdown a')]
-      .find(link => link.textContent === scriptLink)
+      .find(link => link.textContent === linkText.script)
       ?.getAttribute('href'),
     null,
     'a script link loses its target',
@@ -150,19 +151,19 @@ test('the body and comments pass the HTML filter, same-repository issue links op
   assert.ok(checkbox.checked && checkbox.disabled, 'a task list item stays read-only');
   assert.ok(pane().textContent?.includes(emoji));
   assert.equal(
-    within(pane()).getByRole('link', { name: otherRepository }).getAttribute('target'),
+    within(pane()).getByRole('link', { name: linkText.otherRepository }).getAttribute('target'),
     '_blank',
     'another repository opens in the browser',
   );
 
-  await user.click(within(pane()).getByRole('link', { name: sameRepository }));
+  await user.click(within(pane()).getByRole('link', { name: linkText.sameRepository }));
   const linked = await request(2);
   assert.equal(linked.number, 3, 'a same-repository issue link opens in the sidebar, whatever the case of its path');
   linked.answer({ ok: true, issue: detail(3, { title: 'Linked issue' }) });
-  await heading('Linked issue', 3);
+  await detailHeading(pane(), 'Linked issue', 3);
   await user.click(within(pane()).getByRole('button', { name: t('detailBack') }));
   (await request(3)).answer({ ok: true, issue: detail(7) });
-  await heading('Issue 7', 7);
+  await detailHeading(pane(), 'Issue 7', 7);
   assert.ok(
     within(pane()).getByRole<HTMLButtonElement>('button', { name: t('detailBack') }).disabled,
     'nothing before the first issue',
@@ -234,7 +235,7 @@ test('a closed issue draws no issues it blocks, and an issue with no live relati
       blockedBy: [reference(3, { state: 'closed', closedAs: 'completed' })],
     }),
   });
-  await heading('Issue 5', 5);
+  await detailHeading(pane(), 'Issue 5', 5);
   assert.equal(within(pane()).queryByRole('group', { name: t('relations') }), null);
 });
 
@@ -249,7 +250,7 @@ test('relations a forge does not declare are not shown', async () => {
       subIssues: [reference(6)],
     }),
   });
-  await heading('Issue 5', 5);
+  await detailHeading(pane(), 'Issue 5', 5);
   assert.equal(within(pane()).queryByRole('group', { name: t('relations') }), null);
   assert.equal(within(pane()).queryByRole('region', { name: t('subIssues') }), null);
   assert.equal(pane().querySelector('.forge-parent'), null);
@@ -327,7 +328,7 @@ test('an overlaying detail leaves the layout area as it was, and a squeezing one
     const before = layoutArea();
     await user.click(issue);
     (await request(1)).answer({ ok: true, issue: detail(7) });
-    await heading('Issue 7', 7);
+    await detailHeading(pane(), 'Issue 7', 7);
     if (detailCoexistence === 'overlay')
       assert.deepEqual(layoutArea(), before, 'overlay changes nothing the layout area lays out by');
     else assert.ok(layoutArea()[0].includes('forge-detail-squeeze'), 'squeeze narrows the layout area');
@@ -359,17 +360,17 @@ test('a refresh of a shown detail that fails keeps it showing with a stale notic
   const { user, request } = renderWorkbench([summary(5)]);
   await user.click(await row('Issue 5'));
   (await request(1)).answer({ ok: true, issue: detail(5) });
-  await heading('Issue 5', 5);
-  await user.click(within(sidebar()).getByRole('button', { name: t('refresh') }));
+  await detailHeading(pane(), 'Issue 5', 5);
+  await user.click(within(forgeSidebar()).getByRole('button', { name: t('refresh') }));
   (await request(2)).answer({
     ok: false,
     failure: { kind: 'transient', detail: 'HTTP 502: Bad Gateway', forge: githubForge },
   });
   const staleNotice = () => pane().querySelector('.forge-stale > span')?.textContent ?? null;
   await waitFor(() => assert.equal(staleNotice(), t('dataMayBeStale')));
-  assert.ok(await heading('Issue 5', 5), 'the shown detail stays');
+  assert.ok(await detailHeading(pane(), 'Issue 5', 5), 'the shown detail stays');
   await user.click(within(pane()).getByRole('button', { name: t('retry') }));
   (await request(3)).answer({ ok: true, issue: detail(5, { title: 'Renamed' }) });
-  await heading('Renamed', 5);
+  await detailHeading(pane(), 'Renamed', 5);
   assert.equal(staleNotice(), null, 'the new answer clears the notice');
 });

@@ -15,14 +15,14 @@ import {
   renderWorkbench,
   rows,
   shows,
-  sidebar,
   stateFilter,
   stubSidebarApis,
 } from './support/forge-lists';
 import { githubForge } from './support/forge';
 import { requireInstance } from './support/elements';
+import { forgeSidebar } from './support/sidebar-queries';
 
-const loadMore = () => within(sidebar()).getByRole('button', { name: t('loadMore') });
+const loadMore = () => within(forgeSidebar()).getByRole('button', { name: t('loadMore') });
 
 afterEach(cleanup);
 before(stubSidebarApis);
@@ -32,7 +32,7 @@ test('search, state and labels are sent to the forge, each tab keeps its own, an
   const [alpha, beta] = snapshot.projects;
   (await request(1)).answer(page([issue(1)]));
   await waitFor(() => assert.deepEqual(rows(), ['Issue 1']));
-  await user.type(within(sidebar()).getByRole('searchbox', { name: t('searchIssues') }), '#4');
+  await user.type(within(forgeSidebar()).getByRole('searchbox', { name: t('searchIssues') }), '#4');
   const searched = await request(2);
   assert.deepEqual(
     searched.query.filter,
@@ -45,16 +45,16 @@ test('search, state and labels are sent to the forge, each tab keeps its own, an
   assert.deepEqual(closed.query.filter, { search: '#4', state: 'closed', labels: [] });
   closed.answer(page([]));
   await user.click(labelsFilter());
-  await user.click(within(sidebar()).getByRole('menuitemcheckbox', { name: bug.name }));
-  await user.click(within(sidebar()).getByRole('menuitemcheckbox', { name: docs.name }));
+  await user.click(within(forgeSidebar()).getByRole('menuitemcheckbox', { name: bug.name }));
+  await user.click(within(forgeSidebar()).getByRole('menuitemcheckbox', { name: docs.name }));
   const labelled = await request(5);
   assert.deepEqual(labelled.query.filter, { search: '#4', state: 'closed', labels: ['bug', 'docs'] });
   labelled.answer(page([]));
   await waitFor(() => assert.ok(shows(t('noMatchingIssues'))));
 
-  await user.click(within(sidebar()).getByRole('tab', { name: t('pullRequestsTab') }));
+  await user.click(within(forgeSidebar()).getByRole('tab', { name: t('pullRequestsTab') }));
   assert.equal(
-    requireInstance(within(sidebar()).getByRole('searchbox', { name: t('searchPullRequests') }), HTMLInputElement)
+    requireInstance(within(forgeSidebar()).getByRole('searchbox', { name: t('searchPullRequests') }), HTMLInputElement)
       .value,
     '',
     'the other tab has its own filter',
@@ -66,7 +66,7 @@ test('search, state and labels are sent to the forge, each tab keeps its own, an
     query: { filter: openNoFilter, cursor: null },
   });
   pullRequests.answer(page([]));
-  await user.click(within(sidebar()).getByRole('tab', { name: t('issuesTab') }));
+  await user.click(within(forgeSidebar()).getByRole('tab', { name: t('issuesTab') }));
   const back = await request(7);
   assert.deepEqual(
     back.query.filter,
@@ -92,7 +92,7 @@ test('search, state and labels are sent to the forge, each tab keeps its own, an
     'switching back updates the filter it showed',
   );
   assert.equal(
-    requireInstance(within(sidebar()).getByRole('searchbox', { name: t('searchIssues') }), HTMLInputElement).value,
+    requireInstance(within(forgeSidebar()).getByRole('searchbox', { name: t('searchIssues') }), HTMLInputElement).value,
     '#4',
   );
   assert.ok(shows(t('noMatchingIssues')), 'its kept rows show while they update');
