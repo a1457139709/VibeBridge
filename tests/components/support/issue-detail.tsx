@@ -13,7 +13,8 @@ import type {
 } from '../../../app/shared/forge/forge';
 import { deferred, provideWorkbench } from './workbench';
 import { forgeSidebarData } from './forge-sidebar-data';
-import { githubCapabilities, githubView, githubRepository } from './forge';
+import { githubCapabilities, githubForge, githubView, githubRepository } from './forge';
+import { t } from './localization';
 import { issue as listedIssue } from './forge-lists';
 
 export const repositoryUrl = 'https://github.com/octo/alpha';
@@ -130,6 +131,10 @@ export function renderWorkbench(
   return { user: userEvent.setup(), request };
 }
 
-export const sidebar = () => screen.getByRole('complementary', { name: 'GitHub' });
-export const pane = () => within(sidebar()).getByRole('region', { name: 'Issue detail' });
+export const sidebar = () => screen.getByRole('complementary', { name: githubForge.name });
+export const pane = () => within(sidebar()).getByRole('region', { name: t('issueDetail') });
+export const heading = (title: string, number: number) => {
+  const name = `${title} #${number}`;
+  return within(pane()).findByRole('heading', { name });
+};
 export const row = (title: string) => waitFor(() => within(sidebar()).getByRole('button', { name: title }));

@@ -15,10 +15,13 @@ import type {
 } from '../../../app/shared/forge/forge';
 import { deferred, provideWorkbench } from './workbench';
 import { forgeSidebarData, workbenchEvents } from './forge-sidebar-data';
-import { githubCapabilities, githubView, githubRepository } from './forge';
+import { githubCapabilities, githubForge, githubView, githubRepository } from './forge';
+import { t } from './localization';
 import { issue as listedIssue, pullRequest as listedPullRequest } from './forge-lists';
 
 export const repositoryUrl = 'https://github.com/octo/alpha';
+export const listedTitle = 'Read-only detail';
+export const listedIssueTitle = 'Spec';
 export const hoursAgo = (hours: number) => new Date(Date.now() - hours * 3600e3).toISOString();
 export const links = { issuePrefix: `${repositoryUrl}/issues/`, pullRequestPrefix: `${repositoryUrl}/pull/` };
 export const detail = (number: number, extra: Partial<PullRequestDetail> = {}): PullRequestDetail => {
@@ -130,14 +133,14 @@ export function renderWorkbench({
       {
         issuePage: async () => ({
           ok: true,
-          items: [listedIssue(3, { title: 'Spec' })],
+          items: [listedIssue(3, { title: listedIssueTitle })],
           nextCursor: null,
           labels: [],
           counts: { open: 1, closed: 0 },
         }),
         pullRequestPage: async () => ({
           ok: true,
-          items: [listedPullRequest(12, { title: 'Read-only detail' })],
+          items: [listedPullRequest(12, { title: listedTitle })],
           nextCursor: null,
           labels: [],
           counts: { open: 1, closed: 0 },
@@ -160,9 +163,13 @@ export function renderWorkbench({
   return { user: userEvent.setup(), request };
 }
 
-export const sidebar = () => screen.getByRole('complementary', { name: 'GitHub' });
-export const pane = () => within(sidebar()).getByRole('region', { name: 'Pull request detail' });
-export const mergeArea = () => within(pane()).getByRole('region', { name: 'Merge requirements' });
+export const sidebar = () => screen.getByRole('complementary', { name: githubForge.name });
+export const pane = () => within(sidebar()).getByRole('region', { name: t('pullRequestDetail') });
+export const heading = (title: string, number: number) => {
+  const name = `${title} #${number}`;
+  return within(pane()).findByRole('heading', { name });
+};
+export const mergeArea = () => within(pane()).getByRole('region', { name: t('mergeRequirements') });
 export const rowOf = (name: string) => within(mergeArea()).getByRole('group', { name });
 export const shownRow = (name: string, description: string) =>
   within(mergeArea()).getByRole('group', { name, description });
@@ -173,12 +180,14 @@ export async function openPullRequest(
 ) {
   const view = renderWorkbench(options);
   await view.user.click(
-    within(await screen.findByRole('complementary', { name: 'GitHub' })).getByRole('tab', { name: 'Pull requests' }),
+    within(await screen.findByRole('complementary', { name: githubForge.name })).getByRole('tab', {
+      name: t('pullRequestsTab'),
+    }),
   );
-  await view.user.click(await within(sidebar()).findByRole('button', { name: 'Read-only detail' }));
+  await view.user.click(await within(sidebar()).findByRole('button', { name: listedTitle }));
   const first = await view.request(1);
   assert.deepEqual([first.kind, first.number], ['pullRequest', 12]);
   first.answer({ ok: true, pullRequest });
-  await within(pane()).findByRole('heading', { name: `${pullRequest.title} #12` });
+  await heading(pullRequest.title, 12);
   return view;
 }
