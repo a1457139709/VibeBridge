@@ -1,6 +1,7 @@
 const assert = require('node:assert/strict');
 const { resolve } = require('node:path');
 const { runsOf, showing } = require('./support/panel-views.cjs');
+const { summaryEntry, entryLabel } = require('./support/summary-entries.cjs');
 
 module.exports = {
   async run(context) {
@@ -14,69 +15,64 @@ module.exports = {
     const project = created.activeProjectId;
     const runs = runsOf(await evaluate('window.workbench.fetchSnapshot()'));
     assert.equal(runs.length, 2);
-    const label = (run, selector) =>
-      `document.querySelector('[${selector}="${run.panelId}"] .processing-status')?.getAttribute('aria-label')`;
-    async function check(run, expected) {
-      await until(
-        () => evaluate(`${label(run, 'data-panel-id')} === ${JSON.stringify(expected)}`),
-        `processing status of panel ${run.panelId} reads ${expected}`,
-      );
-      assert.equal(await evaluate(label(run, 'data-locate-panel-id')), expected);
-    }
-    for (const run of runs) await check(run, 'Ready');
+    const check = require('./support/status-display.cjs')(context);
+    for (const run of runs) await check(run, 'ready');
     async function emit(run, payload) {
       await evaluate(
         `window.workbench.sendInput(${JSON.stringify(run.id)}, ${JSON.stringify(JSON.stringify({ id: payload.hook_event_name, payload }) + '\n')})`,
       );
     }
     await emit(runs[0], { hook_event_name: 'UserPromptSubmit', turn_id: 'first' });
-    await check(runs[0], 'Busy');
-    await check(runs[1], 'Ready');
+    await check(runs[0], 'busy');
+    await check(runs[1], 'ready');
     await emit(runs[0], {
       hook_event_name: 'PermissionRequest',
       turn_id: 'first',
       tool_use_id: 'approval',
       tool_name: 'Bash',
     });
-    await check(runs[0], 'Needs input');
+    await check(runs[0], 'needs-input');
     const snapshot = await evaluate('window.workbench.fetchSnapshot()');
     assert.deepEqual(showing(snapshot, project, 'needs-input'), [[runs[0].panelId, runs[0].id]]);
     await emit(runs[1], { hook_event_name: 'UserPromptSubmit', turn_id: 'second' });
     await emit(runs[1], { hook_event_name: 'Stop', turn_id: 'second' });
-    await check(runs[1], 'Done');
-    await check(runs[0], 'Needs input');
+    await check(runs[1], 'done');
+    await check(runs[0], 'needs-input');
     await emit(runs[0], {
       hook_event_name: 'PostToolUse',
       turn_id: 'first',
       tool_use_id: 'approval',
       tool_name: 'Bash',
     });
-    await check(runs[0], 'Busy');
-    const needsInputEntry = count => `document.querySelector('.summary-entry[aria-label="${count} Needs input"]')`;
+    await check(runs[0], 'busy');
+    const needsInputEntry = summaryEntry('needs-input');
+    const entryShows = (count, disabled) =>
+      evaluate(`(entry => entry?.disabled === ${disabled}
+        && entry.getAttribute('aria-label') === ${JSON.stringify(entryLabel('needs-input', count))})(${needsInputEntry})`);
     await emit(runs[0], {
       hook_event_name: 'PreToolUse',
       turn_id: 'first',
       tool_use_id: 'question',
       tool_name: 'request_user_input',
     });
-    await check(runs[0], 'Needs input');
-    await check(runs[1], 'Done');
-    await until(() => evaluate(`${needsInputEntry(1)}?.disabled === false`), 'summary entry "1 Needs input" enabled');
-    await evaluate(`${needsInputEntry(1)}.click()`);
+    await check(runs[0], 'needs-input');
+    await check(runs[1], 'done');
+    await until(() => entryShows(1, false), 'needs-input summary entry counts 1 and is enabled');
+    await evaluate(`${needsInputEntry}.click()`);
     await until(() => evaluate('!!document.querySelector(".summary-list")'), 'Needs input summary list opened');
     assert.deepEqual(
       await evaluate('[...document.querySelectorAll(".summary-list [data-run-id]")].map(item => item.dataset.runId)'),
       [runs[0].id],
     );
-    await evaluate(`${needsInputEntry(1)}.click()`);
+    await evaluate(`${needsInputEntry}.click()`);
     await emit(runs[0], {
       hook_event_name: 'PostToolUse',
       turn_id: 'first',
       tool_use_id: 'question',
       tool_name: 'request_user_input',
     });
-    await check(runs[0], 'Busy');
-    await until(() => evaluate(`${needsInputEntry(0)}?.disabled === true`), 'summary entry "0 Needs input" disabled');
+    await check(runs[0], 'busy');
+    await until(() => entryShows(0, true), 'needs-input summary entry counts 0 and is disabled');
     console.log(
       'Production Codex hook launch and reporter drive matching panel/navigation/summary states with isolated same-directory runs.',
     );

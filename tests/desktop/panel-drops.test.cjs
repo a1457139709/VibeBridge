@@ -2,6 +2,7 @@ const assert = require('node:assert/strict');
 const { mkdir, readFile, writeFile } = require('node:fs/promises');
 const { runsOf } = require('./support/panel-views.cjs');
 const dragging = require('./support/dragging.cjs');
+const { t } = require('./support/localization.cjs');
 
 module.exports = {
   async run(context) {
@@ -54,7 +55,7 @@ module.exports = {
     const canvas = await rect('.canvas'),
       tray = await rect('.panel-tray');
     let point = { x: Math.round(canvas.left + canvas.width / 4), y: Math.round(tray.top - 8) };
-    await hover(point, 'Drop preview: Codex along the bottom of the layout area');
+    await hover(point, t('fillPreview', { agent: 'Codex', side: t('sideBottom') }));
     assert.deepEqual(await previewBox(), [0, 0.5, 1, 0.5]);
     release(point);
     await settle({ [a]: [0, 0.5, 1, 0.5], [b]: [0, 0, 1, 0.25], [c]: [0, 0.25, 1, 0.25] });
@@ -62,7 +63,7 @@ module.exports = {
     let target = await rect(`[data-panel-id="${a}"]`);
     point = { x: Math.round(target.left + target.width * 0.1), y: Math.round(target.top + target.height / 2) };
     await press(c);
-    await hover(point, 'Drop preview: pi on the left of Codex');
+    await hover(point, t('splitPreview', { agent: 'pi', side: t('sideLeft'), target: 'Codex' }));
     assert.deepEqual(await previewBox(), [0, 0.5, 0.5, 0.5]);
     release(point);
     await settle({ [a]: [0.5, 0.5, 0.5, 0.5], [b]: [0, 0, 1, 0.5], [c]: [0, 0.5, 0.5, 0.5] });
@@ -70,7 +71,7 @@ module.exports = {
     target = await rect(`[data-panel-id="${a}"]`);
     point = { x: Math.round(target.left + target.width / 2), y: Math.round(target.top + target.height / 2) };
     await press(b);
-    await hover(point, 'Swap preview: Claude Code and Codex');
+    await hover(point, t('swapPreview', { first: 'Claude Code', second: 'Codex' }));
     release(point);
     const final = { [a]: [0, 0, 1, 0.5], [b]: [0.5, 0.5, 0.5, 0.5], [c]: [0, 0.5, 0.5, 0.5] };
     await settle(final);
@@ -79,7 +80,8 @@ module.exports = {
     target = await rect(`[data-panel-id="${c}"]`);
     point = { x: Math.round(target.left + target.width / 2), y: Math.round(target.top + target.height / 2) };
     await press(a);
-    await hover(point, 'Swap preview: Codex and pi');
+    await hover(point, t('swapPreview', { first: 'Codex', second: 'pi' }));
+
     window.webContents.sendInputEvent({ type: 'keyDown', keyCode: 'Escape' });
     await until(
       () =>

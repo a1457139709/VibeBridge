@@ -1,6 +1,7 @@
 const assert = require('node:assert/strict');
 const { resolve } = require('node:path');
 const { runsOf, showing } = require('./panel-views.cjs');
+const { entryLabel } = require('./summary-entries.cjs');
 
 module.exports = async context => {
   const { evaluate, until, click, window } = context;
@@ -59,11 +60,7 @@ module.exports = async context => {
   const open = async state => {
     const current = await snapshot();
     const count = showing(current, projectId, state).length;
-    const labels =
-      current.settings.language === 'zh-CN'
-        ? { ready: '就绪', 'needs-input': '等待输入', done: '本轮结束', error: '异常' }
-        : { ready: 'Ready', 'needs-input': 'Needs input', done: 'Done', error: 'Error' };
-    await click(`${count} ${labels[state]}`);
+    await click(entryLabel(state, count, current.settings.language));
     await until(() => evaluate('!!document.querySelector(".summary-list")'), `${state} summary list opened`);
   };
   const choose = async (state, run) => {

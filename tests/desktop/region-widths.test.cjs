@@ -1,4 +1,5 @@
 const assert = require('node:assert/strict');
+const { t } = require('./support/localization.cjs');
 
 const rect = (evaluate, selector) =>
   evaluate(`(() => { const box = document.querySelector(${JSON.stringify(selector)})?.getBoundingClientRect();
@@ -47,7 +48,7 @@ module.exports = {
     };
 
     await resizeWindow(1280);
-    await click('Show the GitHub sidebar');
+    await click(t('openForgeSidebar', { forge: project.forge.name }));
     await until(async () => (await rect(evaluate, '.forge-sidebar'))?.width === 380, 'sidebar drawn 380px wide');
 
     await drag('.navigation-resize', 1279);
@@ -90,7 +91,8 @@ module.exports = {
 
     await evaluate(`window.workbench.saveSidebar('forgeSidebar', { visible: true, width: 380 })`);
     await until(async () => (await rect(evaluate, '.forge-sidebar')).width === 380, 'sidebar drawn 380px wide again');
-    await click('Wide issue');
+    await evaluate('document.querySelector(\'.forge-scroll [data-issue="7"] .forge-row-title\').click()');
+
     await until(
       () => evaluate('document.querySelector(".forge-detail h2")?.textContent === "Wide issue #7"'),
       'issue detail drawn',
