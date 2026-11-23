@@ -87,7 +87,7 @@ export function ProjectSummary({ panels, locate }: { panels: PanelView[]; locate
     <div ref={container} className="project-summary" role="region" aria-label={t('projectSummary')} tabIndex={-1}>
       {summaryStates.map(state => {
         const count = members(state).length;
-        const label = `${count} ${t(state)}`;
+        const label = t('summaryEntry', { count, state: t(state) });
         return (
           <button
             key={state}
