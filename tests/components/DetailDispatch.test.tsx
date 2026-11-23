@@ -7,7 +7,20 @@ import type { DispatchRecordView } from '../../app/shared/dispatch';
 import type { Snapshot } from '../../app/shared/model';
 import { t } from './support/localization';
 import { sidebar, stubSidebarApis } from './support/forge-lists';
-import { issueDetail as detail, listed, record, row } from './support/dispatch';
+import {
+  commandItem,
+  detailHeading,
+  issueButton,
+  issueDetail as detail,
+  listed,
+  menu,
+  naming,
+  record,
+  targetsMenu,
+  trayTitle,
+} from './support/dispatch';
+import { agentNames } from '../../app/shared/model';
+import { requireValue } from '../../app/renderer/common/required';
 import { selectElement } from './support/elements';
 
 afterEach(cleanup);
@@ -16,36 +29,36 @@ before(stubSidebarApis);
 async function opened(issue: IssueDetail, change: (snapshot: Snapshot) => void = () => {}) {
   const f = await listed(undefined, change);
   f.forge.issueDetail = async () => ({ ok: true, issue });
-  await f.user.click(within(row(issue.number)).getByRole('button', { name: `Issue ${issue.number}` }));
-  await within(pane()).findByRole('heading', { name: `Issue ${issue.number} #${issue.number}` });
+  await f.user.click(issueButton(issue.number));
+  await detailHeading(pane(), issue.number);
   return f;
 }
-const pane = () => within(sidebar()).getByRole('region', { name: 'Issue detail' });
-const records = () => within(pane()).getByRole('region', { name: /^Dispatch records/ });
+const pane = () => within(sidebar()).getByRole('region', { name: t('issueDetail') });
+const records = (count: number) => within(pane()).getByRole('region', { name: t('dispatchRecords', { count }) });
+const implement = 'implement',
+  toSpec = 'to-spec',
+  grillMe = 'grill-me',
+  tdd = 'tdd';
 const aged = (hours: number, location: DispatchRecordView['location'], extra: Partial<DispatchRecordView> = {}) =>
   record(9, location, { dispatchedAt: new Date(Date.now() - hours * 3600e3).toISOString(), ...extra });
 
 test("an open issue's detail has a Dispatch beside its state and labels that opens the same menu as its row", async () => {
   const f = await opened(detail(9));
   const head = selectElement('.forge-doc-head', pane());
-  await f.user.click(within(head).getByRole('button', { name: 'Dispatch' }));
-  const menu = await waitFor(() => screen.getByRole('menu', { name: 'Dispatch #9' }));
-  await waitFor(() => assert.equal(document.activeElement, menu));
-  assert.equal(within(menu).getAllByRole('menuitem').length, 12);
-  await f.user.hover(within(menu).getByRole('menuitem', { name: /^implement\s?Submit$/ }));
-  await f.user.click(
-    within(await waitFor(() => screen.getByRole('menu', { name: 'Targets for implement' }))).getByRole('menuitem', {
-      name: /Fix it/,
-    }),
-  );
+  await f.user.click(within(head).getByRole('button', { name: t('dispatch') }));
+  const shown = await waitFor(() => menu());
+  await waitFor(() => assert.equal(document.activeElement, shown));
+  assert.equal(within(shown).getAllByRole('menuitem').length, 12);
+  await f.user.hover(within(shown).getByRole('menuitem', commandItem(implement, ['submit'])));
+  await f.user.click(within(await waitFor(() => targetsMenu(implement))).getByRole('menuitem', naming(trayTitle)));
   await waitFor(() =>
     assert.deepEqual(f.dispatches, [
       [
         'alpha',
         {
-          issue: { number: 9, title: 'Issue 9' },
+          issue: { number: 9, title: detail(9).title },
           workflowId: 'matt',
-          commandId: 'implement',
+          commandId: implement,
           target: { kind: 'panel', panelId: 'tray' },
           invertDelivery: false,
         },
@@ -56,7 +69,7 @@ test("an open issue's detail has a Dispatch beside its state and labels that ope
 
 test("a closed issue's detail has no Dispatch", async () => {
   await opened(detail(8, { state: 'closed', closedAs: 'completed' }));
-  assert.equal(within(pane()).queryByRole('button', { name: 'Dispatch' }), null);
+  assert.equal(within(pane()).queryByRole('button', { name: t('dispatch') }), null);
 });
 
 const line = (item: HTMLElement) =>
@@ -67,34 +80,33 @@ const line = (item: HTMLElement) =>
 test("Dispatch records list the issue's dispatches newest first, one line each: when, the Agent type, the skill and the session ID", async () => {
   const f = await opened(detail(9), snapshot => {
     snapshot.projects[0].dispatches = [
-      aged(50, null, { agent: 'claude', skill: 'to-spec', sessionId: 'aaaabbbb-1111-2222-3333-444455556666' }),
-      aged(2, { projectId: 'beta', panelId: 'beta-panel' }, { skill: 'grill-me', sessionId: 'ccccdddd-1111' }),
-      aged(1, { projectId: 'alpha', panelId: 'tray' }, { skill: 'tdd', sessionId: undefined }),
+      aged(50, null, { agent: 'claude', skill: toSpec, sessionId: 'aaaabbbb-1111-2222-3333-444455556666' }),
+      aged(2, { projectId: 'beta', panelId: 'beta-panel' }, { skill: grillMe, sessionId: 'ccccdddd-1111' }),
+      aged(1, { projectId: 'alpha', panelId: 'tray' }, { skill: tdd, sessionId: undefined }),
       record(8, null),
     ];
   });
-  const counted = within(pane()).getByRole('region', { name: t('dispatchRecords', { count: 3 }) });
   assert.equal(
-    within(counted)
+    within(records(3))
       .getByRole('button', { name: t('dispatchRecords', { count: 3 }) })
       .getAttribute('aria-expanded'),
     'true',
     'an open issue shows its records unfolded',
   );
-  const shown = within(records()).getAllByRole('listitem');
+  const shown = within(records(3)).getAllByRole('listitem');
   assert.deepEqual(shown.map(line), [
-    [t('hoursAgo', { count: 1 }), 'Codex', 'tdd'],
-    [t('hoursAgo', { count: 2 }), 'Codex', 'grill-me', 'ccccdddd'],
-    [t('daysAgo', { count: 2 }), 'Claude Code', 'to-spec', 'aaaabbbb'],
+    [t('hoursAgo', { count: 1 }), agentNames.codex, tdd],
+    [t('hoursAgo', { count: 2 }), agentNames.codex, grillMe, 'ccccdddd'],
+    [t('daysAgo', { count: 2 }), agentNames.claude, toSpec, 'aaaabbbb'],
   ]);
   assert.deepEqual(
-    shown.map(item => !!within(item).queryByRole('button', { name: /^(tdd|grill-me|to-spec)$/ })),
+    shown.map((item, index) => !!within(item).queryByRole('button', { name: [tdd, grillMe, toSpec][index] })),
     [true, true, false],
     'the skill locates only when a panel is on its session',
   );
   assert.equal(
-    within(shown[2]).getByText('to-spec').getAttribute('data-hint'),
-    t('dispatchSkillGone', { skill: 'to-spec', age: t('daysAgo', { count: 2 }) }),
+    requireValue(shown[2].querySelector('.dispatch-skill'), 'the skill of the oldest record').getAttribute('data-hint'),
+    t('dispatchSkillGone', { skill: toSpec, age: t('daysAgo', { count: 2 }) }),
   );
 
   const activated: string[] = [];
@@ -103,7 +115,7 @@ test("Dispatch records list the issue's dispatches newest first, one line each: 
     f.snapshot.activeProjectId = id;
     f.publish();
   };
-  await f.user.click(within(shown[1]).getByRole('button', { name: 'grill-me' }));
+  await f.user.click(within(shown[1]).getByRole('button', { name: grillMe }));
   await waitFor(() => assert.deepEqual(activated, ['beta']));
 });
 
@@ -117,27 +129,29 @@ test("clicking a record's session ID copies the full ID and says so briefly, whe
     configurable: true,
     value: { writeText: async (text: string) => void copied.push(text) },
   });
-  const id = within(records()).getByRole('button', { name: t('copySessionId', { id: sessionId }) });
+  const id = within(records(1)).getByRole('button', { name: t('copySessionId', { id: sessionId }) });
   assert.equal(id.getAttribute('data-hint'), sessionId, 'the hint gives the full ID');
   await f.user.click(id);
   await waitFor(() => assert.deepEqual(copied, [sessionId]));
-  await screen.findByText(t('sessionIdCopied'));
+  await waitFor(() =>
+    assert.ok(screen.getAllByRole('status').some(notice => notice.textContent?.includes(t('sessionIdCopied')))),
+  );
 });
 
 test('an issue with no dispatches has no Dispatch records', async () => {
   await opened(detail(9));
-  assert.equal(within(pane()).queryByRole('region', { name: /^Dispatch records/ }), null);
+  assert.equal(pane().querySelector('.dispatch-records'), null);
 });
 
 test("a closed issue's Dispatch records fold to their count and unfold on click", async () => {
   const f = await opened(detail(8, { state: 'closed', closedAs: 'completed' }), snapshot => {
     snapshot.projects[0].dispatches = [record(8, null), record(8, { projectId: 'alpha', panelId: 'tray' })];
   });
-  const toggle = within(records()).getByRole('button', { name: t('dispatchRecords', { count: 2 }) });
+  const toggle = within(records(2)).getByRole('button', { name: t('dispatchRecords', { count: 2 }) });
   assert.equal(toggle.getAttribute('aria-expanded'), 'false');
-  assert.deepEqual(within(records()).queryAllByRole('listitem'), []);
+  assert.deepEqual(within(records(2)).queryAllByRole('listitem'), []);
   await f.user.click(toggle);
-  await waitFor(() => assert.equal(within(records()).getAllByRole('listitem').length, 2));
+  await waitFor(() => assert.equal(within(records(2)).getAllByRole('listitem').length, 2));
 });
 
 test('turning a workflow off leaves the records of its dispatches showing', async () => {
@@ -145,5 +159,5 @@ test('turning a workflow off leaves the records of its dispatches showing', asyn
     snapshot.settings.workflows.matt.enabled = false;
     snapshot.projects[0].dispatches = [record(9, null)];
   });
-  assert.equal(within(records()).getAllByRole('listitem').length, 1);
+  assert.equal(within(records(1)).getAllByRole('listitem').length, 1);
 });

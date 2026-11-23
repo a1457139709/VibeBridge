@@ -1,8 +1,4 @@
 {
-  "tests/components/AgentPicker.test.tsx": 8,
-  "tests/components/DetailDispatch.test.tsx": 15,
-  "tests/components/Dispatch.test.tsx": 51,
-  "tests/components/DispatchShortcuts.test.tsx": 13,
   "tests/components/EphemeralPanelNavigation.test.tsx": 14,
   "tests/components/HoverHints.test.tsx": 8,
   "tests/components/Language.test.tsx": 35,
@@ -15,6 +11,5 @@
   "tests/components/SettingsConflict.test.tsx": 3,
   "tests/components/SettingsPage.test.tsx": 37,
   "tests/components/TrayPlacement.test.tsx": 3,
-  "tests/components/WorkspaceToolbar.test.tsx": 33,
-  "tests/components/support/dispatch.ts": 3
+  "tests/components/WorkspaceToolbar.test.tsx": 33
 }

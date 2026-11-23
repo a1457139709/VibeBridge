@@ -1,11 +1,17 @@
 import assert from 'node:assert/strict';
 import { screen, waitFor, within } from '@testing-library/react';
 import type { DispatchRecordView, DispatchRequest } from '../../../app/shared/dispatch';
-import type { Snapshot } from '../../../app/shared/model';
 import type { IssueDetail } from '../../../app/shared/forge/forge';
 import { issue, page, renderWorkbench, sidebar, summary } from './forge-lists';
 import { githubCapabilities } from './forge';
 import { requireValue } from '../../../app/renderer/common/required';
+import { agentNames, type AgentType, type Snapshot } from '../../../app/shared/model';
+import type { ProcessingState } from '../../../app/shared/processing-status';
+import type { Delivery } from '../../../app/shared/settings/workflows';
+import { t } from './localization';
+
+export const trayTitle = 'Fix it',
+  residentTitle = 'Alpha session';
 
 export function withPanels(snapshot: Snapshot) {
   const alpha = snapshot.projects[0];
@@ -15,7 +21,7 @@ export function withPanels(snapshot: Snapshot) {
     id: 'tray',
     agent: 'claude',
     status: 'busy',
-    run: { id: 'tray-run', panelId: 'tray', projectId: 'alpha', state: 'running', title: 'Fix it' },
+    run: { id: 'tray-run', panelId: 'tray', projectId: 'alpha', state: 'running', title: trayTitle },
   });
 }
 
@@ -53,10 +59,11 @@ export const row = (number: number) =>
   requireValue(
     within(sidebar())
       .getAllByRole('listitem')
-      .find(item => within(item).queryByText(`#${number}`)),
+      .find(item => within(item).queryByRole('button', { name: summary(number).title })),
     `the row of #${number}`,
   );
-export const dispatchButton = (number: number) => within(row(number)).getByRole('button', { name: 'Dispatch' });
+export const issueButton = (number: number) => within(row(number)).getByRole('button', { name: summary(number).title });
+export const dispatchButton = (number: number) => within(row(number)).getByRole('button', { name: t('dispatch') });
 export const hoursAgo = (hours: number) => new Date(Date.now() - hours * 3600e3).toISOString();
 export const record = (
   issue: number,
@@ -71,7 +78,34 @@ export const record = (
   location,
   ...extra,
 });
-export const menu = (number = 9) => screen.getByRole('menu', { name: `Dispatch #${number}` });
+export const menu = (number = 9) => screen.getByRole('menu', { name: t('dispatchMenu', { number }) });
+export const targetsMenu = (command: string) => screen.getByRole('menu', { name: t('dispatchTargets', { command }) });
+const deliveryMessage = { submit: 'deliverySubmit', fill: 'deliveryFill' } as const;
+const compact = (text: string) => text.replace(/\s/g, '');
+export const commandItem = (skill: string, deliveries: Delivery[] = ['submit', 'fill']) => ({
+  name: (name: string) => deliveries.some(delivery => compact(name) === compact(skill + t(deliveryMessage[delivery]))),
+});
+export const naming = (text: string) => ({ name: (name: string) => name.includes(text) });
+export const newTargetName = (agent: AgentType) => t('dispatchNew', { agent: agentNames[agent] });
+export const command = (skill: string, delivery: Delivery) => [skill, t(deliveryMessage[delivery])];
+export const newTarget = (agent: AgentType) => [newTargetName(agent), t('ephemeralPanel')];
+export const panelTarget = (agent: AgentType, status: ProcessingState, title: string, resident: boolean) => [
+  agentNames[agent],
+  t(status),
+  title,
+  [t(status), t(resident ? 'residentPanel' : 'ephemeralPanel')].join(' · '),
+];
+export const parts = (element: Element) =>
+  [...element.childNodes].flatMap(node => {
+    if (!(node instanceof Element)) return node.textContent ? [node.textContent] : [];
+    if (node.getAttribute('aria-hidden') === 'true') return [];
+    if (node.getAttribute('role') === 'img') return [node.getAttribute('aria-label') ?? ''];
+    return [node.textContent ?? ''];
+  });
+export const detailHeading = (root: HTMLElement, number: number) => {
+  const name = `${summary(number).title} #${number}`;
+  return within(root).findByRole('heading', { name });
+};
 export const issueDetail = (number: number, extra: Partial<IssueDetail> = {}): IssueDetail => ({
   ...summary(number),
   url: `https://github.com/octo/alpha/issues/${number}`,
