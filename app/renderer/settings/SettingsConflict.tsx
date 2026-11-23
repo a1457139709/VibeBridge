@@ -19,13 +19,16 @@ export function SettingsConflictDialog({
       ref={dialog}
       className="settings-conflict"
       aria-labelledby="settings-conflict-title"
+      aria-describedby="settings-conflict-help"
       onCancel={event => event.preventDefault()}
       onClose={event => {
         if (event.currentTarget.isConnected) event.currentTarget.showModal();
       }}
     >
       <h2 id="settings-conflict-title">{t('settingsConflictTitle')}</h2>
-      <p>{t('settingsConflictHelp', { category: t('categorySettings', { category: t(category) }) })}</p>
+      <p id="settings-conflict-help">
+        {t('settingsConflictHelp', { category: t('categorySettings', { category: t(category) }) })}
+      </p>
       <div className="dialog-actions">
         <button onClick={() => void window.workbench.quit()}>{t('quitApp')}</button>
         <button className="primary" autoFocus onClick={openSettings}>

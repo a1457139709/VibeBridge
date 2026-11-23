@@ -1,7 +1,7 @@
 import './support/dom';
 import assert from 'node:assert/strict';
 import test, { afterEach } from 'node:test';
-import { act, cleanup, fireEvent, render, screen } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, screen, within } from '@testing-library/react';
 import { useState } from 'react';
 import { defaultSettings } from '../../app/shared/settings/settings';
 import { newDraft } from '../../app/shared/model';
@@ -11,6 +11,12 @@ import { Notices, useNotices } from '../../app/renderer/common/Notices';
 import { SettingsPage } from '../../app/renderer/settings/SettingsPage';
 import { Setup } from '../../app/renderer/projects/Setup';
 import { provideWorkbench } from './support/workbench';
+import { localize } from '../../app/shared/localization/localization';
+import { t } from './support/localization';
+import { selectElement } from './support/elements';
+
+const zh = localize('zh-CN').t;
+const notices = () => within(selectElement('.notices'));
 
 afterEach(cleanup);
 
@@ -48,29 +54,32 @@ test('switching language preserves project input and old notice identity and exp
     );
   }
   render(<Harness />);
-  const input = screen.getByRole<HTMLInputElement>('textbox', { name: 'Project name' });
+  const input = screen.getByRole<HTMLInputElement>('textbox', { name: t('projectName') });
   fireEvent.change(input, { target: { value: 'Untitled task 原样' } });
   fireEvent.paste(input, { clipboardData: { getData: () => 'line\nbreak' } });
-  assert.ok(screen.getByText('Project names cannot contain line breaks or control characters'));
+  assert.ok(screen.getByRole('textbox', { name: t('projectName'), description: t('nameControls') }));
   await act(async () => {
-    fireEvent.click(screen.getByRole('button', { name: 'Choose local directory' }));
+    fireEvent.click(screen.getByRole('button', { name: t('chooseDirectory') }));
   });
-  const notice = screen.getByText('Could not read the local command environment').closest('[role=alert]');
+  const notice = notices().getByRole('alert');
+  assert.equal(notice.textContent?.includes(t('environmentFailed')), true);
   act(() => context.mock.timers.tick(4000));
-  fireEvent.change(screen.getByRole('combobox', { name: 'Interface language' }), { target: { value: 'zh-CN' } });
+  fireEvent.change(screen.getByRole('combobox', { name: t('language') }), { target: { value: 'zh-CN' } });
   await act(async () => {
-    fireEvent.click(screen.getByRole('button', { name: 'Save' }));
+    fireEvent.click(screen.getByRole('button', { name: t('save') }));
   });
-  assert.equal(screen.getByRole<HTMLInputElement>('textbox', { name: '项目名称' }), input);
+  assert.equal(screen.getByRole<HTMLInputElement>('textbox', { name: zh('projectName') }), input);
   assert.equal(input.value, 'Untitled task 原样');
-  assert.ok(screen.getByText('项目名称不能包含换行或控制字符'));
-  assert.equal(screen.getByText('无法读取本机命令环境').closest('[role=alert]'), notice);
-  assert.ok(screen.getByText('配置已保存'));
+  assert.ok(screen.getByRole('textbox', { name: zh('projectName'), description: zh('nameControls') }));
+  assert.equal(notices().getByRole('alert'), notice);
+  assert.equal(notice.textContent?.includes(zh('environmentFailed')), true);
+  const saved = notices().getByRole('status');
+  assert.equal(saved.textContent?.includes(zh('settingsSaved')), true);
   act(() => context.mock.timers.tick(999));
-  assert.ok(screen.getByText('无法读取本机命令环境'));
+  assert.equal(notices().getByRole('alert'), notice);
   act(() => context.mock.timers.tick(1));
-  assert.equal(screen.queryByText('无法读取本机命令环境'), null);
-  assert.ok(screen.getByText('配置已保存'));
+  assert.equal(notices().queryByRole('alert'), null);
+  assert.equal(notices().getByRole('status'), saved);
   act(() => context.mock.timers.tick(1000));
-  assert.equal(screen.queryByText('配置已保存'), null);
+  assert.equal(notices().queryByRole('status'), null);
 });

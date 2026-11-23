@@ -1,14 +1,15 @@
 import './support/dom';
 import assert from 'node:assert/strict';
 import test, { afterEach } from 'node:test';
-import { cleanup, render, screen } from '@testing-library/react';
+import { cleanup, render, screen, within } from '@testing-library/react';
 import { userEvent } from '@testing-library/user-event';
 import { ProjectNavigationItem } from '../../app/renderer/projects/ProjectManagement';
 import { Localization } from '../../app/renderer/common/Localization';
 import { message } from '../../app/shared/messages';
-import type { ProjectView } from '../../app/shared/model';
+import { agentNames, type ProjectView } from '../../app/shared/model';
+import { localize } from '../../app/shared/localization/localization';
 import { provideWorkbench } from './support/workbench';
-import { githubView } from './support/forge';
+import { githubForge, githubView } from './support/forge';
 import { selectElement } from './support/elements';
 
 afterEach(cleanup);
@@ -50,42 +51,38 @@ for (const language of ['en', 'zh-CN'] as const) {
       </Localization>,
     );
     const user = userEvent.setup();
-    const en = language === 'en';
-    await user.click(screen.getByRole('button', { name: `${en ? 'Project menu: ' : '项目菜单：'}${project.name}` }));
-    await user.click(screen.getByRole('menuitem', { name: en ? 'Edit project' : '编辑项目' }));
-    const path = screen.getByRole('textbox', { name: en ? 'Local directory' : '本地目录' });
+    const { t } = localize(language);
+    await user.click(screen.getByRole('button', { name: t('projectMenu', { name: project.name }) }));
+    await user.click(screen.getByRole('menuitem', { name: t('editProject') }));
+    const path = screen.getByRole('textbox', { name: t('localDirectory') });
     await user.clear(path);
     await user.type(path, '/原样/new');
-    await screen.findByRole('region', { name: en ? 'After saving' : '保存后' });
+    await screen.findByRole('region', { name: t('afterSave') });
     assert.equal(
       selectElement('.repository-current').textContent,
-      en ? 'Not boundBind in the GitHub sidebar' : '未绑定在 GitHub 侧边栏绑定',
+      `${t('notBound')}${t('bindInSidebar', { forge: githubForge.name })}`,
     );
-    await user.click(screen.getByRole('button', { name: en ? 'Change and restart' : '更改并重启' }));
+    await user.click(screen.getByRole('button', { name: t('changeAndRestart') }));
     assert.deepEqual(calls, [['project', { name: project.name, directory: '/原样/new' }, true]]);
-    assert.ok(
-      screen.getByText(
-        en ? 'Saved project name and directory: Untitled task 原样' : '已保存项目名称和目录：Untitled task 原样',
-      ),
+    const result = screen.getByRole('dialog');
+    assert.equal(selectElement('p', result).textContent, t('projectSaved', { name: project.name }));
+    assert.deepEqual(
+      within(result)
+        .getAllByRole('listitem')
+        .map(item => item.textContent),
+      [t('panelLaunchResult', { number: 1, agent: agentNames.pi, result: t('launchFailed') })],
     );
-    assert.ok(screen.getByText(en ? 'Panel 1 · pi: Agent could not start' : '面板 1 · pi：Agent 无法启动'));
-    await user.click(screen.getByRole('button', { name: en ? 'Done' : '完成' }));
-    await user.click(screen.getByRole('button', { name: `${en ? 'Project menu: ' : '项目菜单：'}${project.name}` }));
-    await user.click(screen.getByRole('menuitem', { name: en ? 'Delete project' : '删除项目' }));
-    assert.ok(
-      screen.getByRole('heading', {
-        name: en ? 'Delete project “Untitled task 原样”?' : '删除项目「Untitled task 原样」？',
-      }),
-    );
-    await user.click(screen.getByRole('button', { name: en ? 'Confirm deletion' : '确认删除' }));
+    await user.click(screen.getByRole('button', { name: t('finish') }));
+    await user.click(screen.getByRole('button', { name: t('projectMenu', { name: project.name }) }));
+    await user.click(screen.getByRole('menuitem', { name: t('deleteProject') }));
+    assert.ok(screen.getByRole('heading', { name: t('deleteProjectQuestion', { name: project.name }) }));
+    await user.click(screen.getByRole('button', { name: t('confirmDelete') }));
     assert.equal(calls.at(-1), 'project');
     assert.equal(
       screen.getByRole('alert').textContent,
-      en
-        ? 'Project was not deleted because its runs could not stop: external-detail 原样'
-        : '项目未删除，停止失败：external-detail 原样',
+      t('projectDeleteFailed', { reasons: ['external-detail 原样'] }),
     );
-    await user.click(screen.getByRole('button', { name: en ? 'Cancel' : '取消' }));
+    await user.click(screen.getByRole('button', { name: t('cancel') }));
     assert.equal(screen.queryByRole('dialog'), null);
   });
 }
