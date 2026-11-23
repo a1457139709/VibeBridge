@@ -4,25 +4,63 @@ import test, { afterEach, before } from 'node:test';
 import { cleanup, screen, waitFor, within } from '@testing-library/react';
 import { t } from './support/localization';
 import { defaultShortcuts, displayShortcut } from '../../app/shared/settings/shortcuts';
-import { sidebar, stubSidebarApis } from './support/forge-lists';
-import { dispatchButton, hoursAgo, listed, menu, panelOf, record, row } from './support/dispatch';
+import { commandText, workflows } from '../../app/shared/settings/workflows';
+import type { AgentType } from '../../app/shared/model';
+import { requireValue } from '../../app/renderer/common/required';
+import { shows, sidebar, stubSidebarApis, summary } from './support/forge-lists';
+import {
+  command,
+  commandItem,
+  dispatchButton,
+  hoursAgo,
+  issueButton,
+  listed,
+  menu,
+  naming,
+  newTarget,
+  newTargetName,
+  panelOf,
+  panelTarget,
+  parts,
+  record,
+  residentTitle,
+  row,
+  targetsMenu,
+  trayTitle,
+} from './support/dispatch';
+import { selectElement } from './support/elements';
 
 afterEach(cleanup);
 before(stubSidebarApis);
 
+const implement = 'implement',
+  toSpec = 'to-spec',
+  grillMe = 'grill-me',
+  fresh = 'Fresh';
+const implementCommand = requireValue(
+  workflows.flatMap(workflow => workflow.commands).find(({ id }) => id === implement),
+  'the implement command',
+);
+const preview = () => selectElement('.dispatch-preview', targetsMenu(implement));
+const previewOf = (agent: AgentType) =>
+  commandText(agent, implementCommand, { url: '…#9', number: 9, title: summary(9).title });
+const anyImplement = commandItem(implement);
+const submitImplement = commandItem(implement, ['submit']);
+
 test('Dispatch opens the commands of the enabled workflow, each marked Submit or Fill only, without a workflow name', async () => {
   const f = await listed(undefined, snapshot => {
-    snapshot.settings.workflows.matt.commands['to-spec'] = { delivery: 'fill' };
+    snapshot.settings.workflows.matt.commands[toSpec] = { delivery: 'fill' };
   });
-  assert.equal(within(row(8)).queryByRole('button', { name: 'Dispatch' }), null, 'a closed issue is not dispatched');
+  assert.equal(within(row(8)).queryByRole('button', { name: t('dispatch') }), null, 'a closed issue is not dispatched');
   await f.user.click(dispatchButton(9));
-  const menu = screen.getByRole('menu', { name: 'Dispatch #9' });
-  const commands = within(menu)
-    .getAllByRole('menuitem')
-    .map(item => (item.textContent ?? '').replace(/^‹/, ''));
-  assert.deepEqual(commands.slice(0, 3), ['grill-with-docsSubmit', 'to-specFill only', 'to-ticketsSubmit']);
+  const commands = within(menu()).getAllByRole('menuitem').map(parts);
+  assert.deepEqual(commands.slice(0, 3), [
+    command('grill-with-docs', 'submit'),
+    command(toSpec, 'fill'),
+    command('to-tickets', 'submit'),
+  ]);
   assert.equal(commands.length, 12);
-  assert.equal(within(menu).queryByText("Matt's workflow"), null);
+  assert.ok(!shows(t('workflowMatt'), menu()));
 });
 
 test('with every workflow off the menu only says where to turn one on', async () => {
@@ -30,32 +68,28 @@ test('with every workflow off the menu only says where to turn one on', async ()
     snapshot.settings.workflows.matt.enabled = false;
   });
   await f.user.click(dispatchButton(9));
-  const menu = screen.getByRole('menu', { name: 'Dispatch #9' });
-  assert.deepEqual(within(menu).queryAllByRole('menuitem'), []);
-  assert.ok(within(menu).getByText('No workflow is enabled. Turn one on in Settings › Workflows'));
+  assert.deepEqual(within(menu()).queryAllByRole('menuitem'), []);
+  assert.equal(selectElement('.dispatch-empty', menu()).textContent, t('noEnabledWorkflows'));
 });
 
 test("a command opens its targets: new panels of each Agent type, then the project's panels with a run", async () => {
   const f = await listed();
   await f.user.click(dispatchButton(9));
-  await f.user.hover(
-    within(screen.getByRole('menu', { name: 'Dispatch #9' })).getByRole('menuitem', { name: /^implement\s?Submit$/ }),
-  );
-  const targets = within(screen.getByRole('menu', { name: 'Targets for implement' })).getAllByRole('menuitem');
-  assert.deepEqual(
-    targets.map(target => target.textContent),
-    [
-      '✳New · Claude CodeEphemeral',
-      'New · CodexEphemeral',
-      'πNew · piEphemeral',
-      'Alpha sessionReady · Resident',
-      '✳Fix itBusy · Ephemeral',
-    ],
-  );
-  assert.ok(within(targets[3]).getByRole('img', { name: 'Codex' }));
-  assert.ok(within(targets[4]).getByRole('img', { name: 'Busy' }));
+  await f.user.hover(within(menu()).getByRole('menuitem', submitImplement));
+  const targets = within(targetsMenu(implement)).getAllByRole('menuitem');
+  assert.deepEqual(targets.map(parts), [
+    newTarget('claude'),
+    newTarget('codex'),
+    newTarget('pi'),
+    panelTarget('codex', 'ready', residentTitle, true),
+    panelTarget('claude', 'busy', trayTitle, false),
+  ]);
   await f.user.hover(targets[4]);
-  assert.ok(screen.getByText('/implement …#9'), 'the preview shows the text the pointed target would receive');
+  assert.equal(
+    selectElement('code', preview()).textContent,
+    previewOf('claude'),
+    'the preview shows the text the pointed target would receive',
+  );
 });
 
 test("submitting to a panel dispatches the issue, returns focus to Dispatch and reloads that issue's row by number", async () => {
@@ -66,20 +100,16 @@ test("submitting to a panel dispatches the issue, returns focus to Dispatch and 
     return new Promise(() => {});
   };
   await f.user.click(dispatchButton(9));
-  await f.user.hover(
-    within(screen.getByRole('menu', { name: 'Dispatch #9' })).getByRole('menuitem', { name: /^implement\s?Submit$/ }),
-  );
-  await f.user.click(
-    within(screen.getByRole('menu', { name: 'Targets for implement' })).getByRole('menuitem', { name: /Fix it/ }),
-  );
+  await f.user.hover(within(menu()).getByRole('menuitem', submitImplement));
+  await f.user.click(within(targetsMenu(implement)).getByRole('menuitem', naming(trayTitle)));
   await waitFor(() =>
     assert.deepEqual(f.dispatches, [
       [
         'alpha',
         {
-          issue: { number: 9, title: 'Issue 9' },
+          issue: { number: 9, title: summary(9).title },
           workflowId: 'matt',
-          commandId: 'implement',
+          commandId: implement,
           target: { kind: 'panel', panelId: 'tray' },
           invertDelivery: false,
         },
@@ -103,17 +133,11 @@ test('filling a panel closes the detail, keeps the sidebar open and reloads the 
     rowsAsked.push(numbers);
     return new Promise(() => {});
   };
-  await f.user.click(within(row(9)).getByRole('button', { name: 'Issue 9' }));
+  await f.user.click(issueButton(9));
   await waitFor(() => assert.ok(document.querySelector('.forge-detail')));
   await f.user.click(dispatchButton(9));
-  await f.user.hover(
-    within(screen.getByRole('menu', { name: 'Dispatch #9' })).getByRole('menuitem', { name: /^implement\s?Submit$/ }),
-  );
-  await f.user.click(
-    within(screen.getByRole('menu', { name: 'Targets for implement' })).getByRole('menuitem', {
-      name: /Alpha session/,
-    }),
-  );
+  await f.user.hover(within(menu()).getByRole('menuitem', submitImplement));
+  await f.user.click(within(targetsMenu(implement)).getByRole('menuitem', naming(residentTitle)));
   await waitFor(() => assert.equal(document.querySelector('.forge-detail'), null));
   assert.ok(sidebar());
   await waitFor(() => assert.deepEqual(rowsAsked, [[9]], 'its row reloaded by number once dispatched'));
@@ -123,23 +147,23 @@ test('filling a panel closes the detail, keeps the sidebar open and reloads the 
 test('submitting to a new panel dispatches to its Agent type and returns focus to Dispatch', async () => {
   const f = await listed();
   await f.user.click(dispatchButton(9));
-  await f.user.hover(
-    within(screen.getByRole('menu', { name: 'Dispatch #9' })).getByRole('menuitem', { name: /^implement\s?Submit$/ }),
-  );
-  const target = within(screen.getByRole('menu', { name: 'Targets for implement' })).getByRole('menuitem', {
-    name: /New · Codex/,
-  });
+  await f.user.hover(within(menu()).getByRole('menuitem', submitImplement));
+  const target = within(targetsMenu(implement)).getByRole('menuitem', naming(newTargetName('codex')));
   await f.user.hover(target);
-  assert.ok(screen.getByText('$implement …#9'), "the preview shows the text in the new panel's Agent type");
+  assert.equal(
+    selectElement('code', preview()).textContent,
+    previewOf('codex'),
+    "the preview shows the text in the new panel's Agent type",
+  );
   await f.user.click(target);
   await waitFor(() =>
     assert.deepEqual(f.dispatches, [
       [
         'alpha',
         {
-          issue: { number: 9, title: 'Issue 9' },
+          issue: { number: 9, title: summary(9).title },
           workflowId: 'matt',
-          commandId: 'implement',
+          commandId: implement,
           target: { kind: 'new', agent: 'codex' },
           invertDelivery: false,
         },
@@ -151,15 +175,11 @@ test('submitting to a new panel dispatches to its Agent type and returns focus t
 
 test('filling a new panel opens it as the temporary maximize once it joins the tray, closes the detail and keeps the sidebar open', async () => {
   const f = await listed(async () => ({ delivery: 'fill', panelId: 'new-panel' }));
-  await f.user.click(within(row(9)).getByRole('button', { name: 'Issue 9' }));
+  await f.user.click(issueButton(9));
   await waitFor(() => assert.ok(document.querySelector('.forge-detail')));
   await f.user.click(dispatchButton(9));
-  await f.user.hover(
-    within(screen.getByRole('menu', { name: 'Dispatch #9' })).getByRole('menuitem', { name: /^implement\s?Submit$/ }),
-  );
-  await f.user.click(
-    within(screen.getByRole('menu', { name: 'Targets for implement' })).getByRole('menuitem', { name: /New · pi/ }),
-  );
+  await f.user.hover(within(menu()).getByRole('menuitem', submitImplement));
+  await f.user.click(within(targetsMenu(implement)).getByRole('menuitem', naming(newTargetName('pi'))));
   await waitFor(() =>
     assert.deepEqual(
       f.dispatches.map(([, request]) => request.target),
@@ -169,36 +189,38 @@ test('filling a new panel opens it as the temporary maximize once it joins the t
   f.snapshot.projects[0].tray.push({
     id: 'new-panel',
     agent: 'pi',
-    run: { id: 'new-run', panelId: 'new-panel', projectId: 'alpha', state: 'running', title: 'Fresh' },
+    run: { id: 'new-run', panelId: 'new-panel', projectId: 'alpha', state: 'running', title: fresh },
   });
   f.publish();
   const card = await waitFor(() =>
-    within(screen.getByRole('region', { name: 'Ephemeral panel tray' })).getByRole('button', { name: /Fresh/ }),
+    within(screen.getByRole('region', { name: t('panelTray') })).getByRole('button', naming(fresh)),
   );
   await waitFor(() => assert.equal(card.getAttribute('aria-pressed'), 'true'));
   await waitFor(() => assert.equal(document.querySelector('.forge-detail'), null));
   assert.ok(sidebar());
 });
 
+const skillOf = (number: number) => row(number).querySelector('.dispatch-skill');
+
 test("an issue row shows only its latest dispatch's skill: a link to its panel with its age in the hint", async () => {
   const f = await listed(undefined, snapshot => {
     snapshot.projects[0].dispatches = [
-      record(9, null, { skill: 'to-spec' }),
-      record(9, { projectId: 'beta', panelId: 'beta-panel' }, { skill: 'grill-me', dispatchedAt: hoursAgo(2) }),
+      record(9, null, { skill: toSpec }),
+      record(9, { projectId: 'beta', panelId: 'beta-panel' }, { skill: grillMe, dispatchedAt: hoursAgo(2) }),
       record(8, { projectId: 'beta', panelId: 'beta-panel' }),
     ];
   });
-  const skill = within(row(9)).getByRole('button', { name: 'grill-me' });
+  const skill = within(row(9)).getByRole('button', { name: grillMe });
   assert.equal(
     skill.getAttribute('data-hint'),
     t('dispatchSkillLocatable', {
-      skill: 'grill-me',
+      skill: grillMe,
       age: t('hoursAgo', { count: 2 }),
       shortcut: displayShortcut(defaultShortcuts().locateDispatchedPanel),
     }),
   );
-  assert.equal(within(row(9)).queryByText('to-spec'), null, 'earlier dispatches do not show');
-  assert.equal(within(row(8)).queryByText('implement'), null, 'a closed issue shows no dispatch');
+  assert.equal(row(9).querySelectorAll('.dispatch-skill').length, 1, 'earlier dispatches do not show');
+  assert.equal(skillOf(8), null, 'a closed issue shows no dispatch');
   const activated: string[] = [];
   window.workbench.activateProject = async id => {
     activated.push(id);
@@ -212,37 +234,40 @@ test("an issue row shows only its latest dispatch's skill: a link to its panel w
 test('an issue row shows a latest dispatch whose session no panel is on as grey text that locates nothing', async () => {
   await listed(undefined, snapshot => {
     snapshot.projects[0].dispatches = [
-      record(9, { projectId: 'beta', panelId: 'beta-panel' }, { skill: 'to-spec' }),
-      record(9, null, { skill: 'grill-me', dispatchedAt: hoursAgo(72) }),
+      record(9, { projectId: 'beta', panelId: 'beta-panel' }, { skill: toSpec }),
+      record(9, null, { skill: grillMe, dispatchedAt: hoursAgo(72) }),
     ];
   });
-  assert.equal(within(row(9)).queryByRole('button', { name: 'grill-me' }), null);
-  const skill = within(row(9)).getByText('grill-me');
+  assert.equal(within(row(9)).queryByRole('button', { name: grillMe }), null);
+  const skill = requireValue(skillOf(9), 'the skill of #9');
+  assert.equal(skill.textContent, grillMe);
   assert.equal(
     skill.getAttribute('data-hint'),
-    t('dispatchSkillGone', { skill: 'grill-me', age: t('daysAgo', { count: 3 }) }),
+    t('dispatchSkillGone', { skill: grillMe, age: t('daysAgo', { count: 3 }) }),
   );
 });
 
-const implement = { name: /^implement\s?(Submit|Fill only)$/ };
-const cursor = () =>
-  document.getElementById(menu().getAttribute('aria-activedescendant') ?? '')?.textContent?.replace(/^‹/, '');
+const cursor = () => {
+  const id = menu().getAttribute('aria-activedescendant');
+  return parts(requireValue(document.getElementById(id ?? ''), 'the menu cursor'));
+};
+const last = (target: string[]) => [...target, t('lastTarget')];
 
 test('in the menu ↑/↓ move without wrapping, ← or Space enters the targets, → goes back, Space dispatches, and Enter does nothing', async () => {
   const f = await listed();
   await f.user.click(dispatchButton(9));
   assert.equal(document.activeElement, menu(), 'keys go to the menu, not the terminal');
-  assert.equal(cursor(), 'grill-with-docsSubmit');
+  assert.deepEqual(cursor(), command('grill-with-docs', 'submit'));
   await f.user.keyboard('{ArrowUp}{ArrowDown}{ArrowDown}');
-  assert.equal(cursor(), 'to-ticketsSubmit');
+  assert.deepEqual(cursor(), command('to-tickets', 'submit'));
   await f.user.keyboard('{ArrowDown}{ArrowLeft}');
-  assert.ok(screen.getByRole('menu', { name: 'Targets for implement' }));
-  assert.equal(cursor(), '✳New · Claude CodeEphemeral');
+  assert.ok(targetsMenu(implement));
+  assert.deepEqual(cursor(), newTarget('claude'));
   await f.user.keyboard('{ArrowDown}{ArrowRight}');
-  assert.equal(screen.queryByRole('menu', { name: 'Targets for implement' }), null);
-  assert.equal(cursor(), 'implementSubmit');
+  assert.equal(screen.queryByRole('menu', { name: t('dispatchTargets', { command: implement }) }), null);
+  assert.deepEqual(cursor(), command(implement, 'submit'));
   await f.user.keyboard(' {ArrowDown}{ArrowDown}{ArrowDown}{ArrowDown}{ArrowDown}');
-  assert.equal(cursor(), '✳Fix itBusy · Ephemeral');
+  assert.deepEqual(cursor(), panelTarget('claude', 'busy', trayTitle, false));
   await f.user.keyboard('{Enter}');
   assert.ok(menu(), 'Enter neither dispatches nor closes the menu');
   assert.deepEqual(f.dispatches, []);
@@ -250,7 +275,7 @@ test('in the menu ↑/↓ move without wrapping, ← or Space enters the targets
   await waitFor(() =>
     assert.deepEqual(
       f.dispatches.map(([, request]) => [request.commandId, request.target, request.invertDelivery]),
-      [['implement', { kind: 'panel', panelId: 'tray' }, false]],
+      [[implement, { kind: 'panel', panelId: 'tray' }, false]],
     ),
   );
   assert.equal(screen.queryByRole('menu'), null);
@@ -260,7 +285,7 @@ test('Esc closes the whole menu from its targets and returns focus to Dispatch',
   const f = await listed();
   await f.user.click(dispatchButton(9));
   await f.user.keyboard('{ArrowLeft}');
-  assert.ok(screen.getByRole('menu', { name: 'Targets for grill-with-docs' }));
+  assert.ok(targetsMenu('grill-with-docs'));
   await f.user.keyboard('{Escape}');
   assert.equal(screen.queryByRole('menu'), null);
   assert.equal(document.activeElement, dispatchButton(9));
@@ -270,9 +295,13 @@ test('holding ⌥ shows the inverted deliveries, and ⌥+Space or ⌥+click inve
   const f = await listed();
   await f.user.click(dispatchButton(9));
   await f.user.keyboard('{ArrowDown}{ArrowDown}{ArrowDown}{ArrowLeft}{Alt>}');
-  assert.equal(cursor(), '✳New · Claude CodeEphemeral');
-  assert.equal(within(menu()).getByRole('menuitem', implement).textContent, '‹implementFill only');
-  assert.ok(within(menu()).getByText('Fill only (⌥ inverts)'));
+  assert.deepEqual(cursor(), newTarget('claude'));
+  assert.deepEqual(parts(within(menu()).getByRole('menuitem', anyImplement)), command(implement, 'fill'));
+  assert.equal(
+    selectElement('span', preview()).textContent,
+    `${t('deliveryFill')} ${t('dispatchInverted')}`,
+    'the preview says the delivery is inverted',
+  );
   await f.user.keyboard(' {/Alt}');
   await waitFor(() =>
     assert.deepEqual(
@@ -281,16 +310,14 @@ test('holding ⌥ shows the inverted deliveries, and ⌥+Space or ⌥+click inve
     ),
   );
   await f.user.click(dispatchButton(9));
-  await f.user.hover(within(menu()).getByRole('menuitem', implement));
-  assert.equal(
-    within(menu()).getByRole('menuitem', implement).textContent,
-    '‹implementSubmit',
+  await f.user.hover(within(menu()).getByRole('menuitem', anyImplement));
+  assert.deepEqual(
+    parts(within(menu()).getByRole('menuitem', anyImplement)),
+    command(implement, 'submit'),
     'releasing ⌥ shows the deliveries as set',
   );
   await f.user.keyboard('{Alt>}');
-  await f.user.click(
-    within(screen.getByRole('menu', { name: 'Targets for implement' })).getByRole('menuitem', { name: /Fix it/ }),
-  );
+  await f.user.click(within(targetsMenu(implement)).getByRole('menuitem', naming(trayTitle)));
   await f.user.keyboard('{/Alt}');
   await waitFor(() =>
     assert.deepEqual(
@@ -299,10 +326,8 @@ test('holding ⌥ shows the inverted deliveries, and ⌥+Space or ⌥+click inve
     ),
   );
   await f.user.click(dispatchButton(9));
-  await f.user.hover(within(menu()).getByRole('menuitem', implement));
-  await f.user.click(
-    within(screen.getByRole('menu', { name: 'Targets for implement' })).getByRole('menuitem', { name: /Fix it/ }),
-  );
+  await f.user.hover(within(menu()).getByRole('menuitem', anyImplement));
+  await f.user.click(within(targetsMenu(implement)).getByRole('menuitem', naming(trayTitle)));
   await waitFor(() =>
     assert.deepEqual(
       f.dispatches.map(([, request]) => request.invertDelivery),
@@ -314,25 +339,23 @@ test('holding ⌥ shows the inverted deliveries, and ⌥+Space or ⌥+click inve
 test('the targets mark the one a command last went to and start the cursor there, without dispatching', async () => {
   const f = await listed();
   await f.user.click(dispatchButton(9));
-  await f.user.hover(within(menu()).getByRole('menuitem', implement));
-  await f.user.click(
-    within(screen.getByRole('menu', { name: 'Targets for implement' })).getByRole('menuitem', { name: /Fix it/ }),
-  );
+  await f.user.hover(within(menu()).getByRole('menuitem', anyImplement));
+  await f.user.click(within(targetsMenu(implement)).getByRole('menuitem', naming(trayTitle)));
   await waitFor(() => assert.equal(f.dispatches.length, 1));
   await f.user.click(dispatchButton(9));
   await f.user.keyboard('{ArrowDown}{ArrowDown}{ArrowDown}{ArrowLeft}');
-  const targets = within(screen.getByRole('menu', { name: 'Targets for implement' })).getAllByRole('menuitem');
+  const targets = within(targetsMenu(implement)).getAllByRole('menuitem').map(parts);
   assert.deepEqual(
-    targets.filter(target => within(target).queryByText('last')).map(target => target.textContent),
-    ['✳Fix itBusy · Ephemerallast'],
+    targets.filter(target => target.at(-1) === t('lastTarget')),
+    [last(panelTarget('claude', 'busy', trayTitle, false))],
   );
-  assert.equal(cursor(), '✳Fix itBusy · Ephemerallast');
+  assert.deepEqual(cursor(), last(panelTarget('claude', 'busy', trayTitle, false)));
   assert.equal(f.dispatches.length, 1, 'the last target is not dispatched to by itself');
   await f.user.keyboard('{ArrowRight}{ArrowUp}{ArrowLeft}');
   assert.equal(
-    within(screen.getByRole('menu', { name: 'Targets for to-tickets' })).queryByText('last'),
+    targetsMenu('to-tickets').querySelector('.dispatch-last'),
     null,
     'another command has no last target yet',
   );
-  assert.equal(cursor(), '✳New · Claude CodeEphemeral');
+  assert.deepEqual(cursor(), newTarget('claude'));
 });
