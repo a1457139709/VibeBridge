@@ -19,7 +19,8 @@ import {
   projectNameProblem,
   type ProjectNameProblem,
 } from '../../shared/project-name';
-import { directoryProblemMessage, presentDirectoryField, type DirectoryCheck } from './directory-field';
+import { presentDirectoryField, type DirectoryCheck } from './directory-field';
+import { directoryProblemMessage } from '../../shared/directory-problem';
 import { errorMessage } from '../../shared/caught-error';
 import { requireValue } from '../common/required';
 

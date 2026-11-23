@@ -1,4 +1,4 @@
-import { message } from '../app/shared/messages';
+import { message, envelope } from '../app/shared/messages';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFile, writeFile } from 'node:fs/promises';
@@ -31,7 +31,7 @@ test('project creation rejects incomplete allocation and invalid directories wit
         counts: { codex: 1, claude: 0, pi: 0 },
         directory: `${dataDirectory}/missing`,
       }),
-      /projectDirectoryInvalid|projectDuplicate/,
+      { message: envelope({ id: 'directoryInvalid' }) },
     );
     await assert.rejects(
       workbench.createProject({ ...draft, name: ' ', total: 1, counts: { codex: 1, claude: 0, pi: 0 } }),
@@ -102,7 +102,7 @@ test('confirmed projects start independent runs in the selected directory and re
         total: 1,
         counts: { codex: 1, claude: 0, pi: 0 },
       }),
-      /projectDirectoryExists/,
+      { message: envelope({ id: 'duplicateCreate', values: { name: 'Three agents' } }) },
     );
     await workbench.runs.input(runs[1].id, 'exit');
     await until(() => workbench.snapshot().projects[0].panels.length === 2);

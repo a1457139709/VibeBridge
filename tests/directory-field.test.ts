@@ -1,11 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {
-  directoryProblemMessage,
-  presentDirectoryField,
-  type DirectoryCheck,
-  type DirectoryCheckProblem,
-} from '../app/renderer/projects/directory-field';
+import { presentDirectoryField, type DirectoryCheck } from '../app/renderer/projects/directory-field';
+import { directoryProblemMessage, type DirectoryCheckProblem } from '../app/shared/directory-problem';
 
 const resolved: DirectoryCheck = { ok: true, directory: '/real/moved', name: 'moved' };
 const editing = { projectId: 'edited', directory: '/real/original' };

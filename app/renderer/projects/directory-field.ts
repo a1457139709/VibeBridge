@@ -1,9 +1,7 @@
-import type { MessageReference } from '../../shared/messages';
-import type { DirectoryInspection, DirectoryProblem } from '../../shared/model';
+import type { DirectoryCheckProblem, DirectoryFieldProblem } from '../../shared/directory-problem';
+import type { DirectoryInspection } from '../../shared/model';
 
-export type DirectoryCheckProblem = DirectoryProblem | { kind: 'checkFailed' };
 export type DirectoryCheck = Extract<DirectoryInspection, { ok: true }> | { ok: false; problem: DirectoryCheckProblem };
-export type DirectoryFieldProblem = DirectoryCheckProblem | { kind: 'required' };
 
 export interface DirectoryFieldInput {
   input: string;
@@ -44,17 +42,4 @@ export function presentDirectoryField({ input, touched, checked, editing }: Dire
   if (editing && problem.kind === 'duplicate' && problem.projectId === editing.projectId)
     return usable(editing.directory);
   return blocked(problem);
-}
-
-export function directoryProblemMessage(problem: DirectoryFieldProblem, form: 'create' | 'edit'): MessageReference {
-  switch (problem.kind) {
-    case 'required':
-      return { id: 'directoryRequired' };
-    case 'missing':
-    case 'notDirectory':
-    case 'checkFailed':
-      return { id: 'directoryInvalid' };
-    case 'duplicate':
-      return { id: form === 'create' ? 'duplicateCreate' : 'duplicateEdit', values: { name: problem.projectName } };
-  }
 }

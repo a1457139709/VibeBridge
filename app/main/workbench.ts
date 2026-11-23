@@ -1,4 +1,5 @@
-import { message, nestedMessage } from '../shared/messages';
+import { envelope, message, nestedMessage } from '../shared/messages';
+import { directoryProblemMessage } from '../shared/directory-problem';
 import { rejectProjectName } from '../shared/project-name';
 import type { Language, ProjectEdit, ProjectEditResult } from '../shared/model';
 import { randomUUID } from 'node:crypto';
@@ -183,18 +184,14 @@ export class Workbench {
     const directory = await this.inspectDirectory(path);
     if (directory.ok) return directory.directory;
     const { problem } = directory;
-    if (problem.kind !== 'duplicate') throw new Error(message('projectDirectoryInvalid'));
-    if (problem.projectId === project.id) return project.directory;
-    throw new Error(message('projectDuplicate', { name: problem.projectName }));
+    if (problem.kind === 'duplicate' && problem.projectId === project.id) return project.directory;
+    throw new Error(envelope(directoryProblemMessage(problem, 'edit')));
   }
   createProject(draft: ProjectDraft): Promise<ProjectCreation> {
     return this.operation(async () => {
       validateDraft(draft);
       const directory = await this.inspectDirectory(draft.directory);
-      if (!directory.ok)
-        throw new Error(
-          message(directory.problem.kind === 'duplicate' ? 'projectDirectoryExists' : 'projectDirectoryInvalid'),
-        );
+      if (!directory.ok) throw new Error(envelope(directoryProblemMessage(directory.problem, 'create')));
       const panels = assignedAgents(draft).map(agent => ({ id: randomUUID(), agent }));
       const project = {
         id: randomUUID(),
