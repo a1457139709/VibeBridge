@@ -1,7 +1,7 @@
 import { z } from 'zod';
 import { message, type MessageId } from './messages';
 import type { Shortcuts } from './settings/shortcuts';
-import { projectNameError } from './project-name';
+import { rejectProjectName } from './project-name';
 import type { ProcessingState } from './processing-status';
 import type { SettingsIssue } from './settings/settings';
 import type { WorkflowId, WorkflowSettings } from './settings/workflows';
@@ -129,21 +129,17 @@ export type WorkbenchEvent =
   | { kind: 'snapshot'; snapshot: Snapshot }
   | { kind: 'error'; message: string }
   | ForgeSidebarEvent;
-export interface DirectoryResult {
-  valid: boolean;
-  directory?: string;
-  name?: string;
-  existingProjectId?: string;
-  existingProjectName?: string;
-}
+export type DirectoryProblem =
+  { kind: 'missing' } | { kind: 'notDirectory' } | { kind: 'duplicate'; projectId: string; projectName: string };
+export type DirectoryInspection =
+  { ok: true; directory: string; name: string } | { ok: false; problem: DirectoryProblem };
 
 export function assignedAgents(draft: ProjectDraft): AgentType[] {
   return agentTypes.flatMap(type => Array.from({ length: draft.counts[type] }, () => type));
 }
 
 export function validateDraft(draft: ProjectDraft): void {
-  const nameError = projectNameError(draft.name);
-  if (nameError) throw new Error(nameError);
+  rejectProjectName(draft.name);
   if (!Number.isInteger(draft.total) || draft.total < 1 || draft.total > 10)
     throw new Error(message('windowCountInvalid'));
   if (

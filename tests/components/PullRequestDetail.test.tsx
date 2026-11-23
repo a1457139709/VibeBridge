@@ -12,10 +12,10 @@ import {
   detail,
   sidebar,
   pane,
-  t,
   renderWorkbench,
   openPullRequest,
 } from './support/pull-request-detail';
+import { t } from './support/localization';
 
 afterEach(cleanup);
 before(stubSidebarApis);

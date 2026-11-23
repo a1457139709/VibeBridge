@@ -9,7 +9,7 @@ module.exports = {
     assert.deepEqual(runsOf(snapshot), []);
     assert.deepEqual(snapshot.errors, []);
     const inspected = await evaluate(`window.workbench.inspectDirectory(${JSON.stringify(directory)})`);
-    assert.equal(inspected.valid, true);
+    assert.equal(inspected.ok, true);
     console.log('Application rendered and preload/main-process IPC returned an isolated directory inspection.');
   },
 };

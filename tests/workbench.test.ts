@@ -91,7 +91,10 @@ test('confirmed projects start independent runs in the selected directory and re
     assert.ok(!output(runs[2].id).includes('unique-target'));
     await workbench.runs.resize(runs[1].id, 93, 27);
     await until(() => output(runs[1].id).includes('SIZE:93x27'));
-    assert.equal((await workbench.inspectDirectory(`${dataDirectory}/.`)).existingProjectId, project.id);
+    assert.deepEqual(await workbench.inspectDirectory(`${dataDirectory}/.`), {
+      ok: false,
+      problem: { kind: 'duplicate', projectId: project.id, projectName: 'Three agents' },
+    });
     await assert.rejects(
       workbench.createProject({
         name: 'Duplicate',

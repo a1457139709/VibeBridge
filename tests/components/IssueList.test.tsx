@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import test, { afterEach, before } from 'node:test';
 import { cleanup, screen, waitFor, within } from '@testing-library/react';
-import { localize } from '../../app/shared/localization/localization';
+import { t } from './support/localization';
 import { githubForge, githubRepository } from './support/forge';
 import type { RepositoryChoices } from '../../app/shared/forge/forge';
 import {
@@ -20,8 +20,6 @@ import {
 } from './support/forge-lists';
 import { requireValue } from '../../app/renderer/common/required';
 import { requireInstance, selectElement } from './support/elements';
-
-const { t } = localize('en');
 
 afterEach(cleanup);
 before(stubSidebarApis);

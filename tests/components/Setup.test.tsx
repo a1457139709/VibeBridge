@@ -6,14 +6,16 @@ import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-libra
 import { userEvent } from '@testing-library/user-event';
 import { Setup } from '../../app/renderer/projects/Setup';
 import {
+  agentNames,
   newDraft,
   type AgentType,
-  type DirectoryResult,
+  type DirectoryInspection,
   type LaunchResult,
   type ProjectCreation,
   type ProjectDraft,
 } from '../../app/shared/model';
 import { deferred, provideWorkbench } from './support/workbench';
+import { t } from './support/localization';
 import { requireValue } from '../../app/renderer/common/required';
 
 afterEach(cleanup);
@@ -39,6 +41,8 @@ function renderSetup(initial = newDraft()) {
   return { user: userEvent.setup(), onSetupFinished, cancel, openProject, report, openAgentSettings };
 }
 
+const usable: DirectoryInspection = { ok: true, directory: '/projects/example', name: 'example' };
+
 const validDraft: ProjectDraft = {
   name: 'Project',
   directory: '/projects/example',
@@ -48,7 +52,7 @@ const validDraft: ProjectDraft = {
 
 test('choosing a directory uses the latest handwritten project name and cancellation preserves it', async () => {
   const choice = deferred<string | null>();
-  provideWorkbench({ chooseDirectory: () => choice.promise, inspectDirectory: async () => ({ valid: true }) });
+  provideWorkbench({ chooseDirectory: () => choice.promise, inspectDirectory: async () => usable });
   function Form() {
     const [draft, change] = useState(newDraft);
     return (
@@ -66,23 +70,29 @@ test('choosing a directory uses the latest handwritten project name and cancella
   }
   const user = userEvent.setup();
   render(<Form />);
-  await user.click(screen.getByRole('button', { name: 'Choose local directory' }));
-  await user.type(screen.getByRole('textbox', { name: 'Project name' }), 'Handwritten');
+  await user.click(screen.getByRole('button', { name: t('chooseDirectory') }));
+  await user.type(screen.getByRole('textbox', { name: t('projectName') }), 'Handwritten');
   await act(async () => choice.resolve('/projects/selected'));
-  assert.equal(screen.getByRole<HTMLInputElement>('textbox', { name: 'Project name' }).value, 'Handwritten');
-  assert.equal(screen.getByRole<HTMLInputElement>('textbox', { name: 'Local directory' }).value, '/projects/selected');
-  provideWorkbench({ chooseDirectory: async () => null, inspectDirectory: async () => ({ valid: true }) });
-  await user.click(screen.getByRole('button', { name: 'Choose local directory' }));
-  assert.equal(screen.getByRole<HTMLInputElement>('textbox', { name: 'Project name' }).value, 'Handwritten');
-  assert.equal(screen.getByRole<HTMLInputElement>('textbox', { name: 'Local directory' }).value, '/projects/selected');
+  assert.equal(screen.getByRole<HTMLInputElement>('textbox', { name: t('projectName') }).value, 'Handwritten');
+  assert.equal(
+    screen.getByRole<HTMLInputElement>('textbox', { name: t('localDirectory') }).value,
+    '/projects/selected',
+  );
+  provideWorkbench({ chooseDirectory: async () => null, inspectDirectory: async () => usable });
+  await user.click(screen.getByRole('button', { name: t('chooseDirectory') }));
+  assert.equal(screen.getByRole<HTMLInputElement>('textbox', { name: t('projectName') }).value, 'Handwritten');
+  assert.equal(
+    screen.getByRole<HTMLInputElement>('textbox', { name: t('localDirectory') }).value,
+    '/projects/selected',
+  );
 });
 
 test('creation submits once while pending, retains a failed draft and retries successfully', async () => {
   const pending = deferred<ProjectCreation>();
   const createProject = mock.fn(() => pending.promise);
-  provideWorkbench({ inspectDirectory: async () => ({ valid: true }), createProject });
+  provideWorkbench({ inspectDirectory: async () => usable, createProject });
   const { user, onSetupFinished, report } = renderSetup(validDraft);
-  const create = screen.getByRole<HTMLButtonElement>('button', { name: 'Create and start' });
+  const create = screen.getByRole<HTMLButtonElement>('button', { name: t('createAndStart') });
   await waitFor(() => assert.equal(create.disabled, false));
   act(() => {
     fireEvent.submit(requireValue(create.closest('form'), 'the setup form'));
@@ -90,17 +100,17 @@ test('creation submits once while pending, retains a failed draft and retries su
   });
   assert.equal(createProject.mock.callCount(), 1);
   assert.deepEqual(createProject.mock.calls[0].arguments, [validDraft]);
-  assert.equal(screen.getByRole<HTMLButtonElement>('button', { name: 'Creating…' }).disabled, true);
+  assert.equal(screen.getByRole<HTMLButtonElement>('button', { name: t('creating') }).disabled, true);
   await act(async () => pending.reject(new Error('创建失败')));
   assert.equal(onSetupFinished.mock.callCount(), 0);
   assert.deepEqual(report.mock.calls[0].arguments, ['创建失败']);
-  assert.equal(screen.getByRole<HTMLInputElement>('textbox', { name: 'Project name' }).value, 'Project');
+  assert.equal(screen.getByRole<HTMLInputElement>('textbox', { name: t('projectName') }).value, 'Project');
   const result: ProjectCreation = {
     project: { id: 'created', name: 'Project', directory: validDraft.directory, panels: [], layout: null },
     launches: [],
   };
   provideWorkbench({ createProject: async () => result });
-  await user.click(screen.getByRole('button', { name: 'Create and start' }));
+  await user.click(screen.getByRole('button', { name: t('createAndStart') }));
   assert.deepEqual(
     onSetupFinished.mock.calls.map(call => call.arguments),
     [['created']],
@@ -108,28 +118,32 @@ test('creation submits once while pending, retains a failed draft and retries su
 });
 
 test('creation requires a valid name and exact Agent allocation, and rejects pasted controls visibly', async () => {
-  provideWorkbench({ inspectDirectory: async () => ({ valid: true }) });
+  provideWorkbench({ inspectDirectory: async () => usable });
   const { user } = renderSetup({ ...validDraft, counts: { codex: 0, claude: 0, pi: 0 } });
-  const create = screen.getByRole<HTMLButtonElement>('button', { name: 'Create and start' });
+  const create = screen.getByRole<HTMLButtonElement>('button', { name: t('createAndStart') });
   assert.equal(create.disabled, true);
-  assert.ok(screen.getByText('Assign 1 more'));
-  await user.click(screen.getByRole('button', { name: 'Increase Codex' }));
+  assert.ok(
+    screen.getByRole('status', { name: t('assignAgents') }).textContent?.includes(t('assignRemaining', { count: 1 })),
+  );
+  await user.click(screen.getByRole('button', { name: t('increase', { label: agentNames.codex }) }));
   await waitFor(() => assert.equal(create.disabled, false));
-  await user.click(screen.getByRole('button', { name: 'Increase Window count' }));
-  await user.click(screen.getByRole('button', { name: 'Increase pi' }));
-  await user.click(screen.getByRole('button', { name: 'Decrease Window count' }));
-  assert.ok(screen.getByText('1 too many assigned'));
+  await user.click(screen.getByRole('button', { name: t('increase', { label: t('windowCount') }) }));
+  await user.click(screen.getByRole('button', { name: t('increase', { label: agentNames.pi }) }));
+  await user.click(screen.getByRole('button', { name: t('decrease', { label: t('windowCount') }) }));
+  assert.ok(
+    screen.getByRole('status', { name: t('assignAgents') }).textContent?.includes(t('assignExcess', { count: 1 })),
+  );
   assert.equal(create.disabled, true);
-  await user.click(screen.getByRole('button', { name: 'Increase Window count' }));
+  await user.click(screen.getByRole('button', { name: t('increase', { label: t('windowCount') }) }));
   assert.equal(create.disabled, false);
-  const name = screen.getByRole<HTMLInputElement>('textbox', { name: 'Project name' });
+  const name = screen.getByRole<HTMLInputElement>('textbox', { name: t('projectName') });
   await user.clear(name);
   await user.tab();
-  assert.ok(screen.getByText('Enter a project name'));
+  assert.ok(screen.getByRole('textbox', { name: t('projectName'), description: t('nameRequired') }));
   assert.equal(create.disabled, true);
   await user.type(name, 'Safe name');
   await user.paste('unsafe\nname');
-  assert.ok(screen.getByText('Project names cannot contain line breaks or control characters'));
+  assert.ok(screen.getByRole('textbox', { name: t('projectName'), description: t('nameControls') }));
   assert.equal(name.value, 'Safe name');
   assert.equal(create.disabled, true);
   await user.type(name, '!');
@@ -138,27 +152,27 @@ test('creation requires a valid name and exact Agent allocation, and rejects pas
 
 test('directory B remains current when directory A finishes late, including a late failure', async () => {
   for (const failure of [false, true]) {
-    const a = deferred<DirectoryResult>(),
-      b = deferred<DirectoryResult>();
+    const a = deferred<DirectoryInspection>(),
+      b = deferred<DirectoryInspection>();
     const inspectDirectory = mock.fn((path: string) => (path === '/A' ? a.promise : b.promise));
     provideWorkbench({ inspectDirectory });
     const { user, report } = renderSetup({ ...validDraft, directory: '/A' });
     await waitFor(() => assert.equal(inspectDirectory.mock.callCount(), 1));
-    const directory = screen.getByRole('textbox', { name: 'Local directory' });
+    const directory = screen.getByRole('textbox', { name: t('localDirectory') });
     await user.clear(directory);
     await user.type(directory, '/B');
-    const create = screen.getByRole<HTMLButtonElement>('button', { name: 'Create and start' });
+    const create = screen.getByRole<HTMLButtonElement>('button', { name: t('createAndStart') });
     assert.equal(create.disabled, true);
     await waitFor(() => assert.equal(inspectDirectory.mock.callCount(), 2));
-    await act(async () => b.resolve({ valid: true, directory: '/B' }));
+    await act(async () => b.resolve({ ok: true, directory: '/B', name: 'B' }));
     assert.equal(create.disabled, false);
     await act(async () =>
       failure
         ? a.reject(new Error('Old failure'))
-        : a.resolve({ valid: true, existingProjectId: 'old', existingProjectName: 'Old' }),
+        : a.resolve({ ok: false, problem: { kind: 'duplicate', projectId: 'old', projectName: 'Old' } }),
     );
     assert.equal(create.disabled, false);
-    assert.equal(screen.queryByRole('button', { name: 'Open existing project' }), null);
+    assert.equal(screen.queryByRole('button', { name: t('openExisting') }), null);
     assert.equal(report.mock.callCount(), 0);
     cleanup();
   }
@@ -168,18 +182,18 @@ test('invalid and duplicate directories prevent creation; opening an existing pr
   provideWorkbench({
     inspectDirectory: async path =>
       path === '/duplicate'
-        ? { valid: true, existingProjectId: 'existing-id', existingProjectName: 'Existing' }
-        : { valid: false },
+        ? { ok: false, problem: { kind: 'duplicate', projectId: 'existing-id', projectName: 'Existing' } }
+        : { ok: false, problem: { kind: 'missing' } },
   });
   const { user, openProject } = renderSetup({ ...validDraft, directory: '/missing' });
-  await screen.findByText('Choose a valid local directory');
-  assert.equal(screen.getByRole<HTMLButtonElement>('button', { name: 'Create and start' }).disabled, true);
-  const directory = screen.getByRole('textbox', { name: 'Local directory' });
+  await screen.findByRole('textbox', { name: t('localDirectory'), description: t('directoryInvalid') });
+  assert.equal(screen.getByRole<HTMLButtonElement>('button', { name: t('createAndStart') }).disabled, true);
+  const directory = screen.getByRole('textbox', { name: t('localDirectory') });
   await user.clear(directory);
   await user.type(directory, '/duplicate');
-  await user.click(await screen.findByRole('button', { name: 'Open existing project' }));
+  await user.click(await screen.findByRole('button', { name: t('openExisting') }));
   assert.deepEqual(openProject.mock.calls[0].arguments, ['existing-id']);
-  assert.equal(screen.getByRole<HTMLButtonElement>('button', { name: 'Create and start' }).disabled, true);
+  assert.equal(screen.getByRole<HTMLButtonElement>('button', { name: t('createAndStart') }).disabled, true);
 });
 
 test('choosing fills an empty name, while chooser and inspection failures preserve editable input', async () => {
@@ -190,18 +204,18 @@ test('choosing fills an empty name, while chooser and inspection failures preser
     },
   });
   const { user, report } = renderSetup();
-  await user.click(screen.getByRole('button', { name: 'Choose local directory' }));
-  assert.equal(screen.getByRole<HTMLInputElement>('textbox', { name: 'Project name' }).value, 'Example');
+  await user.click(screen.getByRole('button', { name: t('chooseDirectory') }));
+  assert.equal(screen.getByRole<HTMLInputElement>('textbox', { name: t('projectName') }).value, 'Example');
   await waitFor(() => assert.deepEqual(report.mock.calls[0].arguments, ['目录检查失败']));
   provideWorkbench({
     chooseDirectory: async () => {
       throw new Error('目录选择失败');
     },
   });
-  await user.click(screen.getByRole('button', { name: 'Choose local directory' }));
+  await user.click(screen.getByRole('button', { name: t('chooseDirectory') }));
   assert.deepEqual(report.mock.calls[1].arguments, ['目录选择失败']);
-  assert.equal(screen.getByRole<HTMLInputElement>('textbox', { name: 'Local directory' }).value, '/projects/Example');
-  assert.equal(screen.getByRole<HTMLButtonElement>('button', { name: 'Choose local directory' }).disabled, false);
+  assert.equal(screen.getByRole<HTMLInputElement>('textbox', { name: t('localDirectory') }).value, '/projects/Example');
+  assert.equal(screen.getByRole<HTMLButtonElement>('button', { name: t('chooseDirectory') }).disabled, false);
 });
 
 function launch(panelId: string, agent: AgentType, outcome: 'started' | 'failed'): LaunchResult {
@@ -227,22 +241,22 @@ test('creation shows each panel launch result when some Agents cannot start, and
     },
     launches: [launch('a', 'codex', 'started'), launch('b', 'codex', 'started'), launch('c', 'pi', 'failed')],
   };
-  provideWorkbench({ inspectDirectory: async () => ({ valid: true }), createProject: async () => result });
+  provideWorkbench({ inspectDirectory: async () => usable, createProject: async () => result });
   const { user, onSetupFinished, openAgentSettings } = renderSetup(draft);
-  const create = screen.getByRole<HTMLButtonElement>('button', { name: 'Create and start' });
+  const create = screen.getByRole<HTMLButtonElement>('button', { name: t('createAndStart') });
   await waitFor(() => assert.equal(create.disabled, false));
   await user.click(create);
   assert.equal(onSetupFinished.mock.callCount(), 0);
-  assert.ok(screen.getByText('Project created. Panels whose Agent could not start were not added.'));
+  assert.equal(screen.getByRole('status').textContent, t('setupLaunchFailed'));
   assert.deepEqual(
     screen.getAllByRole('listitem').map(item => item.textContent),
     [
-      'Panel 1 · Codex: Started successfully',
-      'Panel 2 · Codex: Started successfully',
-      'Panel 3 · pi: Agent could not start',
+      t('panelLaunchResult', { number: 1, agent: agentNames.codex, result: t('launchSuccess') }),
+      t('panelLaunchResult', { number: 2, agent: agentNames.codex, result: t('launchSuccess') }),
+      t('panelLaunchResult', { number: 3, agent: agentNames.pi, result: t('launchFailed') }),
     ],
   );
-  await user.click(screen.getByRole('button', { name: 'Open Agent settings' }));
+  await user.click(screen.getByRole('button', { name: t('openAgentSettings') }));
   assert.deepEqual(
     onSetupFinished.mock.calls.map(call => call.arguments),
     [['created']],
@@ -256,16 +270,19 @@ test('creation where no Agent starts reports every panel and opens the empty pro
     project: { id: 'created', name: 'Project', directory: draft.directory, panels: [], layout: null },
     launches: [launch('a', 'claude', 'failed'), launch('b', 'pi', 'failed')],
   };
-  provideWorkbench({ inspectDirectory: async () => ({ valid: true }), createProject: async () => result });
+  provideWorkbench({ inspectDirectory: async () => usable, createProject: async () => result });
   const { user, onSetupFinished, openAgentSettings } = renderSetup(draft);
-  const create = screen.getByRole<HTMLButtonElement>('button', { name: 'Create and start' });
+  const create = screen.getByRole<HTMLButtonElement>('button', { name: t('createAndStart') });
   await waitFor(() => assert.equal(create.disabled, false));
   await user.click(create);
   assert.deepEqual(
     screen.getAllByRole('listitem').map(item => item.textContent),
-    ['Panel 1 · Claude Code: Agent could not start', 'Panel 2 · pi: Agent could not start'],
+    [
+      t('panelLaunchResult', { number: 1, agent: agentNames.claude, result: t('launchFailed') }),
+      t('panelLaunchResult', { number: 2, agent: agentNames.pi, result: t('launchFailed') }),
+    ],
   );
-  await user.click(screen.getByRole('button', { name: 'Done' }));
+  await user.click(screen.getByRole('button', { name: t('finish') }));
   assert.deepEqual(
     onSetupFinished.mock.calls.map(call => call.arguments),
     [['created']],

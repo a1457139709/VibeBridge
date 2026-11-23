@@ -199,7 +199,7 @@ export function renderWorkbench(capabilities = githubCapabilities, api: Partial<
       publish();
     },
     saveLayout: async () => {},
-    inspectDirectory: async directory => ({ valid: true, directory }),
+    inspectDirectory: async directory => ({ ok: true, directory, name: directory }),
     ...sidebarCalls,
     showForgeRows: (projectId, numbers) => {
       shownRows.push(numbers);

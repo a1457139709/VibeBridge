@@ -1,7 +1,7 @@
 import { message } from '../app/shared/messages';
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { projectNameError, projectNameFromDirectory } from '../app/shared/project-name';
+import { projectNameFromDirectory, projectNameMessage, projectNameProblem } from '../app/shared/project-name';
 import { arrange, assignedAgents, parseLayout, validateDraft, type ProjectDraft } from '../app/shared/model';
 import { layoutBoxes } from '../app/shared/layout';
 import {
@@ -12,13 +12,24 @@ import {
 } from '../app/shared/settings/shortcuts';
 
 test('project names reject controls and clean only automatic directory names', () => {
-  assert.equal(projectNameError('  '), message('nameRequired'));
+  assert.deepEqual(projectNameProblem('  '), { kind: 'required' });
   for (const control of ['\n', '\r', '\t', '\u0000', '\u007f', '\u0085', '\u2028', '\u2029']) {
-    assert.equal(projectNameError(`name${control}tail`), message('nameControls'));
+    assert.deepEqual(projectNameProblem(`name${control}tail`), { kind: 'controls' });
   }
-  assert.equal(projectNameError('  👩🏽‍💻 Name " $ &  '), '');
+  assert.equal(projectNameProblem('  👩🏽‍💻 Name " $ &  '), null);
   assert.equal(projectNameFromDirectory('/projects/  👩🏽‍💻 Name\r\nnext\t\u0001\u007f  /'), '👩🏽‍💻 Name next');
   assert.equal(projectNameFromDirectory('/projects/\u0001\t '), '');
+});
+
+test('each project name problem maps to its message', () => {
+  assert.deepEqual(projectNameMessage({ kind: 'required' }), { id: 'nameRequired' });
+  assert.deepEqual(projectNameMessage({ kind: 'controls' }), { id: 'nameControls' });
+});
+
+test('a draft with a project name problem is rejected with that problem enveloped', () => {
+  const draft: ProjectDraft = { name: ' ', directory: '/', total: 1, counts: { codex: 1, claude: 0, pi: 0 } };
+  assert.throws(() => validateDraft(draft), { message: message('nameRequired') });
+  assert.throws(() => validateDraft({ ...draft, name: 'a\nb' }), { message: message('nameControls') });
 });
 
 test('Agent allocations require integral bounded counts and exactly the project total', () => {

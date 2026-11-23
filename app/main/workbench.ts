@@ -1,5 +1,5 @@
 import { message, nestedMessage } from '../shared/messages';
-import { projectNameError } from '../shared/project-name';
+import { rejectProjectName } from '../shared/project-name';
 import type { Language, ProjectEdit, ProjectEditResult } from '../shared/model';
 import { randomUUID } from 'node:crypto';
 import {
@@ -11,7 +11,7 @@ import {
   arrange,
   validateDraft,
   type AgentType,
-  type DirectoryResult,
+  type DirectoryInspection,
   type Layout,
   type Project,
   type ProjectCreation,
@@ -176,15 +176,25 @@ export class Workbench {
     if (!project) throw new Error(message('projectMissing'));
     return project;
   }
-  inspectDirectory(path: string): Promise<DirectoryResult> {
+  inspectDirectory(path: string): Promise<DirectoryInspection> {
     return inspectDirectory(path, this.state.projects);
+  }
+  private async editedDirectory(project: Project, path: string): Promise<string> {
+    const directory = await this.inspectDirectory(path);
+    if (directory.ok) return directory.directory;
+    const { problem } = directory;
+    if (problem.kind !== 'duplicate') throw new Error(message('projectDirectoryInvalid'));
+    if (problem.projectId === project.id) return project.directory;
+    throw new Error(message('projectDuplicate', { name: problem.projectName }));
   }
   createProject(draft: ProjectDraft): Promise<ProjectCreation> {
     return this.operation(async () => {
       validateDraft(draft);
       const directory = await this.inspectDirectory(draft.directory);
-      if (!directory.valid || directory.directory === undefined) throw new Error(message('projectDirectoryInvalid'));
-      if (directory.existingProjectId) throw new Error(message('projectDirectoryExists'));
+      if (!directory.ok)
+        throw new Error(
+          message(directory.problem.kind === 'duplicate' ? 'projectDirectoryExists' : 'projectDirectoryInvalid'),
+        );
       const panels = assignedAgents(draft).map(agent => ({ id: randomUUID(), agent }));
       const project = {
         id: randomUUID(),
@@ -209,13 +219,12 @@ export class Workbench {
   editProject(id: string, edit: ProjectEdit, restart: boolean): Promise<ProjectEditResult> {
     return this.operation(async () => {
       const project = this.project(id);
-      const nameError = projectNameError(edit.name);
-      if (nameError) throw new Error(nameError);
-      const directory = await this.inspectDirectory(edit.directory);
-      if (!directory.valid || directory.directory === undefined) throw new Error(message('projectDirectoryInvalid'));
-      if (directory.existingProjectId && directory.existingProjectId !== id)
-        throw new Error(message('projectDuplicate', { name: this.project(directory.existingProjectId).name }));
-      const next = { ...project, name: edit.name.trim(), directory: directory.directory };
+      rejectProjectName(edit.name);
+      const next = {
+        ...project,
+        name: edit.name.trim(),
+        directory: await this.editedDirectory(project, edit.directory),
+      };
       const changedDirectory = project.directory !== next.directory;
       if (!changedDirectory && project.name === next.name) return { project: structuredClone(project), launches: [] };
       await this.store.save(next);

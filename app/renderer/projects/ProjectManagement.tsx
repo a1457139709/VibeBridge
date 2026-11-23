@@ -1,9 +1,14 @@
 import { useLocalization } from '../common/Localization';
-import { message } from '../../shared/messages';
 import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from 'react';
-import { type DirectoryResult, type Project, type ProjectEditResult, type ProjectView } from '../../shared/model';
+import { type Project, type ProjectEditResult, type ProjectView } from '../../shared/model';
 import { originElsewhereThanBinding, type RepositoryChoices } from '../../shared/forge/forge';
-import { projectNameError, projectNameHasControls } from '../../shared/project-name';
+import {
+  projectNameHasControls,
+  projectNameMessage,
+  projectNameProblem,
+  type ProjectNameProblem,
+} from '../../shared/project-name';
+import { directoryProblemMessage, presentDirectoryField, type DirectoryCheck } from './directory-field';
 import { LaunchResults } from './LaunchResults';
 import { errorMessage } from '../../shared/caught-error';
 import { requireValue } from '../common/required';
@@ -140,45 +145,39 @@ export function ProjectEditor({
   openProject(id: string): void;
   openBinding(): void;
 }) {
-  const { t, text } = useLocalization();
+  const { t, text, translate } = useLocalization();
   const dialog = useRef<HTMLDialogElement>(null);
   const [original] = useState(project);
   const running = project.panels.filter(panel => panel.run?.state === 'running').length;
   const [name, setName] = useState(project.name),
     [directoryInput, setDirectoryInput] = useState(project.directory);
-  const [inspection, setInspection] = useState<{ path: string; result: DirectoryResult }>({
-    path: project.directory,
-    result: { valid: true, directory: project.directory },
-  });
-  const [nameInputError, setNameInputError] = useState('');
+  const [checked, setChecked] = useState<{ input: string; check: DirectoryCheck }>();
+  const [pastedNameProblem, setPastedNameProblem] = useState<ProjectNameProblem | null>(null);
   const [busy, setBusy] = useState(false),
     [choosing, setChoosing] = useState(false),
     [error, setError] = useState('');
   const [result, setResult] = useState<ProjectEditResult>();
   const boundRepository = project.repository;
-  const inspected = inspection.path === directoryInput ? inspection.result : undefined;
-  const checking = !!directoryInput && !inspected;
-  const duplicate =
-    inspected?.existingProjectId && inspected.existingProjectId !== project.id
-      ? inspected.existingProjectId
-      : undefined;
-  const nameError = text(nameInputError || projectNameError(name));
-  const directoryError = !directoryInput
-    ? t('directoryRequired')
-    : checking
-      ? ''
-      : !inspected?.valid
-        ? t('directoryInvalid')
-        : duplicate
-          ? t('duplicateEdit', { name: requireValue(inspected.existingProjectName, "the existing project's name") })
-          : '';
-  const newDirectory =
-    inspected?.valid && !duplicate && inspected.directory !== original.directory ? inspected.directory : undefined;
-  const changedDirectory = newDirectory !== undefined;
+  const directoryField = presentDirectoryField({
+    input: directoryInput,
+    touched: true,
+    checked,
+    editing: { projectId: project.id, directory: original.directory },
+  });
+  const duplicate = directoryField.problem?.kind === 'duplicate' ? directoryField.problem : undefined;
+  const nameProblem = pastedNameProblem ?? projectNameProblem(name);
+  const nameError = nameProblem ? translate(projectNameMessage(nameProblem)) : '';
+  const directoryError = directoryField.problem
+    ? translate(directoryProblemMessage(directoryField.problem, 'edit'))
+    : '';
+  const changedDirectory = directoryField.changed;
   const edited = name.trim() !== original.name || directoryInput !== original.directory;
-  const listed = useListedForDirectory(project.id, boundRepository ? (newDirectory ?? null) : null);
+  const listed = useListedForDirectory(
+    project.id,
+    boundRepository && directoryField.changed ? directoryField.directory : null,
+  );
   const originElsewhere = originElsewhereThanBinding(boundRepository, listed);
-  const canSave = !busy && !choosing && !checking && !nameError && !directoryError;
+  const canSave = !busy && !choosing && directoryField.canSave && !nameProblem;
   useLayoutEffect(() => {
     const element = requireValue(dialog.current, 'the edit project dialog');
     element.showModal();
@@ -190,12 +189,12 @@ export function ProjectEditor({
     const timer = setTimeout(() => {
       void window.workbench
         .inspectDirectory(directoryInput)
-        .then(result => {
-          if (live) setInspection({ path: directoryInput, result });
+        .then(check => {
+          if (live) setChecked({ input: directoryInput, check });
         })
         .catch(error => {
           if (live) {
-            setInspection({ path: directoryInput, result: { valid: false } });
+            setChecked({ input: directoryInput, check: { ok: false, problem: { kind: 'checkFailed' } } });
             setError(errorMessage(error));
           }
         });
@@ -272,14 +271,14 @@ export function ProjectEditor({
             aria-invalid={!!nameError}
             aria-describedby="edit-project-name-status"
             onChange={event => {
-              setNameInputError('');
+              setPastedNameProblem(null);
               setName(event.target.value);
             }}
             onPaste={event => {
               if (projectNameHasControls(event.clipboardData.getData('text'))) {
                 event.preventDefault();
-                setNameInputError(message('nameControls'));
-              } else setNameInputError('');
+                setPastedNameProblem({ kind: 'controls' });
+              } else setPastedNameProblem(null);
             }}
           />
           {nameError && (
@@ -317,11 +316,15 @@ export function ProjectEditor({
               {t('browse')}
             </button>
           </div>
-          {(checking || directoryError) && (
+          {(directoryField.checking || directoryError) && (
             <div id="edit-project-directory-status" className="field-status" aria-live="polite">
-              {checking ? t('checkingDirectory') : <span className="error-text">{directoryError}</span>}
+              {directoryField.checking ? t('checkingDirectory') : <span className="error-text">{directoryError}</span>}
               {duplicate && (
-                <button type="button" className="open-existing-project" onClick={() => openProject(duplicate)}>
+                <button
+                  type="button"
+                  className="open-existing-project"
+                  onClick={() => openProject(duplicate.projectId)}
+                >
                   {t('openExisting')}
                 </button>
               )}
@@ -345,7 +348,7 @@ export function ProjectEditor({
                 <dt>{t('directory')}</dt>
                 <dd>
                   <span className="project-path">
-                    {original.directory} → {newDirectory}
+                    {original.directory} → {directoryField.directory}
                   </span>
                   <p>{t('currentRuns', { count: running })}</p>
                   <p>

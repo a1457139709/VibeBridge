@@ -3,6 +3,7 @@ import {
   messagePrefix,
   type MessageArguments,
   type MessageId,
+  type MessageReference,
   type MessageValue,
   type MessageValues,
 } from '../messages';
@@ -33,6 +34,8 @@ export function localize(language: Language) {
   return {
     language,
     t: <K extends MessageId>(id: K, ...args: MessageArguments<K>) => format(id, args[0]),
+    translate: (reference: MessageReference) =>
+      format(reference.id, 'values' in reference ? reference.values : undefined),
     text: localizeText,
   };
 }

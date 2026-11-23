@@ -2,7 +2,7 @@ import './support/dom';
 import assert from 'node:assert/strict';
 import test, { afterEach, before } from 'node:test';
 import { act, cleanup, screen, waitFor, within } from '@testing-library/react';
-import { localize } from '../../app/shared/localization/localization';
+import { t } from './support/localization';
 import {
   bug,
   failed,
@@ -17,7 +17,6 @@ import {
 } from './support/forge-lists';
 import { requireInstance } from './support/elements';
 
-const { t } = localize('en');
 const loadMore = () => within(sidebar()).getByRole('button', { name: t('loadMore') });
 
 afterEach(cleanup);
