@@ -144,6 +144,7 @@ export const chinese: Record<keyof typeof english, string> = {
   done: '本轮结束',
   error: '异常',
   projectSummary: '当前项目汇总',
+  summaryEntry: '{count} {state}',
   closePanelList: '关闭面板列表',
   noMatchingPanels: '没有匹配的面板',
   expandNavigation: '展开项目导航',

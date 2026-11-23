@@ -7,38 +7,44 @@ import { HoverHints } from '../../app/renderer/common/HoverHints';
 
 afterEach(cleanup);
 
+const cardHint = 'Claude Code · Review the parser',
+  statusHint = 'Busy',
+  plainName = 'Plain';
+
 function renderHinted() {
   render(
     <>
-      <button data-hint="Claude Code · Review the parser">
+      <button data-hint={cardHint}>
         Card
-        <span role="img" aria-label="Busy" data-hint="Busy">
+        <span role="img" aria-label={statusHint} data-hint={statusHint}>
           ◌
         </span>
       </button>
-      <button>Plain</button>
+      <button>{plainName}</button>
       <HoverHints />
     </>,
   );
   return userEvent.setup();
 }
 
+const card = () => screen.getAllByRole('button')[0];
+
 test('hovering an element with a hint shows the hint, and leaving it hides the hint', async () => {
   const user = renderHinted();
-  await user.hover(screen.getByText('Card'));
-  assert.equal((await screen.findByRole('tooltip')).textContent, 'Claude Code · Review the parser');
-  await user.unhover(screen.getByText('Card'));
-  await user.hover(screen.getByRole('button', { name: 'Plain' }));
+  await user.hover(card());
+  assert.equal((await screen.findByRole('tooltip')).textContent, cardHint);
+  await user.unhover(card());
+  await user.hover(screen.getByRole('button', { name: plainName }));
   await waitFor(() => assert.equal(screen.queryByRole('tooltip'), null));
 });
 
 test('a hint inside a hinted element replaces the outer hint while the pointer is over it', async () => {
   const user = renderHinted();
-  await user.hover(screen.getByRole('img', { name: 'Busy' }));
+  await user.hover(screen.getByRole('img', { name: statusHint }));
   await waitFor(() =>
     assert.deepEqual(
       screen.getAllByRole('tooltip').map(hint => hint.textContent),
-      ['Busy'],
+      [statusHint],
     ),
   );
 });
@@ -46,29 +52,32 @@ test('a hint inside a hinted element replaces the outer hint while the pointer i
 test("keyboard focus shows the focused element's hint, and pressing the element hides it", async () => {
   const user = renderHinted();
   await user.tab();
-  assert.equal((await screen.findByRole('tooltip')).textContent, 'Claude Code · Review the parser');
+  assert.equal((await screen.findByRole('tooltip')).textContent, cardHint);
   await user.keyboard('{Tab}');
   await waitFor(() => assert.equal(screen.queryByRole('tooltip'), null));
-  await user.hover(screen.getByText('Card'));
+  await user.hover(card());
   await screen.findByRole('tooltip');
-  await user.pointer({ keys: '[MouseLeft>]', target: screen.getByText('Card') });
+  await user.pointer({ keys: '[MouseLeft>]', target: card() });
   await waitFor(() => assert.equal(screen.queryByRole('tooltip'), null));
 });
 
 test("the keyboard-focused element's hint returns after the pointer passes over another hinted element", async () => {
+  const focusedHint = 'Focused hint',
+    passingHint = 'Passing hint';
   render(
     <>
-      <button data-hint="Focused hint">Focused</button>
-      <button data-hint="Passing hint">Passing</button>
-      <span>Elsewhere</span>
+      <button data-hint={focusedHint}>Focused</button>
+      <button data-hint={passingHint}>Passing</button>
+      <p>Elsewhere</p>
       <HoverHints />
     </>,
   );
   const user = userEvent.setup();
   await user.tab();
-  assert.equal((await screen.findByRole('tooltip')).textContent, 'Focused hint');
-  await user.hover(screen.getByRole('button', { name: 'Passing' }));
-  await waitFor(() => assert.equal(screen.getByRole('tooltip').textContent, 'Passing hint'));
-  await user.hover(screen.getByText('Elsewhere'));
-  await waitFor(() => assert.equal(screen.getByRole('tooltip').textContent, 'Focused hint'));
+  assert.equal((await screen.findByRole('tooltip')).textContent, focusedHint);
+  const [, passing] = screen.getAllByRole('button');
+  await user.hover(passing);
+  await waitFor(() => assert.equal(screen.getByRole('tooltip').textContent, passingHint));
+  await user.hover(screen.getByRole('paragraph'));
+  await waitFor(() => assert.equal(screen.getByRole('tooltip').textContent, focusedHint));
 });

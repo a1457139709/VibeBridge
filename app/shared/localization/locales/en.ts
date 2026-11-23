@@ -148,6 +148,7 @@ export const english = {
   done: 'Done',
   error: 'Error',
   projectSummary: 'Current project summary',
+  summaryEntry: '{count} {state}',
   closePanelList: 'Close panel list',
   noMatchingPanels: 'No matching panels',
   expandNavigation: 'Expand project navigation',

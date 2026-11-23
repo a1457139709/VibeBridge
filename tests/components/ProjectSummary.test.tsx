@@ -13,13 +13,23 @@ import { provideWorkbench } from './support/workbench';
 import { githubView } from './support/forge';
 import { requireValue } from '../../app/renderer/common/required';
 import { focusedElement } from './support/elements';
+import { localize } from '../../app/shared/localization/localization';
+import { agentNames } from '../../app/shared/model';
+import { t } from './support/localization';
+import { including, summaryEntry as entry } from './support/panel-names';
 
 afterEach(cleanup);
+
+const zh = localize('zh-CN').t;
+const title = (id: string) => `Session ${id}`;
+const titled = (id: string) => including(title(id));
+const outsideName = 'Outside',
+  renamed = 'Renamed session';
 
 const panel = (id: string, status: ProcessingState): PanelView => ({
   id,
   agent: 'codex',
-  run: { id, panelId: id, projectId: 'project', state: 'running', title: `Session ${id}` },
+  run: { id, panelId: id, projectId: 'project', state: 'running', title: title(id) },
   status,
 });
 
@@ -78,7 +88,7 @@ function fixture() {
     const active = state?.projects.find(project => project.id === state.activeProjectId);
     return (
       <Localization language={state?.settings.language ?? 'en'}>
-        <button>Outside</button>
+        <button>{outsideName}</button>
         {active && (
           <ProjectSummary
             key={active.id}
@@ -107,60 +117,60 @@ function fixture() {
 }
 
 test("summary counts the current project's panels by state in fixed order and always lists members before locating, even one result", async () => {
-  const { user, located } = fixture();
-  const bar = await screen.findByRole('region', { name: 'Current project summary' });
-  await screen.findByRole('button', { name: '1 Needs input' });
+  const { user, located, snapshot } = fixture();
+  const bar = await screen.findByRole('region', { name: t('projectSummary') });
+  await screen.findByRole('button', { name: entry(1, 'needs-input') });
   assert.deepEqual(
     within(bar)
       .getAllByRole('button')
       .map(button => button.textContent),
-    ['1 Ready', '1 Needs input', '2 Done', '0 Error'],
+    [entry(1, 'ready'), entry(1, 'needs-input'), entry(2, 'done'), entry(0, 'error')],
   );
-  assert.equal(bar.textContent?.includes('Project title'), false);
+  assert.equal(bar.textContent?.includes(snapshot.projects[0].name), false);
   for (const entry of within(bar).getAllByRole('button'))
     assert.equal(entry.dataset.hint, entry.getAttribute('aria-label'), 'names survive a collapse to icon and count');
-  assert.equal(within(bar).getByRole<HTMLButtonElement>('button', { name: '0 Error' }).disabled, true);
-  await user.click(within(bar).getByRole('button', { name: '1 Needs input' }));
-  const list = screen.getByRole('dialog', { name: 'Needs input' });
+  assert.equal(within(bar).getByRole<HTMLButtonElement>('button', { name: entry(0, 'error') }).disabled, true);
+  await user.click(within(bar).getByRole('button', { name: entry(1, 'needs-input') }));
+  const list = screen.getByRole('dialog', { name: t('needs-input') });
   assert.equal(located.length, 0);
   assert.equal(within(list).getAllByRole('listitem').length, 1);
-  await user.click(within(list).getByRole('button', { name: /Session third/ }));
+  await user.click(within(list).getByRole('button', { name: titled('third') }));
   assert.deepEqual(located, ['third']);
   assert.ok(!screen.queryByRole('dialog'));
-  await user.click(within(bar).getByRole('button', { name: '1 Ready' }));
+  await user.click(within(bar).getByRole('button', { name: entry(1, 'ready') }));
   await user.click(
-    within(screen.getByRole('dialog', { name: 'Ready' })).getByRole('button', { name: /Session fresh/ }),
+    within(screen.getByRole('dialog', { name: t('ready') })).getByRole('button', { name: titled('fresh') }),
   );
   assert.deepEqual(located.at(-1), 'fresh');
 });
 
 test('keyboard users can choose members, switch lists and return to the triggering entry on Escape or close', async () => {
   const { user, located } = fixture();
-  const done = await screen.findByRole('button', { name: '2 Done' });
+  const done = await screen.findByRole('button', { name: entry(2, 'done') });
   done.focus();
   await user.keyboard('{Enter}');
-  assert.match(focusedElement().textContent ?? '', /Session first/);
+  assert.match(focusedElement().textContent ?? '', new RegExp(title('first')));
   await user.keyboard('{ArrowDown}');
-  assert.match(focusedElement().textContent ?? '', /Session second/);
+  assert.match(focusedElement().textContent ?? '', new RegExp(title('second')));
   await user.keyboard('{Home}');
-  assert.match(focusedElement().textContent ?? '', /Session first/);
+  assert.match(focusedElement().textContent ?? '', new RegExp(title('first')));
   await user.keyboard('{End}');
-  assert.match(focusedElement().textContent ?? '', /Session second/);
+  assert.match(focusedElement().textContent ?? '', new RegExp(title('second')));
   await user.keyboard('{Escape}');
   assert.ok(!screen.queryByRole('dialog'));
   assert.equal(document.activeElement, done);
   await user.keyboard(' ');
-  await user.click(screen.getByRole('button', { name: 'Close panel list' }));
+  await user.click(screen.getByRole('button', { name: t('closePanelList') }));
   assert.equal(document.activeElement, done);
   await user.click(done);
-  await user.click(screen.getByRole('button', { name: '1 Needs input' }));
-  assert.equal(screen.queryByRole('dialog', { name: 'Done' }), null);
-  assert.ok(screen.getByRole('dialog', { name: 'Needs input' }));
+  await user.click(screen.getByRole('button', { name: entry(1, 'needs-input') }));
+  assert.equal(screen.queryByRole('dialog', { name: t('done') }), null);
+  assert.ok(screen.getByRole('dialog', { name: t('needs-input') }));
   assert.equal(done.getAttribute('aria-expanded'), 'false');
-  await user.click(screen.getByRole('button', { name: '1 Needs input' }));
+  await user.click(screen.getByRole('button', { name: entry(1, 'needs-input') }));
   assert.ok(!screen.queryByRole('dialog'));
   await user.click(done);
-  await user.click(screen.getByRole('button', { name: 'Outside' }));
+  await user.click(screen.getByRole('button', { name: outsideName }));
   assert.ok(!screen.queryByRole('dialog'));
   done.focus();
   await user.keyboard('{ArrowUp}{ArrowDown}{Enter}');
@@ -169,35 +179,35 @@ test('keyboard users can choose members, switch lists and return to the triggeri
 
 test('open lists follow live membership and titles, retain keyboard control after removal, and reset on project changes', async () => {
   const { user, snapshot, member, update, located } = fixture();
-  await user.click(await screen.findByRole('button', { name: '2 Done' }));
-  requireValue(member('second').run, 'the second run').title = 'Renamed session';
+  await user.click(await screen.findByRole('button', { name: entry(2, 'done') }));
+  requireValue(member('second').run, 'the second run').title = renamed;
   member('first').status = 'busy';
   await update();
-  assert.ok(screen.getByRole('button', { name: '1 Done' }));
+  assert.ok(screen.getByRole('button', { name: entry(1, 'done') }));
   const list = screen.getByRole('dialog');
-  assert.equal(within(list).queryByRole('button', { name: /Session first/ }), null);
-  assert.ok(document.activeElement === within(list).getByRole('button', { name: /Renamed session/ }));
+  assert.equal(within(list).queryByRole('button', { name: titled('first') }), null);
+  assert.ok(document.activeElement === within(list).getByRole('button', { name: including(renamed) }));
   member('second').status = 'ready';
   await update();
-  assert.equal(screen.getByRole<HTMLButtonElement>('button', { name: '0 Done' }).disabled, true);
-  assert.ok(document.activeElement === screen.getByRole('button', { name: 'Close panel list' }));
+  assert.equal(screen.getByRole<HTMLButtonElement>('button', { name: entry(0, 'done') }).disabled, true);
+  assert.ok(document.activeElement === screen.getByRole('button', { name: t('closePanelList') }));
   await user.keyboard('{Escape}');
   assert.ok(!screen.queryByRole('dialog'));
-  await user.click(screen.getByRole('button', { name: '1 Needs input' }));
+  await user.click(screen.getByRole('button', { name: entry(1, 'needs-input') }));
   snapshot.activeProjectId = null;
   await update();
   assert.ok(!screen.queryByRole('dialog'));
-  assert.ok(!screen.queryByRole('region', { name: 'Current project summary' }));
+  assert.ok(!screen.queryByRole('region', { name: t('projectSummary') }));
   assert.deepEqual(located, []);
   snapshot.activeProjectId = 'project';
   await update();
-  assert.ok(screen.getByRole('button', { name: '1 Needs input' }));
+  assert.ok(screen.getByRole('button', { name: entry(1, 'needs-input') }));
   assert.ok(!screen.queryByRole('dialog'));
 });
 
 test('clicking blank space in the summary dismisses the list', async () => {
   const { user } = fixture();
-  const done = await screen.findByRole('button', { name: '2 Done' });
+  const done = await screen.findByRole('button', { name: entry(2, 'done') });
   await user.click(done);
   await user.click(requireValue(done.parentElement, 'the summary'));
   assert.ok(!screen.queryByRole('dialog'));
@@ -205,24 +215,24 @@ test('clicking blank space in the summary dismisses the list', async () => {
 
 test('language changes update an open list without replacing it or translating real session titles', async () => {
   const { user, snapshot, member, update, located } = fixture();
-  await screen.findByRole('button', { name: '2 Done' });
+  await screen.findByRole('button', { name: entry(2, 'done') });
   delete requireValue(member('first').run, 'the first run').title;
-  requireValue(member('second').run, 'the second run').title = 'Untitled task';
+  requireValue(member('second').run, 'the second run').title = t('untitled');
   await update();
-  await user.click(screen.getByRole('button', { name: '2 Done' }));
-  const list = screen.getByRole('dialog', { name: 'Done' });
+  await user.click(screen.getByRole('button', { name: entry(2, 'done') }));
+  const list = screen.getByRole('dialog', { name: t('done') });
   const members = within(list).getAllByRole('listitem');
-  assert.equal(members[0].textContent, 'Untitled taskCodex');
-  assert.equal(members[1].textContent, 'Untitled taskCodex');
+  assert.equal(members[0].textContent, `${t('untitled')}${agentNames.codex}`);
+  assert.equal(members[1].textContent, `${t('untitled')}${agentNames.codex}`);
   await user.keyboard('{ArrowDown}');
   snapshot.settings.language = 'zh-CN';
   await update();
-  assert.equal(screen.getByRole('dialog', { name: '本轮结束' }), list);
+  assert.equal(screen.getByRole('dialog', { name: zh('done') }), list);
   assert.equal(within(list).getAllByRole('listitem')[0], members[0]);
-  assert.equal(members[0].textContent, '未命名任务Codex');
-  assert.equal(members[1].textContent, 'Untitled taskCodex');
+  assert.equal(members[0].textContent, `${zh('untitled')}${agentNames.codex}`);
+  assert.equal(members[1].textContent, `${t('untitled')}${agentNames.codex}`);
   assert.equal(document.activeElement, members[1].querySelector('button'));
-  assert.ok(screen.getByRole('button', { name: '1 等待输入' }));
+  assert.ok(screen.getByRole('button', { name: entry(1, 'needs-input', zh) }));
   await user.keyboard('{Enter}');
   assert.deepEqual(located, ['second']);
 });
