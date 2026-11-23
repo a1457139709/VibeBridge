@@ -14,3 +14,4 @@ VibeBridge 是界面和程序合在一起的应用，界面展示的是程序的
 
 - 修改文案、调整措辞、增加语言，都不会让行为测试失败；测试失败时，指向的是行为出了问题。
 - 推导逻辑写在界面里的代码，以及依赖文字的测试，要逐步调整到这条原则上。
+- `npm run check:test-wording`（`scripts/check-test-wording.mjs`）用 TypeScript 的语法树检查 `tests/` 下的 `.ts` / `.tsx`（不含 `tests/fixtures/`）：每个 `*ByText` 查询，`*ByLabelText` 等按文字的查询里字面的文字，以及 `*ByRole` 的 `name` 里字面的字符串或正则，各算一处。各文件的次数与 `scripts/test-wording-baseline.json` 比较，做法同 `0010-code-carries-no-comments.md` 的棘轮：超过基线时失败；少于基线时也失败，要求运行 `npm run check:test-wording -- --update` 把基线降下来，`--update` 只降不升。桌面测试（`tests/desktop/*.cjs`）不用 Testing Library，不在检查范围内。

@@ -60,7 +60,7 @@ A test confirms the program's **behaviour**: the state it ends in, the data it p
 - Component tests confirm the wiring between view and program. They locate elements by role, with the accessible name from the locale: `{ name: t('localDirectory') }`, where `t` is `localize('en').t`.
 - When the behaviour is that the view shows something, the test asserts which message it shows and with which values, built with `t(id, values)`. Localization tests own the wording itself.
 
-The reasoning is in `docs/adr/0009-tests-confirm-behaviour-not-wording.md`.
+`npm run check:test-wording` enforces the locating rules against a per-file baseline that only shrinks. The reasoning is in `docs/adr/0009-tests-confirm-behaviour-not-wording.md`.
 
 ### Waits
 
