@@ -82,7 +82,7 @@ test('Refresh returns to the old place in the list when the issue at the top of 
 test("closing the detail returns focus to its issue's row, scrolling back to it when it went out of view", async () => {
   const { user } = await scrolledLongList();
   await user.click(within(forgeSidebar()).getByRole('button', { name: issue(13).title }));
-  const detail = await waitFor(() => selectElement('.forge-detail'));
+  const detail = await within(forgeSidebar()).findByRole('region', { name: t('issueDetail') });
   scrollTo(0);
   await waitFor(() => assert.ok(!rows().includes('Issue 13')));
   await user.click(within(detail).getByRole('button', { name: t('closeDetail') }));

@@ -9,7 +9,6 @@ import type { ProjectEdit, ProjectView } from '../../app/shared/model';
 import type { RepositoryChoices, RepositoryReference } from '../../app/shared/forge/forge';
 import { provideWorkbench } from './support/workbench';
 import { githubForge, githubRepository, githubView } from './support/forge';
-import { selectElement } from './support/elements';
 import { t } from './support/localization';
 
 afterEach(cleanup);
@@ -61,7 +60,6 @@ async function openEditor() {
   return user;
 }
 
-const repositoryRow = () => selectElement('.repository-current').textContent;
 const impactRegion = () => screen.getByRole('region', { name: t('afterSave') });
 const closed = () => waitFor(() => assert.equal(screen.queryByRole('dialog'), null));
 
@@ -79,7 +77,7 @@ for (const [state, repository, path, sidebarHint] of [
   test(`${state} project's Edit project edits only name and directory, shows the binding read-only, and saves only those two`, async () => {
     const { edits } = editor(repository);
     const user = await openEditor();
-    assert.equal(repositoryRow(), `${path}${sidebarHint}`);
+    assert.ok(screen.getByRole('button', { name: sidebarHint, description: path }), 'the binding shows read-only');
     assert.deepEqual(
       screen.getAllByRole('textbox').map(field => field.getAttribute('id')),
       ['edit-project-name', 'edit-project-directory'],
