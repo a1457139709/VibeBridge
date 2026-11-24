@@ -2,13 +2,9 @@ import { useLocalization } from '../common/Localization';
 import { useEffect, useId, useLayoutEffect, useRef, useState, type ReactNode } from 'react';
 import { type Project, type ProjectEditResult, type ProjectView } from '../../shared/model';
 import { originElsewhereThanBinding, type RepositoryChoices } from '../../shared/forge/forge';
-import {
-  projectNameHasControls,
-  projectNameMessage,
-  projectNameProblem,
-  type ProjectNameProblem,
-} from '../../shared/project-name';
-import { presentDirectoryField, type DirectoryCheck } from './directory-field';
+import { projectNameMessage, projectNameProblem } from '../../shared/project-name';
+import { presentDirectoryField } from './directory-field';
+import { useInspectedDirectory, usePastedNameProblem } from './project-form';
 import { directoryProblemMessage } from '../../shared/directory-problem';
 import { LaunchResults } from './LaunchResults';
 import { errorMessage } from '../../shared/caught-error';
@@ -152,11 +148,12 @@ export function ProjectEditor({
   const running = project.panels.filter(panel => panel.run?.state === 'running').length;
   const [name, setName] = useState(project.name),
     [directoryInput, setDirectoryInput] = useState(project.directory);
-  const [checked, setChecked] = useState<{ input: string; check: DirectoryCheck }>();
-  const [pastedNameProblem, setPastedNameProblem] = useState<ProjectNameProblem | null>(null);
+  const pastedName = usePastedNameProblem();
+  const pastedNameProblem = pastedName.problem;
   const [busy, setBusy] = useState(false),
     [choosing, setChoosing] = useState(false),
     [error, setError] = useState('');
+  const checked = useInspectedDirectory(directoryInput, setError);
   const [result, setResult] = useState<ProjectEditResult>();
   const repositoryPath = useId();
   const boundRepository = project.repository;
@@ -185,27 +182,6 @@ export function ProjectEditor({
     element.showModal();
     return () => element.close();
   }, []);
-  useEffect(() => {
-    let live = true;
-    if (!directoryInput) return;
-    const timer = setTimeout(() => {
-      void window.workbench
-        .inspectDirectory(directoryInput)
-        .then(check => {
-          if (live) setChecked({ input: directoryInput, check });
-        })
-        .catch(error => {
-          if (live) {
-            setChecked({ input: directoryInput, check: { ok: false, problem: { kind: 'checkFailed' } } });
-            setError(errorMessage(error));
-          }
-        });
-    }, 180);
-    return () => {
-      live = false;
-      clearTimeout(timer);
-    };
-  }, [directoryInput]);
   async function save(restart: boolean) {
     if (!canSave) return;
     setBusy(true);
@@ -273,15 +249,10 @@ export function ProjectEditor({
             aria-invalid={!!nameError}
             aria-describedby="edit-project-name-status"
             onChange={event => {
-              setPastedNameProblem(null);
+              pastedName.clear();
               setName(event.target.value);
             }}
-            onPaste={event => {
-              if (projectNameHasControls(event.clipboardData.getData('text'))) {
-                event.preventDefault();
-                setPastedNameProblem({ kind: 'controls' });
-              } else setPastedNameProblem(null);
-            }}
+            onPaste={pastedName.checkPaste}
           />
           {nameError && (
             <div id="edit-project-name-status" className="field-status error-text">

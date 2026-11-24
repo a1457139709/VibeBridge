@@ -19,8 +19,10 @@ const envelopeOf = (id: MessageId, values: MessageValues | undefined) => message
 export function message<K extends MessageId>(id: K, ...args: MessageArguments<K>): string {
   return envelopeOf(id, args[0]);
 }
+export const referenceValues = (reference: MessageReference): MessageValues | undefined =>
+  'values' in reference ? reference.values : undefined;
 export function envelope(reference: MessageReference): string {
-  return envelopeOf(reference.id, 'values' in reference ? reference.values : undefined);
+  return envelopeOf(reference.id, referenceValues(reference));
 }
 
 export const nestedMessage = (text: string): MessageValue => ({ message: text });

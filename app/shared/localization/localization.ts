@@ -1,6 +1,7 @@
 import type { Language } from '../model';
 import {
   messagePrefix,
+  referenceValues,
   type MessageArguments,
   type MessageId,
   type MessageReference,
@@ -34,8 +35,7 @@ export function localize(language: Language) {
   return {
     language,
     t: <K extends MessageId>(id: K, ...args: MessageArguments<K>) => format(id, args[0]),
-    translate: (reference: MessageReference) =>
-      format(reference.id, 'values' in reference ? reference.values : undefined),
+    translate: (reference: MessageReference) => format(reference.id, referenceValues(reference)),
     text: localizeText,
   };
 }

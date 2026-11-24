@@ -1,6 +1,7 @@
-import { readdir, readFile, writeFile } from 'node:fs/promises';
+import { readdir } from 'node:fs/promises';
 import { join } from 'node:path';
 import ts from 'typescript';
+import { holdToBaseline } from './ratchet.mjs';
 
 const baselineFile = join('scripts', 'test-wording-baseline.json');
 const textQuery = /^(?:get|query|find)(?:All)?ByText$/;
@@ -123,52 +124,18 @@ async function findWordingQueries() {
   return found;
 }
 
-async function readBaseline() {
-  try {
-    return JSON.parse(await readFile(baselineFile, 'utf8'));
-  } catch (error) {
-    if (error.code === 'ENOENT') return {};
-    throw error;
-  }
-}
-
 try {
-  const found = await findWordingQueries();
-  let allowance = await readBaseline();
-  if (process.argv.includes('--update')) {
-    const lowered = {};
-    for (const [file, allowed] of Object.entries(allowance)) {
-      const count = Math.min(found.get(file)?.length ?? 0, allowed);
-      if (count) lowered[file] = count;
-    }
-    await writeFile(baselineFile, `${JSON.stringify(lowered, null, 2)}\n`);
-    allowance = lowered;
-  }
-  const added = [];
-  const shrunk = [];
-  for (const [file, lines] of found) {
-    if (lines.length > (allowance[file] ?? 0))
-      added.push(
-        `${file}: ${lines.length} wording queries, ${allowance[file] ?? 0} allowed (lines ${lines.join(', ')})`,
-      );
-  }
-  for (const [file, allowed] of Object.entries(allowance)) {
-    const count = found.get(file)?.length ?? 0;
-    if (count < allowed) shrunk.push(`${file}: ${count} wording queries, baseline ${allowed}`);
-  }
-  if (added.length) {
-    console.error(`Tests confirm behaviour, not wording (docs/adr/0009-tests-confirm-behaviour-not-wording.md):\n${added.join('\n')}
+  await holdToBaseline({
+    baselineFile,
+    found: await findWordingQueries(),
+    counted: 'wording queries',
+    updateCommand: 'check:test-wording',
+    explanation:
+      added => `Tests confirm behaviour, not wording (docs/adr/0009-tests-confirm-behaviour-not-wording.md):\n${added}
 
 Replace a *ByText query with a role query, and give an accessible name from the locale, { name: t(id) },
-instead of a literal string or regular expression. Assert structured values where the behaviour allows it.`);
-    process.exitCode = 1;
-  }
-  if (shrunk.length) {
-    console.error(
-      `Wording queries were removed below the baseline; lower it with npm run check:test-wording -- --update:\n${shrunk.join('\n')}`,
-    );
-    process.exitCode = 1;
-  }
+instead of a literal string or regular expression. Assert structured values where the behaviour allows it.`,
+  });
 } catch (error) {
   console.error(`Test wording check failed: ${error.message}`);
   process.exitCode = 1;

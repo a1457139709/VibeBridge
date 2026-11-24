@@ -1,6 +1,6 @@
 import { useLocalization } from '../common/Localization';
 import { agentIcons } from '../common/agent-icons';
-import { useEffect, useRef, useState, type Dispatch, type SetStateAction } from 'react';
+import { useRef, useState, type Dispatch, type SetStateAction } from 'react';
 import {
   agentNames,
   agentTypes,
@@ -12,14 +12,9 @@ import {
 } from '../../shared/model';
 import { LaunchResults } from './LaunchResults';
 import { layoutBoxes } from '../../shared/layout';
-import {
-  projectNameFromDirectory,
-  projectNameHasControls,
-  projectNameMessage,
-  projectNameProblem,
-  type ProjectNameProblem,
-} from '../../shared/project-name';
-import { presentDirectoryField, type DirectoryCheck } from './directory-field';
+import { projectNameFromDirectory, projectNameMessage, projectNameProblem } from '../../shared/project-name';
+import { presentDirectoryField } from './directory-field';
+import { useInspectedDirectory, usePastedNameProblem } from './project-form';
 import { directoryProblemMessage } from '../../shared/directory-problem';
 import { errorMessage } from '../../shared/caught-error';
 import { requireValue } from '../common/required';
@@ -72,10 +67,11 @@ export function Setup({
   defaultLayout: DefaultLayout;
 }) {
   const { t, translate } = useLocalization();
-  const [checked, setChecked] = useState<{ input: string; check: DirectoryCheck }>();
+  const checked = useInspectedDirectory(draft.directory, report);
   const [nameTouched, setNameTouched] = useState(false);
   const [directoryTouched, setDirectoryTouched] = useState(false);
-  const [pastedNameProblem, setPastedNameProblem] = useState<ProjectNameProblem | null>(null);
+  const pastedName = usePastedNameProblem();
+  const pastedNameProblem = pastedName.problem;
   const [choosing, setChoosing] = useState(false);
   const [busy, setBusy] = useState(false);
   const [launchReport, setLaunchReport] = useState<{ projectId: string; launches: LaunchResult[] }>();
@@ -91,28 +87,6 @@ export function Setup({
   const assigned = agentTypes.reduce((sum, type) => sum + draft.counts[type], 0);
   const canCreate =
     !busy && !choosing && directoryField.canSave && !nameProblem && !pastedNameProblem && assigned === draft.total;
-  useEffect(() => {
-    setChecked(undefined);
-    if (!draft.directory) return;
-    let live = true;
-    const timer = setTimeout(() => {
-      void window.workbench
-        .inspectDirectory(draft.directory)
-        .then(check => {
-          if (live) setChecked({ input: draft.directory, check });
-        })
-        .catch(error => {
-          if (live) {
-            setChecked({ input: draft.directory, check: { ok: false, problem: { kind: 'checkFailed' } } });
-            report(errorMessage(error));
-          }
-        });
-    }, 180);
-    return () => {
-      live = false;
-      clearTimeout(timer);
-    };
-  }, [draft.directory]);
   async function chooseDirectory() {
     setChoosing(true);
     try {
@@ -123,7 +97,7 @@ export function Setup({
         directory: path,
         name: current.name.trim() ? current.name : projectNameFromDirectory(path),
       }));
-      setPastedNameProblem(null);
+      pastedName.clear();
       setNameTouched(true);
       setDirectoryTouched(true);
     } catch (error) {
@@ -202,16 +176,10 @@ export function Setup({
           aria-describedby="project-name-status"
           onBlur={() => setNameTouched(true)}
           onChange={event => {
-            setPastedNameProblem(null);
+            pastedName.clear();
             changeDraft({ ...draft, name: event.target.value });
           }}
-          onPaste={event => {
-            const text = event.clipboardData.getData('text');
-            if (projectNameHasControls(text)) {
-              event.preventDefault();
-              setPastedNameProblem({ kind: 'controls' });
-            } else setPastedNameProblem(null);
-          }}
+          onPaste={pastedName.checkPaste}
           autoComplete="off"
         />
         <div id="project-name-status" className="field-status" hidden={!nameMessage} aria-live="polite">
