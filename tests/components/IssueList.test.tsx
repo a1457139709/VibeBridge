@@ -19,7 +19,8 @@ import {
   stubSidebarApis,
 } from './support/forge-lists';
 import { requireValue } from '../../app/renderer/common/required';
-import { requireInstance, selectElement } from './support/elements';
+import { descriptionParts, requireInstance, selectElement } from './support/elements';
+import { alertMessages, forgeSidebar, repositoryOption, repositoryTitle } from './support/sidebar-queries';
 
 afterEach(cleanup);
 before(stubSidebarApis);
@@ -169,20 +170,20 @@ test('Change binding turns the sidebar to its change-binding page, and ← Back 
 test('picking another repository states what rebinding does, and Rebind to Y rebinds at once and returns to the lists', async () => {
   const { user, calls, request } = await changeBindingPage();
   assert.equal(
-    requireInstance(within(sidebar()).getByRole('button', { name: 'Rebind' }), HTMLButtonElement).disabled,
+    requireInstance(within(forgeSidebar()).getByRole('button', { name: t('rebind') }), HTMLButtonElement).disabled,
     true,
   );
-  await user.click(await within(sidebar()).findByRole('option', { name: /octo\/renamed/ }));
-  assert.ok(
-    within(sidebar()).getByText(
-      'Rebinding to octo/renamed: Dispatch records for the old repository are hidden but kept, and show again if you switch back.',
-    ),
-  );
-  await user.click(within(sidebar()).getByRole('button', { name: 'Rebind to octo/renamed' }));
+  await user.click(await waitFor(() => repositoryOption('octo/renamed')));
+  const rebind = within(forgeSidebar()).getByRole('button', { name: t('rebindTo', { repository: 'octo/renamed' }) });
+  assert.deepEqual(descriptionParts(rebind), [
+    t('rebindConsequence', { repository: 'octo/renamed' }),
+    t('rebindImpact'),
+  ]);
+  await user.click(rebind);
   assert.deepEqual(calls, [['bind', 'alpha', githubRepository('octo/renamed')]]);
   const next = await request(2);
   assert.equal(next.projectId, 'alpha');
-  await waitFor(() => assert.ok(within(sidebar()).getByText('octo/renamed', { selector: 'header *' })));
+  await waitFor(() => assert.equal(repositoryTitle(), 'octo/renamed'));
 });
 
 test('a bound repository the forge lists at a new path is listed once, there, as the current one, and Rebind stays unavailable', async () => {
@@ -221,21 +222,23 @@ test('Unbind states what unbinding does before its own Unbind carries it out, Ca
     ok: false,
     failure: { kind: 'notInstalled', detail: '', forge: githubForge },
   }));
-  await within(sidebar()).findByText('Could not find gh; install it to bind a repository.');
-  await user.click(within(sidebar()).getByRole('button', { name: 'Unbind' }));
-  const consequence = 'Unbinding: Dispatch records are kept; the sidebar shows the project as unbound.';
-  assert.ok(within(sidebar()).getByText(consequence));
-  const cancel = within(sidebar()).getByRole('button', { name: 'Cancel' });
+  await waitFor(() => assert.ok(alertMessages().includes(t('forgeNotInstalled', { cli: githubForge.cli }))));
+  await user.click(within(forgeSidebar()).getByRole('button', { name: t('unbind') }));
+  assert.deepEqual(descriptionParts(within(forgeSidebar()).getByRole('button', { name: t('unbind') })), [
+    t('unbindConsequence'),
+    t('unbindImpact'),
+  ]);
+  const cancel = within(forgeSidebar()).getByRole('button', { name: t('cancel') });
   await waitFor(() => assert.equal(document.activeElement, cancel, 'focus moves to Cancel'));
   await user.click(cancel);
-  assert.equal(within(sidebar()).queryByText(consequence), null);
-  const unbind = within(sidebar()).getByRole('button', { name: 'Unbind' });
+  assert.deepEqual(descriptionParts(within(forgeSidebar()).getByRole('button', { name: t('unbind') })), []);
+  const unbind = within(forgeSidebar()).getByRole('button', { name: t('unbind') });
   await waitFor(() => assert.equal(document.activeElement, unbind, 'focus returns to Unbind'));
   assert.deepEqual(calls, []);
-  await user.click(within(sidebar()).getByRole('button', { name: 'Unbind' }));
-  await user.click(within(sidebar()).getByRole('button', { name: 'Unbind' }));
+  await user.click(within(forgeSidebar()).getByRole('button', { name: t('unbind') }));
+  await user.click(within(forgeSidebar()).getByRole('button', { name: t('unbind') }));
   assert.deepEqual(calls, [['unbind', 'alpha']]);
-  await waitFor(() => assert.ok(within(sidebar()).getByText('No repository bound')));
+  await waitFor(() => assert.equal(repositoryTitle(), t('noRepositoryBound')));
 });
 
 test('a transient failure keeps the rows under a stale notice, and fills the sidebar when there were none', async () => {
