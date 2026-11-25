@@ -57,7 +57,9 @@ function AgentFields({
         data-settings-field={`agents.${type}.command`}
         className="command-input"
         aria-invalid={!!error || undefined}
-        aria-describedby={error ? `command-error-${type}` : undefined}
+        aria-describedby={
+          [error && `command-error-${type}`, check && `command-result-${type}`].filter(Boolean).join(' ') || undefined
+        }
         value={value.command}
         spellCheck={false}
         onChange={event => {
@@ -70,7 +72,11 @@ function AgentFields({
       <div id={`command-error-${type}`} className="error-text" role={error ? 'alert' : undefined}>
         {error}
       </div>
-      <div className={`command-result ${check && !check.available ? 'error-text' : 'muted'}`} aria-live="polite">
+      <div
+        id={`command-result-${type}`}
+        className={`command-result ${check && !check.available ? 'error-text' : 'muted'}`}
+        aria-live="polite"
+      >
         {check ? (check.available ? t('commandAvailable', { path: check.path }) : text(check.message)) : null}
       </div>
       <label htmlFor={`arguments-${type}`}>

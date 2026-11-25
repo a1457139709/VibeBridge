@@ -6,6 +6,7 @@ import { userEvent } from '@testing-library/user-event';
 import { Localization } from '../../app/renderer/common/Localization';
 import { SettingsConflictDialog } from '../../app/renderer/settings/SettingsConflict';
 import { provideWorkbench } from './support/workbench';
+import { t } from './support/localization';
 
 afterEach(cleanup);
 
@@ -19,9 +20,11 @@ test('the startup settings conflict dialog cannot be dismissed and offers only t
     </Localization>,
   );
   const user = userEvent.setup();
-  const dialog = screen.getByRole<HTMLDialogElement>('dialog', { name: 'Settings conflict' });
+  const dialog = screen.getByRole<HTMLDialogElement>('dialog', {
+    name: t('settingsConflictTitle'),
+    description: t('settingsConflictHelp', { category: t('categorySettings', { category: t('shortcuts') }) }),
+  });
   assert.equal(dialog.open, true);
-  assert.match(dialog.textContent ?? '', /Keyboard shortcuts settings/);
   assert.equal(fireEvent(dialog, new Event('cancel', { cancelable: true })), false);
   act(() => {
     dialog.close();
@@ -30,11 +33,11 @@ test('the startup settings conflict dialog cannot be dismissed and offers only t
   assert.equal(dialog.open, true);
   assert.deepEqual(
     screen.getAllByRole('button').map(button => button.textContent),
-    ['Quit app', 'Fix in settings'],
+    [t('quitApp'), t('openConflictingSettings')],
   );
-  await user.click(screen.getByRole('button', { name: 'Quit app' }));
+  await user.click(screen.getByRole('button', { name: t('quitApp') }));
   assert.equal(quit.mock.callCount(), 1);
   assert.equal(openSettings.mock.callCount(), 0);
-  await user.click(screen.getByRole('button', { name: 'Fix in settings' }));
+  await user.click(screen.getByRole('button', { name: t('openConflictingSettings') }));
   assert.equal(openSettings.mock.callCount(), 1);
 });

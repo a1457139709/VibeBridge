@@ -1,7 +1,7 @@
 import { Localization, useLocalization } from '../common/Localization';
 import { localize } from '../../shared/localization/localization';
 import { message } from '../../shared/messages';
-import { useEffect, useImperativeHandle, useLayoutEffect, useRef, useState, type Ref } from 'react';
+import { useEffect, useId, useImperativeHandle, useLayoutEffect, useRef, useState, type Ref } from 'react';
 import type { Settings } from '../../shared/model';
 import type { ShortcutAction } from '../../shared/settings/shortcuts';
 import type { ReportNotice } from '../common/Notices';
@@ -42,6 +42,7 @@ function SettingsEditor({
   report: ReportNotice;
 }) {
   const { t, text } = useLocalization();
+  const leave = useId();
   const [currentCategory, setCurrentCategory] = useState<SettingsCategory>(initialCategory);
   const [draft, setDraft] = useState(settings);
   const [saved, setSaved] = useState(settings);
@@ -259,17 +260,21 @@ function SettingsEditor({
       <dialog
         ref={leaveDialog}
         className="settings-leave"
+        aria-labelledby={`${leave}-title`}
+        aria-describedby={`${leave}-conflict ${leave}-unsaved`}
         onCancel={event => {
           event.preventDefault();
           decideLeave(false);
         }}
       >
-        <h2>{t('settingsLeave')}</h2>
+        <h2 id={`${leave}-title`}>{t('settingsLeave')}</h2>
         {conflicting.length > 0 && (
-          <p>{t('settingsLeaveConflict', { categories: conflicting.map(category => t(category)) })}</p>
+          <p id={`${leave}-conflict`}>
+            {t('settingsLeaveConflict', { categories: conflicting.map(category => t(category)) })}
+          </p>
         )}
         {leaveCategories.length > 0 && (
-          <p>
+          <p id={`${leave}-unsaved`}>
             {t('settingsUnsaved', {
               categories: settingsCategories
                 .filter(category => leaveCategories.includes(category.id))

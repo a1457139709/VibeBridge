@@ -10,6 +10,11 @@ import { deferred, provideWorkbench } from './support/workbench';
 import { message } from '../../app/shared/messages';
 import type { Settings } from '../../app/shared/model';
 import { requireValue } from '../../app/renderer/common/required';
+import { localize } from '../../app/shared/localization/localization';
+import { t } from './support/localization';
+import { descriptionParts } from './support/elements';
+
+const zh = localize('zh-CN').t;
 
 afterEach(cleanup);
 
@@ -37,19 +42,19 @@ test('language is a category draft until save, and ordinary save preserves other
   }
   render(<Harness />);
   const user = userEvent.setup();
-  const language = screen.getByRole('combobox', { name: 'Interface language' });
+  const language = screen.getByRole('combobox', { name: t('language') });
   await user.selectOptions(language, 'zh-CN');
-  assert.ok(screen.getByRole('button', { name: 'General' }));
-  await user.click(screen.getByRole('button', { name: 'Agent' }));
-  const command = screen.getAllByRole<HTMLInputElement>('textbox', { name: 'Launch command' })[0];
+  assert.ok(screen.getByRole('button', { name: t('general') }));
+  await user.click(screen.getByRole('button', { name: t('agents') }));
+  const command = screen.getAllByRole<HTMLInputElement>('textbox', { name: t('launchCommand') })[0];
   await user.type(command, '-draft');
-  await user.click(screen.getByRole('button', { name: 'General' }));
-  assert.equal(screen.getByRole<HTMLSelectElement>('combobox', { name: 'Interface language' }).value, 'zh-CN');
-  await user.click(screen.getByRole('button', { name: 'Save' }));
-  assert.ok(screen.getByRole('button', { name: '通用' }));
-  await user.click(screen.getByRole('button', { name: 'Agent' }));
-  assert.equal(screen.getAllByRole<HTMLInputElement>('textbox', { name: '启动命令' })[0].value, 'codex-draft');
-  assert.deepEqual(notices, ['配置已保存']);
+  await user.click(screen.getByRole('button', { name: t('general') }));
+  assert.equal(screen.getByRole<HTMLSelectElement>('combobox', { name: t('language') }).value, 'zh-CN');
+  await user.click(screen.getByRole('button', { name: t('save') }));
+  assert.ok(screen.getByRole('button', { name: zh('general') }));
+  await user.click(screen.getByRole('button', { name: t('agents') }));
+  assert.equal(screen.getAllByRole<HTMLInputElement>('textbox', { name: zh('launchCommand') })[0].value, 'codex-draft');
+  assert.deepEqual(notices, [zh('settingsSaved')]);
 });
 
 test('discard, restore defaults and cancel leave preserve the effective language until an entire submission succeeds', async () => {
@@ -65,42 +70,48 @@ test('discard, restore defaults and cancel leave preserve the effective language
   });
   render(<SettingsPage settings={saved} startupTheme="system" ref={ref} back={() => {}} report={() => {}} />);
   const user = userEvent.setup();
-  const language = screen.getByRole<HTMLSelectElement>('combobox', { name: '界面语言' });
+  const language = screen.getByRole<HTMLSelectElement>('combobox', { name: zh('language') });
   assert.deepEqual(
-    [...language.options].map(option => option.textContent),
-    ['English', '简体中文'],
+    [...language.options].map(option => [option.value, option.lang]),
+    [
+      ['en', 'en'],
+      ['zh-CN', 'zh-CN'],
+    ],
+    'each language is offered in its own language',
   );
-  await user.click(screen.getByRole('button', { name: '恢复默认设置' }));
+  await user.click(screen.getByRole('button', { name: zh('restoreDefaults') }));
   assert.equal(language.value, 'en');
-  assert.ok(screen.getByRole('button', { name: '通用' }));
-  await user.click(screen.getByRole('button', { name: '放弃更改' }));
+  assert.ok(screen.getByRole('button', { name: zh('general') }));
+  await user.click(screen.getByRole('button', { name: zh('discardChanges') }));
   assert.equal(language.value, 'zh-CN');
   await user.selectOptions(language, 'en');
   let leave!: Promise<boolean>;
   act(() => {
     leave = requireValue(ref.current, 'the settings page').requestLeave();
   });
-  await user.click(screen.getByRole('button', { name: '取消' }));
+  await user.click(screen.getByRole('button', { name: zh('cancel') }));
   assert.equal(await leave, false);
   assert.equal(language.value, 'en');
-  await user.click(screen.getByRole('button', { name: 'Agent' }));
-  await user.type(screen.getAllByRole('textbox', { name: '启动命令' })[0], '-draft');
+  await user.click(screen.getByRole('button', { name: t('agents') }));
+  await user.type(screen.getAllByRole('textbox', { name: zh('launchCommand') })[0], '-draft');
   act(() => {
     leave = requireValue(ref.current, 'the settings page').requestLeave();
   });
-  assert.match(screen.getByRole('dialog').textContent ?? '', /通用、Agent/);
-  await user.click(screen.getByRole('button', { name: '保存并返回' }));
+  assert.deepEqual(descriptionParts(screen.getByRole('dialog')), [
+    zh('settingsUnsaved', { categories: [zh('general'), zh('agents')] }),
+  ]);
+  await user.click(screen.getByRole('button', { name: zh('saveAndReturn') }));
   assert.deepEqual(patches, [
     { language: 'en', agents: { ...saved.agents, codex: { command: 'codex-draft', args: [] } } },
   ]);
-  await user.click(screen.getByRole('button', { name: '通用' }));
+  await user.click(screen.getByRole('button', { name: zh('general') }));
   assert.equal(await requireValue(ref.current, 'the settings page').requestLeave(), false);
-  assert.ok(screen.getByRole<HTMLButtonElement>('button', { name: '保存' }).disabled);
+  assert.ok(screen.getByRole<HTMLButtonElement>('button', { name: zh('save') }).disabled);
   await act(async () => pending.resolve({ ok: false, kind: 'storage', message: message('settingsWriteFailed') }));
   assert.equal(await leave, false);
-  assert.ok(screen.getByText('配置保存失败'));
-  await user.click(screen.getByRole('button', { name: '通用' }));
-  assert.equal(screen.getByRole<HTMLSelectElement>('combobox', { name: '界面语言' }).value, 'en');
+  assert.equal(screen.getByRole('alert').textContent, zh('settingsWriteFailed'));
+  await user.click(screen.getByRole('button', { name: zh('general') }));
+  assert.equal(screen.getByRole<HTMLSelectElement>('combobox', { name: zh('language') }).value, 'en');
   assert.equal(patches.length, 1);
 });
 
@@ -147,32 +158,42 @@ test('validation keeps language drafts, translates command checks and conflicts,
   }
   render(<Harness />);
   const user = userEvent.setup();
-  await user.selectOptions(screen.getByRole('combobox', { name: 'Interface language' }), 'zh-CN');
-  await user.click(screen.getByRole('button', { name: 'Agent' }));
-  await user.clear(screen.getAllByRole('textbox', { name: 'Launch command' })[0]);
+  await user.selectOptions(screen.getByRole('combobox', { name: t('language') }), 'zh-CN');
+  await user.click(screen.getByRole('button', { name: t('agents') }));
+  await user.clear(screen.getAllByRole('textbox', { name: t('launchCommand') })[0]);
   let leave!: Promise<boolean>;
   act(() => {
     leave = requireValue(ref.current, 'the settings page').requestLeave();
   });
-  await user.click(screen.getByRole('button', { name: 'Save and return' }));
+  await user.click(screen.getByRole('button', { name: t('saveAndReturn') }));
   assert.equal(await leave, false);
   assert.equal(effective.language, 'en');
-  assert.ok(screen.getByText('Launch command is required'));
-  await user.type(screen.getAllByRole('textbox', { name: 'Launch command' })[0], '/fixed');
+  assert.ok(screen.getByRole('textbox', { name: t('launchCommand'), description: t('commandRequired') }));
+  await user.type(screen.getAllByRole('textbox', { name: t('launchCommand') })[0], '/fixed');
   act(() => {
     leave = requireValue(ref.current, 'the settings page').requestLeave();
   });
-  await user.click(screen.getByRole('button', { name: 'Save and return' }));
+  await user.click(screen.getByRole('button', { name: t('saveAndReturn') }));
   assert.equal(await leave, true);
   assert.equal(effective.language, 'zh-CN');
-  assert.equal(reports.at(-1), '配置已保存');
-  await user.click(screen.getAllByRole('button', { name: '检查命令' })[0]);
-  assert.ok(screen.getByText('命令不可用，请检查程序路径及执行权限：/原样/path'));
-  await user.click(screen.getByRole('button', { name: '快捷键' }));
-  fireEvent.keyDown(screen.getByRole('textbox', { name: '切换到下一个面板' }), {
+  assert.equal(reports.at(-1), zh('settingsSaved'));
+  await user.click(screen.getAllByRole('button', { name: zh('checkCommand') })[0]);
+  assert.ok(
+    screen.getByRole('textbox', {
+      name: zh('launchCommand'),
+      description: zh('commandUnavailable', { reason: '/原样/path' }),
+    }),
+  );
+  await user.click(screen.getByRole('button', { name: zh('shortcuts') }));
+  fireEvent.keyDown(screen.getByRole('textbox', { name: zh('nextPanel') }), {
     key: 'c',
     code: 'KeyC',
     metaKey: true,
   });
-  assert.ok(screen.getByText('快捷键冲突：系统「复制」'));
+  assert.ok(
+    screen.getByRole('textbox', {
+      name: zh('nextPanel'),
+      description: zh('shortcutConflict', { actions: [zh('systemShortcut', { action: zh('copy') })] }),
+    }),
+  );
 });

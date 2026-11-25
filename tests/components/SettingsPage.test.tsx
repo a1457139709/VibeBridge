@@ -7,9 +7,11 @@ import { userEvent } from '@testing-library/user-event';
 import { SettingsPage, type SettingsPageActions } from '../../app/renderer/settings/SettingsPage';
 import { defaultSettings, type SettingsSaveResult } from '../../app/shared/settings/settings';
 import type { CommandCheck, Settings } from '../../app/shared/model';
+import { message } from '../../app/shared/messages';
 import { deferred, provideWorkbench } from './support/workbench';
 import { requireValue } from '../../app/renderer/common/required';
-import { requireInstance, selectElement } from './support/elements';
+import { descriptionParts, requireInstance, selectElement } from './support/elements';
+import { t } from './support/localization';
 
 afterEach(cleanup);
 
@@ -30,7 +32,8 @@ function renderSettings(settings = defaultSettings()) {
 }
 const click = (user: ReturnType<typeof userEvent.setup>, name: string) =>
   user.click(screen.getByRole('button', { name }));
-const command = () => screen.getAllByRole<HTMLInputElement>('textbox', { name: 'Launch command' })[0];
+const command = () => screen.getAllByRole<HTMLInputElement>('textbox', { name: t('launchCommand') })[0];
+const startsWith = (prefix: string) => (name: string) => name.startsWith(prefix);
 
 test('category drafts survive switching, and ordinary save submits only the current category', async () => {
   const saved = defaultSettings();
@@ -42,40 +45,40 @@ test('category drafts survive switching, and ordinary save submits only the curr
   const { user } = renderSettings(saved);
   await user.clear(command());
   await user.type(command(), '/draft-codex');
-  await click(user, 'Appearance');
-  await user.click(screen.getByRole('radio', { name: 'Dark' }));
-  await user.selectOptions(screen.getByRole('combobox', { name: 'Default layout' }), 'column');
-  const sidebar = within(screen.getByRole('radiogroup', { name: 'When the forge sidebar opens' }));
-  const detail = within(screen.getByRole('radiogroup', { name: 'When an issue or pull request detail opens' }));
+  await click(user, t('appearance'));
+  await user.click(screen.getByRole('radio', { name: t('themeDark') }));
+  await user.selectOptions(screen.getByRole('combobox', { name: t('defaultLayout') }), 'column');
+  const sidebar = within(screen.getByRole('radiogroup', { name: t('sidebarCoexistence') }));
+  const detail = within(screen.getByRole('radiogroup', { name: t('detailCoexistence') }));
   assert.equal(
-    sidebar.getByRole<HTMLInputElement>('radio', { name: /^Squeeze/ }).checked,
+    sidebar.getByRole<HTMLInputElement>('radio', { name: startsWith(t('sidebarSqueeze')) }).checked,
     true,
     'the sidebar squeezes by default',
   );
   assert.equal(
-    detail.getByRole<HTMLInputElement>('radio', { name: /^Overlay/ }).checked,
+    detail.getByRole<HTMLInputElement>('radio', { name: startsWith(t('detailOverlay')) }).checked,
     true,
     'a detail overlays by default',
   );
-  await user.click(sidebar.getByRole('radio', { name: /^Overlay/ }));
-  await user.click(detail.getByRole('radio', { name: /^Squeeze/ }));
-  await click(user, 'Agent');
+  await user.click(sidebar.getByRole('radio', { name: startsWith(t('sidebarOverlay')) }));
+  await user.click(detail.getByRole('radio', { name: startsWith(t('detailSqueeze')) }));
+  await click(user, t('agents'));
   assert.equal(command().value, '/draft-codex');
-  await click(user, 'Appearance');
-  await click(user, 'Save');
+  await click(user, t('appearance'));
+  await click(user, t('save'));
   assert.deepEqual(
     saveSettings.mock.calls.map(call => call.arguments),
     [[{ theme: 'dark', defaultLayout: 'column', sidebarCoexistence: 'overlay', detailCoexistence: 'squeeze' }]],
   );
-  await click(user, 'Agent');
+  await click(user, t('agents'));
   assert.equal(command().value, '/draft-codex');
-  await click(user, 'Discard changes');
+  await click(user, t('discardChanges'));
   assert.equal(command().value, 'codex');
-  await click(user, 'Appearance');
-  await click(user, 'Restore defaults');
-  assert.equal(screen.getByRole<HTMLInputElement>('radio', { name: 'Follow system' }).checked, true);
-  await click(user, 'Discard changes');
-  assert.equal(screen.getByRole<HTMLInputElement>('radio', { name: 'Dark' }).checked, true);
+  await click(user, t('appearance'));
+  await click(user, t('restoreDefaults'));
+  assert.equal(screen.getByRole<HTMLInputElement>('radio', { name: t('themeSystem') }).checked, true);
+  await click(user, t('discardChanges'));
+  assert.equal(screen.getByRole<HTMLInputElement>('radio', { name: t('themeDark') }).checked, true);
   assert.equal(saveSettings.mock.callCount(), 1);
 });
 
@@ -87,11 +90,11 @@ test('Keyboard shortcuts lists toggling the forge sidebar at Command+Alt+B, and 
   }));
   provideWorkbench({ saveSettings });
   const { user } = renderSettings(saved);
-  await click(user, 'Keyboard shortcuts');
-  const binding = screen.getByRole<HTMLInputElement>('textbox', { name: 'Toggle the forge sidebar' });
+  await click(user, t('shortcuts'));
+  const binding = screen.getByRole<HTMLInputElement>('textbox', { name: t('toggleForgeSidebar') });
   assert.equal(binding.value, '⌘ ⌥ B');
   fireEvent.keyDown(binding, { key: 'g', code: 'KeyG', metaKey: true, altKey: true });
-  await click(user, 'Save');
+  await click(user, t('save'));
   assert.equal(saveSettings.mock.calls[0].arguments[0].shortcuts?.toggleForgeSidebar, 'Command+Alt+G');
 });
 
@@ -99,15 +102,16 @@ test('Keyboard shortcuts lists opening the dispatch menu at Command+D and locati
   const saved = defaultSettings();
   provideWorkbench({});
   const { user } = renderSettings(saved);
-  await click(user, 'Keyboard shortcuts');
-  const openDispatchMenu = screen.getByRole<HTMLInputElement>('textbox', { name: 'Open the dispatch menu' });
+  await click(user, t('shortcuts'));
+  const openDispatchMenu = screen.getByRole<HTMLInputElement>('textbox', { name: t('openDispatchMenu') });
   assert.equal(openDispatchMenu.value, '⌘ D');
-  assert.equal(screen.getByRole<HTMLInputElement>('textbox', { name: 'Locate the dispatched panel' }).value, '⌘ L');
+  assert.equal(screen.getByRole<HTMLInputElement>('textbox', { name: t('locateDispatchedPanel') }).value, '⌘ L');
   fireEvent.keyDown(openDispatchMenu, { key: 'l', code: 'KeyL', metaKey: true });
   assert.ok(
-    screen
-      .getAllByText(/Locate the dispatched panel/)
-      .some(element => element.classList.contains('shortcut-conflict-message')),
+    screen.getByRole('textbox', {
+      name: t('openDispatchMenu'),
+      description: t('shortcutConflict', { actions: [t('locateDispatchedPanel')] }),
+    }),
   );
 });
 
@@ -119,17 +123,19 @@ test('save and leave submits all changed categories together and allows leaving 
   const { user, ref } = renderSettings(saved);
   await user.clear(command());
   await user.type(command(), '/new-codex');
-  await click(user, 'Appearance');
-  await user.click(screen.getByRole('radio', { name: 'Dark' }));
-  await click(user, 'Keyboard shortcuts');
-  const binding = screen.getByRole('textbox', { name: 'Next panel' });
+  await click(user, t('appearance'));
+  await user.click(screen.getByRole('radio', { name: t('themeDark') }));
+  await click(user, t('shortcuts'));
+  const binding = screen.getByRole('textbox', { name: t('nextPanel') });
   fireEvent.keyDown(binding, { key: 'k', code: 'KeyK', metaKey: true });
   let leave!: Promise<boolean>;
   act(() => {
     leave = requireValue(ref.current, 'the settings page').requestLeave();
   });
-  assert.match(screen.getByRole('dialog').textContent ?? '', /Agent, Appearance, Keyboard shortcuts/);
-  await click(user, 'Save and return');
+  assert.deepEqual(descriptionParts(screen.getByRole('dialog')), [
+    t('settingsUnsaved', { categories: [t('agents'), t('appearance'), t('shortcuts')] }),
+  ]);
+  await click(user, t('saveAndReturn'));
   const patch = {
     agents: { ...saved.agents, codex: { command: '/new-codex', args: [] } },
     theme: 'dark' as const,
@@ -143,7 +149,7 @@ test('save and leave submits all changed categories together and allows leaving 
     [[patch]],
   );
   assert.equal(await requireValue(ref.current, 'the settings page').requestLeave(), false);
-  assert.equal(screen.getByRole<HTMLButtonElement>('button', { name: '‹ Back' }).disabled, true);
+  assert.equal(screen.getByRole<HTMLButtonElement>('button', { name: t('back') }).disabled, true);
   await act(async () => pending.resolve({ ok: true, settings: { ...saved, ...patch } }));
   assert.equal(await leave, true);
   assert.equal(await requireValue(ref.current, 'the settings page').requestLeave(), true);
@@ -155,27 +161,31 @@ test('validation failure reveals field errors, retains every draft and blocks le
     ok: false,
     kind: 'validation',
     issues: [
-      { category: 'agents', field: 'agents.codex.command', code: 'required', message: 'Launch command is required' },
+      { category: 'agents', field: 'agents.codex.command', code: 'required', message: message('commandRequired') },
     ],
   }));
   provideWorkbench({ saveSettings });
   const { user, ref, report } = renderSettings(saved);
   await user.clear(command());
-  await click(user, 'Appearance');
-  await user.click(screen.getByRole('radio', { name: 'Dark' }));
+  await click(user, t('appearance'));
+  await user.click(screen.getByRole('radio', { name: t('themeDark') }));
   let leave!: Promise<boolean>;
   act(() => {
     leave = requireValue(ref.current, 'the settings page').requestLeave();
   });
-  await click(user, 'Save and return');
+  await click(user, t('saveAndReturn'));
   assert.equal(await leave, false);
   assert.equal(command().value, '');
   assert.equal(command().getAttribute('aria-invalid'), 'true');
-  assert.ok(screen.getByText('Correct the settings before saving'));
-  assert.deepEqual(report.mock.calls[0].arguments, ['Correct the settings before saving']);
-  await click(user, 'Appearance');
-  assert.equal(screen.getByRole<HTMLInputElement>('radio', { name: 'Dark' }).checked, true);
-  await click(user, 'Agent');
+  assert.equal(screen.getByRole('textbox', { name: t('launchCommand'), description: t('commandRequired') }), command());
+  assert.deepEqual(
+    screen.getAllByRole('alert').map(alert => alert.textContent),
+    [t('settingsInvalid'), t('commandRequired')],
+  );
+  assert.deepEqual(report.mock.calls[0].arguments, [t('settingsInvalid')]);
+  await click(user, t('appearance'));
+  assert.equal(screen.getByRole<HTMLInputElement>('radio', { name: t('themeDark') }).checked, true);
+  await click(user, t('agents'));
   await user.type(command(), '/fixed');
   assert.notEqual(command().getAttribute('aria-invalid'), 'true');
 });
@@ -183,7 +193,8 @@ test('validation failure reveals field errors, retains every draft and blocks le
 test('storage and unavailable failures keep drafts and block leaving, then allow a successful retry', async () => {
   for (const kind of ['storage', 'unavailable'] as const) {
     const saved = defaultSettings();
-    provideWorkbench({ saveSettings: async () => ({ ok: false, kind, message: 'Save failed; try again' }) });
+    const failure = message('settingsWriteFailed');
+    provideWorkbench({ saveSettings: async () => ({ ok: false, kind, message: failure }) });
     const { user, ref, report } = renderSettings(saved);
     await user.clear(command());
     await user.type(command(), '/preserved');
@@ -191,13 +202,13 @@ test('storage and unavailable failures keep drafts and block leaving, then allow
     act(() => {
       leave = requireValue(ref.current, 'the settings page').requestLeave();
     });
-    await click(user, 'Save and return');
+    await click(user, t('saveAndReturn'));
     assert.equal(await leave, false);
     assert.equal(command().value, '/preserved');
-    assert.ok(screen.getByRole('alert'));
+    assert.equal(screen.getByRole('alert').textContent, t('settingsWriteFailed'));
     assert.deepEqual(
       report.mock.calls.map(call => call.arguments),
-      [['Save failed; try again']],
+      [[t('settingsWriteFailed')]],
     );
     const saveSettings = mock.fn(async (patch: Partial<Settings>) => ({
       ok: true as const,
@@ -207,7 +218,7 @@ test('storage and unavailable failures keep drafts and block leaving, then allow
     act(() => {
       leave = requireValue(ref.current, 'the settings page').requestLeave();
     });
-    await click(user, 'Save and return');
+    await click(user, t('saveAndReturn'));
     assert.equal(await leave, true);
     assert.deepEqual(saveSettings.mock.calls[0].arguments, [
       { agents: { ...saved.agents, codex: { command: '/preserved', args: [] } } },
@@ -227,9 +238,9 @@ test('a pending ordinary save blocks repeated submissions and draft mutation', a
     fireEvent.submit(requireValue(command().closest('form'), 'the command form'));
     fireEvent.submit(requireValue(command().closest('form'), 'the command form'));
   });
-  await click(user, 'Save');
-  await click(user, 'Appearance');
-  await click(user, 'Discard changes');
+  await click(user, t('save'));
+  await click(user, t('appearance'));
+  await click(user, t('discardChanges'));
   await user.type(command(), '-late');
   assert.equal(command().value, 'codex-edited');
   assert.equal(saveSettings.mock.callCount(), 1);
@@ -253,13 +264,13 @@ test('cancel keeps a draft, discard allows leaving without saving, and unmount c
     leave = requireValue(ref.current, 'the settings page').requestLeave();
   });
   assert.equal(await requireValue(ref.current, 'the settings page').requestLeave(), false);
-  await click(user, 'Cancel');
+  await click(user, t('cancel'));
   assert.equal(await leave, false);
   assert.equal(command().value, 'codex-draft');
   act(() => {
     leave = requireValue(ref.current, 'the settings page').requestLeave();
   });
-  await click(user, 'Don’t save');
+  await click(user, t('dontSave'));
   assert.equal(await leave, true);
   act(() => {
     leave = requireValue(ref.current, 'the settings page').requestLeave();
@@ -275,22 +286,29 @@ test('late command checks cannot replace feedback for a newer or discarded draft
   );
   provideWorkbench({ checkCommand });
   const { user } = renderSettings();
+  const checkFirst = () => user.click(screen.getAllByRole('button', { name: t('checkCommand') })[0]);
+  const available = t('commandAvailable', { path: '/new-command' });
   assert.equal(checkCommand.mock.callCount(), 0);
-  await user.click(screen.getAllByRole('button', { name: 'Check command' })[0]);
+  await checkFirst();
   await user.clear(command());
   await user.type(command(), 'new');
-  await user.click(screen.getAllByRole('button', { name: 'Check command' })[0]);
-  assert.ok(screen.getByText('Command available: /new-command'));
+  await checkFirst();
+  assert.equal(screen.getByRole('textbox', { name: t('launchCommand'), description: available }), command());
   await act(async () => old.resolve({ available: false, message: 'stale result' }));
-  assert.equal(screen.queryByText('stale result'), null);
-  assert.ok(screen.getByText('Command available: /new-command'));
+  assert.equal(screen.getByRole('textbox', { name: t('launchCommand'), description: available }), command());
   const discarded = deferred<CommandCheck>();
   provideWorkbench({ checkCommand: () => discarded.promise });
-  await user.click(screen.getAllByRole('button', { name: 'Check command' })[0]);
-  await click(user, 'Discard changes');
+  await checkFirst();
+  await click(user, t('discardChanges'));
   await act(async () => discarded.resolve({ available: true, path: '/discarded-command' }));
   assert.equal(command().value, 'codex');
-  assert.equal(screen.queryByText('Command available: /discarded-command'), null);
+  assert.equal(
+    screen.queryByRole('textbox', {
+      name: t('launchCommand'),
+      description: t('commandAvailable', { path: '/discarded-command' }),
+    }),
+    null,
+  );
 });
 
 function shortcutConflictSettings(): Settings {
@@ -305,26 +323,25 @@ test('during a settings conflict every leave asks to fix the conflicting categor
   act(() => {
     leave = requireValue(ref.current, 'the settings page').requestLeave();
   });
-  const dialog = screen.getByRole('dialog');
-  assert.equal(
-    selectElement('p', dialog).textContent,
-    'Settings conflict in: Keyboard shortcuts. Fix and save them before returning.',
-  );
+  const conflict = t('settingsLeaveConflict', { categories: [t('shortcuts')] });
+  assert.deepEqual(descriptionParts(screen.getByRole('dialog')), [conflict]);
   assert.deepEqual(
-    [...dialog.querySelectorAll('button')].map(button => button.textContent),
-    ['Cancel', 'Save and return'],
+    within(screen.getByRole('dialog'))
+      .getAllByRole('button')
+      .map(button => button.textContent),
+    [t('cancel'), t('saveAndReturn')],
   );
-  await click(user, 'Cancel');
+  await click(user, t('cancel'));
   assert.equal(await leave, false);
   await user.type(command(), '-draft');
   act(() => {
     leave = requireValue(ref.current, 'the settings page').requestLeave();
   });
-  assert.deepEqual(
-    [...screen.getByRole('dialog').querySelectorAll('p')].map(paragraph => paragraph.textContent),
-    ['Settings conflict in: Keyboard shortcuts. Fix and save them before returning.', 'Unsaved changes in: Agent'],
-  );
-  await click(user, 'Cancel');
+  assert.deepEqual(descriptionParts(screen.getByRole('dialog')), [
+    conflict,
+    t('settingsUnsaved', { categories: [t('agents')] }),
+  ]);
+  await click(user, t('cancel'));
   assert.equal(await leave, false);
 });
 
@@ -338,13 +355,13 @@ test('save and return during a settings conflict submits the conflicting categor
         category: 'shortcuts',
         field: 'shortcuts.nextPanel',
         code: 'conflict',
-        message: 'Shortcut conflict: Close panel',
+        message: message('shortcutConflict', { actions: [{ message: message('closePanel') }] }),
       },
       {
         category: 'shortcuts',
         field: 'shortcuts.closePanel',
         code: 'conflict',
-        message: 'Shortcut conflict: Next panel',
+        message: message('shortcutConflict', { actions: [{ message: message('nextPanel') }] }),
       },
     ],
   }));
@@ -354,15 +371,15 @@ test('save and return during a settings conflict submits the conflicting categor
   act(() => {
     leave = requireValue(ref.current, 'the settings page').requestLeave();
   });
-  await click(user, 'Save and return');
+  await click(user, t('saveAndReturn'));
   assert.equal(await leave, false);
   assert.deepEqual(
     saveSettings.mock.calls.map(call => call.arguments),
     [[{ shortcuts: settings.shortcuts }]],
   );
-  assert.ok(screen.getByRole('heading', { name: 'Keyboard shortcuts settings' }));
-  assert.equal(document.activeElement, screen.getByRole('textbox', { name: 'Next panel' }));
-  assert.ok(screen.getByText('Settings conflicts prevent saving'));
+  assert.ok(screen.getByRole('heading', { name: t('categorySettings', { category: t('shortcuts') }) }));
+  assert.equal(document.activeElement, screen.getByRole('textbox', { name: t('nextPanel') }));
+  assert.equal(screen.getByRole('alert').textContent, t('settingsConflict'));
 });
 
 test('Workflows sits between Agent and Appearance, and saves the workflow switch and each command delivery', async () => {
@@ -373,14 +390,14 @@ test('Workflows sits between Agent and Appearance, and saves the workflow switch
   }));
   provideWorkbench({ saveSettings });
   const { user } = renderSettings(saved);
-  const categories = within(screen.getByRole('navigation', { name: 'Settings categories' })).getAllByRole('button');
+  const categories = within(screen.getByRole('navigation', { name: t('settingsCategories') })).getAllByRole('button');
   assert.deepEqual(
     categories.map(button => button.textContent),
-    ['General', 'Agent', 'Workflows', 'Appearance', 'Keyboard shortcuts'],
+    [t('general'), t('agents'), t('workflows'), t('appearance'), t('shortcuts')],
   );
-  await click(user, 'Workflows');
+  await click(user, t('workflows'));
   assert.equal(screen.queryByRole('checkbox'), null, 'the workflow switch is not a checkbox');
-  const enabled = screen.getByRole('switch', { name: "Matt's workflow" });
+  const enabled = screen.getByRole('switch', { name: t('workflowMatt') });
   assert.equal(enabled.getAttribute('aria-checked'), 'true', "Matt's workflow is on by default");
   const commands = screen.getAllByRole('radiogroup').map(group => group.getAttribute('aria-label'));
   assert.deepEqual(commands, [
@@ -398,18 +415,22 @@ test('Workflows sits between Agent and Appearance, and saves the workflow switch
     'grill-me {url}',
   ]);
   assert.ok(
-    screen.getAllByRole('radio', { name: 'Submit' }).every(radio => requireInstance(radio, HTMLInputElement).checked),
+    screen
+      .getAllByRole('radio', { name: t('deliverySubmit') })
+      .every(radio => requireInstance(radio, HTMLInputElement).checked),
     'every command submits by default',
   );
   assert.equal(screen.queryByRole('textbox'), null, 'commands cannot be added or edited');
   await user.click(
-    within(screen.getByRole('radiogroup', { name: 'tdd {url}' })).getByRole('radio', { name: 'Fill only' }),
+    within(screen.getByRole('radiogroup', { name: startsWith('tdd ') })).getByRole('radio', {
+      name: t('deliveryFill'),
+    }),
   );
   await user.click(enabled);
   assert.equal(enabled.getAttribute('aria-checked'), 'false', 'clicking the switch turns the workflow off');
-  await user.click(screen.getByRole('button', { name: "Show the commands of Matt's workflow" }));
+  await user.click(screen.getByRole('button', { name: t('showWorkflowCommands', { workflow: t('workflowMatt') }) }));
   assert.equal(screen.queryAllByRole('radiogroup').length, 0, 'collapsing hides the commands');
-  await click(user, 'Save');
+  await click(user, t('save'));
   assert.deepEqual(
     saveSettings.mock.calls.map(call => call.arguments),
     [
