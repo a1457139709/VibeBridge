@@ -1,5 +1,6 @@
 import { useLocalization } from '../common/Localization';
-import { useEffect, useId, useLayoutEffect, useRef, useState, type ReactNode } from 'react';
+import { useId, useRef, useState, type ReactNode } from 'react';
+import { flushSync } from 'react-dom';
 import { type Project, type ProjectEditResult, type ProjectView } from '../../shared/model';
 import { originElsewhereThanBinding, type RepositoryChoices } from '../../shared/forge/forge';
 import { projectNameMessage, projectNameProblem } from '../../shared/project-name';
@@ -8,7 +9,9 @@ import { useInspectedDirectory, usePastedNameProblem } from './project-form';
 import { directoryProblemMessage } from '../../shared/directory-problem';
 import { LaunchResults } from './LaunchResults';
 import { errorMessage } from '../../shared/caught-error';
-import { requireValue } from '../common/required';
+import { useEventListener } from '../common/effects/event-listener';
+import { useModalDialog, useModalDialogBeforePaint } from '../common/effects/modal-dialog';
+import { useRequestResult } from '../common/effects/request';
 import './project-management.css';
 
 export function ProjectNavigationItem({
@@ -26,30 +29,25 @@ export function ProjectNavigationItem({
   const [menu, setMenu] = useState<{ x: number; y: number }>();
   const [action, setAction] = useState<'edit' | 'delete'>();
   const menuElement = useRef<HTMLDivElement>(null);
-  useEffect(() => {
-    if (!menu) return;
+  const listening = menu ? window : null;
+  useEventListener(listening, 'pointerdown', event => {
+    if (!(event.target instanceof Node && menuElement.current?.contains(event.target))) setMenu(undefined);
+  });
+  useEventListener(listening, 'keydown', event => {
+    if (event.key === 'Escape') {
+      event.preventDefault();
+      setMenu(undefined);
+    }
+  });
+  const showMenu = (x: number, y: number) => {
+    flushSync(() =>
+      setMenu({
+        x: Math.max(8, Math.min(x, window.innerWidth - 168)),
+        y: Math.max(8, Math.min(y, window.innerHeight - 92)),
+      }),
+    );
     menuElement.current?.querySelector('button')?.focus();
-    const outside = (event: PointerEvent) => {
-      if (!(event.target instanceof Node && menuElement.current?.contains(event.target))) setMenu(undefined);
-    };
-    const escape = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') {
-        event.preventDefault();
-        setMenu(undefined);
-      }
-    };
-    window.addEventListener('pointerdown', outside);
-    window.addEventListener('keydown', escape);
-    return () => {
-      window.removeEventListener('pointerdown', outside);
-      window.removeEventListener('keydown', escape);
-    };
-  }, [menu]);
-  const showMenu = (x: number, y: number) =>
-    setMenu({
-      x: Math.max(8, Math.min(x, window.innerWidth - 168)),
-      y: Math.max(8, Math.min(y, window.innerHeight - 92)),
-    });
+  };
   return (
     <div
       className="project-row"
@@ -113,22 +111,10 @@ export function ProjectNavigationItem({
 }
 
 function useListedForDirectory(projectId: string, directory: string | null) {
-  const [listed, setListed] = useState<Extract<RepositoryChoices, { ok: true }>>();
-  useEffect(() => {
-    setListed(undefined);
-    if (directory === null) return;
-    let live = true;
-    void window.workbench.fetchRepositoryChoices(projectId, directory).then(
-      choices => {
-        if (live && choices.ok) setListed(choices);
-      },
-      () => {},
-    );
-    return () => {
-      live = false;
-    };
-  }, [projectId, directory]);
-  return listed;
+  const choices = useRequestResult(directory ?? undefined, listed =>
+    window.workbench.fetchRepositoryChoices(projectId, listed).catch(() => undefined),
+  );
+  return choices?.ok ? choices : undefined;
 }
 
 export function ProjectEditor({
@@ -143,7 +129,7 @@ export function ProjectEditor({
   openBinding(): void;
 }) {
   const { t, text, translate } = useLocalization();
-  const dialog = useRef<HTMLDialogElement>(null);
+  const dialog = useModalDialogBeforePaint();
   const [original] = useState(project);
   const running = project.panels.filter(panel => panel.run?.state === 'running').length;
   const [name, setName] = useState(project.name),
@@ -177,11 +163,6 @@ export function ProjectEditor({
   );
   const originElsewhere = originElsewhereThanBinding(boundRepository, listed);
   const canSave = !busy && !choosing && directoryField.canSave && !nameProblem;
-  useLayoutEffect(() => {
-    const element = requireValue(dialog.current, 'the edit project dialog');
-    element.showModal();
-    return () => element.close();
-  }, []);
   async function save(restart: boolean) {
     if (!canSave) return;
     setBusy(true);
@@ -390,14 +371,9 @@ export function ProjectEditor({
 
 function DeleteProject({ project, close }: { project: Project; close(): void }) {
   const { t, text } = useLocalization();
-  const dialog = useRef<HTMLDialogElement>(null);
+  const dialog = useModalDialog();
   const [busy, setBusy] = useState(false),
     [error, setError] = useState('');
-  useEffect(() => {
-    const element = requireValue(dialog.current, 'the delete project dialog');
-    element.showModal();
-    return () => element.close();
-  }, []);
   return (
     <dialog
       ref={dialog}
