@@ -2,10 +2,12 @@ import './support/dom';
 import assert from 'node:assert/strict';
 import test, { afterEach, before } from 'node:test';
 import { cleanup, fireEvent, screen, waitFor, within } from '@testing-library/react';
-import { stubSidebarApis, sidebar } from './support/forge-lists';
-import { issueDetail, listed, menu, record, row } from './support/dispatch';
+import { stubSidebarApis, summary } from './support/forge-lists';
+import { issueButton, issueDetail, listed, menu, record, row } from './support/dispatch';
+import { t } from './support/localization';
 import { requireValue } from '../../app/renderer/common/required';
-import { selectElement, focusedElement } from './support/elements';
+import { focusedElement } from './support/elements';
+import { forgeSidebar, detailHeading } from './support/sidebar-queries';
 
 afterEach(cleanup);
 before(stubSidebarApis);
@@ -17,31 +19,33 @@ const pressCommandKey = (code: 'KeyD' | 'KeyL') =>
     metaKey: true,
   });
 async function detailOf(number: number) {
-  const detail = await waitFor(() => selectElement('.forge-detail'));
-  await within(detail).findByRole('heading', { name: `Issue ${number} #${number}` });
+  const detail = await within(forgeSidebar()).findByRole('region', { name: t('issueDetail') });
+  await detailHeading(detail, summary(number).title, number);
   return detail;
 }
 
 test("⌘D opens the dispatch menu of the issue focused in the list, or the detail's own of the issue it shows, and is left alone elsewhere", async () => {
   const f = await listed();
   f.forge.issueDetail = async (_, number) => ({ ok: true, issue: issueDetail(number) });
-  within(row(9)).getByRole('button', { name: 'Issue 9' }).focus();
+  issueButton(9).focus();
   assert.equal(pressCommandKey('KeyD'), false);
   await waitFor(() => assert.equal(document.activeElement, menu()));
   assert.ok(row(9).contains(menu()), 'the menu opens on the row');
   await f.user.keyboard('{Escape}');
   await waitFor(() => assert.equal(screen.queryByRole('menu'), null));
-  within(row(8)).getByRole('button', { name: 'Issue 8' }).focus();
+  issueButton(8).focus();
   assert.equal(pressCommandKey('KeyD'), true, 'a closed issue is not dispatched');
-  await f.user.click(within(row(9)).getByRole('button', { name: 'Issue 9' }));
+  await f.user.click(issueButton(9));
   const detail = await detailOf(9);
-  within(detail).getByRole('button', { name: 'Close' }).focus();
+  within(detail)
+    .getByRole('button', { name: t('closeDetail') })
+    .focus();
   assert.equal(pressCommandKey('KeyD'), false);
   await waitFor(() => assert.equal(document.activeElement, menu()));
   assert.ok(detail.contains(menu()), 'the menu opens in the detail');
   await f.user.keyboard('{Escape}');
   await waitFor(() => assert.equal(screen.queryByRole('menu'), null));
-  screen.getByRole('button', { name: 'Add Agent' }).focus();
+  screen.getByRole('button', { name: t('addPanel') }).focus();
   assert.equal(pressCommandKey('KeyD'), true, 'outside the sidebar the key goes to the terminal');
 });
 
@@ -56,16 +60,20 @@ test("from a detail whose list row is not showing, ⌘D opens the detail's dispa
     f.snapshot.activeProjectId = id;
     f.publish();
   };
-  await f.user.click(within(row(9)).getByRole('button', { name: 'Issue 9' }));
+  await f.user.click(issueButton(9));
   const detail = await detailOf(9);
-  await f.user.click(within(sidebar()).getByRole('tab', { name: 'Pull requests' }));
-  within(detail).getByRole('button', { name: 'Close' }).focus();
+  await f.user.click(within(forgeSidebar()).getByRole('tab', { name: t('pullRequestsTab') }));
+  within(detail)
+    .getByRole('button', { name: t('closeDetail') })
+    .focus();
   assert.equal(pressCommandKey('KeyD'), false);
   await waitFor(() => assert.equal(document.activeElement, menu()));
   assert.ok(detail.contains(menu()));
   await f.user.keyboard('{ArrowLeft} ');
   await waitFor(() => assert.equal(f.dispatches.length, 1));
-  await waitFor(() => assert.equal(document.activeElement, within(detail).getByRole('button', { name: 'Dispatch' })));
+  await waitFor(() =>
+    assert.equal(document.activeElement, within(detail).getByRole('button', { name: t('dispatch') })),
+  );
   assert.equal(pressCommandKey('KeyL'), false);
   await waitFor(() => assert.deepEqual(activated, ['beta']));
 });
@@ -80,7 +88,7 @@ test('⌘L locates the dispatched panel of a closed issue', async () => {
     f.snapshot.activeProjectId = id;
     f.publish();
   };
-  within(row(8)).getByRole('button', { name: 'Issue 8' }).focus();
+  issueButton(8).focus();
   assert.equal(pressCommandKey('KeyL'), false);
   await waitFor(() => assert.deepEqual(activated, ['beta']));
 });
@@ -95,9 +103,9 @@ test("⌘L locates the panel of the focused issue's latest dispatch a panel is o
     f.snapshot.activeProjectId = id;
     f.publish();
   };
-  screen.getByRole('button', { name: 'Add Agent' }).focus();
+  screen.getByRole('button', { name: t('addPanel') }).focus();
   assert.equal(pressCommandKey('KeyL'), true, 'outside the sidebar the key goes to the terminal');
-  within(row(9)).getByRole('button', { name: 'Issue 9' }).focus();
+  issueButton(9).focus();
   assert.equal(pressCommandKey('KeyL'), false);
   await waitFor(() => assert.deepEqual(activated, ['beta']));
 });

@@ -6,6 +6,9 @@ import { userEvent } from '@testing-library/user-event';
 import { AgentPicker } from '../../app/renderer/workspace/AgentPicker';
 import { Localization } from '../../app/renderer/common/Localization';
 import { message } from '../../app/shared/messages';
+import { agentNames } from '../../app/shared/model';
+import { localize } from '../../app/shared/localization/localization';
+import { t } from './support/localization';
 import type { PanelCreation } from '../../app/shared/model';
 import { provideWorkbench } from './support/workbench';
 
@@ -19,6 +22,10 @@ const failed: PanelCreation = {
     agent: 'pi',
   },
 };
+
+const pi = { name: (name: string) => name.endsWith(agentNames.pi) };
+const hostReason = 'host timeout',
+  thrown = 'Panel limit';
 
 function renderPicker(language: 'en' | 'zh-CN' = 'en') {
   const close = mock.fn(),
@@ -35,10 +42,10 @@ function renderPicker(language: 'en' | 'zh-CN' = 'en') {
 test('a failed launch keeps the picker open with feedback that leads to Agent settings', async () => {
   provideWorkbench({ addPanel: async () => failed });
   const { user, close, onPanelAdded, openAgentSettings } = renderPicker();
-  await user.click(screen.getByRole('button', { name: /pi$/ }));
-  assert.equal(screen.getByRole('alert').textContent, 'Agent could not start');
+  await user.click(screen.getByRole('button', pi));
+  assert.equal(screen.getByRole('alert').textContent, t('launchFailed'));
   assert.equal(onPanelAdded.mock.callCount(), 0);
-  await user.click(screen.getByRole('button', { name: 'Open Agent settings' }));
+  await user.click(screen.getByRole('button', { name: t('openAgentSettings') }));
   assert.equal(close.mock.callCount(), 1);
   assert.equal(openAgentSettings.mock.callCount(), 1);
 });
@@ -46,21 +53,22 @@ test('a failed launch keeps the picker open with feedback that leads to Agent se
 test('the launch failure and its settings entry are localized', async () => {
   provideWorkbench({ addPanel: async () => failed });
   const { user } = renderPicker('zh-CN');
-  await user.click(screen.getByRole('button', { name: /pi$/ }));
-  assert.equal(screen.getByRole('alert').textContent, 'Agent 无法启动');
-  assert.ok(screen.getByRole('button', { name: '打开 Agent 设置' }));
+  await user.click(screen.getByRole('button', pi));
+  const zh = localize('zh-CN');
+  assert.equal(screen.getByRole('alert').textContent, zh.t('launchFailed'));
+  assert.ok(screen.getByRole('button', { name: zh.t('openAgentSettings') }));
 });
 
 test('an error that is not a launch failure offers no settings entry', async () => {
   provideWorkbench({
     addPanel: async () => {
-      throw new Error('Panel limit');
+      throw new Error(thrown);
     },
   });
   const { user } = renderPicker();
-  await user.click(screen.getByRole('button', { name: /pi$/ }));
-  assert.equal(screen.getByRole('alert').textContent, 'Panel limit');
-  assert.equal(screen.queryByRole('button', { name: 'Open Agent settings' }), null);
+  await user.click(screen.getByRole('button', pi));
+  assert.equal(screen.getByRole('alert').textContent, thrown);
+  assert.equal(screen.queryByRole('button', { name: t('openAgentSettings') }), null);
 });
 
 test('an unconfirmed launch reports its reason without suggesting the Agent settings are wrong', async () => {
@@ -71,13 +79,13 @@ test('an unconfirmed launch reports its reason without suggesting the Agent sett
         outcome: 'unconfirmed',
         agent: 'pi',
         run: { id: 'run', panelId: 'panel', projectId: 'project', state: 'starting' },
-        reason: message('launchUnconfirmed', { reason: 'host timeout' }),
+        reason: message('launchUnconfirmed', { reason: hostReason }),
       },
     }),
   });
   const { user, onPanelAdded } = renderPicker();
-  await user.click(screen.getByRole('button', { name: /pi$/ }));
-  assert.equal(screen.getByRole('alert').textContent, 'Launch could not be confirmed: host timeout');
-  assert.equal(screen.queryByRole('button', { name: 'Open Agent settings' }), null);
+  await user.click(screen.getByRole('button', pi));
+  assert.equal(screen.getByRole('alert').textContent, t('launchUnconfirmed', { reason: hostReason }));
+  assert.equal(screen.queryByRole('button', { name: t('openAgentSettings') }), null);
   assert.equal(onPanelAdded.mock.callCount(), 0);
 });

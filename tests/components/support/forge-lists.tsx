@@ -218,7 +218,6 @@ export function renderWorkbench(capabilities = githubCapabilities, api: Partial<
   return { user: userEvent.setup(), requests, request, snapshot, publish, forge, shownRows };
 }
 
-export const sidebar = forgeSidebar;
 export const refresh = () => within(forgeSidebar()).getByRole('button', { name: t('refresh') });
 export const stateFilter = (state: 'open' | 'closed', count: number) =>
   within(forgeSidebar()).getByRole('button', {
