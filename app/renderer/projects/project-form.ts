@@ -1,32 +1,31 @@
-import { useEffect, useState, type ClipboardEvent } from 'react';
+import { useState, type ClipboardEvent } from 'react';
 import { projectNameHasControls, type ProjectNameProblem } from '../../shared/project-name';
 import { errorMessage } from '../../shared/caught-error';
+import { useLatest } from '../common/effects/latest';
+import { useTimeout } from '../common/effects/timeout';
 import type { DirectoryCheck } from './directory-field';
 
 export function useInspectedDirectory(input: string, reportFailure: (message: string) => void) {
   const [checked, setChecked] = useState<{ input: string; check: DirectoryCheck }>();
-  useEffect(() => {
-    setChecked(undefined);
-    if (!input) return;
-    let live = true;
-    const timer = setTimeout(() => {
+  if (checked && checked.input !== input) setChecked(undefined);
+  const current = useLatest(input);
+  useTimeout(
+    () => {
+      const inspected = input;
       void window.workbench
-        .inspectDirectory(input)
+        .inspectDirectory(inspected)
         .then(check => {
-          if (live) setChecked({ input, check });
+          if (current.current === inspected) setChecked({ input: inspected, check });
         })
         .catch(error => {
-          if (!live) return;
-          setChecked({ input, check: { ok: false, problem: { kind: 'checkFailed' } } });
+          if (current.current !== inspected) return;
+          setChecked({ input: inspected, check: { ok: false, problem: { kind: 'checkFailed' } } });
           reportFailure(errorMessage(error));
         });
-    }, 180);
-    return () => {
-      live = false;
-      clearTimeout(timer);
-    };
-  }, [input]);
-  return checked;
+    },
+    { delay: input ? 180 : undefined, restartKey: input },
+  );
+  return checked?.input === input ? checked : undefined;
 }
 
 export function usePastedNameProblem() {
