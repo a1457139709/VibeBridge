@@ -35,6 +35,7 @@ import { IssueTree, issueRowOf, moveOrOpenRow, PullRequestRow, rowTitleIn } from
 import { VirtualRows } from './VirtualRows';
 import { useScrolledRows } from './scrolled-rows';
 import { SidebarHead } from './SidebarHead';
+import { StaleNotice } from './StaleNotice';
 import { useRowResting } from './row-resting';
 
 const tabText = {
@@ -293,7 +294,7 @@ export function ForgeLists({ project, changeBinding, detailHost, dispatchHost, v
   if (failed?.failure.kind === 'notInstalled')
     return fill(
       <>
-        <p>{t('forgeCliMissing', { cli: forge.cli })}</p>
+        <p role="alert">{t('forgeCliMissing', { cli: forge.cli })}</p>
         <a href={forge.installUrl} target="_blank" rel="noreferrer">
           {t('installInstructions')}
         </a>
@@ -303,7 +304,7 @@ export function ForgeLists({ project, changeBinding, detailHost, dispatchHost, v
   if (failed?.failure.kind === 'loggedOut')
     return fill(
       <>
-        <p>{t('forgeCliLoggedOut', { cli: forge.cli })}</p>
+        <p role="alert">{t('forgeCliLoggedOut', { cli: forge.cli })}</p>
         <button onClick={() => void navigator.clipboard.writeText(forge.loginCommand)}>
           {t('copyCommand', { command: forge.loginCommand })}
         </button>
@@ -313,7 +314,7 @@ export function ForgeLists({ project, changeBinding, detailHost, dispatchHost, v
   if (failed?.failure.kind === 'inaccessible')
     return fill(
       <>
-        <p>
+        <p role="alert">
           {failed.account === null
             ? t('repositoryInaccessibleNoAccount', { repository: project.repository.path, cli: forge.cli })
             : t('repositoryInaccessible', {
@@ -330,7 +331,9 @@ export function ForgeLists({ project, changeBinding, detailHost, dispatchHost, v
   if (failed && !loaded)
     return fill(
       <>
-        <p>{t(texts.loadFailed, { reason: nestedMessage(failed.failure.detail || failed.failure.kind) })}</p>
+        <p role="alert">
+          {t(texts.loadFailed, { reason: nestedMessage(failed.failure.detail || failed.failure.kind) })}
+        </p>
         {retry}
       </>,
     );
@@ -344,12 +347,7 @@ export function ForgeLists({ project, changeBinding, detailHost, dispatchHost, v
   return (
     <>
       {head}
-      {failed && (
-        <div className="forge-stale" title={text(failed.failure.detail)}>
-          <span>{t('dataMayBeStale')}</span>
-          {retry}
-        </div>
-      )}
+      {failed && <StaleNotice detail={text(failed.failure.detail)} retry={refresh} disabled={loading} />}
       <nav className="forge-tabs" role="tablist" aria-label={t('sidebarTabs')}>
         {forgeListTabs.map(item => (
           <button
@@ -406,8 +404,16 @@ export function ForgeLists({ project, changeBinding, detailHost, dispatchHost, v
             aria-label={t(texts.name)}
           />
         )}
-        {loaded && !loaded.items.length && <p className="forge-empty">{t(texts.noMatches)}</p>}
-        {!loaded && <p className="forge-empty">{t(texts.loading)}</p>}
+        {loaded && !loaded.items.length && (
+          <p className="forge-empty" role="status">
+            {t(texts.noMatches)}
+          </p>
+        )}
+        {!loaded && (
+          <p className="forge-empty" role="status">
+            {t(texts.loading)}
+          </p>
+        )}
         {loaded?.nextCursor && (
           <button
             className="forge-more"

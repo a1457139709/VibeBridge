@@ -45,15 +45,17 @@ export function RepositoryList({
       <div className="repository-error">
         {failure.kind === 'notInstalled' ? (
           <>
-            <span>{t('forgeNotInstalled', { cli: failure.forge.cli })}</span>
+            <span role="alert">{t('forgeNotInstalled', { cli: failure.forge.cli })}</span>
             <a href={failure.forge.installUrl} target="_blank" rel="noreferrer">
               {t('installInstructions')}
             </a>
           </>
         ) : failure.kind === 'loggedOut' ? (
-          <span>{t('forgeLoggedOut', { cli: failure.forge.cli, command: failure.forge.loginCommand })}</span>
+          <span role="alert">
+            {t('forgeLoggedOut', { cli: failure.forge.cli, command: failure.forge.loginCommand })}
+          </span>
         ) : (
-          <span>{t('repositoryListFailed', { reason })}</span>
+          <span role="alert">{t('repositoryListFailed', { reason })}</span>
         )}
         {retryButton}
       </div>
@@ -113,6 +115,8 @@ export function RepositoryList({
             role="option"
             key={item.path}
             id={optionId(item.path)}
+            aria-labelledby={`${optionId(item.path)}-path`}
+            aria-describedby={`${optionId(item.path)}-origin ${optionId(item.path)}-current`}
             data-path={item.path}
             aria-selected={sameRepository(item, selection)}
             className={[sameRepository(item, selection) && 'on', item.path === highlightedPath && 'reached']
@@ -123,9 +127,15 @@ export function RepositoryList({
             onMouseEnter={() => setHighlightedPath(item.path)}
             onClick={() => pick(item)}
           >
-            <span className="repository-path">{item.path}</span>
-            {sameRepository(item, origin) && <small>{t('repositoryOrigin')}</small>}
-            {sameRepository(item, boundRepository) && <small>{t('repositoryCurrent')}</small>}
+            <span className="repository-path" id={`${optionId(item.path)}-path`}>
+              {item.path}
+            </span>
+            {sameRepository(item, origin) && (
+              <small id={`${optionId(item.path)}-origin`}>{t('repositoryOrigin')}</small>
+            )}
+            {sameRepository(item, boundRepository) && (
+              <small id={`${optionId(item.path)}-current`}>{t('repositoryCurrent')}</small>
+            )}
           </button>
         ))}
         {!shown.length && <span className="muted repository-empty">{t('noRepositories')}</span>}
