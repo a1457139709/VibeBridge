@@ -261,7 +261,7 @@ test('the pull requests that close the issue on merge sit in their own block, cl
     'each, of the bound repository, opens in the sidebar',
   );
   assert.deepEqual(
-    items.map(item => within(item).getByRole('img').getAttribute('aria-label')),
+    items.map(item => within(item).getAllByRole('img').at(0)?.getAttribute('aria-label')),
     [
       'Open pull request',
       'Draft pull request',
