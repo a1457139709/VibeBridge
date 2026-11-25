@@ -22,6 +22,7 @@ import { linkedItem } from './ForgeDisplay';
 import { idleActions, type Actions, type ActionState } from './DirectActions';
 import { IssueDocument, type IssueDispatch } from './IssueDetail';
 import { PullRequestDocument } from './PullRequestDetail';
+import { StaleNotice } from './StaleNotice';
 import { withoutShortcutModifier } from '../../shared/settings/shortcuts';
 import { errorMessage } from '../../shared/caught-error';
 
@@ -147,18 +148,15 @@ export function ForgeDetailPane({
           ×
         </button>
       </header>
-      {stale && (
-        <div className="forge-stale" title={text(stale.detail)}>
-          <span>{t('dataMayBeStale')}</span>
-          <button onClick={retry}>{t('retry')}</button>
-        </div>
-      )}
+      {stale && <StaleNotice detail={text(stale.detail)} retry={retry} />}
       <div className="forge-detail-scroll" ref={scroller} tabIndex={-1}>
         {!result ? (
-          <p className="forge-empty">{t('loadingDetail', { number })}</p>
+          <p className="forge-empty" role="status">
+            {t('loadingDetail', { number })}
+          </p>
         ) : !result.ok ? (
           <div className="forge-sidebar-state">
-            <p>
+            <p role="alert">
               {t('detailLoadFailed', { number, reason: nestedMessage(result.failure.detail || result.failure.kind) })}
             </p>
             <button

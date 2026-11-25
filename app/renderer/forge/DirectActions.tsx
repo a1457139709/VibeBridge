@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useId, useState } from 'react';
 import { useLocalization } from '../common/Localization';
 import { usePopover } from '../common/popover';
 import './direct-actions.css';
@@ -40,13 +40,14 @@ const actionName = (action: DirectAction) =>
 
 export function ActionFailure({ actions }: { actions: Actions }) {
   const { t } = useLocalization();
+  const failure = useId();
   const { failed } = actions;
   if (!failed) return null;
   const { action } = failed;
   return (
     <div className="forge-action-error" role="alert">
-      <span>{t('actionFailed', { action: t(actionName(action)), reason: failed.detail })}</span>
-      <button className="forge-text-button" onClick={() => actions.perform(action)}>
+      <span id={failure}>{t('actionFailed', { action: t(actionName(action)), reason: failed.detail })}</span>
+      <button className="forge-text-button" onClick={() => actions.perform(action)} aria-describedby={failure}>
         {t('retry')}
       </button>
       <button
@@ -146,6 +147,7 @@ export function PullRequestActions({
   const methods = pullRequest.mergeOptions.methods.filter(method => capabilities.mergeMethods.includes(method));
   const method = methods.includes(chosen) ? chosen : (methods[0] ?? null);
   const reasons = mergeBlockedReasons(pullRequest, forge, t);
+  const why = useId();
   const blocked = !!reasons.length || !method;
   const choose = (next: MergeMethod) => {
     setChosen(next);
@@ -171,10 +173,10 @@ export function PullRequestActions({
       <div className="forge-merge-buttons">
         {capabilities.mergeQueue && pullRequest.mergeOptions.queue ? (
           <span className="forge-merge-why">
-            <button className="forge-btn" disabled>
+            <button className="forge-btn" disabled aria-describedby={why}>
               {t('mergeButton')}
             </button>
-            {t('mergeQueueNote')}
+            <span id={why}>{t('mergeQueueNote')}</span>
             <a href={pullRequest.url} target="_blank" rel="noreferrer">
               {t('openOnForge', { forge })}
             </a>
@@ -182,13 +184,19 @@ export function PullRequestActions({
         ) : (
           <span className="forge-merge-why">
             <span className={`forge-split ${blocked ? 'weak' : ''}`} ref={menu.root}>
-              <button className="forge-split-main" disabled={blocked || busy} onClick={merge}>
+              <button
+                className="forge-split-main"
+                disabled={blocked || busy}
+                onClick={merge}
+                aria-describedby={reasons.length ? why : undefined}
+              >
                 {mainLabel}
               </button>
               <button
                 className="forge-split-more"
                 disabled={blocked || busy}
                 aria-label={t('chooseMergeMethod')}
+                aria-describedby={reasons.length ? why : undefined}
                 aria-haspopup="menu"
                 aria-expanded={menu.open}
                 onClick={() => menu.setOpen(open => !open)}
@@ -205,7 +213,11 @@ export function PullRequestActions({
                 </div>
               )}
             </span>
-            {!!reasons.length && <span className="forge-muted">{t('cannotMerge', { reasons })}</span>}
+            {!!reasons.length && (
+              <span className="forge-muted" id={why}>
+                {t('cannotMerge', { reasons })}
+              </span>
+            )}
           </span>
         )}
         <span className="forge-spacer" />
