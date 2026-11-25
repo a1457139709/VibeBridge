@@ -1,4 +1,7 @@
-import { useEffect, useLayoutEffect, useRef, useState } from 'react';
+import { useRef, useState } from 'react';
+import { useEventListener } from './effects/event-listener';
+import { useTimeout } from './effects/timeout';
+import { useElementMeasurement } from './effects/element-measurement';
 
 const showDelay = 400;
 const gap = 6,
@@ -10,62 +13,50 @@ const hinted = (target: EventTarget | null) => {
 
 export function HoverHints() {
   const [anchor, setAnchor] = useState<HTMLElement>();
+  const [awaited, setAwaited] = useState<{ element: HTMLElement; delay: number }>();
+  const hovered = useRef<HTMLElement | null>(null);
+  const focused = useRef<HTMLElement | null>(null);
   const hint = useRef<HTMLDivElement>(null);
-  useEffect(() => {
-    let timer: ReturnType<typeof setTimeout> | undefined;
-    let hovered: HTMLElement | null = null,
-      focused: HTMLElement | null = null;
-    const show = (element: HTMLElement, delay: number) => {
-      clearTimeout(timer);
-      timer = setTimeout(() => setAnchor(element), delay);
-    };
-    const hide = () => {
-      clearTimeout(timer);
-      setAnchor(focused ?? undefined);
-    };
-    const over = (event: PointerEvent) => {
-      const element = hinted(event.target);
-      if (element === hovered) return;
-      hovered = element;
-      if (element) {
-        setAnchor(undefined);
-        show(element, showDelay);
-      } else hide();
-    };
-    const leave = (event: PointerEvent) => {
-      if (hinted(event.relatedTarget)) return;
-      hovered = null;
+  useTimeout(() => setAnchor(awaited?.element), { delay: awaited?.delay, restartKey: awaited });
+  const show = (element: HTMLElement, delay: number) => setAwaited({ element, delay });
+  const hide = () => {
+    setAwaited(undefined);
+    setAnchor(focused.current ?? undefined);
+  };
+  useEventListener(document, 'pointerover', event => {
+    const element = hinted(event.target);
+    if (element === hovered.current) return;
+    hovered.current = element;
+    if (element) {
+      setAnchor(undefined);
+      show(element, showDelay);
+    } else hide();
+  });
+  useEventListener(document, 'pointerout', event => {
+    if (hinted(event.relatedTarget)) return;
+    hovered.current = null;
+    hide();
+  });
+  useEventListener(
+    document,
+    'pointerdown',
+    () => {
+      focused.current = null;
       hide();
-    };
-    const press = () => {
-      focused = null;
-      hide();
-    };
-    const focus = (event: FocusEvent) => {
-      const element = hinted(event.target);
-      focused = element?.matches(':focus-visible') ? element : null;
-      if (focused) show(focused, 0);
-      else if (!hovered) hide();
-    };
-    const blur = () => {
-      focused = null;
-      if (!hovered) hide();
-    };
-    document.addEventListener('pointerover', over);
-    document.addEventListener('pointerout', leave);
-    document.addEventListener('pointerdown', press, true);
-    document.addEventListener('focusin', focus);
-    document.addEventListener('focusout', blur);
-    return () => {
-      clearTimeout(timer);
-      document.removeEventListener('pointerover', over);
-      document.removeEventListener('pointerout', leave);
-      document.removeEventListener('pointerdown', press, true);
-      document.removeEventListener('focusin', focus);
-      document.removeEventListener('focusout', blur);
-    };
-  }, []);
-  useLayoutEffect(() => {
+    },
+    { capture: true },
+  );
+  useEventListener(document, 'focusin', event => {
+    const element = hinted(event.target);
+    focused.current = element?.matches(':focus-visible') ? element : null;
+    if (focused.current) show(focused.current, 0);
+    else if (!hovered.current) hide();
+  });
+  useEventListener(document, 'focusout', () => {
+    focused.current = null;
+    if (!hovered.current) hide();
+  });
+  useElementMeasurement(() => {
     const element = hint.current;
     if (!anchor || !element) return;
     const box = anchor.getBoundingClientRect(),

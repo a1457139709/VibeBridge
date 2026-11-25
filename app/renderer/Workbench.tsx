@@ -1,9 +1,11 @@
 import { HoverHints } from './common/HoverHints';
 import { Localization, useLocalization } from './common/Localization';
-import { useEffect, useRef, useState } from 'react';
+import { useRef, useState } from 'react';
+import { useSubscription, type Subscribe } from './common/effects/subscription';
+import { useEventListener } from './common/effects/event-listener';
 import { flushSync } from 'react-dom';
 import type {} from '../shared/api';
-import { newDraft, type Snapshot } from '../shared/model';
+import { newDraft, type Snapshot, type WorkbenchEvent } from '../shared/model';
 import { useProjectNavigation } from './projects/ProjectNavigation';
 import { useForgeSidebar } from './forge/ForgeSidebar';
 import { fitRegions, useWindowWidth, type Region, type RegionFit, type WidestOnResize } from './common/region-widths';
@@ -19,21 +21,39 @@ import { configureTerminals, reconcileTerminals, applyTerminalEvent, setTerminal
 import { errorMessage } from '../shared/caught-error';
 import { requireValue } from './common/required';
 
+type WorkbenchConnection =
+  | { kind: 'opened'; snapshot: Snapshot }
+  | { kind: 'openFailed'; error: unknown }
+  | { kind: 'event'; event: WorkbenchEvent };
+
+const connectToWorkbench: Subscribe<WorkbenchConnection> = receive => {
+  let unsubscribe = () => {};
+  void window.workbench
+    .fetchSnapshot()
+    .then(async snapshot => {
+      receive({ kind: 'opened', snapshot });
+      unsubscribe = window.workbench.subscribe(event => receive({ kind: 'event', event }));
+      await window.workbench.reportRendererReady();
+    })
+    .catch(error => receive({ kind: 'openFailed', error }));
+  return () => unsubscribe();
+};
+
 export function App() {
   const [snapshot, setSnapshot] = useState<Snapshot>();
-  useEffect(() => {
-    const language = snapshot?.settings.language ?? 'en';
-    document.documentElement.lang = language;
-    setTerminalLanguage(language);
-  }, [snapshot?.settings.language]);
+  const showSnapshot = (next: Snapshot) => {
+    document.documentElement.lang = next.settings.language;
+    setTerminalLanguage(next.settings.language);
+    setSnapshot(next);
+  };
   return (
     <Localization language={snapshot?.settings.language ?? 'en'}>
-      <WorkbenchView snapshot={snapshot} setSnapshot={setSnapshot} />
+      <WorkbenchView snapshot={snapshot} showSnapshot={showSnapshot} />
     </Localization>
   );
 }
 
-function WorkbenchView({ snapshot, setSnapshot }: { snapshot?: Snapshot; setSnapshot(snapshot: Snapshot): void }) {
+function WorkbenchView({ snapshot, showSnapshot }: { snapshot?: Snapshot; showSnapshot(snapshot: Snapshot): void }) {
   const { t } = useLocalization();
   const [draft, setDraft] = useState(newDraft);
   const [setupOpen, setSetupOpen] = useState(false);
@@ -50,30 +70,26 @@ function WorkbenchView({ snapshot, setSnapshot }: { snapshot?: Snapshot; setSnap
     showWorkbench: () => setSetupOpen(false),
     report,
   });
-  useEffect(() => {
-    let unsubscribe = () => {};
-    void window.workbench
-      .fetchSnapshot()
-      .then(async initial => {
-        const dark = initial.resolvedTheme === 'dark';
-        document.documentElement.dataset.theme = dark ? 'dark' : 'light';
-        configureTerminals(dark, report);
-        setSnapshot(initial);
-        setSetupOpen(!initial.projects.length);
-        initial.errors.forEach(message => report(message));
-        reconcileTerminals(initial.projects);
-        unsubscribe = window.workbench.subscribe(event => {
-          if (event.kind === 'snapshot') {
-            reconcileTerminals(event.snapshot.projects);
-            flushSync(() => setSnapshot(event.snapshot));
-          } else if (event.kind === 'error') report(event.message);
-          applyTerminalEvent(event);
-        });
-        await window.workbench.reportRendererReady();
-      })
-      .catch(error => report(errorMessage(error)));
-    return () => unsubscribe();
-  }, []);
+  useSubscription(connectToWorkbench, connection => {
+    if (connection.kind === 'opened') {
+      const initial = connection.snapshot;
+      const dark = initial.resolvedTheme === 'dark';
+      document.documentElement.dataset.theme = dark ? 'dark' : 'light';
+      configureTerminals(dark, report);
+      showSnapshot(initial);
+      setSetupOpen(!initial.projects.length);
+      initial.errors.forEach(message => report(message));
+      reconcileTerminals(initial.projects);
+    } else if (connection.kind === 'openFailed') report(errorMessage(connection.error));
+    else {
+      const { event } = connection;
+      if (event.kind === 'snapshot') {
+        reconcileTerminals(event.snapshot.projects);
+        flushSync(() => showSnapshot(event.snapshot));
+      } else if (event.kind === 'error') report(event.message);
+      applyTerminalEvent(event);
+    }
+  });
   async function leaveSettings(action: () => void = () => {}) {
     if (leavingSettings.current) return;
     leavingSettings.current = true;
@@ -152,8 +168,10 @@ function WorkbenchView({ snapshot, setSnapshot }: { snapshot?: Snapshot; setSnap
   );
   drawn.current = fits;
   const conflictCategory = snapshot?.settingsConflicts[0]?.category;
-  useEffect(() => {
-    const keydown = (event: KeyboardEvent) => {
+  useEventListener(
+    window,
+    'keydown',
+    event => {
       if (
         !snapshot ||
         !document.hasFocus() ||
@@ -186,10 +204,9 @@ function WorkbenchView({ snapshot, setSnapshot }: { snapshot?: Snapshot; setSnap
         event.preventDefault();
         event.stopImmediatePropagation();
       }
-    };
-    window.addEventListener('keydown', keydown, true);
-    return () => window.removeEventListener('keydown', keydown, true);
-  });
+    },
+    { capture: true },
+  );
   return (
     <div className="app">
       <header className="system-bar">

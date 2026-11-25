@@ -1,4 +1,6 @@
-import { useLayoutEffect, useRef, useState, type PointerEvent } from 'react';
+import { useRef, useState, type PointerEvent } from 'react';
+import { useSubscriptionBeforePaint } from './effects/subscription';
+import { useUnmountCleanupBeforePaint } from './effects/unmount';
 import type { DesktopAPI } from '../../shared/api';
 import { sidebars, type Sidebar, type SidebarPreferences, type Snapshot } from '../../shared/model';
 import { errorMessage } from '../../shared/caught-error';
@@ -24,35 +26,26 @@ export function useSidebarPreferences(options: Options) {
   const { defaults } = sidebars[sidebar];
   const latest = useRef(options);
   latest.current = options;
-  const [preferences, setPreferences] = useState<SidebarPreferences>(defaults);
-  const settled = useRef<SidebarPreferences>(defaults);
-  const stored = useRef<SidebarPreferences>(defaults);
-  const initialized = useRef(false);
+  const [shown, setShown] = useState<SidebarPreferences>();
+  const preferences = shown ?? snapshot?.[sidebar] ?? defaults;
+  const settled = useRef<SidebarPreferences>(undefined);
+  const stored = useRef<SidebarPreferences>(undefined);
   const pending = useRef<object | undefined>(undefined);
   const cancelResize = useRef<(() => void) | undefined>(undefined);
-  useLayoutEffect(() => {
-    if (snapshot && !initialized.current) {
-      initialized.current = true;
-      settled.current = stored.current = snapshot[sidebar];
-      setPreferences(settled.current);
+  const storedBeforeAnyEvent = () => latest.current.snapshot?.[latest.current.sidebar] ?? defaults;
+  const settledPreferences = () => settled.current ?? storedBeforeAnyEvent();
+  useSubscriptionBeforePaint(subscribe, event => {
+    if (event.kind !== 'snapshot') return;
+    stored.current = event.snapshot[latest.current.sidebar];
+    if (!pending.current) {
+      settled.current = stored.current;
+      setShown(settled.current);
     }
-  }, [snapshot]);
-  useLayoutEffect(() => {
-    const unsubscribe = subscribe(event => {
-      if (event.kind !== 'snapshot') return;
-      initialized.current = true;
-      stored.current = event.snapshot[latest.current.sidebar];
-      if (!pending.current) {
-        settled.current = stored.current;
-        setPreferences(settled.current);
-      }
-    });
-    return () => {
-      unsubscribe();
-      pending.current = undefined;
-      cancelResize.current?.();
-    };
-  }, [subscribe]);
+  });
+  useUnmountCleanupBeforePaint(() => {
+    pending.current = undefined;
+    cancelResize.current?.();
+  });
 
   function replaceOperation() {
     const operation = {};
@@ -67,21 +60,21 @@ export function useSidebarPreferences(options: Options) {
         if (pending.current !== operation) return;
         pending.current = undefined;
         settled.current = stored.current = next;
-        setPreferences(next);
+        setShown(next);
       })
       .catch(error => {
         if (pending.current !== operation) return;
         pending.current = undefined;
         settled.current = stored.current;
-        setPreferences(settled.current);
+        setShown(settled.current);
         latest.current.report(errorMessage(error));
       });
   }
   function toggle() {
     if (!latest.current.snapshot) return preferences.visible;
-    const next = { ...settled.current, visible: !preferences.visible };
+    const next = { ...settledPreferences(), visible: !preferences.visible };
     const operation = replaceOperation();
-    setPreferences(next);
+    setShown(next);
     save(operation, next);
     return next.visible;
   }
@@ -93,14 +86,14 @@ export function useSidebarPreferences(options: Options) {
     const widest = latest.current.widestOnResize(current);
     const bounded = (width: number) => draggedWidth(width, minWidth, widest);
     const operation = replaceOperation();
-    const base = settled.current;
+    const base = settledPreferences();
     const element = event.currentTarget,
       start = event.clientX;
     const width = requireValue(element.parentElement, 'the sidebar').getBoundingClientRect().width;
     let next = bounded(width);
     const move = (pointer: globalThis.PointerEvent) => {
       next = bounded(width + edge * (pointer.clientX - start));
-      setPreferences({ ...base, width: next });
+      setShown({ ...base, width: next });
     };
     const finish = (commit: boolean) => {
       window.removeEventListener('blur', cancel);
@@ -110,7 +103,7 @@ export function useSidebarPreferences(options: Options) {
       else {
         pending.current = undefined;
         settled.current = stored.current;
-        setPreferences(settled.current);
+        setShown(settled.current);
       }
     };
     const cancel = capturePointer(element, event.pointerId, { move, finish });

@@ -1,9 +1,4 @@
 {
-  "app/renderer/Workbench.tsx": 3,
-  "app/renderer/common/HoverHints.tsx": 2,
-  "app/renderer/common/Notices.tsx": 1,
-  "app/renderer/common/popover.ts": 1,
-  "app/renderer/common/sidebar-preferences.ts": 2,
   "app/renderer/dispatch/DispatchMenu.tsx": 3,
   "app/renderer/forge/ForgeDetail.tsx": 2,
   "app/renderer/forge/ForgeLists.tsx": 9,
