@@ -1,6 +1,8 @@
 const assert = require('node:assert/strict');
 const { mkdir, readFile, writeFile } = require('node:fs/promises');
-const { runsOf, storedProjects } = require('./support/panel-views.cjs');
+const { runsOf, showing, statusOf, storedProjects } = require('./support/panel-views.cjs');
+const { localize, t, named } = require('./support/localization.cjs');
+const { summaryStates, summaryEntry, entryLabel, entryLabels } = require('./support/summary-entries.cjs');
 
 const visiblePanels = evaluate =>
   evaluate(
@@ -23,24 +25,31 @@ module.exports = {
       second: { axis: 'column', ratio: 0.4, first: { panel: second.panelId }, second: { panel: third.panelId } },
     };
     await evaluate(`window.workbench.saveLayout(${JSON.stringify(f.projectId)}, ${JSON.stringify(layout)})`);
+    const counted = await f.snapshot();
     assert.deepEqual(
-      await evaluate('[...document.querySelectorAll(".summary-entry")].map(button => button.textContent)'),
-      ['0 Ready', '1 Needs input', '2 Done', '0 Error'],
+      summaryStates.map(state => showing(counted, f.projectId, state).length),
+      [0, 1, 2, 0],
+    );
+    assert.deepEqual(
+      await evaluate(
+        '[...document.querySelectorAll(".summary-entry")].map(button => button.getAttribute("aria-label"))',
+      ),
+      entryLabels(counted, f.projectId),
     );
     await f.choose('done', second);
     await f.receiveInput(second, 'split-selection');
     assert.equal(await visiblePanels(evaluate), 3);
     await evaluate(
-      `document.querySelector('[data-panel-id="${first.panelId}"] button[aria-label="Maximize panel"]').click()`,
+      `document.querySelector(${named(`[data-panel-id="${first.panelId}"] button`, t('enlargePanel'))}).click()`,
     );
     await f.choose('done', second);
     await f.receiveInput(second, 'maximized-selection');
     assert.equal(await visiblePanels(evaluate), 1);
-    await click('Global settings');
+    await click(t('settings'));
     assert.equal(await summaryShown(), false, 'the settings page shows no summary');
-    await click('‹ Back');
+    await click(t('back'));
     await until(summaryShown, 'project summary shown after leaving settings');
-    await click('Restore panel');
+    await click(t('restorePanel'));
     await f.choose('done', first);
     await f.receiveInput(first, 'restored-split-selection');
     assert.equal(await visiblePanels(evaluate), 3);
@@ -88,25 +97,33 @@ module.exports = {
       `window.workbench.createProject(${JSON.stringify({ name: 'Other summary project', directory: otherDirectory, total: 1, counts: { codex: 1, claude: 0, pi: 0 } })})`,
     );
     await click('Other summary project');
+    await until(async () => (await f.snapshot()).activeProjectId !== f.projectId, 'other summary project active');
     await f.send(third, { payload: { hook_event_name: 'Stop' } });
+    await until(async () => statusOf(await f.snapshot(), third.id) === 'done', 'background project run is done');
     await until(
       () =>
         evaluate(
-          `document.querySelector('[data-locate-panel-id="${third.panelId}"] .processing-status')?.getAttribute('aria-label') === 'Done'`,
+          `document.querySelector('[data-locate-panel-id="${third.panelId}"] .processing-status')?.getAttribute('aria-label') === ${JSON.stringify(t('done'))}`,
         ),
-      'navigation shows Done for the background project panel',
+      'navigation shows the done status for the background project panel',
     );
+    const background = await f.snapshot();
+    assert.equal(showing(background, background.activeProjectId, 'done').length, 0);
     assert.equal(await evaluate('document.querySelectorAll(".project-summary").length'), 1);
-    assert.ok(
-      await evaluate(
-        '[...document.querySelectorAll(".summary-entry")].some(button => button.textContent === "0 Done")',
-      ),
+    assert.equal(
+      await evaluate(`${summaryEntry('done')}.getAttribute('aria-label')`),
+      entryLabel('done', 0),
+      'the summary counts the active project only',
     );
     await click(project.name);
+    await until(async () => (await f.snapshot()).activeProjectId === f.projectId, 'summary project active again');
     await until(
-      () =>
-        evaluate('[...document.querySelectorAll(".summary-entry")].some(button => button.textContent === "3 Done")'),
-      'summary shows "3 Done" after returning',
+      async () => showing(await f.snapshot(), f.projectId, 'done').length === 3,
+      'summary project has 3 done panels',
+    );
+    await until(
+      () => evaluate(`${summaryEntry('done')}.getAttribute('aria-label') === ${JSON.stringify(entryLabel('done', 3))}`),
+      'summary counts 3 done after returning',
     );
 
     for (let i = 0; i < 7; i++) {
@@ -124,6 +141,10 @@ module.exports = {
       );
     }
     await click(project.name);
+    await until(
+      async () => showing(await f.snapshot(), f.projectId, 'done').length === 10,
+      'summary project has 10 done panels',
+    );
     for (const language of ['en', 'zh-CN']) {
       await evaluate(`window.workbench.saveSettings({ language: ${JSON.stringify(language)} })`);
       await until(
@@ -142,7 +163,7 @@ module.exports = {
             `window content is ${size[0]}px wide`,
           );
           for (const collapsed of [false, true]) {
-            if (collapsed) await click(language === 'en' ? 'Collapse project navigation' : '折叠项目导航');
+            if (collapsed) await click(localize(language).t('collapseNavigation'));
             await f.open('done');
             const geometry = await evaluate(`(() => {
               const bar = document.querySelector('.workspace-toolbar').getBoundingClientRect();
@@ -168,9 +189,9 @@ module.exports = {
             await until(() => evaluate('!document.querySelector(".summary-list")'), 'summary list closed by Escape');
             assert.equal(
               await evaluate('document.activeElement.getAttribute("aria-label")'),
-              language === 'en' ? '10 Done' : '10 本轮结束',
+              entryLabel('done', 10, language),
             );
-            if (collapsed) await click(language === 'en' ? 'Expand project navigation' : '展开项目导航');
+            if (collapsed) await click(localize(language).t('expandNavigation'));
           }
         }
       }
@@ -190,7 +211,7 @@ module.exports = {
           () => evaluate(`document.documentElement.clientWidth === ${width}`),
           `window content is ${width}px wide`,
         );
-        for (const navigation of ['Collapse project navigation', 'Expand project navigation']) {
+        for (const navigation of ['collapseNavigation', 'expandNavigation']) {
           const measure = () =>
             evaluate(`(() => {
             const bar = document.querySelector('.workspace-toolbar').getBoundingClientRect();
@@ -198,7 +219,8 @@ module.exports = {
             const add = document.querySelector('.workspace-toolbar > button').getBoundingClientRect();
             return { centred: Math.abs(summary.left + summary.width / 2 - (bar.left + bar.width / 2)) < 1,
               addAtRight: add.left >= summary.right && add.right <= bar.right,
-              text: [...document.querySelector('.workspace-toolbar').childNodes].filter(node => !node.matches?.('.project-summary')).map(node => node.textContent).join(''),
+              others: [...document.querySelector('.workspace-toolbar').childNodes].filter(node => !node.matches?.('.project-summary'))
+                .map(node => node.nodeType === Node.ELEMENT_NODE ? node.getAttribute('aria-label') : node.textContent),
               entries: [...document.querySelectorAll('.summary-entry')].map(entry => {
                 const box = entry.getBoundingClientRect();
                 return { named: entry.querySelector('.summary-name').checkVisibility(), label: entry.getAttribute('aria-label'), hint: entry.dataset.hint,
@@ -215,7 +237,11 @@ module.exports = {
             { context: () => `toolbar: ${JSON.stringify(toolbar)}` },
           );
           assert.ok(toolbar.addAtRight);
-          assert.equal(toolbar.text, '＋', 'no project name, directory or panel count');
+          assert.deepEqual(
+            toolbar.others,
+            [localize(language).t('addPanel')],
+            'no project name, directory or panel count',
+          );
           assert.equal(toolbar.entries.length, 4);
           for (const entry of toolbar.entries) {
             assert.ok(entry.inside, `${entry.label} at ${width}px`);
@@ -224,12 +250,10 @@ module.exports = {
           const toolbarLeft = () =>
             evaluate('document.querySelector(".workspace-toolbar").getBoundingClientRect().left');
           const left = await toolbarLeft();
-          await click(
-            language === 'en' ? navigation : navigation.startsWith('Collapse') ? '折叠项目导航' : '展开项目导航',
-          );
+          await click(localize(language).t(navigation));
           await until(
             async () => (await toolbarLeft()) !== left,
-            `toolbar moved with the ${navigation.startsWith('Collapse') ? 'collapsed' : 'expanded'} navigation`,
+            `toolbar moved with the ${navigation === 'collapseNavigation' ? 'collapsed' : 'expanded'} navigation`,
           );
         }
       }
@@ -238,7 +262,7 @@ module.exports = {
     await evaluate('window.workbench.saveSettings({ language: "en" })');
     await until(() => evaluate('document.documentElement.lang === "en"'), 'interface switched to en');
     await evaluate(
-      `document.querySelector('[data-panel-id="${second.panelId}"] button[aria-label="Maximize panel"]').click()`,
+      `document.querySelector(${named(`[data-panel-id="${second.panelId}"] button`, t('enlargePanel'))}).click()`,
     );
     await writeFile(`${directory}/summary-expected.json`, JSON.stringify(await f.snapshot()));
     console.log(
@@ -259,7 +283,8 @@ module.exports = {
       async () => (await visiblePanels(evaluate)) === active.panels.length,
       'reopened layout shows every panel',
     );
-    assert.equal(await evaluate(`document.querySelectorAll('.canvas button[aria-label="Restore panel"]').length`), 0);
+    assert.equal(await evaluate(`document.querySelectorAll(${named('.canvas button', t('restorePanel'))}).length`), 0);
+
     console.log('Reopening retained the saved layout, with fresh runs and no persisted temporary maximize.');
   },
 };

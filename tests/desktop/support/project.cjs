@@ -1,3 +1,5 @@
+const { t } = require('./localization.cjs');
+
 module.exports = async (
   { evaluate, until, click, fill, directory },
   name = 'Desktop project',
@@ -11,11 +13,12 @@ module.exports = async (
   await fill('project-directory', directory);
   const total = Object.values(counts).reduce((sum, count) => sum + count, 0);
   const current = await evaluate('Number(document.querySelector(".quantity-row output").textContent)');
-  for (let step = current; step > total; step--) await click('Decrease Window count');
-  for (let step = current; step < total; step++) await click('Increase Window count');
-  for (const [agent, count] of Object.entries(counts)) for (let i = 0; i < count; i++) await click(`Increase ${agent}`);
+  for (let step = current; step > total; step--) await click(t('decrease', { label: t('windowCount') }));
+  for (let step = current; step < total; step++) await click(t('increase', { label: t('windowCount') }));
+  for (const [agent, count] of Object.entries(counts))
+    for (let i = 0; i < count; i++) await click(t('increase', { label: agent }));
   await until(() => evaluate('!document.querySelector("button[type=submit]").disabled'), 'Create and start enabled');
-  await click('Create and start');
+  await click(t('createAndStart'));
   await until(
     () => evaluate(`document.querySelectorAll(".canvas .xterm-rows").length === ${total}`),
     `${total} panel terminals drawn in the layout area`,

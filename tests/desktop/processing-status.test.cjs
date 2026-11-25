@@ -1,6 +1,7 @@
 const assert = require('node:assert/strict');
 const { resolve } = require('node:path');
 const { runsOf, statusOf } = require('./support/panel-views.cjs');
+const { localize, t, named } = require('./support/localization.cjs');
 
 module.exports = {
   async run(context) {
@@ -12,38 +13,27 @@ module.exports = {
     const created = await require('./support/project.cjs')(context, 'Status panels', { Codex: 5 });
     const projectId = created.activeProjectId;
     const runs = runsOf(await evaluate('window.workbench.fetchSnapshot()'));
+    const check = require('./support/status-display.cjs')(context);
     const cases = [
-      ['ready', 'Ready', { hook_event_name: 'SessionStart', source: 'startup' }],
-      ['busy', 'Busy', { hook_event_name: 'UserPromptSubmit' }],
-      ['needs-input', 'Needs input', { hook_event_name: 'PermissionRequest' }],
-      ['done', 'Done', { hook_event_name: 'Stop' }],
-      ['error', 'Error', { hook_event_name: 'unclassified' }],
+      ['ready', { hook_event_name: 'SessionStart', source: 'startup' }],
+      ['busy', { hook_event_name: 'UserPromptSubmit' }],
+      ['needs-input', { hook_event_name: 'PermissionRequest' }],
+      ['done', { hook_event_name: 'Stop' }],
+      ['error', { hook_event_name: 'unclassified' }],
     ];
-    for (const [index, [state, label, payload]] of cases.entries()) {
+    for (const [index, [state, payload]] of cases.entries()) {
       const message = {
         id: state,
         payload,
-        output: `\x1b]2;${label} with a long session title for compact panels | project\x07`,
+        output: `\x1b]2;${state} run with a long session title for compact panels | project\x07`,
       };
       await evaluate(
         `window.workbench.sendInput(${JSON.stringify(runs[index].id)}, ${JSON.stringify(JSON.stringify(message) + '\n')})`,
       );
-      await until(
-        () =>
-          evaluate(
-            `document.querySelector('[data-panel-id="${runs[index].panelId}"] .processing-status')?.getAttribute('aria-label') === ${JSON.stringify(label)}`,
-          ),
-        `panel ${runs[index].panelId} shows ${label}`,
-      );
-      assert.equal(
-        await evaluate(
-          `document.querySelector('[data-locate-panel-id="${runs[index].panelId}"] .processing-status').getAttribute('aria-label')`,
-        ),
-        label,
-      );
+      await check(runs[index], state);
     }
     await evaluate(`document.querySelector('[data-panel-id="${runs[3].panelId}"] .processing-status').focus()`);
-    assert.equal(await evaluate('document.activeElement.getAttribute("aria-label")'), 'Done');
+    assert.equal(await evaluate('document.activeElement.getAttribute("aria-label")'), t('done'));
     assert.equal(statusOf(await evaluate('window.workbench.fetchSnapshot()'), runs[3].id), 'done');
 
     const geometryProblems = async () => {
@@ -106,24 +96,7 @@ module.exports = {
         () => evaluate(`document.documentElement.lang === ${JSON.stringify(language)}`),
         `interface switched to ${language}`,
       );
-      const labels =
-        language === 'en'
-          ? ['Ready', 'Busy', 'Needs input', 'Done', 'Error']
-          : ['就绪', '处理中', '等待输入', '本轮结束', '异常'];
-      for (const [index, label] of labels.entries()) {
-        assert.equal(
-          await evaluate(
-            `document.querySelector('[data-panel-id="${runs[index].panelId}"] .processing-status').getAttribute('aria-label')`,
-          ),
-          label,
-        );
-        assert.equal(
-          await evaluate(
-            `document.querySelector('[data-locate-panel-id="${runs[index].panelId}"] .processing-status').getAttribute('aria-label')`,
-          ),
-          label,
-        );
-      }
+      for (const [index, [state]] of cases.entries()) await check(runs[index], state, language);
       for (const theme of ['light', 'dark']) {
         await evaluate(`document.documentElement.dataset.theme = ${JSON.stringify(theme)}`);
         for (const size of [
@@ -215,9 +188,9 @@ module.exports = {
         );
         await checkGeometry();
       }
-      await click(language === 'en' ? 'Collapse project navigation' : '折叠项目导航');
+      await click(localize(language).t('collapseNavigation'));
       await checkGeometry();
-      await click(language === 'en' ? 'Expand project navigation' : '展开项目导航');
+      await click(localize(language).t('expandNavigation'));
     }
     await evaluate('window.workbench.saveSettings({ language: "en" })');
     await until(() => evaluate('document.documentElement.lang === "en"'), 'interface switched to en');
@@ -227,7 +200,7 @@ module.exports = {
     await motion('no-preference');
     reducedMotion = false;
     await evaluate(
-      `document.querySelector('[data-panel-id="${runs[3].panelId}"] button[aria-label="Maximize panel"]').click()`,
+      `document.querySelector(${named(`[data-panel-id="${runs[3].panelId}"] button`, t('enlargePanel'))}).click()`,
     );
     await checkGeometry();
     await until(

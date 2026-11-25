@@ -53,11 +53,11 @@ void (async () => {
     () => evaluate('!!window.workbench && !!document.querySelector("h1, .workspace")'),
     'renderer exposes window.workbench and draws a page',
   );
-  const click = label =>
+  const click = name =>
     evaluate(`(() => {
     const button = [...document.querySelectorAll('button')]
-      .find(b => b.getAttribute('aria-label') === ${JSON.stringify(label)} || b.textContent === ${JSON.stringify(label)});
-    if (!button) throw new Error('Missing button');
+      .find(b => b.getAttribute('aria-label') === ${JSON.stringify(name)} || b.textContent === ${JSON.stringify(name)});
+    if (!button) throw new Error(${JSON.stringify(`Missing button named ${JSON.stringify(name)}`)});
     button.click();
   })()`);
   const fill = (id, value) =>

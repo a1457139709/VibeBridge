@@ -1,5 +1,6 @@
 const assert = require('node:assert/strict');
 const { runsOf } = require('./support/panel-views.cjs');
+const { t } = require('./support/localization.cjs');
 
 module.exports = {
   async run(suite) {
@@ -103,15 +104,17 @@ module.exports = {
     await until(() => evaluate('/CHILD:\\d+/.test(window.output)'), 'descendant process reported its CHILD pid');
     const child = Number(await evaluate('window.output.match(/CHILD:(\\d+)/)[1]'));
     process.kill(child, 0);
-    await click('Close panel');
+    await click(t('closePanel'));
+    await until(async () => {
+      const snapshot = await evaluate('window.workbench.fetchSnapshot()');
+      return !runsOf(snapshot).length && !snapshot.projects[0].panels.length;
+    }, 'closed panel and its run left the snapshot');
     await until(
-      async () => !runsOf(await evaluate('window.workbench.fetchSnapshot()')).length,
-      'closed panel run left the snapshot',
+      () =>
+        evaluate(`document.querySelector('.canvas .empty p')?.textContent === ${JSON.stringify(t('emptyProject'))}`),
+      'layout area shows the empty project message after closing the panel',
     );
-    await until(
-      () => evaluate('document.body.innerText.includes("This project has no Agent Panels yet")'),
-      'empty project message shown after closing the panel',
-    );
+
     assert.throws(() => process.kill(run.pid, 0));
     assert.throws(() => process.kill(child, 0));
     console.log(

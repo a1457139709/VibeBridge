@@ -1,6 +1,7 @@
 const assert = require('node:assert/strict');
 const { mkdir, readFile, rename, rm } = require('node:fs/promises');
-const { runsOf } = require('./support/panel-views.cjs');
+const { runsOf, statusOf } = require('./support/panel-views.cjs');
+const { t } = require('./support/localization.cjs');
 
 module.exports = {
   async run(context) {
@@ -17,22 +18,22 @@ module.exports = {
         `document.querySelector('[data-locate-panel-id="${run.panelId}"] .processing-status')?.getAttribute('aria-label')`,
       );
     const assertDrafts = async expectedCommand => {
-      await click('Agent');
+      await click(t('agents'));
       assert.equal(await evaluate('document.getElementById("command-codex").value'), expectedCommand);
-      await click('Appearance');
+      await click(t('appearance'));
       assert.ok(await evaluate('document.querySelector("input[value=dark]").checked'));
-      await click('Keyboard shortcuts');
+      await click(t('shortcuts'));
       assert.equal(
         await evaluate('document.getElementById("shortcut-nextPanel").getAttribute("data-hint")'),
         'Command+K',
       );
     };
-    await click('Global settings');
-    await click('Agent');
+    await click(t('settings'));
+    await click(t('agents'));
     await fill('command-codex', `${command}-draft`);
-    await click('Appearance');
+    await click(t('appearance'));
     await evaluate('document.querySelector("input[value=dark]").click()');
-    await click('Keyboard shortcuts');
+    await click(t('shortcuts'));
     await evaluate(
       'document.getElementById("shortcut-nextPanel").dispatchEvent(new KeyboardEvent("keydown", { key: "k", code: "KeyK", metaKey: true, bubbles: true }))',
     );
@@ -43,7 +44,11 @@ module.exports = {
       'the settings page shows no project summary',
     );
     await f.send(third, { payload: { hook_event_name: 'Stop' } });
-    await until(async () => (await navigationStatus(third)) === 'Done', 'navigation shows Done for the third panel');
+    await until(async () => statusOf(await f.snapshot(), third.id) === 'done', 'third run is done');
+    await until(
+      async () => (await navigationStatus(third)) === t('done'),
+      'navigation shows the done status for the third panel',
+    );
     assert.equal(await evaluate('!!document.querySelector(".project-summary")'), false);
     assert.equal(await leaveDialog(), false);
     await assertDrafts(`${command}-draft`);
@@ -51,14 +56,14 @@ module.exports = {
 
     await locate(first);
     await until(leaveDialog, 'leave-settings dialog opened');
-    await click('Cancel');
+    await click(t('cancel'));
     assert.ok(await settingsVisible());
     await assertDrafts(`${command}-draft`);
-    await click('Agent');
+    await click(t('agents'));
     await fill('command-codex', '');
     await locate(first);
     await until(leaveDialog, 'leave-settings dialog opened');
-    await click('Save and return');
+    await click(t('saveAndReturn'));
     await until(
       () => evaluate('document.getElementById("command-codex")?.getAttribute("aria-invalid") === "true"'),
       'empty Codex command marked invalid',
@@ -67,7 +72,7 @@ module.exports = {
     await assertDrafts('');
     assert.deepEqual((await f.snapshot()).settings, before.settings);
 
-    await click('Agent');
+    await click(t('agents'));
     await fill('command-codex', command);
     const argumentsDraft = [...before.settings.agents.codex.args, '--saved-draft'].join('\n');
     await evaluate(`(() => { const input = document.getElementById('arguments-codex');
@@ -79,18 +84,18 @@ module.exports = {
     try {
       await locate(first);
       await until(leaveDialog, 'leave-settings dialog opened');
-      await click('Save and return');
+      await click(t('saveAndReturn'));
       await until(
         () =>
           evaluate(
-            'document.querySelector(".settings-page [role=alert]")?.textContent.includes("Could not save settings")',
+            `document.querySelector(".settings-page [role=alert]")?.textContent.includes(${JSON.stringify(t('settingsWriteFailed'))})`,
           ),
         'settings page shows the save failure',
       );
       assert.ok(await settingsVisible());
       assert.deepEqual((await f.snapshot()).settings, before.settings);
       await assertDrafts(command);
-      await click('Agent');
+      await click(t('agents'));
       assert.equal(await evaluate('document.getElementById("arguments-codex").value'), argumentsDraft);
       assert.equal(await readFile(`${directory}/settings.backup`, 'utf8'), originalFile);
     } finally {
@@ -99,7 +104,7 @@ module.exports = {
     }
     await locate(second);
     await until(leaveDialog, 'leave-settings dialog opened');
-    await click('Save and return');
+    await click(t('saveAndReturn'));
     await until(async () => !(await settingsVisible()), 'settings page closed after saving');
     await f.receiveInput(second, 'saved-settings-selection');
     const saved = await f.snapshot();
@@ -119,23 +124,23 @@ module.exports = {
       runsOf(before).map(run => [run.id, run.pid]),
     );
 
-    await click('Global settings');
-    await click('Agent');
+    await click(t('settings'));
+    await click(t('agents'));
     await fill('command-codex', 'discard-this-draft');
     await locate(first);
     await until(leaveDialog, 'leave-settings dialog opened');
-    await click('Don’t save');
+    await click(t('dontSave'));
     await f.receiveInput(first, 'discarded-settings-selection');
     assert.deepEqual((await f.snapshot()).settings, expected);
-    await click('Global settings');
-    await click('Agent');
+    await click(t('settings'));
+    await click(t('agents'));
     assert.equal(await evaluate('document.getElementById("command-codex").value'), command);
 
     await fill('command-codex', 'another-discarded-draft');
     await locate(third);
     await until(leaveDialog, 'leave-settings dialog opened');
     await evaluate(`window.workbench.closePanel(${JSON.stringify(f.projectId)}, ${JSON.stringify(third.panelId)})`);
-    await click('Don’t save');
+    await click(t('dontSave'));
     await until(async () => !(await settingsVisible()), 'settings page closed after discarding');
     await until(
       () => evaluate('!document.querySelector(".workbench-page").classList.contains("locating-panel")'),
@@ -169,7 +174,7 @@ module.exports = {
       () => evaluate('document.querySelectorAll(".summary-list li").length === 1'),
       'summary list dropped the closed panel',
     );
-    await click('Close panel list');
+    await click(t('closePanelList'));
     await f.choose('done', second);
     await f.receiveInput(second, 'after-live-list-update');
     console.log(

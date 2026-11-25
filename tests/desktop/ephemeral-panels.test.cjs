@@ -1,5 +1,6 @@
 const assert = require('node:assert/strict');
 const { runsOf } = require('./support/panel-views.cjs');
+const { t, named } = require('./support/localization.cjs');
 
 module.exports = {
   async run(context) {
@@ -53,7 +54,7 @@ module.exports = {
       );
     };
 
-    const first = await addThroughPicker(() => click('Add Agent'), 'codex');
+    const first = await addThroughPicker(() => click(t('addPanel')), 'codex');
     assert.deepEqual((await snapshot()).projects[0].layout, layout);
     assert.deepEqual(
       (await snapshot()).projects[0].panels.map(panel => panel.id),
@@ -99,7 +100,7 @@ module.exports = {
       'Escape bytes reached the second tray panel',
     );
 
-    await click('Collapse panel');
+    await click(t('collapsePanel'));
     await until(
       async () =>
         JSON.stringify(await pressed()) ===
@@ -134,7 +135,9 @@ module.exports = {
 
     await evaluate(`document.querySelector('[data-tray-panel-id="${second.id}"]').click()`);
     await until(async () => (await focusedPanel()) === second.id, 'second tray panel focused after its card click');
-    await evaluate(`document.querySelector('[data-panel-id="${second.id}"] button[aria-label="Close panel"]').click()`);
+    await evaluate(
+      `document.querySelector(${named(`[data-panel-id="${second.id}"] button`, t('closePanel'))}).click()`,
+    );
     await until(async () => (await tray()).length === 1, 'closed tray panel left the tray');
     await until(
       async () => (await visibleResidents()) === 2,
@@ -156,7 +159,8 @@ module.exports = {
     const shortcut = (code, key, shiftKey = false) =>
       evaluate(`document.activeElement.dispatchEvent(new KeyboardEvent("keydown",
       { key: ${JSON.stringify(key)}, code: ${JSON.stringify(code)}, metaKey: true, shiftKey: ${shiftKey}, bubbles: true }))`);
-    const third = await addThroughPicker(() => click('Add Agent'), 'codex');
+    const third = await addThroughPicker(() => click(t('addPanel')), 'codex');
+
     await until(async () => (await focusedPanel()) === third.id, 'third tray panel focused');
     await shortcut('Enter', 'Enter');
     await until(

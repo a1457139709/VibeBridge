@@ -1,4 +1,5 @@
 const assert = require('node:assert/strict');
+const { t } = require('./support/localization.cjs');
 
 const press = (window, keyCode) => {
   window.webContents.sendInputEvent({ type: 'keyDown', keyCode, modifiers: ['meta'] });
@@ -28,18 +29,19 @@ module.exports = {
     await evaluate(`(async () => window.workbench.bindRepository(${JSON.stringify(project.id)},
       (await window.workbench.fetchRepositoryChoices(${JSON.stringify(project.id)}, ${JSON.stringify(project.directory)}))
         .repositories.find(item => item.path === 'octo/desktop')))()`);
-    await click('Show the GitHub sidebar');
-    await until(
-      () => evaluate('document.querySelector(".forge-row-title")?.textContent === "Dispatched issue"'),
-      'issue row listed',
-    );
+    await click(t('openForgeSidebar', { forge: project.forge.name }));
+    await until(() => evaluate('!!document.querySelector(\'.forge-scroll [data-issue="7"]\')'), 'issue #7 row listed');
 
-    await click('Dispatched issue');
+    await evaluate('document.querySelector(\'.forge-scroll [data-issue="7"] .forge-row-title\').click()');
     await until(() => evaluate('!!document.querySelector(".forge-detail")'), 'issue detail open');
     await evaluate('document.querySelector(".forge-row-title").focus()');
     press(window, 'D');
     await until(
-      () => evaluate('document.activeElement?.getAttribute("aria-label") === "Dispatch #7"'),
+      () =>
+        evaluate(
+          `document.activeElement?.getAttribute("aria-label") === ${JSON.stringify(t('dispatchMenu', { number: 7 }))}`,
+        ),
+
       'dispatch menu open with focus',
     );
     window.webContents.sendInputEvent({ type: 'keyDown', keyCode: 'Escape' });
