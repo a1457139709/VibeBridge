@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import test, { afterEach, before } from 'node:test';
 import { cleanup, waitFor, within } from '@testing-library/react';
 import { bug, issue, page, renderWorkbench, rows, stateFilter, stubSidebarApis, summary } from './support/forge-lists';
-import { overrideCapabilities, testForgeCapabilities, testForge, testForgeUrl } from './support/forge';
+import { testForgeCapabilitiesWith, testForgeCapabilities, testForge, testForgeUrl } from './support/forge';
 import { t } from './support/localization';
 import { forgeSidebar } from './support/sidebar-queries';
 
@@ -163,7 +163,7 @@ for (const capabilities of [
   { subIssues: false, blocking: true },
 ]) {
   test(`a forge declaring sub-issues ${capabilities.subIssues} and blocking ${capabilities.blocking} shows only what it declares`, async () => {
-    const { request } = renderWorkbench(overrideCapabilities(capabilities));
+    const { request } = renderWorkbench(testForgeCapabilitiesWith(capabilities));
     const answer = tree();
     assert.ok(answer.ok);
     answer.items[0].blockedBy = [{ path: null, number: 1, title: 'Blocker' }];

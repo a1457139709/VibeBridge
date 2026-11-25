@@ -6,7 +6,7 @@ import test, { type TestContext } from 'node:test';
 import { testDirectory } from './support/directory';
 
 async function fixture(context: TestContext) {
-  const directory = await testDirectory(context, 'component-forge');
+  const directory = await testDirectory(context, 'forge-neutral-components');
   await mkdir(`${directory}/tests/components`, { recursive: true });
   return {
     write: async (file: string, source: string) => {
@@ -14,15 +14,19 @@ async function fixture(context: TestContext) {
       await writeFile(`${directory}/${file}`, source);
     },
     run: () =>
-      spawnSync(process.env.VIBEBRIDGE_TEST_NODE ?? process.execPath, [resolve('scripts/check-component-forge.mjs')], {
-        cwd: directory,
-        encoding: 'utf8',
-        timeout: 10000,
-      }),
+      spawnSync(
+        process.env.VIBEBRIDGE_TEST_NODE ?? process.execPath,
+        [resolve('scripts/check-forge-neutral-components.mjs')],
+        {
+          cwd: directory,
+          encoding: 'utf8',
+          timeout: 10000,
+        },
+      ),
   };
 }
 
-test('the component forge check rejects a GitHub Forge ID literal, naming file and line', async context => {
+test('the forge-neutral components check rejects a GitHub Forge ID literal, naming file and line', async context => {
   const f = await fixture(context);
   await f.write('tests/components/View.test.tsx', ["const ok = 'test-forge';", "const forge = 'github';"].join('\n'));
 
@@ -34,7 +38,7 @@ test('the component forge check rejects a GitHub Forge ID literal, naming file a
   assert.match(result.stderr, /tests\/components\/support\/forge\.ts/);
 });
 
-test('the component forge check rejects the GitHub host and name in string and template literals', async context => {
+test('the forge-neutral components check rejects the GitHub host and name in string and template literals', async context => {
   const f = await fixture(context);
   await f.write(
     'tests/components/support/links.tsx',
@@ -53,7 +57,7 @@ test('the component forge check rejects the GitHub host and name in string and t
     assert.match(result.stderr, new RegExp(`^tests/components/support/links\\.tsx:${line}:`, 'm'));
 });
 
-test('the component forge check rejects the GitHub login command and GitHub-named identifiers and imports', async context => {
+test('the forge-neutral components check rejects the GitHub login command and GitHub-named identifiers and imports', async context => {
   const f = await fixture(context);
   await f.write(
     'tests/components/Setup.test.tsx',
@@ -74,7 +78,7 @@ test('the component forge check rejects the GitHub login command and GitHub-name
   assert.doesNotMatch(result.stderr, /Setup\.test\.tsx:5:/);
 });
 
-test('the component forge check passes clean component tests and leaves files outside them unscanned', async context => {
+test('the forge-neutral components check passes clean component tests and leaves files outside them unscanned', async context => {
   const f = await fixture(context);
   await f.write(
     'tests/components/View.test.tsx',
@@ -90,4 +94,18 @@ test('the component forge check passes clean component tests and leaves files ou
 
   assert.equal(result.status, 0, result.stderr);
   assert.equal(result.stderr, '');
+});
+
+test('the forge-neutral components check rejects GitHub in JSX text', async context => {
+  const f = await fixture(context);
+  await f.write(
+    'tests/components/Heading.test.tsx',
+    ['const ok = <p>Test Forge</p>;', 'const heading = <p>GitHub</p>;'].join('\n'),
+  );
+
+  const result = f.run();
+
+  assert.equal(result.status, 1, result.stderr);
+  assert.match(result.stderr, /^tests\/components\/Heading\.test\.tsx:2:/m);
+  assert.doesNotMatch(result.stderr, /Heading\.test\.tsx:1:/);
 });

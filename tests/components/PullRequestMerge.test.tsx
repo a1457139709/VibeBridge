@@ -21,7 +21,7 @@ import {
 import { t } from './support/localization';
 import { descriptionParts } from './support/elements';
 import type { CheckState } from '../../app/shared/forge/forge';
-import { overrideCapabilities, testForgeCapabilities, testForge } from './support/forge';
+import { testForgeCapabilitiesWith, testForgeCapabilities, testForge } from './support/forge';
 
 afterEach(cleanup);
 before(stubSidebarApis);
@@ -71,18 +71,16 @@ test("the checks show the forge's overall state and every count, then each check
       ),
     }),
   );
-  assert.ok(
-    shownRow(
-      t('checksRow'),
-      t('checksState', {
-        outcome: t('checkFailure'),
-        counts: [
-          t('checkCount', { outcome: t('checkSuccess'), count: 40 }),
-          t('checkCount', { outcome: t('checkTimedOut'), count: 2 }),
-          t('checkCount', { outcome: t('checkInProgress'), count: 3 }),
-        ],
-      }),
-    ),
+  shownRow(
+    t('checksRow'),
+    t('checksState', {
+      outcome: t('checkFailure'),
+      counts: [
+        t('checkCount', { outcome: t('checkSuccess'), count: 40 }),
+        t('checkCount', { outcome: t('checkTimedOut'), count: 2 }),
+        t('checkCount', { outcome: t('checkInProgress'), count: 3 }),
+      ],
+    }),
   );
   const shown = [
     shownCheck('CI / lint', t('requiredCheck'), t('checkSuccess')),
@@ -126,11 +124,9 @@ test('a check state the sidebar does not know shows its raw value in the neutral
       }),
     }),
   );
-  assert.ok(
-    shownRow(
-      t('checksRow'),
-      t('checksState', { outcome: 'SUPERSEDED', counts: [t('checkCount', { outcome: 'SUPERSEDED', count: 1 })] }),
-    ),
+  shownRow(
+    t('checksRow'),
+    t('checksState', { outcome: 'SUPERSEDED', counts: [t('checkCount', { outcome: 'SUPERSEDED', count: 1 })] }),
   );
   assert.equal(checkMarks(shownCheck('unit tests', 'SUPERSEDED')).tone, 'forge-skipped');
 });
@@ -160,7 +156,7 @@ const mergeRows = () => within(mergeArea()).getAllByRole('group');
 test('the merge requirements read, in order, the review decision, the checks, the merge state, and the draft', async () => {
   await openPullRequest(detail(12, { state: 'draft', reviewDecision: 'changesRequested', mergeState: 'blocked' }));
   assert.deepEqual(mergeRows(), [t('reviewRow'), t('checksRow'), t('mergeStateRow'), t('draftRow')].map(rowOf));
-  assert.ok(shownRow(t('draftRow'), t('draftNote', { forge: testForge.name })));
+  shownRow(t('draftRow'), t('draftNote', { forge: testForge.name }));
 });
 
 test('a draft for which the forge gives no merge state of its own is explained by the draft row alone', async () => {
@@ -176,7 +172,7 @@ for (const [reviewDecision, text] of [
 ] as const) {
   test(`a review decision of ${reviewDecision} reads: ${text}`, async () => {
     await openPullRequest(detail(12, { reviewDecision }));
-    assert.ok(shownRow(t('reviewRow'), text));
+    shownRow(t('reviewRow'), text);
   });
 }
 
@@ -215,7 +211,7 @@ for (const [state, text] of [
 
 test('a forge without required checks marks none', async () => {
   await openPullRequest(detail(12, { checks: checks([check('unit tests', failure, { required: true })]) }), {
-    capabilities: overrideCapabilities({ requiredChecks: false }),
+    capabilities: testForgeCapabilitiesWith({ requiredChecks: false }),
   });
   assert.equal(descriptionParts(checkItems()[0]).includes(t('requiredCheck')), false);
 });
@@ -224,9 +220,9 @@ const mergeControl = (name: string) => within(mergeArea()).getByRole('button', {
 
 test('the merge control offers only the merge methods the forge declares', async () => {
   const { user } = await openPullRequest(detail(12), {
-    capabilities: overrideCapabilities({ mergeMethods: ['squash', 'rebase'] }),
+    capabilities: testForgeCapabilitiesWith({ mergeMethods: ['squash', 'rebase'] }),
   });
-  assert.ok(mergeControl(t('mergeMethodSquash')), 'merging starts from the first declared method');
+  mergeControl(t('mergeMethodSquash'));
   await user.click(mergeControl(t('chooseMergeMethod')));
   const menu = within(mergeArea()).getByRole('menu', { name: t('chooseMergeMethod') });
   assert.deepEqual(
@@ -236,16 +232,27 @@ test('the merge control offers only the merge methods the forge declares', async
 });
 
 test('with one merge method declared, the merge control uses it without offering a choice', async () => {
-  await openPullRequest(detail(12), { capabilities: overrideCapabilities({ mergeMethods: ['rebase'] }) });
-  assert.ok(mergeControl(t('mergeMethodRebase')));
-  assert.equal(!!within(mergeArea()).queryByRole('button', { name: t('chooseMergeMethod') }), false);
+  await openPullRequest(detail(12), { capabilities: testForgeCapabilitiesWith({ mergeMethods: ['rebase'] }) });
+  mergeControl(t('mergeMethodRebase'));
+  assert.equal(within(mergeArea()).queryByRole('button', { name: t('chooseMergeMethod') }), null);
+});
+
+const queuedPullRequest = detail(12, { mergeOptions: { methods: ['squash'], defaultMethod: 'squash', queue: true } });
+const openOnForge = () =>
+  within(mergeArea()).queryByRole('link', { name: t('openOnForge', { forge: testForge.name }) });
+
+test('a forge with a merge queue greys out merging a pull request that reports one and links it on the forge', async () => {
+  await openPullRequest(queuedPullRequest, { capabilities: testForgeCapabilitiesWith({ mergeQueue: true }) });
+  const merge = mergeControl(t('mergeButton'));
+  assert.equal(merge.hasAttribute('disabled'), true);
+  assert.deepEqual(descriptionParts(merge), [t('mergeQueueNote')]);
+  assert.equal(openOnForge()?.getAttribute('href'), `${repositoryUrl}/pull/12`);
+  assert.equal(within(mergeArea()).queryByRole('button', { name: t('mergeMethodSquash') }), null);
 });
 
 test('a forge without a merge queue merges in place even when the pull request reports one', async () => {
-  await openPullRequest(detail(12, { mergeOptions: { methods: ['squash'], defaultMethod: 'squash', queue: true } }), {
-    capabilities: overrideCapabilities({ mergeQueue: false }),
-  });
+  await openPullRequest(queuedPullRequest, { capabilities: testForgeCapabilitiesWith({ mergeQueue: false }) });
   assert.equal(mergeControl(t('mergeMethodSquash')).hasAttribute('disabled'), false);
-  assert.equal(!!within(mergeArea()).queryByRole('button', { name: t('mergeButton') }), false);
-  assert.equal(!!within(mergeArea()).queryByRole('link', { name: t('openOnForge', { forge: testForge.name }) }), false);
+  assert.equal(within(mergeArea()).queryByRole('button', { name: t('mergeButton') }), null);
+  assert.equal(openOnForge(), null);
 });

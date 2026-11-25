@@ -23,7 +23,7 @@ export const testForgeCapabilities: ForgeCapabilities = {
   mergeQueue: true,
   mergeMethods: ['merge', 'squash', 'rebase'],
 };
-export const overrideCapabilities = (overrides: Partial<ForgeCapabilities>): ForgeCapabilities => ({
+export const testForgeCapabilitiesWith = (overrides: Partial<ForgeCapabilities>): ForgeCapabilities => ({
   ...testForgeCapabilities,
   ...overrides,
 });

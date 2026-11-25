@@ -4,9 +4,10 @@ import test, { afterEach, before } from 'node:test';
 import { cleanup, waitFor, within } from '@testing-library/react';
 import { t } from './support/localization';
 import { stubLayoutApis } from './support/no-layout';
-import { overrideCapabilities, testForgeCapabilities, testForge, testForgeUrl } from './support/forge';
+import { testForgeCapabilitiesWith, testForgeCapabilities, testForge, testForgeUrl } from './support/forge';
 import { selectElement } from './support/elements';
 import { requireValue } from '../../app/renderer/common/required';
+import type { ForgeCapabilities } from '../../app/shared/forge/forge';
 import {
   repositoryUrl,
   hoursAgo,
@@ -241,38 +242,43 @@ test('a closed issue draws no issues it blocks, and an issue with no live relati
   assert.equal(within(pane()).queryByRole('group', { name: t('relations') }), null);
 });
 
-for (const capabilities of [{ subIssues: false }, { blocking: false }]) {
-  test(`a forge declaring ${JSON.stringify(capabilities)} hides only the relations it lacks`, async () => {
-    const declared = overrideCapabilities(capabilities);
-    const { user, request } = renderWorkbench([summary(5)], declared);
-    await user.click(await row('Issue 5'));
-    (await request(1)).answer({
-      ok: true,
-      issue: detail(5, {
-        parent: { ...reference(1, { title: 'Spec' }), progress: { closed: 0, total: 1 } },
-        blockedBy: [reference(2)],
-        blocking: [reference(8)],
-        subIssues: [reference(6)],
-        subIssueProgress: { closed: 0, total: 1 },
-      }),
-    });
-    await detailHeading(pane(), 'Issue 5', 5);
-    assert.deepEqual(
-      {
-        parent: !!within(pane()).queryByRole('button', { name: name => name.includes('Spec') }),
-        subIssues: !!within(pane()).queryByRole('region', { name: t('subIssues') }),
-        blockedBy: !!within(pane()).queryByRole('img', { name: t('blockedBy', { issues: '#2' }) }),
-        relations: !!within(pane()).queryByRole('group', { name: t('relations') }),
-      },
-      {
-        parent: declared.subIssues,
-        subIssues: declared.subIssues,
-        blockedBy: declared.blocking,
-        relations: declared.blocking,
-      },
-    );
+async function openWithEveryRelation(capabilities: Partial<ForgeCapabilities>) {
+  const { user, request } = renderWorkbench([summary(5)], testForgeCapabilitiesWith(capabilities));
+  await user.click(await row('Issue 5'));
+  (await request(1)).answer({
+    ok: true,
+    issue: detail(5, {
+      parent: { ...reference(1, { title: 'Spec' }), progress: { closed: 0, total: 1 } },
+      blockedBy: [reference(2, { title: 'Open blocker' })],
+      blocking: [reference(8, { title: 'Waits on detail' })],
+      subIssues: [reference(6)],
+      subIssueProgress: { closed: 0, total: 1 },
+    }),
   });
+  await detailHeading(pane(), 'Issue 5', 5);
+  return {
+    parent: () => within(pane()).queryByRole('button', { name: name => name.includes('Spec') }),
+    subIssues: () => within(pane()).queryByRole('region', { name: t('subIssues') }),
+    blockedBy: () => within(pane()).queryByRole('img', { name: t('blockedBy', { issues: '#2' }) }),
+    blocking: () => within(pane()).queryByRole('button', { name: name => name.includes('Waits on detail') }),
+  };
 }
+
+test('a forge without sub-issues hides the parent and sub-issues but still shows blockers and the issues this one blocks', async () => {
+  const shown = await openWithEveryRelation({ subIssues: false });
+  assert.equal(shown.parent(), null);
+  assert.equal(shown.subIssues(), null);
+  assert.notEqual(shown.blockedBy(), null);
+  assert.notEqual(shown.blocking(), null);
+});
+
+test('a forge without blocking hides blockers and the issues this one blocks but still shows the parent and sub-issues', async () => {
+  const shown = await openWithEveryRelation({ blocking: false });
+  assert.equal(shown.blockedBy(), null);
+  assert.equal(shown.blocking(), null);
+  assert.notEqual(shown.parent(), null);
+  assert.notEqual(shown.subIssues(), null);
+});
 
 test('the pull requests that close the issue on merge sit in their own block, closed ones included, each with its checks conclusion', async () => {
   const { user, request } = renderWorkbench([summary(5)]);
