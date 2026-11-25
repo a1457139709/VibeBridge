@@ -82,7 +82,7 @@ export function useProjectNavigation(
                     {expanded ? '⌄' : '›'}
                   </button>
                   <button
-                    data-hint={`${project.name} · ${t('panelCount', { count })}`}
+                    data-hint={t('projectPanelCount', { name: project.name, panels: t('panelCount', { count }) })}
                     aria-label={project.name}
                     aria-current={active ? 'page' : undefined}
                     className={`project-link ${active ? 'selected' : ''}`}
@@ -157,7 +157,7 @@ function PanelLink({ panel, current, locate }: { panel: PanelView; current: bool
   const { t } = useLocalization();
   const title = panel.run?.title ?? t('untitled');
   const { status } = panel;
-  const label = status ? `${t(status)} · ${title}` : title;
+  const label = status ? t('panelStateTitle', { state: t(status), title }) : title;
   return (
     <button
       data-locate-panel-id={panel.id}

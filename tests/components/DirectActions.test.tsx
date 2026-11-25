@@ -18,7 +18,7 @@ import { forgeSidebarData, workbenchEvents } from './support/forge-sidebar-data'
 import { githubForge, githubView, githubRepository } from './support/forge';
 import { issue as listedIssue, pullRequest as listedPullRequest, stubSidebarApis } from './support/forge-lists';
 import { requireValue } from '../../app/renderer/common/required';
-import { localize } from '../../app/shared/localization/localization';
+import { t } from './support/localization';
 
 afterEach(cleanup);
 before(stubSidebarApis);
@@ -73,7 +73,6 @@ const pullDetail = (number: number, extra: Partial<PullRequestDetail> = {}): Pul
     ...extra,
   };
 };
-const { t } = localize('en');
 
 interface Forge {
   issue?: IssueDetail;

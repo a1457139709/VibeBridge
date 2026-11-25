@@ -3,7 +3,7 @@ import type {
   SidebarPreferences,
   AgentType,
   CommandCheck,
-  DirectoryResult,
+  DirectoryInspection,
   Layout,
   ProjectCreation,
   PanelCreation,
@@ -25,7 +25,7 @@ export interface DesktopAPI {
   createProject(draft: ProjectDraft): Promise<ProjectCreation>;
   editProject(id: string, edit: ProjectEdit, restart: boolean): Promise<ProjectEditResult>;
   deleteProject(id: string): Promise<void>;
-  inspectDirectory(directory: string): Promise<DirectoryResult>;
+  inspectDirectory(directory: string): Promise<DirectoryInspection>;
   fetchRepositoryChoices(projectId: string, directory: string): Promise<RepositoryChoices>;
   bindRepository(projectId: string, repository: RepositoryReference): Promise<void>;
   unbindRepository(projectId: string): Promise<void>;

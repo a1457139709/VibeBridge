@@ -90,7 +90,7 @@ function renderWorkbench(
       publish();
     },
     saveLayout: async () => {},
-    inspectDirectory: async directory => ({ valid: true, directory }),
+    inspectDirectory: async directory => ({ ok: true, directory, name: directory }),
     ...forgeSidebarData(
       {
         repositoryChoices: repositoryChoices ?? (async () => choices),

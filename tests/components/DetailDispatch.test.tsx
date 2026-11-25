@@ -5,7 +5,7 @@ import { cleanup, screen, waitFor, within } from '@testing-library/react';
 import type { IssueDetail } from '../../app/shared/forge/forge';
 import type { DispatchRecordView } from '../../app/shared/dispatch';
 import type { Snapshot } from '../../app/shared/model';
-import { localize } from '../../app/shared/localization/localization';
+import { t } from './support/localization';
 import { sidebar, stubSidebarApis } from './support/forge-lists';
 import { issueDetail as detail, listed, record, row } from './support/dispatch';
 import { selectElement } from './support/elements';
@@ -59,7 +59,6 @@ test("a closed issue's detail has no Dispatch", async () => {
   assert.equal(within(pane()).queryByRole('button', { name: 'Dispatch' }), null);
 });
 
-const { t } = localize('en');
 const line = (item: HTMLElement) =>
   [...item.querySelectorAll<HTMLElement>(':scope > *')].map(part =>
     part.getAttribute('role') === 'img' ? part.getAttribute('aria-label') : part.textContent,

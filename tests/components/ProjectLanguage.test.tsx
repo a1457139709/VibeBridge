@@ -27,7 +27,7 @@ for (const language of ['en', 'zh-CN'] as const) {
     };
     const calls: unknown[] = [];
     provideWorkbench({
-      inspectDirectory: async directory => ({ valid: true, directory }),
+      inspectDirectory: async directory => ({ ok: true, directory, name: directory }),
       editProject: async (id, edit, restart) => {
         calls.push([id, edit, restart]);
         return {
