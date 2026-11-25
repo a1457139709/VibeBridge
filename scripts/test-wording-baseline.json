@@ -28,7 +28,6 @@
   "tests/components/RepositoryBinding.test.tsx": 10,
   "tests/components/SettingsConflict.test.tsx": 3,
   "tests/components/SettingsPage.test.tsx": 37,
-  "tests/components/Setup.test.tsx": 40,
   "tests/components/SidebarKeyboard.test.tsx": 15,
   "tests/components/TrayPlacement.test.tsx": 3,
   "tests/components/WorkspaceToolbar.test.tsx": 33,

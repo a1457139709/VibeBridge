@@ -1,5 +1,5 @@
 import './support/dom';
-import { localize } from '../../app/shared/localization/localization';
+import { t } from './support/localization';
 import assert from 'node:assert/strict';
 import test, { afterEach, before } from 'node:test';
 import { act, cleanup, waitFor, within } from '@testing-library/react';
@@ -14,8 +14,6 @@ import {
   sidebar,
   stubSidebarApis,
 } from './support/forge-lists';
-
-const { t } = localize('en');
 
 afterEach(cleanup);
 before(stubSidebarApis);

@@ -1,20 +1,17 @@
 import { realpath, stat } from 'node:fs/promises';
 import { basename } from 'node:path';
-import type { DirectoryResult, Project } from '../../shared/model';
+import type { DirectoryInspection, Project } from '../../shared/model';
 
-export async function inspectDirectory(path: string, projects: Project[]): Promise<DirectoryResult> {
+export async function inspectDirectory(path: string, projects: Project[]): Promise<DirectoryInspection> {
+  let directory: string;
   try {
-    const directory = await realpath(path);
-    if (!(await stat(directory)).isDirectory()) return { valid: false };
-    const existing = projects.find(project => project.directory === directory);
-    return {
-      valid: true,
-      directory,
-      name: basename(directory),
-      existingProjectId: existing?.id,
-      existingProjectName: existing?.name,
-    };
+    directory = await realpath(path);
+    if (!(await stat(directory)).isDirectory()) return { ok: false, problem: { kind: 'notDirectory' } };
   } catch {
-    return { valid: false };
+    return { ok: false, problem: { kind: 'missing' } };
   }
+  const existing = projects.find(project => project.directory === directory);
+  if (existing)
+    return { ok: false, problem: { kind: 'duplicate', projectId: existing.id, projectName: existing.name } };
+  return { ok: true, directory, name: basename(directory) };
 }

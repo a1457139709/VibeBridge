@@ -7,6 +7,7 @@ import type { Project } from '../app/shared/model';
 import { runsOf, storedProjects } from './support/panel-views';
 import { alive, interactiveWorkbench, until } from './support/interactive-workbench';
 import { firstCapture, pidOf } from './support/expected';
+import { envelope } from '../app/shared/messages';
 
 const fixture = () => interactiveWorkbench('project-management');
 
@@ -34,11 +35,16 @@ test('editing a name or the same real directory preserves panels, layout and the
     const file = join(f.directory, 'file');
     await writeFile(file, 'keep');
     for (const directory of ['', file, join(f.directory, 'missing')]) {
-      await assert.rejects(
-        f.workbench.editProject(project.id, { name: 'Invalid', directory }, false),
-        /projectDirectoryInvalid|projectDuplicate/,
-      );
+      await assert.rejects(f.workbench.editProject(project.id, { name: 'Invalid', directory }, false), {
+        message: envelope({ id: 'directoryInvalid' }),
+      });
     }
+    const elsewhere = join(f.directory, 'elsewhere');
+    await mkdir(elsewhere);
+    await f.create('Other', elsewhere);
+    await assert.rejects(f.workbench.editProject(project.id, { name: 'Invalid', directory: elsewhere }, false), {
+      message: envelope({ id: 'duplicateEdit', values: { name: 'Other' } }),
+    });
     assert.equal(f.workbench.snapshot().projects[0].name, 'Renamed');
   } finally {
     await f.close();

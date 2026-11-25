@@ -17,7 +17,6 @@ import { deferred, provideWorkbench } from './workbench';
 import { forgeSidebarData, workbenchEvents } from './forge-sidebar-data';
 import { githubCapabilities, githubView, githubRepository } from './forge';
 import { issue as listedIssue, pullRequest as listedPullRequest } from './forge-lists';
-import { localize } from '../../../app/shared/localization/localization';
 
 export const repositoryUrl = 'https://github.com/octo/alpha';
 export const hoursAgo = (hours: number) => new Date(Date.now() - hours * 3600e3).toISOString();
@@ -43,7 +42,6 @@ export const detail = (number: number, extra: Partial<PullRequestDetail> = {}): 
     ...extra,
   };
 };
-export const { t } = localize('en');
 export const success: CheckState = { outcome: 'success', tone: 'passed' };
 export const failure: CheckState = { outcome: 'failure', tone: 'failed' };
 export const timedOut: CheckState = { outcome: 'timedOut', tone: 'failed' };

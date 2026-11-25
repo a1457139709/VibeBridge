@@ -1,20 +1,21 @@
 import { useLocalization } from '../common/Localization';
-import { message } from '../../shared/messages';
 import { agentIcons } from '../common/agent-icons';
-import { useEffect, useRef, useState, type Dispatch, type SetStateAction } from 'react';
+import { useRef, useState, type Dispatch, type SetStateAction } from 'react';
 import {
   agentNames,
   agentTypes,
   arrange,
   assignedAgents,
   type DefaultLayout,
-  type DirectoryResult,
   type LaunchResult,
   type ProjectDraft,
 } from '../../shared/model';
 import { LaunchResults } from './LaunchResults';
 import { layoutBoxes } from '../../shared/layout';
-import { projectNameError, projectNameFromDirectory, projectNameHasControls } from '../../shared/project-name';
+import { projectNameFromDirectory, projectNameMessage, projectNameProblem } from '../../shared/project-name';
+import { presentDirectoryField } from './directory-field';
+import { useInspectedDirectory, usePastedNameProblem } from './project-form';
+import { directoryProblemMessage } from '../../shared/directory-problem';
 import { errorMessage } from '../../shared/caught-error';
 import { requireValue } from '../common/required';
 
@@ -65,64 +66,27 @@ export function Setup({
   openAgentSettings(): void;
   defaultLayout: DefaultLayout;
 }) {
-  const { t, text } = useLocalization();
-  const [inspection, setInspection] = useState<{ path: string; result: DirectoryResult }>();
+  const { t, translate } = useLocalization();
+  const checked = useInspectedDirectory(draft.directory, report);
   const [nameTouched, setNameTouched] = useState(false);
   const [directoryTouched, setDirectoryTouched] = useState(false);
-  const [nameInputError, setNameInputError] = useState('');
+  const pastedName = usePastedNameProblem();
+  const pastedNameProblem = pastedName.problem;
   const [choosing, setChoosing] = useState(false);
   const [busy, setBusy] = useState(false);
   const [launchReport, setLaunchReport] = useState<{ projectId: string; launches: LaunchResult[] }>();
   const pending = useRef(false);
-  const inspected = inspection?.path === draft.directory ? inspection.result : undefined;
-  const checking = !!draft.directory && !inspected;
-  const existingProjectId = inspected?.existingProjectId;
-  const nameError = text(projectNameError(draft.name));
-  const nameMessage = text(nameInputError) || (nameTouched || draft.name.trim() ? nameError : '');
-  const directoryMessage = !draft.directory
-    ? directoryTouched
-      ? t('directoryRequired')
-      : ''
-    : checking
-      ? ''
-      : !inspected?.valid
-        ? t('directoryInvalid')
-        : inspected.existingProjectId
-          ? t('duplicateCreate', {
-              name: requireValue(inspected.existingProjectName, "the existing project's name"),
-            })
-          : '';
+  const directoryField = presentDirectoryField({ input: draft.directory, touched: directoryTouched, checked });
+  const duplicate = directoryField.problem?.kind === 'duplicate' ? directoryField.problem : undefined;
+  const nameProblem = projectNameProblem(draft.name);
+  const shownNameProblem = pastedNameProblem ?? (nameTouched || draft.name.trim() ? nameProblem : null);
+  const nameMessage = shownNameProblem ? translate(projectNameMessage(shownNameProblem)) : '';
+  const directoryMessage = directoryField.problem
+    ? translate(directoryProblemMessage(directoryField.problem, 'create'))
+    : '';
   const assigned = agentTypes.reduce((sum, type) => sum + draft.counts[type], 0);
   const canCreate =
-    !busy &&
-    !choosing &&
-    !!inspected?.valid &&
-    !inspected.existingProjectId &&
-    !nameError &&
-    !nameInputError &&
-    assigned === draft.total;
-  useEffect(() => {
-    setInspection(undefined);
-    if (!draft.directory) return;
-    let live = true;
-    const timer = setTimeout(() => {
-      void window.workbench
-        .inspectDirectory(draft.directory)
-        .then(result => {
-          if (live) setInspection({ path: draft.directory, result });
-        })
-        .catch(error => {
-          if (live) {
-            setInspection({ path: draft.directory, result: { valid: false } });
-            report(errorMessage(error));
-          }
-        });
-    }, 180);
-    return () => {
-      live = false;
-      clearTimeout(timer);
-    };
-  }, [draft.directory]);
+    !busy && !choosing && directoryField.canSave && !nameProblem && !pastedNameProblem && assigned === draft.total;
   async function chooseDirectory() {
     setChoosing(true);
     try {
@@ -133,7 +97,7 @@ export function Setup({
         directory: path,
         name: current.name.trim() ? current.name : projectNameFromDirectory(path),
       }));
-      setNameInputError('');
+      pastedName.clear();
       setNameTouched(true);
       setDirectoryTouched(true);
     } catch (error) {
@@ -212,16 +176,10 @@ export function Setup({
           aria-describedby="project-name-status"
           onBlur={() => setNameTouched(true)}
           onChange={event => {
-            setNameInputError('');
+            pastedName.clear();
             changeDraft({ ...draft, name: event.target.value });
           }}
-          onPaste={event => {
-            const text = event.clipboardData.getData('text');
-            if (projectNameHasControls(text)) {
-              event.preventDefault();
-              setNameInputError(message('nameControls'));
-            } else setNameInputError('');
-          }}
+          onPaste={pastedName.checkPaste}
           autoComplete="off"
         />
         <div id="project-name-status" className="field-status" hidden={!nameMessage} aria-live="polite">
@@ -251,14 +209,14 @@ export function Setup({
         <div
           id="project-directory-status"
           className="directory-status field-status"
-          hidden={!checking && !directoryMessage && !existingProjectId}
+          hidden={!directoryField.checking && !directoryMessage}
           aria-live="polite"
         >
-          {checking
+          {directoryField.checking
             ? t('checkingDirectory')
             : directoryMessage && <span className="error-text">{directoryMessage}</span>}
-          {existingProjectId && (
-            <button type="button" className="open-existing-project" onClick={() => openProject(existingProjectId)}>
+          {duplicate && (
+            <button type="button" className="open-existing-project" onClick={() => openProject(duplicate.projectId)}>
               {t('openExisting')}
             </button>
           )}
@@ -299,7 +257,9 @@ export function Setup({
             canIncrease={draft.total < 10}
           />
         </div>
-        <label className="allocation-label">{t('assignAgents')}</label>
+        <label id="allocation-label" className="allocation-label">
+          {t('assignAgents')}
+        </label>
         {agentTypes.map(type => (
           <div className={`quantity-row ${type}`} key={type}>
             <span>
@@ -316,7 +276,7 @@ export function Setup({
             />
           </div>
         ))}
-        <div className="allocation-status" aria-live="polite">
+        <div className="allocation-status" role="status" aria-labelledby="allocation-label">
           <span>{t('assigned', { count: assigned, total: draft.total })}</span>
           <span className={assigned > draft.total ? 'error-text' : 'muted'}>
             {assigned < draft.total

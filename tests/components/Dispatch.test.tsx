@@ -2,7 +2,7 @@ import './support/dom';
 import assert from 'node:assert/strict';
 import test, { afterEach, before } from 'node:test';
 import { cleanup, screen, waitFor, within } from '@testing-library/react';
-import { localize } from '../../app/shared/localization/localization';
+import { t } from './support/localization';
 import { defaultShortcuts, displayShortcut } from '../../app/shared/settings/shortcuts';
 import { sidebar, stubSidebarApis } from './support/forge-lists';
 import { dispatchButton, hoursAgo, listed, menu, panelOf, record, row } from './support/dispatch';
@@ -179,8 +179,6 @@ test('filling a new panel opens it as the temporary maximize once it joins the t
   await waitFor(() => assert.equal(document.querySelector('.forge-detail'), null));
   assert.ok(sidebar());
 });
-
-const { t } = localize('en');
 
 test("an issue row shows only its latest dispatch's skill: a link to its panel with its age in the hint", async () => {
   const f = await listed(undefined, snapshot => {

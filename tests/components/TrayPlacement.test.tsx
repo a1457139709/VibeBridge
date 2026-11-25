@@ -4,7 +4,7 @@ import test, { afterEach, before } from 'node:test';
 import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { userEvent } from '@testing-library/user-event';
 import { App } from '../../app/renderer/Workbench';
-import { localize } from '../../app/shared/localization/localization';
+import { t } from './support/localization';
 import { defaultSettings } from '../../app/shared/settings/settings';
 import type { Layout, Snapshot } from '../../app/shared/model';
 import type { WorkbenchEvent } from '../../app/shared/model';
@@ -15,7 +15,6 @@ import { requireValue } from '../../app/renderer/common/required';
 import { selectElement } from './support/elements';
 
 afterEach(cleanup);
-const { t } = localize('en');
 before(() => {
   stubLayoutApis();
   Object.assign(globalThis, { getComputedStyle: window.getComputedStyle.bind(window) });

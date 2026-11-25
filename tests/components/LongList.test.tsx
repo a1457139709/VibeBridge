@@ -1,5 +1,5 @@
 import './support/dom';
-import { localize } from '../../app/shared/localization/localization';
+import { t } from './support/localization';
 import assert from 'node:assert/strict';
 import test, { afterEach, before } from 'node:test';
 import { cleanup, fireEvent, waitFor, within } from '@testing-library/react';
@@ -15,8 +15,6 @@ import {
   stubSidebarApis,
 } from './support/forge-lists';
 import { selectElement } from './support/elements';
-
-const { t } = localize('en');
 
 const shownGeometry = { ...listGeometry };
 afterEach(() => {

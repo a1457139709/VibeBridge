@@ -4,9 +4,7 @@ import test, { afterEach, before } from 'node:test';
 import { cleanup, waitFor, within } from '@testing-library/react';
 import { bug, issue, page, renderWorkbench, rows, sidebar, stubSidebarApis, summary } from './support/forge-lists';
 import { githubCapabilities } from './support/forge';
-import { localize } from '../../app/shared/localization/localization';
-
-const { t } = localize('en');
+import { t } from './support/localization';
 
 afterEach(cleanup);
 before(stubSidebarApis);

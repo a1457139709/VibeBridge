@@ -16,9 +16,9 @@ import {
   mergeArea,
   rowOf,
   shownRow,
-  t,
   openPullRequest,
 } from './support/pull-request-detail';
+import { t } from './support/localization';
 import type { CheckState } from '../../app/shared/forge/forge';
 import { githubCapabilities } from './support/forge';
 

@@ -2,7 +2,7 @@ import './support/dom';
 import assert from 'node:assert/strict';
 import test, { afterEach, before } from 'node:test';
 import { cleanup, waitFor, within } from '@testing-library/react';
-import { localize } from '../../app/shared/localization/localization';
+import { t } from './support/localization';
 import { stubLayoutApis } from './support/no-layout';
 import { githubCapabilities, githubForge } from './support/forge';
 import { requireInstance, selectElement } from './support/elements';
@@ -17,8 +17,6 @@ import {
   pane,
   row,
 } from './support/issue-detail';
-
-const { t } = localize('en');
 
 afterEach(cleanup);
 before(() => {
