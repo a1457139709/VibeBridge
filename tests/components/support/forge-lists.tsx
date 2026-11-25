@@ -16,7 +16,7 @@ import type {
   Page,
 } from '../../../app/shared/forge/forge';
 import { deferred, provideWorkbench } from './workbench';
-import { githubCapabilities, githubForge, githubView, githubRepository } from './forge';
+import { testForgeCapabilities, testForge, testForgeUrl, testForgeView, testForgeRepository } from './forge';
 import { stubLayoutApis } from './no-layout';
 import { forgeSidebarData, type ForgeAnswers } from './forge-sidebar-data';
 import { selectElement } from './elements';
@@ -29,8 +29,8 @@ const project = (id: string, name: string, capabilities: ForgeCapabilities): Pro
   directory: `/work/${id}`,
   layout: { panel: `${id}-panel` },
   tray: [],
-  repository: githubRepository(`octo/${id}`),
-  ...githubView,
+  repository: testForgeRepository(`ada/${id}`),
+  ...testForgeView,
   capabilities,
   panels: [
     {
@@ -55,7 +55,7 @@ export const summary = (number: number, extra: Partial<IssueSummary> = {}): Issu
 });
 export const issue = (number: number, extra: Partial<ListedIssue> = {}): ListedIssue => ({
   ...summary(number),
-  url: `https://github.com/octo/alpha/issues/${number}`,
+  url: `${testForgeUrl}/ada/alpha/issues/${number}`,
   parent: null,
   subIssues: { closed: 0, total: 0, issues: [], unlisted: 0 },
   ...extra,
@@ -65,7 +65,7 @@ export const pullRequest = (number: number, extra: Partial<PullRequestSummary> =
   title: `Change ${number}`,
   state: 'open',
   createdAt: new Date(Date.now() - 2 * 86400e3).toISOString(),
-  author: 'mona',
+  author: 'lin',
   checks: 'none',
   labels: [],
   ...extra,
@@ -79,7 +79,7 @@ export const page = <Item = ListedIssue,>(items: Item[], cursor: string | null =
 });
 export const failed = (kind: ForgeFailure['kind'], detail = '', account: string | null = null): Page<never> => ({
   ok: false,
-  failure: { kind, detail, forge: githubForge },
+  failure: { kind, detail, forge: testForge },
   account,
 });
 
@@ -128,7 +128,7 @@ interface Request {
   fail(error: Error): void;
 }
 
-export function renderWorkbench(capabilities = githubCapabilities, api: Partial<DesktopAPI> & ForgeAnswers = {}) {
+export function renderWorkbench(capabilities = testForgeCapabilities, api: Partial<DesktopAPI> & ForgeAnswers = {}) {
   const snapshot: Snapshot = {
     navigation: { visible: true, width: 212 },
     forgeSidebar: { visible: true, width: 380 },
@@ -167,10 +167,10 @@ export function renderWorkbench(capabilities = githubCapabilities, api: Partial<
       repositoryChoices ??
       (async () => ({
         ok: true,
-        forge: githubForge,
-        account: 'octo',
+        forge: testForge,
+        account: 'ada',
         origin: null,
-        repositories: [githubRepository('octo/alpha')],
+        repositories: [testForgeRepository('ada/alpha')],
       })),
     issuePage: issuePage ?? ((projectId, query) => listRequest<IssuePage>('issues', projectId, query)),
     pullRequestPage:

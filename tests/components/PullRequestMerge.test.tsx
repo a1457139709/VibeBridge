@@ -21,7 +21,7 @@ import {
 import { t } from './support/localization';
 import { descriptionParts } from './support/elements';
 import type { CheckState } from '../../app/shared/forge/forge';
-import { githubCapabilities, githubForge } from './support/forge';
+import { overrideCapabilities, testForgeCapabilities, testForge } from './support/forge';
 
 afterEach(cleanup);
 before(stubSidebarApis);
@@ -41,7 +41,7 @@ const checkMarks = (item: HTMLElement) => ({
       ?.getAttribute('href') ?? null,
 });
 
-test("the checks show GitHub's overall state and every count, then each check in GitHub's order with its workflow, raw conclusion, description, required mark, duration and log", async () => {
+test("the checks show the forge's overall state and every count, then each check in the forge's order with its workflow, raw conclusion, description, required mark, duration and log", async () => {
   await openPullRequest(
     detail(12, {
       checks: checks(
@@ -98,7 +98,7 @@ test("the checks show GitHub's overall state and every count, then each check in
     shownCheck('build', t('checkSuccess'), t('durationHours', { hours: 1, minutes: 5 })),
     shownCheck('ci/legacy', t('checkSuccess')),
   ];
-  assert.deepEqual(checkItems(), shown, "every check is listed, in GitHub's order");
+  assert.deepEqual(checkItems(), shown, "every check is listed, in the forge's order");
   const none = { required: false };
   assert.deepEqual(shown.map(checkMarks), [
     { tone: 'forge-open', required: true, log: `${repositoryUrl}/runs/lint` },
@@ -135,7 +135,7 @@ test('a check state the sidebar does not know shows its raw value in the neutral
   assert.equal(checkMarks(shownCheck('unit tests', 'SUPERSEDED')).tone, 'forge-skipped');
 });
 
-test('a check list GitHub cut short says how many more there are and links the checks page', async () => {
+test('a check list the forge cut short says how many more there are and links the checks page', async () => {
   await openPullRequest(
     detail(12, {
       checks: checks(
@@ -145,7 +145,7 @@ test('a check list GitHub cut short says how many more there are and links the c
     }),
   );
   const more = within(rowOf(t('checksRow'))).getByRole('link', {
-    name: t('moreChecks', { count: 16, forge: githubForge.name }),
+    name: t('moreChecks', { count: 16, forge: testForge.name }),
   });
   assert.equal(more.getAttribute('href'), `${repositoryUrl}/pull/12/checks`);
 });
@@ -160,10 +160,10 @@ const mergeRows = () => within(mergeArea()).getAllByRole('group');
 test('the merge requirements read, in order, the review decision, the checks, the merge state, and the draft', async () => {
   await openPullRequest(detail(12, { state: 'draft', reviewDecision: 'changesRequested', mergeState: 'blocked' }));
   assert.deepEqual(mergeRows(), [t('reviewRow'), t('checksRow'), t('mergeStateRow'), t('draftRow')].map(rowOf));
-  assert.ok(shownRow(t('draftRow'), t('draftNote', { forge: githubForge.name })));
+  assert.ok(shownRow(t('draftRow'), t('draftNote', { forge: testForge.name })));
 });
 
-test('a draft for which GitHub gives no merge state of its own is explained by the draft row alone', async () => {
+test('a draft for which the forge gives no merge state of its own is explained by the draft row alone', async () => {
   await openPullRequest(detail(12, { state: 'draft', mergeState: null }));
   assert.deepEqual(mergeRows(), [t('reviewRow'), t('checksRow'), t('draftRow')].map(rowOf));
 });
@@ -187,7 +187,7 @@ for (const [mergeState, tone, text] of [
   ['dirty', 'failed', t('mergeStateDirty', { base: 'main' })],
   ['behind', 'failed', t('mergeStateBehind', { base: 'main' })],
   ['blocked', 'failed', t('mergeStateBlocked')],
-  ['unknown', 'pending', t('mergeStateUnknown', { forge: githubForge.name })],
+  ['unknown', 'pending', t('mergeStateUnknown', { forge: testForge.name })],
 ] as const) {
   test(`a merge state of ${mergeState} reads: ${text}`, async () => {
     await openPullRequest(detail(12, { mergeState }));
@@ -215,7 +215,7 @@ for (const [state, text] of [
 
 test('a forge without required checks marks none', async () => {
   await openPullRequest(detail(12, { checks: checks([check('unit tests', failure, { required: true })]) }), {
-    capabilities: { ...githubCapabilities, requiredChecks: false },
+    capabilities: overrideCapabilities({ requiredChecks: false }),
   });
   assert.equal(descriptionParts(checkItems()[0]).includes(t('requiredCheck')), false);
 });

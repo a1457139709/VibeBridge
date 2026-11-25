@@ -12,7 +12,7 @@ import type {
 import type { ForgeSidebarEvent } from '../../../app/shared/forge/sidebar-data';
 import type { WorkbenchEvent } from '../../../app/shared/model';
 import { ForgeSidebarData } from '../../../app/main/forge/forge-sidebar-data';
-import { githubForge } from './forge';
+import { testForge } from './forge';
 
 export interface ForgeAnswers {
   issuePage?(projectId: string, query: ListQuery): Promise<IssuePage>;
@@ -43,7 +43,7 @@ export function forgeSidebarData(
     issueDetail: (projectId, number) => answers.issueDetail?.(projectId, number) ?? unanswered('issueDetail'),
     pullRequestDetail: (projectId, number) =>
       answers.pullRequestDetail?.(projectId, number) ?? unanswered('pullRequestDetail'),
-    forge: () => githubForge,
+    forge: () => testForge,
     emit,
   });
   return {

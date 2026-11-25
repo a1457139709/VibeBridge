@@ -9,7 +9,7 @@ import { Localization } from '../../app/renderer/common/Localization';
 import { defaultSettings } from '../../app/main/persistence/settings';
 import type { Snapshot, WorkbenchEvent } from '../../app/shared/model';
 import { provideWorkbench } from './support/workbench';
-import { githubView } from './support/forge';
+import { testForgeView } from './support/forge';
 import { requireValue } from '../../app/renderer/common/required';
 import { localize } from '../../app/shared/localization/localization';
 import { t } from './support/localization';
@@ -58,7 +58,7 @@ test("navigation reads each panel view's state, exposes all five states to keybo
         ],
         tray: [],
         repository: null,
-        ...githubView,
+        ...testForgeView,
       },
     ],
   };

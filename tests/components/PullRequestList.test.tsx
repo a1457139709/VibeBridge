@@ -16,7 +16,7 @@ import {
   stateFilter,
   stubSidebarApis,
 } from './support/forge-lists';
-import { githubForge } from './support/forge';
+import { testForge } from './support/forge';
 import { t } from './support/localization';
 import { selectElement } from './support/elements';
 import { alertMessages, forgeSidebar, staleRetry, statusMessages } from './support/sidebar-queries';
@@ -45,7 +45,7 @@ test('the Pull requests tab lists one page of rows with state, number, age, auth
     page(
       [
         pullRequest(9, { checks: 'passed', labels: [bug] }),
-        pullRequest(8, { state: 'draft', checks: 'pending', author: 'octo' }),
+        pullRequest(8, { state: 'draft', checks: 'pending', author: 'ada' }),
         pullRequest(7, { checks: 'failed' }),
       ],
       'next',
@@ -56,12 +56,12 @@ test('the Pull requests tab lists one page of rows with state, number, age, auth
   assert.ok(within(passed).getByRole('img', { name: t('pullRequestOpen') }), 'the state icon names the state');
   assert.equal(selectElement('.forge-row-number', passed).textContent, '#9');
   assert.equal(selectElement('time', passed).textContent, t('daysAgo', { count: 2 }));
-  assert.equal(selectElement('.forge-author', passed).textContent, 'mona');
+  assert.equal(selectElement('.forge-author', passed).textContent, 'lin');
   assert.ok(within(passed).getByRole('img', { name: t('checksPassed') }));
   assert.ok(within(passed).getByRole('button', { name: bug.name }));
   assert.equal(passed.querySelector('.forge-row-action'), null, 'a pull request row has no action area');
   assert.ok(within(pending).getByRole('img', { name: t('pullRequestDraft') }));
-  assert.equal(selectElement('.forge-author', pending).textContent, 'octo');
+  assert.equal(selectElement('.forge-author', pending).textContent, 'ada');
   assert.ok(within(pending).getByRole('img', { name: t('checksPending') }));
   assert.ok(within(failing).getByRole('img', { name: t('checksFailed') }));
   assert.ok(stateFilter('open', 7));
@@ -155,7 +155,7 @@ test('a pull request page failure keeps the rows under a stale notice, and fills
 test('a logged-out forge CLI on the Pull requests tab fills the sidebar, and Retry reloads pull requests', async () => {
   const { user, request } = await onPullRequests();
   (await request(2)).answer(failed('loggedOut', 'HTTP 401: Bad credentials'));
-  await within(forgeSidebar()).findByRole('button', { name: t('copyCommand', { command: githubForge.loginCommand }) });
+  await within(forgeSidebar()).findByRole('button', { name: t('copyCommand', { command: testForge.loginCommand }) });
   assert.equal(
     within(forgeSidebar()).queryByRole('tab', { name: t('pullRequestsTab') }),
     null,

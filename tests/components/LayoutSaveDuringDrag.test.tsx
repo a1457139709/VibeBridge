@@ -7,7 +7,7 @@ import { defaultSettings } from '../../app/shared/settings/settings';
 import type { Layout, PanelView, Snapshot, WorkbenchEvent } from '../../app/shared/model';
 import { stubLayoutApis } from './support/no-layout';
 import { provideWorkbench } from './support/workbench';
-import { githubView } from './support/forge';
+import { testForgeView } from './support/forge';
 import { requireValue } from '../../app/renderer/common/required';
 import { selectElement } from './support/elements';
 import { summaryEntryName } from './support/accessible-names';
@@ -71,7 +71,7 @@ async function renderWorkbench() {
         panels: [panel('codex', 'codex'), panel('claude', 'claude')],
         tray: [panel('pi', 'pi')],
         repository: null,
-        ...githubView,
+        ...testForgeView,
       },
     ],
   };

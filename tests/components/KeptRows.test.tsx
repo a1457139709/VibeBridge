@@ -17,7 +17,7 @@ import {
   stateFilter,
   stubSidebarApis,
 } from './support/forge-lists';
-import { githubForge } from './support/forge';
+import { testForge } from './support/forge';
 import { requireInstance } from './support/elements';
 import { forgeSidebar, statusMessages } from './support/sidebar-queries';
 
@@ -104,8 +104,8 @@ test('reopening the sidebar or bringing the window to the front shows the kept r
   const { user, request } = renderWorkbench();
   (await request(1)).answer(page([issue(1)], 'next'));
   await waitFor(() => assert.deepEqual(rows(), ['Issue 1']));
-  await user.click(screen.getByRole('button', { name: t('closeForgeSidebar', { forge: githubForge.name }) }));
-  await user.click(screen.getByRole('button', { name: t('openForgeSidebar', { forge: githubForge.name }) }));
+  await user.click(screen.getByRole('button', { name: t('closeForgeSidebar', { forge: testForge.name }) }));
+  await user.click(screen.getByRole('button', { name: t('openForgeSidebar', { forge: testForge.name }) }));
   const reopened = await request(2);
   assert.deepEqual(reopened.query, { filter: openNoFilter, cursor: null });
   assert.deepEqual(rows(), ['Issue 1'], 'the kept rows show before the forge answers');

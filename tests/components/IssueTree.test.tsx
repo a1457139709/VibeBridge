@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import test, { afterEach, before } from 'node:test';
 import { cleanup, waitFor, within } from '@testing-library/react';
 import { bug, issue, page, renderWorkbench, rows, stateFilter, stubSidebarApis, summary } from './support/forge-lists';
-import { githubCapabilities, githubForge } from './support/forge';
+import { overrideCapabilities, testForgeCapabilities, testForge, testForgeUrl } from './support/forge';
 import { t } from './support/localization';
 import { forgeSidebar } from './support/sidebar-queries';
 
@@ -73,17 +73,17 @@ test("a blocked issue shows the blockers' numbers, names them on hover, and keep
       issue(9, {
         blockedBy: [
           { path: null, number: 143, title: 'Sidebar shell' },
-          { path: 'octo/other', number: 7, title: 'Upstream fix' },
+          { path: 'ada/other', number: 7, title: 'Upstream fix' },
         ],
       }),
       issue(8),
     ]),
   );
   const mark = await within(forgeSidebar()).findByRole('img', {
-    name: t('blockedBy', { issues: '#143, octo/other#7' }),
+    name: t('blockedBy', { issues: '#143, ada/other#7' }),
   });
-  assert.equal(mark.textContent, '#143, octo/other#7');
-  assert.equal(mark.getAttribute('data-hint'), '#143 Sidebar shell\nocto/other#7 Upstream fix');
+  assert.equal(mark.textContent, '#143, ada/other#7');
+  assert.equal(mark.getAttribute('data-hint'), '#143 Sidebar shell\nada/other#7 Upstream fix');
   const [blocked, free] = within(forgeSidebar()).getAllByRole('listitem');
   assert.ok(blocked.contains(mark));
   assert.ok(blocked.querySelector('.forge-row-action'), 'a blocked issue can still be dispatched');
@@ -127,11 +127,11 @@ test('an expanded parent whose sub-issues the forge cut short says how many more
     await user.click(expand);
   const more = within(within(forgeSidebar()).getByRole('group', { name: t('subIssuesOf', { number: 10 }) })).getByRole(
     'link',
-    { name: t('moreSubIssues', { count: 4, forge: githubForge.name }) },
+    { name: t('moreSubIssues', { count: 4, forge: testForge.name }) },
   );
   assert.equal(
     more.getAttribute('href'),
-    'https://github.com/octo/alpha/issues/10',
+    `${testForgeUrl}/ada/alpha/issues/10`,
     'a sub-issue the cap left out but the list loaded is not counted again',
   );
   assert.equal(
@@ -163,7 +163,7 @@ for (const capabilities of [
   { subIssues: false, blocking: true },
 ]) {
   test(`a forge declaring sub-issues ${capabilities.subIssues} and blocking ${capabilities.blocking} shows only what it declares`, async () => {
-    const { request } = renderWorkbench({ ...githubCapabilities, ...capabilities });
+    const { request } = renderWorkbench(overrideCapabilities(capabilities));
     const answer = tree();
     assert.ok(answer.ok);
     answer.items[0].blockedBy = [{ path: null, number: 1, title: 'Blocker' }];

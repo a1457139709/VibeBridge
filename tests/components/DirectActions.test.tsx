@@ -15,7 +15,7 @@ import type {
 } from '../../app/shared/forge/forge';
 import { deferred, provideWorkbench } from './support/workbench';
 import { forgeSidebarData, workbenchEvents } from './support/forge-sidebar-data';
-import { githubForge, githubView, githubRepository } from './support/forge';
+import { testForge, testForgeUrl, testForgeView, testForgeRepository } from './support/forge';
 import { issue as listedIssue, pullRequest as listedPullRequest, stubSidebarApis } from './support/forge-lists';
 import { requireValue } from '../../app/renderer/common/required';
 import { descriptionParts } from './support/elements';
@@ -25,7 +25,7 @@ import { alertMessages, detailHeading, forgeSidebar } from './support/sidebar-qu
 afterEach(cleanup);
 before(stubSidebarApis);
 
-const repositoryUrl = 'https://github.com/octo/alpha';
+const repositoryUrl = `${testForgeUrl}/ada/alpha`;
 const titles = { issue: 'Spec', pullRequest: 'Read-only detail' };
 const links = { issuePrefix: `${repositoryUrl}/issues/`, pullRequestPrefix: `${repositoryUrl}/pull/` };
 const issueDetail = (number: number, extra: Partial<IssueDetail> = {}): IssueDetail => {
@@ -39,7 +39,7 @@ const issueDetail = (number: number, extra: Partial<IssueDetail> = {}): IssueDet
   return {
     ...summary,
     url: `${repositoryUrl}/issues/${number}`,
-    author: 'mona',
+    author: 'lin',
     assignees: [],
     body: '',
     comments: [],
@@ -93,8 +93,8 @@ function renderWorkbench(forge: Forge) {
     directory: '/work/alpha',
     layout: { panel: 'panel' },
     tray: [],
-    repository: githubRepository('octo/alpha'),
-    ...githubView,
+    repository: testForgeRepository('ada/alpha'),
+    ...testForgeView,
     panels: [
       {
         id: 'panel',
@@ -179,14 +179,14 @@ function renderWorkbench(forge: Forge) {
 
 const issuePane = () => within(forgeSidebar()).getByRole('region', { name: t('issueDetail') });
 const pullPane = () => within(forgeSidebar()).getByRole('region', { name: t('pullRequestDetail') });
-const forgeName = githubForge.name;
+const forgeName = testForge.name;
 const mergeButtons = () =>
   within(within(pullPane()).getByRole('region', { name: t('mergeRequirements') }))
     .queryAllByRole('button')
     .map(button => button.textContent);
 const failure = (detail: string): DirectActionResult => ({
   ok: false,
-  failure: { kind: 'transient', detail, forge: githubForge },
+  failure: { kind: 'transient', detail, forge: testForge },
 });
 
 async function openIssue(forge: Forge) {
@@ -228,7 +228,7 @@ test('Close issue closes it as completed, shows it working meanwhile, and on suc
     'the other actions wait',
   );
   forge.issue = issueDetail(3, { state: 'closed', closedAs: 'completed' });
-  asked.answer({ ok: true, detail: '✓ Closed issue octo/alpha#3 (Spec)' });
+  asked.answer({ ok: true, detail: '✓ Closed issue ada/alpha#3 (Spec)' });
   await within(issuePane()).findByRole('button', { name: t('reopenIssue') });
   await waitFor(() =>
     assert.deepEqual(
@@ -266,12 +266,12 @@ test('a failed action shows the forge text under the buttons with Retry until di
   const forge: Forge = { issue: issueDetail(3) };
   const { user, action } = await openIssue(forge);
   await user.click(within(issuePane()).getByRole('button', { name: t('closeIssue') }));
-  (await action(1)).answer(failure('HTTP 502: Server Error (https://api.github.com/graphql)'));
+  (await action(1)).answer(failure(`HTTP 502: Server Error (${testForgeUrl}/graphql)`));
   const alert = await within(issuePane()).findByRole('alert');
   assert.deepEqual(descriptionParts(within(alert).getByRole('button', { name: t('retry') })), [
     t('actionFailed', {
       action: t('closeAsCompleted'),
-      reason: 'HTTP 502: Server Error (https://api.github.com/graphql)',
+      reason: `HTTP 502: Server Error (${testForgeUrl}/graphql)`,
     }),
   ]);
   assert.ok(
@@ -303,9 +303,9 @@ test('an action that finds the forge CLI missing or logged out puts the sidebar 
   const forge: Forge = { issue: issueDetail(3), pullRequest: pullDetail(12) };
   const missing = await openIssue(forge);
   await missing.user.click(within(issuePane()).getByRole('button', { name: t('closeIssue') }));
-  const notInstalled: ForgeFailure = { kind: 'notInstalled', detail: '', forge: githubForge };
+  const notInstalled: ForgeFailure = { kind: 'notInstalled', detail: '', forge: testForge };
   (await missing.action(1)).answer({ ok: false, failure: notInstalled });
-  await waitFor(() => assert.deepEqual(alertMessages(), [t('forgeCliMissing', { cli: githubForge.cli })]));
+  await waitFor(() => assert.deepEqual(alertMessages(), [t('forgeCliMissing', { cli: testForge.cli })]));
   assert.equal(
     within(forgeSidebar()).queryByRole('region', { name: t('issueDetail') }),
     null,
@@ -317,9 +317,9 @@ test('an action that finds the forge CLI missing or logged out puts the sidebar 
   await loggedOut.user.click(within(pullPane()).getByRole('button', { name: t('closePullRequest') }));
   (await loggedOut.action(1)).answer({
     ok: false,
-    failure: { kind: 'loggedOut', detail: 'HTTP 401: Bad credentials', forge: githubForge },
+    failure: { kind: 'loggedOut', detail: 'HTTP 401: Bad credentials', forge: testForge },
   });
-  await within(forgeSidebar()).findByRole('button', { name: t('copyCommand', { command: githubForge.loginCommand }) });
+  await within(forgeSidebar()).findByRole('button', { name: t('copyCommand', { command: testForge.loginCommand }) });
 });
 
 test('with no write access to the repository, a detail shows no action buttons', async () => {

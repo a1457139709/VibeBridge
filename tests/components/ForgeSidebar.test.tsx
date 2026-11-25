@@ -6,7 +6,7 @@ import { userEvent } from '@testing-library/user-event';
 import type { RepositoryChoices, RepositoryReference } from '../../app/shared/forge/forge';
 import { nestedMessage, message } from '../../app/shared/messages';
 import { stubLayoutApis } from './support/no-layout';
-import { githubForge, githubRepository } from './support/forge';
+import { testForge, testForgeRepository } from './support/forge';
 import { requireValue } from '../../app/renderer/common/required';
 import { requireInstance, selectElement } from './support/elements';
 import { t } from './support/localization';
@@ -44,7 +44,7 @@ test('the button at the right end of the system bar opens the sidebar for the cu
   assert.equal(queryForgeSidebar(), null);
   await user.click(toggle());
   const opened = openedSidebar();
-  assert.equal(repositoryTitle(), 'octo/bound');
+  assert.equal(repositoryTitle(), 'ada/bound');
   assert.ok(opened.contains(document.activeElement), 'focus moves into the sidebar');
   assert.equal(toggle().getAttribute('aria-label'), hideSidebar);
   await user.click(toggle());
@@ -82,11 +82,11 @@ function resizeWindow(width: number) {
 test('the sidebar follows the current project and stays on the settings page', async () => {
   const { user } = renderWorkbench({ visible: true, width: 420 });
   await shownSidebar();
-  assert.equal(repositoryTitle(), 'octo/bound');
+  assert.equal(repositoryTitle(), 'ada/bound');
   assert.equal(drawnWidth('forge-sidebar'), '420px');
   await user.click(screen.getByRole('button', { name: unboundProject }));
   await waitFor(() => assert.equal(repositoryTitle(), t('noRepositoryBound')));
-  assert.ok(!openedSidebar().textContent?.includes('octo/bound'));
+  assert.ok(!openedSidebar().textContent?.includes('ada/bound'));
   await user.click(screen.getByRole('button', { name: t('settings') }));
   await screen.findByRole('button', { name: t('back') });
   assert.equal(repositoryTitle(), t('noRepositoryBound'));
@@ -108,12 +108,12 @@ test('a narrower window draws the sidebar narrower without changing its remember
   assert.deepEqual(saved, []);
 });
 
-const listed = (origin: string | null, paths = ['octo/tools', 'octo/unbound', 'acme/forge']): RepositoryChoices => ({
+const listed = (origin: string | null, paths = ['ada/tools', 'ada/unbound', 'acme/forge']): RepositoryChoices => ({
   ok: true,
-  forge: githubForge,
-  account: 'octo',
-  origin: origin === null ? null : githubRepository(origin),
-  repositories: paths.map(path => githubRepository(path)),
+  forge: testForge,
+  account: 'ada',
+  origin: origin === null ? null : testForgeRepository(origin),
+  repositories: paths.map(path => testForgeRepository(path)),
 });
 
 async function unboundSidebar(choices: () => Promise<RepositoryChoices>, bind?: () => Promise<void>) {
@@ -140,25 +140,25 @@ async function unboundSidebar(choices: () => Promise<RepositoryChoices>, bind?: 
 }
 
 test('an unbound project whose origin points at a listed repository offers to bind it, and Bind binds it at once', async () => {
-  const { user, binds, opened } = await unboundSidebar(async () => listed('octo/unbound'));
-  const bind = await within(opened).findByRole('button', { name: t('bindTo', { repository: 'octo/unbound' }) });
-  const card = within(opened).getByRole('group', { name: t('projectUnbound', { forge: githubForge.name }) });
+  const { user, binds, opened } = await unboundSidebar(async () => listed('ada/unbound'));
+  const bind = await within(opened).findByRole('button', { name: t('bindTo', { repository: 'ada/unbound' }) });
+  const card = within(opened).getByRole('group', { name: t('projectUnbound', { forge: testForge.name }) });
   assert.ok(card.contains(bind), "the card offers binding origin's repository");
   assert.deepEqual(
     within(card)
       .getAllByRole('button')
       .map(button => button.textContent),
-    [t('bindTo', { repository: 'octo/unbound' }), t('chooseOtherRepository')],
+    [t('bindTo', { repository: 'ada/unbound' }), t('chooseOtherRepository')],
     'the card offers only binding the origin or choosing another',
   );
   await user.click(bind);
-  assert.deepEqual(binds, [['unbound', githubRepository('octo/unbound')]]);
-  await waitFor(() => assert.equal(repositoryTitle(), 'octo/unbound'));
+  assert.deepEqual(binds, [['unbound', testForgeRepository('ada/unbound')]]);
+  await waitFor(() => assert.equal(repositoryTitle(), 'ada/unbound'));
   assert.ok(within(openedSidebar()).getByRole('button', { name: t('changeBinding') }), 'the bound lists show');
 });
 
 test('Choose another repository… lists origin first and picked, Bind Y binds the one picked, and Back returns focus to the origin card', async () => {
-  const { user, binds, opened } = await unboundSidebar(async () => listed('octo/unbound'));
+  const { user, binds, opened } = await unboundSidebar(async () => listed('ada/unbound'));
   await user.click(await within(opened).findByRole('button', { name: t('chooseOtherRepository') }));
   const search = await within(opened).findByRole('searchbox', { name: t('searchRepositories') });
   await waitFor(() => assert.equal(document.activeElement, search));
@@ -166,27 +166,27 @@ test('Choose another repository… lists origin first and picked, Bind Y binds t
     within(opened)
       .getAllByRole('option')
       .map(option => option.getAttribute('data-path')),
-    ['octo/unbound', 'octo/tools', 'acme/forge'],
+    ['ada/unbound', 'ada/tools', 'acme/forge'],
   );
   assert.deepEqual(
     within(opened)
       .getAllByRole('option', { selected: true })
       .map(option => option.getAttribute('data-path')),
-    ['octo/unbound'],
+    ['ada/unbound'],
     "origin's repository starts picked",
   );
-  assert.ok(within(opened).getByRole('button', { name: t('bindTo', { repository: 'octo/unbound' }) }));
+  assert.ok(within(opened).getByRole('button', { name: t('bindTo', { repository: 'ada/unbound' }) }));
   await user.click(within(opened).getByRole('button', { name: t('bindingBack') }));
   const chooseOther = await within(opened).findByRole('button', { name: t('chooseOtherRepository') });
   await waitFor(() => assert.equal(document.activeElement, chooseOther));
   await user.click(chooseOther);
   await user.click(await waitFor(() => repositoryOption('acme/forge', opened)));
   await user.click(within(opened).getByRole('button', { name: t('bindTo', { repository: 'acme/forge' }) }));
-  assert.deepEqual(binds, [['unbound', githubRepository('acme/forge')]]);
+  assert.deepEqual(binds, [['unbound', testForgeRepository('acme/forge')]]);
 });
 
 test('from the search box ↑/↓ move through the listed repositories, Enter or Space picks the one reached, and picking with the pointer keeps focus there', async () => {
-  const { user, opened } = await unboundSidebar(async () => listed('octo/unbound'));
+  const { user, opened } = await unboundSidebar(async () => listed('ada/unbound'));
   await user.click(await within(opened).findByRole('button', { name: t('chooseOtherRepository') }));
   const search = requireInstance(
     await within(opened).findByRole('searchbox', { name: t('searchRepositories') }),
@@ -200,21 +200,21 @@ test('from the search box ↑/↓ move through the listed repositories, Enter or
   await waitFor(() => assert.equal(document.activeElement, search));
   assert.equal(reached(), undefined, 'no repository is reached before a key moves');
   await user.keyboard('{ArrowDown}');
-  assert.equal(reached(), 'octo/unbound', 'the repository origin points at is listed first');
+  assert.equal(reached(), 'ada/unbound', 'the repository origin points at is listed first');
   await user.keyboard('{ArrowUp}');
-  assert.equal(reached(), 'octo/unbound', 'the first repository stays reached');
+  assert.equal(reached(), 'ada/unbound', 'the first repository stays reached');
   await user.keyboard('{ArrowDown}{ArrowDown}{ArrowDown}');
   assert.equal(reached(), 'acme/forge', 'the last repository stays reached');
   await user.keyboard('{Enter}');
   assert.deepEqual(picked(), ['acme/forge']);
   await user.keyboard('{ArrowUp} ');
-  assert.deepEqual(picked(), ['octo/tools']);
+  assert.deepEqual(picked(), ['ada/tools']);
   assert.equal(search.value, '', 'Space picks without typing');
 
-  await user.hover(repositoryOption('octo/unbound', opened));
-  assert.equal(reached(), 'octo/unbound', 'pointing reaches a repository');
+  await user.hover(repositoryOption('ada/unbound', opened));
+  assert.equal(reached(), 'ada/unbound', 'pointing reaches a repository');
   await user.keyboard('{ArrowDown}');
-  assert.equal(reached(), 'octo/tools', 'the keys go on from where the pointer reached');
+  assert.equal(reached(), 'ada/tools', 'the keys go on from where the pointer reached');
   await user.click(repositoryOption('acme/forge', opened));
   assert.deepEqual(picked(), ['acme/forge']);
   assert.equal(document.activeElement, search, 'picking with the pointer keeps focus in the search box');
@@ -222,30 +222,30 @@ test('from the search box ↑/↓ move through the listed repositories, Enter or
   await user.type(search, 'tools');
   assert.equal(reached(), undefined, 'a new search reaches nothing yet');
   await user.keyboard('{ArrowDown}{Enter}');
-  assert.deepEqual(picked(), ['octo/tools']);
+  assert.deepEqual(picked(), ['ada/tools']);
 });
 
 test('without an origin on the list, the list shows with nothing picked and Bind is unavailable until one is', async () => {
   const { user, binds, opened } = await unboundSidebar(async () => listed(null));
-  const tools = await waitFor(() => repositoryOption('octo/tools', opened));
-  assert.ok(opened.textContent?.includes(t('originNotListed', { forge: githubForge.name })));
+  const tools = await waitFor(() => repositoryOption('ada/tools', opened));
+  assert.ok(opened.textContent?.includes(t('originNotListed', { forge: testForge.name })));
   assert.equal(within(opened).queryByRole('option', { selected: true }), null);
   assert.equal(bindButton(opened).disabled, true);
   await user.click(tools);
-  await user.click(within(opened).getByRole('button', { name: t('bindTo', { repository: 'octo/tools' }) }));
-  assert.deepEqual(binds, [['unbound', githubRepository('octo/tools')]]);
+  await user.click(within(opened).getByRole('button', { name: t('bindTo', { repository: 'ada/tools' }) }));
+  assert.deepEqual(binds, [['unbound', testForgeRepository('ada/tools')]]);
 });
 
 test('a list that fails after a pick binds nothing: Bind is unavailable until the list shows again', async () => {
   const answers: RepositoryChoices[] = [
     listed(null),
-    { ok: false, failure: { kind: 'transient', detail: 'HTTP 502', forge: githubForge } },
+    { ok: false, failure: { kind: 'transient', detail: 'HTTP 502', forge: testForge } },
   ];
   const { user, binds, opened, snapshot, publish } = await unboundSidebar(async () =>
     requireValue(answers.shift(), 'a repository list answer'),
   );
-  await user.click(await waitFor(() => repositoryOption('octo/tools', opened)));
-  assert.ok(within(opened).getByRole('button', { name: t('bindTo', { repository: 'octo/tools' }) }));
+  await user.click(await waitFor(() => repositoryOption('ada/tools', opened)));
+  assert.ok(within(opened).getByRole('button', { name: t('bindTo', { repository: 'ada/tools' }) }));
   requireValue(
     snapshot.projects.find(item => item.id === 'unbound'),
     'the unbound project',
@@ -258,33 +258,33 @@ test('a list that fails after a pick binds nothing: Bind is unavailable until th
 
 test('a forge failure takes the place of the list with its reason and Retry, and nothing can be bound', async () => {
   const answers: RepositoryChoices[] = [
-    { ok: false, failure: { kind: 'notInstalled', detail: '', forge: githubForge } },
-    { ok: false, failure: { kind: 'loggedOut', detail: 'gh auth login', forge: githubForge } },
-    { ok: false, failure: { kind: 'transient', detail: 'HTTP 502', forge: githubForge } },
+    { ok: false, failure: { kind: 'notInstalled', detail: '', forge: testForge } },
+    { ok: false, failure: { kind: 'loggedOut', detail: testForge.loginCommand, forge: testForge } },
+    { ok: false, failure: { kind: 'transient', detail: 'HTTP 502', forge: testForge } },
     listed(null),
   ];
   const { user, opened } = await unboundSidebar(async () => requireValue(answers.shift(), 'a repository list answer'));
   for (const reason of [
-    t('forgeNotInstalled', { cli: githubForge.cli }),
-    t('forgeLoggedOut', { cli: githubForge.cli, command: githubForge.loginCommand }),
+    t('forgeNotInstalled', { cli: testForge.cli }),
+    t('forgeLoggedOut', { cli: testForge.cli, command: testForge.loginCommand }),
     t('repositoryListFailed', { reason: 'HTTP 502' }),
   ]) {
     await waitFor(() => assert.deepEqual(alertMessages(opened), [reason]));
     assert.equal(bindButton(opened).disabled, true);
     await user.click(within(opened).getByRole('button', { name: t('retry') }));
   }
-  assert.ok(await waitFor(() => repositoryOption('octo/tools', opened)));
+  assert.ok(await waitFor(() => repositoryOption('ada/tools', opened)));
 });
 
 test('a bind whose list check fails writes nothing, says why in place, and can be tried again', async () => {
   let fail = true;
   const { user, binds, opened } = await unboundSidebar(
-    async () => listed('octo/unbound'),
+    async () => listed('ada/unbound'),
     async () => {
       if (fail) throw new Error(message('bindListFailed', { reason: nestedMessage('HTTP 502 原样') }));
     },
   );
-  const bindOrigin = t('bindTo', { repository: 'octo/unbound' });
+  const bindOrigin = t('bindTo', { repository: 'ada/unbound' });
   await user.click(await within(opened).findByRole('button', { name: bindOrigin }));
   assert.equal(
     (await within(opened).findByRole('alert')).textContent,
@@ -293,7 +293,7 @@ test('a bind whose list check fails writes nothing, says why in place, and can b
   assert.equal(repositoryTitle(), t('noRepositoryBound'), 'the project is still unbound');
   fail = false;
   await user.click(within(opened).getByRole('button', { name: bindOrigin }));
-  await waitFor(() => assert.equal(repositoryTitle(), 'octo/unbound'));
+  await waitFor(() => assert.equal(repositoryTitle(), 'ada/unbound'));
   assert.equal(binds.length, 2);
 });
 
@@ -306,11 +306,11 @@ async function editProject(user: ReturnType<typeof userEvent.setup>, name: strin
 test("Edit project's link on a bound project closes the dialog and opens the sidebar on its change-binding page", async () => {
   const { user } = renderWorkbench();
   const dialog = await editProject(user, boundProject);
-  const changeInSidebar = t('changeBindingInSidebar', { forge: githubForge.name });
-  await user.click(within(dialog).getByRole('button', { name: changeInSidebar, description: 'octo/bound' }));
+  const changeInSidebar = t('changeBindingInSidebar', { forge: testForge.name });
+  await user.click(within(dialog).getByRole('button', { name: changeInSidebar, description: 'ada/bound' }));
   await waitFor(() => assert.equal(screen.queryByRole('dialog'), null));
   const opened = await shownSidebar();
-  assert.equal(currentlyBoundPath(opened), 'octo/bound');
+  assert.equal(currentlyBoundPath(opened), 'ada/bound');
   const search = await within(opened).findByRole('searchbox', { name: t('searchRepositories') });
   await waitFor(() => assert.equal(document.activeElement, search));
 });
@@ -318,7 +318,7 @@ test("Edit project's link on a bound project closes the dialog and opens the sid
 test("Edit project's link on an unbound project makes it current and opens the sidebar on its unbound state", async () => {
   const { user, snapshot } = renderWorkbench();
   const dialog = await editProject(user, unboundProject);
-  const bindInSidebar = t('bindInSidebar', { forge: githubForge.name });
+  const bindInSidebar = t('bindInSidebar', { forge: testForge.name });
   await user.click(within(dialog).getByRole('button', { name: bindInSidebar, description: t('notBound') }));
   await waitFor(() => assert.equal(screen.queryByRole('dialog'), null));
   await waitFor(() => assert.equal(snapshot.activeProjectId, 'unbound'));

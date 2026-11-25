@@ -1,22 +1,36 @@
-import type { ForgeCapabilities, ForgePresentation, RepositoryReference } from '../../../app/shared/forge/forge';
+import { fromAny } from '@total-typescript/shoehorn';
+import type {
+  ForgeCapabilities,
+  ForgeId,
+  ForgePresentation,
+  RepositoryReference,
+} from '../../../app/shared/forge/forge';
 
-export const githubForge: ForgePresentation = {
-  name: 'GitHub',
-  cli: 'gh',
-  installUrl: 'https://cli.github.com',
-  loginCommand: 'gh auth login',
+const testForgeId: ForgeId = fromAny('test-forge');
+export const testForgeHost = 'forge.test';
+export const testForgeUrl = `https://${testForgeHost}`;
+
+export const testForge: ForgePresentation = {
+  name: 'Test Forge',
+  cli: 'tf',
+  installUrl: `${testForgeUrl}/cli`,
+  loginCommand: 'tf login',
 };
-export const githubCapabilities: ForgeCapabilities = {
+export const testForgeCapabilities: ForgeCapabilities = {
   subIssues: true,
   blocking: true,
   requiredChecks: true,
   mergeQueue: true,
   mergeMethods: ['merge', 'squash', 'rebase'],
 };
-export const githubView = { forge: githubForge, capabilities: githubCapabilities, dispatches: [] };
-export const githubRepository = (path: string, id = `id-${path}`): RepositoryReference => ({
-  forge: 'github',
-  host: 'github.com',
+export const overrideCapabilities = (overrides: Partial<ForgeCapabilities>): ForgeCapabilities => ({
+  ...testForgeCapabilities,
+  ...overrides,
+});
+export const testForgeView = { forge: testForge, capabilities: testForgeCapabilities, dispatches: [] };
+export const testForgeRepository = (path: string, id = `id-${path}`): RepositoryReference => ({
+  forge: testForgeId,
+  host: testForgeHost,
   id,
   path,
 });

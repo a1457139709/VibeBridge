@@ -9,7 +9,7 @@ import type { PanelView, ProjectView, Snapshot } from '../../app/shared/model';
 import type { ProcessingState } from '../../app/shared/processing-status';
 import { stubLayoutApis } from './support/no-layout';
 import { provideWorkbench } from './support/workbench';
-import { githubView } from './support/forge';
+import { testForgeView } from './support/forge';
 import { t } from './support/localization';
 import { requireValue } from '../../app/renderer/common/required';
 import { selectElement } from './support/elements';
@@ -39,7 +39,7 @@ const project = (): ProjectView => ({
   panels: [panel('resident', 'done')],
   tray: [panel('first-ephemeral', 'needs-input'), panel('second-ephemeral', 'done')],
   repository: null,
-  ...githubView,
+  ...testForgeView,
 });
 
 function renderWorkbench(change: (snapshot: Snapshot) => void = () => {}) {

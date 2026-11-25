@@ -7,7 +7,7 @@ import { App } from '../../app/renderer/Workbench';
 import { defaultSettings } from '../../app/shared/settings/settings';
 import type { PanelView, Snapshot, WorkbenchEvent } from '../../app/shared/model';
 import { provideWorkbench } from './support/workbench';
-import { githubView } from './support/forge';
+import { testForgeView } from './support/forge';
 import { t } from './support/localization';
 import { requireValue } from '../../app/renderer/common/required';
 import { selectElement } from './support/elements';
@@ -107,7 +107,7 @@ async function renderWorkbench() {
         panels: [panel('first'), panel('second')],
         tray: [],
         repository: null,
-        ...githubView,
+        ...testForgeView,
       },
     ],
   };

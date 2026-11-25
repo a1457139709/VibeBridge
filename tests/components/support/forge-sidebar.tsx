@@ -8,7 +8,7 @@ import type { RepositoryChoices } from '../../../app/shared/forge/forge';
 import type { DesktopAPI } from '../../../app/shared/api';
 import { provideWorkbench } from './workbench';
 import { forgeSidebarData, type ForgeAnswers } from './forge-sidebar-data';
-import { githubForge, githubView, githubRepository } from './forge';
+import { testForge, testForgeView, testForgeRepository } from './forge';
 import { requireValue } from '../../../app/renderer/common/required';
 import { requireInstance, selectElement } from './elements';
 import { t } from './localization';
@@ -21,7 +21,7 @@ const project = (id: string, name: string, repository: ProjectView['repository']
   layout: { panel: `${id}-panel` },
   tray: [],
   repository,
-  ...githubView,
+  ...testForgeView,
   panels: [
     {
       id: `${id}-panel`,
@@ -45,7 +45,7 @@ export function renderWorkbench(
     resolvedTheme: 'light',
     errors: [],
     projects: [
-      project('bound', boundProject, githubRepository('octo/bound')),
+      project('bound', boundProject, testForgeRepository('ada/bound')),
       project('unbound', unboundProject, null),
     ],
   };
@@ -56,10 +56,10 @@ export function renderWorkbench(
   const saved: SidebarPreferences[] = [];
   const choices: RepositoryChoices = {
     ok: true,
-    forge: githubForge,
-    account: 'octo',
+    forge: testForge,
+    account: 'ada',
     origin: null,
-    repositories: [githubRepository('octo/unbound')],
+    repositories: [testForgeRepository('ada/unbound')],
   };
   const { fetchRepositoryChoices: repositoryChoices, ...calls } = api;
   provideWorkbench({
@@ -99,8 +99,8 @@ export function renderWorkbench(
 
 export const boundProject = 'Bound project',
   unboundProject = 'Unbound project';
-export const showSidebar = t('openForgeSidebar', { forge: githubForge.name }),
-  hideSidebar = t('closeForgeSidebar', { forge: githubForge.name });
+export const showSidebar = t('openForgeSidebar', { forge: testForge.name }),
+  hideSidebar = t('closeForgeSidebar', { forge: testForge.name });
 export const shownSidebar = () =>
   waitFor(() => {
     const element = queryForgeSidebar();

@@ -9,7 +9,7 @@ import { message } from '../../app/shared/messages';
 import { agentNames, type ProjectView } from '../../app/shared/model';
 import { localize } from '../../app/shared/localization/localization';
 import { provideWorkbench } from './support/workbench';
-import { githubForge, githubView } from './support/forge';
+import { testForge, testForgeView } from './support/forge';
 
 afterEach(cleanup);
 
@@ -23,7 +23,7 @@ for (const language of ['en', 'zh-CN'] as const) {
       tray: [],
       layout: { panel: 'panel' },
       repository: null,
-      ...githubView,
+      ...testForgeView,
     };
     const calls: unknown[] = [];
     provideWorkbench({
@@ -59,7 +59,7 @@ for (const language of ['en', 'zh-CN'] as const) {
     await screen.findByRole('region', { name: t('afterSave') });
     assert.ok(
       screen.getByRole('button', {
-        name: t('bindInSidebar', { forge: githubForge.name }),
+        name: t('bindInSidebar', { forge: testForge.name }),
         description: t('notBound'),
       }),
     );
