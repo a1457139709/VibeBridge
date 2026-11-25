@@ -219,3 +219,33 @@ test('a forge without required checks marks none', async () => {
   });
   assert.equal(descriptionParts(checkItems()[0]).includes(t('requiredCheck')), false);
 });
+
+const mergeControl = (name: string) => within(mergeArea()).getByRole('button', { name });
+
+test('the merge control offers only the merge methods the forge declares', async () => {
+  const { user } = await openPullRequest(detail(12), {
+    capabilities: overrideCapabilities({ mergeMethods: ['squash', 'rebase'] }),
+  });
+  assert.ok(mergeControl(t('mergeMethodSquash')), 'merging starts from the first declared method');
+  await user.click(mergeControl(t('chooseMergeMethod')));
+  const menu = within(mergeArea()).getByRole('menu', { name: t('chooseMergeMethod') });
+  assert.deepEqual(
+    within(menu).getAllByRole('menuitemradio'),
+    [t('mergeMethodSquash'), t('mergeMethodRebase')].map(name => within(menu).getByRole('menuitemradio', { name })),
+  );
+});
+
+test('with one merge method declared, the merge control uses it without offering a choice', async () => {
+  await openPullRequest(detail(12), { capabilities: overrideCapabilities({ mergeMethods: ['rebase'] }) });
+  assert.ok(mergeControl(t('mergeMethodRebase')));
+  assert.equal(!!within(mergeArea()).queryByRole('button', { name: t('chooseMergeMethod') }), false);
+});
+
+test('a forge without a merge queue merges in place even when the pull request reports one', async () => {
+  await openPullRequest(detail(12, { mergeOptions: { methods: ['squash'], defaultMethod: 'squash', queue: true } }), {
+    capabilities: overrideCapabilities({ mergeQueue: false }),
+  });
+  assert.equal(mergeControl(t('mergeMethodSquash')).hasAttribute('disabled'), false);
+  assert.equal(!!within(mergeArea()).queryByRole('button', { name: t('mergeButton') }), false);
+  assert.equal(!!within(mergeArea()).queryByRole('link', { name: t('openOnForge', { forge: testForge.name }) }), false);
+});

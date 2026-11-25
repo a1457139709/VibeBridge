@@ -241,22 +241,38 @@ test('a closed issue draws no issues it blocks, and an issue with no live relati
   assert.equal(within(pane()).queryByRole('group', { name: t('relations') }), null);
 });
 
-test('relations a forge does not declare are not shown', async () => {
-  const { user, request } = renderWorkbench([summary(5)], overrideCapabilities({ subIssues: false, blocking: false }));
-  await user.click(await row('Issue 5'));
-  (await request(1)).answer({
-    ok: true,
-    issue: detail(5, {
-      parent: { ...reference(1, { title: 'Spec' }), progress: { closed: 0, total: 1 } },
-      blockedBy: [reference(2)],
-      subIssues: [reference(6)],
-    }),
+for (const capabilities of [{ subIssues: false }, { blocking: false }]) {
+  test(`a forge declaring ${JSON.stringify(capabilities)} hides only the relations it lacks`, async () => {
+    const declared = overrideCapabilities(capabilities);
+    const { user, request } = renderWorkbench([summary(5)], declared);
+    await user.click(await row('Issue 5'));
+    (await request(1)).answer({
+      ok: true,
+      issue: detail(5, {
+        parent: { ...reference(1, { title: 'Spec' }), progress: { closed: 0, total: 1 } },
+        blockedBy: [reference(2)],
+        blocking: [reference(8)],
+        subIssues: [reference(6)],
+        subIssueProgress: { closed: 0, total: 1 },
+      }),
+    });
+    await detailHeading(pane(), 'Issue 5', 5);
+    assert.deepEqual(
+      {
+        parent: !!within(pane()).queryByRole('button', { name: name => name.includes('Spec') }),
+        subIssues: !!within(pane()).queryByRole('region', { name: t('subIssues') }),
+        blockedBy: !!within(pane()).queryByRole('img', { name: t('blockedBy', { issues: '#2' }) }),
+        relations: !!within(pane()).queryByRole('group', { name: t('relations') }),
+      },
+      {
+        parent: declared.subIssues,
+        subIssues: declared.subIssues,
+        blockedBy: declared.blocking,
+        relations: declared.blocking,
+      },
+    );
   });
-  await detailHeading(pane(), 'Issue 5', 5);
-  assert.equal(within(pane()).queryByRole('group', { name: t('relations') }), null);
-  assert.equal(within(pane()).queryByRole('region', { name: t('subIssues') }), null);
-  assert.equal(pane().querySelector('.forge-parent'), null);
-});
+}
 
 test('the pull requests that close the issue on merge sit in their own block, closed ones included, each with its checks conclusion', async () => {
   const { user, request } = renderWorkbench([summary(5)]);

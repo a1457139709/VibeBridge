@@ -192,17 +192,19 @@ export function PullRequestActions({
               >
                 {mainLabel}
               </button>
-              <button
-                className="forge-split-more"
-                disabled={blocked || busy}
-                aria-label={t('chooseMergeMethod')}
-                aria-describedby={reasons.length ? why : undefined}
-                aria-haspopup="menu"
-                aria-expanded={menu.open}
-                onClick={() => menu.setOpen(open => !open)}
-              >
-                ▾
-              </button>
+              {methods.length > 1 && (
+                <button
+                  className="forge-split-more"
+                  disabled={blocked || busy}
+                  aria-label={t('chooseMergeMethod')}
+                  aria-describedby={reasons.length ? why : undefined}
+                  aria-haspopup="menu"
+                  aria-expanded={menu.open}
+                  onClick={() => menu.setOpen(open => !open)}
+                >
+                  ▾
+                </button>
+              )}
               {menu.open && (
                 <div className="forge-popover forge-method-menu" role="menu" aria-label={t('chooseMergeMethod')}>
                   {methods.map(item => (

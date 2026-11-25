@@ -172,6 +172,10 @@ for (const capabilities of [
     assert.deepEqual(rows(), capabilities.subIssues ? ['Issue 14', 'Issue 10'] : ['Issue 14', 'Issue 12', 'Issue 10']);
     assert.equal(!!within(forgeSidebar()).queryByRole('button', { name: t('showSubIssues') }), capabilities.subIssues);
     assert.equal(
+      !!within(forgeSidebar()).queryByRole('img', { name: t('subIssueProgress', { closed: 1, total: 3 }) }),
+      capabilities.subIssues,
+    );
+    assert.equal(
       !!within(forgeSidebar()).queryByRole('img', { name: t('blockedBy', { issues: '#1' }) }),
       capabilities.blocking,
     );
