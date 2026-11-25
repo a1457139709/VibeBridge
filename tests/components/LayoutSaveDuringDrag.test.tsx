@@ -10,6 +10,7 @@ import { provideWorkbench } from './support/workbench';
 import { githubView } from './support/forge';
 import { requireValue } from '../../app/renderer/common/required';
 import { selectElement } from './support/elements';
+import { summaryEntryName } from './support/accessible-names';
 
 afterEach(cleanup);
 before(() => {
@@ -97,7 +98,7 @@ async function renderWorkbench() {
     },
   });
   render(<App />);
-  await screen.findAllByText('Session codex');
+  await screen.findByRole('button', { name: summaryEntryName(3, 'ready') });
   const canvas = selectElement('.canvas');
   return {
     canvas,

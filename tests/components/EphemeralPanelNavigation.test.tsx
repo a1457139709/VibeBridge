@@ -10,13 +10,21 @@ import type { PanelView, Snapshot } from '../../app/shared/model';
 import type { ProcessingState } from '../../app/shared/processing-status';
 import { provideWorkbench } from './support/workbench';
 import { githubView } from './support/forge';
+import { localize } from '../../app/shared/localization/localization';
+import { t } from './support/localization';
+import { nameIncluding } from './support/accessible-names';
 
 afterEach(cleanup);
+
+const zh = localize('zh-CN').t;
+const title = (id: string) => `Session ${id}`;
+const titled = (id: string) => nameIncluding(title(id));
+const projectNames = ['Current', 'Other', 'Quiet'];
 
 const panel = (projectId: string, id: string, status?: ProcessingState): PanelView => ({
   id,
   agent: 'codex',
-  run: { id: `run-${id}`, panelId: id, projectId, state: 'running', title: `Session ${id}` },
+  run: { id: `run-${id}`, panelId: id, projectId, state: 'running', title: title(id) },
   status,
 });
 
@@ -99,44 +107,53 @@ function renderNavigation(language: 'en' | 'zh-CN', state = snapshot()) {
   return { located, saved, result, user: userEvent.setup() };
 }
 
-const group = (name: RegExp) => screen.getByRole('button', { name });
+const group = (count: number, translate = t) =>
+  screen.getByRole('button', { name: nameIncluding(translate('ephemeralGroup', { count })) });
+const attention = (count: number, states: string[], translate = t) =>
+  translate('ephemeralGroupAttention', { group: translate('ephemeralGroup', { count }), states });
 
 test("each project's ephemeral panels sit in a collapsed group below its resident panels that shows the states needing attention", async () => {
   const { user } = renderNavigation('en');
-  const current = group(/^Ephemeral · 3/);
+  const current = group(3);
   assert.equal(current.getAttribute('aria-expanded'), 'false');
-  assert.equal(current.getAttribute('aria-label'), 'Ephemeral · 3 · Needs input, Done');
+  assert.equal(current.getAttribute('aria-label'), attention(3, [t('needs-input'), t('done')]));
   assert.deepEqual(
     within(current)
       .getAllByRole('img')
       .map(icon => icon.getAttribute('aria-label')),
-    ['Needs input', 'Done'],
+    [t('needs-input'), t('done')],
   );
-  assert.equal(screen.queryByRole('button', { name: /Session waiting/ }), null);
-  assert.ok(screen.getByRole('button', { name: /Session resident/ }));
+  assert.equal(screen.queryByRole('button', { name: titled('waiting') }), null);
+  assert.ok(screen.getByRole('button', { name: titled('resident') }));
   assert.ok(
-    current.compareDocumentPosition(screen.getByRole('button', { name: /Session resident/ })) &
+    current.compareDocumentPosition(screen.getByRole('button', { name: titled('resident') })) &
       Node.DOCUMENT_POSITION_PRECEDING,
   );
 
-  await user.click(screen.getByRole('button', { name: 'Expand project panels: Other' }));
-  const other = group(/^Ephemeral · 2/);
-  assert.equal(other.getAttribute('aria-label'), 'Ephemeral · 2 · Error');
+  await user.click(screen.getByRole('button', { name: t('expandProject', { name: 'Other' }) }));
+  const other = group(2);
+  assert.equal(other.getAttribute('aria-label'), attention(2, [t('error')]));
 
-  await user.click(screen.getByRole('button', { name: 'Expand project panels: Quiet' }));
-  assert.ok(screen.getByRole('button', { name: /Session quiet-resident/ }));
+  await user.click(screen.getByRole('button', { name: t('expandProject', { name: 'Quiet' }) }));
+  assert.ok(screen.getByRole('button', { name: titled('quiet-resident') }));
   assert.equal(
-    screen.getAllByRole('button', { name: /^Ephemeral/ }).length,
+    document.querySelectorAll('.ephemeral-group').length,
     2,
     'a project without ephemeral panels has no group',
   );
 
   await user.click(current);
   assert.equal(current.getAttribute('aria-expanded'), 'true');
-  const entries = within(screen.getByRole('group', { name: 'Ephemeral panels in Current' })).getAllByRole('button');
+  const entries = within(screen.getByRole('group', { name: t('ephemeralPanels', { name: 'Current' }) })).getAllByRole(
+    'button',
+  );
   assert.deepEqual(
     entries.map(entry => entry.getAttribute('aria-label')),
-    ['Needs input · Session waiting', 'Busy · Session working', 'Done · Session finished'],
+    [
+      t('panelStateTitle', { state: t('needs-input'), title: title('waiting') }),
+      t('panelStateTitle', { state: t('busy'), title: title('working') }),
+      t('panelStateTitle', { state: t('done'), title: title('finished') }),
+    ],
   );
   assert.deepEqual(
     entries.map(entry => entry.getAttribute('aria-current')),
@@ -151,43 +168,51 @@ test("each project's ephemeral panels sit in a collapsed group below its residen
 
 test('the ephemeral group has no add entry', async () => {
   const { user } = renderNavigation('zh-CN');
-  const current = group(/^临时 · 3/);
-  assert.equal(current.getAttribute('aria-label'), '临时 · 3 · 等待输入、本轮结束');
+  const current = group(3, zh);
+  assert.equal(current.getAttribute('aria-label'), attention(3, [zh('needs-input'), zh('done')], zh));
   await user.click(current);
-  const entries = screen.getByRole('group', { name: 'Current的临时面板' });
-  assert.equal(within(entries).queryByText(/＋/), null);
-  assert.equal(within(entries).queryByRole('button', { name: /添加|新增/ }), null);
-  assert.equal(within(entries).getAllByRole('button').length, 3);
+  const entries = screen.getByRole('group', { name: zh('ephemeralPanels', { name: 'Current' }) });
+  assert.deepEqual(
+    within(entries)
+      .getAllByRole('button')
+      .map(entry => entry.getAttribute('aria-label')),
+    [
+      zh('panelStateTitle', { state: zh('needs-input'), title: title('waiting') }),
+      zh('panelStateTitle', { state: zh('busy'), title: title('working') }),
+      zh('panelStateTitle', { state: zh('done'), title: title('finished') }),
+    ],
+    'the group lists only its panels',
+  );
 });
 
 test('clicking an ephemeral entry locates that panel in its project', async () => {
   const { located, user } = renderNavigation('en');
-  await user.click(screen.getByRole('button', { name: 'Expand project panels: Other' }));
-  await user.click(group(/^Ephemeral · 2/));
-  await user.click(screen.getByRole('button', { name: 'Error · Session failed' }));
+  await user.click(screen.getByRole('button', { name: t('expandProject', { name: 'Other' }) }));
+  await user.click(group(2));
+  await user.click(screen.getByRole('button', { name: titled('failed') }));
   assert.deepEqual(located, ['other/failed']);
 });
 
 test('expanding or collapsing the ephemeral group stays in the interface and is not saved as a navigation preference', async () => {
   const { saved, result, user } = renderNavigation('en');
-  await user.click(group(/^Ephemeral · 3/));
-  await user.click(group(/^Ephemeral · 3/));
-  await user.click(group(/^Ephemeral · 3/));
-  assert.equal(group(/^Ephemeral · 3/).getAttribute('aria-expanded'), 'true');
+  await user.click(group(3));
+  await user.click(group(3));
+  await user.click(group(3));
+  assert.equal(group(3).getAttribute('aria-expanded'), 'true');
   assert.deepEqual(saved, []);
   result.unmount();
   renderNavigation('en');
-  assert.equal(group(/^Ephemeral · 3/).getAttribute('aria-expanded'), 'false');
+  assert.equal(group(3).getAttribute('aria-expanded'), 'false');
 });
 
 test("a project's panel count covers its resident and ephemeral panels", () => {
   renderNavigation('en');
   const counts = screen
-    .getAllByRole('button', { name: /^(Current|Other|Quiet)$/ })
+    .getAllByRole('button', { name: name => projectNames.includes(name) })
     .map(link => [link.getAttribute('data-hint'), link.querySelector('small')?.textContent]);
   assert.deepEqual(counts, [
-    ['Current · 4 panels', '4'],
-    ['Other · 3 panels', '3'],
-    ['Quiet · 1 panels', '1'],
+    [t('projectPanelCount', { name: 'Current', panels: t('panelCount', { count: 4 }) }), '4'],
+    [t('projectPanelCount', { name: 'Other', panels: t('panelCount', { count: 3 }) }), '3'],
+    [t('projectPanelCount', { name: 'Quiet', panels: t('panelCount', { count: 1 }) }), '1'],
   ]);
 });

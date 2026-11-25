@@ -35,7 +35,7 @@ export function PanelTray({
             data-tray-panel-id={panel.id}
             className={`tray-card ${panel.agent} ${panel.id === landedPanelId ? 'landed' : ''}`}
             aria-pressed={opened}
-            data-hint={`${agentNames[panel.agent]} · ${title}`}
+            data-hint={t('agentPanelTitle', { agent: agentNames[panel.agent], title })}
             onPointerDown={event => cardPointerDown?.(event, panel.id)}
             onClick={() => (opened ? collapse() : open(panel.id))}
             onAnimationEnd={event => {
