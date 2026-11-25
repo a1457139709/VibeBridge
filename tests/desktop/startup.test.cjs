@@ -1,10 +1,9 @@
 const assert = require('node:assert/strict');
 const { runsOf } = require('./support/panel-views.cjs');
-const { t } = require('./support/localization.cjs');
 
 module.exports = {
   async run({ evaluate, directory }) {
-    assert.equal(await evaluate('document.querySelector("h1").textContent'), t('createProject'));
+    assert.equal(await evaluate('document.querySelector("h1").textContent'), 'Create project');
     const snapshot = await evaluate('window.workbench.fetchSnapshot()');
     assert.deepEqual(snapshot.projects, []);
     assert.deepEqual(runsOf(snapshot), []);
