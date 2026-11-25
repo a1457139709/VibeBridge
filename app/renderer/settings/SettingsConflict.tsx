@@ -1,9 +1,6 @@
 import { useLocalization } from '../common/Localization';
+import { useModalDialog } from '../common/effects/modal-dialog';
 import type { SettingsCategory } from '../../shared/settings/settings';
-
-function showModal(dialog: HTMLDialogElement | null) {
-  dialog?.showModal();
-}
 
 export function SettingsConflictDialog({
   category,
@@ -13,9 +10,10 @@ export function SettingsConflictDialog({
   openSettings(): void;
 }) {
   const { t } = useLocalization();
+  const dialog = useModalDialog();
   return (
     <dialog
-      ref={showModal}
+      ref={dialog}
       className="settings-conflict"
       aria-labelledby="settings-conflict-title"
       aria-describedby="settings-conflict-help"
