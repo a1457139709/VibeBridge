@@ -8,7 +8,9 @@ const drawnWhole = selector => `(() => {
     .every(([x, y]) => x >= 0 && y >= 0 && x <= innerWidth && y <= innerHeight && element.contains(document.elementFromPoint(x, y)));
 })()`;
 const highlighted = `[...document.querySelectorAll('.dispatch-targets [role=menuitem]')]
-  .filter(item => getComputedStyle(item).backgroundColor !== 'rgba(0, 0, 0, 0)').map(item => item.textContent)`;
+  .flatMap((item, index) => getComputedStyle(item).backgroundColor === 'rgba(0, 0, 0, 0)' ? []
+    : [[index, [...item.querySelector('.agent-mark').classList].find(name => name !== 'agent-mark')]])`;
+const { t } = require('./support/localization.cjs');
 
 module.exports = {
   async run(context) {
@@ -33,11 +35,8 @@ module.exports = {
     await evaluate(`(async () => window.workbench.bindRepository(${JSON.stringify(project.id)},
       (await window.workbench.fetchRepositoryChoices(${JSON.stringify(project.id)}, ${JSON.stringify(project.directory)}))
         .repositories.find(item => item.path === 'octo/desktop')))()`);
-    await click('Show the GitHub sidebar');
-    await until(
-      () => evaluate('document.querySelector(".forge-row-title")?.textContent === "Dispatched issue"'),
-      'issue row listed',
-    );
+    await click(t('openForgeSidebar', { forge: project.forge.name }));
+    await until(() => evaluate('!!document.querySelector(\'.forge-scroll [data-issue="7"]\')'), 'issue #7 row listed');
     const point = async selector => {
       const target = center(await rect(selector));
       window.webContents.sendInputEvent({ type: 'mouseMove', x: 1, y: 1 });
@@ -59,7 +58,7 @@ module.exports = {
       ['detail', '.forge-detail'],
     ]) {
       if (place === 'detail') {
-        await click('Dispatched issue');
+        await evaluate('document.querySelector(\'.forge-scroll [data-issue="7"] .forge-row-title\').click()');
         await until(
           () => evaluate('!!document.querySelector(".forge-detail .dispatch-button")'),
           'issue detail open with its Dispatch',
@@ -120,8 +119,8 @@ module.exports = {
       'cursor moved down by key',
     );
     await until(
-      async () => JSON.stringify(await evaluate(highlighted)) === JSON.stringify(['πNew · piEphemeral']),
-      "only the cursor's target highlighted",
+      async () => JSON.stringify(await evaluate(highlighted)) === JSON.stringify([[2, 'pi']]),
+      "only the cursor's target, a new pi panel, highlighted",
     );
 
     const colors = await evaluate(`[...document.querySelectorAll('.dispatch-targets [role=menuitem]')].slice(0, 3)

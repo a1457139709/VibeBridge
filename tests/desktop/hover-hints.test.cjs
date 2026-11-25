@@ -14,19 +14,27 @@ module.exports = {
       `tray card for panel ${added.panel.id} drawn collapsed`,
     );
     const hint = () => evaluate('document.querySelector("[role=tooltip]")?.textContent ?? null');
+    const hintOf = selector =>
+      evaluate(`document.querySelector(${JSON.stringify(selector)}).closest('[data-hint]').dataset.hint`);
     const hover = async selector => {
       const point = center(await rect(selector));
       window.webContents.sendInputEvent({ type: 'mouseMove', ...point });
       return point;
     };
 
+    const [{ panels, tray }] = (await evaluate('window.workbench.fetchSnapshot()')).projects;
+    assert.equal(panels.length + tray.length, 2);
     await hover('.project-link');
     await until(
-      async () => (await hint()) === 'Hover hints · 2 panels',
-      'project link hint reads "Hover hints · 2 panels"',
+      async () => (await hint()) === (await hintOf('.project-link')),
+      'project link hint shows the hint of the hovered project link',
     );
     await hover(`${card} .session-title`);
-    await until(async () => (await hint())?.startsWith('pi · '), 'tray card title hint starts with "pi · "');
+    await until(
+      async () => (await hint()) === (await hintOf(`${card} .session-title`)),
+      'tray card title hint shows the hint of the hovered title',
+    );
+
     const shown = await rect('[role=tooltip]'),
       cardBox = await rect(card);
     assert.ok(shown.bottom <= cardBox.top, 'the hint opens above a card at the window bottom');

@@ -1,5 +1,6 @@
 const assert = require('node:assert/strict');
 const { runsOf } = require('./support/panel-views.cjs');
+const { t } = require('./support/localization.cjs');
 
 const rect = (evaluate, selector) =>
   evaluate(`(() => { const box = document.querySelector(${JSON.stringify(selector)})?.getBoundingClientRect();
@@ -7,7 +8,8 @@ const rect = (evaluate, selector) =>
 
 module.exports = {
   async run(base) {
-    await require('./support/project.cjs')(base, 'Sidebar project', { Codex: 1 });
+    const created = await require('./support/project.cjs')(base, 'Sidebar project', { Codex: 1 });
+    const forge = created.projects[0].forge.name;
     const context = await require('./support/terminal-waits.cjs')(base);
     const { evaluate, until, click, reportedSize } = context;
     const [run] = runsOf(await evaluate('window.workbench.fetchSnapshot()'));
@@ -20,7 +22,7 @@ module.exports = {
     const canvas = await rect(evaluate, '.canvas');
 
     assert.ok((await evaluate('window.workbench.saveSettings({ sidebarCoexistence: "overlay" })')).ok);
-    await click('Show the GitHub sidebar');
+    await click(t('openForgeSidebar', { forge }));
     await until(
       async () => (await rect(evaluate, '.forge-sidebar'))?.width === 380,
       'overlaying sidebar drawn 380px wide',
@@ -39,11 +41,12 @@ module.exports = {
     const trayContentRight = await evaluate(`(() => { const tray = document.querySelector('.panel-tray');
       return tray.getBoundingClientRect().right - parseFloat(getComputedStyle(tray).paddingRight); })()`);
     assert.ok(trayContentRight <= sidebar.left, 'the tray makes room for the sidebar');
-    await click('Hide the GitHub sidebar');
+    await click(t('closeForgeSidebar', { forge }));
     await until(async () => !(await rect(evaluate, '.forge-sidebar')), 'sidebar closed');
 
     assert.ok((await evaluate('window.workbench.saveSettings({ sidebarCoexistence: "squeeze" })')).ok);
-    await click('Show the GitHub sidebar');
+    await click(t('openForgeSidebar', { forge }));
+
     await until(
       async () => (await rect(evaluate, '.app-body > main'))?.right === (await rect(evaluate, '.forge-sidebar'))?.left,
       'squeezing sidebar ends the layout area at its left edge',

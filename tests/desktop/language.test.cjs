@@ -2,6 +2,12 @@ const assert = require('node:assert/strict');
 const { readFile } = require('node:fs/promises');
 const { Menu, dialog } = require('electron');
 const { panelViews, runsOf } = require('./support/panel-views.cjs');
+const { localize, t, named } = require('./support/localization.cjs');
+const { entryLabel } = require('./support/summary-entries.cjs');
+
+const chinese = localize('zh-CN').t;
+const menuLabels = translate => ['VibeBridge', translate('editMenu'), translate('windowMenu')];
+const agentTitle = 'Untitled task';
 
 module.exports = {
   async run(context) {
@@ -9,7 +15,7 @@ module.exports = {
     const f = await require('./support/summary.cjs')(context);
     const [first, second] = f.runs;
     await f.send(first, { output: '\x1b]2;project\x07' });
-    await f.send(second, { output: '\x1b]2;Untitled task | project\x07' });
+    await f.send(second, { output: `\x1b]2;${agentTitle} | project\x07` });
     await f.choose('done', first);
     await f.receiveInput(first, 'before-language-change');
     const before = await f.snapshot();
@@ -24,10 +30,10 @@ module.exports = {
         ),
       'pending input line drawn in the first panel',
     );
-    await click('Global settings');
-    await click('Agent');
+    await click(t('settings'));
+    await click(t('agents'));
     await fill('command-codex', `${before.settings.agents.codex.command}-draft`);
-    await click('General');
+    await click(t('general'));
     const selectLanguage = async language => {
       await evaluate(`(() => {
         const input = document.getElementById('interface-language');
@@ -37,21 +43,26 @@ module.exports = {
     };
     await selectLanguage('zh-CN');
     assert.equal((await f.snapshot()).settings.language, 'en');
-    assert.ok(await evaluate('document.body.textContent.includes("Interface language")'));
-    await click('Save');
+    assert.equal(await evaluate('document.documentElement.lang'), 'en');
+    await click(t('save'));
     await until(() => evaluate('document.documentElement.lang === "zh-CN"'), 'interface switched to zh-CN');
-    assert.ok(await evaluate('document.querySelector(".notices").textContent.includes("配置已保存")'));
+    assert.equal((await f.snapshot()).settings.language, 'zh-CN');
+    assert.ok(
+      await evaluate(
+        `document.querySelector(".notices").textContent.includes(${JSON.stringify(chinese('settingsSaved'))})`,
+      ),
+    );
     assert.deepEqual(
       Menu.getApplicationMenu().items.map(item => item.label),
-      ['VibeBridge', '编辑', '窗口'],
+      menuLabels(chinese),
     );
-    await click('Agent');
+    await click(chinese('agents'));
     assert.equal(
       await evaluate('document.getElementById("command-codex").value'),
       `${before.settings.agents.codex.command}-draft`,
     );
-    await click('放弃更改');
-    await click('通用');
+    await click(chinese('discardChanges'));
+    await click(chinese('general'));
 
     const openDialog = dialog.showOpenDialog,
       messageDialog = dialog.showMessageBox;
@@ -66,38 +77,36 @@ module.exports = {
     };
     try {
       await evaluate('window.workbench.chooseDirectory()');
-      assert.equal(directoryOptions.title, '选择本地目录');
-      assert.equal(directoryOptions.buttonLabel, '选择目录');
+      assert.equal(directoryOptions.title, chinese('chooseDirectory'));
+      assert.equal(directoryOptions.buttonLabel, chinese('selectDirectory'));
       window.close();
       await until(() => !!quitOptions, 'quit confirmation requested in zh-CN');
-      assert.equal(quitOptions.message, '退出 VibeBridge？');
-      assert.deepEqual(quitOptions.buttons, ['取消', '退出']);
+      assert.equal(quitOptions.message, chinese('quitQuestion'));
+      assert.deepEqual(quitOptions.buttons, [chinese('cancel'), chinese('quit')]);
       await selectLanguage('en');
-      await click('保存');
+      await click(chinese('save'));
       await until(() => evaluate('document.documentElement.lang === "en"'), 'interface switched back to en');
       assert.deepEqual(
         Menu.getApplicationMenu().items.map(item => item.label),
-        ['VibeBridge', 'Edit', 'Window'],
+        menuLabels(t),
       );
       await evaluate('window.workbench.chooseDirectory()');
-      assert.equal(directoryOptions.title, 'Choose local directory');
+      assert.equal(directoryOptions.title, t('chooseDirectory'));
       quitOptions = undefined;
       window.close();
       await until(() => !!quitOptions, 'quit confirmation requested in en');
-      assert.equal(quitOptions.message, 'Quit VibeBridge?');
-      assert.deepEqual(quitOptions.buttons, ['Cancel', 'Quit']);
+      assert.equal(quitOptions.message, t('quitQuestion'));
+      assert.deepEqual(quitOptions.buttons, [t('cancel'), t('quit')]);
     } finally {
       dialog.showOpenDialog = openDialog;
       dialog.showMessageBox = messageDialog;
     }
 
-    for (const [language, save] of [
-      ['zh-CN', 'Save'],
-      ['en', '保存'],
-      ['zh-CN', 'Save'],
-    ]) {
+    let shown = 'en';
+    for (const language of ['zh-CN', 'en', 'zh-CN']) {
       await selectLanguage(language);
-      await click(save);
+      await click(localize(shown).t('save'));
+      shown = language;
       await until(async () => (await f.snapshot()).settings.language === language, `saved language is ${language}`);
       assert.deepEqual(
         runsOf(await f.snapshot()).map(run => [run.id, run.pid]),
@@ -113,7 +122,7 @@ module.exports = {
         ),
       );
     }
-    await click('‹ 返回');
+    await click(chinese('back'));
     await until(() => evaluate('!document.querySelector(".settings-page")'), 'settings page closed');
     await f.choose('done', first);
     await until(() => f.focused(first), 'first panel terminal focused after choosing it');
@@ -134,17 +143,17 @@ module.exports = {
       await evaluate(
         `document.querySelector('[data-panel-id="${first.panelId}"] .xterm-helper-textarea').getAttribute('aria-label')`,
       ),
-      '终端输入',
+      chinese('terminalInput'),
     );
     assert.deepEqual((await f.snapshot()).projects, before.projects);
     await f.open('done');
     assert.equal(
       await evaluate(`document.querySelector('.summary-list [data-run-id="${first.id}"] .session-title').textContent`),
-      '未命名任务',
+      chinese('untitled'),
     );
     assert.equal(
       await evaluate(`document.querySelector('.summary-list [data-run-id="${second.id}"] .session-title').textContent`),
-      'Untitled task',
+      agentTitle,
     );
     for (const language of ['en', 'zh-CN']) {
       await evaluate(`window.workbench.saveSettings({ language: ${JSON.stringify(language)} })`);
@@ -163,7 +172,7 @@ module.exports = {
     }
     f.nativeKey('Escape');
     await until(() => evaluate('!document.querySelector(".summary-list")'), 'summary list closed by Escape');
-    assert.equal(await evaluate('document.activeElement.getAttribute("aria-label")'), '2 本轮结束');
+    assert.equal(await evaluate('document.activeElement.getAttribute("aria-label")'), entryLabel('done', 2, 'zh-CN'));
     assert.equal(JSON.parse(await readFile(`${directory}/settings.json`, 'utf8')).language, 'zh-CN');
     console.log(
       'Language saves preserve live terminal input, records, run identities and drafts; native dialogs and menus agree.',
@@ -177,8 +186,8 @@ module.exports = {
     assert.equal((await evaluate('window.workbench.fetchSnapshot()')).settings.language, 'zh-CN');
     assert.deepEqual(
       Menu.getApplicationMenu().items.map(item => item.label),
-      ['VibeBridge', '编辑', '窗口'],
+      menuLabels(chinese),
     );
-    assert.ok(await evaluate('!!document.querySelector("button[aria-label=全局设置]")'));
+    assert.ok(await evaluate(`!!document.querySelector(${named('button', chinese('settings'))})`));
   },
 };

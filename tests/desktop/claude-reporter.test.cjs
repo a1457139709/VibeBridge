@@ -20,43 +20,35 @@ module.exports = {
     const project = created.project.id;
     await click(created.project.name);
     const runs = created.launches.map(launch => launch.run);
-    const label = (run, selector) =>
-      `document.querySelector('[${selector}="${run.panelId}"] .processing-status')?.getAttribute('aria-label')`;
-    async function check(run, expected) {
-      await until(
-        () => evaluate(`${label(run, 'data-panel-id')} === ${JSON.stringify(expected)}`),
-        `processing status of panel ${run.panelId} reads ${expected}`,
-      );
-      assert.equal(await evaluate(label(run, 'data-locate-panel-id')), expected);
-    }
+    const check = require('./support/status-display.cjs')({ evaluate, until });
     async function emit(run, payload) {
       await evaluate(
         `window.workbench.sendInput(${JSON.stringify(run.id)}, ${JSON.stringify(JSON.stringify({ id: payload.hook_event_name, payload }) + '\n')})`,
       );
     }
-    for (const run of runs) await check(run, 'Ready');
+    for (const run of runs) await check(run, 'ready');
     await emit(runs[0], { hook_event_name: 'UserPromptSubmit' });
-    await check(runs[0], 'Busy');
-    await check(runs[1], 'Ready');
+    await check(runs[0], 'busy');
+    await check(runs[1], 'ready');
     await emit(runs[0], { hook_event_name: 'PreToolUse', tool_name: 'AskUserQuestion', tool_use_id: 'question' });
-    await check(runs[0], 'Needs input');
+    await check(runs[0], 'needs-input');
     const snapshot = await evaluate('window.workbench.fetchSnapshot()');
     assert.deepEqual(showing(snapshot, project, 'needs-input'), [[runs[0].panelId, runs[0].id]]);
     await emit(runs[1], { hook_event_name: 'Stop' });
-    await check(runs[1], 'Done');
-    await check(runs[0], 'Needs input');
+    await check(runs[1], 'done');
+    await check(runs[0], 'needs-input');
     await emit(runs[0], { hook_event_name: 'PostToolUse', tool_name: 'AskUserQuestion', tool_use_id: 'question' });
-    await check(runs[0], 'Busy');
+    await check(runs[0], 'busy');
     await emit(runs[0], { hook_event_name: 'StopFailure' });
-    await check(runs[0], 'Error');
+    await check(runs[0], 'error');
     await evaluate(`document.querySelector('[data-panel-id="${runs[0].panelId}"] .xterm-helper-textarea').focus()`);
     for (const character of JSON.stringify({ id: 'keyboard', payload: { hook_event_name: 'UserPromptSubmit' } })) {
       window.webContents.sendInputEvent({ type: 'char', keyCode: character });
     }
     window.webContents.sendInputEvent({ type: 'keyDown', keyCode: 'Enter' });
     window.webContents.sendInputEvent({ type: 'keyUp', keyCode: 'Enter' });
-    await check(runs[0], 'Busy');
-    await check(runs[1], 'Done');
+    await check(runs[0], 'busy');
+    await check(runs[1], 'done');
     console.log(
       'Claude native hooks preserve terminal input and matching panel, navigation and Workbench membership across isolated runs.',
     );

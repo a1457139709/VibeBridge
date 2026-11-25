@@ -1,5 +1,6 @@
 const assert = require('node:assert/strict');
 const { runsOf } = require('./support/panel-views.cjs');
+const { t, named } = require('./support/localization.cjs');
 
 const rect = (evaluate, selector) =>
   evaluate(`(() => { const box = document.querySelector(${JSON.stringify(selector)})?.getBoundingClientRect();
@@ -24,7 +25,10 @@ module.exports = {
     const snapshot = await require('./support/project.cjs')(base, 'Detail project', { Codex: 1 });
     const context = await require('./support/terminal-waits.cjs')(base);
     const { evaluate, until, click, reportedSize } = context;
-    const closeDetail = () => evaluate('document.querySelector(".forge-detail-bar button[aria-label=Close]").click()');
+    const closeDetail = () =>
+      evaluate(`document.querySelector(${named('.forge-detail-bar button', t('closeDetail'))}).click()`);
+    const openIssue = () =>
+      evaluate('document.querySelector(\'.forge-scroll [data-issue="7"] .forge-row-title\').click()');
     const project = snapshot.projects[0];
     const [run] = runsOf(snapshot);
     await evaluate(`(async () => window.workbench.bindRepository(${JSON.stringify(project.id)},
@@ -42,12 +46,9 @@ module.exports = {
       async () => (initial = await reportedSize(run.id)).rows === (await drawnRows()),
       'run reports the rows the terminal shows',
     );
-    await click('Show the GitHub sidebar');
-    await until(
-      () => evaluate('document.querySelector(".forge-row-title")?.textContent === "Desktop issue"'),
-      'issue row listed',
-    );
-    await click('Desktop issue');
+    await click(t('openForgeSidebar', { forge: project.forge.name }));
+    await until(() => evaluate('!!document.querySelector(\'.forge-scroll [data-issue="7"]\')'), 'issue #7 row listed');
+    await openIssue();
     await until(
       () => evaluate('document.querySelector(".forge-detail h2")?.textContent === "Desktop issue #7"'),
       'issue detail drawn',
@@ -69,7 +70,7 @@ module.exports = {
     await until(async () => !(await rect(evaluate, '.forge-detail')), 'detail closed');
 
     assert.ok((await evaluate('window.workbench.saveSettings({ detailCoexistence: "squeeze" })')).ok);
-    await click('Desktop issue');
+    await openIssue();
     await until(async () => {
       const [area, detail] = [await rect(evaluate, '.canvas'), await rect(evaluate, '.forge-detail')];
       return !!area && !!detail && (area.right <= detail.left || area.right === area.left);

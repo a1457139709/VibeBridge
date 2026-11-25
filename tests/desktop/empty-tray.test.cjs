@@ -1,6 +1,7 @@
 const assert = require('node:assert/strict');
 const { panelViews } = require('./support/panel-views.cjs');
 const dragging = require('./support/dragging.cjs');
+const { t, named } = require('./support/localization.cjs');
 
 module.exports = {
   async run(context) {
@@ -56,10 +57,10 @@ module.exports = {
     const canvas = await rect('.canvas');
     await hover(
       { x: Math.round(canvas.left + canvas.width / 4), y: Math.round(strip.top - 8) },
-      'Drop preview: Codex along the bottom of the layout area',
+      t('fillPreview', { agent: 'Codex', side: t('sideBottom') }),
     );
     const point = center(strip);
-    await hover(point, 'Drop preview: Codex moves to the tray');
+    await hover(point, t('trayPreview', { agent: 'Codex' }));
 
     context.window.webContents.sendInputEvent({ type: 'keyDown', keyCode: 'Escape' });
     await until(
@@ -72,7 +73,7 @@ module.exports = {
     await settle([], { [a]: [0, 0, 0.5, 1], [b]: [0.5, 0, 0.5, 1] });
 
     await press(`[data-panel-id="${a}"] .panel-header`);
-    await hover(point, 'Drop preview: Codex moves to the tray');
+    await hover(point, t('trayPreview', { agent: 'Codex' }));
     release(point);
     await settle([a], { [b]: [0, 0, 1, 1] });
     assert.equal(await trayShown(), true, 'a tray holding a panel stays shown');
@@ -82,7 +83,7 @@ module.exports = {
     );
 
     await evaluate(
-      `document.querySelector('[data-panel-id="${b}"] .panel-actions button[aria-label="Move to tray"]').click()`,
+      `document.querySelector(${named(`[data-panel-id="${b}"] .panel-actions button`, t('moveToTray'))}).click()`,
     );
     await until(
       async () => JSON.stringify(await tray()) === JSON.stringify([a, b]),
