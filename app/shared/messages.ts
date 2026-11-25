@@ -8,9 +8,21 @@ export type MessageArguments<K extends MessageId> = [Fields<(typeof english)[K]>
   ? [values?: never]
   : [values: Record<Fields<(typeof english)[K]>, MessageValue>];
 
+export type MessageReference = {
+  [K in MessageId]: [Fields<(typeof english)[K]>] extends [never]
+    ? { id: K }
+    : { id: K; values: Record<Fields<(typeof english)[K]>, MessageValue> };
+}[MessageId];
+
 export const messagePrefix = 'VibeBridge.message:';
+const envelopeOf = (id: MessageId, values: MessageValues | undefined) => messagePrefix + JSON.stringify({ id, values });
 export function message<K extends MessageId>(id: K, ...args: MessageArguments<K>): string {
-  return messagePrefix + JSON.stringify({ id, values: args[0] });
+  return envelopeOf(id, args[0]);
+}
+export const referenceValues = (reference: MessageReference): MessageValues | undefined =>
+  'values' in reference ? reference.values : undefined;
+export function envelope(reference: MessageReference): string {
+  return envelopeOf(reference.id, referenceValues(reference));
 }
 
 export const nestedMessage = (text: string): MessageValue => ({ message: text });

@@ -79,7 +79,7 @@ function NoticeItem({ notice, dismiss }: { notice: Notice; dismiss(id: number): 
 export function Notices({ notices, dismiss }: Pick<ReturnType<typeof useNotices>, 'notices' | 'dismiss'>) {
   const { t } = useLocalization();
   return (
-    <div className="notices" aria-label={t('notices')}>
+    <div className="notices" role="region" aria-label={t('notices')}>
       {notices.map(notice => (
         <NoticeItem key={notice.id} notice={notice} dismiss={dismiss} />
       ))}
