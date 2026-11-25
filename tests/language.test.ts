@@ -4,6 +4,7 @@ import { writeFile } from 'node:fs/promises';
 import { Workbench } from '../app/main/workbench';
 import { testDirectory } from './support/directory';
 import { localize } from '../app/shared/localization/localization';
+import { languages } from '../app/shared/model';
 
 test('new and legacy settings default to English, while saved Chinese survives reopening with existing settings', async context => {
   const directory = await testDirectory(context, 'language-persistence');
@@ -39,8 +40,9 @@ test('a rejected whole settings submission retains the saved language and report
     });
     assert.ok(!result.ok && result.kind === 'validation');
     assert.deepEqual(workbench.snapshot().settings, before);
-    assert.equal(localize('en').text(result.issues[0].message), 'Launch command is required');
-    assert.equal(localize('zh-CN').text(result.issues[0].message), '启动命令不能为空');
+    for (const language of languages) {
+      assert.equal(localize(language).text(result.issues[0].message), localize(language).t('commandRequired'));
+    }
   } finally {
     await workbench.quit();
   }

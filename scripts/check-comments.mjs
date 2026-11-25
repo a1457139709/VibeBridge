@@ -1,6 +1,7 @@
-import { readdir, readFile, writeFile } from 'node:fs/promises';
+import { readdir, readFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import ts from 'typescript';
+import { holdToBaseline } from './ratchet.mjs';
 
 const roots = ['app', 'scripts', 'tests'];
 const skipped = new Set(['node_modules', 'dist']);
@@ -77,50 +78,17 @@ async function findComments() {
   return found;
 }
 
-async function readBaseline() {
-  try {
-    return JSON.parse(await readFile(baselineFile, 'utf8'));
-  } catch (error) {
-    if (error.code === 'ENOENT') return {};
-    throw error;
-  }
-}
-
 try {
-  const found = await findComments();
-  let allowance = await readBaseline();
-  if (process.argv.includes('--update')) {
-    const lowered = {};
-    for (const [file, allowed] of Object.entries(allowance)) {
-      const count = Math.min(found.get(file)?.length ?? 0, allowed);
-      if (count) lowered[file] = count;
-    }
-    await writeFile(baselineFile, `${JSON.stringify(lowered, null, 2)}\n`);
-    allowance = lowered;
-  }
-  const added = [];
-  const shrunk = [];
-  for (const [file, lines] of found) {
-    if (lines.length > (allowance[file] ?? 0))
-      added.push(`${file}: ${lines.length} comments, ${allowance[file] ?? 0} allowed (lines ${lines.join(', ')})`);
-  }
-  for (const [file, allowed] of Object.entries(allowance)) {
-    const count = found.get(file)?.length ?? 0;
-    if (count < allowed) shrunk.push(`${file}: ${count} comments, baseline ${allowed}`);
-  }
-  if (added.length) {
-    console.error(`Source code carries no comments (docs/adr/0010-code-carries-no-comments.md):\n${added.join('\n')}
+  await holdToBaseline({
+    baselineFile,
+    found: await findComments(),
+    counted: 'comments',
+    updateCommand: 'check:comments',
+    explanation: added => `Source code carries no comments (docs/adr/0010-code-carries-no-comments.md):\n${added}
 
 Delete a comment that repeats the code or describes code that is gone. For one that excuses a shortcut, file an issue
-to fix the shortcut. Move a decision the code cannot show into docs/adr/ or docs/. Run /delete-comment for the process.`);
-    process.exitCode = 1;
-  }
-  if (shrunk.length) {
-    console.error(
-      `Comments were deleted below the baseline; lower it with npm run check:comments -- --update:\n${shrunk.join('\n')}`,
-    );
-    process.exitCode = 1;
-  }
+to fix the shortcut. Move a decision the code cannot show into docs/adr/ or docs/. Run /delete-comment for the process.`,
+  });
 } catch (error) {
   console.error(`Comment check failed: ${error.message}`);
   process.exitCode = 1;
