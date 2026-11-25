@@ -1,11 +1,18 @@
 import assert from 'node:assert/strict';
 import { screen, waitFor, within } from '@testing-library/react';
 import type { DispatchRecordView, DispatchRequest } from '../../../app/shared/dispatch';
-import type { Snapshot } from '../../../app/shared/model';
 import type { IssueDetail } from '../../../app/shared/forge/forge';
-import { issue, page, renderWorkbench, sidebar, summary } from './forge-lists';
+import { issue, page, renderWorkbench, summary } from './forge-lists';
 import { githubCapabilities } from './forge';
 import { requireValue } from '../../../app/renderer/common/required';
+import { agentNames, type AgentType, type Snapshot } from '../../../app/shared/model';
+import type { ProcessingState } from '../../../app/shared/processing-status';
+import type { Delivery } from '../../../app/shared/settings/workflows';
+import { t } from './localization';
+import { forgeSidebar } from './sidebar-queries';
+
+export const trayTitle = 'Fix it',
+  residentTitle = 'Alpha session';
 
 export function withPanels(snapshot: Snapshot) {
   const alpha = snapshot.projects[0];
@@ -15,7 +22,7 @@ export function withPanels(snapshot: Snapshot) {
     id: 'tray',
     agent: 'claude',
     status: 'busy',
-    run: { id: 'tray-run', panelId: 'tray', projectId: 'alpha', state: 'running', title: 'Fix it' },
+    run: { id: 'tray-run', panelId: 'tray', projectId: 'alpha', state: 'running', title: trayTitle },
   });
 }
 
@@ -46,17 +53,18 @@ export async function listed(
   change(f.snapshot);
   f.publish();
   first.answer(page([issue(9), issue(8, { state: 'closed', closedAs: 'completed' })]));
-  await waitFor(() => assert.ok(within(sidebar()).getAllByRole('listitem').length === 2));
+  await waitFor(() => assert.ok(within(forgeSidebar()).getAllByRole('listitem').length === 2));
   return { ...f, dispatches: requests };
 }
 export const row = (number: number) =>
   requireValue(
-    within(sidebar())
+    within(forgeSidebar())
       .getAllByRole('listitem')
-      .find(item => within(item).queryByText(`#${number}`)),
+      .find(item => within(item).queryByRole('button', { name: summary(number).title })),
     `the row of #${number}`,
   );
-export const dispatchButton = (number: number) => within(row(number)).getByRole('button', { name: 'Dispatch' });
+export const issueButton = (number: number) => within(row(number)).getByRole('button', { name: summary(number).title });
+export const dispatchButton = (number: number) => within(row(number)).getByRole('button', { name: t('dispatch') });
 export const hoursAgo = (hours: number) => new Date(Date.now() - hours * 3600e3).toISOString();
 export const record = (
   issue: number,
@@ -71,7 +79,25 @@ export const record = (
   location,
   ...extra,
 });
-export const menu = (number = 9) => screen.getByRole('menu', { name: `Dispatch #${number}` });
+export const menu = (number = 9) => screen.getByRole('menu', { name: t('dispatchMenu', { number }) });
+export const targetsMenu = (command: string) => screen.getByRole('menu', { name: t('dispatchTargets', { command }) });
+const deliveryMessage = { submit: 'deliverySubmit', fill: 'deliveryFill' } as const;
+export const commandNamed = (skill: string, deliveries: Delivery[] = ['submit', 'fill']) => ({
+  name: (name: string) =>
+    name.startsWith(skill) &&
+    deliveries.some(delivery => name.slice(skill.length).trim() === t(deliveryMessage[delivery])),
+});
+export const newTargetName = (agent: AgentType) => t('dispatchNew', { agent: agentNames[agent] });
+export const command = (skill: string, delivery: Delivery) => [skill, t(deliveryMessage[delivery])];
+export const newTarget = (agent: AgentType) => [newTargetName(agent), t('ephemeralPanel')];
+export const panelTarget = (agent: AgentType, status: ProcessingState, title: string, resident: boolean) => [
+  agentNames[agent],
+  t(status),
+  title,
+  t(status),
+  t(resident ? 'residentPanel' : 'ephemeralPanel'),
+];
+
 export const issueDetail = (number: number, extra: Partial<IssueDetail> = {}): IssueDetail => ({
   ...summary(number),
   url: `https://github.com/octo/alpha/issues/${number}`,

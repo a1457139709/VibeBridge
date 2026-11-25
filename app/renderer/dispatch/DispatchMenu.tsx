@@ -226,13 +226,18 @@ export function DispatchButton({
           role="menu"
           tabIndex={-1}
           aria-label={t('dispatchMenu', { number: issue.number })}
+          aria-describedby={commands.length ? undefined : `${menuId}-empty`}
           aria-activedescendant={
             commands.length ? (expanded ? targetElementId(targetIndex) : commandElementId(commandIndex)) : undefined
           }
           onKeyDown={keydown}
           onMouseDown={event => event.preventDefault()}
         >
-          {!commands.length && <p className="dispatch-empty">{t('noEnabledWorkflows')}</p>}
+          {!commands.length && (
+            <p className="dispatch-empty" id={`${menuId}-empty`}>
+              {t('noEnabledWorkflows')}
+            </p>
+          )}
           {commands.map((item, index) => {
             const { workflowId, command } = item;
             const mode = shownDelivery(item);
@@ -296,9 +301,13 @@ export function DispatchButton({
                         <ProcessingStatusIcon state={panel.status} />
                         <span className="dispatch-title">{panel.run?.title ?? t('untitled')}</span>
                         <small>
-                          {[panel.status && t(panel.status), t(resident(panel) ? 'residentPanel' : 'ephemeralPanel')]
-                            .filter(Boolean)
-                            .join(' · ')}
+                          {panel.status && (
+                            <>
+                              <span>{t(panel.status)}</span>
+                              <span aria-hidden="true"> · </span>
+                            </>
+                          )}
+                          <span>{t(resident(panel) ? 'residentPanel' : 'ephemeralPanel')}</span>
                         </small>
                       </>
                     ) : (
