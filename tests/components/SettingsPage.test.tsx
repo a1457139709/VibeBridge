@@ -18,17 +18,18 @@ afterEach(cleanup);
 function renderSettings(settings = defaultSettings()) {
   const ref = createRef<SettingsPageActions>();
   const report = mock.fn();
-  render(
+  const page = (current: Settings) => (
     <SettingsPage
       initialCategory="agents"
-      settings={settings}
-      startupTheme={settings.theme}
+      settings={current}
+      startupTheme={current.theme}
       ref={ref}
       back={() => {}}
       report={report}
-    />,
+    />
   );
-  return { user: userEvent.setup(), ref, report };
+  const { rerender } = render(page(settings));
+  return { user: userEvent.setup(), ref, report, receive: (next: Settings) => rerender(page(next)) };
 }
 const click = (user: ReturnType<typeof userEvent.setup>, name: string) =>
   user.click(screen.getByRole('button', { name }));
@@ -309,6 +310,15 @@ test('late command checks cannot replace feedback for a newer or discarded draft
     }),
     null,
   );
+});
+
+test('newly received saved settings decide what counts as unsaved', async () => {
+  provideWorkbench({});
+  const settings = defaultSettings();
+  const { user, ref, receive } = renderSettings(settings);
+  await user.type(command(), '-draft');
+  receive({ ...settings, agents: { ...settings.agents, codex: { command: 'codex-draft', args: [] } } });
+  assert.equal(await requireValue(ref.current, 'the settings page').requestLeave(), true);
 });
 
 function shortcutConflictSettings(): Settings {

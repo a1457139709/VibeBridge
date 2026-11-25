@@ -1,7 +1,9 @@
 import { Localization, useLocalization } from '../common/Localization';
 import { localize } from '../../shared/localization/localization';
 import { message } from '../../shared/messages';
-import { useEffect, useId, useImperativeHandle, useLayoutEffect, useRef, useState, type Ref } from 'react';
+import { useId, useImperativeHandle, useRef, useState, type Ref } from 'react';
+import { useFocusRequestBeforePaint } from '../common/effects/focus-request';
+import { useUnmountCleanup } from '../common/effects/unmount';
 import type { Settings } from '../../shared/model';
 import type { ShortcutAction } from '../../shared/settings/shortcuts';
 import type { ReportNotice } from '../common/Notices';
@@ -45,8 +47,8 @@ function SettingsEditor({
   const leave = useId();
   const [currentCategory, setCurrentCategory] = useState<SettingsCategory>(initialCategory);
   const [draft, setDraft] = useState(settings);
-  const [saved, setSaved] = useState(settings);
-  useEffect(() => setSaved(settings), [settings]);
+  const [lastSave, setLastSave] = useState<{ over: Settings; settings: Settings }>();
+  const saved = lastSave?.over === settings ? lastSave.settings : settings;
   const { agents, shortcuts } = draft;
   const [submittedIssues, setSubmittedIssues] = useState<SettingsIssue[]>([]);
   const issues = [...submittedIssues, ...settingsIssues(draft)];
@@ -60,19 +62,8 @@ function SettingsEditor({
   const [recording, setRecording] = useState<ShortcutAction>();
   const [error, setError] = useState('');
   const [saving, setSaving] = useState(false);
-  const [problemToFocus, setProblemToFocus] = useState<SettingsIssue>();
+  const requestFocus = useFocusRequestBeforePaint();
   const pending = useRef(false);
-  const scroll = useRef<HTMLDivElement>(null);
-  useLayoutEffect(() => {
-    if (scroll.current) scroll.current.scrollTop = 0;
-  }, [currentCategory]);
-  useLayoutEffect(() => {
-    if (saving || !problemToFocus) return;
-    const input = document.querySelector<HTMLElement>(`[data-settings-field="${CSS.escape(problemToFocus.field)}"]`);
-    input?.scrollIntoView({ block: 'nearest' });
-    input?.focus();
-    setProblemToFocus(undefined);
-  }, [saving, problemToFocus]);
   const [leaveCategories, setLeaveCategories] = useState<SettingsCategory[]>([]);
   const leaveDialog = useRef<HTMLDialogElement>(null);
   const leaveDecision = useRef<(leave: boolean) => void>(undefined);
@@ -98,12 +89,7 @@ function SettingsEditor({
       }
     },
   }));
-  useEffect(
-    () => () => {
-      leaveDecision.current?.(false);
-    },
-    [],
-  );
+  useUnmountCleanup(() => leaveDecision.current?.(false));
   function decideLeave(leave: boolean) {
     leaveDialog.current?.close();
     setLeaveCategories([]);
@@ -126,7 +112,7 @@ function SettingsEditor({
       const patch = settingsPatch(draft, categories);
       const result = await window.workbench.saveSettings(patch);
       if (result.ok) {
-        setSaved(result.settings);
+        setLastSave({ over: settings, settings: result.settings });
         setSubmittedIssues([]);
         report(
           localize(result.settings.language).t('theme' in patch ? 'settingsSavedTheme' : 'settingsSaved'),
@@ -144,7 +130,7 @@ function SettingsEditor({
         if (first) {
           setCurrentCategory(first.category);
           setSearch('');
-          setProblemToFocus(first);
+          requestFocus(() => document.querySelector<HTMLElement>(`[data-settings-field="${CSS.escape(first.field)}"]`));
         }
       } else message = text(result.message);
       setError(message);
@@ -214,7 +200,7 @@ function SettingsEditor({
                 </button>
               </div>
             </header>
-            <div className="settings-scroll" ref={scroll}>
+            <div className="settings-scroll" key={currentCategory}>
               <fieldset disabled={saving}>
                 {currentCategory === 'general' && (
                   <GeneralSettings language={draft.language} fieldError={fieldError} changeDraft={changeDraft} />
