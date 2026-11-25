@@ -46,6 +46,16 @@ A name states what its code does or holds, read at the call site without opening
 
 Review each new or changed name by reading its call site alone and asking whether it says what happens there.
 
+## Effects
+
+An effect that recomputes a value or reacts to a user action renders the view a second time, shows a wrong state before the right one, and hides logic that can be confirmed only by rendering the component. In the renderer:
+
+- A value derived from props or state is computed while rendering; logic that derives it belongs in a presentation model.
+- What a user action causes happens in the event handler of that action.
+- An effect only keeps the view in sync with a system outside React, and only inside a hook in `app/renderer/common/effects` named for that synchronization (a main-process subscription, a window event, an element measurement, a timer). Components and other hooks call these named hooks; `useEffect` and `useLayoutEffect` appear nowhere else.
+
+`npm run check:effects` enforces the last rule against a per-file baseline that only shrinks.
+
 ## Tests
 
 ### Data
