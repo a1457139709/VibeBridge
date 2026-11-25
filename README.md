@@ -90,3 +90,7 @@ app/terminal/    共用终端进程
 - `app/main/persistence/settings.ts`：串行、完整临时写入后替换的配置保存。
 - `app/renderer/panels/terminals.ts`：xterm.js 实例及有界滚动缓冲，视图卸载不结束运行。
 - `app/renderer/panels/panel-interactions.ts`：面板布局交互入口，统一落点预览与交换预览、分隔线约束、取消与面板测量调度。
+
+## 署名
+
+`app/renderer/common/agent-icons.tsx` 里的 OpenAI Blossom 图标归 OpenAI 所有，几何形状取自官方 ChatGPT 资源 <https://cdn.oaistatic.com/assets/favicon-l4nq08hd.svg>，品牌说明见 <https://openai.com/brand/>。

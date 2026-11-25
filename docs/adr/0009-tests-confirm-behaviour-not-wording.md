@@ -9,10 +9,8 @@ VibeBridge 是界面和程序合在一起的应用，界面展示的是程序的
 - **只有当行为本身就是"向用户展示某件事"时，测试才看界面**：确认的是展示了哪一件事，不确认措辞。
 - **本地化的测试只确认每种语言的结构完整，也不确认措辞**：每种语言都有全部消息，每条译文的占位符与英文相同，带信封的消息还原出来的文字等于该语言对同一消息 id 的译文。这些检查遍历所有语言，增加一种语言不需要新增测试；措辞的对错交给翻译审阅。
 
-这条原则延续了 `0005-tests-guarantee-behaviour-deterministically.md` 的要求：测试的判定只取决于行为是否成立。
+这条原则延续了 ADR 0005 的要求：测试的判定只取决于行为是否成立。
 
 ## Consequences
 
 - 修改文案、调整措辞、增加语言，都不会让行为测试失败；测试失败时，指向的是行为出了问题。
-- 推导逻辑写在界面里的代码，以及依赖文字的测试，要逐步调整到这条原则上。
-- `npm run check:test-wording`（`scripts/check-test-wording.mjs`）用 TypeScript 的语法树检查 `tests/` 下的 `.ts` / `.tsx`（不含 `tests/fixtures/`）：每个 `*ByText` 查询，`*ByLabelText` 等按文字的查询里字面的文字，以及 `*ByRole` 的 `name` 里字面的字符串或正则，各算一处。字面的文字包括字符串、正则、带字面片段的模板字符串（`${title} #${number}` 里的 ` #` 也算），以及在同一文件里绑定到这类文字的变量（含简写的 `{ name }`）和返回这类文字的函数调用。`t(...)`、从 fixture 取出的值（`issue(13).title`）和对 fixture 值的判断函数（`name => name.startsWith(title)`）不算；界面把 fixture 数据和分隔符拼成的名字，用 locale 消息或这样的判断函数来找。各文件的次数与 `scripts/test-wording-baseline.json` 比较，做法同 `0010-code-carries-no-comments.md` 的棘轮：超过基线时失败；少于基线时也失败，要求运行 `npm run check:test-wording -- --update` 把基线降下来，`--update` 只降不升。桌面测试（`tests/desktop/*.cjs`）不用 Testing Library，不在检查范围内。
