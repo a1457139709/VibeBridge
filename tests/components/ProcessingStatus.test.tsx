@@ -11,8 +11,21 @@ import type { Snapshot, WorkbenchEvent } from '../../app/shared/model';
 import { provideWorkbench } from './support/workbench';
 import { githubView } from './support/forge';
 import { requireValue } from '../../app/renderer/common/required';
+import { localize } from '../../app/shared/localization/localization';
+import { t } from './support/localization';
+import { selectElement } from './support/elements';
 
 afterEach(cleanup);
+
+const states = ['ready', 'busy', 'needs-input', 'done', 'error'] as const;
+
+const startingRun = {
+  id: 'starting',
+  panelId: 'starting',
+  projectId: 'project',
+  state: 'starting',
+  title: 'Session starting',
+} as const;
 
 test("navigation reads each panel view's state, exposes all five states to keyboard users, and keeps background updates", async () => {
   const snapshot: Snapshot = {
@@ -31,7 +44,7 @@ test("navigation reads each panel view's state, exposes all five states to keybo
         directory: '/project',
         layout: null,
         panels: [
-          ...(['ready', 'busy', 'needs-input', 'done', 'error'] as const).map(id => ({
+          ...states.map(id => ({
             id,
             agent: 'codex' as const,
             run: { id, panelId: id, projectId: 'project', state: 'running' as const, title: `Session ${id}` },
@@ -40,13 +53,7 @@ test("navigation reads each panel view's state, exposes all five states to keybo
           {
             id: 'starting',
             agent: 'codex',
-            run: {
-              id: 'starting',
-              panelId: 'starting',
-              projectId: 'project',
-              state: 'starting',
-              title: 'Session starting',
-            },
+            run: startingRun,
           },
         ],
         tray: [],
@@ -105,18 +112,18 @@ test("navigation reads each panel view's state, exposes all five states to keybo
   }
   render(<Navigation />);
   const user = userEvent.setup();
-  for (const label of ['Ready', 'Busy', 'Needs input', 'Done', 'Error']) {
+  for (const label of states.map(state => t(state))) {
     const icon = await screen.findByRole('img', { name: label });
     const entry = requireValue(icon.closest('button'), 'the entry button');
     assert.ok(entry.getAttribute('data-hint')?.includes(label));
     for (let step = 0; document.activeElement !== entry && step < 20; step++) await user.tab();
     assert.equal(document.activeElement, entry);
   }
-  const starting = screen.getByRole('button', { name: 'Session starting' });
+  const starting = screen.getByRole('button', { name: startingRun.title });
   assert.equal(within(starting).queryByRole('img'), null);
-  await user.click(screen.getByRole('button', { name: /Done.*Session done/ }));
+  await user.click(selectElement('[data-locate-panel-id="done"]'));
   assert.deepEqual(located, ['done']);
-  assert.ok(screen.getByRole('img', { name: 'Done' }));
+  assert.ok(screen.getByRole('img', { name: t('done') }));
   const icons = screen.getAllByRole('img');
   const chinese = structuredClone(snapshot);
   chinese.settings.language = 'zh-CN';
@@ -124,25 +131,23 @@ test("navigation reads each panel view's state, exposes all five states to keybo
     for (const listener of listeners) listener({ kind: 'snapshot', snapshot: chinese });
   });
   assert.deepEqual(screen.getAllByRole('img'), icons);
-  for (const label of ['就绪', '处理中', '等待输入', '本轮结束', '异常']) {
+  const chineseText = localize('zh-CN').t;
+  for (const label of states.map(state => chineseText(state))) {
     const icon = screen.getByRole('img', { name: label });
     assert.ok(requireValue(icon.closest('button'), 'the entry button').getAttribute('data-hint')?.includes(label));
   }
   await act(async () => {
     for (const listener of listeners) listener({ kind: 'snapshot', snapshot });
   });
-  await user.click(screen.getByRole('button', { name: 'Collapse project navigation' }));
-  assert.equal(
-    screen.getByRole('button', { name: 'Expand project navigation' }).getAttribute('aria-expanded'),
-    'false',
-  );
+  await user.click(screen.getByRole('button', { name: t('collapseNavigation') }));
+  assert.equal(screen.getByRole('button', { name: t('expandNavigation') }).getAttribute('aria-expanded'), 'false');
   const updated = structuredClone(snapshot);
   updated.activeProjectId = 'elsewhere';
   updated.projects[0].panels[1].status = 'needs-input';
   await act(async () => {
     for (const listener of listeners) listener({ kind: 'snapshot', snapshot: updated });
   });
-  await user.click(screen.getByRole('button', { name: 'Expand project navigation' }));
-  assert.equal(screen.getAllByRole('img', { name: 'Needs input' }).length, 2);
-  assert.ok(screen.getByRole('img', { name: 'Done' }));
+  await user.click(screen.getByRole('button', { name: t('expandNavigation') }));
+  assert.equal(screen.getAllByRole('img', { name: t('needs-input') }).length, 2);
+  assert.ok(screen.getByRole('img', { name: t('done') }));
 });

@@ -4,6 +4,8 @@ import test, { afterEach, before } from 'node:test';
 import { cleanup, within } from '@testing-library/react';
 import { t } from './support/localization';
 import { stubLayoutApis } from './support/no-layout';
+import { githubForge } from './support/forge';
+import { selectElement } from './support/elements';
 import {
   detail,
   hoursAgo,
@@ -38,10 +40,10 @@ test('an issue with more comments than listed says how many came earlier at the 
     }),
   });
   const earlier = await within(pane()).findByRole('link', {
-    name: t('earlierEntries', { count: 20, forge: 'GitHub' }),
+    name: t('earlierEntries', { count: 20, forge: githubForge.name }),
   });
   assert.equal(earlier.getAttribute('href'), `${repositoryUrl}/issues/7`);
-  const [body, comment] = [...pane().querySelectorAll('.forge-card')];
+  const [body, comment] = within(pane()).getAllByRole('article');
   assert.ok(
     body.compareDocumentPosition(earlier) & Node.DOCUMENT_POSITION_FOLLOWING &&
       earlier.compareDocumentPosition(comment) & Node.DOCUMENT_POSITION_FOLLOWING,
@@ -60,7 +62,7 @@ test("an issue with more sub-issues than listed shows GitHub's progress and link
     }),
   });
   const subIssues = await within(pane()).findByRole('region', { name: t('subIssues') });
-  assert.ok(within(subIssues).getByText('3/55'));
-  const more = within(subIssues).getByRole('link', { name: t('moreSubIssues', { count: 5, forge: 'GitHub' }) });
+  assert.ok(within(subIssues).getByRole('img', { name: t('subIssueProgress', { closed: 3, total: 55 }) }));
+  const more = within(subIssues).getByRole('link', { name: t('moreSubIssues', { count: 5, forge: githubForge.name }) });
   assert.equal(more.getAttribute('href'), `${repositoryUrl}/issues/7`);
 });
