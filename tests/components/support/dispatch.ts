@@ -3,7 +3,7 @@ import { screen, waitFor, within } from '@testing-library/react';
 import type { DispatchRecordView, DispatchRequest } from '../../../app/shared/dispatch';
 import type { IssueDetail } from '../../../app/shared/forge/forge';
 import { issue, page, renderWorkbench, summary } from './forge-lists';
-import { githubCapabilities } from './forge';
+import { testForgeCapabilities, testForgeUrl } from './forge';
 import { requireValue } from '../../../app/renderer/common/required';
 import { agentNames, type AgentType, type Snapshot } from '../../../app/shared/model';
 import type { ProcessingState } from '../../../app/shared/processing-status';
@@ -40,7 +40,7 @@ export async function listed(
   change: (snapshot: Snapshot) => void = () => {},
 ) {
   const requests: [string, DispatchRequest][] = [];
-  const f = renderWorkbench(githubCapabilities, {
+  const f = renderWorkbench(testForgeCapabilities, {
     dispatch: async (projectId, request) => {
       requests.push([projectId, request]);
       return dispatch(projectId, request);
@@ -100,8 +100,8 @@ export const panelTarget = (agent: AgentType, status: ProcessingState, title: st
 
 export const issueDetail = (number: number, extra: Partial<IssueDetail> = {}): IssueDetail => ({
   ...summary(number),
-  url: `https://github.com/octo/alpha/issues/${number}`,
-  author: 'mona',
+  url: `${testForgeUrl}/ada/alpha/issues/${number}`,
+  author: 'lin',
   assignees: [],
   body: '',
   comments: [],
@@ -113,8 +113,8 @@ export const issueDetail = (number: number, extra: Partial<IssueDetail> = {}): I
   blocking: [],
   closingPullRequests: [],
   links: {
-    issuePrefix: 'https://github.com/octo/alpha/issues/',
-    pullRequestPrefix: 'https://github.com/octo/alpha/pull/',
+    issuePrefix: `${testForgeUrl}/ada/alpha/issues/`,
+    pullRequestPrefix: `${testForgeUrl}/ada/alpha/pull/`,
   },
   canWrite: true,
   ...extra,

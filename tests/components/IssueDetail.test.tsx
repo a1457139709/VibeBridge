@@ -4,9 +4,10 @@ import test, { afterEach, before } from 'node:test';
 import { cleanup, waitFor, within } from '@testing-library/react';
 import { t } from './support/localization';
 import { stubLayoutApis } from './support/no-layout';
-import { githubCapabilities, githubForge } from './support/forge';
+import { testForgeCapabilitiesWith, testForgeCapabilities, testForge, testForgeUrl } from './support/forge';
 import { selectElement } from './support/elements';
 import { requireValue } from '../../app/renderer/common/required';
+import type { ForgeCapabilities } from '../../app/shared/forge/forge';
 import {
   repositoryUrl,
   hoursAgo,
@@ -38,11 +39,11 @@ test('clicking a row opens its detail beside the list, with the author, comment 
       title: 'Issue detail',
       state: 'closed',
       closedAs: 'completed',
-      assignees: ['octo', 'hubot'],
+      assignees: ['ada', 'kai'],
       commentCount: 2,
       body: '<p>The body.</p>',
       comments: [
-        { author: 'hubot', createdAt: hoursAgo(1), html: '<p>Resolution: overlay.</p>' },
+        { author: 'kai', createdAt: hoursAgo(1), html: '<p>Resolution: overlay.</p>' },
         { author: null, createdAt: hoursAgo(1), html: '<p>Ghost.</p>' },
       ],
     }),
@@ -54,24 +55,24 @@ test('clicking a row opens its detail beside the list, with the author, comment 
     'the state pill names how it was closed',
   );
   const meta = selectElement('.forge-doc-meta', pane());
-  assert.equal(selectElement('b', meta).textContent, 'mona');
+  assert.equal(selectElement('b', meta).textContent, 'lin');
   assert.equal(selectElement('time', meta).textContent, t('hoursAgo', { count: 3 }));
-  for (const part of [t('issueOpened'), t('commentCount', { count: 2 }), t('assigneeList', { names: 'octo, hubot' })])
+  for (const part of [t('issueOpened'), t('commentCount', { count: 2 }), t('assigneeList', { names: 'ada, kai' })])
     assert.ok(meta.textContent?.includes(part), part);
   assert.deepEqual(
     within(pane())
       .getAllByRole('article')
       .map(card => [card.querySelector('header > b')?.textContent, card.querySelector('.forge-markdown')?.textContent]),
     [
-      ['mona', 'The body.'],
-      ['hubot', 'Resolution: overlay.'],
+      ['lin', 'The body.'],
+      ['kai', 'Resolution: overlay.'],
       [t('deletedAccount'), 'Ghost.'],
     ],
     'a comment from a deleted account names no one',
   );
   assert.equal(
     within(pane())
-      .getByRole('link', { name: t('openOnForge', { forge: githubForge.name }) })
+      .getByRole('link', { name: t('openOnForge', { forge: testForge.name }) })
       .getAttribute('href'),
     `${repositoryUrl}/issues/7`,
   );
@@ -94,17 +95,17 @@ test('the body and comments pass the HTML filter, same-repository issue links op
   (await request(1)).answer({
     ok: true,
     issue: detail(7, {
-      body: `<p onclick="steal()">See <a class="issue-link" href="https://github.com/Octo/Alpha/issues/3">${linkText.sameRepository}</a>, <a href="https://example.com/doc">${linkText.externalDocument}</a>
+      body: `<p onclick="steal()">See <a class="issue-link" href="${testForgeUrl}/Ada/Alpha/issues/3">${linkText.sameRepository}</a>, <a href="https://example.com/doc">${linkText.externalDocument}</a>
       and <a href="javascript:steal()">${linkText.script}</a>.</p><script>steal()</script><style>p { display: none }</style>
-      <img src="https://user-images.githubusercontent.com/shot.png" alt="Screenshot">
-      <a href="https://user-images.githubusercontent.com/linked.png"><img src="https://user-images.githubusercontent.com/linked.png" alt="Linked"></a>
+      <img src="${testForgeUrl}/shot.png" alt="Screenshot">
+      <a href="${testForgeUrl}/linked.png"><img src="${testForgeUrl}/linked.png" alt="Linked"></a>
       <iframe src="https://example.com"></iframe>
       <ul><li><input type="checkbox" checked> done</li></ul><g-emoji alias="tada">${emoji}</g-emoji><form><button>Submit</button></form>`,
       comments: [
         {
-          author: 'hubot',
+          author: 'kai',
           createdAt: hoursAgo(1),
-          html: `<p>Merged in <a href="https://github.com/other/repo/issues/3">${linkText.otherRepository}</a>.</p><img src="x" onerror="steal()">`,
+          html: `<p>Merged in <a href="${testForgeUrl}/other/repo/issues/3">${linkText.otherRepository}</a>.</p><img src="x" onerror="steal()">`,
         },
       ],
     }),
@@ -138,14 +139,14 @@ test('the body and comments pass the HTML filter, same-repository issue links op
     within(pane())
       .getByRole('link', { name: imageLink('Screenshot') })
       .getAttribute('href'),
-    'https://user-images.githubusercontent.com/shot.png',
+    `${testForgeUrl}/shot.png`,
     'an image becomes a link to it',
   );
   assert.equal(
     within(pane())
       .getByRole('link', { name: imageLink('Linked') })
       .getAttribute('href'),
-    'https://user-images.githubusercontent.com/linked.png',
+    `${testForgeUrl}/linked.png`,
   );
   assert.equal(pane().querySelector('a a'), null, "an image the forge already links becomes that link's text");
   const checkbox = within(pane()).getByRole<HTMLInputElement>('checkbox');
@@ -241,21 +242,42 @@ test('a closed issue draws no issues it blocks, and an issue with no live relati
   assert.equal(within(pane()).queryByRole('group', { name: t('relations') }), null);
 });
 
-test('relations a forge does not declare are not shown', async () => {
-  const { user, request } = renderWorkbench([summary(5)], { ...githubCapabilities, subIssues: false, blocking: false });
+async function openWithEveryRelation(capabilities: Partial<ForgeCapabilities>) {
+  const { user, request } = renderWorkbench([summary(5)], testForgeCapabilitiesWith(capabilities));
   await user.click(await row('Issue 5'));
   (await request(1)).answer({
     ok: true,
     issue: detail(5, {
       parent: { ...reference(1, { title: 'Spec' }), progress: { closed: 0, total: 1 } },
-      blockedBy: [reference(2)],
+      blockedBy: [reference(2, { title: 'Open blocker' })],
+      blocking: [reference(8, { title: 'Waits on detail' })],
       subIssues: [reference(6)],
+      subIssueProgress: { closed: 0, total: 1 },
     }),
   });
   await detailHeading(pane(), 'Issue 5', 5);
-  assert.equal(within(pane()).queryByRole('group', { name: t('relations') }), null);
-  assert.equal(within(pane()).queryByRole('region', { name: t('subIssues') }), null);
-  assert.equal(pane().querySelector('.forge-parent'), null);
+  return {
+    parent: () => within(pane()).queryByRole('button', { name: name => name.includes('Spec') }),
+    subIssues: () => within(pane()).queryByRole('region', { name: t('subIssues') }),
+    blockedBy: () => within(pane()).queryByRole('img', { name: t('blockedBy', { issues: '#2' }) }),
+    blocking: () => within(pane()).queryByRole('button', { name: name => name.includes('Waits on detail') }),
+  };
+}
+
+test('a forge without sub-issues hides the parent and sub-issues but still shows blockers and the issues this one blocks', async () => {
+  const shown = await openWithEveryRelation({ subIssues: false });
+  assert.equal(shown.parent(), null);
+  assert.equal(shown.subIssues(), null);
+  assert.notEqual(shown.blockedBy(), null);
+  assert.notEqual(shown.blocking(), null);
+});
+
+test('a forge without blocking hides blockers and the issues this one blocks but still shows the parent and sub-issues', async () => {
+  const shown = await openWithEveryRelation({ blocking: false });
+  assert.equal(shown.blockedBy(), null);
+  assert.equal(shown.blocking(), null);
+  assert.notEqual(shown.parent(), null);
+  assert.notEqual(shown.subIssues(), null);
 });
 
 test('the pull requests that close the issue on merge sit in their own block, closed ones included, each with its checks conclusion', async () => {
@@ -310,7 +332,7 @@ test('the pull requests that close the issue on merge sit in their own block, cl
 
 test('an overlaying detail leaves the layout area as it was, and a squeezing one narrows it until it closes', async () => {
   for (const detailCoexistence of ['overlay', 'squeeze'] as const) {
-    const { user, request } = renderWorkbench([summary(7)], githubCapabilities, { detailCoexistence });
+    const { user, request } = renderWorkbench([summary(7)], testForgeCapabilities, { detailCoexistence });
     const layoutArea = () => {
       const body = selectElement('.app-body');
       return [
@@ -337,7 +359,7 @@ test('a detail that fails to load says why and Retry asks again', async () => {
   await user.click(await row('Issue 5'));
   (await request(1)).answer({
     ok: false,
-    failure: { kind: 'transient', detail: 'HTTP 502: Bad Gateway', forge: githubForge },
+    failure: { kind: 'transient', detail: 'HTTP 502: Bad Gateway', forge: testForge },
   });
   const loadFailure = () => alertMessages(pane());
   await waitFor(() =>
@@ -360,7 +382,7 @@ test('a refresh of a shown detail that fails keeps it showing with a stale notic
   await user.click(within(forgeSidebar()).getByRole('button', { name: t('refresh') }));
   (await request(2)).answer({
     ok: false,
-    failure: { kind: 'transient', detail: 'HTTP 502: Bad Gateway', forge: githubForge },
+    failure: { kind: 'transient', detail: 'HTTP 502: Bad Gateway', forge: testForge },
   });
   await waitFor(() => assert.deepEqual(statusMessages(pane()), [t('dataMayBeStale')]));
   assert.ok(await detailHeading(pane(), 'Issue 5', 5), 'the shown detail stays');

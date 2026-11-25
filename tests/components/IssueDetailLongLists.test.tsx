@@ -4,7 +4,7 @@ import test, { afterEach, before } from 'node:test';
 import { cleanup, within } from '@testing-library/react';
 import { t } from './support/localization';
 import { stubLayoutApis } from './support/no-layout';
-import { githubForge } from './support/forge';
+import { testForge } from './support/forge';
 import { selectElement } from './support/elements';
 import {
   detail,
@@ -33,14 +33,14 @@ test('an issue with more comments than listed says how many came earlier at the 
       body: '<p>The body.</p>',
       commentCount: 120,
       comments: Array.from({ length: 100 }, (_, index) => ({
-        author: 'hubot',
+        author: 'kai',
         createdAt: hoursAgo(1),
         html: `<p>Comment ${index}.</p>`,
       })),
     }),
   });
   const earlier = await within(pane()).findByRole('link', {
-    name: t('earlierEntries', { count: 20, forge: githubForge.name }),
+    name: t('earlierEntries', { count: 20, forge: testForge.name }),
   });
   assert.equal(earlier.getAttribute('href'), `${repositoryUrl}/issues/7`);
   const [body, comment] = within(pane()).getAllByRole('article');
@@ -51,7 +51,7 @@ test('an issue with more comments than listed says how many came earlier at the 
   );
 });
 
-test("an issue with more sub-issues than listed shows GitHub's progress and links the rest on the forge", async () => {
+test("an issue with more sub-issues than listed shows the forge's progress and links the rest on the forge", async () => {
   const { user, request } = renderWorkbench([summary(7)]);
   await user.click(await row('Issue 7'));
   (await request(1)).answer({
@@ -63,6 +63,6 @@ test("an issue with more sub-issues than listed shows GitHub's progress and link
   });
   const subIssues = await within(pane()).findByRole('region', { name: t('subIssues') });
   assert.ok(within(subIssues).getByRole('img', { name: t('subIssueProgress', { closed: 3, total: 55 }) }));
-  const more = within(subIssues).getByRole('link', { name: t('moreSubIssues', { count: 5, forge: githubForge.name }) });
+  const more = within(subIssues).getByRole('link', { name: t('moreSubIssues', { count: 5, forge: testForge.name }) });
   assert.equal(more.getAttribute('href'), `${repositoryUrl}/issues/7`);
 });

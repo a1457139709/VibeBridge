@@ -45,6 +45,7 @@ if (process.env.FAIL_CHECK === '${stage}') { console.error('FAILED:${stage}'); p
     await writeFile(`${directory}/scripts/check-source-shape.mjs`, check('source-shape'));
     await writeFile(`${directory}/scripts/check-test-waits.mjs`, check('test-waits'));
     await writeFile(`${directory}/scripts/check-test-wording.mjs`, check('test-wording'));
+    await writeFile(`${directory}/scripts/check-forge-neutral-components.mjs`, check('forge-neutral-components'));
     await writeFile(`${directory}/scripts/check-comments.mjs`, check('comments'));
     await writeFile(`${directory}/scripts/typecheck.mjs`, check('typecheck'));
     await writeFile(`${directory}/scripts/test.mjs`, check('unit'));
@@ -84,6 +85,7 @@ if (process.env.FAIL_CHECK === '${stage}') { console.error('FAILED:${stage}'); p
       'source-shape',
       'test-waits',
       'test-wording',
+      'forge-neutral-components',
       'comments',
       'typecheck',
       'unit',

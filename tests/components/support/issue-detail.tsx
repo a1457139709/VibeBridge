@@ -13,12 +13,12 @@ import type {
 } from '../../../app/shared/forge/forge';
 import { deferred, provideWorkbench } from './workbench';
 import { forgeSidebarData } from './forge-sidebar-data';
-import { githubCapabilities, githubForge, githubView, githubRepository } from './forge';
+import { testForgeCapabilities, testForge, testForgeUrl, testForgeView, testForgeRepository } from './forge';
 import { t } from './localization';
 import { issue as listedIssue } from './forge-lists';
 import { forgeSidebar } from './sidebar-queries';
 
-export const repositoryUrl = 'https://github.com/octo/alpha';
+export const repositoryUrl = `${testForgeUrl}/ada/alpha`;
 export const hoursAgo = (hours: number) => new Date(Date.now() - hours * 3600e3).toISOString();
 export const summary = (number: number, extra: Partial<ListedIssue> = {}): ListedIssue =>
   listedIssue(number, { createdAt: hoursAgo(3), ...extra });
@@ -33,7 +33,7 @@ export const reference = (number: number, extra: Partial<IssueReference> = {}): 
 export const detail = (number: number, extra: Partial<IssueDetail> = {}): IssueDetail => ({
   ...summary(number),
   url: `${repositoryUrl}/issues/${number}`,
-  author: 'mona',
+  author: 'lin',
   assignees: [],
   body: '',
   comments: [],
@@ -57,7 +57,7 @@ interface Request {
 
 export function renderWorkbench(
   issues: ListedIssue[],
-  capabilities: ForgeCapabilities = githubCapabilities,
+  capabilities: ForgeCapabilities = testForgeCapabilities,
   settings: Partial<Settings> = {},
 ) {
   const project: ProjectView = {
@@ -66,8 +66,8 @@ export function renderWorkbench(
     directory: '/work/alpha',
     layout: { panel: 'panel' },
     tray: [],
-    repository: githubRepository('octo/alpha'),
-    ...githubView,
+    repository: testForgeRepository('ada/alpha'),
+    ...testForgeView,
     capabilities,
     panels: [
       {

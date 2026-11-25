@@ -9,7 +9,7 @@ import { defaultSettings } from '../../app/shared/settings/settings';
 import type { Layout, Snapshot } from '../../app/shared/model';
 import type { WorkbenchEvent } from '../../app/shared/model';
 import { deferred, provideWorkbench } from './support/workbench';
-import { githubView } from './support/forge';
+import { testForgeView } from './support/forge';
 import { stubLayoutApis } from './support/no-layout';
 import { requireValue } from '../../app/renderer/common/required';
 import { selectElement } from './support/elements';
@@ -81,7 +81,7 @@ function renderWorkbench(resident = false) {
           },
         ],
         repository: null,
-        ...githubView,
+        ...testForgeView,
       },
     ],
   };

@@ -8,19 +8,19 @@ import { Localization } from '../../app/renderer/common/Localization';
 import type { ProjectEdit, ProjectView } from '../../app/shared/model';
 import type { RepositoryChoices, RepositoryReference } from '../../app/shared/forge/forge';
 import { provideWorkbench } from './support/workbench';
-import { githubForge, githubRepository, githubView } from './support/forge';
+import { testForge, testForgeRepository, testForgeView } from './support/forge';
 import { t } from './support/localization';
 
 afterEach(cleanup);
 
 const projectName = 'Project';
-const github = (path: string) => githubRepository(path);
+const atTestForge = (path: string) => testForgeRepository(path);
 const listed = async (directory: string): Promise<RepositoryChoices> => ({
   ok: true,
-  forge: githubForge,
-  account: 'octo',
-  origin: github(directory === '/work/moved' ? 'acme/forge' : 'octo/vibebridge'),
-  repositories: ['octo/tools', 'octo/vibebridge', 'acme/forge'].map(github),
+  forge: testForge,
+  account: 'ada',
+  origin: atTestForge(directory === '/work/moved' ? 'acme/forge' : 'ada/vibebridge'),
+  repositories: ['ada/tools', 'ada/vibebridge', 'acme/forge'].map(atTestForge),
 });
 
 function editor(repository: RepositoryReference | null, choices = listed) {
@@ -32,7 +32,7 @@ function editor(repository: RepositoryReference | null, choices = listed) {
     tray: [],
     layout: null,
     repository,
-    ...githubView,
+    ...testForgeView,
   };
   const edits: { edit: ProjectEdit; restart: boolean }[] = [];
   provideWorkbench({
@@ -71,8 +71,8 @@ async function moveDirectory(user: ReturnType<typeof userEvent.setup>) {
 }
 
 for (const [state, repository, path, sidebarHint] of [
-  ['an unbound', null, t('notBound'), t('bindInSidebar', { forge: githubForge.name })],
-  ['a bound', github('octo/tools'), 'octo/tools', t('changeBindingInSidebar', { forge: githubForge.name })],
+  ['an unbound', null, t('notBound'), t('bindInSidebar', { forge: testForge.name })],
+  ['a bound', atTestForge('ada/tools'), 'ada/tools', t('changeBindingInSidebar', { forge: testForge.name })],
 ] as const)
   test(`${state} project's Edit project edits only name and directory, shows the binding read-only, and saves only those two`, async () => {
     const { edits } = editor(repository);
@@ -101,13 +101,13 @@ for (const [state, repository, path, sidebarHint] of [
   });
 
 test('a moved directory whose origin points elsewhere than the binding says so after saving, and the binding stays', async () => {
-  const { edits } = editor(github('octo/tools'));
+  const { edits } = editor(atTestForge('ada/tools'));
   const user = await openEditor();
   await moveDirectory(user);
   await waitFor(() =>
     assert.ok(
       impactRegion().textContent?.includes(
-        t('originElsewhereThanBinding', { origin: 'acme/forge', repository: 'octo/tools' }),
+        t('originElsewhereThanBinding', { origin: 'acme/forge', repository: 'ada/tools' }),
       ),
     ),
   );
@@ -118,9 +118,9 @@ test('a moved directory whose origin points elsewhere than the binding says so a
 });
 
 test('a moved directory whose repositories cannot be listed still saves', async () => {
-  const { edits } = editor(github('octo/tools'), async () => ({
+  const { edits } = editor(atTestForge('ada/tools'), async () => ({
     ok: false,
-    failure: { kind: 'notInstalled', detail: '', forge: githubForge },
+    failure: { kind: 'notInstalled', detail: '', forge: testForge },
   }));
   const user = await openEditor();
   await moveDirectory(user);

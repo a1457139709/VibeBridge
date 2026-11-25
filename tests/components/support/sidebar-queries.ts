@@ -1,11 +1,11 @@
 import { screen, within } from '@testing-library/react';
 import { requireValue } from '../../../app/renderer/common/required';
-import { githubForge } from './forge';
+import { testForge } from './forge';
 import { selectElement } from './elements';
 import { t } from './localization';
 
-export const queryForgeSidebar = () => screen.queryByRole('complementary', { name: githubForge.name });
-export const forgeSidebar = () => screen.getByRole('complementary', { name: githubForge.name });
+export const queryForgeSidebar = () => screen.queryByRole('complementary', { name: testForge.name });
+export const forgeSidebar = () => screen.getByRole('complementary', { name: testForge.name });
 export const queryIssueDetail = () => screen.queryByRole('region', { name: t('issueDetail') });
 export const queryPullRequestDetail = () => screen.queryByRole('region', { name: t('pullRequestDetail') });
 export const repositoryTitle = () =>

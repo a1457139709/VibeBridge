@@ -5,7 +5,7 @@ import { cleanup, fireEvent, screen, waitFor, within } from '@testing-library/re
 import { issue, page, pullRequest, renderWorkbench, stubSidebarApis, summary } from './support/forge-lists';
 import { issueDetail, listed, record, row } from './support/dispatch';
 import { selectElement, focusedElement } from './support/elements';
-import { githubForge } from './support/forge';
+import { testForge } from './support/forge';
 import { t } from './support/localization';
 import { forgeSidebar, queryIssueDetail, queryPullRequestDetail } from './support/sidebar-queries';
 import { requireValue } from '../../app/renderer/common/required';
@@ -170,8 +170,8 @@ test('the pull request list moves with ↑/↓ and opens a detail that → retur
 test('opening the sidebar puts focus on the first row of its list once the list arrives', async () => {
   const { user, request } = renderWorkbench();
   (await request(1)).answer(parentWithTwoOpenSubIssues());
-  await user.click(screen.getByRole('button', { name: t('closeForgeSidebar', { forge: githubForge.name }) }));
-  await user.click(screen.getByRole('button', { name: t('openForgeSidebar', { forge: githubForge.name }) }));
+  await user.click(screen.getByRole('button', { name: t('closeForgeSidebar', { forge: testForge.name }) }));
+  await user.click(screen.getByRole('button', { name: t('openForgeSidebar', { forge: testForge.name }) }));
   await waitFor(() =>
     assert.ok(forgeSidebar().contains(document.activeElement), 'focus goes into the sidebar at once'),
   );

@@ -15,12 +15,12 @@ import type {
 } from '../../../app/shared/forge/forge';
 import { deferred, provideWorkbench } from './workbench';
 import { forgeSidebarData, workbenchEvents } from './forge-sidebar-data';
-import { githubCapabilities, githubForge, githubView, githubRepository } from './forge';
+import { testForgeCapabilities, testForge, testForgeUrl, testForgeView, testForgeRepository } from './forge';
 import { t } from './localization';
 import { issue as listedIssue, pullRequest as listedPullRequest } from './forge-lists';
 import { forgeSidebar, detailHeading } from './sidebar-queries';
 
-export const repositoryUrl = 'https://github.com/octo/alpha';
+export const repositoryUrl = `${testForgeUrl}/ada/alpha`;
 export const listed = { title: 'Read-only detail' };
 export const listedIssueTitle = 'Spec';
 export const hoursAgo = (hours: number) => new Date(Date.now() - hours * 3600e3).toISOString();
@@ -85,7 +85,7 @@ interface Request {
 }
 
 export function renderWorkbench({
-  capabilities = githubCapabilities,
+  capabilities = testForgeCapabilities,
   closingPullRequests = [],
 }: { capabilities?: ForgeCapabilities; closingPullRequests?: PullRequestReference[] } = {}) {
   const project: ProjectView = {
@@ -94,8 +94,8 @@ export function renderWorkbench({
     directory: '/work/alpha',
     layout: { panel: 'panel' },
     tray: [],
-    repository: githubRepository('octo/alpha'),
-    ...githubView,
+    repository: testForgeRepository('ada/alpha'),
+    ...testForgeView,
     capabilities,
     panels: [
       {
@@ -176,7 +176,7 @@ export async function openPullRequest(
 ) {
   const view = renderWorkbench(options);
   await view.user.click(
-    within(await screen.findByRole('complementary', { name: githubForge.name })).getByRole('tab', {
+    within(await screen.findByRole('complementary', { name: testForge.name })).getByRole('tab', {
       name: t('pullRequestsTab'),
     }),
   );

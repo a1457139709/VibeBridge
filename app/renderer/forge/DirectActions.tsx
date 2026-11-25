@@ -2,7 +2,7 @@ import { useId, useState } from 'react';
 import { useLocalization } from '../common/Localization';
 import { usePopover } from '../common/popover';
 import './direct-actions.css';
-import { mergeBlockedReasons } from './merge-requirements';
+import { mergeBlockedReasons, mergeMethodChoice } from './merge-requirements';
 import type {
   DirectAction,
   ForgeCapabilities,
@@ -144,8 +144,7 @@ export function PullRequestActions({
   const [chosen, setChosen] = useState(pullRequest.mergeOptions.defaultMethod);
   if (!pullRequest.canWrite) return null;
   const busy = actions.performing !== null;
-  const methods = pullRequest.mergeOptions.methods.filter(method => capabilities.mergeMethods.includes(method));
-  const method = methods.includes(chosen) ? chosen : (methods[0] ?? null);
+  const { methods, method, chooser } = mergeMethodChoice(pullRequest, capabilities, chosen);
   const reasons = mergeBlockedReasons(pullRequest, forge, t);
   const why = useId();
   const blocked = !!reasons.length || !method;
@@ -192,17 +191,19 @@ export function PullRequestActions({
               >
                 {mainLabel}
               </button>
-              <button
-                className="forge-split-more"
-                disabled={blocked || busy}
-                aria-label={t('chooseMergeMethod')}
-                aria-describedby={reasons.length ? why : undefined}
-                aria-haspopup="menu"
-                aria-expanded={menu.open}
-                onClick={() => menu.setOpen(open => !open)}
-              >
-                ▾
-              </button>
+              {chooser && (
+                <button
+                  className="forge-split-more"
+                  disabled={blocked || busy}
+                  aria-label={t('chooseMergeMethod')}
+                  aria-describedby={reasons.length ? why : undefined}
+                  aria-haspopup="menu"
+                  aria-expanded={menu.open}
+                  onClick={() => menu.setOpen(open => !open)}
+                >
+                  ▾
+                </button>
+              )}
               {menu.open && (
                 <div className="forge-popover forge-method-menu" role="menu" aria-label={t('chooseMergeMethod')}>
                   {methods.map(item => (

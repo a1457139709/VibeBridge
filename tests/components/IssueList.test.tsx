@@ -4,7 +4,7 @@ import { readFileSync } from 'node:fs';
 import test, { afterEach, before } from 'node:test';
 import { cleanup, screen, waitFor, within } from '@testing-library/react';
 import { t } from './support/localization';
-import { githubForge, githubRepository } from './support/forge';
+import { testForge, testForgeRepository } from './support/forge';
 import type { RepositoryChoices } from '../../app/shared/forge/forge';
 import {
   bug,
@@ -79,8 +79,8 @@ test('a missing forge CLI fills the sidebar with install instructions, and Retry
   const { user, request } = renderWorkbench();
   (await request(1)).answer(failed('notInstalled'));
   const link = await within(forgeSidebar()).findByRole('link', { name: t('installInstructions') });
-  assert.equal(link.getAttribute('href'), githubForge.installUrl);
-  assert.ok(alertMessages().includes(t('forgeCliMissing', { cli: githubForge.cli })));
+  assert.equal(link.getAttribute('href'), testForge.installUrl);
+  assert.ok(alertMessages().includes(t('forgeCliMissing', { cli: testForge.cli })));
   assert.equal(
     within(forgeSidebar()).queryByRole('tab', { name: t('issuesTab') }),
     null,
@@ -96,22 +96,22 @@ test('a logged-out forge CLI offers to copy the login command and Retry', async 
   (await request(1)).answer(failed('loggedOut', 'HTTP 401: Bad credentials'));
   await user.click(
     await within(forgeSidebar()).findByRole('button', {
-      name: t('copyCommand', { command: githubForge.loginCommand }),
+      name: t('copyCommand', { command: testForge.loginCommand }),
     }),
   );
-  assert.equal(await navigator.clipboard.readText(), githubForge.loginCommand);
-  assert.ok(alertMessages().includes(t('forgeCliLoggedOut', { cli: githubForge.cli })));
+  assert.equal(await navigator.clipboard.readText(), testForge.loginCommand);
+  assert.ok(alertMessages().includes(t('forgeCliLoggedOut', { cli: testForge.cli })));
   await user.click(within(forgeSidebar()).getByRole('button', { name: t('retry') }));
   await request(2);
 });
 
 test('an inaccessible repository names the account and offers Retry and Change binding, which opens the change-binding page', async () => {
   const { user, request } = renderWorkbench();
-  (await request(1)).answer(failed('inaccessible', 'GraphQL: Could not resolve to a Repository', 'octo'));
+  (await request(1)).answer(failed('inaccessible', 'GraphQL: Could not resolve to a Repository', 'ada'));
   await waitFor(() =>
     assert.ok(
       alertMessages().includes(
-        t('repositoryInaccessible', { repository: 'octo/alpha', cli: githubForge.cli, account: 'octo' }),
+        t('repositoryInaccessible', { repository: 'ada/alpha', cli: testForge.cli, account: 'ada' }),
       ),
     ),
   );
@@ -119,9 +119,7 @@ test('an inaccessible repository names the account and offers Retry and Change b
   (await request(2)).answer(failed('inaccessible', 'GraphQL: Could not resolve to a Repository', null));
   await waitFor(() =>
     assert.ok(
-      alertMessages().includes(
-        t('repositoryInaccessibleNoAccount', { repository: 'octo/alpha', cli: githubForge.cli }),
-      ),
+      alertMessages().includes(t('repositoryInaccessibleNoAccount', { repository: 'ada/alpha', cli: testForge.cli })),
     ),
   );
   await user.click(
@@ -145,10 +143,10 @@ async function changeBindingPage(choices?: () => Promise<RepositoryChoices>) {
       choices ??
       (async () => ({
         ok: true,
-        forge: githubForge,
-        account: 'octo',
-        origin: githubRepository('octo/renamed'),
-        repositories: ['octo/alpha', 'octo/renamed'].map(path => githubRepository(path)),
+        forge: testForge,
+        account: 'ada',
+        origin: testForgeRepository('ada/renamed'),
+        repositories: ['ada/alpha', 'ada/renamed'].map(path => testForgeRepository(path)),
       })),
     bindRepository: async (id, repository) => {
       calls.push(['bind', id, repository]);
@@ -170,13 +168,13 @@ async function changeBindingPage(choices?: () => Promise<RepositoryChoices>) {
 test('Change binding turns the sidebar to its change-binding page, and ← Back returns to the lists with focus in the sidebar', async () => {
   const { user, request } = await changeBindingPage();
   assert.equal(screen.queryByRole('dialog'), null, 'no dialog opens');
-  assert.equal(currentlyBoundPath(), 'octo/alpha');
+  assert.equal(currentlyBoundPath(), 'ada/alpha');
   const options = await within(forgeSidebar()).findAllByRole('option');
   assert.deepEqual(
     options.map(option => [option.dataset.path, descriptionParts(option)]),
     [
-      ['octo/renamed', [t('repositoryOrigin')]],
-      ['octo/alpha', [t('repositoryCurrent')]],
+      ['ada/renamed', [t('repositoryOrigin')]],
+      ['ada/alpha', [t('repositoryCurrent')]],
     ],
     'origin first, and the current binding marked',
   );
@@ -192,36 +190,36 @@ test('picking another repository states what rebinding does, and Rebind to Y reb
     requireInstance(within(forgeSidebar()).getByRole('button', { name: t('rebind') }), HTMLButtonElement).disabled,
     true,
   );
-  await user.click(await waitFor(() => repositoryOption('octo/renamed')));
-  const rebind = within(forgeSidebar()).getByRole('button', { name: t('rebindTo', { repository: 'octo/renamed' }) });
+  await user.click(await waitFor(() => repositoryOption('ada/renamed')));
+  const rebind = within(forgeSidebar()).getByRole('button', { name: t('rebindTo', { repository: 'ada/renamed' }) });
   assert.deepEqual(descriptionParts(rebind), [
-    t('rebindConsequence', { repository: 'octo/renamed' }),
+    t('rebindConsequence', { repository: 'ada/renamed' }),
     t('rebindImpact'),
   ]);
   await user.click(rebind);
-  assert.deepEqual(calls, [['bind', 'alpha', githubRepository('octo/renamed')]]);
+  assert.deepEqual(calls, [['bind', 'alpha', testForgeRepository('ada/renamed')]]);
   const next = await request(2);
   assert.equal(next.projectId, 'alpha');
-  await waitFor(() => assert.equal(repositoryTitle(), 'octo/renamed'));
+  await waitFor(() => assert.equal(repositoryTitle(), 'ada/renamed'));
 });
 
 test('a bound repository the forge lists at a new path is listed once, there, as the current one, and Rebind stays unavailable', async () => {
   await changeBindingPage(async () => ({
     ok: true,
-    forge: githubForge,
-    account: 'octo',
-    origin: githubRepository('octo/renamed'),
+    forge: testForge,
+    account: 'ada',
+    origin: testForgeRepository('ada/renamed'),
     repositories: [
-      githubRepository('octo/alpha-x', githubRepository('octo/alpha').id),
-      githubRepository('octo/renamed'),
+      testForgeRepository('ada/alpha-x', testForgeRepository('ada/alpha').id),
+      testForgeRepository('ada/renamed'),
     ],
   }));
   const options = await within(forgeSidebar()).findAllByRole('option');
   assert.deepEqual(
     options.map(option => [option.dataset.path, descriptionParts(option)]),
     [
-      ['octo/renamed', [t('repositoryOrigin')]],
-      ['octo/alpha-x', [t('repositoryCurrent')]],
+      ['ada/renamed', [t('repositoryOrigin')]],
+      ['ada/alpha-x', [t('repositoryCurrent')]],
     ],
   );
   assert.equal(
@@ -232,7 +230,7 @@ test('a bound repository the forge lists at a new path is listed once, there, as
 
 test('a binding changed elsewhere while the change-binding page shows returns the sidebar to the lists', async () => {
   const { snapshot, publish, request } = await changeBindingPage();
-  snapshot.projects[0].repository = githubRepository('octo/renamed');
+  snapshot.projects[0].repository = testForgeRepository('ada/renamed');
   publish();
   (await request(2)).answer(page([issue(1)]));
   await waitFor(() => assert.deepEqual(rows(), ['Issue 1']));
@@ -242,9 +240,9 @@ test('a binding changed elsewhere while the change-binding page shows returns th
 test('Unbind states what unbinding does before its own Unbind carries it out, Cancel steps back, and it works without gh', async () => {
   const { user, calls } = await changeBindingPage(async () => ({
     ok: false,
-    failure: { kind: 'notInstalled', detail: '', forge: githubForge },
+    failure: { kind: 'notInstalled', detail: '', forge: testForge },
   }));
-  await waitFor(() => assert.ok(alertMessages().includes(t('forgeNotInstalled', { cli: githubForge.cli }))));
+  await waitFor(() => assert.ok(alertMessages().includes(t('forgeNotInstalled', { cli: testForge.cli }))));
   await user.click(within(forgeSidebar()).getByRole('button', { name: t('unbind') }));
   assert.deepEqual(descriptionParts(within(forgeSidebar()).getByRole('button', { name: t('unbind') })), [
     t('unbindConsequence'),

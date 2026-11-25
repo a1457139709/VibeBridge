@@ -15,7 +15,7 @@ import {
   renderWorkbench,
   openPullRequest,
 } from './support/pull-request-detail';
-import { githubForge } from './support/forge';
+import { testForge, testForgeUrl } from './support/forge';
 import { t } from './support/localization';
 import { forgeSidebar, detailHeading } from './support/sidebar-queries';
 
@@ -35,7 +35,7 @@ test('a pull request row opens its detail: title, state, head into base, the cha
           title: 'Elsewhere',
           state: 'closed',
           closedAs: 'completed',
-          url: 'https://github.com/octo/other/issues/8',
+          url: `${testForgeUrl}/ada/other/issues/8`,
         },
       ],
     }),
@@ -43,10 +43,10 @@ test('a pull request row opens its detail: title, state, head into base, the cha
   const doc = within(pane());
   assert.equal(selectElement('.forge-pill', pane()).textContent, t('stateOpen'));
   const branches = selectElement('.forge-pull-branches', pane());
-  assert.ok(branches.textContent?.includes(t('wantsToMerge', { author: 'mona', head: 'feat/detail', base: 'main' })));
+  assert.ok(branches.textContent?.includes(t('wantsToMerge', { author: 'lin', head: 'feat/detail', base: 'main' })));
   assert.equal(selectElement('time', branches).textContent, t('daysAgo', { count: 2 }));
   assert.equal(
-    doc.getByRole('link', { name: t('viewChanges', { forge: githubForge.name }) }).getAttribute('href'),
+    doc.getByRole('link', { name: t('viewChanges', { forge: testForge.name }) }).getAttribute('href'),
     `${repositoryUrl}/pull/12/files`,
   );
   assert.deepEqual(
@@ -57,7 +57,7 @@ test('a pull request row opens its detail: title, state, head into base, the cha
   const elsewhere = within(closes).getByRole('link');
   assert.deepEqual(
     [elsewhere.textContent?.includes('Elsewhere'), elsewhere.getAttribute('href')],
-    [true, 'https://github.com/octo/other/issues/8'],
+    [true, `${testForgeUrl}/ada/other/issues/8`],
     'an issue of another repository opens in the browser',
   );
   const spec = within(closes).getByRole('button', { name: name => name.includes('Spec') });
@@ -75,7 +75,7 @@ test('the body, comments and review summaries follow in time order, reviews with
       body: '<p>The body.</p>',
       timeline: [
         { author: 'bob', createdAt: hoursAgo(4), html: '<p>Handle the draft row.</p>', verdict: 'changesRequested' },
-        { author: 'hubot', createdAt: hoursAgo(3), html: '<p>Rebased.</p>', verdict: null },
+        { author: 'kai', createdAt: hoursAgo(3), html: '<p>Rebased.</p>', verdict: null },
         { author: 'alice', createdAt: hoursAgo(2), html: '<p>LGTM</p>', verdict: 'approved' },
       ],
     }),
@@ -89,9 +89,9 @@ test('the body, comments and review summaries follow in time order, reviews with
       selectElement('.forge-markdown', card).textContent,
     ]);
   assert.deepEqual(cards, [
-    ['mona', null, t('daysAgo', { count: 2 }), 'The body.'],
+    ['lin', null, t('daysAgo', { count: 2 }), 'The body.'],
     ['bob', t('verdictChangesRequested'), t('hoursAgo', { count: 4 }), 'Handle the draft row.'],
-    ['hubot', null, t('hoursAgo', { count: 3 }), 'Rebased.'],
+    ['kai', null, t('hoursAgo', { count: 3 }), 'Rebased.'],
     ['alice', t('verdictApproved'), t('hoursAgo', { count: 2 }), 'LGTM'],
   ]);
   assert.equal(pane().querySelector('.forge-earlier'), null, 'nothing came before the timeline');
@@ -107,11 +107,11 @@ test('a timeline with earlier entries says how many at its top and links the pul
     detail(12, {
       body: '<p>The body.</p>',
       earlierEntries: 80,
-      timeline: [{ author: 'hubot', createdAt: hoursAgo(3), html: '<p>Rebased.</p>', verdict: null }],
+      timeline: [{ author: 'kai', createdAt: hoursAgo(3), html: '<p>Rebased.</p>', verdict: null }],
     }),
   );
   const earlier = within(pane()).getByRole('link', {
-    name: t('earlierEntries', { count: 80, forge: githubForge.name }),
+    name: t('earlierEntries', { count: 80, forge: testForge.name }),
   });
   assert.equal(earlier.getAttribute('href'), `${repositoryUrl}/pull/12`);
   const [body, comment] = within(pane()).getAllByRole('article');
@@ -131,10 +131,10 @@ test('a pull request that closes an issue opens in the sidebar from the issue de
     url,
   });
   const { user, request } = renderWorkbench({
-    closingPullRequests: [pull(12, `${repositoryUrl}/pull/12`), pull(40, 'https://github.com/octo/other/pull/40')],
+    closingPullRequests: [pull(12, `${repositoryUrl}/pull/12`), pull(40, `${testForgeUrl}/ada/other/pull/40`)],
   });
   await user.click(
-    await within(await screen.findByRole('complementary', { name: githubForge.name })).findByRole('button', {
+    await within(await screen.findByRole('complementary', { name: testForge.name })).findByRole('button', {
       name: listedIssueTitle,
     }),
   );
@@ -144,7 +144,7 @@ test('a pull request that closes an issue opens in the sidebar from the issue de
     issue: {
       ...listedIssue(3, { title: listedIssueTitle }),
       url: `${repositoryUrl}/issues/3`,
-      author: 'mona',
+      author: 'lin',
       assignees: [],
       body: '',
       comments: [],
@@ -163,7 +163,7 @@ test('a pull request that closes an issue opens in the sidebar from the issue de
   const other = within(closing).getByRole('link');
   assert.deepEqual(
     [other.querySelector('.forge-row-number')?.textContent, other.getAttribute('href')],
-    ['#40', 'https://github.com/octo/other/pull/40'],
+    ['#40', `${testForgeUrl}/ada/other/pull/40`],
   );
   const same = within(closing).getByRole('button');
   assert.equal(same.querySelector('.forge-row-number')?.textContent, '#12');

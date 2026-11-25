@@ -95,7 +95,7 @@ test('the test wording check accepts localized names, structural queries, fixtur
       "const titleOf = (name: string) => screen.getByRole('button', { name });",
       "screen.getAllByRole('row');",
       "screen.getByRole('button', { name: `${t('projectMenu')}${project.name}` });",
-      'const forgeName = githubForge.name;',
+      'const forgeName = testForge.name;',
       "const saved = t('saved');",
       'const titled = (count: number) => issue(count).title;',
       "screen.getByRole('button', { name: forgeName });",

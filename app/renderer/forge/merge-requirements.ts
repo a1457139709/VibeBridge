@@ -1,4 +1,11 @@
-import type { Check, CheckTone, MergeState, PullRequestDetail } from '../../shared/forge/forge';
+import type {
+  Check,
+  CheckTone,
+  ForgeCapabilities,
+  MergeMethod,
+  MergeState,
+  PullRequestDetail,
+} from '../../shared/forge/forge';
 import type { localize } from '../../shared/localization/localization';
 
 export const checkTones: Record<CheckTone, { mark: string; tone: string }> = {
@@ -83,4 +90,23 @@ export function mergeBlockedReasons(
     ...(state === 'draft' ? [t('mergeBlockedDraft')] : []),
     ...(blockedBecause ? [blockedBecause({ t, base, forge })] : []),
   ];
+}
+
+export interface MergeMethodChoice {
+  methods: MergeMethod[];
+  method: MergeMethod | null;
+  chooser: boolean;
+}
+
+export function mergeMethodChoice(
+  { mergeOptions }: Pick<PullRequestDetail, 'mergeOptions'>,
+  { mergeMethods }: Pick<ForgeCapabilities, 'mergeMethods'>,
+  chosen: MergeMethod,
+): MergeMethodChoice {
+  const methods = mergeOptions.methods.filter(method => mergeMethods.includes(method));
+  return {
+    methods,
+    method: methods.includes(chosen) ? chosen : (methods[0] ?? null),
+    chooser: methods.length > 1,
+  };
 }

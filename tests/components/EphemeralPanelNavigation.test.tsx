@@ -9,7 +9,7 @@ import { defaultSettings } from '../../app/main/persistence/settings';
 import type { PanelView, Snapshot } from '../../app/shared/model';
 import type { ProcessingState } from '../../app/shared/processing-status';
 import { provideWorkbench } from './support/workbench';
-import { githubView } from './support/forge';
+import { testForgeView } from './support/forge';
 import { localize } from '../../app/shared/localization/localization';
 import { t } from './support/localization';
 import { nameIncluding } from './support/accessible-names';
@@ -50,7 +50,7 @@ const snapshot = (): Snapshot => ({
         panel('current', 'finished', 'done'),
       ],
       repository: null,
-      ...githubView,
+      ...testForgeView,
     },
     {
       id: 'other',
@@ -60,7 +60,7 @@ const snapshot = (): Snapshot => ({
       panels: [panel('other', 'other-resident', 'ready')],
       tray: [panel('other', 'failed', 'error'), panel('other', 'idle', 'ready')],
       repository: null,
-      ...githubView,
+      ...testForgeView,
     },
     {
       id: 'quiet',
@@ -70,7 +70,7 @@ const snapshot = (): Snapshot => ({
       panels: [panel('quiet', 'quiet-resident', 'ready')],
       tray: [],
       repository: null,
-      ...githubView,
+      ...testForgeView,
     },
   ],
 });
