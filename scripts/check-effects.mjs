@@ -26,28 +26,59 @@ async function listRendererSources(directory) {
   return files;
 }
 
-function effectLines(checker, tree) {
-  const hookImports = new Set();
-  const moduleImports = new Set();
-  for (const statement of tree.statements) {
-    if (
-      !ts.isImportDeclaration(statement) ||
-      !ts.isStringLiteral(statement.moduleSpecifier) ||
-      statement.moduleSpecifier.text !== 'react' ||
-      !statement.importClause
-    )
-      continue;
-    const clause = statement.importClause;
-    if (clause.name) moduleImports.add(clause);
-    const bindings = clause.namedBindings;
-    if (bindings && ts.isNamespaceImport(bindings)) moduleImports.add(bindings);
-    if (bindings && ts.isNamedImports(bindings))
-      for (const specifier of bindings.elements)
-        if (effectHooks.has((specifier.propertyName ?? specifier.name).text)) hookImports.add(specifier);
-  }
+const isReact = node => node !== undefined && ts.isStringLiteralLike(node) && node.text === 'react';
 
-  const importedAs = (identifier, imports) =>
-    (checker.getSymbolAtLocation(identifier)?.declarations ?? []).some(declaration => imports.has(declaration));
+function effectLines(checker, tree) {
+  const hookBindings = new Set();
+  const moduleBindings = new Set();
+
+  const boundTo = (identifier, bindings) =>
+    (checker.getSymbolAtLocation(identifier)?.declarations ?? []).some(declaration => bindings.has(declaration));
+
+  const unwrapped = node =>
+    ts.isParenthesizedExpression(node) || ts.isAwaitExpression(node) ? unwrapped(node.expression) : node;
+
+  const isReactImportCall = node =>
+    ts.isCallExpression(node) && node.expression.kind === ts.SyntaxKind.ImportKeyword && isReact(node.arguments[0]);
+
+  const isModule = expression => {
+    const node = unwrapped(expression);
+    return isReactImportCall(node) || (ts.isIdentifier(node) && boundTo(node, moduleBindings));
+  };
+
+  const bindModule = declaration => {
+    if (ts.isIdentifier(declaration.name)) moduleBindings.add(declaration);
+    else if (ts.isObjectBindingPattern(declaration.name))
+      for (const element of declaration.name.elements) {
+        const key = element.propertyName ?? element.name;
+        if (ts.isIdentifier(key) && effectHooks.has(key.text)) hookBindings.add(element);
+      }
+  };
+
+  const collectBindings = node => {
+    if (ts.isImportDeclaration(node) && isReact(node.moduleSpecifier) && node.importClause) {
+      const clause = node.importClause;
+      if (clause.name) moduleBindings.add(clause);
+      const bindings = clause.namedBindings;
+      if (bindings && ts.isNamespaceImport(bindings)) moduleBindings.add(bindings);
+      if (bindings && ts.isNamedImports(bindings))
+        for (const specifier of bindings.elements)
+          if (effectHooks.has((specifier.propertyName ?? specifier.name).text)) hookBindings.add(specifier);
+    }
+    if (ts.isVariableDeclaration(node) && node.initializer && isModule(node.initializer)) bindModule(node);
+    if (
+      ts.isCallExpression(node) &&
+      ts.isPropertyAccessExpression(node.expression) &&
+      node.expression.name.text === 'then' &&
+      isModule(node.expression.expression)
+    ) {
+      const callback = node.arguments[0];
+      if (callback && (ts.isArrowFunction(callback) || ts.isFunctionExpression(callback)) && callback.parameters[0])
+        bindModule(callback.parameters[0]);
+    }
+    ts.forEachChild(node, collectBindings);
+  };
+  collectBindings(tree);
 
   const hookMember = node => {
     if (ts.isPropertyAccessExpression(node)) return node.name.text;
@@ -57,19 +88,16 @@ function effectLines(checker, tree) {
   };
 
   const referencesHook = node => {
-    if (ts.isIdentifier(node)) return importedAs(node, hookImports);
+    if (ts.isIdentifier(node)) return boundTo(node, hookBindings);
+    if (ts.isExportSpecifier(node))
+      return isReact(node.parent.parent.moduleSpecifier) && effectHooks.has((node.propertyName ?? node.name).text);
     const member = hookMember(node);
-    return (
-      member !== undefined &&
-      effectHooks.has(member) &&
-      ts.isIdentifier(node.expression) &&
-      importedAs(node.expression, moduleImports)
-    );
+    return member !== undefined && effectHooks.has(member) && isModule(node.expression);
   };
 
   const lines = [];
   const visit = node => {
-    if (ts.isImportDeclaration(node)) return;
+    if (ts.isImportDeclaration(node) || hookBindings.has(node)) return;
     if (referencesHook(node)) lines.push(tree.getLineAndCharacterOfPosition(node.getStart(tree)).line + 1);
     else ts.forEachChild(node, visit);
   };

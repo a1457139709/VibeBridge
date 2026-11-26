@@ -81,6 +81,47 @@ test('the effect check counts namespace and default access and a hook passed or 
   ]);
 });
 
+test('the effect check counts hooks destructured from React, re-exported from React and reached through import()', async context => {
+  const f = await fixture(context);
+  await f.write(
+    'app/renderer/forge/Destructured.tsx',
+    [
+      "import React from 'react';",
+      'const { useEffect, useLayoutEffect: useBeforePaint, useState } = React;',
+      'useEffect(() => {});',
+      'useBeforePaint(() => {});',
+      'useState(0);',
+    ].join('\n'),
+  );
+  await f.write(
+    'app/renderer/forge/Reexported.ts',
+    ["export { useEffect } from 'react';", "export { useLayoutEffect as useBeforePaint, useState } from 'react';"].join(
+      '\n',
+    ),
+  );
+  await f.write(
+    'app/renderer/forge/Dynamic.ts',
+    [
+      "const react = await import('react');",
+      'react.useEffect(() => {});',
+      "const { useLayoutEffect } = await import('react');",
+      'useLayoutEffect(() => {});',
+      "void import('react').then(module => module.useEffect);",
+      "(await import('react')).useLayoutEffect(() => {});",
+      "const { useState } = await import('react');",
+    ].join('\n'),
+  );
+
+  const result = f.run();
+
+  assert.equal(result.status, 1, result.stderr);
+  assert.deepEqual(reported(result.stderr), [
+    ['app/renderer/forge/Destructured.tsx', 2, 0, '3, 4'],
+    ['app/renderer/forge/Dynamic.ts', 4, 0, '2, 4, 5, 6'],
+    ['app/renderer/forge/Reexported.ts', 2, 0, '1, 2'],
+  ]);
+});
+
 test('the effect check ignores the effects directory, other files and same-named hooks not from React', async context => {
   const f = await fixture(context);
   await f.write(
