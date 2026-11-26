@@ -178,6 +178,17 @@ test('directory B remains current when directory A finishes late, including a la
   }
 });
 
+test('a directory inspection that fails after setup closed reports nothing', async () => {
+  const inspection = deferred<DirectoryInspection>();
+  const inspectDirectory = mock.fn(() => inspection.promise);
+  provideWorkbench({ inspectDirectory });
+  const { report } = renderSetup({ ...validDraft, directory: '/A' });
+  await waitFor(() => assert.equal(inspectDirectory.mock.callCount(), 1));
+  cleanup();
+  await act(async () => inspection.reject(new Error('Late failure')));
+  assert.equal(report.mock.callCount(), 0);
+});
+
 test('invalid and duplicate directories prevent creation; opening an existing project uses its id', async () => {
   provideWorkbench({
     inspectDirectory: async path =>

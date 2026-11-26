@@ -15,5 +15,5 @@ export function useRequestResult<Result>(key: string | undefined, request: (key:
       live = false;
     };
   }, [key]);
-  return settled && settled.key === key ? settled.result : undefined;
+  return settled?.result;
 }

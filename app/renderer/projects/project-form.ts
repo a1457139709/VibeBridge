@@ -1,24 +1,30 @@
-import { useState, type ClipboardEvent } from 'react';
+import { useRef, useState, type ClipboardEvent } from 'react';
 import { projectNameHasControls, type ProjectNameProblem } from '../../shared/project-name';
 import { errorMessage } from '../../shared/caught-error';
 import { useLatest } from '../common/effects/latest';
 import { useTimeout } from '../common/effects/timeout';
+import { useUnmountCleanup } from '../common/effects/unmount';
 import type { DirectoryCheck } from './directory-field';
 
 export function useInspectedDirectory(input: string, reportFailure: (message: string) => void) {
   const [checked, setChecked] = useState<{ input: string; check: DirectoryCheck }>();
   if (checked && checked.input !== input) setChecked(undefined);
   const current = useLatest(input);
+  const mounted = useRef(true);
+  useUnmountCleanup(() => {
+    mounted.current = false;
+  });
+  const stillAsked = (inspected: string) => mounted.current && current.current === inspected;
   useTimeout(
     () => {
       const inspected = input;
       void window.workbench
         .inspectDirectory(inspected)
         .then(check => {
-          if (current.current === inspected) setChecked({ input: inspected, check });
+          if (stillAsked(inspected)) setChecked({ input: inspected, check });
         })
         .catch(error => {
-          if (current.current !== inspected) return;
+          if (!stillAsked(inspected)) return;
           setChecked({ input: inspected, check: { ok: false, problem: { kind: 'checkFailed' } } });
           reportFailure(errorMessage(error));
         });

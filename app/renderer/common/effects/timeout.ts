@@ -16,7 +16,7 @@ export function useTimeout(callback: () => void, { delay, restartKey, paused = f
   useEffect(() => {
     const duration = remaining.current;
     if (paused || duration === undefined) return;
-    const started = performance.now();
+    const started = Date.now();
     let fired = false;
     const timer = setTimeout(() => {
       fired = true;
@@ -25,7 +25,7 @@ export function useTimeout(callback: () => void, { delay, restartKey, paused = f
     }, duration);
     return () => {
       clearTimeout(timer);
-      if (!fired) remaining.current = Math.max(0, duration - (performance.now() - started));
+      if (!fired) remaining.current = Math.max(0, duration - (Date.now() - started));
     };
   }, [delay, restartKey, paused]);
 }
