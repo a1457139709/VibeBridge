@@ -124,3 +124,24 @@ test('reopening the sidebar or bringing the window to the front shows the kept r
   assert.deepEqual(rows(), ['Issue 2', 'Issue 1'], 'the rows stay beside the notice');
   assert.ok(!loadMore().hasAttribute('disabled'), 'Load more is available again');
 });
+
+test('switching back to a project shows the tab it was on', async () => {
+  const { user, request, snapshot } = renderWorkbench();
+  const [alpha, beta] = snapshot.projects;
+  (await request(1)).answer(page([issue(1)]));
+  await user.click(within(forgeSidebar()).getByRole('tab', { name: t('pullRequestsTab') }));
+  (await request(2)).answer(page([]));
+  await user.click(screen.getByRole('button', { name: beta.name }));
+  const betaRequest = await request(3);
+  assert.deepEqual(betaRequest, { ...betaRequest, projectId: 'beta', list: 'issues' });
+  betaRequest.answer(page([issue(3)]));
+  await user.click(screen.getByRole('button', { name: alpha.name }));
+  const alphaRequest = await request(4);
+  assert.deepEqual(alphaRequest, { ...alphaRequest, projectId: 'alpha', list: 'pullRequests' });
+  assert.equal(
+    within(forgeSidebar())
+      .getByRole('tab', { name: t('pullRequestsTab') })
+      .getAttribute('aria-selected'),
+    'true',
+  );
+});
