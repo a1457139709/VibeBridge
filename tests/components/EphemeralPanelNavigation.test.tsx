@@ -84,9 +84,9 @@ function renderNavigation(language: 'en' | 'zh-CN', state = snapshot()) {
       if (sidebar === 'navigation') saved.push(preferences);
     },
   });
-  function Navigation() {
+  function Navigation({ snapshot }: { snapshot: Snapshot }) {
     const navigation = useProjectNavigation({
-      snapshot: state,
+      snapshot,
       page: 'workbench',
       view: () => ({ selected: 'resident', maximized: 'finished' }),
       openProject: () => {},
@@ -101,10 +101,16 @@ function renderNavigation(language: 'en' | 'zh-CN', state = snapshot()) {
   }
   const result = render(
     <Localization language={language}>
-      <Navigation />
+      <Navigation snapshot={state} />
     </Localization>,
   );
-  return { located, saved, result, user: userEvent.setup() };
+  const show = (next: Snapshot) =>
+    result.rerender(
+      <Localization language={language}>
+        <Navigation snapshot={next} />
+      </Localization>,
+    );
+  return { located, saved, result, show, user: userEvent.setup() };
 }
 
 const group = (count: number, translate = t) =>
@@ -215,4 +221,16 @@ test("a project's panel count covers its resident and ephemeral panels", () => {
     [t('projectPanelCount', { name: 'Other', panels: t('panelCount', { count: 3 }) }), '3'],
     [t('projectPanelCount', { name: 'Quiet', panels: t('panelCount', { count: 1 }) }), '1'],
   ]);
+});
+
+test('a project that was active stays expanded after another project becomes active, until collapsed', async () => {
+  const { show, user } = renderNavigation('en');
+  assert.ok(screen.getByRole('button', { name: t('collapseProject', { name: 'Current' }) }));
+  show({ ...snapshot(), activeProjectId: 'other' });
+  assert.ok(screen.getByRole('button', { name: t('collapseProject', { name: 'Current' }) }));
+  assert.ok(screen.getByRole('button', { name: t('collapseProject', { name: 'Other' }) }));
+  await user.click(screen.getByRole('button', { name: t('collapseProject', { name: 'Other' }) }));
+  show({ ...snapshot(), activeProjectId: 'other' });
+  assert.ok(screen.getByRole('button', { name: t('expandProject', { name: 'Other' }) }));
+  assert.ok(screen.getByRole('button', { name: t('expandProject', { name: 'Quiet' }) }));
 });

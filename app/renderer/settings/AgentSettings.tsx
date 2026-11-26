@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useRef, useState } from 'react';
 import { useLocalization } from '../common/Localization';
 import { agentIcons } from '../common/agent-icons';
 import { agentNames, agentTypes, type AgentCommand, type CommandCheck, type Settings } from '../../shared/model';
@@ -21,12 +21,6 @@ function AgentFields({
   const [check, setCheck] = useState<CommandCheck>();
   const [checking, setChecking] = useState(false);
   const revision = useRef(0);
-  useEffect(
-    () => () => {
-      revision.current++;
-    },
-    [],
-  );
   async function checkCommand() {
     const request = ++revision.current;
     setChecking(true);
