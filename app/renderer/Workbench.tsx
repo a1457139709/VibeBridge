@@ -84,7 +84,8 @@ function WorkbenchView({ snapshot, setSnapshot }: { snapshot?: Snapshot; setSnap
     leavingSettings.current = true;
     try {
       if ((await settingsPage.current?.requestLeave()) ?? true) {
-        location.returnToWorkbench(() => setSettingsOpen(false));
+        if (setupOpen) setSettingsOpen(false);
+        else location.returnToWorkbench(() => setSettingsOpen(false));
         action();
       }
     } catch (error) {
