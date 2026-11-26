@@ -1,5 +1,5 @@
 import { useLocalization } from '../common/Localization';
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import type { DesktopAPI } from '../../shared/api';
 import { projectPanels, type PanelView, type ProjectView, type Snapshot } from '../../shared/model';
 import type { ProcessingState } from '../../shared/processing-status';
@@ -43,10 +43,9 @@ export function useProjectNavigation(
   });
   const [expandedProjects, setExpandedProjects] = useState<Record<string, boolean>>({});
   const [expandedTrays, setExpandedTrays] = useState<Record<string, boolean>>({});
-  useEffect(() => {
-    const id = snapshot?.activeProjectId;
-    if (id) setExpandedProjects(previous => (previous[id] === undefined ? { ...previous, [id]: true } : previous));
-  }, [snapshot?.activeProjectId]);
+  const activeProjectId = snapshot?.activeProjectId;
+  if (activeProjectId && expandedProjects[activeProjectId] === undefined)
+    setExpandedProjects({ ...expandedProjects, [activeProjectId]: true });
   const collapsed = !preferences.visible;
   return {
     width: collapsed ? 0 : preferences.width,
