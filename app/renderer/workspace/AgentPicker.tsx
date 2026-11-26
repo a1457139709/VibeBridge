@@ -1,10 +1,10 @@
 import { useLocalization } from '../common/Localization';
-import { useEffect, useRef, useState } from 'react';
+import { useState } from 'react';
 import { message } from '../../shared/messages';
 import { agentNames, agentTypes } from '../../shared/model';
 import { agentIcons } from '../common/agent-icons';
 import { errorMessage } from '../../shared/caught-error';
-import { requireValue } from '../common/required';
+import { useModalDialog } from '../common/effects/modal-dialog';
 
 export function AgentPicker({
   projectId,
@@ -20,14 +20,9 @@ export function AgentPicker({
   openAgentSettings(): void;
 }) {
   const { t, text } = useLocalization();
-  const dialog = useRef<HTMLDialogElement>(null);
+  const dialog = useModalDialog();
   const [busy, setBusy] = useState(false);
   const [failure, setFailure] = useState<{ error: string; offerAgentSettings: boolean }>();
-  useEffect(() => {
-    const element = requireValue(dialog.current, 'the agent picker dialog');
-    element.showModal();
-    return () => element.close();
-  }, []);
   return (
     <dialog
       ref={dialog}

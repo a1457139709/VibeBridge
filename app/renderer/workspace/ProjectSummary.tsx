@@ -1,88 +1,77 @@
 import { useLocalization } from '../common/Localization';
-import { useEffect, useId, useLayoutEffect, useRef, useState } from 'react';
+import { useId, useRef, useState } from 'react';
 import { agentNames, type PanelView } from '../../shared/model';
 import type { ProcessingState } from '../../shared/processing-status';
 import { agentIcons } from '../common/agent-icons';
 import { ProcessingStatusIcon } from '../common/ProcessingStatusIcon';
+import { useElementMeasurement } from '../common/effects/element-measurement';
+import { useEventListener } from '../common/effects/event-listener';
+import { useFocusRequestBeforePaint } from '../common/effects/focus-request';
 
 const summaryStates = ['ready', 'needs-input', 'done', 'error'] as const satisfies readonly ProcessingState[];
 type SummaryState = (typeof summaryStates)[number];
 
 export function ProjectSummary({ panels, locate }: { panels: PanelView[]; locate(panel: PanelView): void }) {
-  const { t, language } = useLocalization();
+  const { t } = useLocalization();
   const [open, setOpen] = useState<SummaryState>();
   const id = useId();
   const container = useRef<HTMLDivElement>(null);
   const list = useRef<HTMLElement>(null);
   const triggers = useRef(new Map<SummaryState, HTMLButtonElement>());
-  const fromEnd = useRef(false);
-  const focusedMember = useRef<string | undefined>(undefined);
+  const [focusedMember, setFocusedMember] = useState<string>();
+  const requestFocus = useFocusRequestBeforePaint();
   const members = (state: SummaryState) => panels.filter(panel => panel.status === state);
+  const firstMember = () => list.current?.querySelector<HTMLButtonElement>('li button');
+  if (open && focusedMember && !members(open).some(panel => panel.run?.id === focusedMember)) {
+    setFocusedMember(undefined);
+    requestFocus(() =>
+      document.activeElement === document.body
+        ? (firstMember() ?? list.current?.querySelector<HTMLButtonElement>('header button'))
+        : undefined,
+    );
+  }
+  function show(state: SummaryState | undefined, fromEnd = false) {
+    setOpen(state);
+    setFocusedMember(undefined);
+    if (state)
+      requestFocus(() => {
+        const choices = list.current?.querySelectorAll<HTMLButtonElement>('li button');
+        return choices?.[fromEnd ? choices.length - 1 : 0];
+      });
+  }
   function close(restoreFocus = false) {
-    setOpen(undefined);
+    show(undefined);
     if (restoreFocus && open) {
       const trigger = triggers.current.get(open);
       if (trigger && !trigger.disabled) trigger.focus();
       else container.current?.focus();
     }
   }
-  useLayoutEffect(() => {
-    if (!open) return;
-    const position = () => {
-      const summary = container.current,
-        popup = list.current;
-      if (!summary || !popup) return;
-      const box = summary.getBoundingClientRect();
-      const left = Math.max(
-        8,
-        Math.min(box.left + (box.width - popup.offsetWidth) / 2, window.innerWidth - popup.offsetWidth - 8),
-      );
-      popup.style.left = `${left - box.left}px`;
-    };
-    position();
-    window.addEventListener('resize', position);
-    return () => window.removeEventListener('resize', position);
-  }, [open, language]);
-  useLayoutEffect(() => {
-    if (!open) return;
-    const members = list.current?.querySelectorAll<HTMLButtonElement>('li button');
-    members?.[fromEnd.current ? members.length - 1 : 0]?.focus();
-    fromEnd.current = false;
-  }, [open]);
-  useLayoutEffect(() => {
-    if (
-      open &&
-      focusedMember.current &&
-      !members(open).some(panel => panel.run?.id === focusedMember.current) &&
-      document.activeElement === document.body
-    ) {
-      (
-        list.current?.querySelector<HTMLButtonElement>('li button') ??
-        list.current?.querySelector<HTMLButtonElement>('header button')
-      )?.focus();
+  function position() {
+    const summary = container.current,
+      popup = list.current;
+    if (!summary || !popup) return;
+    const box = summary.getBoundingClientRect();
+    const left = Math.max(
+      8,
+      Math.min(box.left + (box.width - popup.offsetWidth) / 2, window.innerWidth - popup.offsetWidth - 8),
+    );
+    popup.style.left = `${left - box.left}px`;
+  }
+  useElementMeasurement(position);
+  useEventListener(open ? window : undefined, 'resize', position);
+  useEventListener(open ? document : undefined, 'pointerdown', event => {
+    const target = event.target instanceof Node ? event.target : null;
+    if (!list.current?.contains(target) && ![...triggers.current.values()].some(button => button.contains(target)))
+      close();
+  });
+  useEventListener(open ? document : undefined, 'keydown', event => {
+    if (event.key === 'Escape') {
+      event.preventDefault();
+      event.stopPropagation();
+      close(true);
     }
-  }, [panels, open]);
-  useEffect(() => {
-    if (!open) return;
-    const outside = (event: PointerEvent) => {
-      const target = event.target instanceof Node ? event.target : null;
-      if (!list.current?.contains(target) && ![...triggers.current.values()].some(button => button.contains(target)))
-        close();
-    };
-    const escape = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') {
-        event.preventDefault();
-        event.stopPropagation();
-        close(true);
-      }
-    };
-    document.addEventListener('pointerdown', outside);
-    document.addEventListener('keydown', escape);
-    return () => {
-      document.removeEventListener('pointerdown', outside);
-      document.removeEventListener('keydown', escape);
-    };
-  }, [open]);
+  });
   return (
     <div ref={container} className="project-summary" role="region" aria-label={t('projectSummary')} tabIndex={-1}>
       {summaryStates.map(state => {
@@ -105,11 +94,10 @@ export function ProjectSummary({ panels, locate }: { panels: PanelView[]; locate
             onKeyDown={event => {
               if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
                 event.preventDefault();
-                fromEnd.current = event.key === 'ArrowUp';
-                setOpen(state);
+                show(state, event.key === 'ArrowUp');
               }
             }}
-            onClick={() => setOpen(previous => (previous === state ? undefined : state))}
+            onClick={() => show(open === state ? undefined : state)}
           >
             <ProcessingStatusIcon state={state} />
             <span>
@@ -127,8 +115,7 @@ export function ProjectSummary({ panels, locate }: { panels: PanelView[]; locate
           role="dialog"
           aria-label={t(open)}
           onFocusCapture={event => {
-            focusedMember.current =
-              event.target instanceof Element ? event.target.closest('li')?.dataset.runId : undefined;
+            setFocusedMember(event.target instanceof Element ? event.target.closest('li')?.dataset.runId : undefined);
           }}
           onKeyDown={event => {
             if (!['ArrowDown', 'ArrowUp', 'Home', 'End'].includes(event.key)) return;
@@ -161,7 +148,7 @@ export function ProjectSummary({ panels, locate }: { panels: PanelView[]; locate
                     className={`summary-panel ${panel.agent}`}
                     data-hint={t('agentPanelTitle', { agent: agentNames[panel.agent], title })}
                     onClick={() => {
-                      setOpen(undefined);
+                      show(undefined);
                       locate(panel);
                     }}
                   >

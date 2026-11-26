@@ -8,10 +8,5 @@
   "app/renderer/forge/SidebarBinding.tsx": 1,
   "app/renderer/forge/VirtualRows.tsx": 2,
   "app/renderer/forge/row-resting.ts": 1,
-  "app/renderer/forge/scrolled-rows.ts": 1,
-  "app/renderer/panels/panel-location.ts": 4,
-  "app/renderer/workspace/AgentPicker.tsx": 1,
-  "app/renderer/workspace/ProjectSummary.tsx": 4,
-  "app/renderer/workspace/Workspace.tsx": 3,
-  "app/renderer/workspace/tray-flight.ts": 1
+  "app/renderer/forge/scrolled-rows.ts": 1
 }

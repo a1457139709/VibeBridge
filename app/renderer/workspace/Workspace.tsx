@@ -1,7 +1,6 @@
 import { useLocalization } from '../common/Localization';
 import { agentIcons } from '../common/agent-icons';
 import {
-  useLayoutEffect,
   useImperativeHandle,
   useRef,
   useState,
@@ -30,6 +29,9 @@ import { PanelTray } from './PanelTray';
 import { useTrayFlight } from './tray-flight';
 import { ProjectSummary } from './ProjectSummary';
 import { requireValue } from '../common/required';
+import { useElementAttachmentBeforePaint } from '../common/effects/element-attachment';
+import { useRenderSyncBeforePaint } from '../common/effects/render-sync';
+import { useUnmountCleanupBeforePaint } from '../common/effects/unmount';
 
 export interface WorkspaceActions {
   runShortcut(action: ShortcutAction): boolean;
@@ -37,10 +39,10 @@ export interface WorkspaceActions {
 
 function TerminalView({ run }: { run?: Run }) {
   const { t } = useLocalization();
-  const container = useRef<HTMLDivElement>(null);
-  useLayoutEffect(() => {
-    if (run?.state === 'running' && container.current) return mountTerminal(run.id, container.current);
-  }, [run?.id, run?.state]);
+  const container = useElementAttachmentBeforePaint<HTMLDivElement>(
+    run?.state === 'running' ? run.id : undefined,
+    (element, runId) => mountTerminal(runId, element),
+  );
   return (
     <div className="terminal-container" ref={container}>
       {run?.state === 'starting' ? (
@@ -164,7 +166,7 @@ export function Workspace({
     if (maximized === panelId) panelLocation.toggleMaximize(panelId);
     void window.workbench.moveToTray(project.id, panelId).catch(error => report(errorMessage(error)));
   };
-  useLayoutEffect(() => {
+  useRenderSyncBeforePaint(() => {
     const context: PanelInteractionContext = {
       projectId: project.id,
       layout: project.layout,
@@ -182,13 +184,10 @@ export function Workspace({
     if (interactions.current) interactions.current.update(context);
     else interactions.current = createPanelInteractions(requireValue(canvas.current, 'the layout area'), context);
   });
-  useLayoutEffect(
-    () => () => {
-      interactions.current?.dispose();
-      interactions.current = null;
-    },
-    [],
-  );
+  useUnmountCleanupBeforePaint(() => {
+    interactions.current?.dispose();
+    interactions.current = null;
+  });
   const close = (panelId: string) => {
     void window.workbench.closePanel(project.id, panelId).catch(error => report(errorMessage(error)));
   };
