@@ -6,7 +6,7 @@ import { holdToBaseline } from './ratchet.mjs';
 const roots = ['app', 'scripts', 'tests'];
 const skipped = new Set(['node_modules', 'dist']);
 const source = /\.(?:[cm]?[jt]s|[jt]sx|css)$/;
-const directive = /^\/[/*]\s*(?:@ts-expect-error|oxlint-disable|oxlint-enable|prettier-ignore)\b/;
+const directive = /^\/[/*]\s*(?:@ts-expect-error|prettier-ignore)\b/;
 const baselineFile = join('scripts', 'comment-baseline.json');
 
 async function listSources(directory) {
