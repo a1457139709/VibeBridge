@@ -1,23 +1,36 @@
 import { useLocalization } from '../common/Localization';
-import { useCallback, useId, useRef, useState } from 'react';
-import { flushSync } from 'react-dom';
+import { useId, useImperativeHandle, useRef, useState, type Ref } from 'react';
 import { agentNames, type PanelView } from '../../shared/model';
 import type { ProcessingState } from '../../shared/processing-status';
 import { agentIcons } from '../common/agent-icons';
 import { ProcessingStatusIcon } from '../common/ProcessingStatusIcon';
 import { useWindowEvent } from '../common/window-events';
-import { useDocumentEvent } from '../common/document-events';
+import { useDismissal } from '../common/popover';
+import { focusAfterUpdate } from '../common/focus';
 
 const summaryStates = ['ready', 'needs-input', 'done', 'error'] as const satisfies readonly ProcessingState[];
 type SummaryState = (typeof summaryStates)[number];
 
-export function ProjectSummary({ panels, locate }: { panels: PanelView[]; locate(panel: PanelView): void }) {
+export interface ProjectSummaryActions {
+  membersChanged(): void;
+}
+
+export function ProjectSummary({
+  panels,
+  locate,
+  ref,
+}: {
+  panels: PanelView[];
+  locate(panel: PanelView): void;
+  ref?: Ref<ProjectSummaryActions>;
+}) {
   const { t } = useLocalization();
   const [open, setOpen] = useState<SummaryState>();
   const id = useId();
   const container = useRef<HTMLDivElement>(null);
   const list = useRef<HTMLElement>(null);
   const triggers = useRef(new Map<SummaryState, HTMLButtonElement>());
+  const focusedRun = useRef<string>(undefined);
   const members = (state: SummaryState) => panels.filter(panel => panel.status === state);
   function close(restoreFocus = false) {
     setOpen(undefined);
@@ -38,40 +51,33 @@ export function ProjectSummary({ panels, locate }: { panels: PanelView[]; locate
     popup.style.left = `${left - box.left}px`;
   }
   function openList(state: SummaryState, fromEnd = false) {
-    flushSync(() => setOpen(state));
-    const members = list.current?.querySelectorAll<HTMLButtonElement>('li button');
-    members?.[fromEnd ? members.length - 1 : 0]?.focus();
+    focusAfterUpdate(
+      () => setOpen(state),
+      () => {
+        const members = list.current?.querySelectorAll<HTMLButtonElement>('li button');
+        return members?.[fromEnd ? members.length - 1 : 0];
+      },
+    );
   }
-  const keepFocusInList = useCallback((member: HTMLButtonElement) => {
-    return () => {
-      if (document.activeElement !== member) return;
-      queueMicrotask(() => {
-        if (document.activeElement !== document.body) return;
-        (
-          list.current?.querySelector<HTMLButtonElement>('li button') ??
-          list.current?.querySelector<HTMLButtonElement>('header button')
-        )?.focus();
-      });
-    };
-  }, []);
+  useImperativeHandle(ref, () => ({
+    membersChanged() {
+      const run = focusedRun.current;
+      const shown = list.current;
+      if (!run || !shown || document.activeElement !== document.body) return;
+      if (shown.querySelector(`[data-run-id="${CSS.escape(run)}"]`)) return;
+      (
+        shown.querySelector<HTMLButtonElement>('li button') ?? shown.querySelector<HTMLButtonElement>('header button')
+      )?.focus();
+    },
+  }));
   useWindowEvent('resize', () => {
     if (list.current) placeList(list.current);
   });
-  useDocumentEvent('pointerdown', event => {
-    const target = event.target instanceof Node ? event.target : null;
-    if (
-      open &&
-      !list.current?.contains(target) &&
-      ![...triggers.current.values()].some(button => button.contains(target))
-    )
-      close();
-  });
-  useDocumentEvent('keydown', event => {
-    if (open && event.key === 'Escape') {
-      event.preventDefault();
-      event.stopPropagation();
-      close(true);
-    }
+  useDismissal({
+    open: !!open,
+    inside: target =>
+      !!list.current?.contains(target) || [...triggers.current.values()].some(button => button.contains(target)),
+    dismiss: by => close(by === 'escape'),
   });
   return (
     <div ref={container} className="project-summary" role="region" aria-label={t('projectSummary')} tabIndex={-1}>
@@ -118,6 +124,12 @@ export function ProjectSummary({ panels, locate }: { panels: PanelView[]; locate
           className="summary-list"
           role="dialog"
           aria-label={t(open)}
+          onFocus={event => {
+            focusedRun.current = event.target.closest<HTMLElement>('[data-run-id]')?.dataset.runId;
+          }}
+          onBlur={event => {
+            if (event.relatedTarget) focusedRun.current = undefined;
+          }}
           onKeyDown={event => {
             if (!['ArrowDown', 'ArrowUp', 'Home', 'End'].includes(event.key)) return;
             const members = [...event.currentTarget.querySelectorAll<HTMLButtonElement>('li button')];
@@ -146,7 +158,6 @@ export function ProjectSummary({ panels, locate }: { panels: PanelView[]; locate
               return (
                 <li key={panel.run?.id} data-run-id={panel.run?.id}>
                   <button
-                    ref={keepFocusInList}
                     className={`summary-panel ${panel.agent}`}
                     data-hint={t('agentPanelTitle', { agent: agentNames[panel.agent], title })}
                     onClick={() => {

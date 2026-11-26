@@ -1,10 +1,10 @@
 import './support/dom';
 import assert from 'node:assert/strict';
 import test, { afterEach } from 'node:test';
-import { useEffect, useState } from 'react';
+import { createRef, useEffect, useState } from 'react';
 import { act, cleanup, render, screen, within } from '@testing-library/react';
 import { userEvent } from '@testing-library/user-event';
-import { ProjectSummary } from '../../app/renderer/workspace/ProjectSummary';
+import { ProjectSummary, type ProjectSummaryActions } from '../../app/renderer/workspace/ProjectSummary';
 import { Localization } from '../../app/renderer/common/Localization';
 import { defaultSettings } from '../../app/shared/settings/settings';
 import type { PanelView, Snapshot, WorkbenchEvent } from '../../app/shared/model';
@@ -67,6 +67,7 @@ function fixture() {
   };
   const listeners = new Set<(event: WorkbenchEvent) => void>();
   const located: string[] = [];
+  const summary = createRef<ProjectSummaryActions>();
   provideWorkbench({
     fetchSnapshot: async () => structuredClone(snapshot),
     subscribe: listener => {
@@ -90,6 +91,7 @@ function fixture() {
         <button>Outside</button>
         {active && (
           <ProjectSummary
+            ref={summary}
             key={active.id}
             panels={[...active.panels, ...active.tray]}
             locate={panel => located.push(panel.id)}
@@ -108,10 +110,12 @@ function fixture() {
       ),
     located,
     user: userEvent.setup(),
-    update: async () =>
-      act(() => {
+    update: async () => {
+      await act(() => {
         for (const listener of listeners) listener({ kind: 'snapshot', snapshot: structuredClone(snapshot) });
-      }),
+      });
+      act(() => summary.current?.membersChanged());
+    },
   };
 }
 

@@ -3,6 +3,7 @@ import { agentIcons } from '../common/agent-icons';
 import {
   useCallback,
   useImperativeHandle,
+  useRef,
   useState,
   type CSSProperties,
   type ReactNode,
@@ -33,7 +34,7 @@ import { useWorkspacePanelLocation, type PanelLocation } from '../panels/panel-l
 import { ProcessingStatusIcon } from '../common/ProcessingStatusIcon';
 import { PanelTray } from './PanelTray';
 import { growOpenedPanel, useTrayFlight } from './tray-flight';
-import { ProjectSummary } from './ProjectSummary';
+import { ProjectSummary, type ProjectSummaryActions } from './ProjectSummary';
 
 export interface WorkspaceActions {
   runShortcut(action: ShortcutAction): boolean;
@@ -181,6 +182,7 @@ export function Workspace({
     setShown({ saved: savedLayout, layout, base: shown.base });
   }
   const [adding, setAdding] = useState(false);
+  const summary = useRef<ProjectSummaryActions>(null);
   const [gestures] = useState(createPanelGestures);
   const [canvas, setCanvas] = useState<HTMLDivElement | null>(null);
   const [tray, setTray] = useState<HTMLElement | null>(null);
@@ -295,6 +297,7 @@ export function Workspace({
     },
     snapshotArrived(snapshot) {
       gestures.snapshotArrived(snapshot.projects.find(item => item.id === project.id));
+      summary.current?.membersChanged();
     },
   }));
   return (
@@ -302,6 +305,7 @@ export function Workspace({
       <header className="workspace-toolbar">
         {visible && (
           <ProjectSummary
+            ref={summary}
             panels={projectPanels(project)}
             locate={panel => location.locatePanel(project.id, panel.id, panel.run?.id)}
           />

@@ -3,6 +3,7 @@ import { useLocalization } from '../common/Localization';
 import { ProcessingStatusIcon } from '../common/ProcessingStatusIcon';
 import { agentIcons } from '../common/agent-icons';
 import { useDocumentEvent } from '../common/document-events';
+import { useDismissal } from '../common/popover';
 import { useWindowEvent } from '../common/window-events';
 import {
   agentNames,
@@ -94,9 +95,7 @@ function watchShownPanels(project: ProjectView) {
   };
 }
 
-interface Issue {
-  issue: Pick<IssueSummary, 'number' | 'title'>;
-}
+type DispatchedIssue = Pick<IssueSummary, 'number' | 'title'>;
 
 export function DispatchButton({
   project,
@@ -104,7 +103,8 @@ export function DispatchButton({
   host,
   open,
   setOpen,
-}: Issue & {
+}: {
+  issue: DispatchedIssue;
   project: ProjectView;
   host: DispatchHost;
   open: boolean;
@@ -139,7 +139,8 @@ function DispatchMenu({
   host,
   button,
   close,
-}: Issue & {
+}: {
+  issue: DispatchedIssue;
   project: ProjectView;
   host: DispatchHost;
   button: RefObject<HTMLButtonElement | null>;
@@ -164,9 +165,13 @@ function DispatchMenu({
     focused.current = true;
     element.focus();
   };
-  useDocumentEvent('pointerdown', event => {
-    const target = event.target instanceof Node ? event.target : null;
-    if (!(menu.current?.contains(target) || button.current?.contains(target))) close();
+  useDismissal({
+    open: true,
+    inside: target => !!(menu.current?.contains(target) || button.current?.contains(target)),
+    dismiss: by => {
+      close();
+      if (by === 'escape') button.current?.focus();
+    },
   });
   const trackAlt = (event: KeyboardEvent) => setInverting(event.altKey);
   useWindowEvent('keydown', trackAlt, { capture: true });
@@ -248,9 +253,6 @@ function DispatchMenu({
     else if (event.code === 'Space') {
       if (level === 'commands') showTargets(commandIndex);
       else void dispatch(targetIndex, event.altKey);
-    } else if (event.key === 'Escape') {
-      close();
-      button.current?.focus();
     } else if (event.key !== 'Enter') return;
     event.preventDefault();
   }

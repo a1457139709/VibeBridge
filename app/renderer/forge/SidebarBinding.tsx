@@ -1,6 +1,6 @@
 import { useId, useRef, useState, type ReactNode } from 'react';
-import { flushSync } from 'react-dom';
 import { useLocalization } from '../common/Localization';
+import { focusAfterUpdate } from '../common/focus';
 import { useMainProcessEvents, useRepositoryChoicesShown } from '../common/main-process';
 import type { ProjectView } from '../../shared/model';
 import { sameRepository, type RepositoryReference } from '../../shared/forge/forge';
@@ -100,13 +100,15 @@ export function UnboundRepository({ project }: { project: ProjectView }) {
       {choosingOther && (
         <button
           className="binding-link"
-          onClick={() => {
-            flushSync(() => {
-              setChoosingOther(false);
-              setPicked(undefined);
-            });
-            chooseOther.current?.focus();
-          }}
+          onClick={() =>
+            focusAfterUpdate(
+              () => {
+                setChoosingOther(false);
+                setPicked(undefined);
+              },
+              () => chooseOther.current,
+            )
+          }
         >
           {t('bindingBack')}
         </button>
@@ -187,10 +189,12 @@ export function ChangeBinding({
             <button
               ref={unbindChoice}
               disabled={call.busy}
-              onClick={() => {
-                flushSync(() => setUnbinding(false));
-                unbindChoice.current?.focus();
-              }}
+              onClick={() =>
+                focusAfterUpdate(
+                  () => setUnbinding(false),
+                  () => unbindChoice.current,
+                )
+              }
             >
               {t('cancel')}
             </button>
@@ -209,13 +213,15 @@ export function ChangeBinding({
               className="binding-link danger"
               ref={unbindChoice}
               disabled={call.busy}
-              onClick={() => {
-                flushSync(() => {
-                  setPicked(undefined);
-                  setUnbinding(true);
-                });
-                unbindChoice.current?.focus();
-              }}
+              onClick={() =>
+                focusAfterUpdate(
+                  () => {
+                    setPicked(undefined);
+                    setUnbinding(true);
+                  },
+                  () => unbindChoice.current,
+                )
+              }
             >
               {t('unbind')}
             </button>

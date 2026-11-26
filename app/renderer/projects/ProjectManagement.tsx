@@ -1,6 +1,5 @@
 import { useLocalization } from '../common/Localization';
 import { useId, useRef, useState, type ReactNode } from 'react';
-import { flushSync } from 'react-dom';
 import { type Project, type ProjectEditResult, type ProjectView } from '../../shared/model';
 import { originElsewhereThanBinding, type RepositoryChoices } from '../../shared/forge/forge';
 import { projectNameMessage, projectNameProblem } from '../../shared/project-name';
@@ -9,7 +8,8 @@ import { useInspectedDirectory, usePastedNameProblem } from './project-form';
 import { directoryProblemMessage } from '../../shared/directory-problem';
 import { LaunchResults } from './LaunchResults';
 import { errorMessage } from '../../shared/caught-error';
-import { useWindowEvent } from '../common/window-events';
+import { useDismissal } from '../common/popover';
+import { focusAfterUpdate } from '../common/focus';
 import { useRequestResult } from '../common/request-result';
 import { showModalWhileAttached } from '../common/modal-dialog';
 import './project-management.css';
@@ -29,24 +29,20 @@ export function ProjectNavigationItem({
   const [menu, setMenu] = useState<{ x: number; y: number }>();
   const [action, setAction] = useState<'edit' | 'delete'>();
   const menuElement = useRef<HTMLDivElement>(null);
-  useWindowEvent('pointerdown', event => {
-    if (menu && !(event.target instanceof Node && menuElement.current?.contains(event.target))) setMenu(undefined);
+  useDismissal({
+    open: !!menu,
+    inside: target => !!menuElement.current?.contains(target),
+    dismiss: () => setMenu(undefined),
   });
-  useWindowEvent('keydown', event => {
-    if (menu && event.key === 'Escape') {
-      event.preventDefault();
-      setMenu(undefined);
-    }
-  });
-  const showMenu = (x: number, y: number) => {
-    flushSync(() =>
-      setMenu({
-        x: Math.max(8, Math.min(x, window.innerWidth - 168)),
-        y: Math.max(8, Math.min(y, window.innerHeight - 92)),
-      }),
+  const showMenu = (x: number, y: number) =>
+    focusAfterUpdate(
+      () =>
+        setMenu({
+          x: Math.max(8, Math.min(x, window.innerWidth - 168)),
+          y: Math.max(8, Math.min(y, window.innerHeight - 92)),
+        }),
+      () => menuElement.current?.querySelector('button'),
     );
-    menuElement.current?.querySelector('button')?.focus();
-  };
   return (
     <div
       className="project-row"

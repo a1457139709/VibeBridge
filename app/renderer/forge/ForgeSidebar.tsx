@@ -1,11 +1,11 @@
 import { useLocalization } from '../common/Localization';
 import { useRef, useState, type PointerEvent as ReactPointerEvent } from 'react';
-import { flushSync } from 'react-dom';
 import { SidebarCollapseIcon, SidebarExpandIcon } from '@primer/octicons-react';
 import { displayShortcut, type IssueShortcutAction } from '../../shared/settings/shortcuts';
 import type { DesktopAPI } from '../../shared/api';
 import type { ProjectView, Snapshot } from '../../shared/model';
 import { useSidebarPreferences } from '../common/sidebar-preferences';
+import { focusAfterUpdate } from '../common/focus';
 import { ChangeBinding, UnboundRepository } from './SidebarBinding';
 import { ForgeLists, openListsView, type DetailHost, type ForgeListsActions, type ListsView } from './ForgeLists';
 import { SidebarHead } from './SidebarHead';
@@ -71,19 +71,23 @@ export function useForgeSidebar(host: Host, api: Pick<DesktopAPI, 'saveSidebar' 
     if (!project) return false;
     const opening = !preferences.visible;
     let opened = false;
-    flushSync(() => {
-      opened = togglePreferences();
-    });
-    if (opening && opened) element.current?.focus();
+    focusAfterUpdate(
+      () => {
+        opened = togglePreferences();
+      },
+      () => (opening && opened ? element.current : null),
+    );
     return true;
   }
   function openBinding(target: ProjectView) {
     const key = keyOfBinding(target);
-    flushSync(() => {
-      setChangingBindingOf(key);
-      if (!preferences.visible) togglePreferences();
-    });
-    if (!key) element.current?.focus();
+    focusAfterUpdate(
+      () => {
+        setChangingBindingOf(key);
+        if (!preferences.visible) togglePreferences();
+      },
+      () => (key ? null : element.current),
+    );
   }
   const runIssueShortcut = (action: IssueShortcutAction) =>
     !!element.current?.contains(document.activeElement) && (listsActions.current?.runIssueShortcut(action) ?? false);
