@@ -127,6 +127,7 @@ async function renderWorkbench() {
   await screen.findByRole('button', { name: summaryEntryName(snapshot.projects[0].panels.length, 'done') });
   const user = userEvent.setup();
   return {
+    user,
     focused: () =>
       document.activeElement?.classList.contains('xterm-helper-textarea')
         ? document.activeElement.closest<HTMLElement>('[data-panel-id]')?.dataset.panelId
@@ -194,4 +195,35 @@ test('a panel closing while a summary list is open leaves keyboard focus in the 
   await f.close('second');
   await settle();
   assert.ok(list.contains(document.activeElement), 'the closed panel cannot move focus to a terminal');
+});
+
+test("clicking a panel's header gives its terminal keyboard focus at once", async () => {
+  const f = await renderWorkbench();
+  await settle();
+  assert.equal(f.focused(), 'first');
+  await f.user.click(selectElement('[data-panel-id="second"] .panel-header'));
+  assert.equal(f.focused(), 'second');
+});
+
+test('enlarging a panel gives its terminal keyboard focus at once, and restoring keeps it there', async () => {
+  const f = await renderWorkbench();
+  await settle();
+  const second = selectElement('[data-panel-id="second"]');
+  await f.user.click(within(second).getByRole('button', { name: t('enlargePanel') }));
+  assert.equal(f.focused(), 'second');
+  await f.user.click(within(second).getByRole('button', { name: t('restorePanel') }));
+  await settle();
+  assert.equal(f.focused(), 'second');
+});
+
+test('returning from the settings page gives the selected terminal keyboard focus again', async () => {
+  const f = await renderWorkbench();
+  await settle();
+  await f.user.click(selectElement('[data-panel-id="second"] .panel-header'));
+  await f.user.click(screen.getByRole('button', { name: t('settings') }));
+  await settle();
+  assert.equal(f.focused(), undefined);
+  await f.user.click(screen.getByRole('button', { name: t('back') }));
+  await settle();
+  assert.equal(f.focused(), 'second');
 });

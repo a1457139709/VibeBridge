@@ -1,4 +1,4 @@
-import { useRef, useState, type RefObject } from 'react';
+import { useRef, useState } from 'react';
 
 export const canFly = (panel: Element | null | undefined): panel is Element =>
   !!panel && typeof panel.animate === 'function' && !matchMedia('(prefers-reduced-motion: reduce)').matches;
@@ -43,15 +43,15 @@ export function useTrayFlight({
   collapse,
 }: {
   openPanelId?: string;
-  canvas: RefObject<Element | null>;
-  tray: RefObject<Element | null>;
+  canvas: Element | null;
+  tray: Element | null;
   collapse(): void;
 }) {
   const [landedPanelId, setLandedPanelId] = useState<string>();
   const flyingPanelId = useRef<string>(undefined);
   const flightOf = (panelId: string) => {
-    const slot = canvas.current?.querySelector(`[data-panel-id="${CSS.escape(panelId)}"]`),
-      card = tray.current?.querySelector(`[data-tray-panel-id="${CSS.escape(panelId)}"]`);
+    const slot = canvas?.querySelector(`[data-panel-id="${CSS.escape(panelId)}"]`),
+      card = tray?.querySelector(`[data-tray-panel-id="${CSS.escape(panelId)}"]`);
     return card && canFly(slot) ? { slot, card } : undefined;
   };
   const collapseIntoCard = () => {

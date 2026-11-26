@@ -46,7 +46,6 @@ function WorkbenchView({ snapshot, setSnapshot }: { snapshot?: Snapshot; setSnap
   const { notices, report, dismiss } = useNotices();
   const location = usePanelLocation({
     snapshot: snapshot,
-    visible: !settingsOpen && !setupOpen,
     activateProject: id => window.workbench.activateProject(id),
     showWorkbench: () => setSetupOpen(false),
     report,
@@ -60,7 +59,8 @@ function WorkbenchView({ snapshot, setSnapshot }: { snapshot?: Snapshot; setSnap
       document.documentElement.dataset.theme = dark ? 'dark' : 'light';
       configureTerminals(dark, report);
       setSnapshot(initial);
-      setSetupOpen(!initial.projects.length);
+      location.received(initial);
+      if (!initial.projects.length) location.leaveWorkbench(() => setSetupOpen(true));
       initial.errors.forEach(message => report(message));
       reconcileTerminals(initial.projects);
       adoptLanguage(initial);
@@ -69,7 +69,11 @@ function WorkbenchView({ snapshot, setSnapshot }: { snapshot?: Snapshot; setSnap
       if (event.kind === 'snapshot') {
         reconcileTerminals(event.snapshot.projects);
         adoptLanguage(event.snapshot);
-        flushSync(() => setSnapshot(event.snapshot));
+        flushSync(() => {
+          setSnapshot(event.snapshot);
+          location.received(event.snapshot);
+        });
+        workspace.current?.snapshotArrived(event.snapshot);
       } else if (event.kind === 'error') report(event.message);
       applyTerminalEvent(event);
     },
@@ -80,7 +84,7 @@ function WorkbenchView({ snapshot, setSnapshot }: { snapshot?: Snapshot; setSnap
     leavingSettings.current = true;
     try {
       if ((await settingsPage.current?.requestLeave()) ?? true) {
-        setSettingsOpen(false);
+        location.returnToWorkbench(() => setSettingsOpen(false));
         action();
       }
     } catch (error) {
@@ -220,7 +224,7 @@ function WorkbenchView({ snapshot, setSnapshot }: { snapshot?: Snapshot; setSnap
                 defaultLayout={snapshot.settings.defaultLayout}
                 draft={draft}
                 changeDraft={setDraft}
-                cancel={() => setSetupOpen(false)}
+                cancel={() => location.returnToWorkbench(() => setSetupOpen(false))}
                 onSetupFinished={id => {
                   setDraft(newDraft());
                   openProject(id);

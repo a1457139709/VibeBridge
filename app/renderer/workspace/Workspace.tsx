@@ -3,7 +3,6 @@ import { agentIcons } from '../common/agent-icons';
 import {
   useCallback,
   useImperativeHandle,
-  useRef,
   useState,
   type CSSProperties,
   type ReactNode,
@@ -17,11 +16,17 @@ import {
   type PanelView,
   type ProjectView,
   type Run,
+  type Snapshot,
 } from '../../shared/model';
 import { layoutBoxes } from '../../shared/layout';
 import { mountTerminal } from '../panels/terminals';
 import { AgentPicker } from './AgentPicker';
-import { usePanelInteractions } from '../panels/panel-interactions';
+import { createPanelGestures, type PanelGestureContext } from '../panels/panel-interactions';
+import { fitPanel } from '../panels/panel-measurement';
+import { useResizeObserver } from '../common/resize-observer';
+import { useWindowEvent } from '../common/window-events';
+import { useDocumentEvent } from '../common/document-events';
+import { requireValue } from '../common/required';
 import type { ShortcutAction } from '../../shared/settings/shortcuts';
 import { errorMessage } from '../../shared/caught-error';
 import { useWorkspacePanelLocation, type PanelLocation } from '../panels/panel-location';
@@ -32,6 +37,7 @@ import { ProjectSummary } from './ProjectSummary';
 
 export interface WorkspaceActions {
   runShortcut(action: ShortcutAction): boolean;
+  snapshotArrived(snapshot: Snapshot): void;
 }
 
 function TerminalView({ run }: { run?: Run }) {
@@ -62,6 +68,8 @@ function AgentPanel({
   panel,
   position,
   focused,
+  inputTarget,
+  measured,
   actions,
   select,
   focusChanged,
@@ -72,6 +80,8 @@ function AgentPanel({
   panel: PanelView;
   position: CSSProperties;
   focused: boolean;
+  inputTarget: boolean;
+  measured: boolean;
   actions: ReactNode;
   select(): void;
   focusChanged(): void;
@@ -81,16 +91,36 @@ function AgentPanel({
 }) {
   const { t } = useLocalization();
   const title = panel.run?.title ?? t('untitled');
+  const runId = panel.run?.id;
+  const [element, setElement] = useState<HTMLDivElement | null>(null);
+  useResizeObserver(element, () => {
+    if (element && measured) fitPanel(element, runId);
+  });
   return (
-    <section ref={ref} data-panel-id={panel.id} className={`panel-slot ${panel.agent}`} style={position}>
+    <section
+      ref={ref}
+      data-panel-id={panel.id}
+      data-input-target={inputTarget || undefined}
+      className={`panel-slot ${panel.agent}`}
+      style={position}
+    >
       <div
+        ref={setElement}
         className={`agent-panel ${focused ? 'focused' : ''}`}
         onMouseDown={event => {
           if (!(event.target instanceof Element && event.target.closest('.panel-header'))) select();
         }}
         onFocusCapture={focusChanged}
       >
-        <header className="panel-header" onPointerDown={headerPointerDown} onClick={headerClick}>
+        <header
+          ref={header => {
+            const agentPanel = header?.parentElement;
+            if (agentPanel && measured) fitPanel(agentPanel, runId);
+          }}
+          className="panel-header"
+          onPointerDown={headerPointerDown}
+          onClick={headerClick}
+        >
           <span className="agent-title" data-hint={title}>
             <span className="agent-symbols">
               <ProcessingStatusIcon state={panel.status} focusable />
@@ -140,12 +170,30 @@ export function Workspace({
   ref: Ref<WorkspaceActions>;
 }) {
   const { t, language } = useLocalization();
-  const [layout, setLayout] = useState(project.layout);
+  const savedLayout = JSON.stringify(project.layout);
+  const [shown, setShown] = useState<{ saved: string; layout: Layout | null; base?: string }>({
+    saved: savedLayout,
+    layout: project.layout,
+  });
+  let layout = shown.layout;
+  if (shown.saved !== savedLayout) {
+    layout = shown.base === savedLayout ? shown.layout : project.layout;
+    setShown({ saved: savedLayout, layout, base: shown.base });
+  }
   const [adding, setAdding] = useState(false);
-  const canvas = useRef<HTMLDivElement>(null);
-  const tray = useRef<HTMLElement>(null);
+  const [gestures] = useState(createPanelGestures);
+  const [canvas, setCanvas] = useState<HTMLDivElement | null>(null);
+  const [tray, setTray] = useState<HTMLElement | null>(null);
   const positions = layoutBoxes(layout);
-  const panelLocation = useWorkspacePanelLocation(location, project, canvas, [...positions.panels.keys()]);
+  const panelLocation = useWorkspacePanelLocation(location, project, [...positions.panels.keys()]);
+  const { connectCanvas } = panelLocation;
+  const attachCanvas = useCallback(
+    (element: HTMLDivElement) => {
+      setCanvas(element);
+      return connectCanvas(element);
+    },
+    [connectCanvas],
+  );
   const { selected: focused, maximized } = panelLocation;
   const openTrayPanel = project.tray.find(panel => panel.id === maximized);
   const atPanelLimit = panelLimitReached(project);
@@ -165,31 +213,37 @@ export function Workspace({
     if (maximized === panelId) panelLocation.toggleMaximize(panelId);
     void window.workbench.moveToTray(project.id, panelId).catch(error => report(errorMessage(error)));
   };
-  const interactions = usePanelInteractions(
-    { canvas, tray },
-    {
-      projectId: project.id,
-      layout: project.layout,
-      language,
-      panels: project.panels.map(({ id, agent, run }) => ({ id, agent, runId: run?.id })),
-      tray: project.tray.map(({ id, agent }) => ({ id, agent })),
-      visible,
-      maximizedPanelId: maximized,
-      presentLayout: setLayout,
-      commitLayout: saveLayout,
-      placeInLayout,
-      moveToTray,
-    },
-  );
+  const gestureContext = (): PanelGestureContext => ({
+    canvas: requireValue(canvas, 'the layout area'),
+    project,
+    shownLayout: layout,
+    trayElement: tray,
+    language,
+    visible,
+    maximizedPanelId: maximized,
+    present: next => setShown(previous => ({ ...previous, layout: next })),
+    holdShownLayout: base => setShown(previous => ({ ...previous, base })),
+    commitLayout: saveLayout,
+    placeInLayout,
+    moveToTray,
+  });
+  useWindowEvent('blur', gestures.cancel);
+  useWindowEvent('resize', gestures.cancel);
+  useWindowEvent('keydown', gestures.escape, { capture: true });
+  useDocumentEvent('visibilitychange', () => {
+    if (document.hidden) gestures.cancel();
+  });
+  useDocumentEvent('click', gestures.click, { capture: true });
   const close = (panelId: string) => {
     void window.workbench.closePanel(project.id, panelId).catch(error => report(errorMessage(error)));
   };
+  const inputTarget = maximized ?? focused;
   const agentPanel = (
     panel: PanelView,
     position: CSSProperties,
     isFocused: boolean,
     action: ReactNode,
-    ref?: Ref<HTMLElement>,
+    { measured, ref }: { measured: boolean; ref?: Ref<HTMLElement> },
   ) => (
     <AgentPanel
       key={panel.id}
@@ -197,10 +251,14 @@ export function Workspace({
       panel={panel}
       position={position}
       focused={isFocused}
+      inputTarget={panel.id === inputTarget}
+      measured={measured}
       select={() => panelLocation.select(panel.id)}
       focusChanged={() => panelLocation.selectFocusedPanel(panel.id)}
       headerClick={() => panelLocation.focus(panel.id)}
-      headerPointerDown={event => interactions.startDrag(event.nativeEvent, event.currentTarget, panel.id)}
+      headerPointerDown={event =>
+        gestures.startDrag(gestureContext(), event.nativeEvent, event.currentTarget, panel.id)
+      }
       actions={
         <>
           {action}
@@ -235,6 +293,9 @@ export function Workspace({
       }
       return false;
     },
+    snapshotArrived(snapshot) {
+      gestures.snapshotArrived(snapshot.projects.find(item => item.id === project.id));
+    },
   }));
   return (
     <div className="workspace">
@@ -249,7 +310,7 @@ export function Workspace({
           ＋
         </button>
       </header>
-      <div className="canvas" ref={canvas}>
+      <div className="canvas" ref={attachCanvas} data-project-id={project.id} data-maximized-panel-id={maximized}>
         {!project.panels.length && !openTrayPanel && (
           <div className="empty">
             <p>{t('emptyProject')}</p>
@@ -286,6 +347,7 @@ export function Workspace({
                 ⤢
               </PanelAction>
             </>,
+            { measured: true },
           );
         })}
         {openTrayPanel &&
@@ -296,7 +358,7 @@ export function Workspace({
             <PanelAction label={t('collapsePanel')} perform={flight.collapseIntoCard}>
               ⌄
             </PanelAction>,
-            growOpenedPanel,
+            { measured: false, ref: growOpenedPanel },
           )}
         {!maximized &&
           positions.dividers.map(divider => {
@@ -324,20 +386,24 @@ export function Workspace({
                 aria-orientation={axis === 'row' ? 'vertical' : 'horizontal'}
                 className="divider"
                 style={style}
-                onPointerDown={event => interactions.startResize(event.nativeEvent, event.currentTarget, divider)}
+                onPointerDown={event =>
+                  gestures.startResize(gestureContext(), event.nativeEvent, event.currentTarget, divider)
+                }
               />
             );
           })}
       </div>
       <PanelTray
-        ref={tray}
+        ref={setTray}
         panels={project.tray}
         openPanelId={openTrayPanel?.id}
         landedPanelId={flight.landedPanelId}
         open={panelLocation.openTrayPanel}
         collapse={flight.collapseIntoCard}
         landingEnded={flight.landingEnded}
-        cardPointerDown={(event, panelId) => interactions.startDrag(event.nativeEvent, event.currentTarget, panelId)}
+        cardPointerDown={(event, panelId) =>
+          gestures.startDrag(gestureContext(), event.nativeEvent, event.currentTarget, panelId)
+        }
       />
       {adding && (
         <AgentPicker

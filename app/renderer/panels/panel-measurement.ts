@@ -55,7 +55,7 @@ export function panelMinimumSize(panel: HTMLElement) {
   return panelMetrics(panel).minimum;
 }
 
-export function applyCompactLayout(container: HTMLElement, runId?: string) {
+function applyCompactLayout(container: HTMLElement, runId?: string) {
   const panel = requireClosest(container, '.agent-panel');
   if (!panel.getClientRects().length) return;
   const cell = terminalCellSize(runId);
@@ -76,4 +76,9 @@ export function applyCompactLayout(container: HTMLElement, runId?: string) {
           ? 'stacked'
           : 'row';
   else delete panel.dataset.compactLayout;
+}
+
+export function fitPanel(panel: HTMLElement, runId?: string) {
+  if (panel.closest('.dragging')) return;
+  applyCompactLayout(requireElement(panel, '.terminal-container'), runId);
 }

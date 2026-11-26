@@ -89,16 +89,6 @@
       "rules": { "no-restricted-imports": "off" }
     },
     {
-      // Synchronizes the pointer drag and resize of panels on the layout area.
-      "files": ["app/renderer/panels/panel-interactions.ts"],
-      "rules": { "no-restricted-imports": "off" }
-    },
-    {
-      // Synchronizes keyboard focus and the locate animation with the selected panel.
-      "files": ["app/renderer/panels/panel-location.ts"],
-      "rules": { "no-restricted-imports": "off" }
-    },
-    {
       // Unmigrated area, warn until its ticket passes the effect rules: dispatch menu.
       "files": ["app/renderer/dispatch/**"],
       "rules": {
