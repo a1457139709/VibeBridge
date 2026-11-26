@@ -338,4 +338,5 @@ test("Edit project's link on an unbound project makes it current and opens the s
   const opened = await shownSidebar();
   await waitFor(() => assert.equal(repositoryTitle(), t('noRepositoryBound')));
   assert.equal(within(opened).queryByRole('button', { name: t('bindingBack') }), null);
+  assert.ok(opened.contains(document.activeElement), 'focus moves into the sidebar');
 });

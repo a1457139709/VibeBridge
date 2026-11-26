@@ -53,3 +53,8 @@ export function useShownForgeRows(projectId: string, numbers: number[], failed: 
   const declared = useEffectEvent(() => void window.workbench.showForgeRows(projectId, numbers).catch(failed));
   useEffect(() => declared(), [projectId, shown]);
 }
+
+export function useRepositoryChoicesShown(projectId: string, directory: string, failed: (error: unknown) => void) {
+  const requested = useEffectEvent(() => void window.workbench.showRepositoryChoices(projectId).catch(failed));
+  useEffect(() => requested(), [projectId, directory]);
+}

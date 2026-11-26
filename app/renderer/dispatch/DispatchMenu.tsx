@@ -1,7 +1,9 @@
-import { Fragment, useEffect, useId, useLayoutEffect, useRef, useState } from 'react';
+import { Fragment, useId, useRef, useState, type RefObject } from 'react';
 import { useLocalization } from '../common/Localization';
 import { ProcessingStatusIcon } from '../common/ProcessingStatusIcon';
 import { agentIcons } from '../common/agent-icons';
+import { useDocumentEvent } from '../common/document-events';
+import { useWindowEvent } from '../common/window-events';
 import {
   agentNames,
   isLiveRun,
@@ -68,63 +70,109 @@ function placeMenu(button: HTMLElement, menu: HTMLElement) {
   targets.classList.toggle('rightwards', width - right - menu.offsetWidth - gap - targets.offsetWidth < margin);
 }
 
+function watchShownPanels(project: ProjectView) {
+  let shown: ProjectView | undefined = project;
+  let awaited: { panelId: string; locate(): void } | undefined;
+  const settle = () => {
+    if (!shown) stop();
+    else if (awaited && projectPanels(shown).some(panel => panel.id === awaited?.panelId)) {
+      stop();
+      awaited.locate();
+    }
+  };
+  const stop = window.workbench.subscribe(event => {
+    if (event.kind !== 'snapshot') return;
+    shown = event.snapshot.projects.find(item => item.id === project.id);
+    settle();
+  });
+  return {
+    locateOnceShown(panelId: string, locate: () => void) {
+      awaited = { panelId, locate };
+      settle();
+    },
+    stop,
+  };
+}
+
+interface Issue {
+  issue: Pick<IssueSummary, 'number' | 'title'>;
+}
+
 export function DispatchButton({
   project,
   issue,
   host,
   open,
   setOpen,
-}: {
+}: Issue & {
   project: ProjectView;
-  issue: Pick<IssueSummary, 'number' | 'title'>;
   host: DispatchHost;
   open: boolean;
   setOpen(open: boolean): void;
+}) {
+  const { t } = useLocalization();
+  const button = useRef<HTMLButtonElement>(null);
+  const openMenuLabel = displayShortcut(host.openMenuShortcut);
+  return (
+    <div className={dispatchClass} onClick={event => event.stopPropagation()}>
+      <button
+        ref={button}
+        className="dispatch-button"
+        aria-haspopup="menu"
+        aria-expanded={open}
+        data-hint={`${t('dispatchHint')} (${openMenuLabel})`}
+        onClick={() => setOpen(!open)}
+      >
+        {t('dispatch')}
+        <span aria-hidden="true"> ▾</span>
+      </button>
+      {open && (
+        <DispatchMenu project={project} issue={issue} host={host} button={button} close={() => setOpen(false)} />
+      )}
+    </div>
+  );
+}
+
+function DispatchMenu({
+  project,
+  issue,
+  host,
+  button,
+  close,
+}: Issue & {
+  project: ProjectView;
+  host: DispatchHost;
+  button: RefObject<HTMLButtonElement | null>;
+  close(): void;
 }) {
   const { t } = useLocalization();
   const [level, setLevel] = useState<'commands' | 'targets'>('commands');
   const [commandIndex, setCommandIndex] = useState(0);
   const [targetIndex, setTargetIndex] = useState(0);
   const [inverting, setInverting] = useState(false);
-  const [panelToLocate, setPanelToLocate] = useState<string>();
   const menuId = useId();
-  const root = useRef<HTMLDivElement>(null);
-  const button = useRef<HTMLButtonElement>(null);
   const menu = useRef<HTMLDivElement>(null);
-  useEffect(() => {
-    if (!panelToLocate || !projectPanels(project).some(panel => panel.id === panelToLocate)) return;
-    setPanelToLocate(undefined);
-    host.locate(project.id, panelToLocate);
-  }, [panelToLocate, project, host]);
-  useLayoutEffect(() => {
-    if (!open) return;
-    setLevel('commands');
-    setCommandIndex(0);
-    menu.current?.focus();
-    const outside = (event: PointerEvent) => {
-      if (!(event.target instanceof Node && root.current?.contains(event.target))) setOpen(false);
-    };
-    const trackAlt = (event: KeyboardEvent) => setInverting(event.altKey);
-    const place = () => {
-      if (button.current && menu.current) placeMenu(button.current, menu.current);
-    };
-    document.addEventListener('pointerdown', outside);
-    window.addEventListener('keydown', trackAlt, true);
-    window.addEventListener('keyup', trackAlt, true);
-    window.addEventListener('resize', place);
-    document.addEventListener('scroll', place, true);
-    return () => {
-      document.removeEventListener('pointerdown', outside);
-      window.removeEventListener('keydown', trackAlt, true);
-      window.removeEventListener('keyup', trackAlt, true);
-      window.removeEventListener('resize', place);
-      document.removeEventListener('scroll', place, true);
-      setInverting(false);
-    };
-  }, [open]);
-  useLayoutEffect(() => {
-    if (open && button.current && menu.current) placeMenu(button.current, menu.current);
+  const focused = useRef(false);
+  const place = () => {
+    if (button.current && menu.current) placeMenu(button.current, menu.current);
+  };
+  const attach = (element: HTMLDivElement | null) => {
+    menu.current = element;
+    if (!element) return;
+    place();
+    if (focused.current) return;
+    focused.current = true;
+    element.focus();
+  };
+  useDocumentEvent('pointerdown', event => {
+    const target = event.target instanceof Node ? event.target : null;
+    if (!(menu.current?.contains(target) || button.current?.contains(target))) close();
   });
+  const trackAlt = (event: KeyboardEvent) => setInverting(event.altKey);
+  useWindowEvent('keydown', trackAlt, { capture: true });
+  useWindowEvent('keyup', trackAlt, { capture: true });
+  useWindowEvent('resize', place);
+  useDocumentEvent('scroll', place, { capture: true });
 
   const commands: MenuCommand[] = workflows
     .filter(workflow => host.workflows[workflow.id]?.enabled)
@@ -171,14 +219,19 @@ export function DispatchButton({
       target,
       invertDelivery: invert,
     };
-    setOpen(false);
+    close();
+    const shownPanels = watchShownPanels(project);
     try {
       const { delivery, panelId } = await window.workbench.dispatch(project.id, request);
       host.rememberLastTarget(commandKey(menuCommand), target);
-      if (delivery === 'fill') setPanelToLocate(panelId);
-      else button.current?.focus();
+      if (delivery === 'fill') shownPanels.locateOnceShown(panelId, () => host.locate(project.id, panelId));
+      else {
+        shownPanels.stop();
+        button.current?.focus();
+      }
       host.onDispatched(delivery);
     } catch (error) {
+      shownPanels.stop();
       host.report(errorMessage(error));
       button.current?.focus();
     }
@@ -196,7 +249,7 @@ export function DispatchButton({
       if (level === 'commands') showTargets(commandIndex);
       else void dispatch(targetIndex, event.altKey);
     } else if (event.key === 'Escape') {
-      setOpen(false);
+      close();
       button.current?.focus();
     } else if (event.key !== 'Enter') return;
     event.preventDefault();
@@ -205,144 +258,128 @@ export function DispatchButton({
   const commandElementId = (index: number) => `${menuId}-command-${index}`,
     targetElementId = (index: number) => `${menuId}-target-${index}`;
   const cursorTarget = expanded && targets[targetIndex];
-  const openMenuLabel = displayShortcut(host.openMenuShortcut);
   return (
-    <div className={dispatchClass} ref={root} onClick={event => event.stopPropagation()}>
-      <button
-        ref={button}
-        className="dispatch-button"
-        aria-haspopup="menu"
-        aria-expanded={open}
-        data-hint={`${t('dispatchHint')} (${openMenuLabel})`}
-        onClick={() => setOpen(!open)}
-      >
-        {t('dispatch')}
-        <span aria-hidden="true"> ▾</span>
-      </button>
-      {open && (
-        <div
-          ref={menu}
-          className="dispatch-menu"
-          role="menu"
-          tabIndex={-1}
-          aria-label={t('dispatchMenu', { number: issue.number })}
-          aria-describedby={commands.length ? undefined : `${menuId}-empty`}
-          aria-activedescendant={
-            commands.length ? (expanded ? targetElementId(targetIndex) : commandElementId(commandIndex)) : undefined
-          }
-          onKeyDown={keydown}
-          onMouseDown={event => event.preventDefault()}
-        >
-          {!commands.length && (
-            <p className="dispatch-empty" id={`${menuId}-empty`}>
-              {t('noEnabledWorkflows')}
-            </p>
-          )}
-          {commands.map((item, index) => {
-            const { workflowId, command } = item;
-            const mode = shownDelivery(item);
-            const startsWorkflow = commands.findIndex(other => other.workflowId === workflowId) === index;
-            return (
-              <Fragment key={commandKey(item)}>
-                {workflowCount > 1 && startsWorkflow && (
-                  <h4 className="dispatch-workflow">
-                    {t(
-                      requireValue(
-                        workflows.find(workflow => workflow.id === workflowId),
-                        "the command's workflow",
-                      ).name,
-                    )}
-                  </h4>
+    <div
+      ref={attach}
+      className="dispatch-menu"
+      role="menu"
+      tabIndex={-1}
+      aria-label={t('dispatchMenu', { number: issue.number })}
+      aria-describedby={commands.length ? undefined : `${menuId}-empty`}
+      aria-activedescendant={
+        commands.length ? (expanded ? targetElementId(targetIndex) : commandElementId(commandIndex)) : undefined
+      }
+      onKeyDown={keydown}
+      onMouseDown={event => event.preventDefault()}
+    >
+      {!commands.length && (
+        <p className="dispatch-empty" id={`${menuId}-empty`}>
+          {t('noEnabledWorkflows')}
+        </p>
+      )}
+      {commands.map((item, index) => {
+        const { workflowId, command } = item;
+        const mode = shownDelivery(item);
+        const startsWorkflow = commands.findIndex(other => other.workflowId === workflowId) === index;
+        return (
+          <Fragment key={commandKey(item)}>
+            {workflowCount > 1 && startsWorkflow && (
+              <h4 className="dispatch-workflow">
+                {t(
+                  requireValue(
+                    workflows.find(workflow => workflow.id === workflowId),
+                    "the command's workflow",
+                  ).name,
                 )}
-                {command.separatorBefore && <hr />}
-                <button
-                  id={commandElementId(index)}
-                  role="menuitem"
-                  tabIndex={-1}
-                  className={[index === commandIndex && 'cursor', expanded === item && 'expanded']
-                    .filter(Boolean)
-                    .join(' ')}
-                  aria-haspopup="menu"
-                  aria-expanded={expanded === item}
-                  onMouseEnter={() => showTargets(index)}
-                  onClick={() => showTargets(index)}
-                >
-                  <span className="dispatch-caret" aria-hidden="true">
-                    ‹
-                  </span>
-                  <code>{command.skill}</code>
-                  <small className={`dispatch-delivery ${mode}`}>{t(deliveryText[mode])}</small>
-                </button>
-              </Fragment>
-            );
-          })}
-          {expanded && (
-            <div
-              className="dispatch-targets"
-              role="menu"
-              aria-label={t('dispatchTargets', { command: expanded.command.skill })}
+              </h4>
+            )}
+            {command.separatorBefore && <hr />}
+            <button
+              id={commandElementId(index)}
+              role="menuitem"
+              tabIndex={-1}
+              className={[index === commandIndex && 'cursor', expanded === item && 'expanded']
+                .filter(Boolean)
+                .join(' ')}
+              aria-haspopup="menu"
+              aria-expanded={expanded === item}
+              onMouseEnter={() => showTargets(index)}
+              onClick={() => showTargets(index)}
             >
-              {targets.map(({ target, agent, panel }, index) => (
-                <Fragment key={targetKey(target)}>
-                  {index === newPanelAgents.length && <hr />}
-                  <button
-                    id={targetElementId(index)}
-                    role="menuitem"
-                    tabIndex={-1}
-                    className={index === targetIndex ? 'cursor' : ''}
-                    onMouseEnter={() => setTargetIndex(index)}
-                    onClick={event => void dispatch(index, event.altKey)}
-                  >
-                    {panel ? (
-                      <>
-                        <span className={`agent-mark ${agent}`} role="img" aria-label={agentNames[agent]}>
-                          {agentIcons[agent]}
-                        </span>
-                        <ProcessingStatusIcon state={panel.status} />
-                        <span className="dispatch-title">{panel.run?.title ?? t('untitled')}</span>
-                        <small>
-                          {panel.status && (
-                            <>
-                              <span>{t(panel.status)}</span>
-                              <span aria-hidden="true"> · </span>
-                            </>
-                          )}
-                          <span>{t(resident(panel) ? 'residentPanel' : 'ephemeralPanel')}</span>
-                        </small>
-                      </>
-                    ) : (
-                      <>
-                        <span className={`agent-mark ${agent}`} aria-hidden="true">
-                          {agentIcons[agent]}
-                        </span>
-                        {t('dispatchNew', { agent: agentNames[agent] })}
-                        <small>{t('ephemeralPanel')}</small>
-                      </>
-                    )}
-                    {targetKey(target) === lastTargetKey && <span className="dispatch-last">{t('lastTarget')}</span>}
-                  </button>
-                </Fragment>
-              ))}
-              {cursorTarget && (
-                <div className="dispatch-preview">
-                  <code>
-                    {commandText(cursorTarget.agent, expanded.command, {
-                      url: `…#${issue.number}`,
-                      number: issue.number,
-                      title: issue.title,
-                    })}
-                  </code>
-                  <span>
-                    {t(deliveryText[shownDelivery(expanded)])}
-                    {inverting && ` ${t('dispatchInverted')}`}
-                  </span>
-                </div>
-              )}
+              <span className="dispatch-caret" aria-hidden="true">
+                ‹
+              </span>
+              <code>{command.skill}</code>
+              <small className={`dispatch-delivery ${mode}`}>{t(deliveryText[mode])}</small>
+            </button>
+          </Fragment>
+        );
+      })}
+      {expanded && (
+        <div
+          className="dispatch-targets"
+          role="menu"
+          aria-label={t('dispatchTargets', { command: expanded.command.skill })}
+        >
+          {targets.map(({ target, agent, panel }, index) => (
+            <Fragment key={targetKey(target)}>
+              {index === newPanelAgents.length && <hr />}
+              <button
+                id={targetElementId(index)}
+                role="menuitem"
+                tabIndex={-1}
+                className={index === targetIndex ? 'cursor' : ''}
+                onMouseEnter={() => setTargetIndex(index)}
+                onClick={event => void dispatch(index, event.altKey)}
+              >
+                {panel ? (
+                  <>
+                    <span className={`agent-mark ${agent}`} role="img" aria-label={agentNames[agent]}>
+                      {agentIcons[agent]}
+                    </span>
+                    <ProcessingStatusIcon state={panel.status} />
+                    <span className="dispatch-title">{panel.run?.title ?? t('untitled')}</span>
+                    <small>
+                      {panel.status && (
+                        <>
+                          <span>{t(panel.status)}</span>
+                          <span aria-hidden="true"> · </span>
+                        </>
+                      )}
+                      <span>{t(resident(panel) ? 'residentPanel' : 'ephemeralPanel')}</span>
+                    </small>
+                  </>
+                ) : (
+                  <>
+                    <span className={`agent-mark ${agent}`} aria-hidden="true">
+                      {agentIcons[agent]}
+                    </span>
+                    {t('dispatchNew', { agent: agentNames[agent] })}
+                    <small>{t('ephemeralPanel')}</small>
+                  </>
+                )}
+                {targetKey(target) === lastTargetKey && <span className="dispatch-last">{t('lastTarget')}</span>}
+              </button>
+            </Fragment>
+          ))}
+          {cursorTarget && (
+            <div className="dispatch-preview">
+              <code>
+                {commandText(cursorTarget.agent, expanded.command, {
+                  url: `…#${issue.number}`,
+                  number: issue.number,
+                  title: issue.title,
+                })}
+              </code>
+              <span>
+                {t(deliveryText[shownDelivery(expanded)])}
+                {inverting && ` ${t('dispatchInverted')}`}
+              </span>
             </div>
           )}
-          <p className="dispatch-keys">{t('dispatchMenuKeys')}</p>
         </div>
       )}
+      <p className="dispatch-keys">{t('dispatchMenuKeys')}</p>
     </div>
   );
 }
