@@ -59,7 +59,7 @@
       }
     },
     {
-      // Synchronizes the main process: its snapshot and events, and what the renderer shows that the main process must know.
+      // Synchronizes the main process: the first snapshot, then its events.
       "files": ["app/renderer/common/main-process.ts"],
       "rules": { "no-restricted-imports": "off" }
     },
@@ -89,8 +89,18 @@
       "rules": { "no-restricted-imports": "off" }
     },
     {
-      // Synchronizes where the pointer and keyboard focus rest among a list's rows, as the list element reports them.
+      // Synchronizes an element observer that reports elements added to or removed from the element's subtree.
+      "files": ["app/renderer/common/child-list-observer.ts"],
+      "rules": { "no-restricted-imports": "off" }
+    },
+    {
+      // Synchronizes the pointer and focus events of a list element, to report the row they rest on.
       "files": ["app/renderer/forge/row-resting.ts"],
+      "rules": { "no-restricted-imports": "off" }
+    },
+    {
+      // Synchronizes the main process's forge sidebar data with the sidebar's presence, shown rows and repository choices.
+      "files": ["app/renderer/forge/sidebar-reports.ts"],
       "rules": { "no-restricted-imports": "off" }
     }
   ]

@@ -215,3 +215,15 @@ test('an issue whose parent arrives with Load more moves under it', async () => 
   );
   await waitFor(() => assert.deepEqual(rows(), ['Issue 10']));
 });
+
+test('the rows declared shown to the main process are the issue rows shown, expanded sub-issues included, in order', async () => {
+  const { user, request, shownRows } = renderWorkbench();
+  (await request(1)).answer(tree());
+  await waitFor(() => assert.deepEqual(shownRows.at(-1), [14, 10]));
+  await user.click(within(forgeSidebar()).getByRole('button', { name: t('showSubIssues') }));
+  await waitFor(() => assert.deepEqual(shownRows.at(-1), [14, 10, 12, 13]));
+  await user.click(within(forgeSidebar()).getByRole('button', { name: t('closedSubIssues', { count: 1 }) }));
+  await waitFor(() => assert.deepEqual(shownRows.at(-1), [14, 10, 12, 13, 11]));
+  await user.click(within(forgeSidebar()).getByRole('button', { name: t('hideSubIssues') }));
+  await waitFor(() => assert.deepEqual(shownRows.at(-1), [14, 10]));
+});

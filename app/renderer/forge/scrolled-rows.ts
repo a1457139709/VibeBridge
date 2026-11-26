@@ -13,14 +13,12 @@ const sameView = (a: ScrollAreaView, b: ScrollAreaView) => a.scrollTop === b.scr
 
 export function useScrolledRows(projectId: string, failed: (error: unknown) => void) {
   const [scrollArea, setScrollArea] = useState<HTMLDivElement | null>(null);
-  const scrolled = useRef<HTMLDivElement | null>(null);
   const [view, setView] = useState<ScrollAreaView>({ scrollTop: 0, viewport: 0 });
   const readView = (element: HTMLElement) => {
     const read = viewOf(element);
     setView(last => (sameView(last, read) ? last : read));
   };
   const holdScrollArea = useCallback((element: HTMLDivElement | null) => {
-    scrolled.current = element;
     setScrollArea(element);
     if (!element) return;
     const read = viewOf(element);
@@ -37,9 +35,9 @@ export function useScrolledRows(projectId: string, failed: (error: unknown) => v
     ref: virtualRows,
     failed,
     scrollTo(scrollTop) {
-      if (!scrolled.current) return;
-      scrolled.current.scrollTop = scrollTop;
-      readView(scrolled.current);
+      if (!scrollArea) return;
+      scrollArea.scrollTo({ top: scrollTop });
+      readView(scrollArea);
     },
   };
   return {

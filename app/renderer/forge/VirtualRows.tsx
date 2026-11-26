@@ -1,6 +1,6 @@
 import { useImperativeHandle, useState, type Ref, type RefCallback } from 'react';
 import { flushSync } from 'react-dom';
-import { useShownForgeRows } from '../common/main-process';
+import { useShownForgeRows } from './sidebar-reports';
 import { heightBefore, readingPositionAt, restoredScrollTop, rowWindow, type ReadingPosition } from './virtual-rows';
 
 const overscan = 4;

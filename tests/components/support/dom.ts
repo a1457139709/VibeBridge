@@ -26,6 +26,9 @@ for (const key of [
 Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true, CSS: { escape } });
 Object.assign(window, { AnimationEvent: class AnimationEvent extends window.Event {} });
 window.HTMLElement.prototype.scrollIntoView = () => {};
+window.HTMLElement.prototype.scrollTo = function (this: HTMLElement, options?: ScrollToOptions | number) {
+  if (typeof options === 'object' && options.top !== undefined) this.scrollTop = options.top;
+};
 window.HTMLDialogElement.prototype.showModal = function () {
   this.open = true;
 };

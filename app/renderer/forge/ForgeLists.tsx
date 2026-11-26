@@ -1,7 +1,8 @@
 import { useImperativeHandle, useRef, useState, type PointerEvent as ReactPointerEvent, type Ref } from 'react';
 import { flushSync } from 'react-dom';
 import { useLocalization } from '../common/Localization';
-import { useForgeSidebarPresence, useMainProcessEvents } from '../common/main-process';
+import { useMainProcessEvents } from '../common/main-process';
+import { useForgeSidebarPresence } from './sidebar-reports';
 import { Timeout } from '../common/timer';
 import { nestedMessage } from '../../shared/messages';
 import type {

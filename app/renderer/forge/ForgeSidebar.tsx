@@ -138,7 +138,7 @@ export function useForgeSidebar(host: Host, api: Pick<DesktopAPI, 'saveSidebar' 
           <>
             <SidebarHead title={project.repository.path} />
             <ChangeBinding
-              key={project.id}
+              key={keyOfDirectory(project)}
               project={{ ...project, repository: project.repository }}
               back={() => {
                 setChangingBindingOf(undefined);
@@ -168,7 +168,7 @@ export function useForgeSidebar(host: Host, api: Pick<DesktopAPI, 'saveSidebar' 
         ) : (
           <>
             <SidebarHead title={t('noRepositoryBound')} />
-            <UnboundRepository key={project.id} project={project} />
+            <UnboundRepository key={keyOfDirectory(project)} project={project} />
           </>
         )}
       </aside>
@@ -178,3 +178,4 @@ export function useForgeSidebar(host: Host, api: Pick<DesktopAPI, 'saveSidebar' 
 
 const keyOfBinding = ({ id, repository }: ProjectView) =>
   repository ? `${id} ${repository.forge} ${repository.host} ${repository.id}` : undefined;
+const keyOfDirectory = ({ id, directory }: ProjectView) => `${id} ${directory}`;

@@ -1,7 +1,8 @@
 import { useId, useRef, useState, type ReactNode } from 'react';
 import { useLocalization } from '../common/Localization';
 import { focusAfterUpdate } from '../common/focus';
-import { useMainProcessEvents, useRepositoryChoicesShown } from '../common/main-process';
+import { useMainProcessEvents } from '../common/main-process';
+import { useRepositoryChoicesShown } from './sidebar-reports';
 import type { ProjectView } from '../../shared/model';
 import { sameRepository, type RepositoryReference } from '../../shared/forge/forge';
 import type { ShownRepositoryChoices } from '../../shared/forge/sidebar-data';
@@ -9,19 +10,14 @@ import { RepositoryList } from './RepositoryList';
 import { errorMessage } from '../../shared/caught-error';
 import './sidebar-binding.css';
 
-function useShownRepositoryChoices({ id: projectId, directory, forge }: ProjectView) {
-  const [shown, setShown] = useState<{ directory: string; choices: ShownRepositoryChoices }>({
-    directory,
-    choices: null,
-  });
-  const choices = shown.directory === directory ? shown.choices : null;
+function useShownRepositoryChoices({ id: projectId, forge }: ProjectView) {
+  const [choices, setChoices] = useState<ShownRepositoryChoices>(null);
   const failed = (error: unknown) =>
-    setShown({ directory, choices: { ok: false, failure: { kind: 'transient', detail: errorMessage(error), forge } } });
+    setChoices({ ok: false, failure: { kind: 'transient', detail: errorMessage(error), forge } });
   useMainProcessEvents(event => {
-    if (event.kind === 'repositoryChoices' && event.projectId === projectId)
-      setShown({ directory, choices: event.choices });
+    if (event.kind === 'repositoryChoices' && event.projectId === projectId) setChoices(event.choices);
   });
-  useRepositoryChoicesShown(projectId, directory, failed);
+  useRepositoryChoicesShown(projectId, failed);
   return {
     choices,
     listed: choices?.ok ? choices : undefined,
