@@ -1,6 +1,5 @@
 {
   "app/renderer/forge/ForgeDetail.tsx": 2,
-  "app/renderer/forge/ForgeLists.tsx": 9,
   "app/renderer/forge/ForgeSidebar.tsx": 1,
   "app/renderer/forge/IssueDetail.tsx": 1,
   "app/renderer/forge/RepositoryList.tsx": 1,

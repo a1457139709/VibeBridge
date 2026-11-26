@@ -1,11 +1,4 @@
-import {
-  useEffect,
-  useImperativeHandle,
-  useRef,
-  useState,
-  type PointerEvent as ReactPointerEvent,
-  type Ref,
-} from 'react';
+import { useImperativeHandle, useRef, useState, type PointerEvent as ReactPointerEvent, type Ref } from 'react';
 import { useLocalization } from '../common/Localization';
 import { nestedMessage } from '../../shared/messages';
 import type {
@@ -37,6 +30,10 @@ import { useScrolledRows } from './scrolled-rows';
 import { SidebarHead } from './SidebarHead';
 import { StaleNotice } from './StaleNotice';
 import { useRowResting } from './row-resting';
+import { useMainProcessEvents, useSubscription, type Subscribe } from '../common/effects/subscription';
+import { useUnmountCleanup } from '../common/effects/unmount';
+import { useTimeout } from '../common/effects/timeout';
+import { useFocusRequestBeforePaint } from '../common/effects/focus-request';
 
 const tabText = {
   issues: {
@@ -61,34 +58,38 @@ interface OpenMenu {
   issue: number;
   place: 'row' | 'detail';
 }
-function usePushedLists(projectId: string, settled: () => void) {
+interface ListDeclaration {
+  tab: ForgeListTab;
+  filter: ListFilter;
+  delay: number;
+}
+function usePushedLists(projectId: string, arrived: (lists: ListsData) => void) {
   const [lists, setLists] = useState<ListsData>(nothingLoaded);
-  useEffect(
-    () =>
-      window.workbench.subscribe(event => {
-        if (event.kind !== 'forgeLists' || event.projectId !== projectId) return;
-        setLists(event.lists);
-        if (!event.lists.loading) settled();
-      }),
-    [projectId],
-  );
+  useMainProcessEvents(event => {
+    if (event.kind !== 'forgeLists' || event.projectId !== projectId) return;
+    setLists(event.lists);
+    arrived(event.lists);
+  });
   return lists;
 }
 
-function useWindowForeground() {
-  const [foreground, setForeground] = useState(() => document.hasFocus());
-  useEffect(() => {
-    const toFront = () => setForeground(true),
-      behind = () => setForeground(false);
-    window.addEventListener('focus', toFront);
-    window.addEventListener('blur', behind);
-    return () => {
-      window.removeEventListener('focus', toFront);
-      window.removeEventListener('blur', behind);
-    };
-  }, []);
-  return foreground;
-}
+const subscribeToWindowForeground: Subscribe<boolean> = listener => {
+  let foreground = document.hasFocus();
+  const become = (next: boolean) => () => {
+    if (next === foreground) return;
+    foreground = next;
+    listener(next);
+  };
+  const toFront = become(true),
+    behind = become(false);
+  listener(foreground);
+  window.addEventListener('focus', toFront);
+  window.addEventListener('blur', behind);
+  return () => {
+    window.removeEventListener('focus', toFront);
+    window.removeEventListener('blur', behind);
+  };
+};
 
 export interface ListsView {
   tab: ForgeListTab;
@@ -122,22 +123,54 @@ export function ForgeLists({ project, changeBinding, detailHost, dispatchHost, v
   const { t, text } = useLocalization();
   const [tab, setTab] = useState<ForgeListTab>(view.tab);
   const [filters, setFilters] = useState<Record<ForgeListTab, ListFilter>>(view.filters);
-  useEffect(() => rememberView({ tab, filters }), [tab, filters]);
   const [detailFailure, setDetailFailure] = useState<FailedPage | null>(null);
-  const lists = usePushedLists(project.id, () => setDetailFailure(null));
+  const awaitingFirstRows = useRef(true);
+  const requestFocus = useFocusRequestBeforePaint();
+  const focusFirstRowOnceShown = (shown: ListsData, shownTab: ForgeListTab) => {
+    if (!shown[shownTab].loaded?.items.length || !awaitingFirstRows.current) return;
+    awaitingFirstRows.current = false;
+    requestFocus(() =>
+      document.activeElement === scrollArea.current?.closest('.forge-sidebar') ? rowTitleIn(scrollArea.current) : null,
+    );
+  };
+  const lists = usePushedLists(project.id, arrived => {
+    if (!arrived.loading) setDetailFailure(null);
+    focusFirstRowOnceShown(arrived, tab);
+  });
   const { loading } = lists;
   const declared = useRef<Record<ForgeListTab, ListFilter | null>>({ issues: null, pullRequests: null });
+  const [listDeclaration, setListDeclaration] = useState<ListDeclaration>(() => ({
+    tab: view.tab,
+    filter: view.filters[view.tab],
+    delay: 0,
+  }));
+  const declareListOnceSettled = (nextTab: ForgeListTab, filter: ListFilter) => {
+    const last = declared.current[nextTab];
+    const typing = last !== null && last.search !== filter.search;
+    setListDeclaration({ tab: nextTab, filter, delay: typing ? 300 : 0 });
+  };
+  const showTab = (nextTab: ForgeListTab) => {
+    if (nextTab === tab) return;
+    setTab(nextTab);
+    rememberView({ tab: nextTab, filters });
+    declareListOnceSettled(nextTab, filters[nextTab]);
+    focusFirstRowOnceShown(lists, nextTab);
+  };
   const [opened, setOpened] = useState<DetailItem[]>([]);
   const detailItem = opened.at(-1);
-  const detailOpen = detailItem !== undefined;
-  useEffect(() => {
-    detailHost.onDetailOpenChange(detailOpen);
-    return () => detailHost.onDetailOpenChange(false);
-  }, [detailOpen]);
-  const openItem = (item: DetailItem) =>
-    setOpened(stack =>
-      stack.at(-1)?.kind === item.kind && stack.at(-1)?.number === item.number ? stack : [...stack, item],
-    );
+  useUnmountCleanup(() => detailHost.onDetailOpenChange(false));
+  const changeOpened = (next: DetailItem[]) => {
+    setOpened(next);
+    const top = next.at(-1);
+    detailHost.onDetailOpenChange(top !== undefined);
+    const item = top ? { kind: top.kind, number: top.number } : null;
+    const last = declaredDetail.current;
+    if (item?.kind !== last?.kind || item?.number !== last?.number) showDetail(item);
+  };
+  const openItem = (item: DetailItem) => {
+    const top = opened.at(-1);
+    if (top?.kind !== item.kind || top.number !== item.number) changeOpened([...opened, item]);
+  };
   const selected = (kind: DetailItem['kind']) => (detailItem?.kind === kind ? detailItem.number : undefined);
 
   const declare = (declaration: Promise<void>) =>
@@ -156,11 +189,6 @@ export function ForgeLists({ project, changeBinding, detailHost, dispatchHost, v
     declaredDetail.current = item;
     declare(window.workbench.showForgeDetail(project.id, item));
   };
-  useEffect(() => {
-    const item = detailItem ? { kind: detailItem.kind, number: detailItem.number } : null;
-    const last = declaredDetail.current;
-    if (item?.kind !== last?.kind || item?.number !== last?.number) showDetail(item);
-  }, [detailItem?.kind, detailItem?.number]);
   useRowResting(scrollElement, item => declare(window.workbench.reportForgeRowResting(project.id, item)));
   const reportChanged = (item: DetailItem) => declare(window.workbench.reportForgeItemChanged(project.id, item));
   const [openMenu, setOpenMenu] = useState<OpenMenu>();
@@ -170,8 +198,8 @@ export function ForgeLists({ project, changeBinding, detailHost, dispatchHost, v
       ...dispatchHost,
       onDispatched(delivery) {
         if (delivery === 'fill') {
-          setOpened([]);
           showDetail(null);
+          changeOpened([]);
         }
         reportChanged({ kind: 'issue', number: issue.number });
       },
@@ -220,57 +248,40 @@ export function ForgeLists({ project, changeBinding, detailHost, dispatchHost, v
       return true;
     },
   }));
-  const awaitingFirstRows = useRef(true);
-  const firstRowsLoaded = !!lists[tab].loaded?.items.length;
-  useEffect(() => {
-    if (!firstRowsLoaded || !awaitingFirstRows.current) return;
-    awaitingFirstRows.current = false;
-    if (document.activeElement === scrollArea.current?.closest('.forge-sidebar'))
-      rowTitleIn(scrollArea.current)?.focus();
-  }, [firstRowsLoaded]);
   const closeDetail = () => {
     const title = opened
       .toReversed()
       .map(item => rowTitle(item, tab))
       .find(Boolean);
-    setOpened([]);
+    changeOpened([]);
     (title ?? scrollArea.current)?.focus();
   };
   const openFromList = (item: DetailItem) => {
     const only = opened.length === 1 ? opened[0] : undefined;
     if (only?.kind === item.kind && only.number === item.number) closeDetail();
-    else setOpened([item]);
+    else changeOpened([item]);
   };
   const showForgeFailure = (failure: ForgeFailure) => setDetailFailure({ ok: false, failure, account: null });
 
-  useEffect(() => {
-    const filter = filters[tab],
-      last = declared.current[tab];
-    const typing = last !== null && last.search !== filter.search;
-    const timer = setTimeout(
-      () => {
-        declared.current[tab] = filter;
-        declare(window.workbench.showForgeList(project.id, { tab, filter }));
-      },
-      typing ? 300 : 0,
-    );
-    return () => clearTimeout(timer);
-  }, [tab, filters[tab]]);
-  const foreground = useWindowForeground();
-  useEffect(
-    () => declare(window.workbench.reportForgeSidebarPresence({ visible: true, foreground, projectId: project.id })),
-    [foreground],
+  useTimeout(
+    () => {
+      const { tab: listTab, filter } = listDeclaration;
+      declared.current[listTab] = filter;
+      declare(window.workbench.showForgeList(project.id, { tab: listTab, filter }));
+    },
+    { delay: listDeclaration.delay, restartKey: listDeclaration },
   );
-  useEffect(
-    () => () =>
-      declare(
-        window.workbench.reportForgeSidebarPresence({
-          visible: false,
-          foreground: document.hasFocus(),
-          projectId: project.id,
-        }),
-      ),
-    [],
+  useSubscription(subscribeToWindowForeground, foreground =>
+    declare(window.workbench.reportForgeSidebarPresence({ visible: true, foreground, projectId: project.id })),
+  );
+  useUnmountCleanup(() =>
+    declare(
+      window.workbench.reportForgeSidebarPresence({
+        visible: false,
+        foreground: document.hasFocus(),
+        projectId: project.id,
+      }),
+    ),
   );
 
   const { forge } = project;
@@ -339,8 +350,14 @@ export function ForgeLists({ project, changeBinding, detailHost, dispatchHost, v
     );
 
   const filter = filters[tab];
-  const setFilter = (update: (filter: ListFilter) => ListFilter) =>
-    setFilters(all => ({ ...all, [tab]: update(all[tab]) }));
+  const setFilter = (update: (filter: ListFilter) => ListFilter) => {
+    const next = update(filters[tab]);
+    if (next === filters[tab]) return;
+    const nextFilters = { ...filters, [tab]: next };
+    setFilters(nextFilters);
+    rememberView({ tab, filters: nextFilters });
+    declareListOnceSettled(tab, next);
+  };
   const addLabel = (name: string) =>
     setFilter(f => (f.labels.includes(name) ? f : { ...f, labels: [...f.labels, name] }));
   const pullRequests = lists.pullRequests.loaded;
@@ -355,7 +372,7 @@ export function ForgeLists({ project, changeBinding, detailHost, dispatchHost, v
             role="tab"
             aria-selected={tab === item}
             className={tab === item ? 'on' : ''}
-            onClick={() => setTab(item)}
+            onClick={() => showTab(item)}
           >
             {t(tabText[item].name)}
           </button>
@@ -430,7 +447,7 @@ export function ForgeLists({ project, changeBinding, detailHost, dispatchHost, v
           item={detailItem}
           resize={detailHost.startResize}
           canBack={opened.length > 1}
-          back={() => setOpened(stack => stack.slice(0, -1))}
+          back={() => changeOpened(opened.slice(0, -1))}
           close={closeDetail}
           open={openItem}
           retry={() => showDetail(detailItem)}
