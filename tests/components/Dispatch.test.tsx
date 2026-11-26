@@ -121,8 +121,12 @@ test("submitting to a panel dispatches the issue, returns focus to Dispatch and 
   await waitFor(() => assert.deepEqual(rowsAsked, [[9]]));
 });
 
-test('filling a panel closes the detail, keeps the sidebar open and reloads the dispatched issue', async () => {
+test('filling a panel locates it, closes the detail, keeps the sidebar open and reloads the dispatched issue', async () => {
   const f = await listed(async (_, request) => ({ delivery: 'fill', panelId: panelOf(request) }));
+  const activated: string[] = [];
+  window.workbench.activateProject = async id => {
+    activated.push(id);
+  };
   const detailsAsked: number[] = [];
   f.forge.issueDetail = (_, number) => {
     detailsAsked.push(number);
@@ -142,6 +146,7 @@ test('filling a panel closes the detail, keeps the sidebar open and reloads the 
   assert.ok(forgeSidebar());
   await waitFor(() => assert.deepEqual(rowsAsked, [[9]], 'its row reloaded by number once dispatched'));
   assert.deepEqual(detailsAsked, [9], 'the detail read once, when opened');
+  await waitFor(() => assert.deepEqual(activated, ['alpha'], "the filled panel's project is shown"));
 });
 
 test('submitting to a new panel dispatches to its Agent type and returns focus to Dispatch', async () => {
@@ -293,6 +298,15 @@ test('Esc closes the whole menu from its targets and returns focus to Dispatch',
   await f.user.keyboard('{Escape}');
   assert.equal(screen.queryByRole('menu'), null);
   assert.equal(document.activeElement, dispatchButton(9));
+});
+
+test('pressing outside the menu closes it, while pressing inside keeps it open', async () => {
+  const f = await listed();
+  await f.user.click(dispatchButton(9));
+  await f.user.click(within(menu()).getByRole('menuitem', anyImplement));
+  assert.ok(targetsMenu(implement), 'the press inside opened the targets');
+  await f.user.click(issueButton(8));
+  assert.equal(screen.queryByRole('menu'), null);
 });
 
 test('holding ⌥ shows the inverted deliveries, and ⌥+Space or ⌥+click inverts this dispatch only', async () => {
