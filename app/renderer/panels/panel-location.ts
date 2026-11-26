@@ -1,9 +1,11 @@
-import { useLayoutEffect, useRef, useState, type RefObject } from 'react';
+import { useRef, useState, type RefObject } from 'react';
 import type { PanelView, ProjectView, Snapshot } from '../../shared/model';
 import { localize } from '../../shared/localization/localization';
 import type { ReportNotice } from '../common/Notices';
 import { focusTerminal, terminalHasFocus } from './terminals';
 import { errorMessage } from '../../shared/caught-error';
+import { useRenderSyncBeforePaint } from '../common/effects/render-sync';
+import { useUnmountCleanupBeforePaint } from '../common/effects/unmount';
 
 interface View {
   selected?: string;
@@ -384,13 +386,11 @@ const workspaceConnection = Symbol('workspaceConnection');
 export function usePanelLocation(host: Host) {
   const [, render] = useState(0);
   const [location] = useState(() => createLocation(host, () => render(value => value + 1)));
-  useLayoutEffect(() => {
+  useRenderSyncBeforePaint(() => {
     location.mount();
-    return () => location.dispose();
-  }, [location]);
-  useLayoutEffect(() => {
     location.update(host);
   });
+  useUnmountCleanupBeforePaint(() => location.dispose());
   return {
     view: (projectId: string) => location.view(host.snapshot?.projects.find(project => project.id === projectId)),
     locating: location.locating,
@@ -411,16 +411,13 @@ export function useWorkspacePanelLocation(
   const view = location.view(project.id);
   const connection = location[workspaceConnection];
   const element = useRef<HTMLElement | null>(null);
-  useLayoutEffect(() => {
+  useRenderSyncBeforePaint(() => {
     element.current = canvas.current;
     if (element.current) connection.connect({ projectId: project.id, canvas: element.current, view });
   });
-  useLayoutEffect(
-    () => () => {
-      if (element.current) connection.disconnect(element.current);
-    },
-    [connection],
-  );
+  useUnmountCleanupBeforePaint(() => {
+    if (element.current) connection.disconnect(element.current);
+  });
   return {
     ...view,
     select: (panelId: string) => connection.select(project.id, panelId),
