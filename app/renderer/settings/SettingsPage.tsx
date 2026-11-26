@@ -2,10 +2,11 @@ import { Localization, useLocalization } from '../common/Localization';
 import { localize } from '../../shared/localization/localization';
 import { message } from '../../shared/messages';
 import { flushSync } from 'react-dom';
-import { useCallback, useId, useImperativeHandle, useRef, useState, type Ref } from 'react';
+import { useId, useImperativeHandle, useRef, useState, type Ref } from 'react';
 import type { Settings } from '../../shared/model';
 import type { ShortcutAction } from '../../shared/settings/shortcuts';
 import type { ReportNotice } from '../common/Notices';
+import { showModalWhileAttached } from '../common/modal-dialog';
 import { AgentSettings } from './AgentSettings';
 import { AppearanceSettings } from './AppearanceSettings';
 import { GeneralSettings } from './GeneralSettings';
@@ -69,16 +70,8 @@ function SettingsEditor({
     input?.scrollIntoView({ block: 'nearest' });
     input?.focus();
   }
-  const [leaveCategories, setLeaveCategories] = useState<SettingsCategory[]>([]);
-  const leaveDialog = useRef<HTMLDialogElement>(null);
+  const [leaving, setLeaving] = useState<SettingsCategory[]>();
   const leaveDecision = useRef<(leave: boolean) => void>(undefined);
-  const attachLeaveDialog = useCallback((dialog: HTMLDialogElement) => {
-    leaveDialog.current = dialog;
-    return () => {
-      leaveDialog.current = null;
-      leaveDecision.current?.(false);
-    };
-  }, []);
   const dirty = dirtySettingsCategories(draft, saved);
   const savedConflicts = settingsConflicts(saved);
   const conflicting = settingsCategories
@@ -88,10 +81,9 @@ function SettingsEditor({
     async requestLeave() {
       if (pending.current || leaveDecision.current) return false;
       if (!dirty.length && !conflicting.length) return true;
-      setLeaveCategories(dirty);
+      setLeaving(dirty);
       return new Promise<boolean>(resolve => {
         leaveDecision.current = resolve;
-        leaveDialog.current?.showModal();
       });
     },
     showCategory(category) {
@@ -102,8 +94,7 @@ function SettingsEditor({
     },
   }));
   function decideLeave(leave: boolean) {
-    leaveDialog.current?.close();
-    setLeaveCategories([]);
+    setLeaving(undefined);
     const resolve = leaveDecision.current;
     leaveDecision.current = undefined;
     resolve?.(leave);
@@ -154,12 +145,12 @@ function SettingsEditor({
       if (problem) focusField(problem.field);
     }
   }
-  async function saveAndLeave() {
-    leaveDialog.current?.close();
+  async function saveAndLeave(unsaved: readonly SettingsCategory[]) {
+    setLeaving(undefined);
     decideLeave(
       await save(
         settingsCategories
-          .filter(category => leaveCategories.includes(category.id) || conflicting.includes(category.id))
+          .filter(category => unsaved.includes(category.id) || conflicting.includes(category.id))
           .map(category => category.id),
       ),
     );
@@ -256,39 +247,41 @@ function SettingsEditor({
           </div>
         </div>
       </div>
-      <dialog
-        ref={attachLeaveDialog}
-        className="settings-leave"
-        aria-labelledby={`${leave}-title`}
-        aria-describedby={`${leave}-conflict ${leave}-unsaved`}
-        onCancel={event => {
-          event.preventDefault();
-          decideLeave(false);
-        }}
-      >
-        <h2 id={`${leave}-title`}>{t('settingsLeave')}</h2>
-        {conflicting.length > 0 && (
-          <p id={`${leave}-conflict`}>
-            {t('settingsLeaveConflict', { categories: conflicting.map(category => t(category)) })}
-          </p>
-        )}
-        {leaveCategories.length > 0 && (
-          <p id={`${leave}-unsaved`}>
-            {t('settingsUnsaved', {
-              categories: settingsCategories
-                .filter(category => leaveCategories.includes(category.id))
-                .map(category => t(category.id)),
-            })}
-          </p>
-        )}
-        <div className="dialog-actions">
-          <button onClick={() => decideLeave(false)}>{t('cancel')}</button>
-          {!conflicting.length && <button onClick={() => decideLeave(true)}>{t('dontSave')}</button>}
-          <button className="primary" onClick={() => void saveAndLeave()}>
-            {t('saveAndReturn')}
-          </button>
-        </div>
-      </dialog>
+      {leaving && (
+        <dialog
+          ref={showModalWhileAttached}
+          className="settings-leave"
+          aria-labelledby={`${leave}-title`}
+          aria-describedby={`${leave}-conflict ${leave}-unsaved`}
+          onCancel={event => {
+            event.preventDefault();
+            decideLeave(false);
+          }}
+        >
+          <h2 id={`${leave}-title`}>{t('settingsLeave')}</h2>
+          {conflicting.length > 0 && (
+            <p id={`${leave}-conflict`}>
+              {t('settingsLeaveConflict', { categories: conflicting.map(category => t(category)) })}
+            </p>
+          )}
+          {leaving.length > 0 && (
+            <p id={`${leave}-unsaved`}>
+              {t('settingsUnsaved', {
+                categories: settingsCategories
+                  .filter(category => leaving.includes(category.id))
+                  .map(category => t(category.id)),
+              })}
+            </p>
+          )}
+          <div className="dialog-actions">
+            <button onClick={() => decideLeave(false)}>{t('cancel')}</button>
+            {!conflicting.length && <button onClick={() => decideLeave(true)}>{t('dontSave')}</button>}
+            <button className="primary" onClick={() => void saveAndLeave(leaving)}>
+              {t('saveAndReturn')}
+            </button>
+          </div>
+        </dialog>
+      )}
     </div>
   );
 }

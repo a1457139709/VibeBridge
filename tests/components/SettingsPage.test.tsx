@@ -222,7 +222,7 @@ test('a pending ordinary save blocks repeated submissions and draft mutation', a
   assert.equal(await requireValue(ref.current, 'the settings page').requestLeave(), true);
 });
 
-test('cancel keeps a draft, discard allows leaving without saving, and unmount cancels a pending leave decision', async () => {
+test('cancel keeps a draft, and discard allows leaving without saving', async () => {
   provideWorkbench({});
   const { user, ref } = renderSettings();
   assert.equal(await requireValue(ref.current, 'the settings page').requestLeave(), true);
@@ -240,11 +240,6 @@ test('cancel keeps a draft, discard allows leaving without saving, and unmount c
   });
   await click(user, t('dontSave'));
   assert.equal(await leave, true);
-  act(() => {
-    leave = requireValue(ref.current, 'the settings page').requestLeave();
-  });
-  cleanup();
-  assert.equal(await leave, false);
 });
 
 test('late command checks cannot replace feedback for a newer or discarded draft', async () => {

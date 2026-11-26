@@ -4,11 +4,7 @@ import { message } from '../../shared/messages';
 import { agentNames, agentTypes } from '../../shared/model';
 import { agentIcons } from '../common/agent-icons';
 import { errorMessage } from '../../shared/caught-error';
-
-function showModal(dialog: HTMLDialogElement) {
-  dialog.showModal();
-  return () => dialog.close();
-}
+import { showModalWhileAttached } from '../common/modal-dialog';
 
 export function AgentPicker({
   projectId,
@@ -28,7 +24,7 @@ export function AgentPicker({
   const [failure, setFailure] = useState<{ error: string; offerAgentSettings: boolean }>();
   return (
     <dialog
-      ref={showModal}
+      ref={showModalWhileAttached}
       className="agent-picker"
       aria-label={t('addPanel')}
       onCancel={close}

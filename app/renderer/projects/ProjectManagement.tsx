@@ -11,12 +11,8 @@ import { LaunchResults } from './LaunchResults';
 import { errorMessage } from '../../shared/caught-error';
 import { useWindowEvent } from '../common/window-events';
 import { useRequestResult } from '../common/request-result';
+import { showModalWhileAttached } from '../common/modal-dialog';
 import './project-management.css';
-
-function showModal(dialog: HTMLDialogElement) {
-  dialog.showModal();
-  return () => dialog.close();
-}
 
 export function ProjectNavigationItem({
   project,
@@ -176,7 +172,7 @@ export function ProjectEditor({
   }
   return (
     <dialog
-      ref={showModal}
+      ref={showModalWhileAttached}
       className="project-dialog"
       aria-label={t('editProject')}
       onCancel={event => {
@@ -372,7 +368,7 @@ function DeleteProject({ project, close }: { project: Project; close(): void }) 
     [error, setError] = useState('');
   return (
     <dialog
-      ref={showModal}
+      ref={showModalWhileAttached}
       className="project-dialog delete-project-dialog"
       aria-label={t('deleteProject')}
       onCancel={event => {
