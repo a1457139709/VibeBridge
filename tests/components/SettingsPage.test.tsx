@@ -10,30 +10,11 @@ import type { CommandCheck, Settings } from '../../app/shared/model';
 import { message } from '../../app/shared/messages';
 import { deferred, provideWorkbench } from './support/workbench';
 import { requireValue } from '../../app/renderer/common/required';
-import { descriptionParts, requireInstance, selectElement } from './support/elements';
+import { descriptionParts } from './support/elements';
 import { t } from './support/localization';
+import { click, command, renderSettings, startsWith } from './support/settings-page';
 
 afterEach(cleanup);
-
-function renderSettings(settings = defaultSettings()) {
-  const ref = createRef<SettingsPageActions>();
-  const report = mock.fn();
-  render(
-    <SettingsPage
-      initialCategory="agents"
-      settings={settings}
-      startupTheme={settings.theme}
-      ref={ref}
-      back={() => {}}
-      report={report}
-    />,
-  );
-  return { user: userEvent.setup(), ref, report };
-}
-const click = (user: ReturnType<typeof userEvent.setup>, name: string) =>
-  user.click(screen.getByRole('button', { name }));
-const command = () => screen.getAllByRole<HTMLInputElement>('textbox', { name: t('launchCommand') })[0];
-const startsWith = (prefix: string) => (name: string) => name.startsWith(prefix);
 
 test('category drafts survive switching, and ordinary save submits only the current category', async () => {
   const saved = defaultSettings();
@@ -82,37 +63,24 @@ test('category drafts survive switching, and ordinary save submits only the curr
   assert.equal(saveSettings.mock.callCount(), 1);
 });
 
-test('Keyboard shortcuts lists toggling the forge sidebar at Command+Alt+B, and a new binding for it is saved', async () => {
-  const saved = defaultSettings();
-  const saveSettings = mock.fn(async (patch: Partial<Settings>) => ({
-    ok: true as const,
-    settings: { ...saved, ...patch },
-  }));
-  provideWorkbench({ saveSettings });
-  const { user } = renderSettings(saved);
-  await click(user, t('shortcuts'));
-  const binding = screen.getByRole<HTMLInputElement>('textbox', { name: t('toggleForgeSidebar') });
-  assert.equal(binding.value, '⌘ ⌥ B');
-  fireEvent.keyDown(binding, { key: 'g', code: 'KeyG', metaKey: true, altKey: true });
-  await click(user, t('save'));
-  assert.equal(saveSettings.mock.calls[0].arguments[0].shortcuts?.toggleForgeSidebar, 'Command+Alt+G');
-});
-
-test('Keyboard shortcuts lists opening the dispatch menu at Command+D and locating the dispatched panel at Command+L, with conflict checks', async () => {
-  const saved = defaultSettings();
+test('settings from a newer snapshot become the saved settings that drafts are compared with and discarded to', async () => {
   provideWorkbench({});
-  const { user } = renderSettings(saved);
-  await click(user, t('shortcuts'));
-  const openDispatchMenu = screen.getByRole<HTMLInputElement>('textbox', { name: t('openDispatchMenu') });
-  assert.equal(openDispatchMenu.value, '⌘ D');
-  assert.equal(screen.getByRole<HTMLInputElement>('textbox', { name: t('locateDispatchedPanel') }).value, '⌘ L');
-  fireEvent.keyDown(openDispatchMenu, { key: 'l', code: 'KeyL', metaKey: true });
-  assert.ok(
-    screen.getByRole('textbox', {
-      name: t('openDispatchMenu'),
-      description: t('shortcutConflict', { actions: [t('locateDispatchedPanel')] }),
-    }),
-  );
+  const ref = createRef<SettingsPageActions>();
+  const props = { initialCategory: 'agents' as const, ref, back: () => {}, report: () => {} };
+  const settings = defaultSettings();
+  const { rerender } = render(<SettingsPage {...props} settings={settings} startupTheme={settings.theme} />);
+  const user = userEvent.setup();
+  const newer = {
+    ...settings,
+    agents: { ...settings.agents, codex: { ...settings.agents.codex, command: 'codex-new' } },
+  };
+  rerender(<SettingsPage {...props} settings={newer} startupTheme={settings.theme} />);
+  await user.clear(command());
+  await user.type(command(), 'codex-new');
+  assert.equal(await requireValue(ref.current, 'the settings page').requestLeave(), true);
+  await user.type(command(), '-draft');
+  await click(user, t('discardChanges'));
+  assert.equal(command().value, 'codex-new');
 });
 
 test('save and leave submits all changed categories together and allows leaving only after success', async () => {
@@ -380,67 +348,4 @@ test('save and return during a settings conflict submits the conflicting categor
   assert.ok(screen.getByRole('heading', { name: t('categorySettings', { category: t('shortcuts') }) }));
   assert.equal(document.activeElement, screen.getByRole('textbox', { name: t('nextPanel') }));
   assert.equal(screen.getByRole('alert').textContent, t('settingsConflict'));
-});
-
-test('Workflows sits between Agent and Appearance, and saves the workflow switch and each command delivery', async () => {
-  const saved = defaultSettings();
-  const saveSettings = mock.fn(async (patch: Partial<Settings>) => ({
-    ok: true as const,
-    settings: { ...saved, ...patch },
-  }));
-  provideWorkbench({ saveSettings });
-  const { user } = renderSettings(saved);
-  const categories = within(screen.getByRole('navigation', { name: t('settingsCategories') })).getAllByRole('button');
-  assert.deepEqual(
-    categories.map(button => button.textContent),
-    [t('general'), t('agents'), t('workflows'), t('appearance'), t('shortcuts')],
-  );
-  await click(user, t('workflows'));
-  assert.equal(screen.queryByRole('checkbox'), null, 'the workflow switch is not a checkbox');
-  const enabled = screen.getByRole('switch', { name: t('workflowMatt') });
-  assert.equal(enabled.getAttribute('aria-checked'), 'true', "Matt's workflow is on by default");
-  const commands = screen.getAllByRole('radiogroup').map(group => group.getAttribute('aria-label'));
-  assert.deepEqual(commands, [
-    'grill-with-docs {url}',
-    'to-spec {url}',
-    'to-tickets {url}',
-    'implement {url}',
-    'implement-spec {url}',
-    'wayfinder {url}',
-    'triage look at {url}',
-    'diagnosing-bugs {url}',
-    'tdd {url}',
-    'prototype {url}',
-    'research {url}',
-    'grill-me {url}',
-  ]);
-  assert.ok(
-    screen
-      .getAllByRole('radio', { name: t('deliverySubmit') })
-      .every(radio => requireInstance(radio, HTMLInputElement).checked),
-    'every command submits by default',
-  );
-  assert.equal(screen.queryByRole('textbox'), null, 'commands cannot be added or edited');
-  await user.click(
-    within(screen.getByRole('radiogroup', { name: startsWith('tdd ') })).getByRole('radio', {
-      name: t('deliveryFill'),
-    }),
-  );
-  await user.click(enabled);
-  assert.equal(enabled.getAttribute('aria-checked'), 'false', 'clicking the switch turns the workflow off');
-  await user.click(screen.getByRole('button', { name: t('showWorkflowCommands', { workflow: t('workflowMatt') }) }));
-  assert.equal(screen.queryAllByRole('radiogroup').length, 0, 'collapsing hides the commands');
-  await click(user, t('save'));
-  assert.deepEqual(
-    saveSettings.mock.calls.map(call => call.arguments),
-    [
-      [
-        {
-          workflows: {
-            matt: { enabled: false, commands: { ...saved.workflows.matt.commands, tdd: { delivery: 'fill' } } },
-          },
-        },
-      ],
-    ],
-  );
 });
