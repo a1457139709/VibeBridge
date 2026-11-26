@@ -202,6 +202,27 @@ test('filling a new panel opens it as the temporary maximize once it joins the t
   assert.ok(forgeSidebar());
 });
 
+test('filling a new panel that joins the tray before the dispatch answers still opens it as the temporary maximize', async () => {
+  const f = await listed(async () => {
+    f.snapshot.projects[0].tray.push({
+      id: 'new-panel',
+      agent: 'pi',
+      run: { id: 'new-run', panelId: 'new-panel', projectId: 'alpha', state: 'running', title: fresh },
+    });
+    f.publish();
+    return { delivery: 'fill', panelId: 'new-panel' };
+  });
+  await f.user.click(dispatchButton(9));
+  await f.user.hover(within(menu()).getByRole('menuitem', submitImplement));
+  await f.user.click(
+    within(targetsMenu(implement)).getByRole('menuitem', { name: nameIncluding(newTargetName('pi')) }),
+  );
+  const card = await waitFor(() =>
+    within(screen.getByRole('region', { name: t('panelTray') })).getByRole('button', { name: nameIncluding(fresh) }),
+  );
+  await waitFor(() => assert.equal(card.getAttribute('aria-pressed'), 'true'));
+});
+
 const skillOf = (number: number) => row(number).querySelector('.dispatch-skill');
 
 test("an issue row shows only its latest dispatch's skill: a link to its panel with its age in the hint", async () => {
