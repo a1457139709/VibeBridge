@@ -243,3 +243,34 @@ test('language changes update an open list without replacing it or translating r
   await user.keyboard('{Enter}');
   assert.deepEqual(located, ['second']);
 });
+
+test('an open list stays centred under the summary inside the window, also after the window resizes', async () => {
+  const width = Object.getOwnPropertyDescriptor(window.HTMLElement.prototype, 'offsetWidth');
+  const box = window.HTMLElement.prototype.getBoundingClientRect;
+  const innerWidth = window.innerWidth;
+  Object.defineProperty(window.HTMLElement.prototype, 'offsetWidth', {
+    configurable: true,
+    get(this: HTMLElement) {
+      return this.getAttribute('role') === 'dialog' ? 200 : 0;
+    },
+  });
+  window.HTMLElement.prototype.getBoundingClientRect = function (this: HTMLElement) {
+    return this.getAttribute('role') === 'region' ? new window.DOMRect(700, 0, 100, 24) : new window.DOMRect();
+  };
+  Object.defineProperty(window, 'innerWidth', { configurable: true, value: 800 });
+  try {
+    const { user } = fixture();
+    await user.click(await screen.findByRole('button', { name: summaryEntryName(2, 'done') }));
+    const list = screen.getByRole('dialog', { name: t('done') });
+    assert.equal(list.style.left, '-108px');
+    Object.defineProperty(window, 'innerWidth', { configurable: true, value: 1000 });
+    act(() => {
+      window.dispatchEvent(new window.Event('resize'));
+    });
+    assert.equal(list.style.left, '-50px');
+  } finally {
+    if (width) Object.defineProperty(window.HTMLElement.prototype, 'offsetWidth', width);
+    window.HTMLElement.prototype.getBoundingClientRect = box;
+    Object.defineProperty(window, 'innerWidth', { configurable: true, value: innerWidth });
+  }
+});

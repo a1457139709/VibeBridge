@@ -1,7 +1,7 @@
 import { useLocalization } from '../common/Localization';
 import { agentIcons } from '../common/agent-icons';
 import {
-  useLayoutEffect,
+  useCallback,
   useImperativeHandle,
   useRef,
   useState,
@@ -21,15 +21,14 @@ import {
 import { layoutBoxes } from '../../shared/layout';
 import { mountTerminal } from '../panels/terminals';
 import { AgentPicker } from './AgentPicker';
-import { createPanelInteractions, type PanelInteractionContext } from '../panels/panel-interactions';
+import { usePanelInteractions } from '../panels/panel-interactions';
 import type { ShortcutAction } from '../../shared/settings/shortcuts';
 import { errorMessage } from '../../shared/caught-error';
 import { useWorkspacePanelLocation, type PanelLocation } from '../panels/panel-location';
 import { ProcessingStatusIcon } from '../common/ProcessingStatusIcon';
 import { PanelTray } from './PanelTray';
-import { useTrayFlight } from './tray-flight';
+import { growOpenedPanel, useTrayFlight } from './tray-flight';
 import { ProjectSummary } from './ProjectSummary';
-import { requireValue } from '../common/required';
 
 export interface WorkspaceActions {
   runShortcut(action: ShortcutAction): boolean;
@@ -37,12 +36,13 @@ export interface WorkspaceActions {
 
 function TerminalView({ run }: { run?: Run }) {
   const { t } = useLocalization();
-  const container = useRef<HTMLDivElement>(null);
-  useLayoutEffect(() => {
-    if (run?.state === 'running' && container.current) return mountTerminal(run.id, container.current);
-  }, [run?.id, run?.state]);
+  const runningId = run?.state === 'running' ? run.id : undefined;
+  const showTerminal = useCallback(
+    (container: HTMLDivElement) => (runningId ? mountTerminal(runningId, container) : undefined),
+    [runningId],
+  );
   return (
-    <div className="terminal-container" ref={container}>
+    <div className="terminal-container" ref={showTerminal}>
       {run?.state === 'starting' ? (
         <div className="terminal-message">{t('launchPending')}</div>
       ) : run?.state === 'failed' ? (
@@ -67,6 +67,7 @@ function AgentPanel({
   focusChanged,
   headerPointerDown,
   headerClick,
+  ref,
 }: {
   panel: PanelView;
   position: CSSProperties;
@@ -76,11 +77,12 @@ function AgentPanel({
   focusChanged(): void;
   headerPointerDown?(event: PointerEvent<HTMLElement>): void;
   headerClick(): void;
+  ref?: Ref<HTMLElement>;
 }) {
   const { t } = useLocalization();
   const title = panel.run?.title ?? t('untitled');
   return (
-    <section data-panel-id={panel.id} className={`panel-slot ${panel.agent}`} style={position}>
+    <section ref={ref} data-panel-id={panel.id} className={`panel-slot ${panel.agent}`} style={position}>
       <div
         className={`agent-panel ${focused ? 'focused' : ''}`}
         onMouseDown={event => {
@@ -142,7 +144,6 @@ export function Workspace({
   const [adding, setAdding] = useState(false);
   const canvas = useRef<HTMLDivElement>(null);
   const tray = useRef<HTMLElement>(null);
-  const interactions = useRef<ReturnType<typeof createPanelInteractions> | null>(null);
   const positions = layoutBoxes(layout);
   const panelLocation = useWorkspacePanelLocation(location, project, canvas, [...positions.panels.keys()]);
   const { selected: focused, maximized } = panelLocation;
@@ -164,44 +165,42 @@ export function Workspace({
     if (maximized === panelId) panelLocation.toggleMaximize(panelId);
     void window.workbench.moveToTray(project.id, panelId).catch(error => report(errorMessage(error)));
   };
-  useLayoutEffect(() => {
-    const context: PanelInteractionContext = {
+  const interactions = usePanelInteractions(
+    { canvas, tray },
+    {
       projectId: project.id,
       layout: project.layout,
       language,
       panels: project.panels.map(({ id, agent, run }) => ({ id, agent, runId: run?.id })),
       tray: project.tray.map(({ id, agent }) => ({ id, agent })),
-      trayElement: tray.current,
       visible,
       maximizedPanelId: maximized,
       presentLayout: setLayout,
       commitLayout: saveLayout,
       placeInLayout,
       moveToTray,
-    };
-    if (interactions.current) interactions.current.update(context);
-    else interactions.current = createPanelInteractions(requireValue(canvas.current, 'the layout area'), context);
-  });
-  useLayoutEffect(
-    () => () => {
-      interactions.current?.dispose();
-      interactions.current = null;
     },
-    [],
   );
   const close = (panelId: string) => {
     void window.workbench.closePanel(project.id, panelId).catch(error => report(errorMessage(error)));
   };
-  const agentPanel = (panel: PanelView, position: CSSProperties, isFocused: boolean, action: ReactNode) => (
+  const agentPanel = (
+    panel: PanelView,
+    position: CSSProperties,
+    isFocused: boolean,
+    action: ReactNode,
+    ref?: Ref<HTMLElement>,
+  ) => (
     <AgentPanel
       key={panel.id}
+      ref={ref}
       panel={panel}
       position={position}
       focused={isFocused}
       select={() => panelLocation.select(panel.id)}
       focusChanged={() => panelLocation.selectFocusedPanel(panel.id)}
       headerClick={() => panelLocation.focus(panel.id)}
-      headerPointerDown={event => interactions.current?.startDrag(event.nativeEvent, event.currentTarget, panel.id)}
+      headerPointerDown={event => interactions.startDrag(event.nativeEvent, event.currentTarget, panel.id)}
       actions={
         <>
           {action}
@@ -297,6 +296,7 @@ export function Workspace({
             <PanelAction label={t('collapsePanel')} perform={flight.collapseIntoCard}>
               ⌄
             </PanelAction>,
+            growOpenedPanel,
           )}
         {!maximized &&
           positions.dividers.map(divider => {
@@ -324,9 +324,7 @@ export function Workspace({
                 aria-orientation={axis === 'row' ? 'vertical' : 'horizontal'}
                 className="divider"
                 style={style}
-                onPointerDown={event =>
-                  interactions.current?.startResize(event.nativeEvent, event.currentTarget, divider)
-                }
+                onPointerDown={event => interactions.startResize(event.nativeEvent, event.currentTarget, divider)}
               />
             );
           })}
@@ -339,9 +337,7 @@ export function Workspace({
         open={panelLocation.openTrayPanel}
         collapse={flight.collapseIntoCard}
         landingEnded={flight.landingEnded}
-        cardPointerDown={(event, panelId) =>
-          interactions.current?.startDrag(event.nativeEvent, event.currentTarget, panelId)
-        }
+        cardPointerDown={(event, panelId) => interactions.startDrag(event.nativeEvent, event.currentTarget, panelId)}
       />
       {adding && (
         <AgentPicker

@@ -1,7 +1,8 @@
+import { useEffectEvent, useLayoutEffect, useRef, type RefObject } from 'react';
 import type { Language, Layout, Panel } from '../../shared/model';
 import type { Divider } from '../../shared/layout';
 import { capturePointer } from '../common/pointer-capture';
-import { requireClosest } from '../common/required';
+import { requireClosest, requireValue } from '../common/required';
 import { createDragPreview } from './panel-drag';
 import { applyCompactLayout } from './panel-measurement';
 import { createResizePreview } from './panel-resize';
@@ -237,4 +238,31 @@ export function createPanelInteractions(canvas: HTMLElement, context: PanelInter
   syncPanels();
   applyCompactLayouts();
   return interactions;
+}
+
+type PanelInteractions = ReturnType<typeof createPanelInteractions>;
+
+export function usePanelInteractions(
+  { canvas, tray }: { canvas: RefObject<HTMLElement | null>; tray: RefObject<HTMLElement | null> },
+  context: Omit<PanelInteractionContext, 'trayElement'>,
+) {
+  const interactions = useRef<PanelInteractions | null>(null);
+  const currentContext = useEffectEvent((): PanelInteractionContext => ({ ...context, trayElement: tray.current }));
+  useLayoutEffect(() => {
+    const created = createPanelInteractions(requireValue(canvas.current, 'the layout area'), currentContext());
+    interactions.current = created;
+    return () => {
+      created.dispose();
+      interactions.current = null;
+    };
+  }, [canvas]);
+  useLayoutEffect(() => {
+    interactions.current?.update(currentContext());
+  });
+  return {
+    startDrag: (event: PointerEvent, handle: HTMLElement, panelId: string) =>
+      interactions.current?.startDrag(event, handle, panelId),
+    startResize: (event: PointerEvent, handle: HTMLElement, divider: Divider) =>
+      interactions.current?.startResize(event, handle, divider),
+  };
 }
