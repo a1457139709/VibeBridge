@@ -1,11 +1,3 @@
 {
-  "app/renderer/forge/ForgeDetail.tsx": 2,
-  "app/renderer/forge/ForgeLists.tsx": 9,
-  "app/renderer/forge/ForgeSidebar.tsx": 1,
-  "app/renderer/forge/IssueDetail.tsx": 1,
-  "app/renderer/forge/RepositoryList.tsx": 1,
-  "app/renderer/forge/SidebarBinding.tsx": 1,
-  "app/renderer/forge/VirtualRows.tsx": 2,
-  "app/renderer/forge/row-resting.ts": 1,
-  "app/renderer/forge/scrolled-rows.ts": 1
+  "app/renderer/forge/ForgeLists.tsx": 9
 }

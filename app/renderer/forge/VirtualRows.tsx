@@ -1,4 +1,7 @@
-import { useImperativeHandle, useLayoutEffect, useReducer, useRef, useState, type Ref } from 'react';
+import { useImperativeHandle, useReducer, useRef, useState, type Ref } from 'react';
+import { useElementMeasurement } from '../common/effects/element-measurement';
+import { useEventListenerBeforePaint } from '../common/effects/event-listener';
+import { useResizeObserverBeforePaint } from '../common/effects/resize-observer';
 import { flushSync } from 'react-dom';
 import { heightBefore, readingPositionAt, restoredScrollTop, rowWindow, type ReadingPosition } from './virtual-rows';
 
@@ -46,18 +49,9 @@ export function VirtualRows({
     const { scrollTop, clientHeight: viewport } = scrollArea;
     setView(last => (last.scrollTop === scrollTop && last.viewport === viewport ? last : { scrollTop, viewport }));
   };
-  useLayoutEffect(() => {
-    if (!scrollArea) return;
-    readScrollArea();
-    scrollArea.addEventListener('scroll', readScrollArea);
-    const resized = new ResizeObserver(readScrollArea);
-    resized.observe(scrollArea);
-    return () => {
-      scrollArea.removeEventListener('scroll', readScrollArea);
-      resized.disconnect();
-    };
-  }, [scrollArea]);
-  useLayoutEffect(() => {
+  useEventListenerBeforePaint(scrollArea, 'scroll', readScrollArea);
+  useResizeObserverBeforePaint(scrollArea, readScrollArea);
+  useElementMeasurement(() => {
     const items = listElement.current?.children ?? [];
     let changed = false;
     for (const [offset, item] of [...items].entries()) {

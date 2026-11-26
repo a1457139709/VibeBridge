@@ -1,18 +1,17 @@
-import { useEffect, useRef } from 'react';
+import { useMemo } from 'react';
+import { useSubscription, type Subscribe } from '../common/effects/subscription';
 import { sameItem, type DetailItem } from '../../shared/forge/sidebar-data';
 import { listRowOf } from './ForgeRows';
 
-export function useRowResting(scrollArea: HTMLElement | null, report: (item: DetailItem | null) => void) {
-  const reportLatest = useRef(report);
-  reportLatest.current = report;
-  useEffect(() => {
-    if (!scrollArea) return;
+const restingOn =
+  (scrollArea: HTMLElement): Subscribe<DetailItem | null> =>
+  report => {
     let resting: { row: Element; item: DetailItem } | null = null;
     const restOn = (target: EventTarget | null) => {
       const found = target instanceof Element && scrollArea.contains(target) ? listRowOf(target) : null;
       const changed = !sameItem(resting?.item ?? null, found?.item ?? null);
       resting = found;
-      if (changed) reportLatest.current(found?.item ?? null);
+      if (changed) report(found?.item ?? null);
     };
     const pointerOver = (event: PointerEvent) => restOn(event.target);
     const pointerLeave = () => restOn(null);
@@ -32,7 +31,13 @@ export function useRowResting(scrollArea: HTMLElement | null, report: (item: Det
       scrollArea.removeEventListener('focusin', focusIn);
       scrollArea.removeEventListener('focusout', focusOut);
       unmounted.disconnect();
-      if (resting) reportLatest.current(null);
+      if (resting) report(null);
     };
-  }, [scrollArea]);
+  };
+
+const restingNowhere: Subscribe<DetailItem | null> = () => () => {};
+
+export function useRowResting(scrollArea: HTMLElement | null, report: (item: DetailItem | null) => void) {
+  const subscribe = useMemo(() => (scrollArea ? restingOn(scrollArea) : restingNowhere), [scrollArea]);
+  useSubscription(subscribe, report);
 }

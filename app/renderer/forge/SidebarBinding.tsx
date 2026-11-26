@@ -1,30 +1,31 @@
-import { useEffect, useId, useRef, useState, type ReactNode } from 'react';
+import { useId, useRef, useState, type ReactNode } from 'react';
+import { useRequestResult } from '../common/effects/request';
+import { useMainProcessEvents } from '../common/effects/subscription';
 import { useLocalization } from '../common/Localization';
 import type { ProjectView } from '../../shared/model';
-import { sameRepository, type RepositoryReference } from '../../shared/forge/forge';
+import { sameRepository, type RepositoryChoices, type RepositoryReference } from '../../shared/forge/forge';
 import type { ShownRepositoryChoices } from '../../shared/forge/sidebar-data';
 import { RepositoryList } from './RepositoryList';
 import { errorMessage } from '../../shared/caught-error';
 import './sidebar-binding.css';
 
 function useShownRepositoryChoices({ id: projectId, directory, forge }: ProjectView) {
-  const [choices, setChoices] = useState<ShownRepositoryChoices>(null);
+  const key = `${projectId} ${directory}`;
+  const [shown, setShown] = useState<{ key: string; choices: ShownRepositoryChoices }>();
+  useMainProcessEvents(event => {
+    if (event.kind === 'repositoryChoices' && event.projectId === projectId) setShown({ key, choices: event.choices });
+  });
   const show = () =>
-    void window.workbench
-      .showRepositoryChoices(projectId)
-      .catch(error => setChoices({ ok: false, failure: { kind: 'transient', detail: errorMessage(error), forge } }));
-  useEffect(() => {
-    setChoices(null);
-    const stop = window.workbench.subscribe(event => {
-      if (event.kind === 'repositoryChoices' && event.projectId === projectId) setChoices(event.choices);
-    });
-    show();
-    return stop;
-  }, [projectId, directory]);
+    window.workbench.showRepositoryChoices(projectId).then(
+      () => undefined,
+      (error): RepositoryChoices => ({ ok: false, failure: { kind: 'transient', detail: errorMessage(error), forge } }),
+    );
+  const failedToShow = useRequestResult(key, show);
+  const choices: ShownRepositoryChoices = (shown?.key === key ? shown.choices : failedToShow) ?? null;
   return {
     choices,
     listed: choices?.ok ? choices : undefined,
-    retry: show,
+    retry: () => void show().then(failed => failed && setShown({ key, choices: failed })),
   };
 }
 

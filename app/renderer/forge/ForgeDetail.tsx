@@ -1,11 +1,6 @@
-import {
-  useEffect,
-  useLayoutEffect,
-  useRef,
-  useState,
-  type MouseEvent,
-  type PointerEvent as ReactPointerEvent,
-} from 'react';
+import { useRef, useState, type MouseEvent, type PointerEvent as ReactPointerEvent } from 'react';
+import { useElementAttachmentBeforePaint } from '../common/effects/element-attachment';
+import { useMainProcessEvents } from '../common/effects/subscription';
 import { useLocalization } from '../common/Localization';
 import { nestedMessage } from '../../shared/messages';
 import type {
@@ -61,23 +56,19 @@ export function ForgeDetailPane({
   const { t, text } = useLocalization();
   const [loaded, setLoaded] = useState<ShownDetail | null>(null);
   const [actionState, setActionState] = useState<ActionState>(idleActions);
-  useEffect(
-    () =>
-      window.workbench.subscribe(event => {
-        if (event.kind !== 'forgeDetail' || event.projectId !== project.id) return;
-        setLoaded(event.detail);
-        setActionState(idleActions);
-      }),
-    [project.id],
-  );
-  const scroller = useRef<HTMLDivElement>(null);
+  useMainProcessEvents(event => {
+    if (event.kind !== 'forgeDetail' || event.projectId !== project.id) return;
+    setLoaded(event.detail);
+    setActionState(idleActions);
+  });
   const { kind, number } = item;
+  const scroller = useElementAttachmentBeforePaint<HTMLDivElement>(`${kind} ${number}`, element => {
+    element.focus({ preventScroll: true });
+    element.scrollTo?.({ top: 0 });
+    return () => {};
+  });
   const shownItem = useRef(item);
   shownItem.current = item;
-  useLayoutEffect(() => {
-    scroller.current?.focus({ preventScroll: true });
-    scroller.current?.scrollTo?.({ top: 0 });
-  }, [kind, number]);
   const keydown = (event: React.KeyboardEvent) => {
     if (
       event.defaultPrevented ||

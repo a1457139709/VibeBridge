@@ -1,4 +1,5 @@
-import { useCallback, useLayoutEffect, useRef, useState } from 'react';
+import { useCallback, useRef, useState } from 'react';
+import { useRenderSyncBeforePaint } from '../common/effects/render-sync';
 import type { DetailItem, ForgeListTab, ForgeLists } from '../../shared/forge/sidebar-data';
 import { rowTitleOf } from './ForgeRows';
 import type { VirtualRowsHandle, VirtualRowsHost } from './VirtualRows';
@@ -26,19 +27,20 @@ export function useScrolledRows(projectId: string, lists: ForgeLists, declare: (
       declare(window.workbench.showForgeRows(projectId, numbers));
     },
   };
-  const readingPosition = useRef<ReadingPosition | null>(null);
-  useLayoutEffect(() => {
-    if (lists.loading || !readingPosition.current) return;
-    virtualRows.current?.restore(readingPosition.current);
-    readingPosition.current = null;
-  }, [lists]);
+  const kept = useRef<{ position: ReadingPosition; lists: ForgeLists } | null>(null);
+  useRenderSyncBeforePaint(() => {
+    if (!kept.current || kept.current.lists === lists || lists.loading) return;
+    virtualRows.current?.restore(kept.current.position);
+    kept.current = null;
+  });
   return {
     scrollArea,
     scrollElement,
     holdScrollArea,
     rowsHost,
     keepReadingPosition() {
-      readingPosition.current = virtualRows.current?.readingPosition() ?? null;
+      const position = virtualRows.current?.readingPosition();
+      kept.current = position ? { position, lists } : null;
     },
     rowTitle(item: DetailItem, tab: ForgeListTab) {
       const title = rowTitleOf(scrollArea.current, item);

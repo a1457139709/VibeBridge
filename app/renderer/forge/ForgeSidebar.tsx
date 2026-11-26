@@ -1,5 +1,6 @@
 import { useLocalization } from '../common/Localization';
-import { useLayoutEffect, useRef, useState, type PointerEvent as ReactPointerEvent } from 'react';
+import { useRef, useState, type PointerEvent as ReactPointerEvent } from 'react';
+import { useFocusRequestBeforePaint } from '../common/effects/focus-request';
 import { SidebarCollapseIcon, SidebarExpandIcon } from '@primer/octicons-react';
 import { displayShortcut, type IssueShortcutAction } from '../../shared/settings/shortcuts';
 import type { DesktopAPI } from '../../shared/api';
@@ -41,8 +42,7 @@ export function useForgeSidebar(host: Host, api: Pick<DesktopAPI, 'saveSidebar' 
     report: host.report,
   });
   const element = useRef<HTMLElement>(null);
-  const focusOnOpen = useRef(false);
-  const [focusRequest, setFocusRequest] = useState(0);
+  const requestFocus = useFocusRequestBeforePaint();
   const [changingBindingOf, setChangingBindingOf] = useState<string>();
   const [detailOpen, setDetailOpen] = useState(false);
   const [width, setWidth] = useState(detailWidth.initial);
@@ -65,23 +65,17 @@ export function useForgeSidebar(host: Host, api: Pick<DesktopAPI, 'saveSidebar' 
   };
   const sidebarOpen = preferences.visible && !!project;
   const bindingKey = project && keyOfBinding(project);
-  useLayoutEffect(() => {
-    if (sidebarOpen && focusOnOpen.current) requireValue(element.current, 'the forge sidebar').focus();
-    focusOnOpen.current = false;
-  }, [sidebarOpen, focusRequest]);
+  const focusSidebar = () => requestFocus(() => element.current);
   function toggle() {
     if (!project) return false;
-    focusOnOpen.current = !preferences.visible;
-    if (!togglePreferences()) focusOnOpen.current = false;
+    if (!preferences.visible) focusSidebar();
+    togglePreferences();
     return true;
   }
   function openBinding(target: ProjectView) {
     const key = keyOfBinding(target);
     setChangingBindingOf(key);
-    if (!key) {
-      focusOnOpen.current = true;
-      setFocusRequest(request => request + 1);
-    }
+    if (!key) focusSidebar();
     if (!preferences.visible) togglePreferences();
   }
   const runIssueShortcut = (action: IssueShortcutAction) =>

@@ -1,4 +1,5 @@
-import { useEffect, useRef, useState, type MouseEvent, type ReactNode } from 'react';
+import { useState, type MouseEvent, type ReactNode } from 'react';
+import { useResizeObserver } from '../common/effects/resize-observer';
 import { useLocalization } from '../common/Localization';
 import type {
   IssueDetail,
@@ -28,7 +29,6 @@ import {
   RelativeTime,
 } from './ForgeDisplay';
 import type { DetailItem } from '../../shared/forge/sidebar-data';
-import { requireValue } from '../common/required';
 
 interface DocumentProps {
   project: ProjectView & { repository: RepositoryReference };
@@ -191,13 +191,9 @@ function Graph({
   follow(reference: IssueReference): void;
 }) {
   const { t } = useLocalization();
-  const host = useRef<HTMLDivElement>(null);
+  const [host, setHost] = useState<HTMLDivElement | null>(null);
   const [width, setWidth] = useState(560);
-  useEffect(() => {
-    const observer = new ResizeObserver(([entry]) => setWidth(entry.contentRect.width));
-    observer.observe(requireValue(host.current, 'the relations graph'));
-    return () => observer.disconnect();
-  }, []);
+  useResizeObserver(host, ([entry]) => setWidth(entry.contentRect.width));
   const columns: { name: Relation; head: string; nodes: IssueReference[] }[] = [
     { name: 'blockedBy', head: t('blockedByColumn'), nodes: left },
     { name: 'self', head: t('thisIssue'), nodes: [issue] },
@@ -233,7 +229,7 @@ function Graph({
   };
   const self = at(1, 0);
   return (
-    <div className="forge-graph" role="group" aria-label={t('relations')} ref={host} style={{ height }}>
+    <div className="forge-graph" role="group" aria-label={t('relations')} ref={setHost} style={{ height }}>
       {columns.map((column, index) => (
         <span
           key={column.name}
