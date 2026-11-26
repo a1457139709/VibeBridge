@@ -59,7 +59,7 @@
       }
     },
     {
-      // Synchronizes the main process: the first snapshot, then its events.
+      // Synchronizes the main process: its snapshot and events, and what the renderer shows that the main process must know.
       "files": ["app/renderer/common/main-process.ts"],
       "rules": { "no-restricted-imports": "off" }
     },
