@@ -4,35 +4,38 @@ import { agentNames, type PanelView } from '../../shared/model';
 import type { ProcessingState } from '../../shared/processing-status';
 import { agentIcons } from '../common/agent-icons';
 import { ProcessingStatusIcon } from '../common/ProcessingStatusIcon';
-import { useElementMeasurement } from '../common/effects/element-measurement';
+import { useDomSyncBeforePaint } from '../common/effects/dom-sync';
 import { useEventListener } from '../common/effects/event-listener';
 import { useFocusRequestBeforePaint } from '../common/effects/focus-request';
+import { useDismissalWhileOpen } from '../common/dismissal';
 
 const summaryStates = ['ready', 'needs-input', 'done', 'error'] as const satisfies readonly ProcessingState[];
 type SummaryState = (typeof summaryStates)[number];
 
 export function ProjectSummary({ panels, locate }: { panels: PanelView[]; locate(panel: PanelView): void }) {
-  const { t } = useLocalization();
+  const { t, language } = useLocalization();
   const [open, setOpen] = useState<SummaryState>();
   const id = useId();
   const container = useRef<HTMLDivElement>(null);
   const list = useRef<HTMLElement>(null);
   const triggers = useRef(new Map<SummaryState, HTMLButtonElement>());
-  const [focusedMember, setFocusedMember] = useState<string>();
+  const focusedMember = useRef<string>(undefined);
   const requestFocus = useFocusRequestBeforePaint();
   const members = (state: SummaryState) => panels.filter(panel => panel.status === state);
-  const firstMember = () => list.current?.querySelector<HTMLButtonElement>('li button');
-  if (open && focusedMember && !members(open).some(panel => panel.run?.id === focusedMember)) {
-    setFocusedMember(undefined);
-    requestFocus(() =>
-      document.activeElement === document.body
-        ? (firstMember() ?? list.current?.querySelector<HTMLButtonElement>('header button'))
-        : undefined,
-    );
+  const [shownPanels, setShownPanels] = useState(panels);
+  if (panels !== shownPanels) {
+    setShownPanels(panels);
+    const member = focusedMember.current;
+    if (open && member && !members(open).some(panel => panel.run?.id === member))
+      requestFocus(() =>
+        document.activeElement === document.body
+          ? (list.current?.querySelector<HTMLButtonElement>('li button') ??
+            list.current?.querySelector<HTMLButtonElement>('header button'))
+          : undefined,
+      );
   }
   function show(state: SummaryState | undefined, fromEnd = false) {
     setOpen(state);
-    setFocusedMember(undefined);
     if (state)
       requestFocus(() => {
         const choices = list.current?.querySelectorAll<HTMLButtonElement>('li button');
@@ -58,19 +61,13 @@ export function ProjectSummary({ panels, locate }: { panels: PanelView[]; locate
     );
     popup.style.left = `${left - box.left}px`;
   }
-  useElementMeasurement(position);
+  useDomSyncBeforePaint(position, [open, language]);
   useEventListener(open ? window : undefined, 'resize', position);
-  useEventListener(open ? document : undefined, 'pointerdown', event => {
-    const target = event.target instanceof Node ? event.target : null;
-    if (!list.current?.contains(target) && ![...triggers.current.values()].some(button => button.contains(target)))
-      close();
-  });
-  useEventListener(open ? document : undefined, 'keydown', event => {
-    if (event.key === 'Escape') {
-      event.preventDefault();
-      event.stopPropagation();
-      close(true);
-    }
+  useDismissalWhileOpen(!!open, {
+    contains: target =>
+      !!list.current?.contains(target) || [...triggers.current.values()].some(button => button.contains(target)),
+    dismiss: () => close(),
+    dismissOnEscape: { beforeOtherHandlers: false, dismiss: () => close(true) },
   });
   return (
     <div ref={container} className="project-summary" role="region" aria-label={t('projectSummary')} tabIndex={-1}>
@@ -115,7 +112,8 @@ export function ProjectSummary({ panels, locate }: { panels: PanelView[]; locate
           role="dialog"
           aria-label={t(open)}
           onFocusCapture={event => {
-            setFocusedMember(event.target instanceof Element ? event.target.closest('li')?.dataset.runId : undefined);
+            focusedMember.current =
+              event.target instanceof Element ? event.target.closest('li')?.dataset.runId : undefined;
           }}
           onKeyDown={event => {
             if (!['ArrowDown', 'ArrowUp', 'Home', 'End'].includes(event.key)) return;

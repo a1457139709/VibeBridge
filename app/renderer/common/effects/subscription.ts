@@ -18,5 +18,3 @@ const subscribeToMainProcess: Subscribe<WorkbenchEvent> = listener => window.wor
 
 export const useMainProcessEvents = (listener: (event: WorkbenchEvent) => void) =>
   useSubscription(subscribeToMainProcess, listener);
-export const useMainProcessEventsBeforePaint = (listener: (event: WorkbenchEvent) => void) =>
-  useSubscriptionBeforePaint(subscribeToMainProcess, listener);

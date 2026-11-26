@@ -1,5 +1,5 @@
 import { useRef, useState, type MouseEvent, type PointerEvent as ReactPointerEvent } from 'react';
-import { useElementAttachmentBeforePaint } from '../common/effects/element-attachment';
+import { useFocusAtTopBeforePaint } from '../common/effects/focus-request';
 import { useMainProcessEvents } from '../common/effects/subscription';
 import { useLocalization } from '../common/Localization';
 import { nestedMessage } from '../../shared/messages';
@@ -62,11 +62,7 @@ export function ForgeDetailPane({
     setActionState(idleActions);
   });
   const { kind, number } = item;
-  const scroller = useElementAttachmentBeforePaint<HTMLDivElement>(`${kind} ${number}`, element => {
-    element.focus({ preventScroll: true });
-    element.scrollTo?.({ top: 0 });
-    return () => {};
-  });
+  const scroller = useFocusAtTopBeforePaint<HTMLDivElement>([kind, number]);
   const shownItem = useRef(item);
   shownItem.current = item;
   const keydown = (event: React.KeyboardEvent) => {

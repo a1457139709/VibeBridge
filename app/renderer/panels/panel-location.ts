@@ -4,7 +4,7 @@ import { localize } from '../../shared/localization/localization';
 import type { ReportNotice } from '../common/Notices';
 import { focusTerminal, terminalHasFocus } from './terminals';
 import { errorMessage } from '../../shared/caught-error';
-import { useRenderSyncBeforePaint } from '../common/effects/render-sync';
+import { useDomSyncBeforePaint } from '../common/effects/dom-sync';
 import { useUnmountCleanupBeforePaint } from '../common/effects/unmount';
 
 interface View {
@@ -386,10 +386,8 @@ const workspaceConnection = Symbol('workspaceConnection');
 export function usePanelLocation(host: Host) {
   const [, render] = useState(0);
   const [location] = useState(() => createLocation(host, () => render(value => value + 1)));
-  useRenderSyncBeforePaint(() => {
-    location.mount();
-    location.update(host);
-  });
+  useDomSyncBeforePaint(() => location.mount(), [location]);
+  useDomSyncBeforePaint(() => location.update(host));
   useUnmountCleanupBeforePaint(() => location.dispose());
   return {
     view: (projectId: string) => location.view(host.snapshot?.projects.find(project => project.id === projectId)),
@@ -411,7 +409,7 @@ export function useWorkspacePanelLocation(
   const view = location.view(project.id);
   const connection = location[workspaceConnection];
   const element = useRef<HTMLElement | null>(null);
-  useRenderSyncBeforePaint(() => {
+  useDomSyncBeforePaint(() => {
     element.current = canvas.current;
     if (element.current) connection.connect({ projectId: project.id, canvas: element.current, view });
   });

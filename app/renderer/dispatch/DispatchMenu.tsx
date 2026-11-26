@@ -1,8 +1,8 @@
 import { Fragment, useCallback, useId, useRef, useState, type RefObject } from 'react';
-import { useLatest } from '../common/effects/latest';
-import { useMainProcessEvents } from '../common/effects/subscription';
+import { useAfterCommit } from '../common/effects/after-commit';
+import { useDismissalWhileOpen } from '../common/dismissal';
 import { useEventListenerBeforePaint } from '../common/effects/event-listener';
-import { useElementMeasurement } from '../common/effects/element-measurement';
+import { useDomSyncBeforePaint } from '../common/effects/dom-sync';
 import { useLocalization } from '../common/Localization';
 import { ProcessingStatusIcon } from '../common/ProcessingStatusIcon';
 import { agentIcons } from '../common/agent-icons';
@@ -88,18 +88,12 @@ export function DispatchButton({
   const { t } = useLocalization();
   const root = useRef<HTMLDivElement>(null);
   const button = useRef<HTMLButtonElement>(null);
-  const panelToLocate = useRef<string>(undefined);
-  const latest = useLatest({ project, host });
-  const locateWhenShown = (shown: ProjectView | undefined) => {
-    const panelId = panelToLocate.current;
-    if (!panelId || !shown || !projectPanels(shown).some(panel => panel.id === panelId)) return;
-    panelToLocate.current = undefined;
-    latest.current.host.locate(shown.id, panelId);
-  };
-  useMainProcessEvents(event => {
-    if (event.kind === 'snapshot')
-      locateWhenShown(event.snapshot.projects.find(shown => shown.id === latest.current.project.id));
-  });
+  const [panelToLocate, setPanelToLocate] = useState<string>();
+  useAfterCommit(() => {
+    if (!panelToLocate || !projectPanels(project).some(panel => panel.id === panelToLocate)) return;
+    setPanelToLocate(undefined);
+    host.locate(project.id, panelToLocate);
+  }, [panelToLocate, project]);
   const openMenuLabel = displayShortcut(host.openMenuShortcut);
   return (
     <div className={dispatchClass} ref={root} onClick={event => event.stopPropagation()}>
@@ -122,10 +116,7 @@ export function DispatchButton({
           root={root}
           button={button}
           close={() => setOpen(false)}
-          locateWhenShown={panelId => {
-            panelToLocate.current = panelId;
-            locateWhenShown(latest.current.project);
-          }}
+          locateWhenShown={setPanelToLocate}
         />
       )}
     </div>
@@ -164,14 +155,12 @@ function DispatchMenu({
     if (button.current && menu.current) placeMenu(button.current, menu.current);
   };
   const trackAlt = (event: KeyboardEvent) => setInverting(event.altKey);
-  useEventListenerBeforePaint(document, 'pointerdown', event => {
-    if (!(event.target instanceof Node && root.current?.contains(event.target))) close();
-  });
+  useDismissalWhileOpen(true, { contains: target => !!root.current?.contains(target), dismiss: close });
   useEventListenerBeforePaint(window, 'keydown', trackAlt, { capture: true });
   useEventListenerBeforePaint(window, 'keyup', trackAlt, { capture: true });
   useEventListenerBeforePaint(window, 'resize', place);
   useEventListenerBeforePaint(document, 'scroll', place, { capture: true });
-  useElementMeasurement(place);
+  useDomSyncBeforePaint(place);
 
   const commands: MenuCommand[] = workflows
     .filter(workflow => host.workflows[workflow.id]?.enabled)

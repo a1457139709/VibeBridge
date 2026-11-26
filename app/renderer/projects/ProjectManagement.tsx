@@ -9,7 +9,7 @@ import { useInspectedDirectory, usePastedNameProblem } from './project-form';
 import { directoryProblemMessage } from '../../shared/directory-problem';
 import { LaunchResults } from './LaunchResults';
 import { errorMessage } from '../../shared/caught-error';
-import { useEventListener } from '../common/effects/event-listener';
+import { useDismissalWhileOpen } from '../common/dismissal';
 import { useModalDialog, useModalDialogBeforePaint } from '../common/effects/modal-dialog';
 import { useRequestResult } from '../common/effects/request';
 import './project-management.css';
@@ -29,15 +29,11 @@ export function ProjectNavigationItem({
   const [menu, setMenu] = useState<{ x: number; y: number }>();
   const [action, setAction] = useState<'edit' | 'delete'>();
   const menuElement = useRef<HTMLDivElement>(null);
-  const listening = menu ? window : null;
-  useEventListener(listening, 'pointerdown', event => {
-    if (!(event.target instanceof Node && menuElement.current?.contains(event.target))) setMenu(undefined);
-  });
-  useEventListener(listening, 'keydown', event => {
-    if (event.key === 'Escape') {
-      event.preventDefault();
-      setMenu(undefined);
-    }
+  const closeMenu = () => setMenu(undefined);
+  useDismissalWhileOpen(!!menu, {
+    contains: target => !!menuElement.current?.contains(target),
+    dismiss: closeMenu,
+    dismissOnEscape: { beforeOtherHandlers: false, dismiss: closeMenu },
   });
   const showMenu = (x: number, y: number) => {
     flushSync(() =>

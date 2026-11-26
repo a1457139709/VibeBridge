@@ -1,5 +1,5 @@
 import { useRef, useState, type RefObject } from 'react';
-import { useRenderSyncBeforePaint } from '../common/effects/render-sync';
+import { useDomSyncBeforePaint } from '../common/effects/dom-sync';
 
 export const canFly = (panel: Element | null | undefined): panel is Element =>
   !!panel && typeof panel.animate === 'function' && !matchMedia('(prefers-reduced-motion: reduce)').matches;
@@ -49,7 +49,7 @@ export function useTrayFlight({
       card = tray.current?.querySelector(`[data-tray-panel-id="${CSS.escape(panelId)}"]`);
     return card && canFly(slot) ? { slot, card } : undefined;
   };
-  useRenderSyncBeforePaint(() => {
+  useDomSyncBeforePaint(() => {
     if (openPanelId && openPanelId !== shownPanelId.current) {
       const flight = flightOf(openPanelId);
       if (flight) growFromCard(flight.slot, flight.card);

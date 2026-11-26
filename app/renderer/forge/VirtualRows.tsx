@@ -1,5 +1,5 @@
 import { useImperativeHandle, useReducer, useRef, useState, type Ref } from 'react';
-import { useElementMeasurement } from '../common/effects/element-measurement';
+import { useDomSyncBeforePaint } from '../common/effects/dom-sync';
 import { useEventListenerBeforePaint } from '../common/effects/event-listener';
 import { useResizeObserverBeforePaint } from '../common/effects/resize-observer';
 import { flushSync } from 'react-dom';
@@ -51,7 +51,7 @@ export function VirtualRows({
   };
   useEventListenerBeforePaint(scrollArea, 'scroll', readScrollArea);
   useResizeObserverBeforePaint(scrollArea, readScrollArea);
-  useElementMeasurement(() => {
+  useDomSyncBeforePaint(() => {
     const items = listElement.current?.children ?? [];
     let changed = false;
     for (const [offset, item] of [...items].entries()) {

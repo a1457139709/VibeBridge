@@ -62,7 +62,7 @@ function SettingsEditor({
   const [recording, setRecording] = useState<ShortcutAction>();
   const [error, setError] = useState('');
   const [saving, setSaving] = useState(false);
-  const requestFocus = useFocusRequestBeforePaint();
+  const requestFocus = useFocusRequestBeforePaint({ scrollIntoView: true });
   const pending = useRef(false);
   const [leaveCategories, setLeaveCategories] = useState<SettingsCategory[]>([]);
   const leaveDialog = useRef<HTMLDialogElement>(null);

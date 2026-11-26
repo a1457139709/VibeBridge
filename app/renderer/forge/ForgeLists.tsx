@@ -33,7 +33,7 @@ import { useRowResting } from './row-resting';
 import { useMainProcessEvents, useSubscription, type Subscribe } from '../common/effects/subscription';
 import { useUnmountCleanup } from '../common/effects/unmount';
 import { useTimeout } from '../common/effects/timeout';
-import { useFocusRequestBeforePaint } from '../common/effects/focus-request';
+import { useFocusRequest } from '../common/effects/focus-request';
 
 const tabText = {
   issues: {
@@ -125,7 +125,7 @@ export function ForgeLists({ project, changeBinding, detailHost, dispatchHost, v
   const [filters, setFilters] = useState<Record<ForgeListTab, ListFilter>>(view.filters);
   const [detailFailure, setDetailFailure] = useState<FailedPage | null>(null);
   const awaitingFirstRows = useRef(true);
-  const requestFocus = useFocusRequestBeforePaint();
+  const requestFocus = useFocusRequest();
   const focusFirstRowOnceShown = (shown: ListsData, shownTab: ForgeListTab) => {
     if (!shown[shownTab].loaded?.items.length || !awaitingFirstRows.current) return;
     awaitingFirstRows.current = false;

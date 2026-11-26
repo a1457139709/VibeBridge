@@ -30,7 +30,7 @@ import { useTrayFlight } from './tray-flight';
 import { ProjectSummary } from './ProjectSummary';
 import { requireValue } from '../common/required';
 import { useElementAttachmentBeforePaint } from '../common/effects/element-attachment';
-import { useRenderSyncBeforePaint } from '../common/effects/render-sync';
+import { useDomSyncBeforePaint } from '../common/effects/dom-sync';
 import { useUnmountCleanupBeforePaint } from '../common/effects/unmount';
 
 export interface WorkspaceActions {
@@ -166,7 +166,7 @@ export function Workspace({
     if (maximized === panelId) panelLocation.toggleMaximize(panelId);
     void window.workbench.moveToTray(project.id, panelId).catch(error => report(errorMessage(error)));
   };
-  useRenderSyncBeforePaint(() => {
+  useDomSyncBeforePaint(() => {
     const context: PanelInteractionContext = {
       projectId: project.id,
       layout: project.layout,

@@ -1,7 +1,7 @@
 import { useRef, useState } from 'react';
 import { useEventListener } from './effects/event-listener';
 import { useTimeout } from './effects/timeout';
-import { useElementMeasurement } from './effects/element-measurement';
+import { useDomSyncBeforePaint } from './effects/dom-sync';
 
 const showDelay = 400;
 const gap = 6,
@@ -56,7 +56,7 @@ export function HoverHints() {
     focused.current = null;
     if (!hovered.current) hide();
   });
-  useElementMeasurement(() => {
+  useDomSyncBeforePaint(() => {
     const element = hint.current;
     if (!anchor || !element) return;
     const box = anchor.getBoundingClientRect(),

@@ -1,6 +1,7 @@
 import { useRef, useState, type PointerEvent } from 'react';
 import { useSubscriptionBeforePaint } from './effects/subscription';
 import { useUnmountCleanupBeforePaint } from './effects/unmount';
+import { useLatest } from './effects/latest';
 import type { DesktopAPI } from '../../shared/api';
 import { sidebars, type Sidebar, type SidebarPreferences, type Snapshot } from '../../shared/model';
 import { errorMessage } from '../../shared/caught-error';
@@ -24,8 +25,7 @@ export function useSidebarPreferences(options: Options) {
     api: { subscribe },
   } = options;
   const { defaults } = sidebars[sidebar];
-  const latest = useRef(options);
-  latest.current = options;
+  const latest = useLatest(options);
   const [shown, setShown] = useState<SidebarPreferences>();
   const preferences = shown ?? snapshot?.[sidebar] ?? defaults;
   const settled = useRef<SidebarPreferences>(undefined);
