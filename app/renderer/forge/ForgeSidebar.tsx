@@ -1,5 +1,6 @@
 import { useLocalization } from '../common/Localization';
-import { useLayoutEffect, useRef, useState, type PointerEvent as ReactPointerEvent } from 'react';
+import { useRef, useState, type PointerEvent as ReactPointerEvent } from 'react';
+import { flushSync } from 'react-dom';
 import { SidebarCollapseIcon, SidebarExpandIcon } from '@primer/octicons-react';
 import { displayShortcut, type IssueShortcutAction } from '../../shared/settings/shortcuts';
 import type { DesktopAPI } from '../../shared/api';
@@ -41,14 +42,12 @@ export function useForgeSidebar(host: Host, api: Pick<DesktopAPI, 'saveSidebar' 
     report: host.report,
   });
   const element = useRef<HTMLElement>(null);
-  const focusOnOpen = useRef(false);
-  const [focusRequest, setFocusRequest] = useState(0);
   const [changingBindingOf, setChangingBindingOf] = useState<string>();
   const [detailOpenIn, setDetailOpenIn] = useState<string>();
   const [width, setWidth] = useState(detailWidth.initial);
   const [lastTargets, setLastTargets] = useState<ReadonlyMap<string, DispatchTarget>>(new Map());
   const listsActions = useRef<ForgeListsActions>(null);
-  const listsViews = useRef(new Map<string, ListsView>());
+  const [listsViews, setListsViews] = useState<ReadonlyMap<string, ListsView>>(new Map());
   const detail: DetailHost = {
     onDetailOpenChange: open => setDetailOpenIn(open ? bindingKey : undefined),
     startResize(event: ReactPointerEvent<HTMLDivElement>) {
@@ -68,24 +67,23 @@ export function useForgeSidebar(host: Host, api: Pick<DesktopAPI, 'saveSidebar' 
   const listsShownFor = sidebarOpen && changingBindingOf !== bindingKey ? bindingKey : undefined;
   if (detailOpenIn !== undefined && detailOpenIn !== listsShownFor) setDetailOpenIn(undefined);
   const detailOpen = detailOpenIn !== undefined && detailOpenIn === listsShownFor;
-  useLayoutEffect(() => {
-    if (sidebarOpen && focusOnOpen.current) requireValue(element.current, 'the forge sidebar').focus();
-    focusOnOpen.current = false;
-  }, [sidebarOpen, focusRequest]);
   function toggle() {
     if (!project) return false;
-    focusOnOpen.current = !preferences.visible;
-    if (!togglePreferences()) focusOnOpen.current = false;
+    const opening = !preferences.visible;
+    let opened = false;
+    flushSync(() => {
+      opened = togglePreferences();
+    });
+    if (opening && opened) element.current?.focus();
     return true;
   }
   function openBinding(target: ProjectView) {
     const key = keyOfBinding(target);
-    setChangingBindingOf(key);
-    if (!key) {
-      focusOnOpen.current = true;
-      setFocusRequest(request => request + 1);
-    }
-    if (!preferences.visible) togglePreferences();
+    flushSync(() => {
+      setChangingBindingOf(key);
+      if (!preferences.visible) togglePreferences();
+    });
+    if (!key) element.current?.focus();
   }
   const runIssueShortcut = (action: IssueShortcutAction) =>
     !!element.current?.contains(document.activeElement) && (listsActions.current?.runIssueShortcut(action) ?? false);
@@ -148,8 +146,8 @@ export function useForgeSidebar(host: Host, api: Pick<DesktopAPI, 'saveSidebar' 
           <ForgeLists
             ref={listsActions}
             key={bindingKey}
-            view={listsViews.current.get(bindingKey) ?? openListsView}
-            rememberView={view => void listsViews.current.set(bindingKey, view)}
+            view={listsViews.get(bindingKey) ?? openListsView}
+            rememberView={view => setListsViews(views => new Map(views).set(bindingKey, view))}
             project={{ ...project, repository: project.repository }}
             changeBinding={() => setChangingBindingOf(bindingKey)}
             detailHost={detail}

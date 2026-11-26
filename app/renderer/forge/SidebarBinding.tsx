@@ -1,5 +1,7 @@
-import { useEffect, useId, useRef, useState, type ReactNode } from 'react';
+import { useId, useRef, useState, type ReactNode } from 'react';
+import { flushSync } from 'react-dom';
 import { useLocalization } from '../common/Localization';
+import { useMainProcessEvents, useRepositoryChoicesShown } from '../common/main-process';
 import type { ProjectView } from '../../shared/model';
 import { sameRepository, type RepositoryReference } from '../../shared/forge/forge';
 import type { ShownRepositoryChoices } from '../../shared/forge/sidebar-data';
@@ -8,23 +10,22 @@ import { errorMessage } from '../../shared/caught-error';
 import './sidebar-binding.css';
 
 function useShownRepositoryChoices({ id: projectId, directory, forge }: ProjectView) {
-  const [choices, setChoices] = useState<ShownRepositoryChoices>(null);
-  const show = () =>
-    void window.workbench
-      .showRepositoryChoices(projectId)
-      .catch(error => setChoices({ ok: false, failure: { kind: 'transient', detail: errorMessage(error), forge } }));
-  useEffect(() => {
-    setChoices(null);
-    const stop = window.workbench.subscribe(event => {
-      if (event.kind === 'repositoryChoices' && event.projectId === projectId) setChoices(event.choices);
-    });
-    show();
-    return stop;
-  }, [projectId, directory]);
+  const [shown, setShown] = useState<{ directory: string; choices: ShownRepositoryChoices }>({
+    directory,
+    choices: null,
+  });
+  const choices = shown.directory === directory ? shown.choices : null;
+  const failed = (error: unknown) =>
+    setShown({ directory, choices: { ok: false, failure: { kind: 'transient', detail: errorMessage(error), forge } } });
+  useMainProcessEvents(event => {
+    if (event.kind === 'repositoryChoices' && event.projectId === projectId)
+      setShown({ directory, choices: event.choices });
+  });
+  useRepositoryChoicesShown(projectId, directory, failed);
   return {
     choices,
     listed: choices?.ok ? choices : undefined,
-    retry: show,
+    retry: () => void window.workbench.showRepositoryChoices(projectId).catch(failed),
   };
 }
 
@@ -55,27 +56,13 @@ function useBindingCall() {
   };
 }
 
-function useFocusHandoff() {
-  const pending = useRef(false);
-  return {
-    request() {
-      pending.current = true;
-    },
-    ref(element: HTMLElement | null) {
-      if (!element || !pending.current) return;
-      pending.current = false;
-      element.focus();
-    },
-  };
-}
-
 export function UnboundRepository({ project }: { project: ProjectView }) {
   const { t } = useLocalization();
   const { choices, listed, retry } = useShownRepositoryChoices(project);
   const [choosingOther, setChoosingOther] = useState(false);
   const [picked, setPicked] = useState<RepositoryReference>();
   const call = useBindingCall();
-  const cardFocus = useFocusHandoff();
+  const chooseOther = useRef<HTMLButtonElement>(null);
   const cardLabel = useId();
   const selection = listed ? (picked ?? listed.origin ?? null) : null;
   const bind = (repository: RepositoryReference) =>
@@ -99,7 +86,7 @@ export function UnboundRepository({ project }: { project: ProjectView }) {
         <button className="primary" disabled={call.busy} onClick={() => bind(origin)}>
           {call.busy ? t('binding') : t('bindTo', { repository: origin.path })}
         </button>
-        <button className="binding-link" ref={cardFocus.ref} onClick={() => setChoosingOther(true)}>
+        <button className="binding-link" ref={chooseOther} onClick={() => setChoosingOther(true)}>
           {t('chooseOtherRepository')}
         </button>
       </div>
@@ -114,9 +101,11 @@ export function UnboundRepository({ project }: { project: ProjectView }) {
         <button
           className="binding-link"
           onClick={() => {
-            cardFocus.request();
-            setChoosingOther(false);
-            setPicked(undefined);
+            flushSync(() => {
+              setChoosingOther(false);
+              setPicked(undefined);
+            });
+            chooseOther.current?.focus();
           }}
         >
           {t('bindingBack')}
@@ -154,7 +143,7 @@ export function ChangeBinding({
   const [picked, setPicked] = useState<RepositoryReference>();
   const [unbinding, setUnbinding] = useState(false);
   const call = useBindingCall();
-  const unbindFocus = useFocusHandoff();
+  const unbindChoice = useRef<HTMLButtonElement>(null);
   const rebindTarget = listed && picked && !sameRepository(picked, boundRepository) ? picked : undefined;
   let consequence: ReactNode = null;
   const consequenceId = useId();
@@ -196,11 +185,11 @@ export function ChangeBinding({
           <>
             <span className="binding-spacer" />
             <button
-              ref={unbindFocus.ref}
+              ref={unbindChoice}
               disabled={call.busy}
               onClick={() => {
-                unbindFocus.request();
-                setUnbinding(false);
+                flushSync(() => setUnbinding(false));
+                unbindChoice.current?.focus();
               }}
             >
               {t('cancel')}
@@ -218,12 +207,14 @@ export function ChangeBinding({
           <>
             <button
               className="binding-link danger"
-              ref={unbindFocus.ref}
+              ref={unbindChoice}
               disabled={call.busy}
               onClick={() => {
-                unbindFocus.request();
-                setPicked(undefined);
-                setUnbinding(true);
+                flushSync(() => {
+                  setPicked(undefined);
+                  setUnbinding(true);
+                });
+                unbindChoice.current?.focus();
               }}
             >
               {t('unbind')}

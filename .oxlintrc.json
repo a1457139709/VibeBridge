@@ -89,55 +89,13 @@
       "rules": { "no-restricted-imports": "off" }
     },
     {
-      // Unmigrated area, warn until its ticket passes the effect rules: workspace and panels.
-      "files": ["app/renderer/workspace/**", "app/renderer/panels/**"],
-      "rules": {
-        "no-restricted-imports": [
-          "warn",
-          {
-            "paths": [
-              {
-                "name": "react",
-                "importNames": ["useEffect", "useLayoutEffect", "default"],
-                "message": "An effect only synchronizes with a system outside React (main-process events, window or document events, element observers, timers). Compute a value derived from props or state during render; do what a user action causes in its event handler; for an outside system, use an existing hook that synchronizes that one system. Do not wrap an effect in a hook that takes a callback and dependencies. Import React APIs by name. A file that truly synchronizes one outside system is listed by path in an override of .oxlintrc.json."
-              }
-            ]
-          }
-        ],
-        "react/rules-of-hooks": "warn",
-        "react/exhaustive-deps": "warn",
-        "rh/set-state-in-effect": "warn",
-        "rh/set-state-in-render": "warn",
-        "rh/purity": "warn",
-        "rh/immutability": "warn",
-        "rh/refs": "warn",
-        "ynne/no-derived-state": "warn",
-        "ynne/no-chain-state-updates": "warn",
-        "ynne/no-event-handler": "warn",
-        "ynne/no-adjust-state-on-prop-change": "warn",
-        "ynne/no-reset-all-state-on-prop-change": "warn",
-        "ynne/no-pass-live-state-to-parent": "warn",
-        "ynne/no-pass-data-to-parent": "warn",
-        "ynne/no-external-store-subscription": "warn",
-        "ynne/no-initialize-state": "warn"
-      }
+      // Synchronizes where the pointer and keyboard focus rest among a list's rows, as the list element reports them.
+      "files": ["app/renderer/forge/row-resting.ts"],
+      "rules": { "no-restricted-imports": "off" }
     },
     {
-      // Unmigrated area, warn until its ticket passes the effect rules: forge detail, sidebar and rows.
-      "files": [
-        "app/renderer/forge/ForgeDetail.tsx",
-        "app/renderer/forge/IssueDetail.tsx",
-        "app/renderer/forge/PullRequestDetail.tsx",
-        "app/renderer/forge/DirectActions.tsx",
-        "app/renderer/forge/merge-requirements.ts",
-        "app/renderer/forge/ForgeSidebar.tsx",
-        "app/renderer/forge/SidebarBinding.tsx",
-        "app/renderer/forge/SidebarHead.tsx",
-        "app/renderer/forge/StaleNotice.tsx",
-        "app/renderer/forge/ForgeDisplay.tsx",
-        "app/renderer/forge/ForgeRows.tsx",
-        "app/renderer/forge/row-resting.ts"
-      ],
+      // Unmigrated area, warn until its ticket passes the effect rules: workspace and panels.
+      "files": ["app/renderer/workspace/**", "app/renderer/panels/**"],
       "rules": {
         "no-restricted-imports": [
           "warn",

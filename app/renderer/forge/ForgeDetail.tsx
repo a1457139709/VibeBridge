@@ -1,12 +1,6 @@
-import {
-  useEffect,
-  useLayoutEffect,
-  useRef,
-  useState,
-  type MouseEvent,
-  type PointerEvent as ReactPointerEvent,
-} from 'react';
+import { useCallback, useState, type MouseEvent, type PointerEvent as ReactPointerEvent } from 'react';
 import { useLocalization } from '../common/Localization';
+import { useMainProcessEvents } from '../common/main-process';
 import { nestedMessage } from '../../shared/messages';
 import type {
   DirectAction,
@@ -61,23 +55,18 @@ export function ForgeDetailPane({
   const { t, text } = useLocalization();
   const [loaded, setLoaded] = useState<ShownDetail | null>(null);
   const [actionState, setActionState] = useState<ActionState>(idleActions);
-  useEffect(
-    () =>
-      window.workbench.subscribe(event => {
-        if (event.kind !== 'forgeDetail' || event.projectId !== project.id) return;
-        setLoaded(event.detail);
-        setActionState(idleActions);
-      }),
-    [project.id],
-  );
-  const scroller = useRef<HTMLDivElement>(null);
+  useMainProcessEvents(event => {
+    if (event.kind !== 'forgeDetail' || event.projectId !== project.id) return;
+    setLoaded(event.detail);
+    setActionState(idleActions);
+  });
   const { kind, number } = item;
-  const shownItem = useRef(item);
-  shownItem.current = item;
-  useLayoutEffect(() => {
-    scroller.current?.focus({ preventScroll: true });
-    scroller.current?.scrollTo?.({ top: 0 });
-  }, [kind, number]);
+  const [shownDocument, setShownDocument] = useState<HTMLDivElement | null>(null);
+  const showDocument = useCallback((element: HTMLDivElement | null) => {
+    if (!element) return;
+    element.focus({ preventScroll: true });
+    setShownDocument(element);
+  }, []);
   const keydown = (event: React.KeyboardEvent) => {
     if (
       event.defaultPrevented ||
@@ -95,6 +84,7 @@ export function ForgeDetailPane({
   const stale = forItem?.failed ?? null;
   const loadedItem = result?.ok ? ('issue' in result ? result.issue : result.pullRequest) : null;
   const perform = async (action: DirectAction) => {
+    const performedIn = shownDocument;
     setActionState({ performing: action, failed: null });
     let result: DirectActionResult;
     try {
@@ -105,7 +95,7 @@ export function ForgeDetailPane({
         failure: { kind: 'transient', detail: text(errorMessage(error)), forge: project.forge },
       };
     }
-    if (shownItem.current.kind !== kind || shownItem.current.number !== number) return;
+    if (!performedIn?.isConnected) return;
     if (result.ok) reportChanged(item);
     else if (result.failure.kind === 'notInstalled' || result.failure.kind === 'loggedOut')
       showForgeFailure(result.failure);
@@ -149,7 +139,7 @@ export function ForgeDetailPane({
         </button>
       </header>
       {stale && <StaleNotice detail={text(stale.detail)} retry={retry} />}
-      <div className="forge-detail-scroll" ref={scroller} tabIndex={-1}>
+      <div key={`${kind} ${number}`} className="forge-detail-scroll" ref={showDocument} tabIndex={-1}>
         {!result ? (
           <p className="forge-empty" role="status">
             {t('loadingDetail', { number })}

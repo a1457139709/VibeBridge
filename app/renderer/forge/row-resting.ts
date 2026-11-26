@@ -1,10 +1,9 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useEffectEvent } from 'react';
 import { sameItem, type DetailItem } from '../../shared/forge/sidebar-data';
 import { listRowOf } from './ForgeRows';
 
 export function useRowResting(scrollArea: HTMLElement | null, report: (item: DetailItem | null) => void) {
-  const reportLatest = useRef(report);
-  reportLatest.current = report;
+  const reported = useEffectEvent(report);
   useEffect(() => {
     if (!scrollArea) return;
     let resting: { row: Element; item: DetailItem } | null = null;
@@ -12,7 +11,7 @@ export function useRowResting(scrollArea: HTMLElement | null, report: (item: Det
       const found = target instanceof Element && scrollArea.contains(target) ? listRowOf(target) : null;
       const changed = !sameItem(resting?.item ?? null, found?.item ?? null);
       resting = found;
-      if (changed) reportLatest.current(found?.item ?? null);
+      if (changed) reported(found?.item ?? null);
     };
     const pointerOver = (event: PointerEvent) => restOn(event.target);
     const pointerLeave = () => restOn(null);
@@ -32,7 +31,7 @@ export function useRowResting(scrollArea: HTMLElement | null, report: (item: Det
       scrollArea.removeEventListener('focusin', focusIn);
       scrollArea.removeEventListener('focusout', focusOut);
       unmounted.disconnect();
-      if (resting) reportLatest.current(null);
+      if (resting) reported(null);
     };
   }, [scrollArea]);
 }
