@@ -1,6 +1,6 @@
 import { useRef, useState } from 'react';
 import { useDocumentEvent } from './document-events';
-import { useTimeout } from './timer';
+import { Timeout } from './timer';
 
 const showDelay = 400;
 const gap = 6,
@@ -24,17 +24,11 @@ function placeHint(hint: HTMLElement, anchor: HTMLElement) {
 
 export function HoverHints() {
   const [anchor, setAnchor] = useState<HTMLElement>();
-  const [waiting, setWaiting] = useState<{ element: HTMLElement; delay: number }>();
+  const [waiting, setWaiting] = useState<{ element: HTMLElement; delay: number; request: number }>();
+  const requests = useRef(0);
   const hovered = useRef<HTMLElement | null>(null);
   const focused = useRef<HTMLElement | null>(null);
-  useTimeout(
-    () => {
-      setAnchor(waiting?.element);
-      setWaiting(undefined);
-    },
-    { delay: waiting?.delay, restartKey: waiting },
-  );
-  const show = (element: HTMLElement, delay: number) => setWaiting({ element, delay });
+  const show = (element: HTMLElement, delay: number) => setWaiting({ element, delay, request: ++requests.current });
   const hide = () => {
     setWaiting(undefined);
     setAnchor(focused.current ?? undefined);
@@ -71,16 +65,29 @@ export function HoverHints() {
     focused.current = null;
     if (!hovered.current) hide();
   });
-  if (!anchor?.isConnected || !anchor.dataset.hint) return null;
   return (
-    <div
-      ref={hint => {
-        if (hint) placeHint(hint, anchor);
-      }}
-      role="tooltip"
-      className="hover-hint"
-    >
-      {anchor.dataset.hint}
-    </div>
+    <>
+      {waiting && (
+        <Timeout
+          key={waiting.request}
+          delay={waiting.delay}
+          onTimeout={() => {
+            setAnchor(waiting.element);
+            setWaiting(undefined);
+          }}
+        />
+      )}
+      {anchor?.isConnected && anchor.dataset.hint && (
+        <div
+          ref={hint => {
+            if (hint) placeHint(hint, anchor);
+          }}
+          role="tooltip"
+          className="hover-hint"
+        >
+          {anchor.dataset.hint}
+        </div>
+      )}
+    </>
   );
 }

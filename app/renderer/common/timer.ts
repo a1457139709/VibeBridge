@@ -1,17 +1,8 @@
 import { useEffect, useEffectEvent, useRef } from 'react';
 
-interface Timing {
-  delay: number | undefined;
-  restartKey?: unknown;
-  paused?: boolean;
-}
-
-export function useTimeout(onTimeout: () => void, { delay, restartKey, paused = false }: Timing) {
+export function Timeout({ delay, paused = false, onTimeout }: { delay: number; paused?: boolean; onTimeout(): void }) {
   const timedOut = useEffectEvent(onTimeout);
-  const remaining = useRef(delay);
-  useEffect(() => {
-    remaining.current = delay;
-  }, [delay, restartKey]);
+  const remaining = useRef<number | undefined>(delay);
   useEffect(() => {
     const duration = remaining.current;
     if (paused || duration === undefined) return;
@@ -26,5 +17,16 @@ export function useTimeout(onTimeout: () => void, { delay, restartKey, paused = 
       clearTimeout(timer);
       if (!fired) remaining.current = Math.max(0, duration - (Date.now() - started));
     };
-  }, [delay, restartKey, paused]);
+  }, [paused]);
+  return null;
+}
+
+export function wait(delay: number, signal: AbortSignal) {
+  return new Promise<void>((resolve, reject) => {
+    const timer = setTimeout(resolve, delay);
+    signal.addEventListener('abort', () => {
+      clearTimeout(timer);
+      reject(signal.reason);
+    });
+  });
 }

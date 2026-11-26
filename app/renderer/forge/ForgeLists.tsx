@@ -2,7 +2,7 @@ import { useImperativeHandle, useRef, useState, type PointerEvent as ReactPointe
 import { flushSync } from 'react-dom';
 import { useLocalization } from '../common/Localization';
 import { useForgeSidebarPresence, useMainProcessEvents } from '../common/main-process';
-import { useTimeout } from '../common/timer';
+import { Timeout } from '../common/timer';
 import { nestedMessage } from '../../shared/messages';
 import type {
   ForgeFailure,
@@ -226,14 +226,11 @@ export function ForgeLists({ project, changeBinding, detailHost, dispatchHost, v
   const listRequest = JSON.stringify({ tab, filter: filters[tab] });
   const lastSearch = declaredList.searches[tab];
   const typing = lastSearch !== null && lastSearch !== filters[tab].search;
-  useTimeout(
-    () => {
-      const filter = filters[tab];
-      setDeclaredList(last => ({ request: listRequest, searches: { ...last.searches, [tab]: filter.search } }));
-      declare(window.workbench.showForgeList(project.id, { tab, filter }));
-    },
-    { delay: declaredList.request === listRequest ? undefined : typing ? typingDelay : 0, restartKey: listRequest },
-  );
+  const showList = () => {
+    const filter = filters[tab];
+    setDeclaredList(last => ({ request: listRequest, searches: { ...last.searches, [tab]: filter.search } }));
+    declare(window.workbench.showForgeList(project.id, { tab, filter }));
+  };
   useForgeSidebarPresence(project.id, reportFailure);
 
   const { forge } = project;
@@ -245,7 +242,12 @@ export function ForgeLists({ project, changeBinding, detailHost, dispatchHost, v
     </button>
   );
   const head = (
-    <SidebarHead title={project.repository.path} refresh={refresh} loading={loading} changeBinding={changeBinding} />
+    <>
+      {declaredList.request !== listRequest && (
+        <Timeout key={listRequest} delay={typing ? typingDelay : 0} onTimeout={showList} />
+      )}
+      <SidebarHead title={project.repository.path} refresh={refresh} loading={loading} changeBinding={changeBinding} />
+    </>
   );
   const fill = (body: React.ReactNode) => (
     <>

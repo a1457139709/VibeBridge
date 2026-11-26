@@ -155,7 +155,7 @@ export function ProjectEditor({
   const choices = useRequestResult<RepositoryChoices | undefined>(
     (boundRepository && directoryField.changed && directoryField.directory) || undefined,
     directory => window.workbench.fetchRepositoryChoices(project.id, directory),
-    { recover: () => undefined },
+    () => undefined,
   );
   const listed = choices?.ok ? choices : undefined;
   const originElsewhere = originElsewhereThanBinding(boundRepository, listed);
