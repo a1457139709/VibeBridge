@@ -1,0 +1,102 @@
+.proto-controls {
+  width: 340px;
+  max-height: calc(100vh - 32px);
+  overflow: auto;
+}
+.sc-tabs {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+.sc-tabs button {
+  text-align: left;
+  padding: 4px 8px !important;
+}
+.sc-tabs button[aria-selected='true'] {
+  background: #4a3500 !important;
+  color: #fff8e1 !important;
+}
+.sc-card {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 10px;
+  border-radius: 6px;
+  background: #fff;
+  border: 1px solid #e3c77a;
+}
+.sc-task {
+  font-size: 16px;
+  font-weight: 700;
+  line-height: 1.35;
+  color: #222;
+}
+.sc-setup {
+  font-family: ui-monospace, monospace;
+  font-size: 11px;
+}
+.sc-variants {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+.sc-variants button {
+  text-align: left;
+}
+.sc-variants button.on {
+  background: #ffd400 !important;
+  border-color: #111 !important;
+  color: #111 !important;
+}
+.sc-look-head {
+  font-weight: 700;
+}
+.sc-look {
+  margin: 0;
+  padding-left: 18px;
+  line-height: 1.5;
+}
+.sc-reload {
+  align-self: flex-start;
+}
+.sc-free summary {
+  cursor: pointer;
+  font-weight: 600;
+  margin-bottom: 6px;
+}
+.sc-free {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.sc-free[open] > :not(summary) {
+  margin-bottom: 8px;
+}
+
+.sb-box {
+  position: relative;
+  z-index: 1;
+}
+.sb-box .forge-ref .forge-blocked {
+  flex-shrink: 0;
+}
+.ga-plot .sb-box {
+  margin-top: 2px;
+}
+.sb-pointer {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  min-height: 0;
+  height: 28px;
+  padding: 0 10px;
+  border: 1px dashed var(--line);
+  border-radius: 6px;
+  background: var(--surface);
+  font-size: 12px;
+  text-align: left;
+}
+.sb-pointer:hover {
+  border-color: var(--forge-link);
+}

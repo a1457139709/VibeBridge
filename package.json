@@ -27,7 +27,8 @@
     "start": "node scripts/start.mjs",
     "dev": "npm run build && npm start",
     "package": "npm run prepare:runtime && npm run build && node scripts/package.mjs",
-    "rebuild:terminal": "electron-rebuild -f -w node-pty"
+    "rebuild:terminal": "electron-rebuild -f -w node-pty",
+    "prototype:issue-relation-graph": "vite --config vite.prototype-issue-relation-graph.config.ts --port 5201 --open /prototype-issue-relation-graph.html"
   },
   "dependencies": {
     "@primer/octicons-react": "19.42.0",
