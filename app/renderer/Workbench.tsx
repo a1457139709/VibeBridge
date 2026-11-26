@@ -1,12 +1,12 @@
 import { HoverHints } from './common/HoverHints';
 import { Localization, useLocalization } from './common/Localization';
-import { useEffect, useRef, useState } from 'react';
+import { useRef, useState } from 'react';
 import { flushSync } from 'react-dom';
 import type {} from '../shared/api';
-import { newDraft, type Snapshot } from '../shared/model';
+import { newDraft, type Language, type Snapshot } from '../shared/model';
 import { useProjectNavigation } from './projects/ProjectNavigation';
 import { useForgeSidebar } from './forge/ForgeSidebar';
-import { fitRegions, useWindowWidth, type Region, type RegionFit, type WidestOnResize } from './common/region-widths';
+import { fitRegions, useWindowWidth, type Region, type WidestOnResize } from './common/region-widths';
 import { Setup } from './projects/Setup';
 import { Workspace, type WorkspaceActions } from './workspace/Workspace';
 import { usePanelLocation } from './panels/panel-location';
@@ -17,15 +17,16 @@ import { shortcutActions, shortcutFromEvent } from '../shared/settings/shortcuts
 import type { SettingsCategory } from '../shared/settings/settings';
 import { configureTerminals, reconcileTerminals, applyTerminalEvent, setTerminalLanguage } from './panels/terminals';
 import { errorMessage } from '../shared/caught-error';
-import { requireValue } from './common/required';
+import { useMainProcessConnection } from './common/main-process';
+import { useWindowEvent } from './common/window-events';
+
+function applyLanguage(language: Language) {
+  document.documentElement.lang = language;
+  setTerminalLanguage(language);
+}
 
 export function App() {
   const [snapshot, setSnapshot] = useState<Snapshot>();
-  useEffect(() => {
-    const language = snapshot?.settings.language ?? 'en';
-    document.documentElement.lang = language;
-    setTerminalLanguage(language);
-  }, [snapshot?.settings.language]);
   return (
     <Localization language={snapshot?.settings.language ?? 'en'}>
       <WorkbenchView snapshot={snapshot} setSnapshot={setSnapshot} />
@@ -50,30 +51,30 @@ function WorkbenchView({ snapshot, setSnapshot }: { snapshot?: Snapshot; setSnap
     showWorkbench: () => setSetupOpen(false),
     report,
   });
-  useEffect(() => {
-    let unsubscribe = () => {};
-    void window.workbench
-      .fetchSnapshot()
-      .then(async initial => {
-        const dark = initial.resolvedTheme === 'dark';
-        document.documentElement.dataset.theme = dark ? 'dark' : 'light';
-        configureTerminals(dark, report);
-        setSnapshot(initial);
-        setSetupOpen(!initial.projects.length);
-        initial.errors.forEach(message => report(message));
-        reconcileTerminals(initial.projects);
-        unsubscribe = window.workbench.subscribe(event => {
-          if (event.kind === 'snapshot') {
-            reconcileTerminals(event.snapshot.projects);
-            flushSync(() => setSnapshot(event.snapshot));
-          } else if (event.kind === 'error') report(event.message);
-          applyTerminalEvent(event);
-        });
-        await window.workbench.reportRendererReady();
-      })
-      .catch(error => report(errorMessage(error)));
-    return () => unsubscribe();
-  }, []);
+  const adoptLanguage = (next: Snapshot) => {
+    if (next.settings.language !== snapshot?.settings.language) applyLanguage(next.settings.language);
+  };
+  useMainProcessConnection({
+    connected(initial) {
+      const dark = initial.resolvedTheme === 'dark';
+      document.documentElement.dataset.theme = dark ? 'dark' : 'light';
+      configureTerminals(dark, report);
+      setSnapshot(initial);
+      setSetupOpen(!initial.projects.length);
+      initial.errors.forEach(message => report(message));
+      reconcileTerminals(initial.projects);
+      adoptLanguage(initial);
+    },
+    received(event) {
+      if (event.kind === 'snapshot') {
+        reconcileTerminals(event.snapshot.projects);
+        adoptLanguage(event.snapshot);
+        flushSync(() => setSnapshot(event.snapshot));
+      } else if (event.kind === 'error') report(event.message);
+      applyTerminalEvent(event);
+    },
+    failed: error => report(errorMessage(error)),
+  });
   async function leaveSettings(action: () => void = () => {}) {
     if (leavingSettings.current) return;
     leavingSettings.current = true;
@@ -112,10 +113,9 @@ function WorkbenchView({ snapshot, setSnapshot }: { snapshot?: Snapshot; setSnap
     navigate(() => location.locatePanel(projectId, panelId, runId));
   const windowWidth = useWindowWidth();
   const [lastResized, setLastResized] = useState<Region>('navigation');
-  const drawn = useRef<Record<Region, RegionFit>>(undefined);
   const widestOnResize: WidestOnResize = region => {
     setLastResized(region);
-    return requireValue(drawn.current, 'the drawn regions')[region].widest;
+    return fits[region].widest;
   };
   const navigation = useProjectNavigation({
     snapshot: snapshot,
@@ -150,10 +150,10 @@ function WorkbenchView({ snapshot, setSnapshot }: { snapshot?: Snapshot; setSnap
     },
     lastResized,
   );
-  drawn.current = fits;
   const conflictCategory = snapshot?.settingsConflicts[0]?.category;
-  useEffect(() => {
-    const keydown = (event: KeyboardEvent) => {
+  useWindowEvent(
+    'keydown',
+    event => {
       if (
         !snapshot ||
         !document.hasFocus() ||
@@ -186,10 +186,9 @@ function WorkbenchView({ snapshot, setSnapshot }: { snapshot?: Snapshot; setSnap
         event.preventDefault();
         event.stopImmediatePropagation();
       }
-    };
-    window.addEventListener('keydown', keydown, true);
-    return () => window.removeEventListener('keydown', keydown, true);
-  });
+    },
+    { capture: true },
+  );
   return (
     <div className="app">
       <header className="system-bar">

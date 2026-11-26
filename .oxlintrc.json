@@ -59,38 +59,29 @@
       }
     },
     {
-      // Unmigrated area, warn until its ticket passes the effect rules: common and Workbench.
-      "files": ["app/renderer/common/**", "app/renderer/Workbench.tsx", "app/renderer/index.tsx"],
-      "rules": {
-        "no-restricted-imports": [
-          "warn",
-          {
-            "paths": [
-              {
-                "name": "react",
-                "importNames": ["useEffect", "useLayoutEffect", "default"],
-                "message": "An effect only synchronizes with a system outside React (main-process events, window or document events, element observers, timers). Compute a value derived from props or state during render; do what a user action causes in its event handler; for an outside system, use an existing hook that synchronizes that one system. Do not wrap an effect in a hook that takes a callback and dependencies. Import React APIs by name. A file that truly synchronizes one outside system is listed by path in an override of .oxlintrc.json."
-              }
-            ]
-          }
-        ],
-        "react/rules-of-hooks": "warn",
-        "react/exhaustive-deps": "warn",
-        "rh/set-state-in-effect": "warn",
-        "rh/set-state-in-render": "warn",
-        "rh/purity": "warn",
-        "rh/immutability": "warn",
-        "rh/refs": "warn",
-        "ynne/no-derived-state": "warn",
-        "ynne/no-chain-state-updates": "warn",
-        "ynne/no-event-handler": "warn",
-        "ynne/no-adjust-state-on-prop-change": "warn",
-        "ynne/no-reset-all-state-on-prop-change": "warn",
-        "ynne/no-pass-live-state-to-parent": "warn",
-        "ynne/no-pass-data-to-parent": "warn",
-        "ynne/no-external-store-subscription": "warn",
-        "ynne/no-initialize-state": "warn"
-      }
+      // Synchronizes the main process: the first snapshot, then its events.
+      "files": ["app/renderer/common/main-process.ts"],
+      "rules": { "no-restricted-imports": "off" }
+    },
+    {
+      // Synchronizes window events.
+      "files": ["app/renderer/common/window-events.ts"],
+      "rules": { "no-restricted-imports": "off" }
+    },
+    {
+      // Synchronizes document events.
+      "files": ["app/renderer/common/document-events.ts"],
+      "rules": { "no-restricted-imports": "off" }
+    },
+    {
+      // Synchronizes a timer that keeps its remaining time while paused.
+      "files": ["app/renderer/common/timer.ts"],
+      "rules": { "no-restricted-imports": "off" }
+    },
+    {
+      // Synchronizes a request whose result belongs to the key that asked for it.
+      "files": ["app/renderer/common/request-result.ts"],
+      "rules": { "no-restricted-imports": "off" }
     },
     {
       // Unmigrated area, warn until its ticket passes the effect rules: settings.

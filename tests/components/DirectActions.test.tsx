@@ -262,6 +262,22 @@ test('the close menu closes an issue as not planned, and a closed issue reopens'
   assert.deepEqual((await action(2)).action, { kind: 'reopenIssue', number: 3 });
 });
 
+test('the close menu stays open for a press inside it, and Escape or a press outside closes only the menu', async () => {
+  const { user } = await openIssue({ issue: issueDetail(3) });
+  const more = within(issuePane()).getByRole('button', { name: t('moreCloseOptions') });
+  const menu = () => within(issuePane()).queryByRole('menu', { name: t('moreCloseOptions') });
+  await user.click(more);
+  await user.pointer({ keys: '[MouseLeft>]', target: requireValue(menu(), 'the open menu') });
+  await user.pointer({ keys: '[/MouseLeft]' });
+  assert.notEqual(menu(), null);
+  await user.keyboard('{Escape}');
+  await waitFor(() => assert.equal(menu(), null));
+  await detailHeading(issuePane(), titles.issue, 3);
+  await user.click(more);
+  await user.click(issuePane());
+  await waitFor(() => assert.equal(menu(), null));
+});
+
 test('a failed action shows the forge text under the buttons with Retry until dismissed or the next refresh', async () => {
   const forge: Forge = { issue: issueDetail(3) };
   const { user, action } = await openIssue(forge);

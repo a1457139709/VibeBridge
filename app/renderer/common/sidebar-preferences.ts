@@ -1,4 +1,4 @@
-import { useLayoutEffect, useRef, useState, type PointerEvent } from 'react';
+import { useRef, useState, type PointerEvent } from 'react';
 import type { DesktopAPI } from '../../shared/api';
 import { sidebars, type Sidebar, type SidebarPreferences, type Snapshot } from '../../shared/model';
 import { errorMessage } from '../../shared/caught-error';
@@ -9,50 +9,22 @@ import { draggedWidth, type WidestOnResize } from './region-widths';
 interface Options {
   sidebar: Sidebar;
   snapshot?: Snapshot;
-  api: Pick<DesktopAPI, 'saveSidebar' | 'subscribe'>;
+  api: Pick<DesktopAPI, 'saveSidebar'>;
   edge: 1 | -1;
   widestOnResize: WidestOnResize;
   report(message: string): void;
 }
 
-export function useSidebarPreferences(options: Options) {
-  const {
-    sidebar,
-    snapshot,
-    api: { subscribe },
-  } = options;
-  const { defaults } = sidebars[sidebar];
-  const latest = useRef(options);
-  latest.current = options;
-  const [preferences, setPreferences] = useState<SidebarPreferences>(defaults);
-  const settled = useRef<SidebarPreferences>(defaults);
-  const stored = useRef<SidebarPreferences>(defaults);
-  const initialized = useRef(false);
+export function useSidebarPreferences({ sidebar, snapshot, api, edge, widestOnResize, report }: Options) {
+  const { defaults, minWidth } = sidebars[sidebar];
+  const [stored, setStored] = useState<{ preferences: SidebarPreferences; snapshot?: Snapshot }>({
+    preferences: defaults,
+  });
+  if (snapshot && snapshot !== stored.snapshot) setStored({ preferences: snapshot[sidebar], snapshot });
+  const [unsaved, setUnsaved] = useState<SidebarPreferences>();
+  const preferences = unsaved ?? stored.preferences;
   const pending = useRef<object | undefined>(undefined);
   const cancelResize = useRef<(() => void) | undefined>(undefined);
-  useLayoutEffect(() => {
-    if (snapshot && !initialized.current) {
-      initialized.current = true;
-      settled.current = stored.current = snapshot[sidebar];
-      setPreferences(settled.current);
-    }
-  }, [snapshot]);
-  useLayoutEffect(() => {
-    const unsubscribe = subscribe(event => {
-      if (event.kind !== 'snapshot') return;
-      initialized.current = true;
-      stored.current = event.snapshot[latest.current.sidebar];
-      if (!pending.current) {
-        settled.current = stored.current;
-        setPreferences(settled.current);
-      }
-    });
-    return () => {
-      unsubscribe();
-      pending.current = undefined;
-      cancelResize.current?.();
-    };
-  }, [subscribe]);
 
   function replaceOperation() {
     const operation = {};
@@ -60,58 +32,51 @@ export function useSidebarPreferences(options: Options) {
     cancelResize.current?.();
     return operation;
   }
+  function settle(operation: object) {
+    if (pending.current !== operation) return false;
+    pending.current = undefined;
+    setUnsaved(undefined);
+    return true;
+  }
   function save(operation: object, next: SidebarPreferences) {
-    void latest.current.api
-      .saveSidebar(latest.current.sidebar, next)
+    void api
+      .saveSidebar(sidebar, next)
       .then(() => {
-        if (pending.current !== operation) return;
-        pending.current = undefined;
-        settled.current = stored.current = next;
-        setPreferences(next);
+        if (settle(operation)) setStored(previous => ({ ...previous, preferences: next }));
       })
       .catch(error => {
-        if (pending.current !== operation) return;
-        pending.current = undefined;
-        settled.current = stored.current;
-        setPreferences(settled.current);
-        latest.current.report(errorMessage(error));
+        if (settle(operation)) report(errorMessage(error));
       });
   }
   function toggle() {
-    if (!latest.current.snapshot) return preferences.visible;
-    const next = { ...settled.current, visible: !preferences.visible };
+    if (!snapshot) return preferences.visible;
+    const next = { ...stored.preferences, visible: !preferences.visible };
     const operation = replaceOperation();
-    setPreferences(next);
+    setUnsaved(next);
     save(operation, next);
     return next.visible;
   }
   function startResize(event: PointerEvent<HTMLElement>) {
-    if (!latest.current.snapshot || event.button !== 0) return;
+    if (!snapshot || event.button !== 0) return;
     event.preventDefault();
-    const { sidebar: current, edge } = latest.current;
-    const { minWidth } = sidebars[current];
-    const widest = latest.current.widestOnResize(current);
+    const widest = widestOnResize(sidebar);
     const bounded = (width: number) => draggedWidth(width, minWidth, widest);
     const operation = replaceOperation();
-    const base = settled.current;
+    const base = stored.preferences;
     const element = event.currentTarget,
       start = event.clientX;
     const width = requireValue(element.parentElement, 'the sidebar').getBoundingClientRect().width;
     let next = bounded(width);
     const move = (pointer: globalThis.PointerEvent) => {
       next = bounded(width + edge * (pointer.clientX - start));
-      setPreferences({ ...base, width: next });
+      setUnsaved({ ...base, width: next });
     };
     const finish = (commit: boolean) => {
       window.removeEventListener('blur', cancel);
       cancelResize.current = undefined;
       if (pending.current !== operation) return;
       if (commit) save(operation, { ...base, width: next });
-      else {
-        pending.current = undefined;
-        settled.current = stored.current;
-        setPreferences(settled.current);
-      }
+      else settle(operation);
     };
     const cancel = capturePointer(element, event.pointerId, { move, finish });
     cancelResize.current = cancel;

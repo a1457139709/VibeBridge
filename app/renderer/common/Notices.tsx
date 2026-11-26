@@ -1,5 +1,6 @@
 import { useLocalization } from './Localization';
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useRef, useState } from 'react';
+import { useTimeout } from './timer';
 
 export type NoticeKind = 'success' | 'error';
 export type ReportNotice = (message: string, kind?: NoticeKind) => void;
@@ -29,37 +30,18 @@ export function useNotices() {
 
 function NoticeItem({ notice, dismiss }: { notice: Notice; dismiss(id: number): void }) {
   const { t, text } = useLocalization();
-  const hovered = useRef(false);
-  const remaining = useRef(0);
-  const started = useRef(0);
-  const timeout = useRef<number | undefined>(undefined);
-  const stopTimer = () => {
-    window.clearTimeout(timeout.current);
-    timeout.current = undefined;
-  };
-  const startTimer = () => {
-    started.current = performance.now();
-    timeout.current = window.setTimeout(() => dismiss(notice.id), remaining.current);
-  };
-  useEffect(() => {
-    remaining.current = notice.kind === 'success' ? 2000 : 5000;
-    if (!hovered.current) startTimer();
-    return stopTimer;
-  }, [notice.id, notice.kind, notice.revision, dismiss]);
+  const [hovered, setHovered] = useState(false);
+  useTimeout(() => dismiss(notice.id), {
+    delay: notice.kind === 'success' ? 2000 : 5000,
+    restartKey: notice.revision,
+    paused: hovered,
+  });
   return (
     <div
       className={`notice ${notice.kind}`}
       role={notice.kind === 'error' ? 'alert' : 'status'}
-      onMouseEnter={() => {
-        hovered.current = true;
-        if (timeout.current !== undefined)
-          remaining.current = Math.max(0, remaining.current - (performance.now() - started.current));
-        stopTimer();
-      }}
-      onMouseLeave={() => {
-        hovered.current = false;
-        startTimer();
-      }}
+      onMouseEnter={() => setHovered(true)}
+      onMouseLeave={() => setHovered(false)}
     >
       <span className="notice-icon" aria-hidden="true">
         {notice.kind === 'success' ? '✓' : '!'}
