@@ -1,6 +1,10 @@
 {
   "$schema": "./node_modules/oxlint/configuration_schema.json",
-  "plugins": ["typescript"],
+  "plugins": ["typescript", "react"],
+  "jsPlugins": [
+    { "name": "rh", "specifier": "eslint-plugin-react-hooks" },
+    { "name": "ynne", "specifier": "eslint-plugin-react-you-might-not-need-an-effect" }
+  ],
   "categories": {
     "correctness": "off",
     "suspicious": "off",
@@ -16,6 +20,301 @@
     // A type assertion overrides what the compiler knows about a value, so a wrong type reaches the code that trusts it unchecked.
     "typescript/consistent-type-assertions": ["error", { "assertionStyle": "never" }],
     // An explicit any switches type checking off for a value and everything it flows into, so a wrong type travels unchecked.
-    "typescript/no-explicit-any": "error"
-  }
+    "typescript/no-explicit-any": "error",
+    // Effects synchronize with systems outside React only: these rules read what each effect and render does.
+    "react/rules-of-hooks": "error",
+    "react/exhaustive-deps": "error",
+    "rh/set-state-in-effect": "error",
+    "rh/set-state-in-render": "error",
+    "rh/purity": "error",
+    "rh/immutability": "error",
+    "rh/refs": "error",
+    "ynne/no-derived-state": "error",
+    "ynne/no-chain-state-updates": "error",
+    "ynne/no-event-handler": "error",
+    "ynne/no-adjust-state-on-prop-change": "error",
+    "ynne/no-reset-all-state-on-prop-change": "error",
+    "ynne/no-pass-live-state-to-parent": "error",
+    "ynne/no-pass-data-to-parent": "error",
+    "ynne/no-external-store-subscription": "error",
+    "ynne/no-initialize-state": "error"
+  },
+  "overrides": [
+    {
+      // The renderer imports no effect from React; a file that synchronizes one outside system is listed in its own override below.
+      "files": ["app/renderer/**"],
+      "rules": {
+        "no-restricted-imports": [
+          "error",
+          {
+            "paths": [
+              {
+                "name": "react",
+                "importNames": ["useEffect", "useLayoutEffect", "default"],
+                "message": "An effect only synchronizes with a system outside React (main-process events, window or document events, element observers, timers). Compute a value derived from props or state during render; do what a user action causes in its event handler; for an outside system, use an existing hook that synchronizes that one system. Do not wrap an effect in a hook that takes a callback and dependencies. Import React APIs by name. A file that truly synchronizes one outside system is listed by path in an override of .oxlintrc.json."
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      // Unmigrated area, warn until its ticket passes the effect rules: common and Workbench.
+      "files": ["app/renderer/common/**", "app/renderer/Workbench.tsx", "app/renderer/index.tsx"],
+      "rules": {
+        "no-restricted-imports": [
+          "warn",
+          {
+            "paths": [
+              {
+                "name": "react",
+                "importNames": ["useEffect", "useLayoutEffect", "default"],
+                "message": "An effect only synchronizes with a system outside React (main-process events, window or document events, element observers, timers). Compute a value derived from props or state during render; do what a user action causes in its event handler; for an outside system, use an existing hook that synchronizes that one system. Do not wrap an effect in a hook that takes a callback and dependencies. Import React APIs by name. A file that truly synchronizes one outside system is listed by path in an override of .oxlintrc.json."
+              }
+            ]
+          }
+        ],
+        "react/rules-of-hooks": "warn",
+        "react/exhaustive-deps": "warn",
+        "rh/set-state-in-effect": "warn",
+        "rh/set-state-in-render": "warn",
+        "rh/purity": "warn",
+        "rh/immutability": "warn",
+        "rh/refs": "warn",
+        "ynne/no-derived-state": "warn",
+        "ynne/no-chain-state-updates": "warn",
+        "ynne/no-event-handler": "warn",
+        "ynne/no-adjust-state-on-prop-change": "warn",
+        "ynne/no-reset-all-state-on-prop-change": "warn",
+        "ynne/no-pass-live-state-to-parent": "warn",
+        "ynne/no-pass-data-to-parent": "warn",
+        "ynne/no-external-store-subscription": "warn",
+        "ynne/no-initialize-state": "warn"
+      }
+    },
+    {
+      // Unmigrated area, warn until its ticket passes the effect rules: settings.
+      "files": ["app/renderer/settings/**"],
+      "rules": {
+        "no-restricted-imports": [
+          "warn",
+          {
+            "paths": [
+              {
+                "name": "react",
+                "importNames": ["useEffect", "useLayoutEffect", "default"],
+                "message": "An effect only synchronizes with a system outside React (main-process events, window or document events, element observers, timers). Compute a value derived from props or state during render; do what a user action causes in its event handler; for an outside system, use an existing hook that synchronizes that one system. Do not wrap an effect in a hook that takes a callback and dependencies. Import React APIs by name. A file that truly synchronizes one outside system is listed by path in an override of .oxlintrc.json."
+              }
+            ]
+          }
+        ],
+        "react/rules-of-hooks": "warn",
+        "react/exhaustive-deps": "warn",
+        "rh/set-state-in-effect": "warn",
+        "rh/set-state-in-render": "warn",
+        "rh/purity": "warn",
+        "rh/immutability": "warn",
+        "rh/refs": "warn",
+        "ynne/no-derived-state": "warn",
+        "ynne/no-chain-state-updates": "warn",
+        "ynne/no-event-handler": "warn",
+        "ynne/no-adjust-state-on-prop-change": "warn",
+        "ynne/no-reset-all-state-on-prop-change": "warn",
+        "ynne/no-pass-live-state-to-parent": "warn",
+        "ynne/no-pass-data-to-parent": "warn",
+        "ynne/no-external-store-subscription": "warn",
+        "ynne/no-initialize-state": "warn"
+      }
+    },
+    {
+      // Unmigrated area, warn until its ticket passes the effect rules: project management.
+      "files": ["app/renderer/projects/**"],
+      "rules": {
+        "no-restricted-imports": [
+          "warn",
+          {
+            "paths": [
+              {
+                "name": "react",
+                "importNames": ["useEffect", "useLayoutEffect", "default"],
+                "message": "An effect only synchronizes with a system outside React (main-process events, window or document events, element observers, timers). Compute a value derived from props or state during render; do what a user action causes in its event handler; for an outside system, use an existing hook that synchronizes that one system. Do not wrap an effect in a hook that takes a callback and dependencies. Import React APIs by name. A file that truly synchronizes one outside system is listed by path in an override of .oxlintrc.json."
+              }
+            ]
+          }
+        ],
+        "react/rules-of-hooks": "warn",
+        "react/exhaustive-deps": "warn",
+        "rh/set-state-in-effect": "warn",
+        "rh/set-state-in-render": "warn",
+        "rh/purity": "warn",
+        "rh/immutability": "warn",
+        "rh/refs": "warn",
+        "ynne/no-derived-state": "warn",
+        "ynne/no-chain-state-updates": "warn",
+        "ynne/no-event-handler": "warn",
+        "ynne/no-adjust-state-on-prop-change": "warn",
+        "ynne/no-reset-all-state-on-prop-change": "warn",
+        "ynne/no-pass-live-state-to-parent": "warn",
+        "ynne/no-pass-data-to-parent": "warn",
+        "ynne/no-external-store-subscription": "warn",
+        "ynne/no-initialize-state": "warn"
+      }
+    },
+    {
+      // Unmigrated area, warn until its ticket passes the effect rules: workspace and panels.
+      "files": ["app/renderer/workspace/**", "app/renderer/panels/**"],
+      "rules": {
+        "no-restricted-imports": [
+          "warn",
+          {
+            "paths": [
+              {
+                "name": "react",
+                "importNames": ["useEffect", "useLayoutEffect", "default"],
+                "message": "An effect only synchronizes with a system outside React (main-process events, window or document events, element observers, timers). Compute a value derived from props or state during render; do what a user action causes in its event handler; for an outside system, use an existing hook that synchronizes that one system. Do not wrap an effect in a hook that takes a callback and dependencies. Import React APIs by name. A file that truly synchronizes one outside system is listed by path in an override of .oxlintrc.json."
+              }
+            ]
+          }
+        ],
+        "react/rules-of-hooks": "warn",
+        "react/exhaustive-deps": "warn",
+        "rh/set-state-in-effect": "warn",
+        "rh/set-state-in-render": "warn",
+        "rh/purity": "warn",
+        "rh/immutability": "warn",
+        "rh/refs": "warn",
+        "ynne/no-derived-state": "warn",
+        "ynne/no-chain-state-updates": "warn",
+        "ynne/no-event-handler": "warn",
+        "ynne/no-adjust-state-on-prop-change": "warn",
+        "ynne/no-reset-all-state-on-prop-change": "warn",
+        "ynne/no-pass-live-state-to-parent": "warn",
+        "ynne/no-pass-data-to-parent": "warn",
+        "ynne/no-external-store-subscription": "warn",
+        "ynne/no-initialize-state": "warn"
+      }
+    },
+    {
+      // Unmigrated area, warn until its ticket passes the effect rules: dispatch menu.
+      "files": ["app/renderer/dispatch/**"],
+      "rules": {
+        "no-restricted-imports": [
+          "warn",
+          {
+            "paths": [
+              {
+                "name": "react",
+                "importNames": ["useEffect", "useLayoutEffect", "default"],
+                "message": "An effect only synchronizes with a system outside React (main-process events, window or document events, element observers, timers). Compute a value derived from props or state during render; do what a user action causes in its event handler; for an outside system, use an existing hook that synchronizes that one system. Do not wrap an effect in a hook that takes a callback and dependencies. Import React APIs by name. A file that truly synchronizes one outside system is listed by path in an override of .oxlintrc.json."
+              }
+            ]
+          }
+        ],
+        "react/rules-of-hooks": "warn",
+        "react/exhaustive-deps": "warn",
+        "rh/set-state-in-effect": "warn",
+        "rh/set-state-in-render": "warn",
+        "rh/purity": "warn",
+        "rh/immutability": "warn",
+        "rh/refs": "warn",
+        "ynne/no-derived-state": "warn",
+        "ynne/no-chain-state-updates": "warn",
+        "ynne/no-event-handler": "warn",
+        "ynne/no-adjust-state-on-prop-change": "warn",
+        "ynne/no-reset-all-state-on-prop-change": "warn",
+        "ynne/no-pass-live-state-to-parent": "warn",
+        "ynne/no-pass-data-to-parent": "warn",
+        "ynne/no-external-store-subscription": "warn",
+        "ynne/no-initialize-state": "warn"
+      }
+    },
+    {
+      // Unmigrated area, warn until its ticket passes the effect rules: forge lists.
+      "files": [
+        "app/renderer/forge/ForgeLists.tsx",
+        "app/renderer/forge/ForgeFilterBar.tsx",
+        "app/renderer/forge/RepositoryList.tsx",
+        "app/renderer/forge/VirtualRows.tsx",
+        "app/renderer/forge/virtual-rows.ts",
+        "app/renderer/forge/scrolled-rows.ts"
+      ],
+      "rules": {
+        "no-restricted-imports": [
+          "warn",
+          {
+            "paths": [
+              {
+                "name": "react",
+                "importNames": ["useEffect", "useLayoutEffect", "default"],
+                "message": "An effect only synchronizes with a system outside React (main-process events, window or document events, element observers, timers). Compute a value derived from props or state during render; do what a user action causes in its event handler; for an outside system, use an existing hook that synchronizes that one system. Do not wrap an effect in a hook that takes a callback and dependencies. Import React APIs by name. A file that truly synchronizes one outside system is listed by path in an override of .oxlintrc.json."
+              }
+            ]
+          }
+        ],
+        "react/rules-of-hooks": "warn",
+        "react/exhaustive-deps": "warn",
+        "rh/set-state-in-effect": "warn",
+        "rh/set-state-in-render": "warn",
+        "rh/purity": "warn",
+        "rh/immutability": "warn",
+        "rh/refs": "warn",
+        "ynne/no-derived-state": "warn",
+        "ynne/no-chain-state-updates": "warn",
+        "ynne/no-event-handler": "warn",
+        "ynne/no-adjust-state-on-prop-change": "warn",
+        "ynne/no-reset-all-state-on-prop-change": "warn",
+        "ynne/no-pass-live-state-to-parent": "warn",
+        "ynne/no-pass-data-to-parent": "warn",
+        "ynne/no-external-store-subscription": "warn",
+        "ynne/no-initialize-state": "warn"
+      }
+    },
+    {
+      // Unmigrated area, warn until its ticket passes the effect rules: forge detail, sidebar and rows.
+      "files": [
+        "app/renderer/forge/ForgeDetail.tsx",
+        "app/renderer/forge/IssueDetail.tsx",
+        "app/renderer/forge/PullRequestDetail.tsx",
+        "app/renderer/forge/DirectActions.tsx",
+        "app/renderer/forge/merge-requirements.ts",
+        "app/renderer/forge/ForgeSidebar.tsx",
+        "app/renderer/forge/SidebarBinding.tsx",
+        "app/renderer/forge/SidebarHead.tsx",
+        "app/renderer/forge/StaleNotice.tsx",
+        "app/renderer/forge/ForgeDisplay.tsx",
+        "app/renderer/forge/ForgeRows.tsx",
+        "app/renderer/forge/row-resting.ts"
+      ],
+      "rules": {
+        "no-restricted-imports": [
+          "warn",
+          {
+            "paths": [
+              {
+                "name": "react",
+                "importNames": ["useEffect", "useLayoutEffect", "default"],
+                "message": "An effect only synchronizes with a system outside React (main-process events, window or document events, element observers, timers). Compute a value derived from props or state during render; do what a user action causes in its event handler; for an outside system, use an existing hook that synchronizes that one system. Do not wrap an effect in a hook that takes a callback and dependencies. Import React APIs by name. A file that truly synchronizes one outside system is listed by path in an override of .oxlintrc.json."
+              }
+            ]
+          }
+        ],
+        "react/rules-of-hooks": "warn",
+        "react/exhaustive-deps": "warn",
+        "rh/set-state-in-effect": "warn",
+        "rh/set-state-in-render": "warn",
+        "rh/purity": "warn",
+        "rh/immutability": "warn",
+        "rh/refs": "warn",
+        "ynne/no-derived-state": "warn",
+        "ynne/no-chain-state-updates": "warn",
+        "ynne/no-event-handler": "warn",
+        "ynne/no-adjust-state-on-prop-change": "warn",
+        "ynne/no-reset-all-state-on-prop-change": "warn",
+        "ynne/no-pass-live-state-to-parent": "warn",
+        "ynne/no-pass-data-to-parent": "warn",
+        "ynne/no-external-store-subscription": "warn",
+        "ynne/no-initialize-state": "warn"
+      }
+    }
+  ]
 }
