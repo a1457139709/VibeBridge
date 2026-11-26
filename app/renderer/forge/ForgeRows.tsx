@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, type RefCallback } from 'react';
 import { useLocalization } from '../common/Localization';
 import type {
   ForgeCapabilities,
@@ -105,7 +105,7 @@ export function IssueTree({
     return [...children.values()].sort((a, b) => a.number - b.number);
   };
 
-  const row = (issue: IssueSummary): React.ReactNode => {
+  const subIssuesOf = (issue: IssueSummary) => {
     const loadedIssue = capabilities.subIssues ? loaded.get(issue.number) : undefined;
     const children = loadedIssue ? childrenOf(loadedIssue) : [];
     const listed = children.filter(child => child.state === listState);
@@ -117,8 +117,16 @@ export function IssueTree({
     const unlisted = withSubIssues
       ? Math.max(0, withSubIssues.subIssues.unlisted - (children.length - withSubIssues.subIssues.issues.length))
       : 0;
+    return { withSubIssues, isExpanded, showClosed, shown, folded, unlisted };
+  };
+  const shownNumbers = (issue: IssueSummary): number[] => {
+    const { isExpanded, shown } = subIssuesOf(issue);
+    return [issue.number, ...(isExpanded ? shown.flatMap(shownNumbers) : [])];
+  };
+  const row = (issue: IssueSummary, measure?: RefCallback<HTMLLIElement>): React.ReactNode => {
+    const { withSubIssues, isExpanded, showClosed, shown, folded, unlisted } = subIssuesOf(issue);
     return (
-      <li key={issue.number}>
+      <li key={issue.number} ref={measure}>
         <IssueRow
           issue={issue}
           selected={issue.number === selected}
@@ -146,7 +154,7 @@ export function IssueTree({
         />
         {isExpanded && (
           <div className="forge-sub-issues" role="group" aria-label={t('subIssuesOf', { number: issue.number })}>
-            <ul className="forge-rows">{shown.map(row)}</ul>
+            <ul className="forge-rows">{shown.map(child => row(child))}</ul>
             {!!folded.length && (
               <button className="forge-fold" onClick={() => setShowingClosed(set => flip(set, issue.number))}>
                 {showClosed ? t('hideClosedSubIssues') : t('closedSubIssues', { count: folded.length })}
@@ -187,7 +195,8 @@ export function IssueTree({
     <VirtualRows
       host={rowsHost}
       keys={top.map(issue => issue.number)}
-      row={index => row(top[index])}
+      row={(index, measure) => row(top[index], measure)}
+      shownNumbers={index => shownNumbers(top[index])}
       className="forge-rows"
       aria-label={t('issuesTab')}
       onKeyDown={keydown}

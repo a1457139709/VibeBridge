@@ -1,49 +1,66 @@
-import { useCallback, useLayoutEffect, useRef, useState } from 'react';
-import type { DetailItem, ForgeListTab, ForgeLists } from '../../shared/forge/sidebar-data';
+import { useCallback, useRef, useState } from 'react';
+import type { DetailItem, ForgeListTab } from '../../shared/forge/sidebar-data';
+import { useResizeObserver } from '../common/resize-observer';
 import { rowTitleOf } from './ForgeRows';
-import type { VirtualRowsHandle, VirtualRowsHost } from './VirtualRows';
+import type { ScrollAreaView, VirtualRowsHandle, VirtualRowsHost } from './VirtualRows';
 import type { ReadingPosition } from './virtual-rows';
 
-export function useScrolledRows(projectId: string, lists: ForgeLists, declare: (declaration: Promise<void>) => void) {
-  const scrollArea = useRef<HTMLDivElement>(null);
-  const [scrollElement, setScrollElement] = useState<HTMLDivElement | null>(null);
+const viewOf = (scrollArea: HTMLElement): ScrollAreaView => ({
+  scrollTop: scrollArea.scrollTop,
+  viewport: scrollArea.clientHeight,
+});
+const sameView = (a: ScrollAreaView, b: ScrollAreaView) => a.scrollTop === b.scrollTop && a.viewport === b.viewport;
+
+export function useScrolledRows(projectId: string, failed: (error: unknown) => void) {
+  const [scrollArea, setScrollArea] = useState<HTMLDivElement | null>(null);
+  const scrolled = useRef<HTMLDivElement | null>(null);
+  const [view, setView] = useState<ScrollAreaView>({ scrollTop: 0, viewport: 0 });
+  const readView = (element: HTMLElement) => {
+    const read = viewOf(element);
+    setView(last => (sameView(last, read) ? last : read));
+  };
   const holdScrollArea = useCallback((element: HTMLDivElement | null) => {
-    scrollArea.current = element;
-    setScrollElement(element);
+    scrolled.current = element;
+    setScrollArea(element);
+    if (!element) return;
+    const read = viewOf(element);
+    setView(last => (sameView(last, read) ? last : read));
   }, []);
+  useResizeObserver(scrollArea, () => {
+    if (scrollArea) readView(scrollArea);
+  });
   const virtualRows = useRef<VirtualRowsHandle>(null);
-  const declaredRows = useRef('');
+  const readingPosition = useRef<ReadingPosition | null>(null);
   const rowsHost: VirtualRowsHost = {
-    scrollArea: scrollElement,
+    projectId,
+    view,
     ref: virtualRows,
-    rendered() {
-      const numbers = [
-        ...(scrollArea.current?.querySelectorAll<HTMLElement>('[data-issue], [data-pull-request]') ?? []),
-      ].map(row => Number(row.dataset.issue ?? row.dataset.pullRequest));
-      const key = numbers.join();
-      if (key === declaredRows.current) return;
-      declaredRows.current = key;
-      declare(window.workbench.showForgeRows(projectId, numbers));
+    failed,
+    scrollTo(scrollTop) {
+      if (!scrolled.current) return;
+      scrolled.current.scrollTop = scrollTop;
+      readView(scrolled.current);
     },
   };
-  const readingPosition = useRef<ReadingPosition | null>(null);
-  useLayoutEffect(() => {
-    if (lists.loading || !readingPosition.current) return;
-    virtualRows.current?.restore(readingPosition.current);
-    readingPosition.current = null;
-  }, [lists]);
   return {
     scrollArea,
-    scrollElement,
     holdScrollArea,
+    readScrollArea() {
+      if (scrollArea) readView(scrollArea);
+    },
     rowsHost,
     keepReadingPosition() {
       readingPosition.current = virtualRows.current?.readingPosition() ?? null;
     },
+    restoreReadingPosition() {
+      if (!readingPosition.current) return;
+      virtualRows.current?.restore(readingPosition.current);
+      readingPosition.current = null;
+    },
     rowTitle(item: DetailItem, tab: ForgeListTab) {
-      const title = rowTitleOf(scrollArea.current, item);
+      const title = rowTitleOf(scrollArea, item);
       if (title || (item.kind === 'issue') !== (tab === 'issues')) return title;
-      return virtualRows.current?.reveal(item.number) ? rowTitleOf(scrollArea.current, item) : undefined;
+      return virtualRows.current?.reveal(item.number) ? rowTitleOf(scrollArea, item) : undefined;
     },
   };
 }

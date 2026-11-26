@@ -44,13 +44,13 @@ export function useForgeSidebar(host: Host, api: Pick<DesktopAPI, 'saveSidebar' 
   const focusOnOpen = useRef(false);
   const [focusRequest, setFocusRequest] = useState(0);
   const [changingBindingOf, setChangingBindingOf] = useState<string>();
-  const [detailOpen, setDetailOpen] = useState(false);
+  const [detailOpenIn, setDetailOpenIn] = useState<string>();
   const [width, setWidth] = useState(detailWidth.initial);
   const [lastTargets, setLastTargets] = useState<ReadonlyMap<string, DispatchTarget>>(new Map());
   const listsActions = useRef<ForgeListsActions>(null);
   const listsViews = useRef(new Map<string, ListsView>());
   const detail: DetailHost = {
-    onDetailOpenChange: setDetailOpen,
+    onDetailOpenChange: open => setDetailOpenIn(open ? bindingKey : undefined),
     startResize(event: ReactPointerEvent<HTMLDivElement>) {
       if (event.button !== 0) return;
       event.preventDefault();
@@ -65,6 +65,9 @@ export function useForgeSidebar(host: Host, api: Pick<DesktopAPI, 'saveSidebar' 
   };
   const sidebarOpen = preferences.visible && !!project;
   const bindingKey = project && keyOfBinding(project);
+  const listsShownFor = sidebarOpen && changingBindingOf !== bindingKey ? bindingKey : undefined;
+  if (detailOpenIn !== undefined && detailOpenIn !== listsShownFor) setDetailOpenIn(undefined);
+  const detailOpen = detailOpenIn !== undefined && detailOpenIn === listsShownFor;
   useLayoutEffect(() => {
     if (sidebarOpen && focusOnOpen.current) requireValue(element.current, 'the forge sidebar').focus();
     focusOnOpen.current = false;

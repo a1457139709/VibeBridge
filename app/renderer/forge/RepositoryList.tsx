@@ -1,4 +1,4 @@
-import { useEffect, useId, useState } from 'react';
+import { useId, useState } from 'react';
 import { useLocalization } from '../common/Localization';
 import { nestedMessage } from '../../shared/messages';
 import { sameRepository, type RepositoryReference } from '../../shared/forge/forge';
@@ -29,9 +29,6 @@ export function RepositoryList({
   const [highlightedPath, setHighlightedPath] = useState<string>();
   const listId = useId();
   const optionId = (path: string) => `${listId}-${path}`;
-  useEffect(() => {
-    if (highlightedPath) document.getElementById(optionId(highlightedPath))?.scrollIntoView?.({ block: 'nearest' });
-  }, [highlightedPath]);
   const retryButton = (
     <button type="button" autoFocus={autoFocus} onClick={retry}>
       {t('retry')}
@@ -79,7 +76,9 @@ export function RepositoryList({
         reachedIndex < 0
           ? 0
           : Math.max(0, Math.min(shown.length - 1, reachedIndex + (event.key === 'ArrowDown' ? 1 : -1)));
-      setHighlightedPath(shown[index].path);
+      const reached = shown[index].path;
+      setHighlightedPath(reached);
+      document.getElementById(optionId(reached))?.scrollIntoView?.({ block: 'nearest' });
     } else if ((event.key === 'Enter' || event.code === 'Space') && reachedIndex >= 0) pick(shown[reachedIndex]);
     else return;
     event.preventDefault();

@@ -354,6 +354,21 @@ test('an overlaying detail leaves the layout area as it was, and a squeezing one
   }
 });
 
+test('leaving the lists closes a squeezing detail, and the lists come back without it', async () => {
+  const { user, request } = renderWorkbench([summary(7)], testForgeCapabilities, { detailCoexistence: 'squeeze' });
+  const squeezed = () => selectElement('.app-body').className.includes('forge-detail-squeeze');
+  await user.click(await row('Issue 7'));
+  (await request(1)).answer({ ok: true, issue: detail(7) });
+  await detailHeading(pane(), 'Issue 7', 7);
+  assert.ok(squeezed(), 'the open detail narrows the layout area');
+  await user.click(within(forgeSidebar()).getByRole('button', { name: t('changeBinding') }));
+  await waitFor(() => assert.ok(!squeezed(), 'the change-binding page shows no detail'));
+  await user.click(within(forgeSidebar()).getByRole('button', { name: t('bindingBack') }));
+  await row('Issue 7');
+  assert.equal(within(forgeSidebar()).queryByRole('region', { name: t('issueDetail') }), null);
+  assert.ok(!squeezed(), 'the lists come back without the detail');
+});
+
 test('a detail that fails to load says why and Retry asks again', async () => {
   const { user, request } = renderWorkbench([summary(5)]);
   await user.click(await row('Issue 5'));
