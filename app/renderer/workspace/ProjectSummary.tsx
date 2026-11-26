@@ -144,7 +144,7 @@ export function ProjectSummary({ panels, locate }: { panels: PanelView[]; locate
             {members(open).map(panel => {
               const title = panel.run?.title ?? t('untitled');
               return (
-                <li key={panel.run?.id}>
+                <li key={panel.run?.id} data-run-id={panel.run?.id}>
                   <button
                     ref={keepFocusInList}
                     className={`summary-panel ${panel.agent}`}
