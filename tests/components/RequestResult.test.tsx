@@ -48,3 +48,28 @@ test('a request that settles after its key changed is dropped', async () => {
   await requests.settle('B', 'result B');
   assert.equal(requests.shown(), undefined);
 });
+
+test('a failed request is recovered into a result only while its key is current', async () => {
+  const requests = new Map(['A', 'B'].map(key => [key, deferred<string>()]));
+  const recovered: unknown[] = [];
+  const results: (string | undefined)[] = [];
+  function Harness({ requestKey }: { requestKey: string }) {
+    const result = useRequestResult(requestKey, key => requests.get(key)?.promise ?? Promise.reject(new Error(key)), {
+      recover: error => {
+        recovered.push(error);
+        return 'recovered';
+      },
+    });
+    results.push(result);
+    return null;
+  }
+  const view = render(<Harness requestKey="A" />);
+  view.rerender(<Harness requestKey="B" />);
+  const failure = new Error('failed');
+  await act(async () => requests.get('A')?.reject(failure));
+  assert.deepEqual(recovered, []);
+  assert.equal(results.at(-1), undefined);
+  await act(async () => requests.get('B')?.reject(failure));
+  assert.deepEqual(recovered, [failure]);
+  assert.equal(results.at(-1), 'recovered');
+});
