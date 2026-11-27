@@ -42,7 +42,8 @@ import {
 } from './forge/results';
 import { Dispatches, type DispatchRecord } from './dispatch';
 import type { DispatchRequest } from '../shared/dispatch';
-import { errorMessage } from '../shared/caught-error';
+import { cleanUpAfterFailure, errorMessage } from '../shared/caught-error';
+import { SerialQueue } from './serial-queue';
 
 export class WorkbenchOpenError extends Error {
   constructor(
@@ -68,7 +69,7 @@ export class Workbench {
   readonly runs: RunSupervision;
   readonly forgeSidebar: ForgeSidebarData;
   private listeners = new Set<(event: WorkbenchEvent) => void>();
-  private operations: Promise<unknown> = Promise.resolve();
+  private operations = new SerialQueue();
   private panels: ProjectPanels;
   private bindings: RepositoryBindings;
   private dispatches: Dispatches;
@@ -138,7 +139,7 @@ export class Workbench {
         workbench.state.startupTheme === 'system' ? (systemDark ? 'dark' : 'light') : workbench.state.startupTheme;
       return workbench;
     } catch (error) {
-      await store?.close().catch(() => {});
+      if (store) await cleanUpAfterFailure(store.close());
       throw new WorkbenchOpenError(error, settings.language);
     }
   }
@@ -168,9 +169,7 @@ export class Workbench {
   }
   private operation<T>(action: () => Promise<T>): Promise<T> {
     if (this.quitting) return Promise.reject(new Error(message('quitting')));
-    const result = this.operations.then(action);
-    this.operations = result.catch(() => {});
-    return result;
+    return this.operations.run(action);
   }
   private project(id: string) {
     const project = this.state.projects.find(p => p.id === id);
@@ -353,7 +352,7 @@ export class Workbench {
     if (this.quitPromise) return this.quitPromise;
     this.quitting = true;
     this.quitPromise = (async () => {
-      await this.operations;
+      await this.operations.drained();
       let error: unknown;
       try {
         await this.settingsFile.writeUnchecked(this.state.settings);
