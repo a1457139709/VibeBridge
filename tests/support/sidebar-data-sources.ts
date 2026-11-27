@@ -65,9 +65,9 @@ type SourceAnswer = {
 export function sidebarData() {
   const reads: {
     projectId: string;
-    query?: ListQuery;
-    item?: DetailItem;
-    byNumber?: { kind: DetailItem['kind']; numbers: number[] };
+    query: ListQuery | undefined;
+    item: DetailItem | undefined;
+    byNumber: { kind: DetailItem['kind']; numbers: number[] } | undefined;
     answer(value: SourceAnswer): void;
     fail(error: Error): void;
   }[] = [];

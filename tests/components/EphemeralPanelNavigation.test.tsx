@@ -25,7 +25,7 @@ const panel = (projectId: string, id: string, status?: ProcessingState): PanelVi
   id,
   agent: 'codex',
   run: { id: `run-${id}`, panelId: id, projectId, state: 'running', title: title(id) },
-  status,
+  ...(status && { status }),
 });
 
 const snapshot = (): Snapshot => ({

@@ -15,8 +15,8 @@ export function PanelTray({
   ref,
 }: {
   panels: PanelView[];
-  openPanelId?: string;
-  landedPanelId?: string;
+  openPanelId: string | undefined;
+  landedPanelId: string | undefined;
   open(panelId: string): void;
   collapse(): void;
   landingEnded?(): void;

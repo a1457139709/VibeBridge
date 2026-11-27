@@ -84,7 +84,7 @@ export function createDragPreview({
   source: Panel;
   panels: Panel[];
   layout: Layout | null;
-  element?: HTMLElement;
+  element: HTMLElement | undefined;
   tray?: HTMLElement | null;
   language?: Language;
   onDragStart(): void;

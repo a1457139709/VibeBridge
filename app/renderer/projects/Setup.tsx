@@ -76,7 +76,11 @@ export function Setup({
   const [busy, setBusy] = useState(false);
   const [launchReport, setLaunchReport] = useState<{ projectId: string; launches: LaunchResult[] }>();
   const pending = useRef(false);
-  const directoryField = presentDirectoryField({ input: draft.directory, touched: directoryTouched, checked });
+  const directoryField = presentDirectoryField({
+    input: draft.directory,
+    touched: directoryTouched,
+    ...(checked && { checked }),
+  });
   const duplicate = directoryField.problem?.kind === 'duplicate' ? directoryField.problem : undefined;
   const nameProblem = projectNameProblem(draft.name);
   const shownNameProblem = pastedNameProblem ?? (nameTouched || draft.name.trim() ? nameProblem : null);

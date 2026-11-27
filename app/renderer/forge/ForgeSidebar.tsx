@@ -17,8 +17,8 @@ import { draggedWidth, type WidestOnResize } from '../common/region-widths';
 import './forge-sidebar.css';
 
 interface Host {
-  snapshot?: Snapshot;
-  project?: ProjectView;
+  snapshot: Snapshot | undefined;
+  project: ProjectView | undefined;
   locatePanel(projectId: string, panelId: string): void;
   widestOnResize: WidestOnResize;
   report: ReportNotice;

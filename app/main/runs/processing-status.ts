@@ -32,12 +32,12 @@ interface Observation {
   accepting: boolean;
   running: boolean;
   state?: ProcessingState;
-  sessionId?: string;
+  sessionId: string | undefined;
   interpreter: StatusInterpreter;
   sessionWaits: SessionWait[];
   reportedReady: boolean;
   readyWaits: (() => void)[];
-  cleanup?: () => Promise<void>;
+  cleanup: (() => Promise<void>) | undefined;
 }
 
 export class ProcessingStatus {
@@ -64,6 +64,8 @@ export class ProcessingStatus {
       sessionWaits: [],
       reportedReady: false,
       readyWaits: [],
+      sessionId: undefined,
+      cleanup: undefined,
       interpreter: adapters[agent].createInterpreter(),
     };
     this.observations.set(runId, observation);
@@ -114,7 +116,7 @@ export class ProcessingStatus {
     const observation = this.observations.get(runId);
     if (!observation) return false;
     if (observation.sessionId) handOver(observation.sessionId);
-    else observation.sessionWaits.push({ handOver, onReleased });
+    else observation.sessionWaits.push({ handOver, ...(onReleased && { onReleased }) });
     return true;
   }
 

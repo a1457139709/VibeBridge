@@ -36,6 +36,7 @@ function renderTray(language: 'en' | 'zh-CN', openPanelId?: string) {
       <PanelTray
         panels={panels}
         openPanelId={open}
+        landedPanelId={undefined}
         open={id => calls.push(`open:${id}`)}
         collapse={() => calls.push('collapse')}
       />

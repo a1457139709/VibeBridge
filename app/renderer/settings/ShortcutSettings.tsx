@@ -23,7 +23,7 @@ export function ShortcutSettings({
   shortcuts: Settings['shortcuts'];
   search: string;
   setSearch(search: string): void;
-  recording?: ShortcutAction;
+  recording: ShortcutAction | undefined;
   setRecording(action?: ShortcutAction): void;
   fieldError(field: string): string;
   changeDraft(patch: Partial<Settings>): void;

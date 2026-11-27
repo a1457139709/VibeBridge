@@ -34,7 +34,13 @@ export function App() {
   );
 }
 
-function WorkbenchView({ snapshot, setSnapshot }: { snapshot?: Snapshot; setSnapshot(snapshot: Snapshot): void }) {
+function WorkbenchView({
+  snapshot,
+  setSnapshot,
+}: {
+  snapshot: Snapshot | undefined;
+  setSnapshot(snapshot: Snapshot): void;
+}) {
   const { t } = useLocalization();
   const [draft, setDraft] = useState(newDraft);
   const [setupOpen, setSetupOpen] = useState(false);
@@ -258,7 +264,7 @@ function WorkbenchView({ snapshot, setSnapshot }: { snapshot?: Snapshot; setSnap
               ref={settingsPage}
               settings={snapshot.settings}
               startupTheme={snapshot.startupTheme}
-              initialCategory={initialSettingsCategory}
+              {...(initialSettingsCategory && { initialCategory: initialSettingsCategory })}
               report={report}
               back={() => void leaveSettings()}
             />

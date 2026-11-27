@@ -41,7 +41,7 @@ export interface WorkspaceActions {
   snapshotArrived(snapshot: Snapshot): void;
 }
 
-function TerminalView({ run }: { run?: Run }) {
+function TerminalView({ run }: { run: Run | undefined }) {
   const { t } = useLocalization();
   const runningId = run?.state === 'running' ? run.id : undefined;
   const showTerminal = useCallback(
@@ -172,9 +172,10 @@ export function Workspace({
 }) {
   const { t, language } = useLocalization();
   const savedLayout = JSON.stringify(project.layout);
-  const [shown, setShown] = useState<{ saved: string; layout: Layout | null; base?: string }>({
+  const [shown, setShown] = useState<{ saved: string; layout: Layout | null; base: string | undefined }>({
     saved: savedLayout,
     layout: project.layout,
+    base: undefined,
   });
   let layout = shown.layout;
   if (shown.saved !== savedLayout) {
@@ -251,16 +252,15 @@ export function Workspace({
     position: CSSProperties,
     isFocused: boolean,
     action: ReactNode,
-    { measured, ref }: { measured: boolean; ref?: Ref<HTMLElement> },
+    slot: { measured: boolean; ref?: Ref<HTMLElement> },
   ) => (
     <AgentPanel
       key={panel.id}
-      ref={ref}
+      {...slot}
       panel={panel}
       position={position}
       focused={isFocused}
       inputTarget={panel.id === inputTarget}
-      measured={measured}
       select={() => panelLocation.select(panel.id)}
       focusChanged={() => panelLocation.selectFocusedPanel(panel.id)}
       headerClick={() => panelLocation.focus(panel.id)}

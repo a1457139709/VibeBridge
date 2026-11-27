@@ -90,7 +90,7 @@ test("navigation reads each panel view's state, exposes all five states to keybo
       </Localization>
     );
   }
-  function NavigationView({ state }: { state?: Snapshot }) {
+  function NavigationView({ state }: { state: Snapshot | undefined }) {
     const navigation = useProjectNavigation({
       snapshot: state,
       page: 'workbench',
