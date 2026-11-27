@@ -97,7 +97,7 @@ function holdReports(runId: string) {
   const requests: { payload: Record<string, unknown>; deliver(): void }[] = [];
   const original = http.request;
   http.request = fromPartial<typeof http.request>(
-    (_url: string, _options: object, respond: (response: object) => void) => {
+    (_url: string, _options: unknown, respond: (response: unknown) => void) => {
       const listeners = new Map<string, () => void>();
       const outgoing = {
         once(name: string, listener: () => void) {
@@ -148,12 +148,12 @@ function holdReports(runId: string) {
   };
 }
 
-type Handler = (event: object, context: object) => Promise<void>;
+type Handler = (event: Record<string, unknown>, context: Record<string, unknown>) => Promise<void>;
 async function loadReporter(instance: string) {
   const handlers = new Map<string, Handler>();
   const module = await import(`${pathToFileURL(join(__dirname, 'pi-reporter.mjs')).href}?${instance}`);
   module.default({ on: (name: string, handler: Handler) => handlers.set(name, handler) });
-  return (type: string, context: object = {}) => {
+  return (type: string, context: Record<string, unknown> = {}) => {
     const handler = handlers.get(type);
     assert.ok(handler, `the reporter handles ${type}`);
     return handler({ type }, { isIdle: () => false, hasPendingMessages: () => false, ...context });

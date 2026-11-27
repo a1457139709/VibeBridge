@@ -75,7 +75,7 @@ export async function fixture(agent: AgentType, args: string[] = []) {
       }
       return created;
     },
-    async send(runId: string, payload?: object, options: object = {}) {
+    async send(runId: string, payload?: Record<string, unknown>, options: Record<string, unknown> = {}) {
       const id = ++sequence;
       const start = output(runId).length;
       await workbench.runs.input(runId, JSON.stringify({ id, payload, ...options }) + '\n');

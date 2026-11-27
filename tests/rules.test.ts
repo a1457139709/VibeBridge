@@ -2,7 +2,14 @@ import { message } from '../app/shared/messages';
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { projectNameFromDirectory, projectNameMessage, projectNameProblem } from '../app/shared/project-name';
-import { arrange, assignedAgents, parseLayout, validateDraft, type ProjectDraft } from '../app/shared/model';
+import {
+  arrange,
+  assignedAgents,
+  parseLayout,
+  validateDraft,
+  type Layout,
+  type ProjectDraft,
+} from '../app/shared/model';
 import { layoutBoxes } from '../app/shared/layout';
 import {
   defaultShortcuts,
@@ -76,7 +83,7 @@ test('nested layout coordinates preserve spatial relationships and invalid saves
   ])
     assert.throws(() => parseLayout(invalid, panels), /layoutInvalid/);
   const nested = (depth: number) =>
-    Array.from({ length: depth }, (_, level) => `p${level}`).reduce<object>(
+    Array.from({ length: depth }, (_, level) => `p${level}`).reduce<Layout>(
       (node, id) => ({ axis: 'row', ratio: 0.5, first: node, second: { panel: id } }),
       { panel: 'innermost' },
     );
