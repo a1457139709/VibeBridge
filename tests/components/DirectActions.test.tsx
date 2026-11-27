@@ -184,6 +184,24 @@ test('with no write access to the repository, a detail shows no action buttons',
   assert.deepEqual(mergeButtons(), []);
 });
 
+test('when a refresh grants or revokes write access, the open pull request detail shows or hides its action buttons', async () => {
+  const forge: Forge = { pullRequest: pullDetail(12) };
+  const { user } = await openPullRequest(forge);
+  const allActions = [t('mergeMethodMerge'), t('chooseMergeMethod'), t('closePullRequest')];
+  const actionButtons = () => allActions.filter(name => within(pullPane()).queryByRole('button', { name }) !== null);
+  assert.deepEqual(actionButtons(), allActions);
+
+  forge.pullRequest = pullDetail(12, { canWrite: false });
+  await user.click(within(forgeSidebar()).getByRole('button', { name: t('refresh') }));
+  await waitFor(() => assert.deepEqual(actionButtons(), [], 'revoking write access hides the buttons'));
+  await detailHeading(pullPane(), titles.pullRequest, 12);
+
+  forge.pullRequest = pullDetail(12);
+  await user.click(within(forgeSidebar()).getByRole('button', { name: t('refresh') }));
+  await waitFor(() => assert.deepEqual(actionButtons(), allActions, 'granting write access shows the buttons'));
+  await detailHeading(pullPane(), titles.pullRequest, 12);
+});
+
 test('the method menu lists only the methods the repository allows and starts from the forge default method', async () => {
   const forge: Forge = {
     pullRequest: pullDetail(12, {
