@@ -46,6 +46,24 @@ A name states what its code does or holds, read at the call site without opening
 
 Review each new or changed name by reading its call site alone and asking whether it says what happens there.
 
+## Failure handling
+
+A caught error goes to one of three places: it is rethrown, it is reported to the user, or the code falls back as designed. A designed fallback points to the spec, ADR, or issue resolution that sets it.
+
+- A `catch` handles the cases it recognises and rethrows the rest.
+- When callers act differently depending on why something failed, the failures stay distinct. When every caller does the same thing whatever the cause, the lower layer may fold them into one result: inspecting a directory treats every path it cannot read as an invalid path.
+- A `??` fallback is for a value the design lets be absent. A value that should exist and is missing raises an error.
+- Errors are not logged: VibeBridge has no logging or diagnostics yet.
+- Lint exceptions are listed per file in the lint configuration, never as inline disable directives (`docs/adr/0010-code-carries-no-comments.md`).
+
+How a failure is shaped and carried across processes is under **Assertions** in **Tests**.
+
+## Types
+
+- Data crossing a process boundary is parsed once, by the receiver, with the shared schema, into domain types (`docs/adr/0012-each-process-boundary-checks-what-it-receives.md`).
+- A field with a fixed set of values is a union of literal types, not `string`.
+- A token used only to compare identity has a type of its own, not `{}` or `object`.
+
 ## Tests
 
 ### Data
