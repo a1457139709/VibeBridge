@@ -667,6 +667,9 @@
 .forge-bg-skipped {
   background: var(--forge-skipped);
 }
+.forge-bg-failed {
+  background: var(--forge-failed);
+}
 .forge-doc-head .forge-blocked {
   font-size: 12px;
   font-weight: 400;
