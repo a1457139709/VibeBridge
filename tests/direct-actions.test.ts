@@ -1,7 +1,7 @@
 import test from 'node:test';
 import type { ForgeLists } from '../app/shared/forge/sidebar-data';
 import assert from 'node:assert/strict';
-import { ghDouble, type GhPullRequest } from './support/gh-double';
+import { ghDouble, type GhIssue, type GhPullRequest } from './support/gh-double';
 import { fromAny } from '@total-typescript/shoehorn';
 import {
   boundWorkbench,
@@ -14,10 +14,10 @@ import {
   showList,
 } from './support/bound-workbench';
 
-const issue = (number: number, extra: object = {}) => ({
+const issue = (number: number, extra: Partial<GhIssue> = {}): GhIssue => ({
   number,
   title: `Issue ${number}`,
-  state: 'OPEN' as const,
+  state: 'OPEN',
   createdAt: day(number),
   labels: [],
   ...extra,

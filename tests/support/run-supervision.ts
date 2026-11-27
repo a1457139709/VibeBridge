@@ -115,7 +115,7 @@ export async function runSupervisionFixture(context: TestContext) {
       f.report(runId, { hook_event_name: 'SessionStart', source: 'resume', session_id: session }),
     runs: () => project.panels.flatMap(panel => supervision.panelView(panel).run ?? []),
     run: (id: string) => project.panels.map(panel => supervision.panelView(panel).run).find(run => run?.id === id),
-    async report(runId: string, payload: object = {}) {
+    async report(runId: string, payload: Record<string, unknown> = {}) {
       const context = credentials.get(runId);
       assert.ok(context, `run ${runId} has no status context`);
       const response = await fetch(context.url, { method: 'POST', body: JSON.stringify({ ...context, payload }) });

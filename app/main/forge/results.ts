@@ -21,7 +21,7 @@ export interface BoundRepository {
   follow(found: RepositoryReference): void;
 }
 
-async function fromForge<T, F extends object>(
+async function fromForge<T, F extends Record<string, unknown>>(
   bound: BoundRepository,
   call: (forge: Forge) => Promise<T>,
   onFailure: (forge: Forge, error: ForgeError, repository: RepositoryReference) => Promise<F>,

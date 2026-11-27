@@ -48,7 +48,7 @@ async function fixture() {
       for (const launch of result.launches) await until(() => output(launch.run.id).includes('STATUS-CLI-READY'));
       return result;
     },
-    async send(runId: string, message: object) {
+    async send(runId: string, message: Record<string, unknown>) {
       const id = String(++next);
       await workbench.runs.input(runId, JSON.stringify({ ...message, id }) + '\n');
       await until(() => output(runId).includes(`ACK:${id}\r\n`));
@@ -212,7 +212,7 @@ test('after the reporter shuts down, silence and liveness keep the run in Error'
     const statusContext = extraEnvironment.VIBEBRIDGE_STATUS_CONTEXT;
     assert.ok(statusContext);
     const context = JSON.parse(statusContext);
-    const report = (payload: object) =>
+    const report = (payload: Record<string, unknown>) =>
       new Promise<number | undefined>((resolve, reject) => {
         const body = JSON.stringify({ runId: context.runId, agent: context.agent, token: context.token, payload });
         request(context.url, { method: 'POST', headers: { 'content-type': 'application/json' } }, response => {

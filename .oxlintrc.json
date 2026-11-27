@@ -23,6 +23,17 @@
     "typescript/no-explicit-any": "error",
     // An empty catch block drops an error without a word: rethrow it, report it to the user, or fall back as designed.
     "no-empty": "error",
+    // {} and object accept almost any value, so a type that says nothing about its values lets a wrong one through unchecked.
+    "typescript/no-empty-object-type": "error",
+    "typescript/no-restricted-types": [
+      "error",
+      {
+        "types": {
+          "object": { "message": "Use a type that states the values it holds; a token that only compares identity has a type of its own." },
+          "{}": { "message": "Use a type that states the values it holds; a token that only compares identity has a type of its own." }
+        }
+      }
+    ],
     // Effects synchronize with systems outside React only: these rules read what each effect and render does.
     "react/rules-of-hooks": "error",
     "react/exhaustive-deps": "error",
