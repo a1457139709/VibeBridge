@@ -1,6 +1,6 @@
 import type { Language } from '../model';
 import {
-  messagePrefix,
+  readEnvelope,
   referenceValues,
   type MessageArguments,
   type MessageId,
@@ -21,16 +21,17 @@ export function localize(language: Language) {
     return value.map(valueText).join(separator);
   };
   function format(id: MessageId, values: MessageValues = {}): string {
-    return catalogs[language][id].replace(/\{(\w+)\}/g, (_, key: string) => valueText(values[key] ?? ''));
+    return catalogs[language][id].replace(/\{(\w+)\}/g, (_, key: string) => {
+      if (!Object.hasOwn(values, key)) throw new Error(`Message ${id} has no value for {${key}}`);
+      return valueText(values[key]);
+    });
   }
   function localizeText(value: string): string {
     const input = value.replace(/^Error invoking remote method '[^']+': Error: /, '');
-    if (!input.startsWith(messagePrefix)) return input;
-    try {
-      const parsed = JSON.parse(input.slice(messagePrefix.length));
-      if (Object.hasOwn(english, parsed.id)) return format(parsed.id, parsed.values);
-    } catch {}
-    return input;
+    const read = readEnvelope(input);
+    if (read.kind === 'plain') return input;
+    if (read.kind === 'malformed') return format('malformedMessage');
+    return format(read.reference.id, referenceValues(read.reference));
   }
   return {
     language,

@@ -198,6 +198,7 @@ export const english = {
   minimize: 'Minimize',
   switchApplications: 'Switch applications',
   systemSearch: 'System search',
+  malformedMessage: 'An internal message could not be read. This is a VibeBridge bug.',
   settingsCorrupt: 'Settings file is damaged',
   settingsReadFailed: 'Could not read settings. Check settings.json: {reason}',
   settingsUnreadable: 'Could not read settings. The original file was preserved; fix it and restart.',

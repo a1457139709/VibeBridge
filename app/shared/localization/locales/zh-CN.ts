@@ -194,6 +194,7 @@ export const chinese: Record<keyof typeof english, string> = {
   minimize: '最小化窗口',
   switchApplications: '系统应用切换',
   systemSearch: '系统搜索',
+  malformedMessage: '无法读取一条内部消息，这是 VibeBridge 的缺陷',
   settingsCorrupt: '配置文件损坏',
   settingsReadFailed: '配置读取失败，请检查 settings.json：{reason}',
   settingsUnreadable: '配置读取失败，未覆盖原配置；请修正后重新启动',
