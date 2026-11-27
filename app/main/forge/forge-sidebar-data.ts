@@ -29,6 +29,7 @@ import {
 import { RowRest } from './row-rest';
 import { BackgroundUpdates } from './background-updates';
 import { readByNumber, readItem, readPage, readRepositoryChoices, type ForgeSidebarSources } from './sidebar-reads';
+import { LatestRequest, type RequestTicket } from '../../shared/latest-request';
 
 const projectsKept = 5;
 
@@ -47,7 +48,7 @@ export class ForgeSidebarData {
   private lists = new Map<string, KeptLists>();
   private openDetails = new Map<string, OpenDetail>();
   private details = new KeptDetails();
-  private choices = new Map<string, { request: object; choices: ShownRepositoryChoices }>();
+  private choices = new Map<string, { request: LatestRequest; choices: ShownRepositoryChoices }>();
   private bindings = new Map<string, number>();
   private presence: ForgeSidebarPresence | null = null;
   private updates = new BackgroundUpdates(projectId => this.updateShownData(projectId));
@@ -128,11 +129,12 @@ export class ForgeSidebarData {
     return this.rowRest.restOn(rested && (() => this.readAhead(projectId, rested)));
   }
   async showRepositoryChoices(projectId: string) {
-    const request = {};
+    const request = this.choices.get(projectId)?.request ?? new LatestRequest();
+    const ticket = request.start();
     this.choices.set(projectId, { request, choices: null });
     this.sources.emit({ kind: 'repositoryChoices', projectId, choices: null });
     const choices = await readRepositoryChoices(this.sources, projectId);
-    if (this.choices.get(projectId)?.request !== request) return;
+    if (!this.choices.get(projectId)?.request.finish(ticket)) return;
     this.choices.set(projectId, { request, choices });
     this.sources.emit({ kind: 'repositoryChoices', projectId, choices });
   }
@@ -152,7 +154,7 @@ export class ForgeSidebarData {
   private async updateShownData(projectId: string) {
     const shown = this.useLists(projectId);
     await Promise.all([
-      shown && (shown.request ? shown.settled : this.updateShownTab(projectId, shown)),
+      shown && (shown.request.pending ? shown.settled : this.updateShownTab(projectId, shown)),
       this.rereadOpenDetail(projectId),
     ]);
   }
@@ -214,15 +216,13 @@ export class ForgeSidebarData {
     joining: Joining,
     pages = 1,
   ) {
-    const request = {};
-    shown.request = request;
-    shown.settled = this.loadPages(projectId, shown, request, tab, filter, joining, pages);
+    shown.settled = this.loadPages(projectId, shown, shown.request.start(), tab, filter, joining, pages);
     return shown.settled;
   }
   private async loadPages<T extends ForgeListTab>(
     projectId: string,
     shown: KeptLists,
-    request: object,
+    ticket: RequestTicket,
     tab: T,
     filter: ListFilter,
     joining: Joining,
@@ -236,7 +236,7 @@ export class ForgeSidebarData {
     let labels = cursor === null ? null : (before.loaded?.labels ?? null);
     let page = await readPage(this.sources, projectId, tab, { filter, cursor });
     for (;;) {
-      if (shown.request !== request || this.lists.get(projectId) !== shown) return;
+      if (!shown.request.isLatest(ticket) || this.lists.get(projectId) !== shown) return;
       if (!page.ok) break;
       labels ??= page.labels;
       items.push(...page.items);
@@ -244,7 +244,7 @@ export class ForgeSidebarData {
       if (!(cursor = page.nextCursor) || --pages < 1) break;
       page = await readPage(this.sources, projectId, tab, { filter, cursor });
     }
-    shown.request = null;
+    shown.request.finish(ticket);
     const last = page.ok && labels ? { ...page, labels } : page;
     const joined = joinedPages(tabList(shown.lists, tab), shown.pageEnds[tab], filter, joining, last, items, pageEnds);
     shown.pageEnds[tab] = joined.pageEnds;

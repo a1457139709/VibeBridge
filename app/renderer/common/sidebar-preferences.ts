@@ -4,6 +4,7 @@ import { sidebars, type Sidebar, type SidebarPreferences, type Snapshot } from '
 import { errorMessage } from '../../shared/caught-error';
 import { capturePointer } from './pointer-capture';
 import { requireValue } from './required';
+import { LatestRequest, type RequestTicket } from '../../shared/latest-request';
 import { draggedWidth, type WidestOnResize } from './region-widths';
 
 interface Options {
@@ -23,22 +24,20 @@ export function useSidebarPreferences({ sidebar, snapshot, api, edge, widestOnRe
   if (snapshot && snapshot !== stored.snapshot) setStored({ preferences: snapshot[sidebar], snapshot });
   const [unsaved, setUnsaved] = useState<SidebarPreferences>();
   const preferences = unsaved ?? stored.preferences;
-  const pending = useRef<object | undefined>(undefined);
+  const [pending] = useState(() => new LatestRequest());
   const cancelResize = useRef<(() => void) | undefined>(undefined);
 
   function replaceOperation() {
-    const operation = {};
-    pending.current = operation;
+    const operation = pending.start();
     cancelResize.current?.();
     return operation;
   }
-  function settle(operation: object) {
-    if (pending.current !== operation) return false;
-    pending.current = undefined;
+  function settle(operation: RequestTicket) {
+    if (!pending.finish(operation)) return false;
     setUnsaved(undefined);
     return true;
   }
-  function save(operation: object, next: SidebarPreferences) {
+  function save(operation: RequestTicket, next: SidebarPreferences) {
     void api
       .saveSidebar(sidebar, next)
       .then(() => {
@@ -74,7 +73,7 @@ export function useSidebarPreferences({ sidebar, snapshot, api, edge, widestOnRe
     const finish = (commit: boolean) => {
       window.removeEventListener('blur', cancel);
       cancelResize.current = undefined;
-      if (pending.current !== operation) return;
+      if (!pending.isLatest(operation)) return;
       if (commit) save(operation, { ...base, width: next });
       else settle(operation);
     };

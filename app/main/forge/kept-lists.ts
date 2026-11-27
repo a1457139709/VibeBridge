@@ -1,3 +1,4 @@
+import { LatestRequest } from '../../shared/latest-request';
 import type { ListFilter, Page } from '../../shared/forge/forge';
 import type { ForgeListTab, ForgeListView, ForgeLists, TabList } from '../../shared/forge/sidebar-data';
 
@@ -6,7 +7,7 @@ export interface KeptLists {
   lists: ForgeLists;
   pageEnds: Record<ForgeListTab, number[]>;
   rows: number[];
-  request: object | null;
+  request: LatestRequest;
   settled: Promise<void>;
 }
 
@@ -19,7 +20,7 @@ export const emptyLists = (view: ForgeListView): KeptLists => ({
   lists: { issues: noRows, pullRequests: noRows, loading: false },
   pageEnds: { issues: [], pullRequests: [] },
   rows: [],
-  request: null,
+  request: new LatestRequest(),
   settled: Promise.resolve(),
 });
 

@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { errorCode, errorMessage } from '../app/shared/caught-error';
+import { cleanUpAfterFailure, errorCode, errorMessage } from '../app/shared/caught-error';
 
 test('an Error is shown by its message', () => {
   assert.equal(errorMessage(new Error('disk is full')), 'disk is full');
@@ -28,4 +28,9 @@ test('a thrown plain object gives no code, even one carrying a code field: only 
 
 test('a thrown string gives no code', () => {
   assert.equal(errorCode('ENOENT'), undefined);
+});
+
+test('cleaning up after a failure settles whether the cleanup succeeds or fails', async () => {
+  assert.equal(await cleanUpAfterFailure(Promise.resolve('removed')), undefined);
+  assert.equal(await cleanUpAfterFailure(Promise.reject(new Error('busy'))), undefined);
 });
