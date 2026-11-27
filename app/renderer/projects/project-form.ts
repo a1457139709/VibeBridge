@@ -1,32 +1,25 @@
-import { useEffect, useState, type ClipboardEvent } from 'react';
+import { useState, type ClipboardEvent } from 'react';
+import { wait } from '../common/timer';
+import { useRequestResult } from '../common/request-result';
 import { projectNameHasControls, type ProjectNameProblem } from '../../shared/project-name';
 import { errorMessage } from '../../shared/caught-error';
 import type { DirectoryCheck } from './directory-field';
 
+const inspectionDelay = 180;
+
 export function useInspectedDirectory(input: string, reportFailure: (message: string) => void) {
-  const [checked, setChecked] = useState<{ input: string; check: DirectoryCheck }>();
-  useEffect(() => {
-    setChecked(undefined);
-    if (!input) return;
-    let live = true;
-    const timer = setTimeout(() => {
-      void window.workbench
-        .inspectDirectory(input)
-        .then(check => {
-          if (live) setChecked({ input, check });
-        })
-        .catch(error => {
-          if (!live) return;
-          setChecked({ input, check: { ok: false, problem: { kind: 'checkFailed' } } });
-          reportFailure(errorMessage(error));
-        });
-    }, 180);
-    return () => {
-      live = false;
-      clearTimeout(timer);
-    };
-  }, [input]);
-  return checked;
+  const check = useRequestResult<DirectoryCheck>(
+    input || undefined,
+    async (directory, signal) => {
+      await wait(inspectionDelay, signal);
+      return window.workbench.inspectDirectory(directory);
+    },
+    error => {
+      reportFailure(errorMessage(error));
+      return { ok: false, problem: { kind: 'checkFailed' } };
+    },
+  );
+  return check && { input, check };
 }
 
 export function usePastedNameProblem() {

@@ -1,215 +1,31 @@
 import './support/dom';
 import assert from 'node:assert/strict';
 import test, { afterEach, before } from 'node:test';
-import { cleanup, render, screen, waitFor, within } from '@testing-library/react';
-import { userEvent } from '@testing-library/user-event';
-import { App } from '../../app/renderer/Workbench';
-import { defaultSettings } from '../../app/shared/settings/settings';
-import type { ProjectView, Snapshot } from '../../app/shared/model';
-import type {
-  DirectAction,
-  DirectActionResult,
-  ForgeFailure,
-  IssueDetail,
-  PullRequestDetail,
-} from '../../app/shared/forge/forge';
-import { deferred, provideWorkbench } from './support/workbench';
-import { forgeSidebarData, workbenchEvents } from './support/forge-sidebar-data';
-import { testForge, testForgeUrl, testForgeView, testForgeRepository } from './support/forge';
-import { issue as listedIssue, pullRequest as listedPullRequest, stubSidebarApis } from './support/forge-lists';
+import { cleanup, waitFor, within } from '@testing-library/react';
+import type { ForgeFailure } from '../../app/shared/forge/forge';
+import { testForge, testForgeUrl } from './support/forge';
+import { stubSidebarApis } from './support/forge-lists';
 import { requireValue } from '../../app/renderer/common/required';
 import { descriptionParts } from './support/elements';
 import { t } from './support/localization';
 import { alertMessages, detailHeading, forgeSidebar } from './support/sidebar-queries';
+import {
+  failure,
+  forgeName,
+  issueDetail,
+  issuePane,
+  mergeButtons,
+  openIssue,
+  openPullRequest,
+  pullDetail,
+  pullPane,
+  repositoryUrl,
+  titles,
+  type Forge,
+} from './support/direct-actions';
 
 afterEach(cleanup);
 before(stubSidebarApis);
-
-const repositoryUrl = `${testForgeUrl}/ada/alpha`;
-const titles = { issue: 'Spec', pullRequest: 'Read-only detail' };
-const links = { issuePrefix: `${repositoryUrl}/issues/`, pullRequestPrefix: `${repositoryUrl}/pull/` };
-const issueDetail = (number: number, extra: Partial<IssueDetail> = {}): IssueDetail => {
-  const {
-    blockedBy: _,
-    unlistedBlockers: __,
-    parent: ___,
-    subIssues: ____,
-    ...summary
-  } = listedIssue(number, { title: titles.issue });
-  return {
-    ...summary,
-    url: `${repositoryUrl}/issues/${number}`,
-    author: 'lin',
-    assignees: [],
-    body: '',
-    comments: [],
-    commentCount: 0,
-    parent: null,
-    subIssues: [],
-    subIssueProgress: { closed: 0, total: 0 },
-    blockedBy: [],
-    blocking: [],
-    closingPullRequests: [],
-    links,
-    canWrite: true,
-    ...extra,
-  };
-};
-const pullDetail = (number: number, extra: Partial<PullRequestDetail> = {}): PullRequestDetail => {
-  const { checks: _, ...summary } = listedPullRequest(number, { title: titles.pullRequest });
-  return {
-    ...summary,
-    url: `${repositoryUrl}/pull/${number}`,
-    changesUrl: `${repositoryUrl}/pull/${number}/files`,
-    head: 'feature',
-    base: 'main',
-    body: '',
-    timeline: [],
-    earlierEntries: 0,
-    closingIssues: [],
-    links,
-    reviewDecision: null,
-    checks: { state: null, counts: [], total: 0, url: `${repositoryUrl}/pull/${number}/checks`, listed: [] },
-    mergeState: 'clean',
-    mergeOptions: { methods: ['merge', 'squash', 'rebase'], defaultMethod: 'merge', queue: false },
-    canWrite: true,
-    ...extra,
-  };
-};
-
-interface Forge {
-  issue?: IssueDetail;
-  pullRequest?: PullRequestDetail;
-}
-interface ActionRequest {
-  action: DirectAction;
-  answer(result: DirectActionResult): void;
-}
-
-function renderWorkbench(forge: Forge) {
-  const project: ProjectView = {
-    id: 'alpha',
-    name: 'Alpha',
-    directory: '/work/alpha',
-    layout: { panel: 'panel' },
-    tray: [],
-    repository: testForgeRepository('ada/alpha'),
-    ...testForgeView,
-    panels: [
-      {
-        id: 'panel',
-        agent: 'codex',
-        run: { id: 'run', panelId: 'panel', projectId: 'alpha', state: 'running', title: 'Alpha session' },
-      },
-    ],
-  };
-  const snapshot: Snapshot = {
-    navigation: { visible: true, width: 212 },
-    forgeSidebar: { visible: true, width: 380 },
-    activeProjectId: 'alpha',
-    settings: defaultSettings(),
-    settingsConflicts: [],
-    startupTheme: 'light',
-    resolvedTheme: 'light',
-    errors: [],
-    projects: [project],
-  };
-  const actions: ActionRequest[] = [];
-  const reads = { issue: 0, pullRequest: 0, pages: 0, rows: 0 };
-  const events = workbenchEvents();
-  provideWorkbench({
-    fetchSnapshot: async () => structuredClone(snapshot),
-    reportRendererReady: async () => {},
-    subscribe: events.subscribe,
-    saveSidebar: async () => {},
-    activateProject: async () => {},
-    saveLayout: async () => {},
-    ...forgeSidebarData(
-      {
-        issuePage: async () => {
-          reads.pages++;
-          return {
-            ok: true,
-            items: [listedIssue(3, { title: titles.issue })],
-            nextCursor: null,
-            labels: [],
-            counts: { open: 1, closed: 0 },
-          };
-        },
-        pullRequestPage: async () => {
-          reads.pages++;
-          return {
-            ok: true,
-            items: [listedPullRequest(12, { title: titles.pullRequest })],
-            nextCursor: null,
-            labels: [],
-            counts: { open: 1, closed: 0 },
-          };
-        },
-        issuesByNumber: async (_, numbers) => {
-          reads.rows++;
-          const { title, state, closedAs } = requireValue(forge.issue, 'the forge issue');
-          return { ok: true, items: numbers.includes(3) ? [listedIssue(3, { title, state, closedAs })] : [] };
-        },
-        issueDetail: async () => {
-          reads.issue++;
-          return { ok: true, issue: structuredClone(requireValue(forge.issue, 'the forge issue')) };
-        },
-        pullRequestDetail: async () => {
-          reads.pullRequest++;
-          return { ok: true, pullRequest: structuredClone(requireValue(forge.pullRequest, 'the forge pull request')) };
-        },
-      },
-      events.emit,
-    ),
-    performDirectAction: (_, action) => {
-      const answer = deferred<DirectActionResult>();
-      actions.push({ action, answer: answer.resolve });
-      return answer.promise;
-    },
-  });
-  render(<App />);
-  const action = (count: number) =>
-    waitFor(() => {
-      assert.equal(actions.length, count, 'direct actions asked for');
-      return actions[count - 1];
-    });
-  return { user: userEvent.setup(), action, reads };
-}
-
-const issuePane = () => within(forgeSidebar()).getByRole('region', { name: t('issueDetail') });
-const pullPane = () => within(forgeSidebar()).getByRole('region', { name: t('pullRequestDetail') });
-const forgeName = testForge.name;
-const mergeButtons = () =>
-  within(within(pullPane()).getByRole('region', { name: t('mergeRequirements') }))
-    .queryAllByRole('button')
-    .map(button => button.textContent);
-const failure = (detail: string): DirectActionResult => ({
-  ok: false,
-  failure: { kind: 'transient', detail, forge: testForge },
-});
-
-async function openIssue(forge: Forge) {
-  const view = renderWorkbench(forge);
-  await view.user.click(
-    await within(await screen.findByRole('complementary', { name: forgeName })).findByRole('button', {
-      name: titles.issue,
-    }),
-  );
-  await detailHeading(issuePane(), titles.issue, 3);
-  return view;
-}
-async function openPullRequest(forge: Forge) {
-  const view = renderWorkbench(forge);
-  await view.user.click(
-    within(await screen.findByRole('complementary', { name: forgeName })).getByRole('tab', {
-      name: t('pullRequestsTab'),
-    }),
-  );
-  await view.user.click(await within(forgeSidebar()).findByRole('button', { name: titles.pullRequest }));
-  await detailHeading(pullPane(), titles.pullRequest, 12);
-  return view;
-}
 
 test('Close issue closes it as completed, shows it working meanwhile, and on success reloads the issue to show what the forge holds in its detail and its row', async () => {
   const forge: Forge = { issue: issueDetail(3) };
@@ -260,6 +76,22 @@ test('the close menu closes an issue as not planned, and a closed issue reopens'
   close.answer({ ok: true, detail: '' });
   await user.click(await within(issuePane()).findByRole('button', { name: t('reopenIssue') }));
   assert.deepEqual((await action(2)).action, { kind: 'reopenIssue', number: 3 });
+});
+
+test('the close menu stays open for a press inside it, and Escape or a press outside closes only the menu', async () => {
+  const { user } = await openIssue({ issue: issueDetail(3) });
+  const more = within(issuePane()).getByRole('button', { name: t('moreCloseOptions') });
+  const menu = () => within(issuePane()).queryByRole('menu', { name: t('moreCloseOptions') });
+  await user.click(more);
+  await user.pointer({ keys: '[MouseLeft>]', target: requireValue(menu(), 'the open menu') });
+  await user.pointer({ keys: '[/MouseLeft]' });
+  assert.notEqual(menu(), null);
+  await user.keyboard('{Escape}');
+  await waitFor(() => assert.equal(menu(), null));
+  await detailHeading(issuePane(), titles.issue, 3);
+  await user.click(more);
+  await user.click(issuePane());
+  await waitFor(() => assert.equal(menu(), null));
 });
 
 test('a failed action shows the forge text under the buttons with Retry until dismissed or the next refresh', async () => {
@@ -320,6 +152,27 @@ test('an action that finds the forge CLI missing or logged out puts the sidebar 
     failure: { kind: 'loggedOut', detail: 'HTTP 401: Bad credentials', forge: testForge },
   });
   await within(forgeSidebar()).findByRole('button', { name: t('copyCommand', { command: testForge.loginCommand }) });
+});
+
+test('an action answered after the detail moved to another item shows nothing on that item', async () => {
+  const link = { href: `${repositoryUrl}/pull/12`, text: '#12' };
+  const forge: Forge = {
+    issue: issueDetail(3, { body: `<p>Fixed by <a href="${link.href}">${link.text}</a>.</p>` }),
+    pullRequest: pullDetail(12),
+  };
+  const { user, action } = await openIssue(forge);
+  await user.click(within(issuePane()).getByRole('button', { name: t('closeIssue') }));
+  const stale = await action(1);
+  await user.click(within(issuePane()).getByRole('link', { name: link.text }));
+  await detailHeading(pullPane(), titles.pullRequest, 12);
+  stale.answer({ ok: false, failure: { kind: 'notInstalled', detail: '', forge: testForge } });
+  await user.click(within(pullPane()).getByRole('button', { name: t('closePullRequest') }));
+  (await action(2)).answer(failure('Server busy'));
+  const alert = await within(pullPane()).findByRole('alert');
+  assert.deepEqual(descriptionParts(within(alert).getByRole('button', { name: t('retry') })), [
+    t('actionFailed', { action: t('closePullRequest'), reason: 'Server busy' }),
+  ]);
+  assert.equal(within(forgeSidebar()).getAllByRole('alert').length, 1, 'the earlier item leaves no failure');
 });
 
 test('with no write access to the repository, a detail shows no action buttons', async () => {

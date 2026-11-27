@@ -64,11 +64,11 @@ export function ActionFailure({ actions }: { actions: Actions }) {
 
 export function IssueActions({ issue, actions }: { issue: IssueDetail; actions: Actions }) {
   const { t } = useLocalization();
-  const menu = usePopover<HTMLSpanElement>();
+  const { open: menuOpen, setOpen: setMenuOpen, root: menuRoot } = usePopover<HTMLSpanElement>();
   if (!issue.canWrite) return null;
   const busy = actions.performing !== null;
   const close = (reason: 'completed' | 'notPlanned') => {
-    menu.setOpen(false);
+    setMenuOpen(false);
     actions.perform({ kind: 'closeIssue', number: issue.number, reason });
   };
   return (
@@ -82,7 +82,7 @@ export function IssueActions({ issue, actions }: { issue: IssueDetail; actions: 
           {busy ? t('actionWorking') : t('reopenIssue')}
         </button>
       ) : (
-        <span className="forge-split" ref={menu.root}>
+        <span className="forge-split" ref={menuRoot}>
           <button className="forge-split-main" disabled={busy} onClick={() => close('completed')}>
             {busy ? t('actionWorking') : t('closeIssue')}
           </button>
@@ -91,12 +91,12 @@ export function IssueActions({ issue, actions }: { issue: IssueDetail; actions: 
             disabled={busy}
             aria-label={t('moreCloseOptions')}
             aria-haspopup="menu"
-            aria-expanded={menu.open}
-            onClick={() => menu.setOpen(open => !open)}
+            aria-expanded={menuOpen}
+            onClick={() => setMenuOpen(open => !open)}
           >
             ▾
           </button>
-          {menu.open && (
+          {menuOpen && (
             <div className="forge-popover forge-close-menu" role="menu" aria-label={t('moreCloseOptions')}>
               <button role="menuitem" onClick={() => close('completed')}>
                 {t('closeAsCompleted')}
@@ -139,19 +139,19 @@ export function PullRequestActions({
   actions: Actions;
 }) {
   const { t } = useLocalization();
-  const menu = usePopover<HTMLSpanElement>();
+  const { open: menuOpen, setOpen: setMenuOpen, root: menuRoot } = usePopover<HTMLSpanElement>();
   const [confirming, setConfirming] = useState(false);
   const [chosen, setChosen] = useState(pullRequest.mergeOptions.defaultMethod);
+  const why = useId();
   if (!pullRequest.canWrite) return null;
   const busy = actions.performing !== null;
   const { methods, method, chooser } = mergeMethodChoice(pullRequest, capabilities, chosen);
   const reasons = mergeBlockedReasons(pullRequest, forge, t);
-  const why = useId();
   const blocked = !!reasons.length || !method;
   const choose = (next: MergeMethod) => {
     setChosen(next);
     setConfirming(false);
-    menu.setOpen(false);
+    setMenuOpen(false);
   };
   const merge = () => {
     if (!method) return;
@@ -182,7 +182,7 @@ export function PullRequestActions({
           </span>
         ) : (
           <span className="forge-merge-why">
-            <span className={`forge-split ${blocked ? 'weak' : ''}`} ref={menu.root}>
+            <span className={`forge-split ${blocked ? 'weak' : ''}`} ref={menuRoot}>
               <button
                 className="forge-split-main"
                 disabled={blocked || busy}
@@ -198,13 +198,13 @@ export function PullRequestActions({
                   aria-label={t('chooseMergeMethod')}
                   aria-describedby={reasons.length ? why : undefined}
                   aria-haspopup="menu"
-                  aria-expanded={menu.open}
-                  onClick={() => menu.setOpen(open => !open)}
+                  aria-expanded={menuOpen}
+                  onClick={() => setMenuOpen(open => !open)}
                 >
                   ▾
                 </button>
               )}
-              {menu.open && (
+              {menuOpen && (
                 <div className="forge-popover forge-method-menu" role="menu" aria-label={t('chooseMergeMethod')}>
                   {methods.map(item => (
                     <button key={item} role="menuitemradio" aria-checked={item === method} onClick={() => choose(item)}>

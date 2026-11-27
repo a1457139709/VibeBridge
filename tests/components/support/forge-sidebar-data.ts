@@ -44,7 +44,7 @@ export function forgeSidebarData(
     pullRequestDetail: (projectId, number) =>
       answers.pullRequestDetail?.(projectId, number) ?? unanswered('pullRequestDetail'),
     forge: () => testForge,
-    emit,
+    emit: event => queueMicrotask(() => emit(event)),
   });
   return {
     showForgeList: (projectId, view) => data.showList(projectId, view),

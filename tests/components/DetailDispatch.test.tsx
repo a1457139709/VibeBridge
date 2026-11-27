@@ -12,6 +12,7 @@ import {
   issueDetail as detail,
   listed,
   menu,
+  panelOf,
   record,
   targetsMenu,
   trayTitle,
@@ -26,8 +27,12 @@ import { nameIncluding } from './support/accessible-names';
 afterEach(cleanup);
 before(stubSidebarApis);
 
-async function opened(issue: IssueDetail, change: (snapshot: Snapshot) => void = () => {}) {
-  const f = await listed(undefined, change);
+async function opened(
+  issue: IssueDetail,
+  change: (snapshot: Snapshot) => void = () => {},
+  dispatch?: Parameters<typeof listed>[0],
+) {
+  const f = await listed(dispatch, change);
   f.forge.issueDetail = async () => ({ ok: true, issue });
   await f.user.click(issueButton(issue.number));
   await detailHeading(pane(), issue.title, issue.number);
@@ -67,6 +72,22 @@ test("an open issue's detail has a Dispatch beside its state and labels that ope
       ],
     ]),
   );
+});
+
+test("filling a panel from the detail's Dispatch locates the panel and closes the detail", async () => {
+  const f = await opened(detail(9), undefined, async (_, request) => ({
+    delivery: 'fill',
+    panelId: panelOf(request),
+  }));
+  const activated: string[] = [];
+  window.workbench.activateProject = async id => {
+    activated.push(id);
+  };
+  await f.user.click(within(selectElement('.forge-doc-head', pane())).getByRole('button', { name: t('dispatch') }));
+  await f.user.hover(within(menu()).getByRole('menuitem', commandNamed(implement, ['submit'])));
+  await f.user.click(within(targetsMenu(implement)).getByRole('menuitem', { name: nameIncluding(trayTitle) }));
+  await waitFor(() => assert.deepEqual(activated, ['alpha'], "the filled panel's project is shown"));
+  assert.equal(within(forgeSidebar()).queryByRole('region', { name: t('issueDetail') }), null);
 });
 
 test("a closed issue's detail has no Dispatch", async () => {

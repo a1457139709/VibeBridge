@@ -1,6 +1,6 @@
-import { useEffect, useRef } from 'react';
 import { useLocalization } from '../common/Localization';
 import type { SettingsCategory } from '../../shared/settings/settings';
+import { showModalWhileAttached } from '../common/modal-dialog';
 
 export function SettingsConflictDialog({
   category,
@@ -10,13 +10,9 @@ export function SettingsConflictDialog({
   openSettings(): void;
 }) {
   const { t } = useLocalization();
-  const dialog = useRef<HTMLDialogElement>(null);
-  useEffect(() => {
-    dialog.current?.showModal();
-  }, []);
   return (
     <dialog
-      ref={dialog}
+      ref={showModalWhileAttached}
       className="settings-conflict"
       aria-labelledby="settings-conflict-title"
       aria-describedby="settings-conflict-help"

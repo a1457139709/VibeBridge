@@ -172,6 +172,7 @@ test('a pull request that closes an issue opens in the sidebar from the issue de
   assert.deepEqual([opened.kind, opened.number], ['pullRequest', 12]);
   opened.answer({ ok: true, pullRequest: detail(12, { title: 'Change 12' }) });
   await detailHeading(pane(), 'Change 12', 12);
+  assert.ok(pane().contains(document.activeElement), 'focus moves to the detail of the opened item');
 });
 
 test('a link to a pull request of the bound repository in the body opens it in the sidebar', async () => {

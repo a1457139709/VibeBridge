@@ -53,6 +53,18 @@ test('the comment check rejects every kind of comment in scripts, JSX and styles
   ]);
 });
 
+test('the comment check rejects lint suppression directives, so lint exceptions live in the oxlint config', async context => {
+  const f = await fixture(context);
+  await f.write('app/next-line.ts', '// oxlint-disable-next-line no-restricted-imports\nexport const n = 1;\n');
+  await f.write('app/disabled.ts', '/* oxlint-disable */\nexport const d = 1;\n/* oxlint-enable */\n');
+
+  const result = f.run();
+
+  assert.equal(result.status, 1);
+  assert.match(result.stderr, /^app\/next-line\.ts: 1 comments, 0 allowed \(lines 1\)$/m);
+  assert.match(result.stderr, /^app\/disabled\.ts: 2 comments, 0 allowed \(lines 1, 3\)$/m);
+});
+
 test('the comment check accepts code without comments, tool directives, strings and dependencies', async context => {
   const f = await fixture(context);
   await f.write('app/clean.ts', "export const url = 'http://example.com/*path*/';\n");

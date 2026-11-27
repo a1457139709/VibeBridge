@@ -1,6 +1,10 @@
 {
   "$schema": "./node_modules/oxlint/configuration_schema.json",
-  "plugins": ["typescript"],
+  "plugins": ["typescript", "react"],
+  "jsPlugins": [
+    { "name": "rh", "specifier": "eslint-plugin-react-hooks" },
+    { "name": "ynne", "specifier": "eslint-plugin-react-you-might-not-need-an-effect" }
+  ],
   "categories": {
     "correctness": "off",
     "suspicious": "off",
@@ -16,6 +20,88 @@
     // A type assertion overrides what the compiler knows about a value, so a wrong type reaches the code that trusts it unchecked.
     "typescript/consistent-type-assertions": ["error", { "assertionStyle": "never" }],
     // An explicit any switches type checking off for a value and everything it flows into, so a wrong type travels unchecked.
-    "typescript/no-explicit-any": "error"
-  }
+    "typescript/no-explicit-any": "error",
+    // Effects synchronize with systems outside React only: these rules read what each effect and render does.
+    "react/rules-of-hooks": "error",
+    "react/exhaustive-deps": "error",
+    "rh/set-state-in-effect": "error",
+    "rh/set-state-in-render": "error",
+    "rh/purity": "error",
+    "rh/immutability": "error",
+    "rh/refs": "error",
+    "ynne/no-derived-state": "error",
+    "ynne/no-chain-state-updates": "error",
+    "ynne/no-event-handler": "error",
+    "ynne/no-adjust-state-on-prop-change": "error",
+    "ynne/no-reset-all-state-on-prop-change": "error",
+    "ynne/no-pass-live-state-to-parent": "error",
+    "ynne/no-pass-data-to-parent": "error",
+    "ynne/no-external-store-subscription": "error",
+    "ynne/no-initialize-state": "error"
+  },
+  "overrides": [
+    {
+      // The renderer imports no effect from React; a file that synchronizes one outside system is listed in its own override below.
+      "files": ["app/renderer/**"],
+      "rules": {
+        "no-restricted-imports": [
+          "error",
+          {
+            "paths": [
+              {
+                "name": "react",
+                "importNames": ["useEffect", "useLayoutEffect", "default"],
+                "message": "An effect only synchronizes with a system outside React (main-process events, window or document events, element observers, timers). Compute a value derived from props or state during render; do what a user action causes in its event handler; for an outside system, use an existing hook that synchronizes that one system. Do not wrap an effect in a hook that takes a callback and dependencies. Import React APIs by name. A file that truly synchronizes one outside system is listed by path in an override of .oxlintrc.json."
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      // Synchronizes the main process: the first snapshot, then its events.
+      "files": ["app/renderer/common/main-process.ts"],
+      "rules": { "no-restricted-imports": "off" }
+    },
+    {
+      // Synchronizes window events.
+      "files": ["app/renderer/common/window-events.ts"],
+      "rules": { "no-restricted-imports": "off" }
+    },
+    {
+      // Synchronizes document events.
+      "files": ["app/renderer/common/document-events.ts"],
+      "rules": { "no-restricted-imports": "off" }
+    },
+    {
+      // Synchronizes a timer that keeps its remaining time while paused.
+      "files": ["app/renderer/common/timer.ts"],
+      "rules": { "no-restricted-imports": "off" }
+    },
+    {
+      // Synchronizes a request whose result belongs to the key that asked for it.
+      "files": ["app/renderer/common/request-result.ts"],
+      "rules": { "no-restricted-imports": "off" }
+    },
+    {
+      // Synchronizes an element observer that reports the element's size.
+      "files": ["app/renderer/common/resize-observer.ts"],
+      "rules": { "no-restricted-imports": "off" }
+    },
+    {
+      // Synchronizes an element observer that reports elements added to or removed from the element's subtree.
+      "files": ["app/renderer/common/child-list-observer.ts"],
+      "rules": { "no-restricted-imports": "off" }
+    },
+    {
+      // Synchronizes the pointer and focus events of a list element, to report the row they rest on.
+      "files": ["app/renderer/forge/row-resting.ts"],
+      "rules": { "no-restricted-imports": "off" }
+    },
+    {
+      // Synchronizes the main process's forge sidebar data with the sidebar's presence, shown rows and repository choices.
+      "files": ["app/renderer/forge/sidebar-reports.ts"],
+      "rules": { "no-restricted-imports": "off" }
+    }
+  ]
 }

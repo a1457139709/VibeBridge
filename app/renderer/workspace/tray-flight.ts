@@ -1,4 +1,4 @@
-import { useLayoutEffect, useRef, useState, type RefObject } from 'react';
+import { useRef, useState } from 'react';
 
 export const canFly = (panel: Element | null | undefined): panel is Element =>
   !!panel && typeof panel.animate === 'function' && !matchMedia('(prefers-reduced-motion: reduce)').matches;
@@ -29,6 +29,13 @@ export async function flyIntoCard(panel: Element, card: Element) {
   } catch {}
 }
 
+export function growOpenedPanel(slot: HTMLElement | null) {
+  const panelId = slot?.dataset.panelId;
+  if (!slot || !panelId) return;
+  const card = slot.closest('.workspace')?.querySelector(`[data-tray-panel-id="${CSS.escape(panelId)}"]`);
+  if (card && canFly(slot)) growFromCard(slot, card);
+}
+
 export function useTrayFlight({
   openPanelId,
   canvas,
@@ -36,25 +43,17 @@ export function useTrayFlight({
   collapse,
 }: {
   openPanelId?: string;
-  canvas: RefObject<Element | null>;
-  tray: RefObject<Element | null>;
+  canvas: Element | null;
+  tray: Element | null;
   collapse(): void;
 }) {
   const [landedPanelId, setLandedPanelId] = useState<string>();
-  const shownPanelId = useRef<string>(undefined);
   const flyingPanelId = useRef<string>(undefined);
   const flightOf = (panelId: string) => {
-    const slot = canvas.current?.querySelector(`[data-panel-id="${CSS.escape(panelId)}"]`),
-      card = tray.current?.querySelector(`[data-tray-panel-id="${CSS.escape(panelId)}"]`);
+    const slot = canvas?.querySelector(`[data-panel-id="${CSS.escape(panelId)}"]`),
+      card = tray?.querySelector(`[data-tray-panel-id="${CSS.escape(panelId)}"]`);
     return card && canFly(slot) ? { slot, card } : undefined;
   };
-  useLayoutEffect(() => {
-    if (openPanelId && openPanelId !== shownPanelId.current) {
-      const flight = flightOf(openPanelId);
-      if (flight) growFromCard(flight.slot, flight.card);
-    }
-    shownPanelId.current = openPanelId;
-  });
   const collapseIntoCard = () => {
     const panelId = openPanelId;
     if (!panelId) return;
@@ -67,7 +66,7 @@ export function useTrayFlight({
     flyingPanelId.current = panelId;
     void flyIntoCard(flight.slot, flight.card).then(() => {
       flyingPanelId.current = undefined;
-      if (shownPanelId.current !== panelId) return;
+      if (!flight.slot.isConnected) return;
       collapse();
       setLandedPanelId(panelId);
     });

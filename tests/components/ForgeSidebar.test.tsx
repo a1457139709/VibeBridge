@@ -225,6 +225,19 @@ test('from the search box ↑/↓ move through the listed repositories, Enter or
   assert.deepEqual(picked(), ['ada/tools']);
 });
 
+test('a repository reached with ↑/↓ scrolls into view', async context => {
+  const scrolled: (string | undefined)[] = [];
+  context.mock.method(window.HTMLElement.prototype, 'scrollIntoView', function (this: HTMLElement) {
+    scrolled.push(this.dataset.path);
+  });
+  const { user, opened } = await unboundSidebar(async () => listed('ada/unbound'));
+  await user.click(await within(opened).findByRole('button', { name: t('chooseOtherRepository') }));
+  const search = await within(opened).findByRole('searchbox', { name: t('searchRepositories') });
+  await waitFor(() => assert.equal(document.activeElement, search));
+  await user.keyboard('{ArrowDown}{ArrowDown}');
+  assert.deepEqual(scrolled, ['ada/unbound', 'ada/tools']);
+});
+
 test('without an origin on the list, the list shows with nothing picked and Bind is unavailable until one is', async () => {
   const { user, binds, opened } = await unboundSidebar(async () => listed(null));
   const tools = await waitFor(() => repositoryOption('ada/tools', opened));
@@ -325,4 +338,5 @@ test("Edit project's link on an unbound project makes it current and opens the s
   const opened = await shownSidebar();
   await waitFor(() => assert.equal(repositoryTitle(), t('noRepositoryBound')));
   assert.equal(within(opened).queryByRole('button', { name: t('bindingBack') }), null);
+  assert.ok(opened.contains(document.activeElement), 'focus moves into the sidebar');
 });

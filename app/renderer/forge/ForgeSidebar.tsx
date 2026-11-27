@@ -1,10 +1,11 @@
 import { useLocalization } from '../common/Localization';
-import { useLayoutEffect, useRef, useState, type PointerEvent as ReactPointerEvent } from 'react';
+import { useRef, useState, type PointerEvent as ReactPointerEvent } from 'react';
 import { SidebarCollapseIcon, SidebarExpandIcon } from '@primer/octicons-react';
 import { displayShortcut, type IssueShortcutAction } from '../../shared/settings/shortcuts';
 import type { DesktopAPI } from '../../shared/api';
 import type { ProjectView, Snapshot } from '../../shared/model';
 import { useSidebarPreferences } from '../common/sidebar-preferences';
+import { focusAfterUpdate } from '../common/focus';
 import { ChangeBinding, UnboundRepository } from './SidebarBinding';
 import { ForgeLists, openListsView, type DetailHost, type ForgeListsActions, type ListsView } from './ForgeLists';
 import { SidebarHead } from './SidebarHead';
@@ -41,16 +42,14 @@ export function useForgeSidebar(host: Host, api: Pick<DesktopAPI, 'saveSidebar' 
     report: host.report,
   });
   const element = useRef<HTMLElement>(null);
-  const focusOnOpen = useRef(false);
-  const [focusRequest, setFocusRequest] = useState(0);
   const [changingBindingOf, setChangingBindingOf] = useState<string>();
-  const [detailOpen, setDetailOpen] = useState(false);
+  const [detailOpenIn, setDetailOpenIn] = useState<string>();
   const [width, setWidth] = useState(detailWidth.initial);
   const [lastTargets, setLastTargets] = useState<ReadonlyMap<string, DispatchTarget>>(new Map());
   const listsActions = useRef<ForgeListsActions>(null);
-  const listsViews = useRef(new Map<string, ListsView>());
+  const [listsViews, setListsViews] = useState<ReadonlyMap<string, ListsView>>(new Map());
   const detail: DetailHost = {
-    onDetailOpenChange: setDetailOpen,
+    onDetailOpenChange: open => setDetailOpenIn(open ? bindingKey : undefined),
     startResize(event: ReactPointerEvent<HTMLDivElement>) {
       if (event.button !== 0) return;
       event.preventDefault();
@@ -65,24 +64,30 @@ export function useForgeSidebar(host: Host, api: Pick<DesktopAPI, 'saveSidebar' 
   };
   const sidebarOpen = preferences.visible && !!project;
   const bindingKey = project && keyOfBinding(project);
-  useLayoutEffect(() => {
-    if (sidebarOpen && focusOnOpen.current) requireValue(element.current, 'the forge sidebar').focus();
-    focusOnOpen.current = false;
-  }, [sidebarOpen, focusRequest]);
+  const listsShownFor = sidebarOpen && changingBindingOf !== bindingKey ? bindingKey : undefined;
+  if (detailOpenIn !== undefined && detailOpenIn !== listsShownFor) setDetailOpenIn(undefined);
+  const detailOpen = detailOpenIn !== undefined && detailOpenIn === listsShownFor;
   function toggle() {
     if (!project) return false;
-    focusOnOpen.current = !preferences.visible;
-    if (!togglePreferences()) focusOnOpen.current = false;
+    const opening = !preferences.visible;
+    let opened = false;
+    focusAfterUpdate(
+      () => {
+        opened = togglePreferences();
+      },
+      () => (opening && opened ? element.current : null),
+    );
     return true;
   }
   function openBinding(target: ProjectView) {
     const key = keyOfBinding(target);
-    setChangingBindingOf(key);
-    if (!key) {
-      focusOnOpen.current = true;
-      setFocusRequest(request => request + 1);
-    }
-    if (!preferences.visible) togglePreferences();
+    focusAfterUpdate(
+      () => {
+        setChangingBindingOf(key);
+        if (!preferences.visible) togglePreferences();
+      },
+      () => (key ? null : element.current),
+    );
   }
   const runIssueShortcut = (action: IssueShortcutAction) =>
     !!element.current?.contains(document.activeElement) && (listsActions.current?.runIssueShortcut(action) ?? false);
@@ -133,7 +138,7 @@ export function useForgeSidebar(host: Host, api: Pick<DesktopAPI, 'saveSidebar' 
           <>
             <SidebarHead title={project.repository.path} />
             <ChangeBinding
-              key={project.id}
+              key={keyOfDirectory(project)}
               project={{ ...project, repository: project.repository }}
               back={() => {
                 setChangingBindingOf(undefined);
@@ -145,8 +150,8 @@ export function useForgeSidebar(host: Host, api: Pick<DesktopAPI, 'saveSidebar' 
           <ForgeLists
             ref={listsActions}
             key={bindingKey}
-            view={listsViews.current.get(bindingKey) ?? openListsView}
-            rememberView={view => void listsViews.current.set(bindingKey, view)}
+            view={listsViews.get(bindingKey) ?? openListsView}
+            rememberView={view => setListsViews(views => new Map(views).set(bindingKey, view))}
             project={{ ...project, repository: project.repository }}
             changeBinding={() => setChangingBindingOf(bindingKey)}
             detailHost={detail}
@@ -163,7 +168,7 @@ export function useForgeSidebar(host: Host, api: Pick<DesktopAPI, 'saveSidebar' 
         ) : (
           <>
             <SidebarHead title={t('noRepositoryBound')} />
-            <UnboundRepository key={project.id} project={project} />
+            <UnboundRepository key={keyOfDirectory(project)} project={project} />
           </>
         )}
       </aside>
@@ -173,3 +178,4 @@ export function useForgeSidebar(host: Host, api: Pick<DesktopAPI, 'saveSidebar' 
 
 const keyOfBinding = ({ id, repository }: ProjectView) =>
   repository ? `${id} ${repository.forge} ${repository.host} ${repository.id}` : undefined;
+const keyOfDirectory = ({ id, directory }: ProjectView) => `${id} ${directory}`;

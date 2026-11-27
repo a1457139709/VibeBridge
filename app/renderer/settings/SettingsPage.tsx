@@ -1,10 +1,12 @@
 import { Localization, useLocalization } from '../common/Localization';
 import { localize } from '../../shared/localization/localization';
 import { message } from '../../shared/messages';
-import { useEffect, useId, useImperativeHandle, useLayoutEffect, useRef, useState, type Ref } from 'react';
+import { flushSync } from 'react-dom';
+import { useId, useImperativeHandle, useRef, useState, type Ref } from 'react';
 import type { Settings } from '../../shared/model';
 import type { ShortcutAction } from '../../shared/settings/shortcuts';
 import type { ReportNotice } from '../common/Notices';
+import { showModalWhileAttached } from '../common/modal-dialog';
 import { AgentSettings } from './AgentSettings';
 import { AppearanceSettings } from './AppearanceSettings';
 import { GeneralSettings } from './GeneralSettings';
@@ -45,8 +47,9 @@ function SettingsEditor({
   const leave = useId();
   const [currentCategory, setCurrentCategory] = useState<SettingsCategory>(initialCategory);
   const [draft, setDraft] = useState(settings);
-  const [saved, setSaved] = useState(settings);
-  useEffect(() => setSaved(settings), [settings]);
+  const [stored, setStored] = useState({ snapshot: settings, saved: settings });
+  if (stored.snapshot !== settings) setStored({ snapshot: settings, saved: settings });
+  const { saved } = stored;
   const { agents, shortcuts } = draft;
   const [submittedIssues, setSubmittedIssues] = useState<SettingsIssue[]>([]);
   const issues = [...submittedIssues, ...settingsIssues(draft)];
@@ -60,21 +63,14 @@ function SettingsEditor({
   const [recording, setRecording] = useState<ShortcutAction>();
   const [error, setError] = useState('');
   const [saving, setSaving] = useState(false);
-  const [problemToFocus, setProblemToFocus] = useState<SettingsIssue>();
   const pending = useRef(false);
   const scroll = useRef<HTMLDivElement>(null);
-  useLayoutEffect(() => {
-    if (scroll.current) scroll.current.scrollTop = 0;
-  }, [currentCategory]);
-  useLayoutEffect(() => {
-    if (saving || !problemToFocus) return;
-    const input = document.querySelector<HTMLElement>(`[data-settings-field="${CSS.escape(problemToFocus.field)}"]`);
+  function focusField(field: string) {
+    const input = scroll.current?.querySelector<HTMLElement>(`[data-settings-field="${CSS.escape(field)}"]`);
     input?.scrollIntoView({ block: 'nearest' });
     input?.focus();
-    setProblemToFocus(undefined);
-  }, [saving, problemToFocus]);
-  const [leaveCategories, setLeaveCategories] = useState<SettingsCategory[]>([]);
-  const leaveDialog = useRef<HTMLDialogElement>(null);
+  }
+  const [leaving, setLeaving] = useState<SettingsCategory[]>();
   const leaveDecision = useRef<(leave: boolean) => void>(undefined);
   const dirty = dirtySettingsCategories(draft, saved);
   const savedConflicts = settingsConflicts(saved);
@@ -85,10 +81,9 @@ function SettingsEditor({
     async requestLeave() {
       if (pending.current || leaveDecision.current) return false;
       if (!dirty.length && !conflicting.length) return true;
-      setLeaveCategories(dirty);
+      setLeaving(dirty);
       return new Promise<boolean>(resolve => {
         leaveDecision.current = resolve;
-        leaveDialog.current?.showModal();
       });
     },
     showCategory(category) {
@@ -98,15 +93,8 @@ function SettingsEditor({
       }
     },
   }));
-  useEffect(
-    () => () => {
-      leaveDecision.current?.(false);
-    },
-    [],
-  );
   function decideLeave(leave: boolean) {
-    leaveDialog.current?.close();
-    setLeaveCategories([]);
+    setLeaving(undefined);
     const resolve = leaveDecision.current;
     leaveDecision.current = undefined;
     resolve?.(leave);
@@ -122,11 +110,12 @@ function SettingsEditor({
     pending.current = true;
     setSaving(true);
     setError('');
+    let problem: SettingsIssue | undefined;
     try {
       const patch = settingsPatch(draft, categories);
       const result = await window.workbench.saveSettings(patch);
       if (result.ok) {
-        setSaved(result.settings);
+        setStored(previous => ({ ...previous, saved: result.settings }));
         setSubmittedIssues([]);
         report(
           localize(result.settings.language).t('theme' in patch ? 'settingsSavedTheme' : 'settingsSaved'),
@@ -144,7 +133,7 @@ function SettingsEditor({
         if (first) {
           setCurrentCategory(first.category);
           setSearch('');
-          setProblemToFocus(first);
+          problem = first;
         }
       } else message = text(result.message);
       setError(message);
@@ -152,15 +141,16 @@ function SettingsEditor({
       return false;
     } finally {
       pending.current = false;
-      setSaving(false);
+      flushSync(() => setSaving(false));
+      if (problem) focusField(problem.field);
     }
   }
-  async function saveAndLeave() {
-    leaveDialog.current?.close();
+  async function saveAndLeave(unsaved: readonly SettingsCategory[]) {
+    setLeaving(undefined);
     decideLeave(
       await save(
         settingsCategories
-          .filter(category => leaveCategories.includes(category.id) || conflicting.includes(category.id))
+          .filter(category => unsaved.includes(category.id) || conflicting.includes(category.id))
           .map(category => category.id),
       ),
     );
@@ -214,7 +204,7 @@ function SettingsEditor({
                 </button>
               </div>
             </header>
-            <div className="settings-scroll" ref={scroll}>
+            <div key={currentCategory} className="settings-scroll" ref={scroll}>
               <fieldset disabled={saving}>
                 {currentCategory === 'general' && (
                   <GeneralSettings language={draft.language} fieldError={fieldError} changeDraft={changeDraft} />
@@ -257,39 +247,41 @@ function SettingsEditor({
           </div>
         </div>
       </div>
-      <dialog
-        ref={leaveDialog}
-        className="settings-leave"
-        aria-labelledby={`${leave}-title`}
-        aria-describedby={`${leave}-conflict ${leave}-unsaved`}
-        onCancel={event => {
-          event.preventDefault();
-          decideLeave(false);
-        }}
-      >
-        <h2 id={`${leave}-title`}>{t('settingsLeave')}</h2>
-        {conflicting.length > 0 && (
-          <p id={`${leave}-conflict`}>
-            {t('settingsLeaveConflict', { categories: conflicting.map(category => t(category)) })}
-          </p>
-        )}
-        {leaveCategories.length > 0 && (
-          <p id={`${leave}-unsaved`}>
-            {t('settingsUnsaved', {
-              categories: settingsCategories
-                .filter(category => leaveCategories.includes(category.id))
-                .map(category => t(category.id)),
-            })}
-          </p>
-        )}
-        <div className="dialog-actions">
-          <button onClick={() => decideLeave(false)}>{t('cancel')}</button>
-          {!conflicting.length && <button onClick={() => decideLeave(true)}>{t('dontSave')}</button>}
-          <button className="primary" onClick={() => void saveAndLeave()}>
-            {t('saveAndReturn')}
-          </button>
-        </div>
-      </dialog>
+      {leaving && (
+        <dialog
+          ref={showModalWhileAttached}
+          className="settings-leave"
+          aria-labelledby={`${leave}-title`}
+          aria-describedby={`${leave}-conflict ${leave}-unsaved`}
+          onCancel={event => {
+            event.preventDefault();
+            decideLeave(false);
+          }}
+        >
+          <h2 id={`${leave}-title`}>{t('settingsLeave')}</h2>
+          {conflicting.length > 0 && (
+            <p id={`${leave}-conflict`}>
+              {t('settingsLeaveConflict', { categories: conflicting.map(category => t(category)) })}
+            </p>
+          )}
+          {leaving.length > 0 && (
+            <p id={`${leave}-unsaved`}>
+              {t('settingsUnsaved', {
+                categories: settingsCategories
+                  .filter(category => leaving.includes(category.id))
+                  .map(category => t(category.id)),
+              })}
+            </p>
+          )}
+          <div className="dialog-actions">
+            <button onClick={() => decideLeave(false)}>{t('cancel')}</button>
+            {!conflicting.length && <button onClick={() => decideLeave(true)}>{t('dontSave')}</button>}
+            <button className="primary" onClick={() => void saveAndLeave(leaving)}>
+              {t('saveAndReturn')}
+            </button>
+          </div>
+        </dialog>
+      )}
     </div>
   );
 }

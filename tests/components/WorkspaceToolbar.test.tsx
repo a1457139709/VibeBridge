@@ -1,11 +1,11 @@
 import './support/dom';
 import assert from 'node:assert/strict';
 import test, { afterEach, before } from 'node:test';
-import { cleanup, render, screen, within } from '@testing-library/react';
+import { act, cleanup, render, screen, within } from '@testing-library/react';
 import { userEvent } from '@testing-library/user-event';
 import { App } from '../../app/renderer/Workbench';
 import { defaultSettings } from '../../app/shared/settings/settings';
-import type { PanelView, ProjectView, Snapshot } from '../../app/shared/model';
+import type { PanelView, ProjectView, Snapshot, WorkbenchEvent } from '../../app/shared/model';
 import type { ProcessingState } from '../../app/shared/processing-status';
 import { stubLayoutApis } from './support/no-layout';
 import { provideWorkbench } from './support/workbench';
@@ -55,16 +55,29 @@ function renderWorkbench(change: (snapshot: Snapshot) => void = () => {}) {
     projects: [project()],
   };
   change(snapshot);
+  const listeners = new Set<(event: WorkbenchEvent) => void>();
   provideWorkbench({
     fetchSnapshot: async () => structuredClone(snapshot),
-    subscribe: () => () => {},
+    subscribe: listener => {
+      listeners.add(listener);
+      return () => {
+        listeners.delete(listener);
+      };
+    },
     reportRendererReady: async () => {},
     activateProject: async () => {},
     saveSidebar: async () => {},
     saveLayout: async () => {},
   });
   render(<App />);
-  return userEvent.setup();
+  const user = userEvent.setup();
+  return Object.assign(user, {
+    snapshot,
+    publish: () =>
+      act(() => {
+        for (const listener of listeners) listener({ kind: 'snapshot', snapshot: structuredClone(snapshot) });
+      }),
+  });
 }
 
 test('the workspace toolbar holds the project summary of resident and tray panels and shows no project name, directory or panel count', async () => {
@@ -180,4 +193,16 @@ test('the summary is not shown on the settings page, the project creation guide 
   });
   await screen.findByRole('textbox', { name: t('projectName') });
   assert.ok(!screen.queryByRole('region', { name: t('projectSummary') }));
+});
+
+test('a focused summary member that leaves the list hands focus to the first member left', async () => {
+  const user = renderWorkbench();
+  await user.click(await screen.findByRole('button', { name: summaryEntryName(2, 'done') }));
+  const list = screen.getByRole('dialog', { name: t('done') });
+  within(list)
+    .getByRole('button', { name: titled('second-ephemeral') })
+    .focus();
+  user.snapshot.projects[0].tray[1].status = 'ready';
+  await user.publish();
+  assert.equal(document.activeElement, within(list).getByRole('button', { name: titled('resident') }));
 });

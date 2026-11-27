@@ -1,10 +1,10 @@
 import './support/dom';
 import assert from 'node:assert/strict';
 import test, { afterEach } from 'node:test';
-import { useEffect, useState } from 'react';
+import { createRef, useEffect, useState } from 'react';
 import { act, cleanup, render, screen, within } from '@testing-library/react';
 import { userEvent } from '@testing-library/user-event';
-import { ProjectSummary } from '../../app/renderer/workspace/ProjectSummary';
+import { ProjectSummary, type ProjectSummaryActions } from '../../app/renderer/workspace/ProjectSummary';
 import { Localization } from '../../app/renderer/common/Localization';
 import { defaultSettings } from '../../app/shared/settings/settings';
 import type { PanelView, Snapshot, WorkbenchEvent } from '../../app/shared/model';
@@ -67,6 +67,7 @@ function fixture() {
   };
   const listeners = new Set<(event: WorkbenchEvent) => void>();
   const located: string[] = [];
+  const summary = createRef<ProjectSummaryActions>();
   provideWorkbench({
     fetchSnapshot: async () => structuredClone(snapshot),
     subscribe: listener => {
@@ -90,6 +91,7 @@ function fixture() {
         <button>Outside</button>
         {active && (
           <ProjectSummary
+            ref={summary}
             key={active.id}
             panels={[...active.panels, ...active.tray]}
             locate={panel => located.push(panel.id)}
@@ -108,10 +110,12 @@ function fixture() {
       ),
     located,
     user: userEvent.setup(),
-    update: async () =>
-      act(() => {
+    update: async () => {
+      await act(() => {
         for (const listener of listeners) listener({ kind: 'snapshot', snapshot: structuredClone(snapshot) });
-      }),
+      });
+      act(() => summary.current?.membersChanged());
+    },
   };
 }
 
@@ -242,4 +246,35 @@ test('language changes update an open list without replacing it or translating r
   assert.ok(screen.getByRole('button', { name: summaryEntryName(1, 'needs-input', zh) }));
   await user.keyboard('{Enter}');
   assert.deepEqual(located, ['second']);
+});
+
+test('an open list stays centred under the summary inside the window, also after the window resizes', async () => {
+  const width = Object.getOwnPropertyDescriptor(window.HTMLElement.prototype, 'offsetWidth');
+  const box = window.HTMLElement.prototype.getBoundingClientRect;
+  const innerWidth = window.innerWidth;
+  Object.defineProperty(window.HTMLElement.prototype, 'offsetWidth', {
+    configurable: true,
+    get(this: HTMLElement) {
+      return this.getAttribute('role') === 'dialog' ? 200 : 0;
+    },
+  });
+  window.HTMLElement.prototype.getBoundingClientRect = function (this: HTMLElement) {
+    return this.getAttribute('role') === 'region' ? new window.DOMRect(700, 0, 100, 24) : new window.DOMRect();
+  };
+  Object.defineProperty(window, 'innerWidth', { configurable: true, value: 800 });
+  try {
+    const { user } = fixture();
+    await user.click(await screen.findByRole('button', { name: summaryEntryName(2, 'done') }));
+    const list = screen.getByRole('dialog', { name: t('done') });
+    assert.equal(list.style.left, '-108px');
+    Object.defineProperty(window, 'innerWidth', { configurable: true, value: 1000 });
+    act(() => {
+      window.dispatchEvent(new window.Event('resize'));
+    });
+    assert.equal(list.style.left, '-50px');
+  } finally {
+    if (width) Object.defineProperty(window.HTMLElement.prototype, 'offsetWidth', width);
+    window.HTMLElement.prototype.getBoundingClientRect = box;
+    Object.defineProperty(window, 'innerWidth', { configurable: true, value: innerWidth });
+  }
 });
