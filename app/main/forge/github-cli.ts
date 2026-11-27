@@ -1,4 +1,5 @@
 import { execFile } from 'node:child_process';
+import { parseJsonText } from '../../shared/json-text';
 import { z } from 'zod';
 import { resolveExecutable } from '../../terminal/environment';
 import { ForgeError } from './forge';
@@ -91,22 +92,10 @@ const missingItemsSchema = z.object({
   data: z.record(z.string(), z.object({}).passthrough()),
   errors: z.array(z.object({ type: z.literal('NOT_FOUND'), path: z.array(z.unknown()).min(2) })).min(1),
 });
-function onlyMissingItems(output: string) {
-  try {
-    return missingItemsSchema.safeParse(JSON.parse(output)).success;
-  } catch {
-    return false;
-  }
-}
+const onlyMissingItems = (output: string) => parseJsonText(output, missingItemsSchema).success;
 
 function graphqlData<T>(output: string, schema: z.ZodType<T>): T {
-  let json: unknown;
-  try {
-    json = JSON.parse(output);
-  } catch {
-    throw new ForgeError('transient', output.trim());
-  }
-  const parsed = z.object({ data: schema }).safeParse(json);
+  const parsed = parseJsonText(output, z.object({ data: schema }));
   if (!parsed.success) throw new ForgeError('transient', output.trim());
   return parsed.data.data;
 }

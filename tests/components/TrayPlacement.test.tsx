@@ -179,7 +179,13 @@ test('moving the maximized resident panel to the tray leaves it collapsed in the
 });
 
 function recordAnimations(reducedMotion: boolean) {
-  const started: { target: Element; keyframes: Keyframe[]; options: KeyframeAnimationOptions; finish(): void }[] = [];
+  const started: {
+    target: Element;
+    keyframes: Keyframe[];
+    options: KeyframeAnimationOptions;
+    finish(): void;
+    abort(): void;
+  }[] = [];
   const slot = new window.DOMRect(0, 0, 800, 600),
     card = new window.DOMRect(8, 566, 200, 30);
   Object.assign(window.HTMLElement.prototype, {
@@ -188,7 +194,13 @@ function recordAnimations(reducedMotion: boolean) {
     },
     animate(this: HTMLElement, keyframes: Keyframe[], options: KeyframeAnimationOptions) {
       const finished = deferred<void>();
-      started.push({ target: this, keyframes, options, finish: () => finished.resolve() });
+      started.push({
+        target: this,
+        keyframes,
+        options,
+        finish: () => finished.resolve(),
+        abort: () => finished.reject(new window.DOMException('cancelled', 'AbortError')),
+      });
       return { finished: finished.promise, cancel() {} };
     },
   });
@@ -236,6 +248,19 @@ test('an open tray panel grows from its card, and collapsing it flies it back in
   assert.ok(card.classList.contains('landed'), 'the card flashes once the panel lands');
   fireEvent.animationEnd(card);
   assert.ok(!card.classList.contains('landed'));
+});
+
+test('a tray panel whose flight into its card is cancelled still collapses into the tray', async () => {
+  const started = recordAnimations(false);
+  const { user } = renderWorkbench();
+  const tray = await screen.findByRole('region', { name: t('panelTray') });
+  const card = within(tray).getByRole('button', { name: nameIncluding(ephemeralTitle) });
+  await user.click(card);
+  await user.click(screen.getByRole('button', { name: t('collapsePanel') }));
+  assert.equal(started.length, 2);
+  await act(async () => started[1].abort());
+  await waitFor(() => assert.equal(card.getAttribute('aria-pressed'), 'false'));
+  assert.equal(document.querySelector('.canvas [data-panel-id="ephemeral"]'), null);
 });
 
 test('with reduced motion the tray panel opens and collapses at once', async () => {

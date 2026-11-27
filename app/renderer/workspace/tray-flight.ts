@@ -1,4 +1,6 @@
 import { useRef, useState } from 'react';
+import { errorMessage } from '../../shared/caught-error';
+import { playToEnd, type AnimationOutcome } from '../common/animation-outcome';
 
 export const canFly = (panel: Element | null | undefined): panel is Element =>
   !!panel && typeof panel.animate === 'function' && !matchMedia('(prefers-reduced-motion: reduce)').matches;
@@ -19,14 +21,14 @@ export function growFromCard(panel: Element, card: Element) {
   panel.animate([overCard(panel, card), inPlace], { duration: 260, easing: 'cubic-bezier(.2,0,.2,1)' });
 }
 
-export async function flyIntoCard(panel: Element, card: Element) {
-  try {
-    await panel.animate([inPlace, overCard(panel, card)], {
+export async function flyIntoCard(panel: Element, card: Element): Promise<AnimationOutcome> {
+  return playToEnd(
+    panel.animate([inPlace, overCard(panel, card)], {
       duration: 260,
       easing: 'cubic-bezier(.4,0,.7,1)',
       fill: 'forwards',
-    }).finished;
-  } catch {}
+    }),
+  );
 }
 
 export function growOpenedPanel(slot: HTMLElement | null) {
@@ -41,11 +43,13 @@ export function useTrayFlight({
   canvas,
   tray,
   collapse,
+  report,
 }: {
   openPanelId?: string;
   canvas: Element | null;
   tray: Element | null;
   collapse(): void;
+  report(message: string): void;
 }) {
   const [landedPanelId, setLandedPanelId] = useState<string>();
   const flyingPanelId = useRef<string>(undefined);
@@ -64,12 +68,15 @@ export function useTrayFlight({
     }
     if (flyingPanelId.current === panelId) return;
     flyingPanelId.current = panelId;
-    void flyIntoCard(flight.slot, flight.card).then(() => {
+    const land = () => {
       flyingPanelId.current = undefined;
       if (!flight.slot.isConnected) return;
       collapse();
       setLandedPanelId(panelId);
-    });
+    };
+    void flyIntoCard(flight.slot, flight.card)
+      .finally(land)
+      .catch(error => report(errorMessage(error)));
   };
   return { landedPanelId, landingEnded: () => setLandedPanelId(undefined), collapseIntoCard };
 }

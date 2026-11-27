@@ -33,3 +33,31 @@ test("every enveloped message reads back as that language's translation with its
   });
   assert.deepEqual(mismatches, []);
 });
+
+test('text that is not an envelope is shown as it is', () => {
+  const { text } = localize('en');
+  assert.equal(text('gh: not found'), 'gh: not found');
+});
+
+test('an envelope with an unknown id or a missing value is reported as unreadable, never shown raw', () => {
+  const { t, text } = localize('en');
+  const malformed = [
+    'VibeBridge.message:{"id":"noSuchMessage"}',
+    'VibeBridge.message:{"id":"settingsReadFailed"}',
+    'VibeBridge.message:{"id":"settingsReadFailed","values":{"reason":true}}',
+    'VibeBridge.message:not json',
+  ];
+  assert.deepEqual(
+    malformed.map(input => text(input)),
+    malformed.map(() => t('malformedMessage')),
+  );
+});
+
+test('a reference missing one of its values fails to format instead of showing a blank', () => {
+  const { translate } = localize('en');
+  assert.throws(() => translate(referenceTo('settingsReadFailed', {})));
+});
+
+test('an envelope cannot be built for a message whose values are missing', () => {
+  assert.throws(() => envelope(referenceTo('settingsReadFailed', {})));
+});
