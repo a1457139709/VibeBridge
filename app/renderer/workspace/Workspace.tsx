@@ -199,7 +199,13 @@ export function Workspace({
   const { selected: focused, maximized } = panelLocation;
   const openTrayPanel = project.tray.find(panel => panel.id === maximized);
   const atPanelLimit = panelLimitReached(project);
-  const flight = useTrayFlight({ openPanelId: openTrayPanel?.id, canvas, tray, collapse: panelLocation.collapse });
+  const flight = useTrayFlight({
+    openPanelId: openTrayPanel?.id,
+    canvas,
+    tray,
+    collapse: panelLocation.collapse,
+    report,
+  });
   const saveLayout = (next: Layout) => {
     void window.workbench.saveLayout(project.id, next).catch(error => report(errorMessage(error)));
   };

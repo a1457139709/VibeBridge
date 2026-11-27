@@ -5,6 +5,7 @@ import { localize } from '../../shared/localization/localization';
 import type { ReportNotice } from '../common/Notices';
 import { focusTerminal, terminalHasFocus } from './terminals';
 import { errorMessage } from '../../shared/caught-error';
+import { playToEnd } from '../common/animation-outcome';
 
 interface View {
   selected?: string;
@@ -151,25 +152,21 @@ function createLocator(showLocating: (locating: boolean) => void) {
   }
   async function animate(element: HTMLElement, entering: boolean) {
     if (!element.animate) return false;
-    let own: Animation | undefined;
+    const frames = [
+      { transform: 'scale(1)', opacity: 1 },
+      { transform: 'scale(.96)', opacity: 0.3 },
+    ];
+    const own = element.animate(entering ? frames.reverse() : frames, {
+      duration: 100,
+      easing: 'ease-in-out',
+      fill: 'both',
+    });
+    animation = own;
+    animatedElement = element;
     try {
-      const frames = [
-        { transform: 'scale(1)', opacity: 1 },
-        { transform: 'scale(.96)', opacity: 0.3 },
-      ];
-      own = element.animate(entering ? frames.reverse() : frames, {
-        duration: 100,
-        easing: 'ease-in-out',
-        fill: 'both',
-      });
-      animation = own;
-      animatedElement = element;
-      await own.finished;
-      return true;
-    } catch {
-      return false;
+      return (await playToEnd(own)) === 'finished';
     } finally {
-      own?.cancel();
+      own.cancel();
       if (animation === own) animation = undefined;
     }
   }
@@ -223,12 +220,19 @@ function createLocator(showLocating: (locating: boolean) => void) {
     if (operation.stage === 'presenting') {
       operation.stage = 'entering';
       if (operation.animated) {
-        void animate(area, true).then(animated => {
-          if (current !== operation) return;
-          operation.animated = animated;
-          operation.animationDone = true;
-          complete(operation);
-        });
+        void animate(area, true).then(
+          animated => {
+            if (current !== operation) return;
+            operation.animated = animated;
+            operation.animationDone = true;
+            complete(operation);
+          },
+          error => {
+            if (current !== operation) return;
+            cancel();
+            operation.report(errorMessage(error));
+          },
+        );
       } else operation.animationDone = true;
     }
     complete(operation);
