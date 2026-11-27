@@ -21,6 +21,8 @@
     "typescript/consistent-type-assertions": ["error", { "assertionStyle": "never" }],
     // An explicit any switches type checking off for a value and everything it flows into, so a wrong type travels unchecked.
     "typescript/no-explicit-any": "error",
+    // An empty catch block drops an error without a word: rethrow it, report it to the user, or fall back as designed.
+    "no-empty": "error",
     // Effects synchronize with systems outside React only: these rules read what each effect and render does.
     "react/rules-of-hooks": "error",
     "react/exhaustive-deps": "error",
@@ -102,6 +104,11 @@
       // Synchronizes the main process's forge sidebar data with the sidebar's presence, shown rows and repository choices.
       "files": ["app/renderer/forge/sidebar-reports.ts"],
       "rules": { "no-restricted-imports": "off" }
+    },
+    {
+      // The pi extension runs inside pi: a session id pi cannot give leaves the report without one rather than failing pi's event.
+      "files": ["app/main/agent-status/pi/reporter.ts"],
+      "rules": { "no-empty": "off" }
     }
   ]
 }

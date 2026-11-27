@@ -44,6 +44,7 @@ const implement = 'implement',
   toSpec = 'to-spec',
   grillMe = 'grill-me',
   tdd = 'tdd';
+const withoutSession = ({ sessionId: _, ...rest }: DispatchRecordView): DispatchRecordView => rest;
 const aged = (hours: number, location: DispatchRecordView['location'], extra: Partial<DispatchRecordView> = {}) =>
   record(9, location, { dispatchedAt: new Date(Date.now() - hours * 3600e3).toISOString(), ...extra });
 
@@ -106,7 +107,7 @@ test("Dispatch records list the issue's dispatches newest first, one line each: 
     snapshot.projects[0].dispatches = [
       aged(50, null, { agent: 'claude', skill: toSpec, sessionId: 'aaaabbbb-1111-2222-3333-444455556666' }),
       located,
-      aged(1, { projectId: 'alpha', panelId: 'tray' }, { skill: tdd, sessionId: undefined }),
+      withoutSession(aged(1, { projectId: 'alpha', panelId: 'tray' }, { skill: tdd })),
       record(8, null),
     ];
   });

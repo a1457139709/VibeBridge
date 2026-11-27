@@ -136,8 +136,8 @@ void app.whenReady().then(async () => {
   mainWindow.webContents.on('will-navigate', event => event.preventDefault());
   updateNativeLanguage(language);
   opening = Workbench.open(app.getPath('userData'), nativeTheme.shouldUseDarkColors);
-  void opening
-    .then(workbench => {
+  void opening.then(
+    workbench => {
       updateNativeLanguage(workbench.snapshot().settings.language);
       workbench.subscribe(event => {
         if (event.kind === 'snapshot' && event.snapshot.settings.language !== language)
@@ -145,16 +145,16 @@ void app.whenReady().then(async () => {
       });
       nativeTheme.themeSource = workbench.snapshot().resolvedTheme;
       mainWindow.setBackgroundColor(workbench.snapshot().resolvedTheme === 'dark' ? '#141414' : '#f5f5f5');
-    })
-    .catch(() => {});
-  void opening.catch(error => {
-    if (error instanceof WorkbenchOpenError) updateNativeLanguage(error.language);
-    return dialog.showMessageBox(mainWindow, {
-      type: 'error',
-      message: localize(language).t('workbenchReadFailed'),
-      detail: localize(language).text(error.message),
-    });
-  });
+    },
+    error => {
+      if (error instanceof WorkbenchOpenError) updateNativeLanguage(error.language);
+      return dialog.showMessageBox(mainWindow, {
+        type: 'error',
+        message: localize(language).t('workbenchReadFailed'),
+        detail: localize(language).text(errorMessage(error)),
+      });
+    },
+  );
   const fromPage = (event: Electron.IpcMainEvent | Electron.IpcMainInvokeEvent) =>
     event.sender === mainWindow.webContents && event.senderFrame?.url === page;
   const readArguments = <R extends DesktopRequest>(request: R, args: unknown[]): Parameters<DesktopAPI[R]> => {

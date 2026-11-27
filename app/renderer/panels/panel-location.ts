@@ -12,7 +12,7 @@ interface View {
   maximized?: string;
 }
 interface Host {
-  snapshot?: Snapshot;
+  snapshot: Snapshot | undefined;
   activateProject(projectId: string): Promise<void>;
   showWorkbench(): void;
   report: ReportNotice;
@@ -28,8 +28,8 @@ interface Navigation extends Views {
 }
 interface LocateOperation {
   projectId: string;
-  panelId?: string;
-  runId?: string;
+  panelId: string | undefined;
+  runId: string | undefined;
   stage: 'outgoing' | 'activating' | 'presenting' | 'entering';
   changingMaximized: boolean;
   animated: boolean;
@@ -40,12 +40,16 @@ interface LocateOperation {
 
 const inTray = (project: ProjectView | undefined, id?: string) => !!project?.tray.some(panel => panel.id === id);
 const resident = (project: ProjectView | undefined, id?: string) => !!project?.panels.some(panel => panel.id === id);
+const viewOf = (selected: string | undefined, maximized: string | undefined): View => ({
+  ...(selected !== undefined && { selected }),
+  ...(maximized !== undefined && { maximized }),
+});
 const inputTarget = (view: View) => view.maximized ?? view.selected;
 function validView(project: ProjectView | undefined, view?: View): View {
-  return {
-    selected: resident(project, view?.selected) ? view?.selected : project?.panels[0]?.id,
-    maximized: resident(project, view?.maximized) || inTray(project, view?.maximized) ? view?.maximized : undefined,
-  };
+  return viewOf(
+    resident(project, view?.selected) ? view?.selected : project?.panels[0]?.id,
+    resident(project, view?.maximized) || inTray(project, view?.maximized) ? view?.maximized : undefined,
+  );
 }
 const sameView = (a: View, b: View) => a.selected === b.selected && a.maximized === b.maximized;
 
@@ -271,10 +275,9 @@ function createLocator(showLocating: (locating: boolean) => void) {
       if (panelId && inTray(target, panelId))
         navigation.changeView(projectId, view => ({ ...view, maximized: panelId }));
       else if (panelId)
-        navigation.changeView(projectId, () => ({
-          selected: panelId,
-          maximized: resident(sourceProject, sourceView.maximized) ? panelId : undefined,
-        }));
+        navigation.changeView(projectId, () =>
+          viewOf(panelId, resident(sourceProject, sourceView.maximized) ? panelId : undefined),
+        );
       suspended = false;
       navigation.showWorkbench();
       operation.stage = 'activating';
@@ -303,7 +306,7 @@ function createLocator(showLocating: (locating: boolean) => void) {
     if (action !== 'select' || inputTarget(previous) !== panelId) focusedKey = undefined;
     const maximized =
       action === 'toggleMaximize' ? (previous.maximized === panelId ? undefined : panelId) : previous.maximized;
-    const next = { selected: ephemeral ? previous.selected : panelId, maximized };
+    const next = viewOf(ephemeral ? previous.selected : panelId, maximized);
     if (action === 'select') views.changeView(projectId, () => next);
     else {
       flushSync(() => views.changeView(projectId, () => next));
@@ -373,7 +376,7 @@ function createLocator(showLocating: (locating: boolean) => void) {
       if (suspended || snapshot?.activeProjectId !== projectId) return;
       claimFocus(projectId);
       focusedKey = undefined;
-      views.changeView(projectId, view => ({ selected: view.selected, maximized: panelId }));
+      views.changeView(projectId, view => viewOf(view.selected, panelId));
       schedule();
     },
   };

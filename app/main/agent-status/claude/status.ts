@@ -76,15 +76,15 @@ async function prepare({ command, directory, resourceDirectory }: Launch): Promi
       ...command,
       args: [...args, '--settings', settingsArg, ...(boundary < 0 ? [] : command.args.slice(boundary))],
     },
-    cleanup,
+    ...(cleanup && { cleanup }),
   };
 }
 
 class ClaudeInterpreter implements StatusInterpreter {
-  private currentSession?: string;
-  private sessionStartPromptId?: string;
+  private currentSession: string | undefined;
+  private sessionStartPromptId: string | undefined;
   private endedSessions = new Set<string>();
-  private promptId?: string;
+  private promptId: string | undefined;
   private oldPromptIds = new Set<string>();
   private seen = new Set<string>();
   private completedTools = new Set<string>();

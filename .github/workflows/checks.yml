@@ -36,6 +36,8 @@ jobs:
       - if: ${{ !cancelled() && steps.install.outcome == 'success' }}
         run: npm run check:comments
       - if: ${{ !cancelled() && steps.install.outcome == 'success' }}
+        run: npm run check:empty-catch-callbacks
+      - if: ${{ !cancelled() && steps.install.outcome == 'success' }}
         run: npm run check:lint
       - if: ${{ !cancelled() && steps.install.outcome == 'success' }}
         run: npm run typecheck

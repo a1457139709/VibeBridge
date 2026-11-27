@@ -12,8 +12,12 @@ interface Evidence {
 
 class PiInterpreter implements StatusInterpreter {
   private evidence: Evidence = {};
-  private currentSession?: string;
+  private currentSession: string | undefined;
 
+  private keepStopReason(reason: unknown) {
+    if (typeof reason === 'string') this.evidence.stopReason = reason;
+    else delete this.evidence.stopReason;
+  }
   accept(event: Payload): Outcome {
     if (typeof event.sessionId === 'string' && event.sessionId) this.currentSession = event.sessionId;
     switch (event.type) {
@@ -71,8 +75,7 @@ class PiInterpreter implements StatusInterpreter {
       case 'message_end': {
         const message = event.message;
         if (message && typeof message === 'object' && 'role' in message && message.role === 'assistant') {
-          this.evidence.stopReason =
-            'stopReason' in message && typeof message.stopReason === 'string' ? message.stopReason : undefined;
+          this.keepStopReason('stopReason' in message ? message.stopReason : undefined);
           delete this.evidence.compactionFailed;
         }
         return 'keep';
@@ -98,8 +101,7 @@ class PiInterpreter implements StatusInterpreter {
         break;
       }
       case 'agent_end':
-        if ('finalStopReason' in event)
-          this.evidence.stopReason = typeof event.finalStopReason === 'string' ? event.finalStopReason : undefined;
+        if ('finalStopReason' in event) this.keepStopReason(event.finalStopReason);
         return 'keep';
       case 'turn_start':
       case 'turn_end':

@@ -176,8 +176,8 @@ export function renderWorkbench(capabilities = testForgeCapabilities, api: Parti
     pullRequestPage:
       pullRequestPage ??
       ((projectId, query) => listRequest<Page<PullRequestSummary>>('pullRequests', projectId, query)),
-    issueDetail,
-    pullRequestDetail,
+    ...(issueDetail && { issueDetail }),
+    ...(pullRequestDetail && { pullRequestDetail }),
   };
   const sidebarCalls = forgeSidebarData(forge, event => {
     for (const listener of listeners) listener(event);

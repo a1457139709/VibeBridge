@@ -12,7 +12,7 @@ export interface PanelGestureContext {
   trayElement: HTMLElement | null;
   language: Language;
   visible: boolean;
-  maximizedPanelId?: string;
+  maximizedPanelId: string | undefined;
   present(layout: Layout | null): void;
   holdShownLayout(base: string | undefined): void;
   commitLayout(layout: Layout): void;
@@ -33,7 +33,7 @@ interface Gesture {
   base: string;
   bounds: DOMRect;
   saved: Saved;
-  frame?: number;
+  frame: number | undefined;
   cancel(): void;
 }
 
@@ -98,6 +98,7 @@ export function createPanelGestures() {
       context,
       base,
       bounds: context.canvas.getBoundingClientRect(),
+      frame: undefined,
       saved: savedOf(context.project),
       cancel: () => {},
     };

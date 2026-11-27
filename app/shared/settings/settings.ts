@@ -150,24 +150,26 @@ function settingsSchema(reading: boolean) {
 const readSchema = settingsSchema(true);
 const saveSchema = settingsSchema(false);
 
-export const settingsPatchSchema = z
-  .looseObject({
-    language: z.enum(languages),
-    theme: z.enum(['system', 'dark', 'light']),
-    defaultLayout: z.enum(defaultLayouts),
-    sidebarCoexistence: z.enum(['squeeze', 'overlay']),
-    detailCoexistence: z.enum(['overlay', 'squeeze']),
-    agents: z.looseRecord(agentTypeSchema, z.looseObject({ command: z.string(), args: z.array(z.string()) })),
-    shortcuts: z.looseRecord(z.enum(shortcutActions), z.string()),
-    workflows: z.looseRecord(
+export const settingsPatchSchema = z.looseObject({
+  language: z.enum(languages).exactOptional(),
+  theme: z.enum(['system', 'dark', 'light']).exactOptional(),
+  defaultLayout: z.enum(defaultLayouts).exactOptional(),
+  sidebarCoexistence: z.enum(['squeeze', 'overlay']).exactOptional(),
+  detailCoexistence: z.enum(['overlay', 'squeeze']).exactOptional(),
+  agents: z
+    .looseRecord(agentTypeSchema, z.looseObject({ command: z.string(), args: z.array(z.string()) }))
+    .exactOptional(),
+  shortcuts: z.looseRecord(z.enum(shortcutActions), z.string()).exactOptional(),
+  workflows: z
+    .looseRecord(
       z.literal(workflows.map(workflow => workflow.id)),
       z.looseObject({
         enabled: z.boolean(),
         commands: z.record(z.string(), z.looseObject({ delivery: z.enum(deliveries) })),
       }),
-    ),
-  })
-  .partial() satisfies z.ZodType<Partial<Settings>>;
+    )
+    .exactOptional(),
+}) satisfies z.ZodType<Partial<Settings>>;
 
 export function readSettings(value: unknown): Settings {
   const result = readSchema.safeParse(value);

@@ -4,6 +4,7 @@ import { message } from '../../app/shared/messages';
 import { RunSupervision, type Terminal } from '../../app/main/runs/run-supervision';
 import type { CommandCheck, Panel, Project, Run, TerminalEvent, WorkbenchEvent } from '../../app/shared/model';
 import { testDirectory } from './directory';
+import { cleanUpAfterFailure } from '../../app/shared/caught-error';
 
 type Start = Parameters<Terminal['start']>[0];
 
@@ -80,7 +81,7 @@ export async function runSupervisionFixture(context: TestContext) {
     },
     (onEvent, onFailure) => (terminal = new FakeTerminal(onEvent, onFailure, () => onShutdown())),
   );
-  context.after(() => supervision.shutdown().catch(() => {}));
+  context.after(() => cleanUpAfterFailure(supervision.shutdown()));
   const project: Project = {
     id: 'project',
     name: 'Project',

@@ -45,7 +45,7 @@ export function useTrayFlight({
   collapse,
   report,
 }: {
-  openPanelId?: string;
+  openPanelId: string | undefined;
   canvas: Element | null;
   tray: Element | null;
   collapse(): void;

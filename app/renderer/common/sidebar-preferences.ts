@@ -9,7 +9,7 @@ import { draggedWidth, type WidestOnResize } from './region-widths';
 
 interface Options {
   sidebar: Sidebar;
-  snapshot?: Snapshot;
+  snapshot: Snapshot | undefined;
   api: Pick<DesktopAPI, 'saveSidebar'>;
   edge: 1 | -1;
   widestOnResize: WidestOnResize;

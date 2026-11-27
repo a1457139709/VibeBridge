@@ -35,7 +35,13 @@ function alignRotation(event: AnimationEvent<HTMLElement>) {
   for (const animation of event.target.getAnimations()) animation.startTime = 0;
 }
 
-export function ProcessingStatusIcon({ state, focusable = false }: { state?: ProcessingState; focusable?: boolean }) {
+export function ProcessingStatusIcon({
+  state,
+  focusable = false,
+}: {
+  state: ProcessingState | undefined;
+  focusable?: boolean;
+}) {
   const { t } = useLocalization();
   if (!state) return null;
   const label = t(state);

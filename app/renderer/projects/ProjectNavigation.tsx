@@ -15,7 +15,7 @@ const projectInitial = (name: string) =>
   nameSegments.segment(name)[Symbol.iterator]().next().value?.segment.toUpperCase() ?? '';
 
 interface Host {
-  snapshot?: Snapshot;
+  snapshot: Snapshot | undefined;
   page: 'workbench' | 'setup' | 'settings';
   view: PanelLocation['view'];
   openProject(id: string): void;
@@ -187,7 +187,7 @@ function EphemeralGroup({
   locate,
 }: {
   project: ProjectView;
-  shownPanelId?: string;
+  shownPanelId: string | undefined;
   expanded: boolean;
   toggle(): void;
   locate(panelId: string): void;

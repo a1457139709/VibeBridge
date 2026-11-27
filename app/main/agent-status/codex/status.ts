@@ -68,9 +68,9 @@ function withReporterHooks(command: AgentCommand): AgentCommand {
 }
 
 class CodexInterpreter implements StatusInterpreter {
-  private currentSession?: string;
+  private currentSession: string | undefined;
   private endedSessions = new Set<string>();
-  private turn?: string;
+  private turn: string | undefined;
   private oldTurns = new Set<string>();
   private seen = new Set<string>();
   private waits = new Set<string>();

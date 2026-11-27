@@ -4,6 +4,9 @@ import { promisify } from 'node:util';
 import { access, stat } from 'node:fs/promises';
 import { constants } from 'node:fs';
 import { isAbsolute, join } from 'node:path';
+import { errorCode } from '../shared/caught-error';
+
+const unusableCandidate = new Set<unknown>(['ENOENT', 'EACCES', 'ENOTDIR', 'ELOOP']);
 
 const execute = promisify(execFile);
 export async function readLoginEnvironment(): Promise<Record<string, string>> {
@@ -41,7 +44,9 @@ export async function resolveExecutable(command: string, environment: { PATH?: s
     try {
       await access(path, constants.X_OK);
       if ((await stat(path)).isFile()) return path;
-    } catch {}
+    } catch (error) {
+      if (!unusableCandidate.has(errorCode(error))) throw error;
+    }
   }
   throw new Error(message('launchFailed'));
 }

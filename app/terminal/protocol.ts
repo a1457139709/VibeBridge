@@ -7,8 +7,8 @@ export const runSchema: z.ZodType<Run> = z.object({
   projectId: z.string(),
   panelId: z.string(),
   state: z.enum(['running', 'starting', 'failed', 'stopped']),
-  pid: z.number().optional(),
-  title: z.string().optional(),
+  pid: z.number().exactOptional(),
+  title: z.string().exactOptional(),
 });
 export const commandCheckSchema: z.ZodType<CommandCheck> = z.discriminatedUnion('available', [
   z.object({ available: z.literal(true), path: z.string() }),
@@ -27,7 +27,7 @@ const processIdentitySchema: z.ZodType<ProcessIdentity> = z.object({
   pid: z.number(),
   parent: z.number(),
   started: z.string(),
-  owner: z.string().optional(),
+  owner: z.string().exactOptional(),
 });
 
 const runStartSchema = z.object({
