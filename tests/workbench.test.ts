@@ -9,6 +9,7 @@ import type { WorkbenchEvent } from '../app/shared/model';
 import { runsOf, storedProjects } from './support/panel-views';
 import { testNode } from './support/test-node';
 import { pidOf } from './support/expected';
+import { cleanUpAfterFailure } from '../app/shared/caught-error';
 
 async function until(check: () => boolean) {
   const deadline = Date.now() + 5000;
@@ -236,7 +237,7 @@ test('damaged configuration is reported and preserved instead of being overwritt
     await assert.rejects(workbench.quit(), /settingsUnreadable/);
     assert.equal(await readFile(`${directory}/settings.json`, 'utf8'), damaged);
   } finally {
-    await workbench.quit().catch(() => {});
+    await cleanUpAfterFailure(workbench.quit());
   }
 });
 

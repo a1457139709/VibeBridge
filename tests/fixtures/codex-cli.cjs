@@ -31,7 +31,9 @@ function runHook(handler, input) {
         timedOut = true;
         try {
           process.kill(-child.pid, 'SIGKILL');
-        } catch {}
+        } catch (error) {
+          if (error.code !== 'ESRCH') throw error;
+        }
       }, handler.timeout * 1000);
     child.stdout.on('data', data => process.stdout.write(data));
     child.stderr.on('data', data => process.stderr.write(data));

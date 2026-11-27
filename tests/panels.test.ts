@@ -9,6 +9,7 @@ import { runsOf, storedProjects } from './support/panel-views';
 import { testNode } from './support/test-node';
 import { firstCapture, lastOf, pidOf } from './support/expected';
 import { killUnlessExited } from './support/process-cleanup';
+import { cleanUpAfterFailure } from '../app/shared/caught-error';
 
 async function until(check: () => boolean) {
   const deadline = Date.now() + 5000;
@@ -380,7 +381,7 @@ test('terminal manager failure cleans up runs without removing saved panel confi
     assert.deepEqual(storedProjects(workbench.snapshot()), [project, second]);
   } finally {
     if (orphanPid) killUnlessExited(orphanPid);
-    if (hostStopped) await workbench.quit().catch(() => {});
+    if (hostStopped) await cleanUpAfterFailure(workbench.quit());
     else await workbench.quit();
     await rm(directory, { recursive: true, force: true });
   }

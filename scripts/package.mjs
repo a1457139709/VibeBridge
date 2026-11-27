@@ -24,7 +24,9 @@ for (const candidate of ['build/Release', 'build/Debug', `prebuilds/darwin-${pro
     await access(`node_modules/node-pty/${candidate}/pty.node`);
     nativeDirectory = candidate;
     break;
-  } catch {}
+  } catch (error) {
+    if (error.code !== 'ENOENT') throw error;
+  }
 }
 if (!nativeDirectory) throw new Error('Prepare the native PTY before packaging.');
 for (const file of ['pty.node', 'spawn-helper'])

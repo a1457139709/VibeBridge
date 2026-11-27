@@ -5,6 +5,7 @@ import { readFile, writeFile } from 'node:fs/promises';
 import { Workbench } from '../app/main/workbench';
 import { testDirectory } from './support/directory';
 import { fromAny } from '@total-typescript/shoehorn';
+import { cleanUpAfterFailure } from '../app/shared/caught-error';
 
 const mattCommands = [
   'grill-with-docs',
@@ -148,7 +149,7 @@ test('a settings file that is not a JSON object fails to read and is never overw
       await assert.rejects(workbench.quit(), /settingsUnreadable/);
       assert.equal(await readFile(`${directory}/settings.json`, 'utf8'), contents);
     } finally {
-      await workbench.quit().catch(() => {});
+      await cleanUpAfterFailure(workbench.quit());
     }
   }
 });

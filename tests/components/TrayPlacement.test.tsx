@@ -140,7 +140,7 @@ test('a rejected placement leaves the open tray panel open', async () => {
   assert.deepEqual(requests, [['project', 'ephemeral', { panel: 'ephemeral' }]]);
   await act(async () => {
     placed.reject(new Error('The layout does not match.'));
-    await placed.promise.catch(() => {});
+    await assert.rejects(placed.promise);
   });
   assert.equal(card.getAttribute('aria-pressed'), 'true');
   assert.ok(screen.getByRole('button', { name: t('collapsePanel') }));
