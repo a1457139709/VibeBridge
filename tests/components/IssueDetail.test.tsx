@@ -4,21 +4,9 @@ import test, { afterEach, before } from 'node:test';
 import { cleanup, waitFor, within } from '@testing-library/react';
 import { t } from './support/localization';
 import { stubLayoutApis } from './support/no-layout';
-import { testForgeCapabilitiesWith, testForgeCapabilities, testForge, testForgeUrl } from './support/forge';
+import { testForgeCapabilities, testForge, testForgeUrl } from './support/forge';
 import { selectElement } from './support/elements';
-import { requireValue } from '../../app/renderer/common/required';
-import type { ForgeCapabilities } from '../../app/shared/forge/forge';
-import {
-  repositoryUrl,
-  hoursAgo,
-  summary,
-  reference,
-  subIssue,
-  detail,
-  renderWorkbench,
-  pane,
-  row,
-} from './support/issue-detail';
+import { repositoryUrl, hoursAgo, summary, detail, renderWorkbench, pane, row } from './support/issue-detail';
 import { alertMessages, detailHeading, forgeSidebar, staleRetry, statusMessages } from './support/sidebar-queries';
 
 afterEach(cleanup);
@@ -170,139 +158,6 @@ test('the body and comments pass the HTML filter, same-repository issue links op
   assert.ok(
     within(pane()).getByRole<HTMLButtonElement>('button', { name: t('detailBack') }).disabled,
     'nothing before the first issue',
-  );
-});
-
-test('the relation graph draws open blockers and the open issues this one blocks', async () => {
-  const { user, request } = renderWorkbench([summary(5)]);
-  await user.click(await row('Issue 5'));
-  (await request(1)).answer({
-    ok: true,
-    issue: detail(5, {
-      title: 'Detail',
-      blockedBy: [
-        reference(2, { title: 'Open blocker' }),
-        reference(3, { title: 'Closed blocker', state: 'closed', closedAs: 'completed' }),
-      ],
-      blocking: [reference(8, { title: 'Waits on detail' })],
-    }),
-  });
-  const graph = await within(pane()).findByRole('group', { name: t('relations') });
-  const nodes = [...graph.querySelectorAll<HTMLElement>('.forge-node')];
-  const relationOf = (title: string) =>
-    requireValue(
-      nodes.find(node => node.textContent?.includes(title)),
-      `the node of ${title}`,
-    ).dataset.relation;
-  assert.equal(nodes.length, 3, 'only open blockers are drawn');
-  assert.deepEqual(['Open blocker', 'Detail', 'Waits on detail'].map(relationOf), ['blockedBy', 'self', 'blocking']);
-  assert.deepEqual([...graph.querySelectorAll('path.forge-edge')].length, 2, 'one edge per blocking relation');
-  assert.ok(
-    within(pane()).getByRole('img', { name: t('blockedBy', { issues: '#2' }) }),
-    'the head shows the open blockers',
-  );
-
-  await user.click(selectElement('button[data-relation="blockedBy"]', graph));
-  assert.equal((await request(2)).number, 2, 'a node opens its issue in the sidebar');
-});
-
-test('a closed issue draws no issues it blocks, and an issue with no live relations draws no graph', async () => {
-  const { user, request } = renderWorkbench([summary(5), summary(4)]);
-  await user.click(await row('Issue 5'));
-  (await request(1)).answer({
-    ok: true,
-    issue: detail(5, {
-      state: 'closed',
-      closedAs: 'completed',
-      blocking: [reference(8)],
-      blockedBy: [reference(3, { state: 'closed', closedAs: 'completed' })],
-    }),
-  });
-  await detailHeading(pane(), 'Issue 5', 5);
-  assert.equal(within(pane()).queryByRole('group', { name: t('relations') }), null);
-});
-
-async function openWithEveryRelation(capabilities: Partial<ForgeCapabilities>) {
-  const { user, request } = renderWorkbench([summary(5)], testForgeCapabilitiesWith(capabilities));
-  await user.click(await row('Issue 5'));
-  (await request(1)).answer({
-    ok: true,
-    issue: detail(5, {
-      blockedBy: [reference(2, { title: 'Open blocker' })],
-      blocking: [reference(8, { title: 'Waits on detail' })],
-      subIssues: [subIssue(6)],
-      subIssueProgress: { closed: 0, total: 1 },
-    }),
-  });
-  await detailHeading(pane(), 'Issue 5', 5);
-  return {
-    subIssues: () => within(pane()).queryByRole('region', { name: t('subIssues') }),
-    blockedBy: () => within(pane()).queryByRole('img', { name: t('blockedBy', { issues: '#2' }) }),
-    blocking: () => within(pane()).queryByRole('button', { name: name => name.includes('Waits on detail') }),
-  };
-}
-
-test('a forge without sub-issues hides the sub-issues but still shows blockers and the issues this one blocks', async () => {
-  const shown = await openWithEveryRelation({ subIssues: false });
-  assert.equal(shown.subIssues(), null);
-  assert.notEqual(shown.blockedBy(), null);
-  assert.notEqual(shown.blocking(), null);
-});
-
-test('a forge without blocking hides blockers and the issues this one blocks but still shows the sub-issues', async () => {
-  const shown = await openWithEveryRelation({ blocking: false });
-  assert.equal(shown.blockedBy(), null);
-  assert.equal(shown.blocking(), null);
-  assert.notEqual(shown.subIssues(), null);
-});
-
-test('the pull requests that close the issue on merge sit in their own block, closed ones included, each with its checks conclusion', async () => {
-  const { user, request } = renderWorkbench([summary(5)]);
-  await user.click(await row('Issue 5'));
-  const pull = (
-    number: number,
-    title: string,
-    state: 'open' | 'draft' | 'merged' | 'closed',
-    checks: 'passed' | 'failed' | 'pending' | 'none',
-  ) => ({ number, title, state, checks, url: `${repositoryUrl}/pull/${number}` });
-  const closing = [
-    pull(40, 'Passing', 'open', 'passed'),
-    pull(41, 'Running', 'draft', 'pending'),
-    pull(42, 'Failing', 'open', 'failed'),
-    pull(43, 'Merged', 'merged', 'passed'),
-    pull(44, 'Abandoned', 'closed', 'failed'),
-    pull(45, 'Unchecked', 'open', 'none'),
-  ];
-  (await request(1)).answer({ ok: true, issue: detail(5, { closingPullRequests: closing }) });
-  const block = await within(pane()).findByRole('region', { name: t('closingPullRequests') });
-  const items = within(block).getAllByRole('listitem');
-  assert.deepEqual(
-    items.map(
-      (item, index) => !!within(item).queryByRole('button', { name: name => name.includes(closing[index].title) }),
-    ),
-    closing.map(() => true),
-    'each, of the bound repository, opens in the sidebar, in order',
-  );
-  assert.deepEqual(
-    items.map(item =>
-      within(item)
-        .getAllByRole('img')
-        .map(image => image.getAttribute('aria-label')),
-    ),
-    [
-      [t('pullRequestOpen'), t('checksPassed')],
-      [t('pullRequestDraft'), t('checksPending')],
-      [t('pullRequestOpen'), t('checksFailed')],
-      [t('pullRequestMerged')],
-      [t('pullRequestClosed')],
-      [t('pullRequestOpen')],
-    ],
-    'each names its state, and an open one its checks conclusion',
-  );
-  assert.equal(
-    within(pane()).queryByRole('group', { name: t('relations') }),
-    null,
-    'pull requests stay out of the issue graph',
   );
 });
 

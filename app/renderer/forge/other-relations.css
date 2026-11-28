@@ -1,0 +1,87 @@
+.forge-doc > .forge-other-relations {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  margin-top: 8px;
+  padding: 6px 12px 8px;
+}
+.forge-relation-row {
+  display: grid;
+  grid-template-columns: 56px 1fr;
+  align-items: baseline;
+  gap: 8px;
+}
+.forge-relation-name {
+  color: var(--muted);
+  font-size: 11.5px;
+}
+.forge-relation-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  align-items: center;
+  min-width: 0;
+}
+.forge-relation-note {
+  margin-left: 2px;
+  color: var(--muted);
+  font-size: 11px;
+}
+.forge-relation-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  min-height: 0;
+  padding: 1px 7px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--canvas);
+  color: inherit;
+  font-size: 11.5px;
+  font-variant-numeric: tabular-nums;
+  text-decoration: none;
+}
+.forge-relation-chip:hover {
+  border-color: var(--accent);
+}
+.forge-relation-chip.closed {
+  border-style: dashed;
+  color: var(--muted);
+}
+.forge-relation-chip.outside {
+  font-style: italic;
+}
+.forge-relation-chip .forge-icon,
+.forge-pull-chip .forge-icon {
+  display: flex;
+  margin: 0;
+}
+.forge-pull-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  min-height: 0;
+  height: 18px;
+  padding: 0 6px;
+  border: 1px solid var(--line);
+  border-radius: 9px;
+  background: var(--surface);
+  color: var(--muted);
+  font-size: 10px;
+  line-height: 1;
+  text-decoration: none;
+}
+.forge-pull-chip.open,
+.forge-pull-chip.draft {
+  border-color: color-mix(in srgb, var(--forge-open) 45%, var(--line));
+  color: var(--accent);
+}
+.forge-pull-chip:hover {
+  border-color: var(--forge-link);
+}
+.forge-pull-chip .forge-checks {
+  font-size: 10px;
+}
+.forge-pull-chip .forge-checks-name {
+  display: none;
+}
