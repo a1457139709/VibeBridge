@@ -40,6 +40,8 @@ jobs:
       - if: ${{ !cancelled() && steps.install.outcome == 'success' }}
         run: npm run check:empty-object-literals
       - if: ${{ !cancelled() && steps.install.outcome == 'success' }}
+        run: npm run check:conditional-spreads
+      - if: ${{ !cancelled() && steps.install.outcome == 'success' }}
         run: npm run check:lint
       - if: ${{ !cancelled() && steps.install.outcome == 'success' }}
         run: npm run typecheck
