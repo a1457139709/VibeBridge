@@ -92,12 +92,7 @@ export function IssueDocument({ project, issue, open, followLink, actions, dispa
         )}
       </div>
       {!!dispatch.records.length && (
-        <DispatchRecords
-          key={`${issue.number} ${issue.state}`}
-          records={dispatch.records}
-          startFolded={issue.state === 'closed'}
-          host={dispatch.host}
-        />
+        <DispatchRecords key={issue.number} records={dispatch.records} host={dispatch.host} />
       )}
       {capabilities.blocking && <RelationGraph issue={issue} blockers={openBlockers} follow={openReference} />}
       {!!issue.closingPullRequests.length && (
