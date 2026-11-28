@@ -167,7 +167,7 @@ export interface IssueDetail extends Omit<IssueSummary, 'blockedBy' | 'unlistedB
   body: string;
   comments: ForgeComment[];
   commentCount: number;
-  parent: (IssueReference & { progress: SubIssueProgress }) | null;
+  parent: (IssueReference & { progress: SubIssueProgress; subIssues: SubIssue[] }) | null;
   subIssues: SubIssue[];
   subIssueProgress: SubIssueProgress;
   blockedBy: IssueReference[];

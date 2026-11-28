@@ -24,7 +24,6 @@ import {
   linkedItem,
   OpenPullRequestChecks,
   Post,
-  Progress,
   PullRequestIcon,
   RelativeTime,
 } from './ForgeDisplay';
@@ -58,14 +57,6 @@ export function IssueDocument({ project, issue, open, followLink, actions, dispa
   const parent = capabilities.subIssues ? issue.parent : null;
   return (
     <div className="forge-doc" onClick={followLink}>
-      {parent && (
-        <button className="forge-parent" onClick={() => openReference(parent)}>
-          <IssueIcon issue={parent} size={12} />
-          <span className="forge-ellipsis">{parent.title}</span>
-          <span className="forge-row-number">#{parent.number}</span>
-          {!!parent.progress.total && <Progress {...parent.progress} />}
-        </button>
-      )}
       <h2>
         {issue.title} <span className="forge-row-number">#{issue.number}</span>
       </h2>
@@ -94,14 +85,30 @@ export function IssueDocument({ project, issue, open, followLink, actions, dispa
       {!!dispatch.records.length && (
         <DispatchRecords key={issue.number} records={dispatch.records} host={dispatch.host} />
       )}
-      {capabilities.subIssues && !!issue.subIssues.length && (
+      {capabilities.subIssues && !!issue.subIssues.length ? (
         <SubIssueList
           key={`${issue.number} ${issue.state}`}
-          issue={issue}
+          owner={issue}
+          subIssues={issue.subIssues}
+          progress={issue.subIssueProgress}
+          current={null}
           blocking={capabilities.blocking}
           forge={project.forge.name}
           open={openReference}
         />
+      ) : (
+        !!parent?.subIssues.length && (
+          <SubIssueList
+            key={`${issue.number} siblings`}
+            owner={parent}
+            subIssues={parent.subIssues}
+            progress={parent.progress}
+            current={issue.number}
+            blocking={capabilities.blocking}
+            forge={project.forge.name}
+            open={openReference}
+          />
+        )
       )}
       {capabilities.blocking && <RelationGraph issue={issue} blockers={openBlockers} follow={openReference} />}
       {!!issue.closingPullRequests.length && (

@@ -56,7 +56,10 @@ const issueDetailSchema = z.object({
         nodes: z.array(z.object({ author: loginSchema, createdAt: z.string(), bodyHTML: z.string() })),
       }),
       parent: issueReferenceSchema
-        .extend({ subIssuesSummary: z.object({ total: z.number(), completed: z.number() }) })
+        .extend({
+          subIssuesSummary: z.object({ total: z.number(), completed: z.number() }),
+          subIssues: z.object({ nodes: z.array(subIssueSchema) }),
+        })
         .nullable(),
       subIssuesSummary: z.object({ total: z.number(), completed: z.number() }),
       subIssues: z.object({ nodes: z.array(subIssueSchema) }),
@@ -87,7 +90,10 @@ const issueDetailQuery = `query($owner: String!, $name: String!, $number: Int!) 
     assignees(first: 20) { nodes { login } }
     labels(first: 20) { nodes { name color } }
     comments(last: 100) { totalCount nodes { author { login } createdAt bodyHTML } }
-    parent { ${issueReferenceFields} subIssuesSummary { total completed } }
+    parent {
+      ${issueReferenceFields} subIssuesSummary { total completed }
+      subIssues(first: ${relatedLimit}) { nodes { ${subIssueFields} } }
+    }
     subIssuesSummary { total completed }
     subIssues(first: ${relatedLimit}) { nodes { ${subIssueFields} } }
     blockedBy(first: ${relatedLimit}) { nodes { ${issueReferenceFields} } }
@@ -141,6 +147,7 @@ export async function issueDetail({ host, path }: RepositoryReference, number: n
       parent: issue.parent && {
         ...issueReference(issue.parent),
         progress: { closed: issue.parent.subIssuesSummary.completed, total: issue.parent.subIssuesSummary.total },
+        subIssues: issue.parent.subIssues.nodes.map(sub => subIssue(sub, path)),
       },
       subIssues: issue.subIssues.nodes.map(sub => subIssue(sub, path)),
       subIssueProgress: { closed: issue.subIssuesSummary.completed, total: issue.subIssuesSummary.total },

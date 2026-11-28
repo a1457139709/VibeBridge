@@ -83,7 +83,7 @@ test('an issue detail carries the forge-rendered body and comments with their au
   }
 });
 
-test("an issue detail names its parent, its sub-issues in the forge's order with their blockers, its blockers, what it blocks, and the pull requests that close it", async context => {
+test("an issue detail names its parent with its sub-issues, its own sub-issues in the forge's order with their blockers, its blockers, what it blocks, and the pull requests that close it", async context => {
   await ghDouble(context, {
     ...forgeAccount,
     issues: [
@@ -97,6 +97,7 @@ test("an issue detail names its parent, its sub-issues in the forge's order with
         blockedBy: [5, 3, { path: 'octo/other', number: 9, title: 'Elsewhere', state: 'OPEN' }],
       }),
       plain(9, { title: 'Later sub-issue', parent: 5 }),
+      plain(4, { title: 'Sibling', parent: 1, blockedBy: [5] }),
     ],
     pullRequests: [
       { number: 40, title: 'Open with checks', state: 'OPEN', checks: 'SUCCESS' },
@@ -118,8 +119,28 @@ test("an issue detail names its parent, its sub-issues in the forge's order with
     });
     assert.deepEqual(
       result.issue.parent,
-      { ...ref(1, 'Spec'), progress: { closed: 0, total: 1 } },
-      'the parent carries its own sub-issue progress',
+      {
+        ...ref(1, 'Spec'),
+        progress: { closed: 0, total: 2 },
+        subIssues: [
+          {
+            ...ref(4, 'Sibling'),
+            path: null,
+            blockedBy: [{ path: null, number: 5, title: 'Detail', state: 'open' }],
+            unlistedBlockers: 0,
+          },
+          {
+            ...ref(5, 'Detail'),
+            path: null,
+            blockedBy: [
+              { path: null, number: 2, title: 'Blocker', state: 'open' },
+              { path: null, number: 3, title: 'Closed blocker', state: 'closed' },
+            ],
+            unlistedBlockers: 0,
+          },
+        ],
+      },
+      "the parent carries its own sub-issue progress and its sub-issues in the forge's order with their blockers",
     );
     assert.deepEqual(result.issue.subIssues, [
       { ...ref(9, 'Later sub-issue'), path: null, blockedBy: [], unlistedBlockers: 0 },
@@ -135,7 +156,7 @@ test("an issue detail names its parent, its sub-issues in the forge's order with
       },
     ]);
     assert.deepEqual(result.issue.blockedBy, [ref(2, 'Blocker'), ref(3, 'Closed blocker', 'notPlanned')]);
-    assert.deepEqual(result.issue.blocking, [ref(6, 'Earlier sub-issue')]);
+    assert.deepEqual(result.issue.blocking, [ref(6, 'Earlier sub-issue'), ref(4, 'Sibling')]);
     const pull = (number: number, title: string, state: string, checks: string) => ({
       number,
       title,
@@ -158,7 +179,7 @@ test("an issue detail names its parent, its sub-issues in the forge's order with
   }
 });
 
-test("a long issue detail holds the latest 100 comments, the first 50 sub-issues and 50 blockers of each, and GitHub's counts of them", async context => {
+test("a long issue detail holds the latest 100 comments, the first 50 sub-issues and 50 blockers of each, the first 50 of its parent's sub-issues, and GitHub's counts of them", async context => {
   await ghDouble(context, {
     ...forgeAccount,
     issues: [
@@ -198,6 +219,13 @@ test("a long issue detail holds the latest 100 comments, the first 50 sub-issues
       [crowded?.blockedBy.length, crowded?.unlistedBlockers],
       [50, 3],
       'closed blockers count toward the unlisted ones',
+    );
+    const sibling = await issueDetail(f.workbench, f.projectId, 200);
+    assert.ok(sibling.ok);
+    assert.deepEqual(
+      [sibling.issue.parent?.subIssues.length, sibling.issue.parent?.progress],
+      [50, { closed: 11, total: 56 }],
+      'the parent lists its first 50 sub-issues and counts them all',
     );
   } finally {
     await f.close();

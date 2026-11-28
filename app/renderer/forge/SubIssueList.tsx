@@ -1,6 +1,6 @@
 import { useId, useState } from 'react';
 import { useLocalization } from '../common/Localization';
-import type { IssueDetail, IssueReference } from '../../shared/forge/forge';
+import type { IssueReference, SubIssue, SubIssueProgress } from '../../shared/forge/forge';
 import { BlockedMark, IssueIcon, MoreOnForge, Progress } from './ForgeDisplay';
 import { presentSubIssueRows, subIssueKey, type SubIssueRelation } from './sub-issue-rows';
 import './sub-issue-list.css';
@@ -14,33 +14,48 @@ const relationMessages = {
 const relations = ['lit', 'blocksLit', 'blockedByLit', 'unrelated'] as const satisfies readonly SubIssueRelation[];
 
 export function SubIssueList({
-  issue,
+  owner,
+  subIssues,
+  progress,
+  current,
   blocking,
   forge,
   open,
 }: {
-  issue: IssueDetail;
+  owner: IssueReference;
+  subIssues: SubIssue[];
+  progress: SubIssueProgress;
+  current: number | null;
   blocking: boolean;
   forge: string;
   open(reference: IssueReference): void;
 }) {
   const { t } = useLocalization();
-  const [unfolded, setUnfolded] = useState(issue.state === 'open');
-  const [lit, setLit] = useState<string | null>(null);
+  const [unfolded, setUnfolded] = useState(current !== null || owner.state === 'open');
+  const [pointed, setPointed] = useState<string | null>(null);
   const descriptionId = useId();
-  const rows = presentSubIssueRows(issue.subIssues, { lit, blocking });
-  const unlisted = issue.subIssueProgress.total - issue.subIssues.length;
+  const currentKey = current === null ? null : subIssueKey({ path: null, number: current });
+  const rows = presentSubIssueRows(subIssues, { lit: pointed ?? currentKey, blocking });
+  const unlisted = progress.total - subIssues.length;
+  const heading = t(current === null ? 'subIssues' : 'siblingIssues');
   return (
-    <section className="forge-box forge-sub-issues" aria-label={t('subIssues')}>
+    <section className="forge-box forge-sub-issues" aria-label={heading}>
       <header>
         <button className="dispatch-records-toggle" aria-expanded={unfolded} onClick={() => setUnfolded(!unfolded)}>
-          <span aria-hidden>{unfolded ? '▾' : '▸'}</span> {t('subIssues')}
+          <span aria-hidden>{unfolded ? '▾' : '▸'}</span> {heading}
         </button>
+        {current !== null && (
+          <button className="forge-sub-issue-owner" data-hint={owner.title} onClick={() => open(owner)}>
+            <IssueIcon issue={owner} size={11} decorative />
+            <span className="forge-row-number">#{owner.number}</span>
+            <span className="forge-ellipsis">{owner.title}</span>
+          </button>
+        )}
         <span className="forge-spacer" />
-        <Progress {...issue.subIssueProgress} />
+        <Progress {...progress} />
       </header>
       {unfolded && (
-        <div className="forge-sub-issue-list" onMouseLeave={() => setLit(null)}>
+        <div className="forge-sub-issue-list" onMouseLeave={() => setPointed(null)}>
           {relations.map(relation => (
             <span key={relation} id={`${descriptionId}-${relation}`} hidden>
               {t(relationMessages[relation])}
@@ -51,15 +66,16 @@ export function SubIssueList({
               key={row.key}
               className={`forge-sub-issue ${row.issue.state}`}
               data-relation={row.relation ?? undefined}
-              onMouseEnter={() => setLit(row.key)}
+              onMouseEnter={() => setPointed(row.key)}
             >
               <button
                 className="forge-sub-issue-open"
                 data-hint={`#${row.issue.number} ${row.issue.title}`}
                 aria-describedby={row.relation ? `${descriptionId}-${row.relation}` : undefined}
-                onFocus={() => setLit(row.key)}
-                onBlur={() => setLit(current => (current === row.key ? null : current))}
-                onClick={() => open(row.issue)}
+                aria-current={row.key === currentKey || undefined}
+                onFocus={() => setPointed(row.key)}
+                onBlur={() => setPointed(shown => (shown === row.key ? null : shown))}
+                onClick={() => row.key !== currentKey && open(row.issue)}
               >
                 <IssueIcon issue={row.issue} size={12} decorative />
                 <span className="forge-row-number">#{row.issue.number}</span>
@@ -73,7 +89,7 @@ export function SubIssueList({
               )}
             </div>
           ))}
-          {unlisted > 0 && <MoreOnForge message="moreSubIssues" count={unlisted} forge={forge} url={issue.url} />}
+          {unlisted > 0 && <MoreOnForge message="moreSubIssues" count={unlisted} forge={forge} url={owner.url} />}
         </div>
       )}
     </section>

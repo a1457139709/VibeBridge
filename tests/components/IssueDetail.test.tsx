@@ -173,14 +173,13 @@ test('the body and comments pass the HTML filter, same-repository issue links op
   );
 });
 
-test('the relation graph draws open blockers and the open issues this one blocks, with the parent above', async () => {
+test('the relation graph draws open blockers and the open issues this one blocks', async () => {
   const { user, request } = renderWorkbench([summary(5)]);
   await user.click(await row('Issue 5'));
   (await request(1)).answer({
     ok: true,
     issue: detail(5, {
       title: 'Detail',
-      parent: { ...reference(1, { title: 'Spec' }), progress: { closed: 1, total: 3 } },
       blockedBy: [
         reference(2, { title: 'Open blocker' }),
         reference(3, { title: 'Closed blocker', state: 'closed', closedAs: 'completed' }),
@@ -198,11 +197,6 @@ test('the relation graph draws open blockers and the open issues this one blocks
   assert.equal(nodes.length, 3, 'only open blockers are drawn');
   assert.deepEqual(['Open blocker', 'Detail', 'Waits on detail'].map(relationOf), ['blockedBy', 'self', 'blocking']);
   assert.deepEqual([...graph.querySelectorAll('path.forge-edge')].length, 2, 'one edge per blocking relation');
-  const parent = within(pane()).getByRole('button', { name: name => name.includes('Spec') });
-  assert.ok(
-    within(parent).getByRole('img', { name: t('subIssueProgress', { closed: 1, total: 3 }) }),
-    'the parent shows above, with its sub-issue progress',
-  );
   assert.ok(
     within(pane()).getByRole('img', { name: t('blockedBy', { issues: '#2' }) }),
     'the head shows the open blockers',
@@ -234,7 +228,6 @@ async function openWithEveryRelation(capabilities: Partial<ForgeCapabilities>) {
   (await request(1)).answer({
     ok: true,
     issue: detail(5, {
-      parent: { ...reference(1, { title: 'Spec' }), progress: { closed: 0, total: 1 } },
       blockedBy: [reference(2, { title: 'Open blocker' })],
       blocking: [reference(8, { title: 'Waits on detail' })],
       subIssues: [subIssue(6)],
@@ -243,26 +236,23 @@ async function openWithEveryRelation(capabilities: Partial<ForgeCapabilities>) {
   });
   await detailHeading(pane(), 'Issue 5', 5);
   return {
-    parent: () => within(pane()).queryByRole('button', { name: name => name.includes('Spec') }),
     subIssues: () => within(pane()).queryByRole('region', { name: t('subIssues') }),
     blockedBy: () => within(pane()).queryByRole('img', { name: t('blockedBy', { issues: '#2' }) }),
     blocking: () => within(pane()).queryByRole('button', { name: name => name.includes('Waits on detail') }),
   };
 }
 
-test('a forge without sub-issues hides the parent and sub-issues but still shows blockers and the issues this one blocks', async () => {
+test('a forge without sub-issues hides the sub-issues but still shows blockers and the issues this one blocks', async () => {
   const shown = await openWithEveryRelation({ subIssues: false });
-  assert.equal(shown.parent(), null);
   assert.equal(shown.subIssues(), null);
   assert.notEqual(shown.blockedBy(), null);
   assert.notEqual(shown.blocking(), null);
 });
 
-test('a forge without blocking hides blockers and the issues this one blocks but still shows the parent and sub-issues', async () => {
+test('a forge without blocking hides blockers and the issues this one blocks but still shows the sub-issues', async () => {
   const shown = await openWithEveryRelation({ blocking: false });
   assert.equal(shown.blockedBy(), null);
   assert.equal(shown.blocking(), null);
-  assert.notEqual(shown.parent(), null);
   assert.notEqual(shown.subIssues(), null);
 });
 

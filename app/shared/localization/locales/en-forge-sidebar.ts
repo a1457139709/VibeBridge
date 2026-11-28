@@ -80,6 +80,7 @@ export const englishForgeSidebar = {
   thisIssue: 'this issue',
   blockingColumn: 'Blocking',
   subIssues: 'Sub-issues',
+  siblingIssues: 'Sibling issues',
   subIssueProgress: 'Sub-issues: {closed} / {total} closed',
   moreSubIssues: '{count} more on {forge} ↗',
   subIssueLit: 'Highlighted',

@@ -58,6 +58,13 @@ function issueDetail(state, path, number, answering, query) {
       commits: { nodes: [{ commit: { statusCheckRollup: item.checks ? { state: item.checks } : null } }] },
     };
   };
+  const subIssuesOf = n => ({
+    nodes: issues
+      .filter(item => item.parent === n)
+      .reverse()
+      .slice(0, window('subIssues'))
+      .map(subIssue),
+  });
   const subIssuesSummary = n => {
     const children = issues.filter(item => item.parent === n);
     return { total: children.length, completed: children.filter(item => item.state === 'CLOSED').length };
@@ -90,16 +97,14 @@ function issueDetail(state, path, number, answering, query) {
               })),
             },
             parent: issue.parent
-              ? { ...reference(byNumber([issue.parent])[0]), subIssuesSummary: subIssuesSummary(issue.parent) }
+              ? {
+                  ...reference(byNumber([issue.parent])[0]),
+                  subIssuesSummary: subIssuesSummary(issue.parent),
+                  subIssues: subIssuesOf(issue.parent),
+                }
               : null,
             subIssuesSummary: subIssuesSummary(issue.number),
-            subIssues: {
-              nodes: issues
-                .filter(item => item.parent === issue.number)
-                .reverse()
-                .slice(0, window('subIssues'))
-                .map(subIssue),
-            },
+            subIssues: subIssuesOf(issue.number),
             blockedBy: { nodes: (issue.blockedBy ?? []).map(blocker) },
             blocking: { nodes: issues.filter(item => item.blockedBy?.includes(issue.number)).map(reference) },
             closedByPullRequestsReferences: { nodes: (issue.closedBy ?? []).map(pull) },
