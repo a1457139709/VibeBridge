@@ -11,6 +11,7 @@ import type { ProjectView } from '../../shared/model';
 import type { DispatchRecordView } from '../../shared/dispatch';
 import { IssueActions, type Actions } from './DirectActions';
 import { DispatchRecords, type DispatchRecordsHost } from '../dispatch/DispatchRecords';
+import { SubIssueList } from './SubIssueList';
 import './relation-graph.css';
 import {
   BlockedMark,
@@ -20,7 +21,6 @@ import {
   ItemReference,
   Label,
   linkedItem,
-  MoreOnForge,
   OpenPullRequestChecks,
   Post,
   Progress,
@@ -54,7 +54,6 @@ export function IssueDocument({ project, issue, open, followLink, actions, dispa
     else window.open(reference.url, '_blank');
   };
   const openBlockers = issue.blockedBy.filter(blocker => blocker.state === 'open');
-  const subIssues = capabilities.subIssues ? issue.subIssues : [];
   const parent = capabilities.subIssues ? issue.parent : null;
   return (
     <div className="forge-doc" onClick={followLink}>
@@ -99,39 +98,21 @@ export function IssueDocument({ project, issue, open, followLink, actions, dispa
           host={dispatch.host}
         />
       )}
+      {capabilities.subIssues && !!issue.subIssues.length && (
+        <SubIssueList
+          key={`${issue.number} ${issue.state}`}
+          issue={issue}
+          blocking={capabilities.blocking}
+          forge={project.forge.name}
+          open={openReference}
+        />
+      )}
       {capabilities.blocking && <RelationGraph issue={issue} blockers={openBlockers} follow={openReference} />}
       {!!issue.closingPullRequests.length && (
         <ClosingPullRequests pullRequests={issue.closingPullRequests} links={issue.links} open={open} />
       )}
       <div className="forge-doc-main">
         <Post author={issue.author} createdAt={issue.createdAt} html={issue.body} />
-        {!!subIssues.length && (
-          <section className="forge-box" aria-label={t('subIssues')}>
-            <header>
-              {t('subIssues')} <Progress {...issue.subIssueProgress} />
-            </header>
-            {subIssues.map(sub => (
-              <button
-                key={sub.number}
-                className={`forge-ref ${sub.state === 'closed' ? 'closed' : ''}`}
-                data-hint={sub.title}
-                onClick={() => openReference(sub)}
-              >
-                <IssueIcon issue={sub} />
-                <span className="forge-ellipsis">{sub.title}</span>
-                <span className="forge-row-number">#{sub.number}</span>
-              </button>
-            ))}
-            {issue.subIssueProgress.total > subIssues.length && (
-              <MoreOnForge
-                message="moreSubIssues"
-                count={issue.subIssueProgress.total - subIssues.length}
-                forge={project.forge.name}
-                url={issue.url}
-              />
-            )}
-          </section>
-        )}
         {issue.commentCount > issue.comments.length && (
           <a className="forge-earlier" href={issue.url} target="_blank" rel="noreferrer">
             {t('earlierEntries', { count: issue.commentCount - issue.comments.length, forge: project.forge.name })}

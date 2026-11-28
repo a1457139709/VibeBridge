@@ -33,6 +33,20 @@ function issueDetail(state, path, number, answering, query) {
           stateReason: null,
           url: `https://github.com/${entry.path}/issues/${entry.number}`,
         };
+  const relatedBlocker = entry =>
+    typeof entry === 'number'
+      ? { ...owned(byNumber([entry])[0]), repository: { nameWithOwner: path } }
+      : { ...owned(entry), repository: { nameWithOwner: entry.path } };
+  const owned = item => ({ number: item.number, title: item.title, state: item.state });
+  const subIssue = item => {
+    const blockers = (item.blockedBy ?? []).map(relatedBlocker);
+    return {
+      ...reference(item),
+      repository: { nameWithOwner: path },
+      blockedBy: { nodes: blockers.slice(0, window('blockedBy')) },
+      issueDependenciesSummary: { totalBlockedBy: blockers.length },
+    };
+  };
   const pull = n => {
     const item = pulls.find(candidate => candidate.number === n);
     return {
@@ -84,7 +98,7 @@ function issueDetail(state, path, number, answering, query) {
                 .filter(item => item.parent === issue.number)
                 .reverse()
                 .slice(0, window('subIssues'))
-                .map(reference),
+                .map(subIssue),
             },
             blockedBy: { nodes: (issue.blockedBy ?? []).map(blocker) },
             blocking: { nodes: issues.filter(item => item.blockedBy?.includes(issue.number)).map(reference) },

@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import type { IssueDetail, RepositoryReference } from '../../shared/forge/forge';
+import type { IssueDetail, RepositoryReference, SubIssue } from '../../shared/forge/forge';
 import { graphql } from './github-cli';
 import {
   answeredBy,
@@ -18,10 +18,24 @@ import {
   pullRequestState,
   relatedLimit,
   repositoryLinks,
+  samePath,
   viewerPermission,
 } from './github-fields';
 import type { Answered } from './forge';
 
+const repositorySchema = z.object({ nameWithOwner: z.string() });
+const subIssueSchema = issueReferenceSchema.extend({
+  repository: repositorySchema,
+  blockedBy: z.object({
+    nodes: z.array(
+      z.object({ number: z.number(), title: z.string(), state: issueStateFields.state, repository: repositorySchema }),
+    ),
+  }),
+  issueDependenciesSummary: z.object({ totalBlockedBy: z.number() }),
+});
+const subIssueFields = `${issueReferenceFields} repository { nameWithOwner }
+      blockedBy(first: ${relatedLimit}) { nodes { number title state repository { nameWithOwner } } }
+      issueDependenciesSummary { totalBlockedBy }`;
 const issueDetailSchema = z.object({
   repository: z.object({
     ...answeringSchema,
@@ -45,7 +59,7 @@ const issueDetailSchema = z.object({
         .extend({ subIssuesSummary: z.object({ total: z.number(), completed: z.number() }) })
         .nullable(),
       subIssuesSummary: z.object({ total: z.number(), completed: z.number() }),
-      subIssues: z.object({ nodes: z.array(issueReferenceSchema) }),
+      subIssues: z.object({ nodes: z.array(subIssueSchema) }),
       blockedBy: z.object({ nodes: z.array(issueReferenceSchema) }),
       blocking: z.object({ nodes: z.array(issueReferenceSchema) }),
       closedByPullRequestsReferences: z.object({
@@ -75,7 +89,7 @@ const issueDetailQuery = `query($owner: String!, $name: String!, $number: Int!) 
     comments(last: 100) { totalCount nodes { author { login } createdAt bodyHTML } }
     parent { ${issueReferenceFields} subIssuesSummary { total completed } }
     subIssuesSummary { total completed }
-    subIssues(first: ${relatedLimit}) { nodes { ${issueReferenceFields} } }
+    subIssues(first: ${relatedLimit}) { nodes { ${subIssueFields} } }
     blockedBy(first: ${relatedLimit}) { nodes { ${issueReferenceFields} } }
     blocking(first: ${relatedLimit}) { nodes { ${issueReferenceFields} } }
     closedByPullRequestsReferences(first: ${relatedLimit}, includeClosedPrs: true) {
@@ -83,6 +97,24 @@ const issueDetailQuery = `query($owner: String!, $name: String!, $number: Int!) 
     }
   } }
 }`;
+
+const pathFrom = (repository: z.infer<typeof repositorySchema>, path: string) =>
+  samePath(repository.nameWithOwner, path) ? null : repository.nameWithOwner;
+
+function subIssue(sub: z.infer<typeof subIssueSchema>, path: string): SubIssue {
+  const blockedBy = sub.blockedBy.nodes.map(blocker => ({
+    path: pathFrom(blocker.repository, path),
+    number: blocker.number,
+    title: blocker.title,
+    state: issueState({ state: blocker.state, stateReason: null }).state,
+  }));
+  return {
+    ...issueReference(sub),
+    path: pathFrom(sub.repository, path),
+    blockedBy,
+    unlistedBlockers: Math.max(0, sub.issueDependenciesSummary.totalBlockedBy - blockedBy.length),
+  };
+}
 
 export async function issueDetail({ host, path }: RepositoryReference, number: number): Promise<Answered<IssueDetail>> {
   const [owner, name] = path.split('/');
@@ -110,7 +142,7 @@ export async function issueDetail({ host, path }: RepositoryReference, number: n
         ...issueReference(issue.parent),
         progress: { closed: issue.parent.subIssuesSummary.completed, total: issue.parent.subIssuesSummary.total },
       },
-      subIssues: issue.subIssues.nodes.map(issueReference).sort((a, b) => a.number - b.number),
+      subIssues: issue.subIssues.nodes.map(sub => subIssue(sub, path)),
       subIssueProgress: { closed: issue.subIssuesSummary.completed, total: issue.subIssuesSummary.total },
       blockedBy: issue.blockedBy.nodes.map(issueReference),
       blocking: issue.blocking.nodes.map(issueReference),

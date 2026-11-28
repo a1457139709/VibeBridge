@@ -10,6 +10,7 @@ import type {
   IssueDetailResult,
   IssueReference,
   ListedIssue,
+  SubIssue,
 } from '../../../app/shared/forge/forge';
 import { deferred, provideWorkbench } from './workbench';
 import { forgeSidebarData } from './forge-sidebar-data';
@@ -28,6 +29,13 @@ export const reference = (number: number, extra: Partial<IssueReference> = {}): 
   state: 'open',
   closedAs: null,
   url: `${repositoryUrl}/issues/${number}`,
+  ...extra,
+});
+export const subIssue = (number: number, extra: Partial<SubIssue> = {}): SubIssue => ({
+  ...reference(number),
+  path: null,
+  blockedBy: [],
+  unlistedBlockers: 0,
   ...extra,
 });
 export const detail = (number: number, extra: Partial<IssueDetail> = {}): IssueDetail => ({

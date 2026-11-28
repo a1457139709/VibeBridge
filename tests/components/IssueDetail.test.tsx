@@ -13,6 +13,7 @@ import {
   hoursAgo,
   summary,
   reference,
+  subIssue,
   detail,
   renderWorkbench,
   pane,
@@ -172,7 +173,7 @@ test('the body and comments pass the HTML filter, same-repository issue links op
   );
 });
 
-test('the relation graph draws open blockers and the open issues this one blocks, with the parent above and the sub-issues below', async () => {
+test('the relation graph draws open blockers and the open issues this one blocks, with the parent above', async () => {
   const { user, request } = renderWorkbench([summary(5)]);
   await user.click(await row('Issue 5'));
   (await request(1)).answer({
@@ -185,11 +186,6 @@ test('the relation graph draws open blockers and the open issues this one blocks
         reference(3, { title: 'Closed blocker', state: 'closed', closedAs: 'completed' }),
       ],
       blocking: [reference(8, { title: 'Waits on detail' })],
-      subIssues: [
-        reference(6, { title: 'First part', state: 'closed', closedAs: 'completed' }),
-        reference(9, { title: 'Second part' }),
-      ],
-      subIssueProgress: { closed: 1, total: 2 },
     }),
   });
   const graph = await within(pane()).findByRole('group', { name: t('relations') });
@@ -210,16 +206,6 @@ test('the relation graph draws open blockers and the open issues this one blocks
   assert.ok(
     within(pane()).getByRole('img', { name: t('blockedBy', { issues: '#2' }) }),
     'the head shows the open blockers',
-  );
-  const subIssues = within(pane()).getByRole('region', { name: t('subIssues') });
-  assert.ok(
-    within(subIssues).getByRole('img', { name: t('subIssueProgress', { closed: 1, total: 2 }) }),
-    'the sub-issue progress counts closed ones',
-  );
-  const subIssueButtons = within(subIssues).getAllByRole('button');
-  assert.deepEqual(
-    ['First part', 'Second part'].map((title, index) => !!subIssueButtons[index]?.textContent?.includes(title)),
-    [true, true],
   );
 
   await user.click(selectElement('button[data-relation="blockedBy"]', graph));
@@ -251,7 +237,7 @@ async function openWithEveryRelation(capabilities: Partial<ForgeCapabilities>) {
       parent: { ...reference(1, { title: 'Spec' }), progress: { closed: 0, total: 1 } },
       blockedBy: [reference(2, { title: 'Open blocker' })],
       blocking: [reference(8, { title: 'Waits on detail' })],
-      subIssues: [reference(6)],
+      subIssues: [subIssue(6)],
       subIssueProgress: { closed: 0, total: 1 },
     }),
   });

@@ -1,0 +1,76 @@
+.forge-doc > .forge-sub-issues {
+  margin-top: 8px;
+}
+.forge-sub-issues > header {
+  min-width: 0;
+}
+.forge-sub-issue-list {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 4px 6px 6px;
+}
+.forge-sub-issue {
+  --forge-relation: var(--line);
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  width: 100%;
+  height: 26px;
+  padding: 0 6px 0 0;
+  border: 1px solid var(--forge-relation);
+  border-radius: 6px;
+  background: var(--surface);
+  font-size: 11.5px;
+  transition:
+    opacity 0.12s,
+    background 0.12s,
+    border-color 0.12s;
+}
+.forge-sub-issue.closed .forge-ellipsis {
+  color: var(--muted);
+}
+.forge-sub-issue[data-relation='blocksLit'] {
+  --forge-relation: var(--forge-failed);
+}
+.forge-sub-issue[data-relation='lit'] {
+  --forge-relation: var(--forge-open);
+  border-width: 2px;
+  font-weight: 700;
+}
+.forge-sub-issue[data-relation='blockedByLit'] {
+  --forge-relation: var(--forge-pending);
+}
+.forge-sub-issue[data-relation='blocksLit'],
+.forge-sub-issue[data-relation='lit'],
+.forge-sub-issue[data-relation='blockedByLit'] {
+  background: color-mix(in srgb, var(--forge-relation) 14%, var(--surface));
+}
+.forge-sub-issue[data-relation='unrelated'] {
+  opacity: 0.35;
+}
+.forge-sub-issue-open {
+  flex: 1 1 auto;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  height: 100%;
+  min-height: 0;
+  padding: 0 8px;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+}
+.forge-sub-issue-open .forge-row-number {
+  flex-shrink: 0;
+}
+.forge-sub-issue-open .forge-ellipsis {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+.forge-sub-issue .forge-blocked {
+  flex-shrink: 0;
+}
