@@ -45,7 +45,9 @@ test('an issue detail carries the forge-rendered body and comments with their au
         subIssues: undefined,
         subIssueProgress: undefined,
         blockedBy: undefined,
+        blockedByTotal: undefined,
         blocking: undefined,
+        blockingTotal: undefined,
         closingPullRequests: undefined,
         canWrite: undefined,
       },
@@ -73,7 +75,9 @@ test('an issue detail carries the forge-rendered body and comments with their au
         subIssues: undefined,
         subIssueProgress: undefined,
         blockedBy: undefined,
+        blockedByTotal: undefined,
         blocking: undefined,
+        blockingTotal: undefined,
         closingPullRequests: undefined,
         canWrite: undefined,
       },
@@ -83,16 +87,26 @@ test('an issue detail carries the forge-rendered body and comments with their au
   }
 });
 
-test('an issue detail names its parent, its sub-issues in number order, its blockers, what it blocks, and the pull requests that close it', async context => {
+test("an issue detail names its parent with its sub-issues, its own sub-issues in the forge's order with their blockers, its blockers, what it blocks, and the pull requests that close it", async context => {
   await ghDouble(context, {
     ...forgeAccount,
     issues: [
       plain(1, { title: 'Spec' }),
       plain(2, { title: 'Blocker', blockedBy: [] }),
-      plain(5, { title: 'Detail', parent: 1, blockedBy: [2, 3], closedBy: [40, 41, 42, 43] }),
+      plain(5, {
+        title: 'Detail',
+        parent: 1,
+        blockedBy: [2, 3, { path: 'octo/other', number: 9, title: 'Elsewhere', state: 'OPEN' }],
+        closedBy: [40, 41, 42, 43],
+      }),
       plain(3, { title: 'Closed blocker', state: 'CLOSED', stateReason: 'NOT_PLANNED' }),
+      plain(6, {
+        title: 'Earlier sub-issue',
+        parent: 5,
+        blockedBy: [5, 3, { path: 'octo/other', number: 9, title: 'Elsewhere', state: 'OPEN' }],
+      }),
       plain(9, { title: 'Later sub-issue', parent: 5 }),
-      plain(6, { title: 'Earlier sub-issue', parent: 5, blockedBy: [5] }),
+      plain(4, { title: 'Sibling', parent: 1, blockedBy: [5] }),
     ],
     pullRequests: [
       { number: 40, title: 'Open with checks', state: 'OPEN', checks: 'SUCCESS' },
@@ -114,12 +128,60 @@ test('an issue detail names its parent, its sub-issues in number order, its bloc
     });
     assert.deepEqual(
       result.issue.parent,
-      { ...ref(1, 'Spec'), progress: { closed: 0, total: 1 } },
-      'the parent carries its own sub-issue progress',
+      {
+        ...ref(1, 'Spec'),
+        progress: { closed: 0, total: 2 },
+        subIssues: [
+          {
+            ...ref(4, 'Sibling'),
+            path: null,
+            blockedBy: [{ path: null, number: 5, title: 'Detail', state: 'open' }],
+            unlistedBlockers: 0,
+          },
+          {
+            ...ref(5, 'Detail'),
+            path: null,
+            blockedBy: [
+              { path: null, number: 2, title: 'Blocker', state: 'open' },
+              { path: null, number: 3, title: 'Closed blocker', state: 'closed' },
+              { path: 'octo/other', number: 9, title: 'Elsewhere', state: 'open' },
+            ],
+            unlistedBlockers: 0,
+          },
+        ],
+      },
+      "the parent carries its own sub-issue progress and its sub-issues in the forge's order with their blockers",
     );
-    assert.deepEqual(result.issue.subIssues, [ref(6, 'Earlier sub-issue'), ref(9, 'Later sub-issue')]);
-    assert.deepEqual(result.issue.blockedBy, [ref(2, 'Blocker'), ref(3, 'Closed blocker', 'notPlanned')]);
-    assert.deepEqual(result.issue.blocking, [ref(6, 'Earlier sub-issue')]);
+    assert.deepEqual(result.issue.subIssues, [
+      { ...ref(9, 'Later sub-issue'), path: null, blockedBy: [], unlistedBlockers: 0 },
+      {
+        ...ref(6, 'Earlier sub-issue'),
+        path: null,
+        blockedBy: [
+          { path: null, number: 5, title: 'Detail', state: 'open' },
+          { path: null, number: 3, title: 'Closed blocker', state: 'closed' },
+          { path: 'octo/other', number: 9, title: 'Elsewhere', state: 'open' },
+        ],
+        unlistedBlockers: 0,
+      },
+    ]);
+    assert.deepEqual(result.issue.blockedBy, [
+      { ...ref(2, 'Blocker'), path: null },
+      { ...ref(3, 'Closed blocker', 'notPlanned'), path: null },
+      {
+        number: 9,
+        title: 'Elsewhere',
+        state: 'open',
+        closedAs: null,
+        url: 'https://github.com/octo/other/issues/9',
+        path: 'octo/other',
+      },
+    ]);
+    assert.deepEqual(result.issue.blocking, [
+      { ...ref(6, 'Earlier sub-issue'), path: null },
+      { ...ref(4, 'Sibling'), path: null },
+    ]);
+    assert.deepEqual([result.issue.blockedByTotal, result.issue.blockingTotal], [3, 2]);
     const pull = (number: number, title: string, state: string, checks: string) => ({
       number,
       title,
@@ -142,11 +204,17 @@ test('an issue detail names its parent, its sub-issues in number order, its bloc
   }
 });
 
-test("a long issue detail holds the latest 100 comments, the first 50 sub-issues, and GitHub's counts of both", async context => {
+test("a long issue detail holds the latest 100 comments, the first 50 of its blockers, of the issues it blocks, of its sub-issues and their blockers, and of its parent's sub-issues, and GitHub's counts of them", async context => {
   await ghDouble(context, {
     ...forgeAccount,
     issues: [
       plain(1, {
+        blockedBy: Array.from({ length: 53 }, (_, index) => ({
+          path: 'octo/other',
+          number: index + 1,
+          title: `Blocker ${index + 1}`,
+          state: 'OPEN' as const,
+        })),
         comments: Array.from({ length: 120 }, (_, index) => ({
           author: 'hubot',
           createdAt: day(index),
@@ -154,20 +222,53 @@ test("a long issue detail holds the latest 100 comments, the first 50 sub-issues
         })),
       }),
       ...Array.from({ length: 55 }, (_, index) =>
-        plain(100 + index, index % 5 ? { parent: 1 } : { parent: 1, state: 'CLOSED', stateReason: 'COMPLETED' }),
+        plain(
+          100 + index,
+          index % 5
+            ? { parent: 1, blockedBy: [1] }
+            : { parent: 1, blockedBy: [1], state: 'CLOSED', stateReason: 'COMPLETED' },
+        ),
       ),
+      plain(200, {
+        parent: 1,
+        blockedBy: Array.from({ length: 53 }, (_, index) => ({
+          path: 'octo/other',
+          number: index + 1,
+          title: `Blocker ${index + 1}`,
+          state: index % 2 ? 'OPEN' : 'CLOSED',
+        })),
+      }),
     ],
   });
   const f = await boundWorkbench('issue-detail-long');
   try {
     const result = await issueDetail(f.workbench, f.projectId, 1);
     assert.ok(result.ok);
-    const { comments, commentCount, subIssues, subIssueProgress } = result.issue;
+    const { comments, commentCount, subIssues, subIssueProgress, blockedBy, blockedByTotal, blocking, blockingTotal } =
+      result.issue;
+    assert.deepEqual(
+      [blockedBy.length, blockedByTotal, blocking.length, blockingTotal],
+      [50, 53, 50, 55],
+      'its blockers and the issues it blocks are listed to 50, with the forge totals',
+    );
     assert.deepEqual(
       [comments.length, comments[0].html, comments.at(-1)?.html, commentCount],
       [100, '<p>Comment 20.</p>', '<p>Comment 119.</p>', 120],
     );
-    assert.deepEqual([subIssues.length, subIssueProgress], [50, { closed: 11, total: 55 }]);
+    assert.deepEqual([subIssues.length, subIssueProgress], [50, { closed: 11, total: 56 }]);
+    const crowded = subIssues.find(sub => sub.number === 200);
+    assert.deepEqual(
+      [crowded?.blockedBy.length, crowded?.unlistedBlockers],
+      [50, 1],
+      'as on list rows, only the open blockers past the listed ones count as unlisted',
+    );
+    const sibling = await issueDetail(f.workbench, f.projectId, 200);
+    assert.ok(sibling.ok);
+    assert.deepEqual(
+      [sibling.issue.parent?.subIssues.length, sibling.issue.parent?.progress],
+      [50, { closed: 11, total: 56 }],
+      'the parent lists its first 50 sub-issues and counts them all',
+    );
   } finally {
     await f.close();
   }

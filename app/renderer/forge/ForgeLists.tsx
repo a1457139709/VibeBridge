@@ -26,6 +26,7 @@ import type { IssueShortcutAction } from '../../shared/settings/shortcuts';
 import { errorMessage } from '../../shared/caught-error';
 import { ForgeDetailPane } from './ForgeDetail';
 import type { IssueDispatch } from './IssueDetail';
+import { relatedIssueRowOf } from './SubIssueList';
 import { FilterBar } from './ForgeFilterBar';
 import { DispatchButton, holdsDispatch, type DispatchHost } from '../dispatch/DispatchMenu';
 import { LatestDispatchSkill } from '../dispatch/DispatchRecords';
@@ -57,7 +58,12 @@ const noRows = { loaded: null, failed: null };
 const nothingLoaded: ListsData = { issues: noRows, pullRequests: noRows, loading: false };
 interface OpenMenu {
   issue: number;
-  place: 'row' | 'detail';
+  place: 'row' | 'detail' | 'related';
+}
+interface FocusedIssue {
+  number: number;
+  scope: HTMLElement;
+  place: OpenMenu['place'];
 }
 interface DeclaredList {
   request: string | null;
@@ -183,23 +189,33 @@ export function ForgeLists({ project, changeBinding, detailHost, dispatchHost, v
     button: dispatchButton(issue, 'detail'),
     records: dispatchRecordsOf(issue.number),
     host: dispatchHost,
+    related: {
+      button: related => dispatchButton(related, 'related'),
+      openMenu: issueNumber => setOpenMenu({ issue: issueNumber, place: 'related' }),
+    },
   });
+  const focusedIssue = (focus: Element | null): FocusedIssue | undefined => {
+    const related = relatedIssueRowOf(focus);
+    if (related)
+      return related.number === null ? undefined : { number: related.number, scope: related.row, place: 'related' };
+    const row = issueRowOf(focus);
+    if (row) return { number: row.number, scope: row.row, place: 'row' };
+    const detailPane = focus?.closest<HTMLElement>('.forge-detail');
+    if (detailPane && detailItem?.kind === 'issue')
+      return { number: detailItem.number, scope: detailPane, place: 'detail' };
+    return undefined;
+  };
   useImperativeHandle(ref, () => ({
     runIssueShortcut(action) {
-      const focus = document.activeElement;
-      const focusedRow = issueRowOf(focus);
-      const detailPane = focusedRow ? null : focus?.closest<HTMLElement>('.forge-detail');
-      const issueNumber =
-        focusedRow?.number ?? (detailPane && detailItem?.kind === 'issue' ? detailItem.number : undefined);
-      if (issueNumber === undefined) return false;
+      const focused = focusedIssue(document.activeElement);
+      if (!focused) return false;
       if (action === 'locateDispatchedPanel') {
-        const location = latestLocatableRecord(dispatchRecordsOf(issueNumber))?.location;
+        const location = latestLocatableRecord(dispatchRecordsOf(focused.number))?.location;
         if (location) dispatchHost.locate(location.projectId, location.panelId);
         return true;
       }
-      const scope = focusedRow?.row ?? detailPane;
-      if (!scope || !holdsDispatch(scope)) return false;
-      setOpenMenu({ issue: issueNumber, place: focusedRow ? 'row' : 'detail' });
+      if (!holdsDispatch(focused.scope)) return false;
+      setOpenMenu({ issue: focused.number, place: focused.place });
       return true;
     },
   }));

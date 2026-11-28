@@ -131,6 +131,16 @@ export interface IssueReference {
   closedAs: IssueSummary['closedAs'];
   url: string;
 }
+export interface RelatedBlocker extends BlockerReference {
+  state: IssueState;
+}
+export interface RelatedIssue extends IssueReference {
+  path: string | null;
+}
+export interface SubIssue extends RelatedIssue {
+  blockedBy: RelatedBlocker[];
+  unlistedBlockers: number;
+}
 export interface PullRequestReference {
   number: number;
   title: string;
@@ -159,11 +169,13 @@ export interface IssueDetail extends Omit<IssueSummary, 'blockedBy' | 'unlistedB
   body: string;
   comments: ForgeComment[];
   commentCount: number;
-  parent: (IssueReference & { progress: SubIssueProgress }) | null;
-  subIssues: IssueReference[];
+  parent: (IssueReference & { progress: SubIssueProgress; subIssues: SubIssue[] }) | null;
+  subIssues: SubIssue[];
   subIssueProgress: SubIssueProgress;
-  blockedBy: IssueReference[];
-  blocking: IssueReference[];
+  blockedBy: RelatedIssue[];
+  blockedByTotal: number;
+  blocking: RelatedIssue[];
+  blockingTotal: number;
   closingPullRequests: PullRequestReference[];
   links: ForgeLinks;
   canWrite: boolean;

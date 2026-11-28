@@ -101,7 +101,7 @@ const line = (item: HTMLElement) =>
     part.getAttribute('role') === 'img' ? part.getAttribute('aria-label') : part.textContent,
   );
 
-test("Dispatch records list the issue's dispatches newest first, one line each: when, the Agent type, the skill and the session ID", async () => {
+test("unfolded Dispatch records list all the issue's dispatches newest first, one line each: when, the Agent type, the skill and the session ID", async () => {
   const located = aged(2, { projectId: 'beta', panelId: 'beta-panel' }, { skill: grillMe, sessionId: 'ccccdddd-1111' });
   const f = await opened(detail(9), snapshot => {
     snapshot.projects[0].dispatches = [
@@ -111,13 +111,8 @@ test("Dispatch records list the issue's dispatches newest first, one line each: 
       record(8, null),
     ];
   });
-  assert.equal(
-    within(records(3))
-      .getByRole('button', { name: t('dispatchRecords', { count: 3 }) })
-      .getAttribute('aria-expanded'),
-    'true',
-    'an open issue shows its records unfolded',
-  );
+  await f.user.click(within(records(3)).getByRole('button', { name: t('dispatchRecords', { count: 3 }) }));
+  await waitFor(() => assert.equal(within(records(3)).getAllByRole('listitem').length, 3));
   const shown = within(records(3)).getAllByRole('listitem');
   assert.deepEqual(shown.map(line), [
     [t('hoursAgo', { count: 1 }), agentNames.codex, tdd],
@@ -168,16 +163,22 @@ test('an issue with no dispatches has no Dispatch records', async () => {
   assert.equal(pane().querySelector('.dispatch-records'), null);
 });
 
-test("a closed issue's Dispatch records fold to their count and unfold on click", async () => {
-  const f = await opened(detail(8, { state: 'closed', closedAs: 'completed' }), snapshot => {
-    snapshot.projects[0].dispatches = [record(8, null), record(8, { projectId: 'alpha', panelId: 'tray' })];
+for (const issue of [detail(9), detail(9, { state: 'closed', closedAs: 'completed' })])
+  test(`${issue.state} issue's Dispatch records start folded to the latest dispatch and unfold to all of them`, async () => {
+    const f = await opened(issue, snapshot => {
+      snapshot.projects[0].dispatches = [
+        aged(5, null, { skill: toSpec }),
+        withoutSession(aged(1, null, { skill: tdd })),
+      ];
+    });
+    const toggle = within(records(2)).getByRole('button', { name: t('dispatchRecords', { count: 2 }) });
+    assert.equal(toggle.getAttribute('aria-expanded'), 'false');
+    assert.deepEqual(within(records(2)).getAllByRole('listitem').map(line), [
+      [t('hoursAgo', { count: 1 }), agentNames.codex, tdd],
+    ]);
+    await f.user.click(toggle);
+    await waitFor(() => assert.equal(within(records(2)).getAllByRole('listitem').length, 2));
   });
-  const toggle = within(records(2)).getByRole('button', { name: t('dispatchRecords', { count: 2 }) });
-  assert.equal(toggle.getAttribute('aria-expanded'), 'false');
-  assert.deepEqual(within(records(2)).queryAllByRole('listitem'), []);
-  await f.user.click(toggle);
-  await waitFor(() => assert.equal(within(records(2)).getAllByRole('listitem').length, 2));
-});
 
 test('turning a workflow off leaves the records of its dispatches showing', async () => {
   await opened(detail(9), snapshot => {

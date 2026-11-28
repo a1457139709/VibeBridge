@@ -110,7 +110,9 @@ export const issueDetail = (number: number, extra: Partial<IssueDetail> = {}): I
   subIssues: [],
   subIssueProgress: { closed: 0, total: 0 },
   blockedBy: [],
+  blockedByTotal: extra.blockedBy?.length ?? 0,
   blocking: [],
+  blockingTotal: extra.blocking?.length ?? 0,
   closingPullRequests: [],
   links: {
     issuePrefix: `${testForgeUrl}/ada/alpha/issues/`,

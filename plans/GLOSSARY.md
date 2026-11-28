@@ -184,6 +184,10 @@ _Avoid_：Issue 侧边栏（它也显示 pull request）、GitHub 侧边栏（Fo
 仓库中请求把一个分支合入另一个分支的提议，连同它的评审与检查结论；不论绑定的是哪个 Forge，都沿用 GitHub 的这个名字。
 _Avoid_：合并请求、merge request、MR
 
+**同级 issue（Sibling Issue）**：
+同一个父 issue 下的子 issue，彼此互为同级；没有父 issue 的 issue 没有同级 issue。
+_Avoid_：兄弟 issue、同一个 spec 下的任务
+
 **派发（Dispatch）**：
 用户手动把某个 issue 连同自己选定的一段预设指令交给某个 Agent 面板的操作：指令进入面板的输入，按指令约定直接提交或只填入，不顾及面板当时在做什么；每次派发在接手的会话确定后留下一条派发记录。
 _Avoid_：默认派发

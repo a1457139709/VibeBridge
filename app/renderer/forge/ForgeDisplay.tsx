@@ -38,6 +38,7 @@ export function ItemReference({
   open,
   className,
   hint,
+  label,
   children,
 }: {
   kind: DetailItem['kind'];
@@ -46,15 +47,16 @@ export function ItemReference({
   open(item: DetailItem): void;
   className: string;
   hint: string;
+  label?: string | undefined;
   children: ReactNode;
 }) {
   const item = linkedItem(url, links);
   return item?.kind === kind ? (
-    <button className={className} data-hint={hint} onClick={() => open(item)}>
+    <button className={className} data-hint={hint} aria-label={label} onClick={() => open(item)}>
       {children}
     </button>
   ) : (
-    <a className={className} href={url} target="_blank" rel="noreferrer" data-hint={hint}>
+    <a className={className} href={url} target="_blank" rel="noreferrer" data-hint={hint} aria-label={label}>
       {children}
     </a>
   );
@@ -196,7 +198,7 @@ export function MoreOnForge({
   url,
   className = '',
 }: {
-  message: 'moreSubIssues' | 'moreChecks';
+  message: 'moreSubIssues' | 'moreChecks' | 'moreRelations';
   count: number;
   forge: string;
   url: string;
@@ -275,7 +277,7 @@ export function OpenPullRequestChecks({ state, checks }: { state: PullRequestSta
   const { mark, name, tone } = conclusions[checks];
   return (
     <span className={`forge-checks forge-${tone}`} role="img" aria-label={t(name)}>
-      {mark} {t(name)}
+      {mark} <span className="forge-checks-name">{t(name)}</span>
     </span>
   );
 }

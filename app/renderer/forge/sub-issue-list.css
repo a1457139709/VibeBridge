@@ -1,0 +1,118 @@
+.forge-doc > .forge-sub-issues {
+  margin-top: 8px;
+}
+.forge-sub-issues > header {
+  min-width: 0;
+}
+.forge-sub-issues-toggle {
+  border: 0;
+  background: none;
+  padding: 0;
+  min-height: 0;
+  height: auto;
+  font-size: 12px;
+  color: var(--muted);
+}
+.forge-sub-issues-toggle:hover {
+  color: inherit;
+}
+.forge-sub-issue-owner {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  min-width: 0;
+  min-height: 0;
+  height: auto;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--muted);
+  font-size: 11.5px;
+  font-weight: 400;
+}
+.forge-sub-issue-owner:hover {
+  color: inherit;
+}
+.forge-sub-issue-list {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 4px 6px 6px;
+}
+.forge-sub-issue {
+  --forge-relation: var(--line);
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  width: 100%;
+  height: 26px;
+  padding: 0 6px 0 0;
+  border: 1px solid var(--forge-relation);
+  border-radius: 6px;
+  background: var(--surface);
+  font-size: 11.5px;
+  transition:
+    opacity 0.12s,
+    background 0.12s,
+    border-color 0.12s;
+}
+.forge-sub-issue.closed .forge-ellipsis {
+  color: var(--muted);
+}
+.forge-sub-issue[data-relation='blocksHighlighted'] {
+  --forge-relation: var(--forge-failed);
+}
+.forge-sub-issue[data-relation='highlighted'] {
+  --forge-relation: var(--forge-open);
+  border-width: 2px;
+  font-weight: 700;
+}
+.forge-sub-issue[data-relation='blockedByHighlighted'] {
+  --forge-relation: var(--forge-pending);
+}
+.forge-sub-issue[data-relation='blocksHighlighted'],
+.forge-sub-issue[data-relation='highlighted'],
+.forge-sub-issue[data-relation='blockedByHighlighted'] {
+  background: color-mix(in srgb, var(--forge-relation) 14%, var(--surface));
+}
+.forge-sub-issue[data-relation='unrelated'] {
+  opacity: 0.35;
+}
+.forge-sub-issue-open {
+  flex: 1 1 auto;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  height: 100%;
+  min-height: 0;
+  padding: 0 8px;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+}
+.forge-sub-issue-open .forge-row-number {
+  flex-shrink: 0;
+}
+.forge-sub-issue-open .forge-ellipsis {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+.forge-sub-issue .forge-blocked {
+  flex-shrink: 0;
+}
+.forge-sub-issue-dispatch {
+  flex-shrink: 0;
+  visibility: hidden;
+}
+.forge-sub-issue-dispatch .dispatch-button {
+  height: 20px;
+  padding: 0 7px;
+}
+.forge-sub-issue:hover .forge-sub-issue-dispatch,
+.forge-sub-issue:focus-within .forge-sub-issue-dispatch,
+.forge-sub-issue-dispatch:has([aria-expanded='true']) {
+  visibility: visible;
+}

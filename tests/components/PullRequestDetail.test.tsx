@@ -17,6 +17,7 @@ import {
 } from './support/pull-request-detail';
 import { testForge, testForgeUrl } from './support/forge';
 import { t } from './support/localization';
+import { nameIncluding } from './support/accessible-names';
 import { forgeSidebar, detailHeading } from './support/sidebar-queries';
 
 afterEach(cleanup);
@@ -153,20 +154,22 @@ test('a pull request that closes an issue opens in the sidebar from the issue de
       subIssues: [],
       subIssueProgress: { closed: 0, total: 0 },
       blockedBy: [],
+      blockedByTotal: 0,
       blocking: [],
+      blockingTotal: 0,
       closingPullRequests: [],
       links,
       canWrite: true,
     },
   });
-  const closing = await within(forgeSidebar()).findByRole('region', { name: t('closingPullRequests') });
-  const other = within(closing).getByRole('link');
-  assert.deepEqual(
-    [other.querySelector('.forge-row-number')?.textContent, other.getAttribute('href')],
-    ['#40', `${testForgeUrl}/ada/other/pull/40`],
+  const closing = await within(forgeSidebar()).findByRole('group', { name: t('pullRequestAbbreviation') });
+  assert.equal(
+    within(closing)
+      .getByRole('link', { name: nameIncluding('Change 40') })
+      .getAttribute('href'),
+    `${testForgeUrl}/ada/other/pull/40`,
   );
-  const same = within(closing).getByRole('button');
-  assert.equal(same.querySelector('.forge-row-number')?.textContent, '#12');
+  const same = within(closing).getByRole('button', { name: nameIncluding('Change 12') });
   await user.click(same);
   const opened = await request(2);
   assert.deepEqual([opened.kind, opened.number], ['pullRequest', 12]);
