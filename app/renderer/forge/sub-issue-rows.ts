@@ -8,13 +8,14 @@ export interface SubIssueRow {
   relation: SubIssueRelation | null;
   openBlockers: RelatedBlocker[];
   unlistedBlockers: number;
+  dispatchable: boolean;
 }
 
 export const subIssueKey = (issue: Pick<BlockerReference, 'path' | 'number'>) => `${issue.path ?? ''}#${issue.number}`;
 
 export function presentSubIssueRows(
   subIssues: SubIssue[],
-  { lit, blocking }: { lit: string | null; blocking: boolean },
+  { lit, current, blocking }: { lit: string | null; current: string | null; blocking: boolean },
 ): SubIssueRow[] {
   const litIssue = blocking ? subIssues.find(issue => subIssueKey(issue) === lit) : undefined;
   const litBlockers = new Set(litIssue?.blockedBy.map(subIssueKey));
@@ -35,6 +36,7 @@ export function presentSubIssueRows(
       relation: relationOf(issue, key),
       openBlockers,
       unlistedBlockers: openBlockers.length ? issue.unlistedBlockers : 0,
+      dispatchable: issue.state === 'open' && issue.path === null && key !== current,
     };
   });
 }

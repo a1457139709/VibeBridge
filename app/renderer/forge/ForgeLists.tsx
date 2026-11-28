@@ -26,6 +26,7 @@ import type { IssueShortcutAction } from '../../shared/settings/shortcuts';
 import { errorMessage } from '../../shared/caught-error';
 import { ForgeDetailPane } from './ForgeDetail';
 import type { IssueDispatch } from './IssueDetail';
+import { relatedIssueRowOf } from './SubIssueList';
 import { FilterBar } from './ForgeFilterBar';
 import { DispatchButton, holdsDispatch, type DispatchHost } from '../dispatch/DispatchMenu';
 import { LatestDispatchSkill } from '../dispatch/DispatchRecords';
@@ -57,7 +58,7 @@ const noRows = { loaded: null, failed: null };
 const nothingLoaded: ListsData = { issues: noRows, pullRequests: noRows, loading: false };
 interface OpenMenu {
   issue: number;
-  place: 'row' | 'detail';
+  place: 'row' | 'detail' | 'related';
 }
 interface DeclaredList {
   request: string | null;
@@ -183,11 +184,16 @@ export function ForgeLists({ project, changeBinding, detailHost, dispatchHost, v
     button: dispatchButton(issue, 'detail'),
     records: dispatchRecordsOf(issue.number),
     host: dispatchHost,
+    related: {
+      button: related => dispatchButton(related, 'related'),
+      openMenu: issueNumber => setOpenMenu({ issue: issueNumber, place: 'related' }),
+    },
   });
   useImperativeHandle(ref, () => ({
     runIssueShortcut(action) {
       const focus = document.activeElement;
-      const focusedRow = issueRowOf(focus);
+      const relatedRow = relatedIssueRowOf(focus);
+      const focusedRow = relatedRow ?? issueRowOf(focus);
       const detailPane = focusedRow ? null : focus?.closest<HTMLElement>('.forge-detail');
       const issueNumber =
         focusedRow?.number ?? (detailPane && detailItem?.kind === 'issue' ? detailItem.number : undefined);
@@ -199,7 +205,7 @@ export function ForgeLists({ project, changeBinding, detailHost, dispatchHost, v
       }
       const scope = focusedRow?.row ?? detailPane;
       if (!scope || !holdsDispatch(scope)) return false;
-      setOpenMenu({ issue: issueNumber, place: focusedRow ? 'row' : 'detail' });
+      setOpenMenu({ issue: issueNumber, place: relatedRow ? 'related' : focusedRow ? 'row' : 'detail' });
       return true;
     },
   }));

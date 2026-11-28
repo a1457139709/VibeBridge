@@ -91,3 +91,16 @@
 .forge-sub-issue .forge-blocked {
   flex-shrink: 0;
 }
+.forge-sub-issue-dispatch {
+  flex-shrink: 0;
+  visibility: hidden;
+}
+.forge-sub-issue-dispatch .dispatch-button {
+  height: 20px;
+  padding: 0 7px;
+}
+.forge-sub-issue:hover .forge-sub-issue-dispatch,
+.forge-sub-issue:focus-within .forge-sub-issue-dispatch,
+.forge-sub-issue-dispatch:has([aria-expanded='true']) {
+  visibility: visible;
+}
