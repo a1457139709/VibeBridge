@@ -455,3 +455,98 @@
 .pc-plot .proto-marker.blocking path {
   fill: var(--accent);
 }
+
+/* ── D: checklist steps, no arrows ── */
+.ds-dispatch {
+  margin: 8px 0 0;
+}
+.vb-card.ds > :first-child {
+  border-top: 0;
+}
+.ds-steps {
+  padding: 8px 10px 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.ds-owner {
+  align-self: flex-start;
+  font-size: 11.5px;
+  min-width: 0;
+}
+.ds-layer {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding-left: 10px;
+  border-left: 2px solid var(--line);
+}
+.ds-layer-name {
+  font-size: 10.5px;
+  color: var(--muted);
+  font-weight: 600;
+  margin-bottom: 2px;
+}
+.ds-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 0;
+  width: 100%;
+  padding: 3px 6px;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  background: none;
+  color: inherit;
+  font-size: 12px;
+  text-align: left;
+  transition:
+    opacity 0.12s,
+    background 0.12s;
+}
+.ds-row:hover,
+.ds-row.lit {
+  background: var(--hover, rgba(127, 127, 127, 0.1));
+}
+.ds-title {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+.ds-row.done .ds-title {
+  color: var(--muted);
+  text-decoration: line-through;
+}
+.ds-row.dim {
+  opacity: 0.4;
+}
+.ds-row.self {
+  border-color: var(--accent);
+}
+.ds-row.before {
+  background: color-mix(in srgb, var(--accent) 10%, transparent);
+}
+.ds-row.after {
+  background: color-mix(in srgb, var(--muted) 12%, transparent);
+}
+.ds-state {
+  flex-shrink: 0;
+  font-size: 11px;
+  color: var(--muted);
+}
+.ds-state.ready {
+  color: var(--forge-open);
+  font-weight: 600;
+}
+.ds-tag {
+  flex-shrink: 0;
+  font-size: 10.5px;
+  padding: 0 5px;
+  border-radius: 999px;
+  border: 1px solid var(--line);
+  color: var(--muted);
+}
+.ds-tag.before,
+.ds-tag.self {
+  border-color: var(--accent);
+  color: var(--accent);
+}

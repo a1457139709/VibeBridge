@@ -5,6 +5,7 @@ import { MarkGithubIcon } from '@primer/octicons-react';
 import { BlockedMark, IssueIcon, Post, Progress, PullRequestIcon } from './forge/ForgeDisplay';
 import type { IssueReference } from '../shared/forge/forge';
 import type { DispatchRecordView } from '../shared/dispatch';
+import { DispatchRecords } from './dispatch/DispatchRecords';
 import type { FocusIssue, SubIssue, TimedPull } from './prototype-issue-relation-graph-data';
 import {
   Actions,
@@ -602,6 +603,125 @@ export function PlanVariant({ issue, records, width, act, siblings, dispatchButt
           act={act}
           showSubs={false}
         />
+      </section>
+      <ForgeBody issue={issue} act={act} actions={actions} />
+    </div>
+  );
+}
+
+// ───────────────────────── D: C, reworked ─────────────────────────
+// No verdict line. Dispatch records get their own row (the real component).
+// The plan is a numbered checklist: each row names what it waits for, in words, instead of drawing arrows.
+
+const outsideName = (item: IssueReference) =>
+  item.url.includes('/example/workbench/') ? `#${item.number}` : `terminal-core#${item.number}`;
+
+function Steps({
+  owner,
+  subs,
+  focus,
+  act,
+}: {
+  owner: NonNullable<FocusIssue['parent']> | FocusIssue;
+  subs: SubIssue[];
+  focus: number | null;
+  act: Act;
+}) {
+  const [hover, setHover] = useState<number | null>(null);
+  const lit = hover ?? focus;
+  const inside = new Set(subs.map(sub => sub.number));
+  const litSub = subs.find(sub => sub.number === lit);
+  const before = new Set(litSub?.blockedBy.filter(item => inside.has(item.number)).map(item => item.number) ?? []);
+  const after = new Set(
+    lit === null ? [] : subs.filter(sub => sub.blockedBy.some(item => item.number === lit)).map(sub => sub.number),
+  );
+  const layers = layersOf(subs);
+  return (
+    <div className="ds-steps" onMouseLeave={() => setHover(null)}>
+      {focus !== null && (
+        <button className="vb-parent ds-owner" onClick={() => act.openIssue(owner)} data-hint={owner.title}>
+          <span aria-hidden>↑</span>
+          <IssueIcon issue={owner} size={11} decorative />#{owner.number}
+          <span className="forge-ellipsis">{owner.title}</span>
+          <span className="proto-muted">里的位置</span>
+        </button>
+      )}
+      {layers.map((layer, index) => (
+        <div key={index} className="ds-layer">
+          <div className="ds-layer-name">
+            第 {index + 1} 步
+            {layer.filter(sub => sub.state === 'open').length > 1 && <span className="proto-muted"> · 可同时做</span>}
+          </div>
+          {layer.map(sub => {
+            const step = stepOf(sub);
+            const waits = sub.state === 'open' ? sub.blockedBy.filter(item => item.state === 'open') : [];
+            const role =
+              sub.number === focus
+                ? 'self'
+                : sub.number === lit
+                  ? 'lit'
+                  : before.has(sub.number)
+                    ? 'before'
+                    : after.has(sub.number)
+                      ? 'after'
+                      : lit !== null
+                        ? 'dim'
+                        : '';
+            return (
+              <button
+                key={sub.number}
+                className={`ds-row ${step} ${role}`}
+                data-hint={sub.title}
+                onMouseEnter={() => setHover(sub.number)}
+                onFocus={() => setHover(sub.number)}
+                onClick={() => sub.number !== focus && act.openIssue(sub)}
+              >
+                <IssueIcon issue={sub} size={12} decorative />
+                <span className="forge-row-number">#{sub.number}</span>
+                <span className="forge-ellipsis ds-title">{sub.title}</span>
+                {role === 'before' && <span className="ds-tag before">要先做</span>}
+                {role === 'after' && <span className="ds-tag after">之后才能做</span>}
+                {role === 'self' && <span className="ds-tag self">当前</span>}
+                <span className={`ds-state ${step}`}>
+                  {step === 'done' ? '完成' : waits.length ? `等 ${waits.map(outsideName).join('、')}` : '可以开始'}
+                </span>
+              </button>
+            );
+          })}
+        </div>
+      ))}
+    </div>
+  );
+}
+
+export function StepsVariant({ issue, records, act, siblings, dispatchButton, actions, dispatchHost }: VariantProps) {
+  const ownPlan = issue.subIssues.length > 0;
+  const parentPlan = !ownPlan && issue.parent && siblings?.length;
+  const others = parentPlan
+    ? {
+        ...issue,
+        parent: null,
+        blockedBy: issue.blockedBy.filter(item => !siblings.some(sub => sub.number === item.number)),
+        blocking: issue.blocking.filter(item => !siblings.some(sub => sub.number === item.number)),
+      }
+    : issue;
+  return (
+    <div className="forge-doc">
+      <TitleBlock issue={issue} dispatchButton={dispatchButton} />
+      {!!records.length && dispatchHost && (
+        <div className="ds-dispatch">
+          <DispatchRecords
+            key={`${issue.number} ${issue.state}`}
+            records={records}
+            startFolded={issue.state === 'closed'}
+            host={dispatchHost}
+          />
+        </div>
+      )}
+      <section className={`vb-card ds ${issue.state}`} aria-label="关系">
+        {ownPlan && <Steps owner={issue} subs={issue.subIssues} focus={null} act={act} />}
+        {parentPlan && <Steps owner={issue.parent!} subs={siblings} focus={issue.number} act={act} />}
+        <RelationRows issue={others} act={act} showSubs={false} />
       </section>
       <ForgeBody issue={issue} act={act} actions={actions} />
     </div>

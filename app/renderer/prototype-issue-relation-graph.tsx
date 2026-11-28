@@ -21,7 +21,7 @@ import {
   repoPath,
 } from './prototype-issue-relation-graph-data';
 import type { Act, VariantProps } from './prototype-issue-relation-graph-parts';
-import { PlanVariant, SpecVariant, VerdictVariant } from './prototype-issue-relation-graph-variants';
+import { PlanVariant, SpecVariant, StepsVariant, VerdictVariant } from './prototype-issue-relation-graph-variants';
 import '@xterm/xterm/css/xterm.css';
 import './style.css';
 import './panels/agent-panel.css';
@@ -42,11 +42,12 @@ const variants: { key: string; name: string; Component: ComponentType<VariantPro
   { key: 'A', name: 'spec #341 原样：三栏关系图', Component: SpecVariant },
   { key: 'B', name: '结论行 + 标签行', Component: VerdictVariant },
   { key: 'C', name: '结论行 + 子 issue 执行顺序', Component: PlanVariant },
+  { key: 'D', name: 'C 改版：派发记录独立一行 + 分步清单', Component: StepsVariant },
 ];
 const variantStore = (() => {
   const listeners = new Set<() => void>();
   const initial = new URLSearchParams(window.location.search).get('variant')?.toUpperCase();
-  let current = variants.some(variant => variant.key === initial) ? initial! : 'C';
+  let current = variants.some(variant => variant.key === initial) ? initial! : 'D';
   return {
     get: () => current,
     set(key: string) {
@@ -91,6 +92,7 @@ function PrototypeIssueDocument(props: DocumentProps) {
         siblings={siblings}
         dispatchButton={props.dispatch.button}
         actions={props.actions}
+        dispatchHost={props.dispatch.host}
       />
     </div>
   );

@@ -1,3 +1,4 @@
+import type { DispatchRecordsHost } from './dispatch/DispatchRecords';
 import { useLayoutEffect, useRef, useState, type ReactNode } from 'react';
 import { useLocalization } from './common/Localization';
 import {
@@ -29,6 +30,7 @@ export interface VariantProps {
   siblings?: SubIssue[];
   dispatchButton?: ReactNode;
   actions?: DirectActions;
+  dispatchHost?: DispatchRecordsHost;
 }
 
 export function AgentMark({ agent, size = 13 }: { agent: AgentType; size?: number }) {
