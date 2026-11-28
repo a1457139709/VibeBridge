@@ -1,4 +1,4 @@
-import { useLayoutEffect, useRef, useState } from 'react';
+import { useLayoutEffect, useRef, useState, type ReactNode } from 'react';
 import { useLocalization } from './common/Localization';
 import {
   IssueIcon,
@@ -9,7 +9,7 @@ import {
   PullRequestIcon,
   RelativeTime,
 } from './forge/ForgeDisplay';
-import { IssueActions, idleActions } from './forge/DirectActions';
+import { IssueActions, idleActions, type Actions as DirectActions } from './forge/DirectActions';
 import { agentIcons } from './common/agent-icons';
 import { agentNames, type AgentType } from '../shared/model';
 import type { IssueReference } from '../shared/forge/forge';
@@ -27,6 +27,8 @@ export interface VariantProps {
   width: number;
   act: Act;
   siblings?: SubIssue[];
+  dispatchButton?: ReactNode;
+  actions?: DirectActions;
 }
 
 export function AgentMark({ agent, size = 13 }: { agent: AgentType; size?: number }) {
@@ -146,7 +148,15 @@ export function StatePill({ issue }: { issue: FocusIssue }) {
   );
 }
 
-export function TitleBlock({ issue, meta = true }: { issue: FocusIssue; meta?: boolean }) {
+export function TitleBlock({
+  issue,
+  meta = true,
+  dispatchButton,
+}: {
+  issue: FocusIssue;
+  meta?: boolean;
+  dispatchButton?: ReactNode;
+}) {
   const { t } = useLocalization();
   return (
     <>
@@ -159,14 +169,15 @@ export function TitleBlock({ issue, meta = true }: { issue: FocusIssue; meta?: b
           <Label key={label.name} label={label} />
         ))}
         <span className="forge-spacer" />
-        {issue.state === 'open' && (
-          <div className="dispatch">
-            <button className="dispatch-button">
-              {t('dispatch')}
-              <span aria-hidden="true"> ▾</span>
-            </button>
-          </div>
-        )}
+        {issue.state === 'open' &&
+          (dispatchButton ?? (
+            <div className="dispatch">
+              <button className="dispatch-button">
+                {t('dispatch')}
+                <span aria-hidden="true"> ▾</span>
+              </button>
+            </div>
+          ))}
       </div>
       {meta && (
         <div className="forge-doc-meta">
@@ -196,11 +207,11 @@ export function Posts({ issue }: { issue: FocusIssue }) {
   );
 }
 
-export function Actions({ issue }: { issue: FocusIssue }) {
+export function Actions({ issue, actions }: { issue: FocusIssue; actions?: DirectActions }) {
   return (
     <IssueActions
       issue={{ ...issue, closingPullRequests: issue.closingPullRequests }}
-      actions={{ ...idleActions, perform: () => {}, dismiss: () => {} }}
+      actions={actions ?? { ...idleActions, perform: () => {}, dismiss: () => {} }}
     />
   );
 }

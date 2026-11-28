@@ -1,51 +1,111 @@
-// PROTOTYPE: three variants of the issue-detail relation card, all on invented data, switchable via ?variant=.
-import { useEffect, useRef, useState, type ComponentType, type MouseEvent } from 'react';
+// PROTOTYPE: the real workbench on an invented project, with the issue document swapped per ?variant=.
+// Nothing reads GitHub or starts an Agent: window.workbench is a stub that answers from invented data.
+import { useEffect, useSyncExternalStore, type ComponentType } from 'react';
 import { createRoot } from 'react-dom/client';
-import { Localization, useLocalization } from './common/Localization';
-import { HoverHints } from './common/HoverHints';
+import { App } from './Workbench';
 import { requireValue } from './common/required';
-import { agentNames } from '../shared/model';
-import type { DetailItem } from '../shared/forge/sidebar-data';
-import { linkedItem } from './forge/ForgeDisplay';
-import { fakeDispatchRecords, fakeIssue, knows } from './prototype-issue-relation-graph-data';
+import { defaultSettings } from '../shared/settings/settings';
+import type { DesktopAPI } from '../shared/api';
+import type { AgentType, PanelView, ProjectView, Snapshot, WorkbenchEvent } from '../shared/model';
+import type { ForgeCapabilities, RepositoryReference } from '../shared/forge/forge';
+import { ForgeSidebarData } from '../main/forge/forge-sidebar-data';
+import { CurrentIssueDocument, type DocumentProps } from './forge/IssueDetail';
+import { prototypeIssueDocument } from './forge/prototype-issue-document';
+import {
+  fakeDispatchesForProject,
+  fakeIssue,
+  fakeListedIssues,
+  fakePullRequestDetail,
+  fakePullRequests,
+  knows,
+  repoPath,
+} from './prototype-issue-relation-graph-data';
 import type { Act, VariantProps } from './prototype-issue-relation-graph-parts';
-import { PlanVariant, SpecVariant, verdictOf, VerdictVariant } from './prototype-issue-relation-graph-variants';
+import { PlanVariant, SpecVariant, VerdictVariant } from './prototype-issue-relation-graph-variants';
+import '@xterm/xterm/css/xterm.css';
 import './style.css';
-import './forge/forge-sidebar.css';
-import './forge/direct-actions.css';
-import './dispatch/dispatch.css';
+import './panels/agent-panel.css';
+import './settings/settings-page.css';
+import './panels/terminal.css';
+import './common/processing-status.css';
+import './workspace/project-summary.css';
+import './workspace/panel-tray.css';
+import './projects/project-navigation.css';
 import './prototype-issue-relation-graph.css';
 import './prototype-issue-relation-graph-light.css';
 import './prototype-issue-relation-graph-scenarios.css';
 
-const variants: { key: string; name: string; Component: ComponentType<VariantProps> }[] = [
+// ───────────── variants ─────────────
+
+const variants: { key: string; name: string; Component: ComponentType<VariantProps> | null }[] = [
+  { key: '0', name: '现在线上的样子', Component: null },
   { key: 'A', name: 'spec #341 原样：三栏关系图', Component: SpecVariant },
   { key: 'B', name: '结论行 + 标签行', Component: VerdictVariant },
   { key: 'C', name: '结论行 + 子 issue 执行顺序', Component: PlanVariant },
 ];
+const variantStore = (() => {
+  const listeners = new Set<() => void>();
+  const initial = new URLSearchParams(window.location.search).get('variant')?.toUpperCase();
+  let current = variants.some(variant => variant.key === initial) ? initial! : 'C';
+  return {
+    get: () => current,
+    set(key: string) {
+      current = key;
+      const url = new URL(window.location.href);
+      url.searchParams.set('variant', key);
+      window.history.replaceState(null, '', url);
+      for (const listener of listeners) listener();
+    },
+    subscribe(listener: () => void) {
+      listeners.add(listener);
+      return () => {
+        listeners.delete(listener);
+      };
+    },
+  };
+})();
+const useVariant = () => useSyncExternalStore(variantStore.subscribe, variantStore.get);
 
-const scenarios = [
-  { issue: 500, title: '进行中的 spec', ask: '下一个能派发的子 issue 是哪个？' },
-  { issue: 504, title: 'spec 里的一个子 issue', ask: '它被谁挡着、PR 怎么样、上次派给了谁？' },
-  { issue: 506, title: '被两个兄弟挡着的子 issue', ask: '还要等多久才能开始？' },
-  { issue: 530, title: '阻塞 6 个 issue', ask: '做完它能解开什么？' },
-  { issue: 516, title: '没有任何关系', ask: '卡片只剩一两行时还清楚吗？' },
-  { issue: 520, title: '已关闭，曾被 4 个挡过', ask: '已完成的 issue，卡片是否退到背景？' },
-];
+function PrototypeIssueDocument(props: DocumentProps) {
+  const key = useVariant();
+  const { Component } = variants.find(variant => variant.key === key) ?? variants[0];
+  if (!Component || !knows(props.issue.number)) return <CurrentIssueDocument {...props} />;
+  const issue = fakeIssue(props.issue.number);
+  const siblings = issue.parent ? fakeIssue(issue.parent.number).subIssues : undefined;
+  const act: Act = {
+    openIssue: reference =>
+      reference.url.startsWith(issue.links.issuePrefix)
+        ? props.open({ kind: 'issue', number: reference.number })
+        : window.open(reference.url, '_blank'),
+    openPull: pull => props.open({ kind: 'pullRequest', number: pull.number }),
+    locate: record => record.location && props.dispatch.host.locate(record.location.projectId, record.location.panelId),
+  };
+  return (
+    <div className="forge-doc-host" onClick={props.followLink}>
+      <Component
+        key={`${key} ${issue.number}`}
+        issue={issue}
+        records={props.dispatch.records}
+        width={0}
+        act={act}
+        siblings={siblings}
+        dispatchButton={props.dispatch.button}
+        actions={props.actions}
+      />
+    </div>
+  );
+}
+prototypeIssueDocument.current = PrototypeIssueDocument;
 
-const readParam = (name: string) => new URLSearchParams(location.search).get(name);
-const writeParam = (name: string, value: string) => {
-  const url = new URL(location.href);
-  url.searchParams.set(name, value);
-  history.replaceState(null, '', url);
-};
-
-function Switcher({ current, set }: { current: string; set(key: string): void }) {
+function Switcher() {
+  const current = useVariant();
   const index = variants.findIndex(variant => variant.key === current);
-  const step = (by: number) => set(variants[(index + by + variants.length) % variants.length].key);
+  const step = (by: number) => variantStore.set(variants[(index + by + variants.length) % variants.length].key);
   useEffect(() => {
     const keydown = (event: KeyboardEvent) => {
-      if (event.target instanceof Element && event.target.closest('input, textarea, select, [contenteditable]')) return;
+      if (event.target instanceof Element && event.target.closest('input, textarea, select, [contenteditable], .xterm'))
+        return;
+      if (!event.altKey) return;
       if (event.key === 'ArrowLeft') step(-1);
       if (event.key === 'ArrowRight') step(1);
     };
@@ -53,12 +113,12 @@ function Switcher({ current, set }: { current: string; set(key: string): void })
     return () => window.removeEventListener('keydown', keydown);
   });
   return (
-    <div className="proto-switcher" role="toolbar" aria-label="原型变体">
+    <div className="proto-switcher" role="toolbar" aria-label="原型变体" data-hint="⌥← / ⌥→ 切换">
       <button onClick={() => step(-1)} aria-label="上一个变体">
         ‹
       </button>
       <span>
-        <b>{current}</b> ({variants[index].name})
+        <b>{current}</b> ({variants[index].name}) · 数据全部编造
       </span>
       <button onClick={() => step(1)} aria-label="下一个变体">
         ›
@@ -67,204 +127,234 @@ function Switcher({ current, set }: { current: string; set(key: string): void })
   );
 }
 
-function Page() {
-  const { t } = useLocalization();
-  const [variant, setVariant] = useState(() => {
-    const found = readParam('variant')?.toUpperCase() ?? 'C';
-    return variants.some(item => item.key === found) ? found : 'C';
-  });
-  const [width, setWidth] = useState(() => Number(readParam('width')) || 420);
-  const [theme, setTheme] = useState(() => readParam('theme') ?? 'light');
-  const [trail, setTrail] = useState<number[]>(() => {
-    const start = Number(readParam('issue'));
-    return [knows(start) ? start : 500];
-  });
-  const [toast, setToast] = useState<string | null>(null);
-  const scroller = useRef<HTMLDivElement>(null);
-  const number = trail.at(-1) ?? 500;
-  const issue = fakeIssue(number);
-  const records = fakeDispatchRecords(number);
-  const siblings = issue.parent ? fakeIssue(issue.parent.number).subIssues : undefined;
-  const verdict = verdictOf(issue);
-  useEffect(() => {
-    document.documentElement.dataset.theme = theme;
-  }, [theme]);
-  useEffect(() => {
-    if (!toast) return;
-    const timer = setTimeout(() => setToast(null), 2200);
-    return () => clearTimeout(timer);
-  }, [toast]);
-  const go = (next: number) => {
-    setTrail(items => [...items, next]);
-    writeParam('issue', String(next));
-    scroller.current?.scrollTo({ top: 0 });
-  };
-  const start = (next: number) => {
-    setTrail([next]);
-    writeParam('issue', String(next));
-    scroller.current?.scrollTo({ top: 0 });
-  };
-  const back = () => {
-    const items = trail.length > 1 ? trail.slice(0, -1) : trail;
-    setTrail(items);
-    writeParam('issue', String(items.at(-1)));
-  };
-  const act: Act = {
-    openIssue: reference =>
-      knows(reference.number) && reference.url.includes('/example/workbench/')
-        ? go(reference.number)
-        : setToast(`（原型）在浏览器打开 ${reference.url}`),
-    openPull: pull => setToast(`（原型）在侧边栏打开 PR #${pull.number}`),
-    locate: record =>
-      setToast(
-        record.location
-          ? `（原型）定位到 ${agentNames[record.agent]} 所在的面板`
-          : '（原型）这个会话已不在打开的面板里，只显示记录',
-      ),
-  };
-  const followLink = (event: MouseEvent) => {
-    const href = event.target instanceof Element ? event.target.closest('a')?.getAttribute('href') : undefined;
-    const linked: DetailItem | null = href ? linkedItem(href, issue.links) : null;
-    if (!linked) return;
-    event.preventDefault();
-    if (linked.kind === 'issue') go(linked.number);
-  };
-  const chooseVariant = (key: string) => {
-    setVariant(key);
-    writeParam('variant', key);
-  };
-  const { Component } = variants.find(entry => entry.key === variant) ?? variants[0];
-  const openSubs = issue.subIssues.filter(sub => sub.state === 'open');
-  return (
-    <div className="pp-page">
-      <aside className="pp-side">
-        <header>
-          <b>原型 · issue 详情的结论卡片</b>
-          <span>数据全部编造 · 不读 GitHub</span>
-        </header>
-        <nav className="pp-scenarios" aria-label="场景">
-          {scenarios.map(entry => (
-            <button
-              key={entry.issue}
-              className={trail[0] === entry.issue ? 'on' : ''}
-              onClick={() => start(entry.issue)}
-            >
-              <span className="pp-scenario-title">
-                #{entry.issue} {entry.title}
-              </span>
-              <span className="pp-scenario-ask">{entry.ask}</span>
-            </button>
-          ))}
-        </nav>
-        <section className="pp-state" aria-label="当前状态">
-          <div className="pp-state-head">当前状态</div>
-          <dl>
-            <dt>变体</dt>
-            <dd>{variant}</dd>
-            <dt>issue</dt>
-            <dd>
-              #{issue.number} · {issue.state}
-            </dd>
-            <dt>结论</dt>
-            <dd>
-              {verdict.tone} · {verdict.head}
-            </dd>
-            <dt>阻塞项</dt>
-            <dd>
-              {issue.blockedBy.map(item => `#${item.number}${item.state === 'open' ? '●' : '✓'}`).join(' ') || '—'}
-            </dd>
-            <dt>解锁</dt>
-            <dd>{issue.blocking.map(item => `#${item.number}`).join(' ') || '—'}</dd>
-            <dt>子 issue</dt>
-            <dd>{issue.subIssues.length ? `${openSubs.length} 开 / ${issue.subIssues.length}` : '—'}</dd>
-            <dt>PR</dt>
-            <dd>
-              {issue.closingPullRequests.map(pull => `#${pull.number} ${pull.state}/${pull.checks}`).join(' ') || '—'}
-            </dd>
-            <dt>派发</dt>
-            <dd>{records.length} 次</dd>
-            <dt>返回栈</dt>
-            <dd>{trail.map(item => `#${item}`).join(' › ')}</dd>
-          </dl>
-        </section>
-        <section className="pp-knobs">
-          <label>
-            侧边栏宽度 {width}px
-            <input
-              type="range"
-              min={300}
-              max={720}
-              step={10}
-              value={width}
-              onChange={event => {
-                setWidth(Number(event.target.value));
-                writeParam('width', event.target.value);
-              }}
-            />
-          </label>
-          <div className="pp-presets">
-            {[320, 420, 560].map(value => (
-              <button
-                key={value}
-                className={width === value ? 'on' : ''}
-                onClick={() => {
-                  setWidth(value);
-                  writeParam('width', String(value));
-                }}
-              >
-                {value}
-              </button>
-            ))}
-            <button
-              onClick={() => {
-                const next = theme === 'dark' ? 'light' : 'dark';
-                setTheme(next);
-                writeParam('theme', next);
-              }}
-            >
-              {theme === 'dark' ? '☾ 深色' : '☀ 浅色'}
-            </button>
-          </div>
-        </section>
-      </aside>
-      <section className="proto-pane" style={{ width }} aria-label={t('issueDetail')}>
-        <header className="forge-detail-bar">
-          <button aria-label={t('detailBack')} disabled={trail.length < 2} onClick={back}>
-            ‹
-          </button>
-          <span className="forge-detail-crumb">{t('issueCrumb', { number: issue.number })}</span>
-          <span className="forge-spacer" />
-          <a href={issue.url} onClick={event => (event.preventDefault(), setToast('（原型）在 GitHub 打开'))}>
-            {t('openOnForge', { forge: 'GitHub' })}
-          </a>
-          <button aria-label={t('closeDetail')}>×</button>
-        </header>
-        <div className="forge-detail-scroll" ref={scroller}>
-          <div onClick={followLink}>
-            <Component
-              key={`${variant} ${issue.number}`}
-              issue={issue}
-              records={records}
-              width={width}
-              act={act}
-              siblings={siblings}
-            />
-          </div>
-        </div>
-      </section>
-      {toast && (
-        <div className="proto-toast" role="status">
-          {toast}
-        </div>
-      )}
-      <Switcher current={variant} set={chooseVariant} />
-      <HoverHints />
-    </div>
-  );
-}
+// ───────────── the invented workbench ─────────────
 
-createRoot(requireValue(document.getElementById('root'), 'the #root element')).render(
-  <Localization language="zh-CN">
-    <Page />
-  </Localization>,
-);
+const capabilities: ForgeCapabilities = {
+  subIssues: true,
+  blocking: true,
+  requiredChecks: true,
+  mergeQueue: false,
+  mergeMethods: ['merge', 'squash', 'rebase'],
+};
+const forge = { name: 'GitHub', cli: 'gh', installUrl: 'https://cli.github.com', loginCommand: 'gh auth login' };
+const repository: RepositoryReference = { forge: 'github', host: 'github.com', id: 'R_fake', path: repoPath };
+
+const panel = (
+  projectId: string,
+  id: string,
+  agent: AgentType,
+  title: string,
+  status: PanelView['status'],
+): PanelView => ({
+  id,
+  agent,
+  status,
+  run: { id: `${id}-run`, panelId: id, projectId, state: 'running', title },
+});
+
+const mainPanels = [
+  panel('workbench', 'p-claude', 'claude', '派发菜单显示「排进队列」', 'busy'),
+  panel('workbench', 'p-codex', 'codex', '主进程保存派发队列', 'done'),
+  panel('workbench', 'p-pi', 'pi', '诊断本轮结束重复触发', 'needs-input'),
+];
+const panelOf = (agent: AgentType) => mainPanels.find(item => item.agent === agent)?.id ?? null;
+
+const project = (
+  id: string,
+  name: string,
+  panels: PanelView[],
+  layout: ProjectView['layout'],
+  bound: boolean,
+): ProjectView => ({
+  id,
+  name,
+  directory: `/Users/me/Project/${name}`,
+  panels,
+  tray: [],
+  layout,
+  repository: bound ? repository : null,
+  forge,
+  capabilities,
+  dispatches: bound ? fakeDispatchesForProject(id, panelOf) : [],
+});
+
+const snapshot: Snapshot = {
+  navigation: { visible: true, width: 212 },
+  forgeSidebar: { visible: true, width: 440 },
+  activeProjectId: 'workbench',
+  settings: { ...defaultSettings(), language: 'zh-CN', theme: 'light' },
+  settingsConflicts: [],
+  startupTheme: 'light',
+  resolvedTheme: 'light',
+  errors: [],
+  projects: [
+    project(
+      'workbench',
+      'workbench',
+      mainPanels,
+      {
+        axis: 'column',
+        ratio: 0.58,
+        first: { panel: 'p-claude' },
+        second: { axis: 'row', ratio: 0.5, first: { panel: 'p-codex' }, second: { panel: 'p-pi' } },
+      },
+      true,
+    ),
+    project(
+      'dotfiles',
+      'dotfiles',
+      [panel('dotfiles', 'd-claude', 'claude', '整理 zsh 配置', 'ready')],
+      { panel: 'd-claude' },
+      false,
+    ),
+  ],
+};
+
+const listeners = new Set<(event: WorkbenchEvent) => void>();
+const emit = (event: WorkbenchEvent) => {
+  for (const listener of listeners) listener(event);
+};
+const publish = () => emit({ kind: 'snapshot', snapshot: structuredClone(snapshot) });
+const activeProject = (id: string) =>
+  requireValue(
+    snapshot.projects.find(item => item.id === id),
+    `project ${id}`,
+  );
+
+const later = <T,>(value: T, ms = 180) => new Promise<T>(resolve => setTimeout(() => resolve(value), ms));
+const filtered = <T extends { title: string }>(items: T[], search: string) =>
+  items.filter(item => item.title.toLowerCase().includes(search.toLowerCase()));
+
+const data = new ForgeSidebarData({
+  issuePage: (_, query) => {
+    const items = filtered(fakeListedIssues(query.filter.state), query.filter.search);
+    return later({
+      ok: true,
+      items,
+      nextCursor: null,
+      labels: [],
+      counts: { open: fakeListedIssues('open').length, closed: fakeListedIssues('closed').length },
+    });
+  },
+  pullRequestPage: (_, query) =>
+    later({
+      ok: true,
+      items: filtered(fakePullRequests(query.filter.state), query.filter.search),
+      nextCursor: null,
+      labels: [],
+      counts: { open: fakePullRequests('open').length, closed: fakePullRequests('closed').length },
+    }),
+  issuesByNumber: (_, numbers) =>
+    later({
+      ok: true,
+      items: [...fakeListedIssues('open'), ...fakeListedIssues('closed')].filter(item => numbers.includes(item.number)),
+    }),
+  pullRequestsByNumber: (_, numbers) =>
+    later({
+      ok: true,
+      items: [...fakePullRequests('open'), ...fakePullRequests('closed')].filter(item => numbers.includes(item.number)),
+    }),
+  repositoryChoices: () => later({ ok: true, forge, account: 'me', origin: null, repositories: [repository] }),
+  issueDetail: (_, number) =>
+    knows(number)
+      ? later({ ok: true, issue: fakeIssue(number) }, 260)
+      : later({ ok: false, failure: { kind: 'notFound', message: `原型里没有 #${number}` } } as never),
+  pullRequestDetail: (_, number) => {
+    const pullRequest = fakePullRequestDetail(number);
+    return pullRequest
+      ? later({ ok: true, pullRequest }, 260)
+      : later({ ok: false, failure: { kind: 'notFound', message: `原型里没有 PR #${number}` } } as never);
+  },
+  forge: () => forge,
+  emit,
+});
+
+const greeting: Record<string, string> = {
+  'p-claude-run':
+    '\x1b[2m╭──────────────────────────────────────────╮\r\n│ ✻ Claude Code（原型里编造的终端画面）     │\r\n╰──────────────────────────────────────────╯\x1b[0m\r\n\r\n> /tdd https://github.com/example/workbench/issues/504\r\n\r\n● 读取 #504 和父 issue #500…\r\n● 写第一个失败的测试：派发菜单出现「排进队列」\r\n\x1b[33m  ✗ tests/components/DispatchQueue.test.tsx\x1b[0m\r\n',
+  'p-codex-run':
+    '\x1b[2mCodex（原型里编造的终端画面）\x1b[0m\r\n\r\n› $tdd https://github.com/example/workbench/issues/501\r\n\r\n\x1b[32m✓ 12 tests passed\x1b[0m\r\nPR #611 已创建。\r\n',
+  'p-pi-run':
+    '\x1b[2mpi（原型里编造的终端画面）\x1b[0m\r\n\r\n> /skill:diagnosing-bugs https://github.com/example/workbench/issues/503\r\n\r\n复现了：恢复会话时本轮结束触发两次。\r\n\x1b[36m? 要先在 terminal-core 修 #88 吗？(y/n)\x1b[0m ',
+  'd-claude-run': '\x1b[2mClaude Code（原型里编造的终端画面）\x1b[0m\r\n\r\n> \r\n',
+};
+
+const quiet = async () => {};
+const api: Partial<DesktopAPI> = {
+  fetchSnapshot: async () => structuredClone(snapshot),
+  reportRendererReady: async () => {
+    setTimeout(() => {
+      for (const [runId, text] of Object.entries(greeting)) emit({ kind: 'output', runId, data: text });
+    }, 400);
+  },
+  subscribe: listener => {
+    listeners.add(listener);
+    return () => {
+      listeners.delete(listener);
+    };
+  },
+  saveSidebar: async (sidebar, preferences) => {
+    snapshot[sidebar] = preferences;
+    publish();
+  },
+  saveLayout: async (projectId, layout) => {
+    activeProject(projectId).layout = layout;
+    publish();
+  },
+  activateProject: async id => {
+    snapshot.activeProjectId = id;
+    publish();
+  },
+  showForgeList: (id, view) => data.showList(id, view),
+  reportForgeSidebarPresence: presence => data.reportPresence(presence),
+  loadMoreForgeList: id => data.loadMore(id),
+  showForgeRows: (id, numbers) => data.showRows(id, numbers),
+  refreshForgeList: id => data.refresh(id),
+  showRepositoryChoices: id => data.showRepositoryChoices(id),
+  showForgeDetail: (id, item) => data.showDetail(id, item),
+  reportForgeRowResting: (id, item) => data.reportRestingOn(id, item),
+  reportForgeItemChanged: (id, item) => data.reloadChanged(id, item),
+  dispatch: async (projectId, request) => {
+    const target = activeProject(projectId);
+    const panelId = request.target.kind === 'panel' ? request.target.panelId : (target.panels[0]?.id ?? 'p-claude');
+    const agent = target.panels.find(item => item.id === panelId)?.agent ?? 'claude';
+    target.dispatches = [
+      ...target.dispatches,
+      {
+        issueNumber: request.issue.number,
+        dispatchedAt: new Date().toISOString(),
+        agent,
+        skill: request.commandId,
+        sessionId: `${Date.now().toString(16)}-fake-session`,
+        location: { projectId, panelId },
+      },
+    ];
+    publish();
+    emit({
+      kind: 'output',
+      runId: `${panelId}-run`,
+      data: `\r\n\x1b[35m（原型）派发 #${request.issue.number} → ${request.commandId}\x1b[0m\r\n`,
+    });
+    return { delivery: 'submit', panelId };
+  },
+  sendInput: async (run, input) => emit({ kind: 'output', runId: run, data: input === '\r' ? '\r\n' : input }),
+  resizeRun: quiet,
+  acknowledgeOutput: () => {},
+  performDirectAction: async () => ({ ok: true, detail: '（原型）没有真的执行' }),
+};
+
+window.workbench = new Proxy(api, {
+  get(target, key) {
+    if (key in target) return Reflect.get(target, key);
+    return async () => {
+      console.warn(`（原型）没有实现 workbench.${String(key)}`);
+      return undefined;
+    };
+  },
+}) as DesktopAPI;
+
+const root = requireValue(document.getElementById('root'), 'the #root element');
+createRoot(root).render(<App />);
+const bar = document.createElement('div');
+document.body.append(bar);
+createRoot(bar).render(<Switcher />);

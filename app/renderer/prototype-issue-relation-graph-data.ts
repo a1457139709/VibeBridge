@@ -1,5 +1,13 @@
 // PROTOTYPE: every issue, pull request and dispatch record here is invented. Nothing reads GitHub.
-import type { IssueDetail, IssueReference, PullRequestReference } from '../shared/forge/forge';
+import type {
+  IssueDetail,
+  IssueReference,
+  IssueSummary,
+  ListedIssue,
+  PullRequestDetail,
+  PullRequestReference,
+  PullRequestSummary,
+} from '../shared/forge/forge';
 import type { DispatchRecordView } from '../shared/dispatch';
 import type { AgentType } from '../shared/model';
 
@@ -16,7 +24,8 @@ export type FocusIssue = Omit<IssueDetail, 'closingPullRequests' | 'subIssues'> 
   subIssues: SubIssue[];
 };
 
-const repo = 'https://github.com/example/workbench';
+export const repoPath = 'example/workbench';
+const repo = `https://github.com/${repoPath}`;
 const external = 'https://github.com/example/terminal-core';
 const links = { issuePrefix: `${repo}/issues/`, pullRequestPrefix: `${repo}/pull/` };
 const ago = (hours: number) => new Date(Date.now() - hours * 3600_000).toISOString();
@@ -221,4 +230,99 @@ export function fakeDispatchRecords(number: number): DispatchRecordView[] {
     sessionId: `${(number * 7919 + index * 104729).toString(16).padStart(8, '0')}-fake-session`,
     location: record.here ? { projectId: 'p1', panelId: `panel-${index}` } : null,
   }));
+}
+
+const summaryOf = (issue: FakeIssue): IssueSummary => ({
+  number: issue.number,
+  title: issue.title,
+  state: issue.state,
+  closedAs: issue.state === 'closed' ? 'completed' : null,
+  createdAt: ago(issue.age),
+  labels: fakeIssue(issue.number).labels,
+  blockedBy: blockersOf(issue)
+    .filter(blocker => blocker.state === 'open')
+    .map(blocker => ({
+      path: blocker.url.includes(repoPath) ? null : 'example/terminal-core',
+      number: blocker.number,
+      title: blocker.title,
+    })),
+  unlistedBlockers: 0,
+});
+
+export function fakeListedIssues(state: 'open' | 'closed'): ListedIssue[] {
+  return world
+    .filter(issue => issue.state === state)
+    .toSorted((a, b) => b.number - a.number)
+    .map(issue => {
+      const children = childrenOf(issue.number);
+      return {
+        ...summaryOf(issue),
+        url: `${links.issuePrefix}${issue.number}`,
+        parent: issue.parent ?? null,
+        subIssues: { ...progressOf(issue.number), issues: children.map(summaryOf), unlisted: 0 },
+      };
+    });
+}
+
+const allPulls = () => world.flatMap(issue => (issue.pulls ?? []).map(pull => ({ ...pull, issue })));
+
+export function fakePullRequests(state: 'open' | 'closed'): PullRequestSummary[] {
+  return allPulls()
+    .filter(pull => (state === 'open') === (pull.state === 'open' || pull.state === 'draft'))
+    .toSorted((a, b) => b.number - a.number)
+    .map(pull => ({
+      number: pull.number,
+      title: pull.title,
+      state: pull.state,
+      createdAt: ago(pull.hours),
+      author: 'red',
+      checks: pull.checks,
+      labels: [],
+    }));
+}
+
+export function fakePullRequestDetail(number: number): PullRequestDetail | null {
+  const pull = allPulls().find(item => item.number === number);
+  if (!pull) return null;
+  return {
+    number,
+    title: pull.title,
+    state: pull.state,
+    createdAt: ago(pull.hours),
+    author: 'red',
+    labels: [],
+    url: `${links.pullRequestPrefix}${number}`,
+    changesUrl: `${links.pullRequestPrefix}${number}/files`,
+    head: `issue-${pull.issue.number}`,
+    base: 'main',
+    body: `<p>（编造的 PR 正文）Closes #${pull.issue.number}</p>`,
+    timeline: [],
+    earlierEntries: 0,
+    closingIssues: [reference(pull.issue)],
+    links,
+    reviewDecision: null,
+    checks: { state: null, counts: [], total: 0, url: `${links.pullRequestPrefix}${number}/checks`, listed: [] },
+    mergeState: pull.state === 'open' ? (pull.checks === 'failed' ? 'unstable' : 'clean') : null,
+    mergeOptions: { methods: ['merge', 'squash', 'rebase'], defaultMethod: 'squash', queue: false },
+    canWrite: true,
+  };
+}
+
+export function fakeDispatchesForProject(
+  projectId: string,
+  panelOf: (agent: AgentType) => string | null,
+): DispatchRecordView[] {
+  return world.flatMap(issue =>
+    (issue.dispatches ?? []).map((record, index) => {
+      const panelId = record.here ? panelOf(record.agent) : null;
+      return {
+        issueNumber: issue.number,
+        dispatchedAt: ago(record.hours),
+        agent: record.agent,
+        skill: record.skill,
+        sessionId: `${(issue.number * 7919 + index * 104729).toString(16).padStart(8, '0')}-fake-session`,
+        location: panelId ? { projectId, panelId } : null,
+      };
+    }),
+  );
 }

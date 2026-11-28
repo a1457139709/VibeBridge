@@ -124,7 +124,17 @@ function SubIssueBox({
   );
 }
 
-function ForgeBody({ issue, act, anchor }: { issue: FocusIssue; act: Act; anchor?: React.Ref<HTMLElement> }) {
+function ForgeBody({
+  issue,
+  act,
+  anchor,
+  actions,
+}: {
+  issue: FocusIssue;
+  act: Act;
+  anchor?: React.Ref<HTMLElement>;
+  actions?: VariantProps['actions'];
+}) {
   return (
     <>
       <div className="ga-rule">
@@ -136,7 +146,7 @@ function ForgeBody({ issue, act, anchor }: { issue: FocusIssue; act: Act; anchor
         {issue.comments.map((comment, index) => (
           <Post key={index} {...comment} />
         ))}
-        <Actions issue={issue} />
+        <Actions issue={issue} actions={actions} />
       </div>
     </>
   );
@@ -144,7 +154,7 @@ function ForgeBody({ issue, act, anchor }: { issue: FocusIssue; act: Act; anchor
 
 // ───────────────────────── A: spec #341 as written ─────────────────────────
 
-export function SpecVariant({ issue, records, width, act }: VariantProps) {
+export function SpecVariant({ issue, records, width, act, dispatchButton, actions }: VariantProps) {
   const list = useRef<HTMLElement>(null);
   const hasSubs = !!issue.subIssues.length;
   const openSubs = issue.subIssues.filter(sub => sub.state === 'open');
@@ -169,7 +179,7 @@ export function SpecVariant({ issue, records, width, act }: VariantProps) {
   const counts = `${issue.subIssueProgress.closed}/${issue.subIssueProgress.total}`;
   return (
     <div className="forge-doc">
-      <TitleBlock issue={issue} />
+      <TitleBlock issue={issue} dispatchButton={dispatchButton} />
       <section className={`ga lg ${issue.state}`} aria-label="关系">
         {parent && (
           <button
@@ -256,7 +266,7 @@ export function SpecVariant({ issue, records, width, act }: VariantProps) {
         </div>
         <DispatchFooter records={records} act={act} />
       </section>
-      <ForgeBody issue={issue} act={act} anchor={list} />
+      <ForgeBody issue={issue} act={act} anchor={list} actions={actions} />
     </div>
   );
 }
@@ -428,15 +438,15 @@ function RelationRows({ issue, act, showSubs }: { issue: FocusIssue; act: Act; s
 
 // ───────────────────────── B: verdict + chip rows ─────────────────────────
 
-export function VerdictVariant({ issue, records, act }: VariantProps) {
+export function VerdictVariant({ issue, records, act, dispatchButton, actions }: VariantProps) {
   return (
     <div className="forge-doc">
-      <TitleBlock issue={issue} />
+      <TitleBlock issue={issue} dispatchButton={dispatchButton} />
       <section className={`vb-card ${issue.state}`} aria-label="工作台的结论">
         <VerdictLine issue={issue} records={records} act={act} />
         <RelationRows issue={issue} act={act} showSubs />
       </section>
-      <ForgeBody issue={issue} act={act} />
+      <ForgeBody issue={issue} act={act} actions={actions} />
     </div>
   );
 }
@@ -568,12 +578,12 @@ function Plan({
   );
 }
 
-export function PlanVariant({ issue, records, width, act, siblings }: VariantProps) {
+export function PlanVariant({ issue, records, width, act, siblings, dispatchButton, actions }: VariantProps) {
   const ownPlan = issue.subIssues.length > 0;
   const parentPlan = !ownPlan && issue.parent && siblings?.length;
   return (
     <div className="forge-doc">
-      <TitleBlock issue={issue} />
+      <TitleBlock issue={issue} dispatchButton={dispatchButton} />
       <section className={`vb-card pc ${issue.state}`} aria-label="工作台的结论">
         <VerdictLine issue={issue} records={records} act={act} />
         {ownPlan && <Plan owner={issue} subs={issue.subIssues} focus={null} width={width} act={act} />}
@@ -593,7 +603,7 @@ export function PlanVariant({ issue, records, width, act, siblings }: VariantPro
           showSubs={false}
         />
       </section>
-      <ForgeBody issue={issue} act={act} />
+      <ForgeBody issue={issue} act={act} actions={actions} />
     </div>
   );
 }

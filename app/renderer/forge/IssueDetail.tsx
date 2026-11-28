@@ -28,9 +28,10 @@ import {
   RelativeTime,
 } from './ForgeDisplay';
 import type { DetailItem } from '../../shared/forge/sidebar-data';
+import { prototypeIssueDocument } from './prototype-issue-document';
 import { requireValue } from '../common/required';
 
-interface DocumentProps {
+export interface DocumentProps {
   project: ProjectView & { repository: RepositoryReference };
   issue: IssueDetail;
   open(item: DetailItem): void;
@@ -45,7 +46,12 @@ export interface IssueDispatch {
   host: DispatchRecordsHost;
 }
 
-export function IssueDocument({ project, issue, open, followLink, actions, dispatch }: DocumentProps) {
+export function IssueDocument(props: DocumentProps) {
+  const Prototype = prototypeIssueDocument.current;
+  return Prototype ? <Prototype {...props} /> : <CurrentIssueDocument {...props} />;
+}
+
+export function CurrentIssueDocument({ project, issue, open, followLink, actions, dispatch }: DocumentProps) {
   const { t } = useLocalization();
   const { capabilities } = project;
   const openReference = (reference: IssueReference) => {
