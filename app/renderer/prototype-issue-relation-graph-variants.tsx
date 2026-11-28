@@ -1,9 +1,9 @@
 // PROTOTYPE: the issue document settled in rounds A–H (see branch history), now comparing comment layouts.
 // Settled: dispatch records on their own row (latest shown when folded); the sub-issue list is the relation
 // view (hover: green = this, red = blocks it, yellow = it unblocks); no "GitHub 原文" divider.
-// Open question: how comments sit under the body. H1 timeline, H2 light cards, H3 a foldable discussion box.
+// Comments: a timeline under the body; only the latest two show until the older ones are expanded.
+// Each open row of the relation list can be dispatched: a button on hover, or right-click.
 import { useState, type ReactNode } from 'react';
-import { MarkGithubIcon } from '@primer/octicons-react';
 import { BlockedMark, IssueIcon, Post, Progress, PullRequestIcon, RelativeTime } from './forge/ForgeDisplay';
 import type { IssueReference } from '../shared/forge/forge';
 import { filterForgeHtml } from '../shared/forge/forge-html';
@@ -236,7 +236,6 @@ function OtherRelations({ issue, act }: { issue: FocusIssue; act: Act }) {
 
 // ───────────── comment layouts ─────────────
 
-type CommentLayout = 'cards' | 'timeline' | 'light' | 'thread';
 type Comment = FocusIssue['comments'][number];
 const shownComments = 2;
 
@@ -273,28 +272,12 @@ function CommentRun({ comments }: { comments: Comment[] }) {
   );
 }
 
-// H1: comments hang off a thin vertical line, no card chrome.
-// H2: comments are borderless tinted blocks, indented under the body card.
-function PlainComments({ comments, layout }: { comments: Comment[]; layout: 'timeline' | 'light' }) {
+// Comments hang off a thin vertical line under the body card, with no card chrome.
+function TimelineComments({ comments }: { comments: Comment[] }) {
   return (
-    <div className={`cm-${layout}`}>
+    <div className="cm-timeline">
       <CommentRun comments={comments} />
     </div>
-  );
-}
-
-// H3: one foldable "评论" box in the same chrome as the other boxes; comments are rows split by rules.
-function ThreadComments({ comments }: { comments: Comment[] }) {
-  const [open, setOpen] = useState(true);
-  return (
-    <section className="forge-box cm-thread" aria-label="评论">
-      <header>
-        <button className="dispatch-records-toggle" aria-expanded={open} onClick={() => setOpen(!open)}>
-          <span aria-hidden>{open ? '▾' : '▸'}</span> 评论 ({comments.length})
-        </button>
-      </header>
-      {open && <CommentRun comments={comments} />}
-    </section>
   );
 }
 
@@ -309,8 +292,7 @@ function IssueDocument({
   actions,
   dispatchHost,
   dispatchFor,
-  comments,
-}: VariantProps & { comments: CommentLayout }) {
+}: VariantProps) {
   const ownList = issue.subIssues.length > 0;
   const parentList = !ownList && issue.parent && siblings?.length ? siblings : null;
   const others = parentList
@@ -347,29 +329,13 @@ function IssueDocument({
         />
       )}
       <OtherRelations issue={others} act={act} />
-      {comments === 'cards' && (
-        <div className="ga-rule">
-          <MarkGithubIcon size={12} /> GitHub 原文
-        </div>
-      )}
       <div className="forge-doc-main">
         <Post author={issue.author} createdAt={issue.createdAt} html={issue.body} />
-        {!!issue.comments.length &&
-          (comments === 'cards' ? (
-            issue.comments.map(comment => <Post key={comment.createdAt} {...comment} />)
-          ) : comments === 'thread' ? (
-            <ThreadComments comments={issue.comments} />
-          ) : (
-            <PlainComments comments={issue.comments} layout={comments} />
-          ))}
+        {!!issue.comments.length && <TimelineComments comments={issue.comments} />}
         <Actions issue={issue} actions={actions} />
       </div>
     </div>
   );
 }
 
-// H (fixed baseline): the H settled last round — comments are cards like the body, with the GitHub 原文 divider.
-export const CardsVariant = (props: VariantProps) => <IssueDocument {...props} comments="cards" />;
-export const TimelineVariant = (props: VariantProps) => <IssueDocument {...props} comments="timeline" />;
-export const LightVariant = (props: VariantProps) => <IssueDocument {...props} comments="light" />;
-export const ThreadVariant = (props: VariantProps) => <IssueDocument {...props} comments="thread" />;
+export const TimelineVariant = IssueDocument;

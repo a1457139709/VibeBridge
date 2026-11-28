@@ -534,35 +534,6 @@
   border: 2px solid var(--line);
 }
 
-/* H2: light blocks */
-.cm-light {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-  margin-left: 14px;
-}
-.cm-light .cm-item {
-  padding: 7px 10px;
-  border-radius: 6px;
-  background: color-mix(in srgb, var(--muted) 9%, transparent);
-}
-
-/* H3: thread box */
-.cm-thread {
-  display: flex;
-  flex-direction: column;
-}
-.cm-thread .cm-older {
-  padding: 6px 12px;
-  border-bottom: 1px solid var(--line);
-}
-.cm-thread .cm-item {
-  padding: 8px 12px;
-}
-.cm-thread .cm-item + .cm-item {
-  border-top: 1px solid var(--line);
-}
-
 /* body sits a clear step below the boxes above it */
 .forge-doc > .forge-doc-main {
   margin-top: 18px;

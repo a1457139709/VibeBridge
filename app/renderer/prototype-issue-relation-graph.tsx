@@ -21,7 +21,7 @@ import {
   repoPath,
 } from './prototype-issue-relation-graph-data';
 import type { Act, VariantProps } from './prototype-issue-relation-graph-parts';
-import { CardsVariant, LightVariant, ThreadVariant, TimelineVariant } from './prototype-issue-relation-graph-variants';
+import { TimelineVariant } from './prototype-issue-relation-graph-variants';
 import '@xterm/xterm/css/xterm.css';
 import './style.css';
 import './panels/agent-panel.css';
@@ -39,10 +39,7 @@ import './prototype-issue-relation-graph-scenarios.css';
 
 const variants: { key: string; name: string; Component: ComponentType<VariantProps> | null }[] = [
   { key: '0', name: '现在线上的样子', Component: null },
-  { key: 'H', name: 'H 定稿：评论和正文一样是卡片，保留「GitHub 原文」分隔', Component: CardsVariant },
-  { key: 'H1', name: '评论：时间线（左侧竖线，无卡片）', Component: TimelineVariant },
-  { key: 'H2', name: '评论：轻卡片（浅底色，缩进）', Component: LightVariant },
-  { key: 'H3', name: '评论：可收起的「评论」框', Component: ThreadVariant },
+  { key: 'H1', name: '定稿：子 issue 列表即关系图 · 评论时间线', Component: TimelineVariant },
 ];
 const variantStore = (() => {
   const listeners = new Set<() => void>();
