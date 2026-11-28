@@ -682,18 +682,13 @@ function Groups({
     n === lit ? 'self' : before.has(n) ? 'blockedBy' : after.has(n) ? 'blocking' : lit !== null ? 'dim' : undefined;
   return (
     <div className={`dg dg-${layout}`} onMouseLeave={() => setHover(null)}>
-      {focus !== null && (
+      {focus !== null && layout !== 'list' && (
         <button className="vb-parent dg-owner" onClick={() => act.openIssue(owner)} data-hint={owner.title}>
           <span aria-hidden>↑</span>
           <IssueIcon issue={owner} size={11} decorative />#{owner.number}
           <span className="forge-ellipsis">{owner.title}</span>
           <Progress {...('progress' in owner ? owner.progress : owner.subIssueProgress)} />
         </button>
-      )}
-      {focus === null && layout === 'list' && (
-        <div className="dg-head">
-          子 issue <Progress {...('progress' in owner ? owner.progress : owner.subIssueProgress)} />
-        </div>
       )}
       <div className="dg-groups">
         {(layout === 'list' ? [subs] : layersOf(subs)).map((layer, index) => (
@@ -725,6 +720,42 @@ function Groups({
         ))}
       </div>
     </div>
+  );
+}
+
+// H's box: same chrome as the live sub-issue box and dispatch records, with a fold toggle in the header.
+function ListBox({
+  owner,
+  subs,
+  focus,
+  act,
+  startFolded,
+}: {
+  owner: NonNullable<FocusIssue['parent']> | FocusIssue;
+  subs: SubIssue[];
+  focus: number | null;
+  act: Act;
+  startFolded: boolean;
+}) {
+  const [open, setOpen] = useState(!startFolded);
+  const progress = 'progress' in owner ? owner.progress : owner.subIssueProgress;
+  return (
+    <section className="forge-box dl-box" aria-label="子 issue">
+      <header>
+        <button className="dispatch-records-toggle dl-toggle" aria-expanded={open} onClick={() => setOpen(!open)}>
+          <span aria-hidden>{open ? '▾' : '▸'}</span> {focus === null ? '子 issue' : '同级 issue'}
+        </button>
+        {focus !== null && (
+          <button className="dl-owner" onClick={() => act.openIssue(owner)} data-hint={owner.title}>
+            <IssueIcon issue={owner} size={11} decorative />#{owner.number}
+            <span className="forge-ellipsis">{owner.title}</span>
+          </button>
+        )}
+        <span className="forge-spacer" />
+        <Progress {...progress} />
+      </header>
+      {open && <Groups owner={owner} subs={subs} focus={focus} act={act} layout="list" />}
+    </section>
   );
 }
 
@@ -783,11 +814,33 @@ function GroupedVariant({
           host={dispatchHost}
         />
       )}
-      <section className={`vb-card ds ${issue.state}`} aria-label="关系">
-        {ownPlan && <Groups owner={issue} subs={issue.subIssues} focus={null} act={act} layout={layout} />}
-        {parentPlan && <Groups owner={issue.parent!} subs={siblings} focus={issue.number} act={act} layout={layout} />}
-        <RelationRows issue={others} act={act} showSubs={false} />
-      </section>
+      {layout === 'list' ? (
+        <>
+          {ownPlan && (
+            <ListBox
+              owner={issue}
+              subs={issue.subIssues}
+              focus={null}
+              act={act}
+              startFolded={issue.state === 'closed'}
+            />
+          )}
+          {parentPlan && (
+            <ListBox owner={issue.parent!} subs={siblings} focus={issue.number} act={act} startFolded={false} />
+          )}
+          <section className="forge-box dl-rows" aria-label="其他关系">
+            <RelationRows issue={others} act={act} showSubs={false} />
+          </section>
+        </>
+      ) : (
+        <section className={`vb-card ds ${issue.state}`} aria-label="关系">
+          {ownPlan && <Groups owner={issue} subs={issue.subIssues} focus={null} act={act} layout={layout} />}
+          {parentPlan && (
+            <Groups owner={issue.parent!} subs={siblings} focus={issue.number} act={act} layout={layout} />
+          )}
+          <RelationRows issue={others} act={act} showSubs={false} />
+        </section>
+      )}
       <ForgeBody issue={issue} act={act} actions={actions} hideSubs={layout === 'list'} />
     </div>
   );

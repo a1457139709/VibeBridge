@@ -679,9 +679,36 @@
   }
 }
 
-/* H: plain list */
+/* H: plain list inside a live-style forge-box */
+.dl-box,
+.dl-rows {
+  margin-top: 8px;
+}
+.dl-box > header {
+  min-width: 0;
+}
+.dl-owner {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  min-width: 0;
+  min-height: 0;
+  height: auto;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--muted);
+  font-size: 11.5px;
+  font-weight: 400;
+}
+.dl-owner:hover {
+  color: inherit;
+}
+.dl-rows .vb-rows {
+  border-top: 0;
+}
 .dg-list {
-  padding: 6px 8px 8px;
+  padding: 4px 6px 6px;
   gap: 4px;
   background: none;
 }
