@@ -100,3 +100,358 @@
 .sb-pointer:hover {
   border-color: var(--forge-link);
 }
+
+/* ── harness (v2) ── */
+.pp-page {
+  min-height: 100vh;
+  display: flex;
+  gap: 32px;
+  justify-content: center;
+  align-items: flex-start;
+  padding: 0 24px;
+  background: color-mix(in srgb, var(--canvas) 70%, var(--line));
+}
+.pp-side {
+  position: sticky;
+  top: 0;
+  width: 260px;
+  max-height: 100vh;
+  overflow: auto;
+  padding: 18px 0;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  font-size: 12px;
+  color: var(--accent);
+}
+.pp-side header {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.pp-side header span {
+  color: var(--muted);
+}
+.pp-scenarios {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.pp-scenarios button {
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+  padding: 7px 10px;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  background: none;
+  color: inherit;
+  text-align: left;
+}
+.pp-scenarios button:hover {
+  background: color-mix(in srgb, var(--canvas) 60%, transparent);
+}
+.pp-scenarios button.on {
+  background: var(--canvas);
+  border-color: var(--line);
+}
+.pp-scenario-title {
+  font-weight: 600;
+}
+.pp-scenario-ask {
+  color: var(--muted);
+}
+.pp-state {
+  border-top: 1px solid var(--line);
+  padding-top: 10px;
+}
+.pp-state-head {
+  font-weight: 600;
+  margin-bottom: 6px;
+}
+.pp-state dl {
+  display: grid;
+  grid-template-columns: 56px 1fr;
+  gap: 3px 8px;
+  margin: 0;
+  font-family: ui-monospace, monospace;
+  font-size: 11px;
+}
+.pp-state dt {
+  color: var(--muted);
+}
+.pp-state dd {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+.pp-knobs {
+  border-top: 1px solid var(--line);
+  padding-top: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.pp-knobs label {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.pp-presets {
+  display: flex;
+  gap: 4px;
+}
+.pp-presets button {
+  min-height: 0;
+  padding: 2px 8px;
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  background: var(--canvas);
+  color: inherit;
+}
+.pp-presets button.on {
+  border-color: var(--accent);
+}
+
+/* ── B / C: the verdict card ── */
+.vb-card {
+  margin: 6px 0 0;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  overflow: hidden;
+  background: var(--canvas);
+}
+.vb-card.closed {
+  opacity: 0.6;
+  filter: grayscale(1);
+  transition:
+    opacity 0.15s,
+    filter 0.15s;
+}
+.vb-card.closed:hover {
+  opacity: 1;
+  filter: none;
+}
+.vb-verdict {
+  --tone: var(--forge-open);
+  padding: 9px 12px 8px;
+  border-left: 3px solid var(--tone);
+  background: color-mix(in srgb, var(--tone) 8%, transparent);
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.vb-verdict.blocked {
+  --tone: var(--forge-failed);
+}
+.vb-verdict.waiting {
+  --tone: var(--forge-pending);
+}
+.vb-verdict.working {
+  --tone: var(--forge-pending);
+}
+.vb-verdict.done {
+  --tone: var(--forge-merged, #8250df);
+}
+.vb-verdict-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 8px;
+}
+.vb-verdict-head b {
+  font-size: 13px;
+}
+.vb-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--tone);
+}
+.vb-fact {
+  color: var(--muted);
+}
+.vb-fact::before {
+  content: '· ';
+}
+.vb-verdict-dispatch {
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
+  font-size: 11.5px;
+}
+.vb-verdict-dispatch .proto-dispatch-summary {
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: none;
+}
+.vb-rows {
+  display: flex;
+  flex-direction: column;
+  padding: 6px 12px 8px;
+  gap: 5px;
+  border-top: 1px solid var(--line);
+}
+.vb-row {
+  display: grid;
+  grid-template-columns: 48px 1fr;
+  align-items: baseline;
+  gap: 8px;
+}
+.vb-key {
+  color: var(--muted);
+  font-size: 11.5px;
+}
+.vb-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  align-items: center;
+  min-width: 0;
+}
+.vb-note {
+  color: var(--muted);
+  font-size: 11px;
+  margin-left: 2px;
+}
+.vb-chip,
+.vb-parent {
+  min-height: 0;
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  padding: 1px 7px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--canvas);
+  color: inherit;
+  font-size: 11.5px;
+  font-variant-numeric: tabular-nums;
+}
+.vb-chip:hover,
+.vb-parent:hover {
+  border-color: var(--accent);
+}
+.vb-chip.closed {
+  color: var(--muted);
+  border-style: dashed;
+}
+.vb-chip.outside {
+  font-style: italic;
+}
+.vb-chip .forge-blocked {
+  margin-left: 2px;
+}
+.vb-parent {
+  max-width: 100%;
+  border-radius: 6px;
+}
+.vb-parent .forge-ellipsis {
+  min-width: 0;
+}
+
+/* ── C: the plan ── */
+.pc-plan {
+  border-top: 1px solid var(--line);
+  padding: 8px 12px 10px;
+}
+.pc-plan-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 6px;
+  font-size: 11.5px;
+  min-width: 0;
+}
+.pc-plan-head .vb-parent {
+  min-width: 0;
+  flex-shrink: 1;
+}
+.pc-plan-head .proto-muted {
+  flex-shrink: 0;
+}
+.pc-plot {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+.pc-layer {
+  display: grid;
+  grid-template-columns: 16px 1fr;
+  gap: 6px;
+  align-items: start;
+}
+.pc-step {
+  color: var(--muted);
+  font-size: 10.5px;
+  font-variant-numeric: tabular-nums;
+  padding-top: 4px;
+  text-align: right;
+}
+.pc-layer-nodes {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  min-width: 0;
+}
+.pc-node {
+  position: relative;
+  z-index: 1;
+  min-height: 0;
+  max-width: 100%;
+  flex: 0 1 auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 8px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: var(--canvas);
+  color: inherit;
+  font-size: 11.5px;
+  transition: opacity 0.12s;
+}
+.pc-node .forge-ellipsis {
+  max-width: 150px;
+}
+.pc-node.done {
+  color: var(--muted);
+}
+.pc-node.done .forge-ellipsis {
+  max-width: 70px;
+}
+.pc-node.ready {
+  border-color: var(--forge-open);
+  box-shadow: 0 0 0 1px var(--forge-open) inset;
+}
+.pc-node.blocked {
+  border-style: dashed;
+}
+.pc-node.self {
+  background: var(--accent);
+  color: var(--canvas);
+  border-color: var(--accent);
+  box-shadow: none;
+}
+.pc-node.dim {
+  opacity: 0.35;
+}
+.pc-outside {
+  font-size: 10px;
+}
+.pc-plot .proto-edge.blocks {
+  stroke: var(--muted);
+  stroke-opacity: 0.5;
+}
+.pc-plot .proto-edge.blocking {
+  stroke: var(--accent);
+}
+.pc-plot .proto-marker.blocks path {
+  fill: var(--muted);
+}
+.pc-plot .proto-marker.blocking path {
+  fill: var(--accent);
+}

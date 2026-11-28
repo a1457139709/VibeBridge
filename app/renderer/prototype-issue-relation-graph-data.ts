@@ -1,5 +1,5 @@
-import type { IssueDetail, IssueReference, PullRequestDetail, PullRequestReference } from '../shared/forge/forge';
-import type { DetailItem } from '../shared/forge/sidebar-data';
+// PROTOTYPE: every issue, pull request and dispatch record here is invented. Nothing reads GitHub.
+import type { IssueDetail, IssueReference, PullRequestReference } from '../shared/forge/forge';
 import type { DispatchRecordView } from '../shared/dispatch';
 import type { AgentType } from '../shared/model';
 
@@ -16,102 +16,209 @@ export type FocusIssue = Omit<IssueDetail, 'closingPullRequests' | 'subIssues'> 
   subIssues: SubIssue[];
 };
 
-export type Loaded =
-  | { kind: 'issue'; repo: string; issue: FocusIssue }
-  | { kind: 'pullRequest'; repo: string; pullRequest: PullRequestDetail };
+const repo = 'https://github.com/example/workbench';
+const external = 'https://github.com/example/terminal-core';
+const links = { issuePrefix: `${repo}/issues/`, pullRequestPrefix: `${repo}/pull/` };
+const ago = (hours: number) => new Date(Date.now() - hours * 3600_000).toISOString();
 
-export async function loadItem(item: DetailItem): Promise<Loaded> {
-  const response = await fetch(`/proto-api/${item.kind}/${item.number}`);
-  if (!response.ok) throw new Error(await response.text());
-  const loaded: Loaded = await response.json();
-  return loaded;
+interface FakeIssue {
+  number: number;
+  title: string;
+  state: 'open' | 'closed';
+  parent?: number;
+  blockedBy?: number[];
+  externalBlockers?: { number: number; title: string; state: 'open' | 'closed' }[];
+  pulls?: { number: number; title: string; state: TimedPull['state']; checks: TimedPull['checks']; hours: number }[];
+  dispatches?: { agent: AgentType; skill: string; hours: number; here?: boolean }[];
+  labels?: string[];
+  age: number;
 }
 
-const plan: { agent: AgentType; skill: string }[][] = [
-  [
-    { agent: 'claude', skill: 'to-prd' },
-    { agent: 'codex', skill: 'tdd' },
-    { agent: 'claude', skill: 'code-review' },
-  ],
-  [
-    { agent: 'pi', skill: 'diagnosing-bugs' },
-    { agent: 'claude', skill: 'tdd' },
-  ],
-  [
-    { agent: 'codex', skill: 'prototype' },
-    { agent: 'claude', skill: 'tdd' },
-    { agent: 'codex', skill: 'tdd' },
-    { agent: 'pi', skill: 'code-review' },
-  ],
-];
-
-export function fakeDispatchRecords(issue: FocusIssue): DispatchRecordView[] {
-  const steps = plan[issue.number % plan.length];
-  const start = new Date(issue.createdAt).getTime();
-  const end = issue.closedAt ? new Date(issue.closedAt).getTime() : Date.now();
-  return steps.map((step, index) => ({
-    issueNumber: issue.number,
-    dispatchedAt: new Date(start + ((end - start) * (index + 0.6)) / (steps.length + 0.4)).toISOString(),
-    agent: step.agent,
-    skill: step.skill,
-    sessionId: `${(issue.number * 7919 + index * 104729).toString(16).padStart(8, '0')}-fake-session`,
-    location: index === steps.length - 1 ? { projectId: 'p1', panelId: `panel-${index}` } : null,
-  }));
-}
-
-export function fakeOpenState(issue: FocusIssue): FocusIssue {
-  const now = Date.now();
-  const ago = (hours: number) => new Date(now - hours * 3600_000).toISOString();
-  const reopen = <T extends { state: string; closedAs: unknown }>(item: T) => ({
-    ...item,
-    state: 'open' as const,
-    closedAs: null,
-  });
-  const reopened = new Set(issue.subIssues.slice(-Math.ceil(issue.subIssues.length / 2)).map(item => item.number));
-  return {
-    ...issue,
-    title: `（编造：模拟打开）${issue.title}`,
+const world: FakeIssue[] = [
+  {
+    number: 500,
+    title: 'Spec：派发队列：一个面板忙时把派发排进队列',
     state: 'open',
-    closedAs: null,
-    closedAt: null,
-    blockedBy: issue.blockedBy.map((item, index) => (index === 0 ? reopen(item) : item)),
-    blocking: issue.blocking.map(reopen),
-    subIssues: issue.subIssues.map(item =>
-      reopened.has(item.number)
-        ? {
-            ...reopen(item),
-            blockedBy: item.blockedBy.map(blocker => (reopened.has(blocker.number) ? reopen(blocker) : blocker)),
-          }
-        : item,
-    ),
-    subIssueProgress: {
-      total: issue.subIssueProgress.total,
-      closed: issue.subIssues.length - reopened.size,
-    },
-    closingPullRequests: [
-      ...issue.closingPullRequests,
+    labels: ['spec'],
+    age: 300,
+    dispatches: [
+      { agent: 'claude', skill: 'to-prd', hours: 280 },
+      { agent: 'claude', skill: 'to-issues', hours: 260 },
+    ],
+  },
+  {
+    number: 501,
+    title: '主进程保存每个面板的派发队列',
+    state: 'closed',
+    parent: 500,
+    age: 250,
+    pulls: [
+      { number: 611, title: 'Dispatch queue lives in the main process', state: 'merged', checks: 'passed', hours: 200 },
+    ],
+    dispatches: [{ agent: 'codex', skill: 'tdd', hours: 240 }],
+  },
+  {
+    number: 502,
+    title: '队列在重开应用后恢复',
+    state: 'closed',
+    parent: 500,
+    blockedBy: [501],
+    age: 250,
+    pulls: [
+      { number: 615, title: 'Restore queued dispatches on launch', state: 'merged', checks: 'passed', hours: 150 },
+    ],
+    dispatches: [{ agent: 'claude', skill: 'tdd', hours: 170 }],
+  },
+  {
+    number: 503,
+    title: '面板本轮结束时自动取出下一条派发',
+    state: 'open',
+    parent: 500,
+    blockedBy: [501],
+    age: 250,
+    externalBlockers: [{ number: 88, title: 'Turn-ended hook fires twice on resume', state: 'open' }],
+    dispatches: [{ agent: 'pi', skill: 'diagnosing-bugs', hours: 30 }],
+  },
+  {
+    number: 504,
+    title: '派发菜单显示「排进队列」',
+    state: 'open',
+    parent: 500,
+    blockedBy: [501],
+    age: 250,
+    pulls: [{ number: 622, title: 'Dispatch menu offers to queue', state: 'open', checks: 'failed', hours: 5 }],
+    dispatches: [
+      { agent: 'codex', skill: 'tdd', hours: 26 },
+      { agent: 'claude', skill: 'tdd', hours: 6, here: true },
+    ],
+  },
+  { number: 505, title: '临时面板托盘显示排队数量', state: 'open', parent: 500, blockedBy: [502], age: 250 },
+  { number: 506, title: '从队列里撤回一条派发', state: 'open', parent: 500, blockedBy: [503, 504], age: 250 },
+  {
+    number: 507,
+    title: '派发记录区分「已排队」和「已交给会话」',
+    state: 'open',
+    parent: 500,
+    blockedBy: [504, 502],
+    age: 250,
+  },
+  { number: 508, title: '队列的验收测试指南', state: 'open', parent: 500, blockedBy: [506, 507, 505], age: 250 },
+
+  { number: 516, title: '设置页的搜索框在 Windows 上失焦', state: 'open', labels: ['bug'], age: 20 },
+
+  {
+    number: 520,
+    title: '终端字体在高分屏上发虚',
+    state: 'closed',
+    labels: ['bug'],
+    age: 900,
+    blockedBy: [521, 522, 523, 524],
+    pulls: [
       {
-        number: 9901,
-        title: '（编造）open PR with checks still running',
-        url: `${issue.links.pullRequestPrefix}9901`,
-        state: 'open',
-        checks: 'pending',
-        createdAt: ago(3),
-        mergedAt: null,
-        closedAt: null,
-        author: issue.author,
-      },
-      {
-        number: 9902,
-        title: '（编造）draft PR whose checks failed',
-        url: `${issue.links.pullRequestPrefix}9902`,
-        state: 'draft',
-        checks: 'failed',
-        createdAt: ago(1),
-        mergedAt: null,
-        closedAt: null,
-        author: issue.author,
+        number: 590,
+        title: 'Use device pixel ratio for the terminal canvas',
+        state: 'merged',
+        checks: 'passed',
+        hours: 600,
       },
     ],
+    dispatches: [
+      { agent: 'pi', skill: 'diagnosing-bugs', hours: 800 },
+      { agent: 'claude', skill: 'tdd', hours: 700 },
+      { agent: 'codex', skill: 'code-review', hours: 640 },
+    ],
+  },
+  { number: 521, title: '升级 xterm 到 6', state: 'closed', age: 900 },
+  { number: 522, title: '渲染器支持 devicePixelRatio 变化事件', state: 'closed', age: 900 },
+  { number: 523, title: '字体设置读取改为异步', state: 'closed', age: 900 },
+  { number: 524, title: '桌面套件加高分屏截图', state: 'closed', age: 900 },
+
+  {
+    number: 530,
+    title: 'Forge 接口抽出「读取关系」一项能力',
+    state: 'open',
+    labels: ['refactor'],
+    age: 60,
+    pulls: [{ number: 631, title: 'Forge capability: relations', state: 'draft', checks: 'pending', hours: 2 }],
+  },
+  { number: 531, title: 'GitLab 适配器读取阻塞关系', state: 'open', blockedBy: [530], age: 50 },
+  { number: 532, title: 'Gitea 适配器读取阻塞关系', state: 'open', blockedBy: [530], age: 50 },
+  { number: 533, title: '列表行的阻塞标记改用能力声明', state: 'open', blockedBy: [530], age: 50 },
+  { number: 534, title: 'issue 详情关系图改用能力声明', state: 'open', blockedBy: [530], age: 50 },
+  { number: 535, title: '能力声明写进设置页「关于 Forge」', state: 'closed', blockedBy: [530], age: 50 },
+  { number: 536, title: '能力缺失时的空状态文案', state: 'open', blockedBy: [530], age: 50 },
+];
+
+const byNumber = new Map(world.map(issue => [issue.number, issue]));
+const find = (number: number) => {
+  const found = byNumber.get(number);
+  if (!found) throw new Error(`prototype world has no #${number}`);
+  return found;
+};
+export const knows = (number: number) => byNumber.has(number);
+
+const reference = (issue: FakeIssue): IssueReference => ({
+  number: issue.number,
+  title: issue.title,
+  state: issue.state,
+  closedAs: issue.state === 'closed' ? 'completed' : null,
+  url: `${links.issuePrefix}${issue.number}`,
+});
+const blockersOf = (issue: FakeIssue): IssueReference[] => [
+  ...(issue.blockedBy ?? []).map(number => reference(find(number))),
+  ...(issue.externalBlockers ?? []).map(blocker => ({
+    ...blocker,
+    closedAs: null,
+    url: `${external}/issues/${blocker.number}`,
+  })),
+];
+const childrenOf = (number: number) => world.filter(issue => issue.parent === number);
+const progressOf = (number: number) => {
+  const children = childrenOf(number);
+  return { closed: children.filter(child => child.state === 'closed').length, total: children.length };
+};
+
+export function fakeIssue(number: number): FocusIssue {
+  const issue = find(number);
+  const parent = issue.parent ? find(issue.parent) : null;
+  return {
+    ...reference(issue),
+    createdAt: ago(issue.age),
+    closedAt: issue.state === 'closed' ? ago(issue.age / 2) : null,
+    labels: (issue.labels ?? []).map(name => ({
+      name,
+      color: name === 'bug' ? 'd73a4a' : name === 'spec' ? '5319e7' : '0e8a16',
+    })),
+    author: 'red',
+    assignees: [],
+    body: `<p>（编造的正文）${issue.title}。这里是 Forge 上 issue 的原文，用来看卡片和正文之间的分界。</p><p>验收：见子 issue 和关联的 pull request。</p>`,
+    comments: [{ author: 'red', createdAt: ago(issue.age / 3), html: '<p>（编造的评论）先做主进程那部分。</p>' }],
+    commentCount: 1,
+    parent: parent && { ...reference(parent), progress: progressOf(parent.number) },
+    subIssues: childrenOf(number).map(child => ({ ...reference(child), blockedBy: blockersOf(child) })),
+    subIssueProgress: progressOf(number),
+    blockedBy: blockersOf(issue),
+    blocking: world.filter(other => other.blockedBy?.includes(number)).map(reference),
+    closingPullRequests: (issue.pulls ?? []).map(pull => ({
+      ...pull,
+      url: `${links.pullRequestPrefix}${pull.number}`,
+      createdAt: ago(pull.hours),
+      mergedAt: pull.state === 'merged' ? ago(pull.hours / 2) : null,
+      closedAt: pull.state === 'merged' || pull.state === 'closed' ? ago(pull.hours / 2) : null,
+      author: 'red',
+    })),
+    links,
+    canWrite: true,
   };
+}
+
+export function fakeDispatchRecords(number: number): DispatchRecordView[] {
+  return (find(number).dispatches ?? []).map((record, index) => ({
+    issueNumber: number,
+    dispatchedAt: ago(record.hours),
+    agent: record.agent,
+    skill: record.skill,
+    sessionId: `${(number * 7919 + index * 104729).toString(16).padStart(8, '0')}-fake-session`,
+    location: record.here ? { projectId: 'p1', panelId: `panel-${index}` } : null,
+  }));
 }

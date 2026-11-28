@@ -14,7 +14,7 @@ import { agentIcons } from './common/agent-icons';
 import { agentNames, type AgentType } from '../shared/model';
 import type { IssueReference } from '../shared/forge/forge';
 import type { DispatchRecordView } from '../shared/dispatch';
-import type { FocusIssue, TimedPull } from './prototype-issue-relation-graph-data';
+import type { FocusIssue, SubIssue, TimedPull } from './prototype-issue-relation-graph-data';
 
 export interface Act {
   openIssue(issue: IssueReference): void;
@@ -26,6 +26,7 @@ export interface VariantProps {
   records: DispatchRecordView[];
   width: number;
   act: Act;
+  siblings?: SubIssue[];
 }
 
 export function AgentMark({ agent, size = 13 }: { agent: AgentType; size?: number }) {
@@ -99,7 +100,7 @@ export function PullLine({ pull, act, compact = false }: { pull: TimedPull; act:
 
 export function FakeTag() {
   return (
-    <span className="proto-fake" data-hint="原型：派发记录是编造的，issue 与 pull request 是真实数据">
+    <span className="proto-fake" data-hint="原型：所有数据都是编造的">
       示例
     </span>
   );

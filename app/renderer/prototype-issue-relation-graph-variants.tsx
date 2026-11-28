@@ -1,6 +1,9 @@
+// PROTOTYPE: three ways to show what the workbench concludes about an issue, above the Forge body.
+// A = spec #341 as written; B = verdict line + chip rows; C = verdict line + the parent's sub-issue plan.
 import { useRef, useState, type ReactNode } from 'react';
 import { MarkGithubIcon } from '@primer/octicons-react';
 import { BlockedMark, IssueIcon, Post, Progress, PullRequestIcon } from './forge/ForgeDisplay';
+import type { IssueReference } from '../shared/forge/forge';
 import type { DispatchRecordView } from '../shared/dispatch';
 import type { FocusIssue, SubIssue, TimedPull } from './prototype-issue-relation-graph-data';
 import {
@@ -34,19 +37,18 @@ function PullChip({ pull, act }: { pull: TimedPull; act: Act }) {
   );
 }
 
-function DispatchFooter({ records, act }: { records: DispatchRecordView[]; act: Act }) {
+function DispatchFooter({ records, act, label = true }: { records: DispatchRecordView[]; act: Act; label?: boolean }) {
   const [open, setOpen] = useState(false);
   const latest = records.at(-1);
   if (!latest) return null;
   return (
     <div className="proto-dispatch-summary">
       <div className="proto-dispatch-summary-line">
-        <span className="proto-label">派发 {records.length} 次</span>
-        <FakeTag />
+        {label && <span className="proto-label">派发 {records.length} 次</span>}
         <DispatchLine record={latest} act={act} />
         {records.length > 1 && (
           <button className="proto-link" onClick={() => setOpen(!open)}>
-            {open ? '收起' : '全部'}
+            {open ? '收起' : label ? '全部' : `全部 ${records.length} 次`}
           </button>
         )}
       </div>
@@ -69,41 +71,23 @@ function DispatchFooter({ records, act }: { records: DispatchRecordView[]; act: 
 const openBlockers = (sub: SubIssue) =>
   sub.state === 'open' ? sub.blockedBy.filter(blocker => blocker.state === 'open') : [];
 
-type BlockedPlacement = 'end' | 'lead' | 'line';
-
-function SubIssueRow({ sub, act, blocked }: { sub: SubIssue; act: Act; blocked: BlockedPlacement }) {
+function SubIssueRow({ sub, act }: { sub: SubIssue; act: Act }) {
   const blockers = openBlockers(sub);
   const by = blockers.map(blocker => ({ reference: `#${blocker.number}`, title: blocker.title }));
-  const hint = [sub.title, ...blockers.map(blocker => `被 #${blocker.number} ${blocker.title} 阻塞`)].join('\n');
-  const isBlocked = !!blockers.length;
   return (
     <button
-      className={`forge-ref sb-row ${sub.state === 'closed' ? 'closed' : ''} ${isBlocked ? `blocked ${blocked}` : ''}`}
-      data-hint={hint}
+      className={`forge-ref sb-row ${sub.state === 'closed' ? 'closed' : ''} ${blockers.length ? 'blocked end' : ''}`}
+      data-hint={sub.title}
       onClick={() => act.openIssue(sub)}
     >
-      {isBlocked && blocked === 'lead' ? (
-        <span className="sb-lead-blocked" aria-label="被阻塞">
-          <BlockedMark by={[]} />
-        </span>
-      ) : (
-        <IssueIcon issue={sub} />
-      )}
+      <IssueIcon issue={sub} />
       <span className="sb-text">
         <span className="sb-title-line">
           <span className="forge-row-number">#{sub.number}</span>
           <span className="forge-ellipsis">{sub.title}</span>
         </span>
-        {isBlocked && blocked === 'line' && (
-          <span className="sb-blocked-line">
-            <BlockedMark by={by} /> <span className="proto-muted">完成后才能开始</span>
-          </span>
-        )}
       </span>
-      {isBlocked && blocked === 'end' && <BlockedMark by={by} />}
-      {isBlocked && blocked === 'lead' && (
-        <span className="sb-lead-by">{by.map(item => item.reference).join(' ')}</span>
-      )}
+      {!!blockers.length && <BlockedMark by={by} />}
     </button>
   );
 }
@@ -116,11 +100,9 @@ function SubIssueBox({
   tail,
   node,
   anchor,
-  blocked,
 }: {
   issue: FocusIssue;
   act: Act;
-  blocked: BlockedPlacement;
   only?: SubIssue[];
   heading?: string;
   tail?: ReactNode;
@@ -136,17 +118,36 @@ function SubIssueBox({
         {tail}
       </header>
       {rows.map(sub => (
-        <SubIssueRow key={sub.number} sub={sub} act={act} blocked={blocked} />
+        <SubIssueRow key={sub.number} sub={sub} act={act} />
       ))}
     </section>
   );
 }
 
-function Unit({ issue, records, width, act, blocked }: VariantProps & { blocked: BlockedPlacement }) {
+function ForgeBody({ issue, act, anchor }: { issue: FocusIssue; act: Act; anchor?: React.Ref<HTMLElement> }) {
+  return (
+    <>
+      <div className="ga-rule">
+        <MarkGithubIcon size={12} /> GitHub 原文
+      </div>
+      <div className="forge-doc-main">
+        <Post author={issue.author} createdAt={issue.createdAt} html={issue.body} />
+        {!!issue.subIssues.length && <SubIssueBox issue={issue} act={act} anchor={anchor} />}
+        {issue.comments.map((comment, index) => (
+          <Post key={index} {...comment} />
+        ))}
+        <Actions issue={issue} />
+      </div>
+    </>
+  );
+}
+
+// ───────────────────────── A: spec #341 as written ─────────────────────────
+
+export function SpecVariant({ issue, records, width, act }: VariantProps) {
   const list = useRef<HTMLElement>(null);
   const hasSubs = !!issue.subIssues.length;
   const openSubs = issue.subIssues.filter(sub => sub.state === 'open');
-  const blockedSubs = openSubs.filter(sub => openBlockers(sub).length);
   const jump = () => list.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
   const edges: Edge[] = [
     ...issue.blockedBy.map(item => ({
@@ -164,7 +165,6 @@ function Unit({ issue, records, width, act, blocked }: VariantProps & { blocked:
   ];
   const parent = issue.parent;
   const pulls = issue.closingPullRequests;
-  const fullListBelow = hasSubs;
   const hasGraph = hasSubs || !!issue.blockedBy.length || !!issue.blocking.length;
   const counts = `${issue.subIssueProgress.closed}/${issue.subIssueProgress.total}`;
   return (
@@ -227,7 +227,6 @@ function Unit({ issue, records, width, act, blocked }: VariantProps & { blocked:
                   act={act}
                   node="children"
                   only={openSubs}
-                  blocked={blocked}
                   heading={`未完成的子 issue · ${openSubs.length}`}
                   tail={
                     <button className="proto-link" onClick={jump}>
@@ -257,21 +256,344 @@ function Unit({ issue, records, width, act, blocked }: VariantProps & { blocked:
         </div>
         <DispatchFooter records={records} act={act} />
       </section>
-      <div className="ga-rule">
-        <MarkGithubIcon size={12} /> GitHub 原文
-      </div>
-      <div className="forge-doc-main">
-        <Post author={issue.author} createdAt={issue.createdAt} html={issue.body} />
-        {fullListBelow && <SubIssueBox issue={issue} act={act} anchor={list} blocked={blocked} />}
-        {issue.comments.map((comment, index) => (
-          <Post key={index} {...comment} />
+      <ForgeBody issue={issue} act={act} anchor={list} />
+    </div>
+  );
+}
+
+// ───────────────────────── shared by B and C: the verdict ─────────────────────────
+
+type Tone = 'done' | 'blocked' | 'working' | 'ready' | 'waiting';
+export interface Verdict {
+  tone: Tone;
+  head: string;
+  facts: string[];
+}
+
+const isActive = (pull: TimedPull) => pull.state === 'open' || pull.state === 'draft';
+const readySubs = (issue: FocusIssue) =>
+  issue.subIssues.filter(sub => sub.state === 'open' && !openBlockers(sub).length);
+
+export function verdictOf(issue: FocusIssue): Verdict {
+  const facts: string[] = [];
+  const active = issue.closingPullRequests.filter(isActive);
+  const merged = issue.closingPullRequests.filter(pull => pull.state === 'merged');
+  const waitingOn = issue.blockedBy.filter(blocker => blocker.state === 'open');
+  const openSubs = issue.subIssues.filter(sub => sub.state === 'open');
+  if (issue.state === 'closed') {
+    if (merged.length) facts.push(`由 #${merged[0].number} 合入`);
+    return { tone: 'done', head: '已完成', facts };
+  }
+  for (const pull of active) facts.push(`#${pull.number} ${pullStateText[pull.state]} · ${checkWord[pull.checks]}`);
+  if (waitingOn.length)
+    return { tone: 'blocked', head: `等 ${waitingOn.map(blocker => `#${blocker.number}`).join('、')} 完成`, facts };
+  if (openSubs.length) {
+    const ready = readySubs(issue);
+    return {
+      tone: 'waiting',
+      head: `还剩 ${openSubs.length} 个子 issue`,
+      facts: [
+        ready.length ? `${ready.map(sub => `#${sub.number}`).join('、')} 可以开始` : '都在等别的 issue',
+        ...facts,
+      ],
+    };
+  }
+  if (active.length)
+    return { tone: active.some(pull => pull.checks === 'failed') ? 'blocked' : 'working', head: '有 PR 在做', facts };
+  return {
+    tone: 'ready',
+    head: '可以开始',
+    facts: [
+      issue.blocking.length
+        ? `做完能解开 ${issue.blocking.filter(item => item.state === 'open').length} 个 issue`
+        : '没有阻塞项',
+    ],
+  };
+}
+
+function VerdictLine({ issue, records, act }: { issue: FocusIssue; records: DispatchRecordView[]; act: Act }) {
+  const verdict = verdictOf(issue);
+  const latest = records.at(-1);
+  return (
+    <div className={`vb-verdict ${verdict.tone}`} role="status">
+      <div className="vb-verdict-head">
+        <span className="vb-dot" aria-hidden />
+        <b>{verdict.head}</b>
+        {verdict.facts.map(fact => (
+          <span key={fact} className="vb-fact">
+            {fact}
+          </span>
         ))}
-        <Actions issue={issue} />
+      </div>
+      {latest ? (
+        <div className="vb-verdict-dispatch">
+          <span className="proto-muted">上次派发</span>
+          <FakeTag />
+          <DispatchFooter records={records} act={act} label={false} />
+        </div>
+      ) : (
+        issue.state === 'open' && <div className="vb-verdict-dispatch proto-muted">还没派发过</div>
+      )}
+    </div>
+  );
+}
+
+function ChipRow({ label, note, children }: { label: string; note?: string; children: ReactNode }) {
+  return (
+    <div className="vb-row">
+      <span className="vb-key">{label}</span>
+      <span className="vb-chips">
+        {children}
+        {note && <span className="vb-note">{note}</span>}
+      </span>
+    </div>
+  );
+}
+
+function IssueChip({ issue, act, mark }: { issue: IssueReference; act: Act; mark?: ReactNode }) {
+  const outside = !issue.url.includes('/example/workbench/');
+  return (
+    <button
+      className={`vb-chip ${issue.state} ${outside ? 'outside' : ''}`}
+      data-hint={`#${issue.number} ${issue.title}${outside ? '\n（其他仓库，在浏览器打开）' : ''}`}
+      onClick={() => act.openIssue(issue)}
+    >
+      <IssueIcon issue={issue} size={11} decorative />
+      {outside ? 'terminal-core' : ''}#{issue.number}
+      {mark}
+    </button>
+  );
+}
+
+function RelationRows({ issue, act, showSubs }: { issue: FocusIssue; act: Act; showSubs: boolean }) {
+  const waiting = openCount(issue.blockedBy);
+  const unblocks = issue.blocking;
+  const pulls = issue.closingPullRequests;
+  return (
+    <div className="vb-rows">
+      {issue.parent && (
+        <ChipRow label="属于">
+          <button className="vb-parent" onClick={() => act.openIssue(issue.parent!)} data-hint={issue.parent.title}>
+            <IssueIcon issue={issue.parent} size={11} decorative />#{issue.parent.number}
+            <span className="forge-ellipsis">{issue.parent.title}</span>
+            <Progress {...issue.parent.progress} />
+          </button>
+        </ChipRow>
+      )}
+      {!!issue.blockedBy.length && (
+        <ChipRow label="等待" note={waiting ? `${waiting} 未解决` : '已全部解决'}>
+          {issue.blockedBy.map(item => (
+            <IssueChip key={item.url} issue={item} act={act} />
+          ))}
+        </ChipRow>
+      )}
+      {!!unblocks.length && (
+        <ChipRow label="解锁">
+          {unblocks.map(item => (
+            <IssueChip key={item.url} issue={item} act={act} />
+          ))}
+        </ChipRow>
+      )}
+      {showSubs && !!issue.subIssues.length && (
+        <ChipRow label="子 issue" note={`${issue.subIssueProgress.closed}/${issue.subIssueProgress.total}`}>
+          {issue.subIssues.map(sub => {
+            const blockers = openBlockers(sub);
+            return (
+              <IssueChip
+                key={sub.url}
+                issue={sub}
+                act={act}
+                mark={
+                  blockers.length ? (
+                    <BlockedMark
+                      by={blockers.map(blocker => ({ reference: `#${blocker.number}`, title: blocker.title }))}
+                    />
+                  ) : undefined
+                }
+              />
+            );
+          })}
+        </ChipRow>
+      )}
+      <ChipRow label="PR">
+        {pulls.length ? (
+          pulls.map(pull => <PullChip key={pull.number} pull={pull} act={act} />)
+        ) : (
+          <span className="proto-muted">还没有 pull request</span>
+        )}
+      </ChipRow>
+    </div>
+  );
+}
+
+// ───────────────────────── B: verdict + chip rows ─────────────────────────
+
+export function VerdictVariant({ issue, records, act }: VariantProps) {
+  return (
+    <div className="forge-doc">
+      <TitleBlock issue={issue} />
+      <section className={`vb-card ${issue.state}`} aria-label="工作台的结论">
+        <VerdictLine issue={issue} records={records} act={act} />
+        <RelationRows issue={issue} act={act} showSubs />
+      </section>
+      <ForgeBody issue={issue} act={act} />
+    </div>
+  );
+}
+
+// ───────────────────────── C: verdict + the sub-issue plan ─────────────────────────
+
+type Step = 'done' | 'ready' | 'blocked';
+const stepOf = (sub: SubIssue): Step =>
+  sub.state === 'closed' ? 'done' : openBlockers(sub).length ? 'blocked' : 'ready';
+const stepWord = { done: '完成', ready: '可以开始', blocked: '等待中' } as const;
+
+function layersOf(subs: SubIssue[]) {
+  const inside = new Map(subs.map(sub => [sub.number, sub]));
+  const depth = new Map<number, number>();
+  const visit = (sub: SubIssue, seen: Set<number>): number => {
+    const known = depth.get(sub.number);
+    if (known !== undefined) return known;
+    if (seen.has(sub.number)) return 0;
+    seen.add(sub.number);
+    const parents = sub.blockedBy.flatMap(blocker => {
+      const sibling = inside.get(blocker.number);
+      return sibling ? [visit(sibling, seen) + 1] : [];
+    });
+    const value = Math.max(0, ...parents);
+    depth.set(sub.number, value);
+    return value;
+  };
+  for (const sub of subs) visit(sub, new Set());
+  const layers: SubIssue[][] = [];
+  for (const sub of subs) (layers[depth.get(sub.number) ?? 0] ??= []).push(sub);
+  return layers;
+}
+
+function Plan({
+  owner,
+  subs,
+  focus,
+  width,
+  act,
+}: {
+  owner: FocusIssue['parent'] | FocusIssue;
+  subs: SubIssue[];
+  focus: number | null;
+  width: number;
+  act: Act;
+}) {
+  const [hover, setHover] = useState<number | null>(null);
+  const inside = new Set(subs.map(sub => sub.number));
+  const layers = layersOf(subs);
+  const edges: Edge[] = subs.flatMap(sub =>
+    sub.blockedBy
+      .filter(blocker => inside.has(blocker.number))
+      .map(blocker => ({
+        from: `p${blocker.number}`,
+        to: `p${sub.number}`,
+        kind: 'blocks' as const,
+        done: blocker.state === 'closed',
+      })),
+  );
+  const lit = hover ?? focus;
+  const near = new Set(
+    lit === null
+      ? []
+      : [
+          lit,
+          ...edges.filter(edge => edge.to === `p${lit}`).map(edge => Number(edge.from.slice(1))),
+          ...edges.filter(edge => edge.from === `p${lit}`).map(edge => Number(edge.to.slice(1))),
+        ],
+  );
+  const shown = edges.map(edge => ({
+    ...edge,
+    kind: lit !== null && (edge.from === `p${lit}` || edge.to === `p${lit}`) ? ('blocking' as const) : edge.kind,
+  }));
+  const ready = subs.filter(sub => stepOf(sub) === 'ready');
+  if (!owner) return null;
+  return (
+    <div className="pc-plan" onMouseLeave={() => setHover(null)}>
+      <div className="pc-plan-head">
+        {focus !== null ? (
+          <button className="vb-parent" onClick={() => act.openIssue(owner)} data-hint={owner.title}>
+            <span aria-hidden>↑</span>
+            <IssueIcon issue={owner} size={11} decorative />#{owner.number}
+            <span className="forge-ellipsis">{owner.title}</span>
+          </button>
+        ) : (
+          <span className="proto-label">执行顺序</span>
+        )}
+        <span className="forge-spacer" />
+        <span className="proto-muted">
+          {subs.filter(sub => sub.state === 'closed').length}/{subs.length} 完成 · {ready.length} 个可以开始
+        </span>
+      </div>
+      <div className="pc-plot">
+        <Edges edges={shown} version={`${focus} ${width} ${lit}`} />
+        {layers.map((layer, index) => (
+          <div key={index} className="pc-layer">
+            <span className="pc-step">{index + 1}</span>
+            <div className="pc-layer-nodes">
+              {layer.map(sub => {
+                const step = stepOf(sub);
+                const outside = sub.blockedBy.filter(
+                  blocker => !inside.has(blocker.number) && blocker.state === 'open',
+                );
+                return (
+                  <button
+                    key={sub.number}
+                    data-node={`p${sub.number}`}
+                    className={`pc-node ${step} ${sub.number === focus ? 'self' : ''} ${lit !== null && !near.has(sub.number) ? 'dim' : ''}`}
+                    data-hint={`#${sub.number} ${sub.title}\n${stepWord[step]}${outside.length ? `\n还在等其他仓库的 ${outside.map(item => `#${item.number}`).join('、')}` : ''}`}
+                    onMouseEnter={() => setHover(sub.number)}
+                    onClick={() => sub.number !== focus && act.openIssue(sub)}
+                  >
+                    <IssueIcon issue={sub} size={11} decorative />
+                    <span className="proto-num">#{sub.number}</span>
+                    <span className="forge-ellipsis">{sub.title}</span>
+                    {!!outside.length && (
+                      <span className="pc-outside" aria-label="还在等其他仓库">
+                        ⛓
+                      </span>
+                    )}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        ))}
       </div>
     </div>
   );
 }
 
-export const BlockedAtEndVariant = (props: VariantProps) => <Unit {...props} blocked="end" />;
-export const BlockedLeadVariant = (props: VariantProps) => <Unit {...props} blocked="lead" />;
-export const BlockedLineVariant = (props: VariantProps) => <Unit {...props} blocked="line" />;
+export function PlanVariant({ issue, records, width, act, siblings }: VariantProps) {
+  const ownPlan = issue.subIssues.length > 0;
+  const parentPlan = !ownPlan && issue.parent && siblings?.length;
+  return (
+    <div className="forge-doc">
+      <TitleBlock issue={issue} />
+      <section className={`vb-card pc ${issue.state}`} aria-label="工作台的结论">
+        <VerdictLine issue={issue} records={records} act={act} />
+        {ownPlan && <Plan owner={issue} subs={issue.subIssues} focus={null} width={width} act={act} />}
+        {parentPlan && <Plan owner={issue.parent} subs={siblings} focus={issue.number} width={width} act={act} />}
+        <RelationRows
+          issue={
+            parentPlan
+              ? {
+                  ...issue,
+                  parent: null,
+                  blockedBy: issue.blockedBy.filter(item => !siblings.some(sub => sub.number === item.number)),
+                  blocking: issue.blocking.filter(item => !siblings.some(sub => sub.number === item.number)),
+                }
+              : issue
+          }
+          act={act}
+          showSubs={false}
+        />
+      </section>
+      <ForgeBody issue={issue} act={act} />
+    </div>
+  );
+}
