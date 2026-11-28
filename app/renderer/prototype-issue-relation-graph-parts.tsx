@@ -31,6 +31,7 @@ export interface VariantProps {
   dispatchButton?: ReactNode;
   actions?: DirectActions;
   dispatchHost?: DispatchRecordsHost;
+  dispatchFor?: { button(issue: { number: number; title: string }): ReactNode; open(issueNumber: number): void };
 }
 
 export function AgentMark({ agent, size = 13 }: { agent: AgentType; size?: number }) {

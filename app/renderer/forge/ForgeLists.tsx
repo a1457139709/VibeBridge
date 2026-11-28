@@ -59,7 +59,7 @@ const noRows = { loaded: null, failed: null };
 const nothingLoaded: ListsData = { issues: noRows, pullRequests: noRows, loading: false };
 interface OpenMenu {
   issue: number;
-  place: 'row' | 'detail';
+  place: 'row' | 'detail' | 'relation';
 }
 function usePushedLists(projectId: string, settled: () => void) {
   const [lists, setLists] = useState<ListsData>(nothingLoaded);
@@ -198,6 +198,8 @@ export function ForgeLists({ project, changeBinding, detailHost, dispatchHost, v
   );
   const issueDispatch = (issue: IssueDetail): IssueDispatch => ({
     button: dispatchButton(issue, 'detail'),
+    buttonFor: other => dispatchButton(other, 'relation'),
+    openMenuFor: number => setOpenMenu({ issue: number, place: 'relation' }),
     records: dispatchRecordsOf(issue.number),
     host: dispatchHost,
   });

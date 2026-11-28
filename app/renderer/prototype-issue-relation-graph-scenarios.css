@@ -562,3 +562,46 @@
 .cm-thread .cm-item + .cm-item {
   border-top: 1px solid var(--line);
 }
+
+/* body sits a clear step below the boxes above it */
+.forge-doc > .forge-doc-main {
+  margin-top: 18px;
+}
+
+/* rows in the relation list: open button + dispatch button on the right */
+.dg-list .dg-row {
+  padding: 0 2px 0 0;
+  gap: 0;
+}
+.dg-open {
+  flex: 1 1 auto;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  height: 100%;
+  min-height: 0;
+  padding: 0 8px;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+}
+.dg-open .forge-ellipsis {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+.dg-dispatch {
+  flex-shrink: 0;
+  visibility: hidden;
+}
+.dg-dispatch .dispatch-button {
+  height: 20px;
+  padding: 0 7px;
+}
+.dg-row:hover .dg-dispatch,
+.dg-row:focus-within .dg-dispatch,
+.dg-dispatch:has([aria-expanded='true']) {
+  visibility: visible;
+}

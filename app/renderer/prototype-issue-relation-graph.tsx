@@ -93,6 +93,11 @@ function PrototypeIssueDocument(props: DocumentProps) {
         dispatchButton={props.dispatch.button}
         actions={props.actions}
         dispatchHost={props.dispatch.host}
+        dispatchFor={
+          props.dispatch.buttonFor && props.dispatch.openMenuFor
+            ? { button: props.dispatch.buttonFor, open: props.dispatch.openMenuFor }
+            : undefined
+        }
       />
     </div>
   );

@@ -42,6 +42,9 @@ export interface DocumentProps {
 
 export interface IssueDispatch {
   button: ReactNode;
+  // PROTOTYPE: a dispatch button for another issue shown in this document (the relation list), and a way to open it.
+  buttonFor?(issue: { number: number; title: string }): ReactNode;
+  openMenuFor?(issueNumber: number): void;
   records: DispatchRecordView[];
   host: DispatchRecordsHost;
 }

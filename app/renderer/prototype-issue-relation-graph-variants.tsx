@@ -65,7 +65,19 @@ function LatestFirstDispatchRecords({ records, host }: { records: DispatchRecord
 
 type Owner = NonNullable<FocusIssue['parent']> | FocusIssue;
 
-function SubIssueList({ subs, focus, act }: { subs: SubIssue[]; focus: number | null; act: Act }) {
+type DispatchFor = VariantProps['dispatchFor'];
+
+function SubIssueList({
+  subs,
+  focus,
+  act,
+  dispatchFor,
+}: {
+  subs: SubIssue[];
+  focus: number | null;
+  act: Act;
+  dispatchFor: DispatchFor;
+}) {
   const [hover, setHover] = useState<number | null>(null);
   const lit = hover ?? focus;
   const litSub = subs.find(sub => sub.number === lit);
@@ -77,23 +89,36 @@ function SubIssueList({ subs, focus, act }: { subs: SubIssue[]; focus: number | 
     <div className="dg dg-list" onMouseLeave={() => setHover(null)}>
       {subs.map(sub => {
         const blockers = openBlockers(sub);
+        const canDispatch = !!dispatchFor && sub.state === 'open' && sub.number !== focus;
         return (
-          <button
+          <div
             key={sub.number}
-            className={`dg-node ${sub.state}`}
+            className={`dg-node dg-row ${sub.state}`}
             data-relation={relation(sub.number)}
-            data-hint={`#${sub.number} ${sub.title}`}
             onMouseEnter={() => setHover(sub.number)}
-            onFocus={() => setHover(sub.number)}
-            onClick={() => sub.number !== focus && act.openIssue(sub)}
+            onContextMenu={event => {
+              if (!canDispatch) return;
+              event.preventDefault();
+              dispatchFor.open(sub.number);
+            }}
           >
-            <IssueIcon issue={sub} size={12} decorative />
-            <span className="forge-row-number">#{sub.number}</span>
-            <span className="forge-ellipsis">{sub.title}</span>
-            {!!blockers.length && (
-              <BlockedMark by={blockers.map(blocker => ({ reference: `#${blocker.number}`, title: blocker.title }))} />
-            )}
-          </button>
+            <button
+              className="dg-open"
+              data-hint={`#${sub.number} ${sub.title}${canDispatch ? '\n右键派发' : ''}`}
+              onFocus={() => setHover(sub.number)}
+              onClick={() => sub.number !== focus && act.openIssue(sub)}
+            >
+              <IssueIcon issue={sub} size={12} decorative />
+              <span className="forge-row-number">#{sub.number}</span>
+              <span className="forge-ellipsis">{sub.title}</span>
+              {!!blockers.length && (
+                <BlockedMark
+                  by={blockers.map(blocker => ({ reference: `#${blocker.number}`, title: blocker.title }))}
+                />
+              )}
+            </button>
+            {canDispatch && <span className="dg-dispatch">{dispatchFor.button(sub)}</span>}
+          </div>
         );
       })}
     </div>
@@ -106,12 +131,14 @@ function SubIssueBox({
   focus,
   act,
   startFolded,
+  dispatchFor,
 }: {
   owner: Owner;
   subs: SubIssue[];
   focus: number | null;
   act: Act;
   startFolded: boolean;
+  dispatchFor: DispatchFor;
 }) {
   const [open, setOpen] = useState(!startFolded);
   const progress = 'progress' in owner ? owner.progress : owner.subIssueProgress;
@@ -130,7 +157,7 @@ function SubIssueBox({
         <span className="forge-spacer" />
         <Progress {...progress} />
       </header>
-      {open && <SubIssueList subs={subs} focus={focus} act={act} />}
+      {open && <SubIssueList subs={subs} focus={focus} act={act} dispatchFor={dispatchFor} />}
     </section>
   );
 }
@@ -281,6 +308,7 @@ function IssueDocument({
   dispatchButton,
   actions,
   dispatchHost,
+  dispatchFor,
   comments,
 }: VariantProps & { comments: CommentLayout }) {
   const ownList = issue.subIssues.length > 0;
@@ -305,10 +333,18 @@ function IssueDocument({
           focus={null}
           act={act}
           startFolded={issue.state === 'closed'}
+          dispatchFor={dispatchFor}
         />
       )}
       {parentList && (
-        <SubIssueBox owner={issue.parent!} subs={parentList} focus={issue.number} act={act} startFolded={false} />
+        <SubIssueBox
+          owner={issue.parent!}
+          subs={parentList}
+          focus={issue.number}
+          act={act}
+          startFolded={false}
+          dispatchFor={dispatchFor}
+        />
       )}
       <OtherRelations issue={others} act={act} />
       {comments === 'cards' && (
