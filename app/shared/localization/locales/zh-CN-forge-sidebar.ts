@@ -72,6 +72,8 @@ export const chineseForgeSidebar: Record<keyof typeof englishForgeSidebar, strin
   deletedAccount: '已删除的用户',
   noDescription: '没有描述。',
   earlierEntries: '前面还有 {count} 条，在 {forge} 查看 ↗',
+  issueComments: '评论',
+  showEarlierComments: '展开前面 {count} 条评论',
   relations: '关系',
   blockedByColumn: '被阻塞于',
   thisIssue: '本 issue',

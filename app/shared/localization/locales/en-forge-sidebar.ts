@@ -73,6 +73,8 @@ export const englishForgeSidebar = {
   deletedAccount: 'Deleted user',
   noDescription: 'No description.',
   earlierEntries: '{count} earlier on {forge} ↗',
+  issueComments: 'Comments',
+  showEarlierComments: 'Show {count} earlier comments',
   relations: 'Relations',
   blockedByColumn: 'Blocked by',
   thisIssue: 'this issue',

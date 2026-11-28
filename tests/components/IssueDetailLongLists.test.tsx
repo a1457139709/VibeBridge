@@ -1,7 +1,7 @@
 import './support/dom';
 import assert from 'node:assert/strict';
 import test, { afterEach, before } from 'node:test';
-import { cleanup, within } from '@testing-library/react';
+import { cleanup, waitFor, within } from '@testing-library/react';
 import { t } from './support/localization';
 import { stubLayoutApis } from './support/no-layout';
 import { testForge } from './support/forge';
@@ -24,30 +24,54 @@ before(() => {
   window.HTMLElement.prototype.checkVisibility = () => true;
 });
 
-test('an issue with more comments than listed says how many came earlier at the top of the comments and links the issue on the forge', async () => {
+const comments = (count: number) =>
+  Array.from({ length: count }, (_, index) => ({
+    author: 'kai',
+    createdAt: hoursAgo(1),
+    html: `<p>Comment ${index}.</p>`,
+  }));
+const commentTexts = (timeline: HTMLElement) =>
+  within(timeline)
+    .getAllByRole('article')
+    .map(comment => selectElement('.forge-markdown', comment).textContent);
+
+test('the comments show the latest two below the body until the earlier ones are expanded', async () => {
   const { user, request } = renderWorkbench([summary(7)]);
   await user.click(await row('Issue 7'));
   (await request(1)).answer({
     ok: true,
-    issue: detail(7, {
-      body: '<p>The body.</p>',
-      commentCount: 120,
-      comments: Array.from({ length: 100 }, (_, index) => ({
-        author: 'kai',
-        createdAt: hoursAgo(1),
-        html: `<p>Comment ${index}.</p>`,
-      })),
-    }),
+    issue: detail(7, { body: '<p>The body.</p>', commentCount: 5, comments: comments(5) }),
   });
-  const earlier = await within(pane()).findByRole('link', {
-    name: t('earlierEntries', { count: 20, forge: testForge.name }),
+  const timeline = await within(pane()).findByRole('region', { name: t('issueComments') });
+  assert.deepEqual(commentTexts(timeline), ['Comment 3.', 'Comment 4.']);
+  const [body] = within(pane()).getAllByRole('article');
+  assert.equal(selectElement('.forge-markdown', body).textContent, 'The body.');
+  assert.ok(body.compareDocumentPosition(timeline) & Node.DOCUMENT_POSITION_FOLLOWING, 'the comments follow the body');
+  await user.click(within(timeline).getByRole('button', { name: t('showEarlierComments', { count: 3 }) }));
+  await waitFor(() => assert.equal(within(timeline).getAllByRole('article').length, 5));
+  assert.deepEqual(commentTexts(timeline), ['Comment 0.', 'Comment 1.', 'Comment 2.', 'Comment 3.', 'Comment 4.']);
+  assert.equal(within(timeline).queryByRole('button', { name: t('showEarlierComments', { count: 3 }) }), null);
+  assert.equal(within(timeline).queryByRole('link'), null, 'every comment was read, so nothing waits on the forge');
+});
+
+test('an issue with more comments than read links the earlier ones on the forge at the top of the expanded comments', async () => {
+  const { user, request } = renderWorkbench([summary(7)]);
+  await user.click(await row('Issue 7'));
+  (await request(1)).answer({
+    ok: true,
+    issue: detail(7, { body: '<p>The body.</p>', commentCount: 120, comments: comments(100) }),
   });
+  const timeline = await within(pane()).findByRole('region', { name: t('issueComments') });
+  const earlierName = t('earlierEntries', { count: 20, forge: testForge.name });
+  assert.equal(within(timeline).queryByRole('link', { name: earlierName }), null, 'folded comments hide the link');
+  await user.click(within(timeline).getByRole('button', { name: t('showEarlierComments', { count: 98 }) }));
+  const earlier = await within(timeline).findByRole('link', { name: earlierName });
   assert.equal(earlier.getAttribute('href'), `${repositoryUrl}/issues/7`);
-  const [body, comment] = within(pane()).getAllByRole('article');
+  const [first] = within(timeline).getAllByRole('article');
+  assert.equal(selectElement('.forge-markdown', first).textContent, 'Comment 0.');
   assert.ok(
-    body.compareDocumentPosition(earlier) & Node.DOCUMENT_POSITION_FOLLOWING &&
-      earlier.compareDocumentPosition(comment) & Node.DOCUMENT_POSITION_FOLLOWING,
-    'the notice sits between the body and the first comment',
+    earlier.compareDocumentPosition(first) & Node.DOCUMENT_POSITION_FOLLOWING,
+    'the link sits above the first comment',
   );
 });
 
