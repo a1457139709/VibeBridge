@@ -79,6 +79,7 @@ export const chineseForgeSidebar: Record<keyof typeof englishForgeSidebar, strin
   thisIssue: '本 issue',
   blockingColumn: '阻塞了',
   subIssues: '子 issue',
+  siblingIssues: '同级 issue',
   subIssueProgress: '子 issue：已关闭 {closed} / {total}',
   moreSubIssues: '还有 {count} 个，在 {forge} 查看 ↗',
   subIssueLit: '高亮中',
