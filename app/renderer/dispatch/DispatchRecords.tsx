@@ -66,18 +66,11 @@ function SessionId({ id, report }: { id: string; report: ReportNotice }) {
   );
 }
 
-export function DispatchRecords({
-  records,
-  startFolded,
-  host,
-}: {
-  records: DispatchRecordView[];
-  startFolded: boolean;
-  host: DispatchRecordsHost;
-}) {
+export function DispatchRecords({ records, host }: { records: DispatchRecordView[]; host: DispatchRecordsHost }) {
   const { t } = useLocalization();
-  const [open, setOpen] = useState(!startFolded);
+  const [open, setOpen] = useState(false);
   const heading = t('dispatchRecords', { count: records.length });
+  const shown = open ? records.toReversed() : records.slice(-1);
   return (
     <section className="forge-box dispatch-records" aria-label={heading}>
       <header>
@@ -85,22 +78,20 @@ export function DispatchRecords({
           <span aria-hidden>{open ? '▾' : '▸'}</span> {heading}
         </button>
       </header>
-      {open && (
-        <ul>
-          {records.toReversed().map(record => (
-            <li key={`${record.dispatchedAt} ${record.sessionId}`} className="dispatch-record">
-              <span className="dispatch-record-when">
-                <RelativeTime iso={record.dispatchedAt} />
-              </span>
-              <span className={`agent-mark ${record.agent}`} role="img" aria-label={agentNames[record.agent]}>
-                {agentIcons[record.agent]}
-              </span>
-              <DispatchSkill record={record} host={host} />
-              {record.sessionId && <SessionId id={record.sessionId} report={host.report} />}
-            </li>
-          ))}
-        </ul>
-      )}
+      <ul>
+        {shown.map(record => (
+          <li key={`${record.dispatchedAt} ${record.sessionId}`} className="dispatch-record">
+            <span className="dispatch-record-when">
+              <RelativeTime iso={record.dispatchedAt} />
+            </span>
+            <span className={`agent-mark ${record.agent}`} role="img" aria-label={agentNames[record.agent]}>
+              {agentIcons[record.agent]}
+            </span>
+            <DispatchSkill record={record} host={host} />
+            {record.sessionId && <SessionId id={record.sessionId} report={host.report} />}
+          </li>
+        ))}
+      </ul>
     </section>
   );
 }
