@@ -264,7 +264,7 @@ function WorkbenchView({
               ref={settingsPage}
               settings={snapshot.settings}
               startupTheme={snapshot.startupTheme}
-              {...(initialSettingsCategory && { initialCategory: initialSettingsCategory })}
+              initialCategory={initialSettingsCategory}
               report={report}
               back={() => void leaveSettings()}
             />

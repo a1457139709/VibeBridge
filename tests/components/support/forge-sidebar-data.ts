@@ -20,8 +20,8 @@ export interface ForgeAnswers {
   issuesByNumber?(projectId: string, numbers: number[]): Promise<IssuesByNumber>;
   pullRequestsByNumber?(projectId: string, numbers: number[]): Promise<PullRequestsByNumber>;
   repositoryChoices?(projectId: string, directory: string): Promise<RepositoryChoices>;
-  issueDetail?(projectId: string, number: number): Promise<IssueDetailResult>;
-  pullRequestDetail?(projectId: string, number: number): Promise<PullRequestDetailResult>;
+  issueDetail?: ((projectId: string, number: number) => Promise<IssueDetailResult>) | undefined;
+  pullRequestDetail?: ((projectId: string, number: number) => Promise<PullRequestDetailResult>) | undefined;
 }
 
 const unanswered = (read: string) => Promise.reject(new Error(`Unexpected forge read: ${read}`));

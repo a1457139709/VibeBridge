@@ -133,7 +133,7 @@ export function ProjectEditor({
   const directoryField = presentDirectoryField({
     input: directoryInput,
     touched: true,
-    ...(checked && { checked }),
+    checked,
     editing: { projectId: project.id, directory: original.directory },
   });
   const duplicate = directoryField.problem?.kind === 'duplicate' ? directoryField.problem : undefined;

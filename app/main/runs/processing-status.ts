@@ -23,7 +23,7 @@ export type SessionReceiver = (sessionId: string) => void;
 
 interface SessionWait {
   handOver: SessionReceiver;
-  onReleased?: () => void;
+  onReleased: (() => void) | undefined;
 }
 
 interface Observation {
@@ -116,7 +116,7 @@ export class ProcessingStatus {
     const observation = this.observations.get(runId);
     if (!observation) return false;
     if (observation.sessionId) handOver(observation.sessionId);
-    else observation.sessionWaits.push({ handOver, ...(onReleased && { onReleased }) });
+    else observation.sessionWaits.push({ handOver, onReleased });
     return true;
   }
 

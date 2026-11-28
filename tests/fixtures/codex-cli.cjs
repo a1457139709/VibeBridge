@@ -75,7 +75,7 @@ readline.createInterface({ input: process.stdin }).on('line', line => {
       const message = JSON.parse(line);
       if (message.context) console.log(`CONTEXT:${process.env.VIBEBRIDGE_STATUS_CONTEXT}`);
       if (message.payload)
-        await emit({ ...message.payload, ...(message.oversized ? { session_id: 'x'.repeat(70000) } : {}) });
+        await emit(message.oversized ? { ...message.payload, session_id: 'x'.repeat(70000) } : message.payload);
       if (message.output) console.log(message.output);
       console.log(`ACK:${message.id}`);
     })

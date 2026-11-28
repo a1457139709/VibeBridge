@@ -154,7 +154,7 @@ test("a long issue detail holds the latest 100 comments, the first 50 sub-issues
         })),
       }),
       ...Array.from({ length: 55 }, (_, index) =>
-        plain(100 + index, { parent: 1, ...(index % 5 ? {} : { state: 'CLOSED', stateReason: 'COMPLETED' }) }),
+        plain(100 + index, index % 5 ? { parent: 1 } : { parent: 1, state: 'CLOSED', stateReason: 'COMPLETED' }),
       ),
     ],
   });

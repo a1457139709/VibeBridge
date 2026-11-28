@@ -269,6 +269,7 @@ test("a new panel's dispatch locates its panel at once, and is recorded on the f
         agent: 'claude',
         skill: 'implement',
         dispatchedAt: undefined,
+        sessionId: undefined,
         location: { projectId: f.projectId, panelId: run.panelId },
       },
       'no session ID until the panel reports one',

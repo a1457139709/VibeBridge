@@ -63,6 +63,7 @@ How a failure is shaped and carried across processes is under **Assertions** in 
 - Data crossing a process boundary is parsed once, by the receiver, with the shared schema, into domain types (`docs/adr/0012-each-process-boundary-checks-what-it-receives.md`).
 - A field with a fixed set of values is a union of literal types, not `string`.
 - A token used only to compare identity has a type of its own, not `{}` or `object`.
+- A property whose value may be unknown is written plainly, `{ cleanup }`, and declared `T | undefined`: required when every object passes it, `name?: T | undefined` when some leave it out. `npm run check:conditional-spreads` rejects spreading it in conditionally.
 
 ## Tests
 

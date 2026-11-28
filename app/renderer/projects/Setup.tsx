@@ -79,7 +79,7 @@ export function Setup({
   const directoryField = presentDirectoryField({
     input: draft.directory,
     touched: directoryTouched,
-    ...(checked && { checked }),
+    checked,
   });
   const duplicate = directoryField.problem?.kind === 'duplicate' ? directoryField.problem : undefined;
   const nameProblem = projectNameProblem(draft.name);
