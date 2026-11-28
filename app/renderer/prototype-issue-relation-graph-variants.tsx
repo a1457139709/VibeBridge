@@ -2,10 +2,13 @@
 // A = spec #341 as written; B = verdict line + chip rows; C = verdict line + the parent's sub-issue plan.
 import { useRef, useState, type ReactNode } from 'react';
 import { MarkGithubIcon } from '@primer/octicons-react';
-import { BlockedMark, IssueIcon, Post, Progress, PullRequestIcon } from './forge/ForgeDisplay';
+import { BlockedMark, IssueIcon, Post, Progress, PullRequestIcon, RelativeTime } from './forge/ForgeDisplay';
 import type { IssueReference } from '../shared/forge/forge';
 import type { DispatchRecordView } from '../shared/dispatch';
-import { DispatchRecords } from './dispatch/DispatchRecords';
+import { DispatchSkill, SessionId, type DispatchRecordsHost } from './dispatch/DispatchRecords';
+import { useLocalization } from './common/Localization';
+import { agentIcons } from './common/agent-icons';
+import { agentNames } from '../shared/model';
 import type { FocusIssue, SubIssue, TimedPull } from './prototype-issue-relation-graph-data';
 import {
   Actions,
@@ -610,13 +613,49 @@ export function PlanVariant({ issue, records, width, act, siblings, dispatchButt
 }
 
 // ───────────────────────── D: C, reworked ─────────────────────────
-// No verdict line. Dispatch records get their own row (the real component).
-// The plan is a numbered checklist: each row names what it waits for, in words, instead of drawing arrows.
+// No hints or step labels. Sub-issues are grouped by dependency depth, separated only by space.
+// Hover uses the live relation graph's colours: red = blocks it, green = the issue itself, yellow = it unblocks.
+// Dispatch records: folded shows the latest one; unfolded shows all of them, latest included.
 
-const outsideName = (item: IssueReference) =>
-  item.url.includes('/example/workbench/') ? `#${item.number}` : `terminal-core#${item.number}`;
+function LatestFirstDispatchRecords({
+  records,
+  startFolded,
+  host,
+}: {
+  records: DispatchRecordView[];
+  startFolded: boolean;
+  host: DispatchRecordsHost;
+}) {
+  const { t } = useLocalization();
+  const [open, setOpen] = useState(!startFolded);
+  const heading = t('dispatchRecords', { count: records.length });
+  const shown = open ? records.toReversed() : records.slice(-1);
+  return (
+    <section className="forge-box dispatch-records" aria-label={heading}>
+      <header>
+        <button className="dispatch-records-toggle" aria-expanded={open} onClick={() => setOpen(!open)}>
+          <span aria-hidden>{open ? '▾' : '▸'}</span> {heading}
+        </button>
+      </header>
+      <ul>
+        {shown.map(record => (
+          <li key={`${record.dispatchedAt} ${record.sessionId}`} className="dispatch-record">
+            <span className="dispatch-record-when">
+              <RelativeTime iso={record.dispatchedAt} />
+            </span>
+            <span className={`agent-mark ${record.agent}`} role="img" aria-label={agentNames[record.agent]}>
+              {agentIcons[record.agent]}
+            </span>
+            <DispatchSkill record={record} host={host} />
+            {record.sessionId && <SessionId id={record.sessionId} report={host.report} />}
+          </li>
+        ))}
+      </ul>
+    </section>
+  );
+}
 
-function Steps({
+function Groups({
   owner,
   subs,
   focus,
@@ -635,56 +674,40 @@ function Steps({
   const after = new Set(
     lit === null ? [] : subs.filter(sub => sub.blockedBy.some(item => item.number === lit)).map(sub => sub.number),
   );
-  const layers = layersOf(subs);
+  const relation = (n: number) =>
+    n === lit ? 'self' : before.has(n) ? 'blockedBy' : after.has(n) ? 'blocking' : lit !== null ? 'dim' : undefined;
   return (
-    <div className="ds-steps" onMouseLeave={() => setHover(null)}>
+    <div className="dg" onMouseLeave={() => setHover(null)}>
       {focus !== null && (
-        <button className="vb-parent ds-owner" onClick={() => act.openIssue(owner)} data-hint={owner.title}>
+        <button className="vb-parent dg-owner" onClick={() => act.openIssue(owner)} data-hint={owner.title}>
           <span aria-hidden>↑</span>
           <IssueIcon issue={owner} size={11} decorative />#{owner.number}
           <span className="forge-ellipsis">{owner.title}</span>
-          <span className="proto-muted">里的位置</span>
+          <Progress {...('progress' in owner ? owner.progress : owner.subIssueProgress)} />
         </button>
       )}
-      {layers.map((layer, index) => (
-        <div key={index} className="ds-layer">
-          <div className="ds-layer-name">
-            第 {index + 1} 步
-            {layer.filter(sub => sub.state === 'open').length > 1 && <span className="proto-muted"> · 可同时做</span>}
-          </div>
+      {layersOf(subs).map((layer, index) => (
+        <div key={index} className="dg-group">
           {layer.map(sub => {
-            const step = stepOf(sub);
-            const waits = sub.state === 'open' ? sub.blockedBy.filter(item => item.state === 'open') : [];
-            const role =
-              sub.number === focus
-                ? 'self'
-                : sub.number === lit
-                  ? 'lit'
-                  : before.has(sub.number)
-                    ? 'before'
-                    : after.has(sub.number)
-                      ? 'after'
-                      : lit !== null
-                        ? 'dim'
-                        : '';
+            const blockers = openBlockers(sub);
             return (
               <button
                 key={sub.number}
-                className={`ds-row ${step} ${role}`}
-                data-hint={sub.title}
+                className={`dg-node ${sub.state} ${sub.number === focus ? 'focus' : ''}`}
+                data-relation={relation(sub.number)}
+                data-hint={`#${sub.number} ${sub.title}`}
                 onMouseEnter={() => setHover(sub.number)}
                 onFocus={() => setHover(sub.number)}
                 onClick={() => sub.number !== focus && act.openIssue(sub)}
               >
                 <IssueIcon issue={sub} size={12} decorative />
                 <span className="forge-row-number">#{sub.number}</span>
-                <span className="forge-ellipsis ds-title">{sub.title}</span>
-                {role === 'before' && <span className="ds-tag before">要先做</span>}
-                {role === 'after' && <span className="ds-tag after">之后才能做</span>}
-                {role === 'self' && <span className="ds-tag self">当前</span>}
-                <span className={`ds-state ${step}`}>
-                  {step === 'done' ? '完成' : waits.length ? `等 ${waits.map(outsideName).join('、')}` : '可以开始'}
-                </span>
+                <span className="forge-ellipsis">{sub.title}</span>
+                {!!blockers.length && (
+                  <BlockedMark
+                    by={blockers.map(blocker => ({ reference: `#${blocker.number}`, title: blocker.title }))}
+                  />
+                )}
               </button>
             );
           })}
@@ -709,18 +732,16 @@ export function StepsVariant({ issue, records, act, siblings, dispatchButton, ac
     <div className="forge-doc">
       <TitleBlock issue={issue} dispatchButton={dispatchButton} />
       {!!records.length && dispatchHost && (
-        <div className="ds-dispatch">
-          <DispatchRecords
-            key={`${issue.number} ${issue.state}`}
-            records={records}
-            startFolded={issue.state === 'closed'}
-            host={dispatchHost}
-          />
-        </div>
+        <LatestFirstDispatchRecords
+          key={`${issue.number} ${issue.state}`}
+          records={records}
+          startFolded
+          host={dispatchHost}
+        />
       )}
       <section className={`vb-card ds ${issue.state}`} aria-label="关系">
-        {ownPlan && <Steps owner={issue} subs={issue.subIssues} focus={null} act={act} />}
-        {parentPlan && <Steps owner={issue.parent!} subs={siblings} focus={issue.number} act={act} />}
+        {ownPlan && <Groups owner={issue} subs={issue.subIssues} focus={null} act={act} />}
+        {parentPlan && <Groups owner={issue.parent!} subs={siblings} focus={issue.number} act={act} />}
         <RelationRows issue={others} act={act} showSubs={false} />
       </section>
       <ForgeBody issue={issue} act={act} actions={actions} />

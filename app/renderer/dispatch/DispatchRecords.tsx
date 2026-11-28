@@ -15,7 +15,7 @@ export interface DispatchRecordsHost {
   report: ReportNotice;
 }
 
-function DispatchSkill({ record, host }: { record: DispatchRecordView; host: DispatchRecordsHost }) {
+export function DispatchSkill({ record, host }: { record: DispatchRecordView; host: DispatchRecordsHost }) {
   const localization = useLocalization();
   const { t } = localization;
   const { skill, location } = record;
@@ -47,7 +47,7 @@ export function LatestDispatchSkill({ records, host }: { records: DispatchRecord
 
 const shownSessionIdLength = 8;
 
-function SessionId({ id, report }: { id: string; report: ReportNotice }) {
+export function SessionId({ id, report }: { id: string; report: ReportNotice }) {
   const { t } = useLocalization();
   return (
     <button

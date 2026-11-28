@@ -456,97 +456,74 @@
   fill: var(--accent);
 }
 
-/* ── D: checklist steps, no arrows ── */
-.ds-dispatch {
-  margin: 8px 0 0;
-}
-.vb-card.ds > :first-child {
-  border-top: 0;
-}
-.ds-steps {
-  padding: 8px 10px 10px;
+/* ── D: grouped sub-issues, live graph colours on hover ── */
+.dg {
+  padding: 10px;
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 12px;
+  background: color-mix(in srgb, var(--accent) 6%, var(--canvas));
 }
-.ds-owner {
+.dg-owner {
   align-self: flex-start;
   font-size: 11.5px;
   min-width: 0;
+  max-width: 100%;
 }
-.ds-layer {
+.dg-group {
   display: flex;
-  flex-direction: column;
-  gap: 2px;
-  padding-left: 10px;
-  border-left: 2px solid var(--line);
-}
-.ds-layer-name {
-  font-size: 10.5px;
-  color: var(--muted);
-  font-weight: 600;
-  margin-bottom: 2px;
-}
-.ds-row {
-  display: flex;
-  align-items: center;
+  flex-wrap: wrap;
   gap: 6px;
+}
+.dg-node {
+  --forge-relation: var(--line);
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  max-width: 100%;
+  height: 22px;
   min-height: 0;
-  width: 100%;
-  padding: 3px 6px;
-  border: 1px solid transparent;
+  padding: 0 8px;
+  border: 1px solid var(--forge-relation);
   border-radius: 6px;
-  background: none;
+  background: var(--surface);
   color: inherit;
-  font-size: 12px;
+  font-size: 11px;
   text-align: left;
   transition:
     opacity 0.12s,
-    background 0.12s;
+    background 0.12s,
+    border-color 0.12s;
 }
-.ds-row:hover,
-.ds-row.lit {
-  background: var(--hover, rgba(127, 127, 127, 0.1));
+.dg-node .forge-ellipsis {
+  max-width: 180px;
 }
-.ds-title {
-  flex: 1 1 auto;
-  min-width: 0;
-}
-.ds-row.done .ds-title {
-  color: var(--muted);
-  text-decoration: line-through;
-}
-.ds-row.dim {
-  opacity: 0.4;
-}
-.ds-row.self {
-  border-color: var(--accent);
-}
-.ds-row.before {
-  background: color-mix(in srgb, var(--accent) 10%, transparent);
-}
-.ds-row.after {
-  background: color-mix(in srgb, var(--muted) 12%, transparent);
-}
-.ds-state {
+.dg-node .forge-row-number {
   flex-shrink: 0;
-  font-size: 11px;
+}
+.dg-node.closed .forge-ellipsis {
   color: var(--muted);
 }
-.ds-state.ready {
-  color: var(--forge-open);
-  font-weight: 600;
+.dg-node[data-relation='blockedBy'] {
+  --forge-relation: var(--forge-failed);
 }
-.ds-tag {
-  flex-shrink: 0;
-  font-size: 10.5px;
-  padding: 0 5px;
-  border-radius: 999px;
-  border: 1px solid var(--line);
-  color: var(--muted);
+.dg-node[data-relation='self'] {
+  --forge-relation: var(--forge-open);
+  border-width: 2px;
+  font-weight: 700;
 }
-.ds-tag.before,
-.ds-tag.self {
-  border-color: var(--accent);
-  color: var(--accent);
+.dg-node[data-relation='blocking'] {
+  --forge-relation: var(--forge-pending);
+}
+.dg-node[data-relation='blockedBy'],
+.dg-node[data-relation='self'],
+.dg-node[data-relation='blocking'] {
+  background: color-mix(in srgb, var(--forge-relation) 14%, var(--surface));
+}
+.dg-node[data-relation='dim'] {
+  opacity: 0.35;
+}
+.vb-card.ds .dispatch-records,
+.forge-doc > .dispatch-records {
+  margin-top: 8px;
 }
