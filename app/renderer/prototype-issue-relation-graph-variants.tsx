@@ -660,11 +660,13 @@ function Groups({
   subs,
   focus,
   act,
+  layout = 'chips',
 }: {
   owner: NonNullable<FocusIssue['parent']> | FocusIssue;
   subs: SubIssue[];
   focus: number | null;
   act: Act;
+  layout?: GroupLayout;
 }) {
   const [hover, setHover] = useState<number | null>(null);
   const lit = hover ?? focus;
@@ -677,7 +679,7 @@ function Groups({
   const relation = (n: number) =>
     n === lit ? 'self' : before.has(n) ? 'blockedBy' : after.has(n) ? 'blocking' : lit !== null ? 'dim' : undefined;
   return (
-    <div className="dg" onMouseLeave={() => setHover(null)}>
+    <div className={`dg dg-${layout}`} onMouseLeave={() => setHover(null)}>
       {focus !== null && (
         <button className="vb-parent dg-owner" onClick={() => act.openIssue(owner)} data-hint={owner.title}>
           <span aria-hidden>↑</span>
@@ -686,38 +688,67 @@ function Groups({
           <Progress {...('progress' in owner ? owner.progress : owner.subIssueProgress)} />
         </button>
       )}
-      {layersOf(subs).map((layer, index) => (
-        <div key={index} className="dg-group">
-          {layer.map(sub => {
-            const blockers = openBlockers(sub);
-            return (
-              <button
-                key={sub.number}
-                className={`dg-node ${sub.state} ${sub.number === focus ? 'focus' : ''}`}
-                data-relation={relation(sub.number)}
-                data-hint={`#${sub.number} ${sub.title}`}
-                onMouseEnter={() => setHover(sub.number)}
-                onFocus={() => setHover(sub.number)}
-                onClick={() => sub.number !== focus && act.openIssue(sub)}
-              >
-                <IssueIcon issue={sub} size={12} decorative />
-                <span className="forge-row-number">#{sub.number}</span>
-                <span className="forge-ellipsis">{sub.title}</span>
-                {!!blockers.length && (
-                  <BlockedMark
-                    by={blockers.map(blocker => ({ reference: `#${blocker.number}`, title: blocker.title }))}
-                  />
-                )}
-              </button>
-            );
-          })}
-        </div>
-      ))}
+      <div className="dg-groups">
+        {layersOf(subs).map((layer, index) => (
+          <div key={index} className="dg-group">
+            {layer.map(sub => {
+              const blockers = openBlockers(sub);
+              return (
+                <button
+                  key={sub.number}
+                  className={`dg-node ${sub.state} ${sub.number === focus ? 'focus' : ''}`}
+                  data-relation={relation(sub.number)}
+                  data-hint={`#${sub.number} ${sub.title}`}
+                  onMouseEnter={() => setHover(sub.number)}
+                  onFocus={() => setHover(sub.number)}
+                  onClick={() => sub.number !== focus && act.openIssue(sub)}
+                >
+                  <IssueIcon issue={sub} size={12} decorative />
+                  <span className="forge-row-number">#{sub.number}</span>
+                  <span className="forge-ellipsis">{sub.title}</span>
+                  {!!blockers.length && (
+                    <BlockedMark
+                      by={blockers.map(blocker => ({ reference: `#${blocker.number}`, title: blocker.title }))}
+                    />
+                  )}
+                </button>
+              );
+            })}
+          </div>
+        ))}
+      </div>
     </div>
   );
 }
 
-export function StepsVariant({ issue, records, act, siblings, dispatchButton, actions, dispatchHost }: VariantProps) {
+type GroupLayout = 'chips' | 'bands' | 'columns' | 'cards';
+
+export function StepsVariant(props: VariantProps) {
+  return <GroupedVariant {...props} layout="chips" />;
+}
+// E: full-width rows; each group is a band, bands alternate shade and are split by a rule.
+export function BandsVariant(props: VariantProps) {
+  return <GroupedVariant {...props} layout="bands" />;
+}
+// F: groups are columns left → right split by vertical rules; narrow panes stack them.
+export function ColumnsVariant(props: VariantProps) {
+  return <GroupedVariant {...props} layout="columns" />;
+}
+// G: each group is a bordered card, cards chained with a chevron; narrow panes stack them.
+export function CardsVariant(props: VariantProps) {
+  return <GroupedVariant {...props} layout="cards" />;
+}
+
+function GroupedVariant({
+  issue,
+  records,
+  act,
+  siblings,
+  dispatchButton,
+  actions,
+  dispatchHost,
+  layout,
+}: VariantProps & { layout: GroupLayout }) {
   const ownPlan = issue.subIssues.length > 0;
   const parentPlan = !ownPlan && issue.parent && siblings?.length;
   const others = parentPlan
@@ -740,8 +771,8 @@ export function StepsVariant({ issue, records, act, siblings, dispatchButton, ac
         />
       )}
       <section className={`vb-card ds ${issue.state}`} aria-label="关系">
-        {ownPlan && <Groups owner={issue} subs={issue.subIssues} focus={null} act={act} />}
-        {parentPlan && <Groups owner={issue.parent!} subs={siblings} focus={issue.number} act={act} />}
+        {ownPlan && <Groups owner={issue} subs={issue.subIssues} focus={null} act={act} layout={layout} />}
+        {parentPlan && <Groups owner={issue.parent!} subs={siblings} focus={issue.number} act={act} layout={layout} />}
         <RelationRows issue={others} act={act} showSubs={false} />
       </section>
       <ForgeBody issue={issue} act={act} actions={actions} />

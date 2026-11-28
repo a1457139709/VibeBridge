@@ -21,7 +21,15 @@ import {
   repoPath,
 } from './prototype-issue-relation-graph-data';
 import type { Act, VariantProps } from './prototype-issue-relation-graph-parts';
-import { PlanVariant, SpecVariant, StepsVariant, VerdictVariant } from './prototype-issue-relation-graph-variants';
+import {
+  BandsVariant,
+  CardsVariant,
+  ColumnsVariant,
+  PlanVariant,
+  SpecVariant,
+  StepsVariant,
+  VerdictVariant,
+} from './prototype-issue-relation-graph-variants';
 import '@xterm/xterm/css/xterm.css';
 import './style.css';
 import './panels/agent-panel.css';
@@ -42,12 +50,15 @@ const variants: { key: string; name: string; Component: ComponentType<VariantPro
   { key: 'A', name: 'spec #341 原样：三栏关系图', Component: SpecVariant },
   { key: 'B', name: '结论行 + 标签行', Component: VerdictVariant },
   { key: 'C', name: '结论行 + 子 issue 执行顺序', Component: PlanVariant },
-  { key: 'D', name: 'C 改版：派发记录独立一行 + 分步清单', Component: StepsVariant },
+  { key: 'D', name: 'C 改版：分组小方块，悬停高亮', Component: StepsVariant },
+  { key: 'E', name: 'D 迭代 1：整行列表，分组用交替底色条带', Component: BandsVariant },
+  { key: 'F', name: 'D 迭代 2：分组成列，从左到右，窄时纵向堆叠', Component: ColumnsVariant },
+  { key: 'G', name: 'D 迭代 3：每组一张卡片，卡片之间用 › 串起', Component: CardsVariant },
 ];
 const variantStore = (() => {
   const listeners = new Set<() => void>();
   const initial = new URLSearchParams(window.location.search).get('variant')?.toUpperCase();
-  let current = variants.some(variant => variant.key === initial) ? initial! : 'D';
+  let current = variants.some(variant => variant.key === initial) ? initial! : 'E';
   return {
     get: () => current,
     set(key: string) {
