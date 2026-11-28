@@ -741,6 +741,56 @@
   color: var(--forge-link);
   font-size: 12px;
 }
+.forge-doc > .forge-doc-main {
+  margin-top: 18px;
+}
+.forge-comments {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-left: 10px;
+  padding: 2px 0 2px 14px;
+  border-left: 2px solid var(--line);
+}
+.forge-comments-earlier {
+  align-self: flex-start;
+  min-height: 0;
+  height: auto;
+  padding: 2px 0;
+  border: 0;
+  background: none;
+  color: var(--accent);
+  font-size: 11.5px;
+}
+.forge-comments-earlier:hover {
+  text-decoration: underline;
+}
+.forge-comment {
+  position: relative;
+}
+.forge-comment::before {
+  content: '';
+  position: absolute;
+  left: -19px;
+  top: 4px;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--canvas);
+  border: 2px solid var(--line);
+}
+.forge-comment > header {
+  margin-bottom: 3px;
+  color: var(--muted);
+  font-size: 11.5px;
+}
+.forge-comment > header b {
+  margin-right: 4px;
+  color: var(--accent);
+}
+.forge-comment > .forge-markdown {
+  padding: 0;
+}
 
 .forge-markdown {
   padding: 12px 16px;

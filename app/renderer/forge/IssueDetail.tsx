@@ -11,6 +11,7 @@ import type { ProjectView } from '../../shared/model';
 import type { DispatchRecordView } from '../../shared/dispatch';
 import { IssueActions, type Actions } from './DirectActions';
 import { DispatchRecords, type DispatchRecordsHost } from '../dispatch/DispatchRecords';
+import { IssueComments } from './IssueComments';
 import './relation-graph.css';
 import {
   BlockedMark,
@@ -132,14 +133,7 @@ export function IssueDocument({ project, issue, open, followLink, actions, dispa
             )}
           </section>
         )}
-        {issue.commentCount > issue.comments.length && (
-          <a className="forge-earlier" href={issue.url} target="_blank" rel="noreferrer">
-            {t('earlierEntries', { count: issue.commentCount - issue.comments.length, forge: project.forge.name })}
-          </a>
-        )}
-        {issue.comments.map((comment, index) => (
-          <Post key={index} {...comment} />
-        ))}
+        <IssueComments key={issue.number} issue={issue} forge={project.forge.name} />
         <IssueActions issue={issue} actions={actions} />
       </div>
     </div>
