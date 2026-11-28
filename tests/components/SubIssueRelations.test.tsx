@@ -81,10 +81,10 @@ test('hovering a row marks it, the rows that block it, the rows it blocks and th
   await user.hover(subIssueRow('View'));
   await waitFor(() =>
     assert.deepEqual(relations(), [
-      [t('subIssueBlocksLit')],
-      [t('subIssueLit')],
+      [t('subIssueBlocksHighlighted')],
+      [t('subIssueHighlighted')],
       [t('subIssueUnrelated')],
-      [t('subIssueBlockedByLit')],
+      [t('subIssueBlockedByHighlighted')],
       [t('subIssueUnrelated')],
     ]),
   );
@@ -93,8 +93,8 @@ test('hovering a row marks it, the rows that block it, the rows it blocks and th
     assert.deepEqual(relations(), [
       [t('subIssueUnrelated')],
       [t('subIssueUnrelated')],
-      [t('subIssueLit')],
-      [t('subIssueBlockedByLit')],
+      [t('subIssueHighlighted')],
+      [t('subIssueBlockedByHighlighted')],
       [t('subIssueUnrelated')],
     ]),
   );

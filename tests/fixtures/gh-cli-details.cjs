@@ -25,13 +25,14 @@ function issueDetail(state, path, number, answering, query) {
   const byNumber = numbers => (numbers ?? []).map(n => issues.find(item => item.number === n)).filter(Boolean);
   const blocker = entry =>
     typeof entry === 'number'
-      ? reference(byNumber([entry])[0])
+      ? { ...reference(byNumber([entry])[0]), repository: { nameWithOwner: path } }
       : {
           number: entry.number,
           title: entry.title,
           state: entry.state,
           stateReason: null,
           url: `https://github.com/${entry.path}/issues/${entry.number}`,
+          repository: { nameWithOwner: entry.path },
         };
   const relatedBlocker = entry =>
     typeof entry === 'number'
@@ -44,7 +45,7 @@ function issueDetail(state, path, number, answering, query) {
       ...reference(item),
       repository: { nameWithOwner: path },
       blockedBy: { nodes: blockers.slice(0, window('blockedBy')) },
-      issueDependenciesSummary: { totalBlockedBy: blockers.length },
+      issueDependenciesSummary: { blockedBy: blockers.filter(other => other.state === 'OPEN').length },
     };
   };
   const pull = n => {
@@ -70,6 +71,10 @@ function issueDetail(state, path, number, answering, query) {
     return { total: children.length, completed: children.filter(item => item.state === 'CLOSED').length };
   };
   const comments = issue.comments ?? [];
+  const blockers = (issue.blockedBy ?? []).map(blocker);
+  const blocked = issues
+    .filter(item => item.blockedBy?.includes(issue.number))
+    .map(item => ({ ...reference(item), repository: { nameWithOwner: path } }));
   process.stdout.write(
     JSON.stringify({
       data: {
@@ -105,8 +110,9 @@ function issueDetail(state, path, number, answering, query) {
               : null,
             subIssuesSummary: subIssuesSummary(issue.number),
             subIssues: subIssuesOf(issue.number),
-            blockedBy: { nodes: (issue.blockedBy ?? []).map(blocker) },
-            blocking: { nodes: issues.filter(item => item.blockedBy?.includes(issue.number)).map(reference) },
+            blockedBy: { nodes: blockers.slice(0, window('blockedBy')) },
+            blocking: { nodes: blocked.slice(0, window('blocking')) },
+            issueDependenciesSummary: { totalBlockedBy: blockers.length, totalBlocking: blocked.length },
             closedByPullRequestsReferences: { nodes: (issue.closedBy ?? []).map(pull) },
           },
         },

@@ -40,8 +40,12 @@ const withSubIssues = issueDetail(9, { subIssues: ownSubIssues, subIssueProgress
 const withSiblings = issueDetail(9, {
   parent: {
     ...related(1),
-    progress: { closed: 0, total: 2 },
-    subIssues: [related(9), related(12)],
+    progress: { closed: 0, total: 3 },
+    subIssues: [
+      related(9),
+      related(12),
+      related(13, { path: 'ada/other', url: `${testForgeUrl}/ada/other/issues/13`, title: 'Issue 13 elsewhere' }),
+    ],
   },
 });
 
@@ -128,6 +132,9 @@ test('⌘D on a focused sibling row opens that row’s Dispatch menu, and ⌘L l
   await waitFor(() => assert.equal(screen.queryByRole('menu'), null));
   rowButton(siblings, 9).focus();
   assert.equal(pressCommandKey('KeyD'), true, "the current issue's row is not dispatched");
+  rowButton(siblings, 13).focus();
+  assert.equal(pressCommandKey('KeyD'), true, 'a row of another repository is not dispatched');
+  assert.equal(screen.queryByRole('menu'), null, "nor does the detail issue's menu open in its place");
   rowButton(siblings, 12).focus();
   assert.equal(pressCommandKey('KeyL'), false);
   await waitFor(() => assert.deepEqual(activated, ['beta']));

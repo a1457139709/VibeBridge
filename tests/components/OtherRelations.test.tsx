@@ -4,14 +4,16 @@ import test, { afterEach, before } from 'node:test';
 import { cleanup, within } from '@testing-library/react';
 import { t } from './support/localization';
 import { stubLayoutApis } from './support/no-layout';
-import { testForgeCapabilitiesWith, testForgeUrl } from './support/forge';
+import { testForge, testForgeCapabilitiesWith, testForgeUrl } from './support/forge';
 import { descriptionParts } from './support/elements';
 import { nameIncluding } from './support/accessible-names';
 import type { ForgeCapabilities, IssueDetail, PullRequestReference } from '../../app/shared/forge/forge';
+import type { RelationRowName } from '../../app/renderer/forge/OtherRelations';
 import {
   detail,
   pane,
   reference,
+  related,
   renderWorkbench,
   repositoryUrl,
   row,
@@ -35,27 +37,26 @@ async function openIssue(issue: IssueDetail, capabilities: Partial<ForgeCapabili
   return shown;
 }
 const otherRelations = () => within(pane()).getByRole('region', { name: t('otherRelations') });
-const relationRow = (id: 'otherBlockers' | 'unblocks' | 'pullRequestsRow') =>
-  within(otherRelations()).queryByRole('group', { name: t(id) });
-const shownRow = (id: 'otherBlockers' | 'unblocks' | 'pullRequestsRow') => {
+const relationRow = (id: RelationRowName) => within(otherRelations()).queryByRole('group', { name: t(id) });
+const shownRow = (id: RelationRowName) => {
   const found = relationRow(id);
   assert.ok(found, `the ${id} row is shown`);
   return found;
 };
 const closed = { state: 'closed', closedAs: 'completed' } as const;
 const elsewhere = (number: number, title: string) =>
-  reference(number, { title, url: `${testForgeUrl}/ada/other/issues/${number}` });
+  related(number, { title, url: `${testForgeUrl}/ada/other/issues/${number}`, path: 'ada/other' });
 
 test('other relations list every blocker and every issue this one blocks, closed ones included, and say how many blockers are unresolved', async () => {
   const { user, request } = await openIssue(
     detail(5, {
       title: 'Detail',
       blockedBy: [
-        reference(2, { title: 'Open blocker' }),
-        reference(3, { title: 'Closed blocker', ...closed }),
+        related(2, { title: 'Open blocker' }),
+        related(3, { title: 'Closed blocker', ...closed }),
         elsewhere(4, 'Blocker elsewhere'),
       ],
-      blocking: [reference(8, { title: 'Waits on detail' }), reference(9, { title: 'Done after detail', ...closed })],
+      blocking: [related(8, { title: 'Waits on detail' }), related(9, { title: 'Done after detail', ...closed })],
     }),
   );
   const blockers = shownRow('otherBlockers');
@@ -82,8 +83,40 @@ test('other relations list every blocker and every issue this one blocks, closed
   assert.equal((await request(2)).number, 2);
 });
 
+test('a relation of another repository names that repository, and opens in the browser', async () => {
+  await openIssue(
+    detail(5, { blockedBy: [elsewhere(4, 'Blocker elsewhere')], blocking: [elsewhere(7, 'Waits elsewhere')] }),
+  );
+  for (const [row, title] of [
+    ['otherBlockers', 'Blocker elsewhere'],
+    ['unblocks', 'Waits elsewhere'],
+  ] as const) {
+    const chip = within(shownRow(row)).getByRole('link', { name: nameIncluding(title) });
+    assert.ok(chip.getAttribute('aria-label')?.includes('ada/other'), 'its accessible name holds the repository');
+    assert.ok(chip.textContent?.startsWith('other#'), 'it shows the repository name before the number');
+  }
+});
+
+test('blockers and blocked issues past those the forge listed are counted from its totals, with a link to the issue on the forge', async () => {
+  const listedBlockers = [related(2), related(3)];
+  await openIssue(
+    detail(5, { blockedBy: listedBlockers, blockedByTotal: 60, blocking: [related(8)], blockingTotal: 51 }),
+  );
+  for (const [row, count] of [
+    ['otherBlockers', 58],
+    ['unblocks', 50],
+  ] as const) {
+    assert.equal(
+      within(shownRow(row))
+        .getByRole('link', { name: t('moreRelations', { count, forge: testForge.name }) })
+        .getAttribute('href'),
+      `${repositoryUrl}/issues/5`,
+    );
+  }
+});
+
 test('blockers that are all closed read as all resolved', async () => {
-  await openIssue(detail(5, { blockedBy: [reference(3, closed)] }));
+  await openIssue(detail(5, { blockedBy: [related(3, closed)] }));
   assert.deepEqual(descriptionParts(shownRow('otherBlockers')), [t('blockersResolved')]);
 });
 
@@ -91,7 +124,7 @@ test('an issue with no blockers and none it blocks still shows the pull request 
   await openIssue(detail(5));
   assert.equal(relationRow('otherBlockers'), null);
   assert.equal(relationRow('unblocks'), null);
-  const pullRequests = shownRow('pullRequestsRow');
+  const pullRequests = shownRow('pullRequestAbbreviation');
   assert.deepEqual(descriptionParts(pullRequests), [t('noPullRequests')]);
   assert.equal(within(pullRequests).queryAllByRole('button').length, 0);
 });
@@ -106,8 +139,8 @@ test("on a sub-issue's page, the relations already in the sibling list are left 
     detail(5, {
       title: 'View',
       parent,
-      blockedBy: [reference(4, { title: 'Model' }), elsewhere(4, 'Model elsewhere')],
-      blocking: [reference(6, { title: 'Wiring' })],
+      blockedBy: [related(4, { title: 'Model' }), elsewhere(4, 'Model elsewhere')],
+      blocking: [related(6, { title: 'Wiring' })],
     }),
   );
   assert.equal(within(shownRow('otherBlockers')).getAllByRole('link').length, 1);
@@ -128,17 +161,17 @@ test('an issue that lists its own sub-issues keeps every relation, though it has
       parent,
       subIssues: [subIssue(7)],
       subIssueProgress: { closed: 0, total: 1 },
-      blockedBy: [reference(4, { title: 'Model' })],
+      blockedBy: [related(4, { title: 'Model' })],
     }),
   );
   assert.equal(within(shownRow('otherBlockers')).getAllByRole('button').length, 1);
 });
 
 test('a forge without blocking shows neither blocker row, but still the pull request row', async () => {
-  await openIssue(detail(5, { blockedBy: [reference(2)], blocking: [reference(8)] }), { blocking: false });
+  await openIssue(detail(5, { blockedBy: [related(2)], blocking: [related(8)] }), { blocking: false });
   assert.equal(relationRow('otherBlockers'), null);
   assert.equal(relationRow('unblocks'), null);
-  assert.ok(shownRow('pullRequestsRow'));
+  assert.ok(shownRow('pullRequestAbbreviation'));
 });
 
 test('the pull request row lists every pull request that closes the issue on merge, each with its state and checks conclusion', async () => {
@@ -157,7 +190,7 @@ test('the pull request row lists every pull request that closes the issue on mer
     pull(45, 'Unchecked', 'open', 'none'),
   ];
   await openIssue(detail(5, { closingPullRequests: closing }));
-  const pullRequests = shownRow('pullRequestsRow');
+  const pullRequests = shownRow('pullRequestAbbreviation');
   const chips = within(pullRequests).getAllByRole('button');
   assert.deepEqual(
     chips,

@@ -1,51 +1,52 @@
 import { useId, type ReactNode } from 'react';
 import { useLocalization } from '../common/Localization';
-import type { IssueDetail, IssueReference, SubIssue } from '../../shared/forge/forge';
+import type { IssueDetail, RelatedIssue, SubIssue } from '../../shared/forge/forge';
 import type { DetailItem } from '../../shared/forge/sidebar-data';
-import { IssueIcon, ItemReference, linkedItem, OpenPullRequestChecks, PullRequestIcon } from './ForgeDisplay';
+import { IssueIcon, ItemReference, MoreOnForge, OpenPullRequestChecks, PullRequestIcon } from './ForgeDisplay';
 import { presentOtherRelations } from './other-relations';
 import './other-relations.css';
+
+export type RelationRowName = 'otherBlockers' | 'unblocks' | 'pullRequestAbbreviation';
 
 export function OtherRelations({
   issue,
   siblings,
   blocking,
+  forge,
   open,
 }: {
   issue: IssueDetail;
   siblings: SubIssue[] | null;
   blocking: boolean;
+  forge: string;
   open(item: DetailItem): void;
 }) {
   const { t } = useLocalization();
   const { blockers, unblocks } = presentOtherRelations(issue, { siblings, blocking });
-  const chips = (issues: IssueReference[]) =>
-    issues.map(related => (
-      <ItemReference
-        key={related.url}
-        kind="issue"
-        url={related.url}
-        links={issue.links}
-        open={open}
-        className={`forge-relation-chip ${related.state}${linkedItem(related.url, issue.links) ? '' : ' outside'}`}
-        hint={`#${related.number} ${related.title}`}
-        label={`#${related.number} ${related.title}`}
-      >
-        <IssueIcon issue={related} size={11} decorative />#{related.number}
-      </ItemReference>
-    ));
+  const blockerNote = ({ unresolved, allResolved }: { unresolved: number; allResolved: boolean }) => {
+    if (unresolved) return t('unresolvedBlockers', { count: unresolved });
+    return allResolved ? t('blockersResolved') : undefined;
+  };
+  const chips = ({ issues, unlisted }: { issues: RelatedIssue[]; unlisted: number }) => (
+    <>
+      {issues.map(related => (
+        <IssueChip key={related.url} related={related} issue={issue} open={open} />
+      ))}
+      {unlisted > 0 && <MoreOnForge message="moreRelations" count={unlisted} forge={forge} url={issue.url} />}
+    </>
+  );
   return (
     <section className="forge-box forge-other-relations" aria-label={t('otherRelations')}>
       {blockers && (
-        <RelationRow
-          name="otherBlockers"
-          note={blockers.unresolved ? t('unresolvedBlockers', { count: blockers.unresolved }) : t('blockersResolved')}
-        >
-          {chips(blockers.issues)}
+        <RelationRow name="otherBlockers" note={blockerNote(blockers)}>
+          {chips(blockers)}
         </RelationRow>
       )}
       {unblocks && <RelationRow name="unblocks">{chips(unblocks)}</RelationRow>}
-      <RelationRow name="pullRequestsRow" note={issue.closingPullRequests.length ? undefined : t('noPullRequests')}>
+      <RelationRow
+        name="pullRequestAbbreviation"
+        note={issue.closingPullRequests.length ? undefined : t('noPullRequests')}
+      >
         {issue.closingPullRequests.map(pullRequest => (
           <ItemReference
             key={pullRequest.url}
@@ -66,12 +67,39 @@ export function OtherRelations({
   );
 }
 
+function IssueChip({
+  related,
+  issue,
+  open,
+}: {
+  related: RelatedIssue;
+  issue: IssueDetail;
+  open(item: DetailItem): void;
+}) {
+  const { t } = useLocalization();
+  const reference = `${related.path ?? ''}#${related.number} ${related.title}`;
+  return (
+    <ItemReference
+      kind="issue"
+      url={related.url}
+      links={issue.links}
+      open={open}
+      className={`forge-relation-chip ${related.state}${related.path === null ? '' : ' outside'}`}
+      hint={related.path === null ? reference : `${reference}\n${t('opensInBrowser')}`}
+      label={reference}
+    >
+      <IssueIcon issue={related} size={11} decorative />
+      {related.path?.split('/').at(-1)}#{related.number}
+    </ItemReference>
+  );
+}
+
 function RelationRow({
   name,
   note,
   children,
 }: {
-  name: 'otherBlockers' | 'unblocks' | 'pullRequestsRow';
+  name: RelationRowName;
   note?: string | undefined;
   children: ReactNode;
 }) {

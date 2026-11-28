@@ -28,13 +28,17 @@ import {
   answeredBy,
   answeringFields,
   answeringSchema,
+  blockerFields,
+  blockerReference,
+  blockerSchema,
+  repositorySchema,
   samePath,
+  unlistedOpenBlockers,
 } from './github-fields';
 import { issueDetail } from './github-issue';
 import { fetchPullRequestDetail } from './github-pull-request';
 
 const pageSize = 25;
-const repositorySchema = z.object({ nameWithOwner: z.string() });
 const issueSchema = z.object({
   number: z.number(),
   title: z.string(),
@@ -42,11 +46,7 @@ const issueSchema = z.object({
   createdAt: z.string(),
   labels: z.object({ nodes: z.array(labelSchema) }),
   repository: repositorySchema,
-  blockedBy: z.object({
-    nodes: z.array(
-      z.object({ number: z.number(), title: z.string(), state: issueStateFields.state, repository: repositorySchema }),
-    ),
-  }),
+  blockedBy: z.object({ nodes: z.array(blockerSchema) }),
   issueDependenciesSummary: z.object({ blockedBy: z.number() }),
 });
 const labelPageSchema = z.object({
@@ -84,7 +84,7 @@ const listedPullRequestSchema = z.object({
 const issuePageSchema = listPageSchema(listedIssueSchema);
 const pullRequestPageSchema = listPageSchema(listedPullRequestSchema);
 const issueFields = `number title state stateReason createdAt labels(first: 20) { nodes { name color } } repository { nameWithOwner }
-      blockedBy(first: 20) { nodes { number title state repository { nameWithOwner } } } issueDependenciesSummary { blockedBy }`;
+      blockedBy(first: 20) { nodes { ${blockerFields} } } issueDependenciesSummary { blockedBy }`;
 const labelPageArguments = 'first: 100, orderBy: { field: NAME, direction: ASC }';
 const labelPageFields = 'pageInfo { hasNextPage endCursor } nodes { name color }';
 const labelPageQuery = `query($owner: String!, $name: String!, $after: String!) {
@@ -119,21 +119,16 @@ const byNumberSchema = <Node extends z.ZodType>(node: Node) =>
   z.object({ repository: z.object(answeringSchema).catchall(node.nullable()) });
 
 function issueSummary(issue: z.infer<typeof issueSchema>, path: string): IssueSummary {
-  const blockedBy = issue.blockedBy.nodes
-    .filter(blocker => blocker.state === 'OPEN')
-    .map(blocker => ({
-      path: samePath(blocker.repository.nameWithOwner, path) ? null : blocker.repository.nameWithOwner,
-      number: blocker.number,
-      title: blocker.title,
-    }));
   return {
     number: issue.number,
     title: issue.title,
     ...issueState(issue),
     createdAt: issue.createdAt,
     labels: issue.labels.nodes,
-    blockedBy,
-    unlistedBlockers: Math.max(0, issue.issueDependenciesSummary.blockedBy - blockedBy.length),
+    blockedBy: issue.blockedBy.nodes
+      .filter(blocker => blocker.state === 'OPEN')
+      .map(blocker => blockerReference(blocker, path)),
+    unlistedBlockers: unlistedOpenBlockers(issue.blockedBy.nodes, issue.issueDependenciesSummary.blockedBy),
   };
 }
 

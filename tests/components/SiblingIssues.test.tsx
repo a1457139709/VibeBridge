@@ -67,9 +67,9 @@ test("a sub-issue's page lists its siblings under its parent, whose heading open
 test('the sibling list marks this issue and its direct blocking relations until another row is pointed at', async () => {
   const { user } = await openChild(child());
   const ownRelations = [
-    [t('subIssueBlocksLit')],
-    [t('subIssueLit')],
-    [t('subIssueBlockedByLit')],
+    [t('subIssueBlocksHighlighted')],
+    [t('subIssueHighlighted')],
+    [t('subIssueBlockedByHighlighted')],
     [t('subIssueUnrelated')],
   ];
   assert.deepEqual(relations(), ownRelations);
@@ -77,8 +77,8 @@ test('the sibling list marks this issue and its direct blocking relations until 
   await waitFor(() =>
     assert.deepEqual(relations(), [
       [t('subIssueUnrelated')],
-      [t('subIssueBlocksLit')],
-      [t('subIssueLit')],
+      [t('subIssueBlocksHighlighted')],
+      [t('subIssueHighlighted')],
       [t('subIssueUnrelated')],
     ]),
   );

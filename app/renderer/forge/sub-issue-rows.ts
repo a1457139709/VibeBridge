@@ -1,6 +1,6 @@
 import type { BlockerReference, RelatedBlocker, SubIssue } from '../../shared/forge/forge';
 
-export type SubIssueRelation = 'lit' | 'blocksLit' | 'blockedByLit' | 'unrelated';
+export type SubIssueRelation = 'highlighted' | 'blocksHighlighted' | 'blockedByHighlighted' | 'unrelated';
 
 export interface SubIssueRow {
   key: string;
@@ -15,15 +15,15 @@ export const subIssueKey = (issue: Pick<BlockerReference, 'path' | 'number'>) =>
 
 export function presentSubIssueRows(
   subIssues: SubIssue[],
-  { lit, current, blocking }: { lit: string | null; current: string | null; blocking: boolean },
+  { highlighted, current, blocking }: { highlighted: string | null; current: string | null; blocking: boolean },
 ): SubIssueRow[] {
-  const litIssue = blocking ? subIssues.find(issue => subIssueKey(issue) === lit) : undefined;
-  const litBlockers = new Set(litIssue?.blockedBy.map(subIssueKey));
+  const highlightedIssue = blocking ? subIssues.find(issue => subIssueKey(issue) === highlighted) : undefined;
+  const highlightedBlockers = new Set(highlightedIssue?.blockedBy.map(subIssueKey));
   const relationOf = (issue: SubIssue, key: string): SubIssueRelation | null => {
-    if (!litIssue) return null;
-    if (key === lit) return 'lit';
-    if (litBlockers.has(key)) return 'blocksLit';
-    if (issue.blockedBy.some(blocker => subIssueKey(blocker) === lit)) return 'blockedByLit';
+    if (!highlightedIssue) return null;
+    if (key === highlighted) return 'highlighted';
+    if (highlightedBlockers.has(key)) return 'blocksHighlighted';
+    if (issue.blockedBy.some(blocker => subIssueKey(blocker) === highlighted)) return 'blockedByHighlighted';
     return 'unrelated';
   };
   return subIssues.map(issue => {

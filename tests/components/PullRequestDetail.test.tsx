@@ -154,13 +154,15 @@ test('a pull request that closes an issue opens in the sidebar from the issue de
       subIssues: [],
       subIssueProgress: { closed: 0, total: 0 },
       blockedBy: [],
+      blockedByTotal: 0,
       blocking: [],
+      blockingTotal: 0,
       closingPullRequests: [],
       links,
       canWrite: true,
     },
   });
-  const closing = await within(forgeSidebar()).findByRole('group', { name: t('pullRequestsRow') });
+  const closing = await within(forgeSidebar()).findByRole('group', { name: t('pullRequestAbbreviation') });
   assert.equal(
     within(closing)
       .getByRole('link', { name: nameIncluding('Change 40') })

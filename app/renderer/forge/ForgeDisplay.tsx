@@ -198,7 +198,7 @@ export function MoreOnForge({
   url,
   className = '',
 }: {
-  message: 'moreSubIssues' | 'moreChecks';
+  message: 'moreSubIssues' | 'moreChecks' | 'moreRelations';
   count: number;
   forge: string;
   url: string;

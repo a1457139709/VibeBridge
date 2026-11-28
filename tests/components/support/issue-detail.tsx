@@ -10,6 +10,7 @@ import type {
   IssueDetailResult,
   IssueReference,
   ListedIssue,
+  RelatedIssue,
   SubIssue,
 } from '../../../app/shared/forge/forge';
 import { deferred, provideWorkbench } from './workbench';
@@ -31,6 +32,11 @@ export const reference = (number: number, extra: Partial<IssueReference> = {}): 
   url: `${repositoryUrl}/issues/${number}`,
   ...extra,
 });
+export const related = (number: number, extra: Partial<RelatedIssue> = {}): RelatedIssue => ({
+  ...reference(number),
+  path: null,
+  ...extra,
+});
 export const subIssue = (number: number, extra: Partial<SubIssue> = {}): SubIssue => ({
   ...reference(number),
   path: null,
@@ -50,7 +56,9 @@ export const detail = (number: number, extra: Partial<IssueDetail> = {}): IssueD
   subIssues: [],
   subIssueProgress: { closed: 0, total: 0 },
   blockedBy: [],
+  blockedByTotal: extra.blockedBy?.length ?? 0,
   blocking: [],
+  blockingTotal: extra.blocking?.length ?? 0,
   closingPullRequests: [],
   links: { issuePrefix: `${repositoryUrl}/issues/`, pullRequestPrefix: `${repositoryUrl}/pull/` },
   canWrite: true,

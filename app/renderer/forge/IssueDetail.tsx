@@ -70,7 +70,7 @@ export function IssueDocument({ project, issue, open, followLink, actions, dispa
           owner={issue}
           subIssues={issue.subIssues}
           progress={issue.subIssueProgress}
-          current={null}
+          list={{ kind: 'subIssues' }}
           blocking={capabilities.blocking}
           forge={project.forge.name}
           dispatch={dispatch.related}
@@ -83,14 +83,20 @@ export function IssueDocument({ project, issue, open, followLink, actions, dispa
           owner={parent}
           subIssues={parent.subIssues}
           progress={parent.progress}
-          current={issue.number}
+          list={{ kind: 'siblings', current: issue.number }}
           blocking={capabilities.blocking}
           forge={project.forge.name}
           dispatch={dispatch.related}
           open={openReference}
         />
       )}
-      <OtherRelations issue={issue} siblings={parent?.subIssues ?? null} blocking={capabilities.blocking} open={open} />
+      <OtherRelations
+        issue={issue}
+        siblings={parent?.subIssues ?? null}
+        blocking={capabilities.blocking}
+        forge={project.forge.name}
+        open={open}
+      />
       <div className="forge-doc-main">
         <Post author={issue.author} createdAt={issue.createdAt} html={issue.body} />
         <IssueComments key={issue.number} issue={issue} forge={project.forge.name} />

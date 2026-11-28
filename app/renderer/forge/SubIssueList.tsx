@@ -6,14 +6,15 @@ import { presentSubIssueRows, subIssueKey, type SubIssueRelation } from './sub-i
 import './sub-issue-list.css';
 
 const relationMessages = {
-  lit: 'subIssueLit',
-  blocksLit: 'subIssueBlocksLit',
-  blockedByLit: 'subIssueBlockedByLit',
+  highlighted: 'subIssueHighlighted',
+  blocksHighlighted: 'subIssueBlocksHighlighted',
+  blockedByHighlighted: 'subIssueBlockedByHighlighted',
   unrelated: 'subIssueUnrelated',
 } as const satisfies Record<SubIssueRelation, string>;
 export function relatedIssueRowOf(element: Element | null | undefined) {
   const row = element?.closest<HTMLElement>('[data-related-issue]');
-  return row ? { row, number: Number(row.dataset.relatedIssue) } : undefined;
+  if (!row) return undefined;
+  return { row, number: row.dataset.relatedPath ? null : Number(row.dataset.relatedIssue) };
 }
 
 export interface RelatedDispatch {
@@ -21,13 +22,13 @@ export interface RelatedDispatch {
   openMenu(issueNumber: number): void;
 }
 
-const relations = ['lit', 'blocksLit', 'blockedByLit', 'unrelated'] as const satisfies readonly SubIssueRelation[];
+export type SubIssueListKind = { kind: 'subIssues' } | { kind: 'siblings'; current: number };
 
 export function SubIssueList({
   owner,
   subIssues,
   progress,
-  current,
+  list,
   blocking,
   forge,
   dispatch,
@@ -36,27 +37,27 @@ export function SubIssueList({
   owner: IssueReference;
   subIssues: SubIssue[];
   progress: SubIssueProgress;
-  current: number | null;
+  list: SubIssueListKind;
   blocking: boolean;
   forge: string;
   dispatch: RelatedDispatch;
   open(reference: IssueReference): void;
 }) {
   const { t } = useLocalization();
-  const [unfolded, setUnfolded] = useState(current !== null || owner.state === 'open');
+  const [unfolded, setUnfolded] = useState(list.kind === 'siblings' || owner.state === 'open');
   const [pointed, setPointed] = useState<string | null>(null);
   const descriptionId = useId();
-  const currentKey = current === null ? null : subIssueKey({ path: null, number: current });
-  const rows = presentSubIssueRows(subIssues, { lit: pointed ?? currentKey, current: currentKey, blocking });
+  const currentKey = list.kind === 'siblings' ? subIssueKey({ path: null, number: list.current }) : null;
+  const rows = presentSubIssueRows(subIssues, { highlighted: pointed ?? currentKey, current: currentKey, blocking });
   const unlisted = progress.total - subIssues.length;
-  const heading = t(current === null ? 'subIssues' : 'siblingIssues');
+  const heading = t(list.kind === 'subIssues' ? 'subIssues' : 'siblingIssues');
   return (
     <section className="forge-box forge-sub-issues" aria-label={heading}>
       <header>
-        <button className="dispatch-records-toggle" aria-expanded={unfolded} onClick={() => setUnfolded(!unfolded)}>
+        <button className="forge-sub-issues-toggle" aria-expanded={unfolded} onClick={() => setUnfolded(!unfolded)}>
           <span aria-hidden>{unfolded ? '▾' : '▸'}</span> {heading}
         </button>
-        {current !== null && (
+        {list.kind === 'siblings' && (
           <button className="forge-sub-issue-owner" data-hint={owner.title} onClick={() => open(owner)}>
             <IssueIcon issue={owner} size={11} decorative />
             <span className="forge-row-number">#{owner.number}</span>
@@ -68,9 +69,9 @@ export function SubIssueList({
       </header>
       {unfolded && (
         <div className="forge-sub-issue-list" onMouseLeave={() => setPointed(null)}>
-          {relations.map(relation => (
+          {Object.entries(relationMessages).map(([relation, message]) => (
             <span key={relation} id={`${descriptionId}-${relation}`} hidden>
-              {t(relationMessages[relation])}
+              {t(message)}
             </span>
           ))}
           {rows.map(row => (
@@ -78,7 +79,8 @@ export function SubIssueList({
               key={row.key}
               className={`forge-sub-issue ${row.issue.state}`}
               data-relation={row.relation ?? undefined}
-              data-related-issue={row.issue.path === null ? row.issue.number : undefined}
+              data-related-issue={row.issue.number}
+              data-related-path={row.issue.path ?? undefined}
               onMouseEnter={() => setPointed(row.key)}
               onContextMenu={event => {
                 if (!row.dispatchable) return;
