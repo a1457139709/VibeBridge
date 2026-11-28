@@ -133,11 +133,13 @@ function ForgeBody({
   act,
   anchor,
   actions,
+  hideSubs = false,
 }: {
   issue: FocusIssue;
   act: Act;
   anchor?: React.Ref<HTMLElement>;
   actions?: VariantProps['actions'];
+  hideSubs?: boolean;
 }) {
   return (
     <>
@@ -146,7 +148,7 @@ function ForgeBody({
       </div>
       <div className="forge-doc-main">
         <Post author={issue.author} createdAt={issue.createdAt} html={issue.body} />
-        {!!issue.subIssues.length && <SubIssueBox issue={issue} act={act} anchor={anchor} />}
+        {!hideSubs && !!issue.subIssues.length && <SubIssueBox issue={issue} act={act} anchor={anchor} />}
         {issue.comments.map((comment, index) => (
           <Post key={index} {...comment} />
         ))}
@@ -688,8 +690,13 @@ function Groups({
           <Progress {...('progress' in owner ? owner.progress : owner.subIssueProgress)} />
         </button>
       )}
+      {focus === null && layout === 'list' && (
+        <div className="dg-head">
+          子 issue <Progress {...('progress' in owner ? owner.progress : owner.subIssueProgress)} />
+        </div>
+      )}
       <div className="dg-groups">
-        {layersOf(subs).map((layer, index) => (
+        {(layout === 'list' ? [subs] : layersOf(subs)).map((layer, index) => (
           <div key={index} className="dg-group">
             {layer.map(sub => {
               const blockers = openBlockers(sub);
@@ -721,7 +728,13 @@ function Groups({
   );
 }
 
-type GroupLayout = 'chips' | 'bands' | 'columns' | 'cards';
+type GroupLayout = 'chips' | 'bands' | 'columns' | 'cards' | 'list';
+
+// H: no grouping, no ordering algorithm. The sub-issue list in GitHub's order IS the relation view;
+// hovering a row colours what blocks it (red) and what it unblocks (yellow). Replaces the sub-issue box below.
+export function ListVariant(props: VariantProps) {
+  return <GroupedVariant {...props} layout="list" />;
+}
 
 export function StepsVariant(props: VariantProps) {
   return <GroupedVariant {...props} layout="chips" />;
@@ -775,7 +788,7 @@ function GroupedVariant({
         {parentPlan && <Groups owner={issue.parent!} subs={siblings} focus={issue.number} act={act} layout={layout} />}
         <RelationRows issue={others} act={act} showSubs={false} />
       </section>
-      <ForgeBody issue={issue} act={act} actions={actions} />
+      <ForgeBody issue={issue} act={act} actions={actions} hideSubs={layout === 'list'} />
     </div>
   );
 }

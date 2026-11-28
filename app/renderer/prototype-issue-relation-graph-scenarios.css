@@ -578,11 +578,15 @@
 .dg-bands .dg-group:nth-child(even) {
   background: var(--canvas);
 }
-.dg-bands .dg-node {
+.dg-bands .dg-node:not([data-relation]),
+.dg-bands .dg-node[data-relation='dim'],
+.dg-list .dg-node:not([data-relation]),
+.dg-list .dg-node[data-relation='dim'] {
   border-color: transparent;
   background: transparent;
 }
-.dg-bands .dg-node:not([data-relation]):hover {
+.dg-bands .dg-node:not([data-relation]):hover,
+.dg-list .dg-node:not([data-relation]):hover {
   background: var(--surface);
 }
 
@@ -673,4 +677,34 @@
     transform: translateX(-50%);
     line-height: 1;
   }
+}
+
+/* H: plain list */
+.dg-list {
+  padding: 6px 8px 8px;
+  gap: 4px;
+  background: none;
+}
+.dg-head {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 2px 2px 4px;
+  font-size: 11.5px;
+  font-weight: 600;
+}
+.dg-list .dg-group {
+  flex-direction: column;
+  flex-wrap: nowrap;
+  gap: 2px;
+}
+.dg-list .dg-node {
+  width: 100%;
+  height: 26px;
+  font-size: 11.5px;
+}
+.dg-list .dg-node .forge-ellipsis {
+  flex: 1 1 auto;
+  max-width: none;
+  min-width: 0;
 }

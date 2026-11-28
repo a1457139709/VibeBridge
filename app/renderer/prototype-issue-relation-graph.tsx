@@ -24,6 +24,7 @@ import type { Act, VariantProps } from './prototype-issue-relation-graph-parts';
 import {
   BandsVariant,
   CardsVariant,
+  ListVariant,
   ColumnsVariant,
   PlanVariant,
   SpecVariant,
@@ -54,11 +55,12 @@ const variants: { key: string; name: string; Component: ComponentType<VariantPro
   { key: 'E', name: 'D 迭代 1：整行列表，分组用交替底色条带', Component: BandsVariant },
   { key: 'F', name: 'D 迭代 2：分组成列，从左到右，窄时纵向堆叠', Component: ColumnsVariant },
   { key: 'G', name: 'D 迭代 3：每组一张卡片，卡片之间用 › 串起', Component: CardsVariant },
+  { key: 'H', name: 'E 简化：子 issue 列表本身就是关系图（不分组）', Component: ListVariant },
 ];
 const variantStore = (() => {
   const listeners = new Set<() => void>();
   const initial = new URLSearchParams(window.location.search).get('variant')?.toUpperCase();
-  let current = variants.some(variant => variant.key === initial) ? initial! : 'E';
+  let current = variants.some(variant => variant.key === initial) ? initial! : 'H';
   return {
     get: () => current,
     set(key: string) {
