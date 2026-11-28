@@ -6,7 +6,7 @@ export type DirectoryCheck = Extract<DirectoryInspection, { ok: true }> | { ok: 
 export interface DirectoryFieldInput {
   input: string;
   touched: boolean;
-  checked?: { input: string; check: DirectoryCheck };
+  checked?: { input: string; check: DirectoryCheck } | undefined;
   editing?: { projectId: string; directory: string };
 }
 

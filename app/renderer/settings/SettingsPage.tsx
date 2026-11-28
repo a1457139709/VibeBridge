@@ -38,7 +38,7 @@ function SettingsEditor({
 }: {
   settings: Settings;
   startupTheme: Settings['theme'];
-  initialCategory?: SettingsCategory;
+  initialCategory?: SettingsCategory | undefined;
   back(): void;
   ref: Ref<SettingsPageActions>;
   report: ReportNotice;

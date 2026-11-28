@@ -12,7 +12,7 @@ export interface Launch {
 }
 export interface PreparedLaunch {
   command: AgentCommand;
-  cleanup?: () => Promise<void>;
+  cleanup?: (() => Promise<void>) | undefined;
 }
 
 export interface StatusAdapter {

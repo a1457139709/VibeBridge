@@ -27,7 +27,7 @@ export interface DispatchRecordView {
   dispatchedAt: string;
   agent: AgentType;
   skill: string;
-  sessionId?: string;
+  sessionId?: string | undefined;
   location: DispatchLocation | null;
 }
 

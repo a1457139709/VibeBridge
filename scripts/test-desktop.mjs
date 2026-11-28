@@ -79,7 +79,7 @@ if (list) {
             env: {
               ...environment,
               VIBEBRIDGE_TEST_EVIDENCE: evidence,
-              ...(reopen ? { VIBEBRIDGE_TEST_REOPEN: '1' } : {}),
+              VIBEBRIDGE_TEST_REOPEN: reopen ? '1' : undefined,
             },
             stdio: ['ignore', 'pipe', 'pipe'],
           });

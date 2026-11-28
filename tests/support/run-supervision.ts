@@ -36,7 +36,7 @@ class FakeTerminal implements Terminal {
       panelId: value.panelId,
       projectId: value.projectId,
       state: this.answer,
-      ...(this.answer === 'running' ? { pid: 1 } : {}),
+      pid: this.answer === 'running' ? 1 : undefined,
     };
     this.event({ kind: 'started', run });
     return run;

@@ -7,7 +7,7 @@ export interface ProcessIdentity {
   pid: number;
   parent: number;
   started: string;
-  owner?: string;
+  owner?: string | undefined;
 }
 const execute = promisify(execFile);
 function currentUser(): number {
@@ -32,7 +32,7 @@ export async function readProcessTable(includeOwners = false): Promise<ProcessId
     const match = line.trim().match(/^(\d+)\s+(\d+)\s+(\w{3}\s+\w{3}\s+\d+\s+[\d:]+\s+\d{4})\s+(\S+)(.*)$/);
     if (!match || match[4].includes('Z')) return [];
     const owner = match[5].match(/(?:^|\s)VIBEBRIDGE_RUN_OWNER=([a-f0-9-]+:[a-f0-9-]+)(?:\s|$)/)?.[1];
-    return [{ pid: Number(match[1]), parent: Number(match[2]), started: match[3], ...(owner ? { owner } : {}) }];
+    return [{ pid: Number(match[1]), parent: Number(match[2]), started: match[3], owner }];
   });
 }
 

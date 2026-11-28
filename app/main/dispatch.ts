@@ -86,7 +86,7 @@ export class Dispatches {
       dispatchedAt,
       agent,
       skill,
-      ...(sessionId ? { sessionId } : {}),
+      sessionId,
       location: location ? where(location) : null,
     });
     const views = (project: Omit<ProjectView, 'dispatches'>) =>

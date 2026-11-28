@@ -232,7 +232,7 @@ async function listPage<T extends z.infer<ReturnType<typeof listPageSchema>>>(
       search: listSearch(path, kind, filter),
       openSearch: listSearch(path, kind, { ...filter, state: 'open' }),
       closedSearch: listSearch(path, kind, { ...filter, state: 'closed' }),
-      ...(cursor === null ? {} : { after: cursor }),
+      after: cursor ?? undefined,
     },
     schema,
   );

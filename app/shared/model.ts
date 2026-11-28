@@ -63,7 +63,7 @@ export interface Run {
   projectId: string;
   panelId: string;
   state: 'running' | 'starting' | 'failed' | 'stopped';
-  pid?: number;
+  pid?: number | undefined;
   title?: string;
 }
 export const isLiveRun = (run?: Run) => run?.state === 'running' || run?.state === 'starting';
@@ -100,7 +100,7 @@ export const sidebars = {
 const sidebarIds = ['navigation', 'forgeSidebar'] as const;
 export type Sidebar = (typeof sidebarIds)[number];
 export const sidebarSchema = z.enum(sidebarIds);
-export type PanelView = Panel & { run?: Run; status?: ProcessingState };
+export type PanelView = Panel & { run?: Run; status?: ProcessingState | undefined };
 export type ProjectView = Omit<Project, 'panels'> & {
   panels: PanelView[];
   tray: PanelView[];

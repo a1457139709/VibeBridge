@@ -13,7 +13,7 @@ export async function recordFailure(
         time: new Date().toISOString(),
         source,
         message: message.slice(0, 2048),
-        ...(cleanupError ? { cleanupError: String(cleanupError).slice(0, 2048) } : {}),
+        cleanupError: cleanupError ? String(cleanupError).slice(0, 2048) : undefined,
       },
       null,
       2,

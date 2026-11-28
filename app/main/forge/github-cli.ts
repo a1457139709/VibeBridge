@@ -61,7 +61,7 @@ function classifyFailure(code: number | null, stdout: string, stderr: string) {
 export async function graphql<T>(
   host: string,
   query: string,
-  variables: Record<string, string | number>,
+  variables: GraphqlVariables,
   schema: z.ZodType<T>,
 ): Promise<T> {
   const { failure, stdout } = await run(host, graphqlArgs(query, variables));
@@ -72,7 +72,7 @@ export async function graphql<T>(
 export async function graphqlAllowingMissing<T>(
   host: string,
   query: string,
-  variables: Record<string, string | number>,
+  variables: GraphqlVariables,
   schema: z.ZodType<T>,
 ): Promise<T> {
   const { failure, stdout } = await run(host, graphqlArgs(query, variables));
@@ -80,12 +80,16 @@ export async function graphqlAllowingMissing<T>(
   return graphqlData(stdout, schema);
 }
 
-const graphqlArgs = (query: string, variables: Record<string, string | number>) => [
+type GraphqlVariables = Record<string, string | number | undefined>;
+
+const graphqlArgs = (query: string, variables: GraphqlVariables) => [
   'api',
   'graphql',
   '-f',
   `query=${query}`,
-  ...Object.entries(variables).flatMap(([key, value]) => [typeof value === 'number' ? '-F' : '-f', `${key}=${value}`]),
+  ...Object.entries(variables).flatMap(([key, value]) =>
+    value === undefined ? [] : [typeof value === 'number' ? '-F' : '-f', `${key}=${value}`],
+  ),
 ];
 
 const missingItemsSchema = z.object({

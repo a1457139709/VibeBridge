@@ -8,8 +8,8 @@ import { errorMessage } from '../../shared/caught-error';
 import { playToEnd } from '../common/animation-outcome';
 
 interface View {
-  selected?: string;
-  maximized?: string;
+  selected?: string | undefined;
+  maximized?: string | undefined;
 }
 interface Host {
   snapshot: Snapshot | undefined;
@@ -41,8 +41,8 @@ interface LocateOperation {
 const inTray = (project: ProjectView | undefined, id?: string) => !!project?.tray.some(panel => panel.id === id);
 const resident = (project: ProjectView | undefined, id?: string) => !!project?.panels.some(panel => panel.id === id);
 const viewOf = (selected: string | undefined, maximized: string | undefined): View => ({
-  ...(selected !== undefined && { selected }),
-  ...(maximized !== undefined && { maximized }),
+  selected,
+  maximized,
 });
 const inputTarget = (view: View) => view.maximized ?? view.selected;
 function validView(project: ProjectView | undefined, view?: View): View {

@@ -76,7 +76,7 @@ async function prepare({ command, directory, resourceDirectory }: Launch): Promi
       ...command,
       args: [...args, '--settings', settingsArg, ...(boundary < 0 ? [] : command.args.slice(boundary))],
     },
-    ...(cleanup && { cleanup }),
+    cleanup,
   };
 }
 
