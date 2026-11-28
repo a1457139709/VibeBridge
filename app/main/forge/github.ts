@@ -28,6 +28,7 @@ import {
   answeredBy,
   answeringFields,
   answeringSchema,
+  samePath,
 } from './github-fields';
 import { issueDetail } from './github-issue';
 import { fetchPullRequestDetail } from './github-pull-request';
@@ -116,8 +117,6 @@ const byNumberQuery = (item: 'issue' | 'pullRequest', fields: string, numbers: n
     ${numbers.map(number => `n${number}: ${item}(number: ${number}) { ${fields} }`).join('\n    ')} } }`;
 const byNumberSchema = <Node extends z.ZodType>(node: Node) =>
   z.object({ repository: z.object(answeringSchema).catchall(node.nullable()) });
-
-const samePath = (a: string, b: string) => a.toLowerCase() === b.toLowerCase();
 
 function issueSummary(issue: z.infer<typeof issueSchema>, path: string): IssueSummary {
   const blockedBy = issue.blockedBy.nodes

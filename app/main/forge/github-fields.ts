@@ -19,6 +19,7 @@ export const issueReferenceSchema = z.object({
   url: z.string(),
   ...issueStateFields,
 });
+export const samePath = (a: string, b: string) => a.toLowerCase() === b.toLowerCase();
 export const loginSchema = z.object({ login: z.string() }).nullable();
 export const issueReferenceFields = 'number title state stateReason url';
 export const issueReference = (issue: z.infer<typeof issueReferenceSchema>) => ({

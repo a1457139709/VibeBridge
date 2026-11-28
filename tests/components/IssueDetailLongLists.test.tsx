@@ -6,16 +6,7 @@ import { t } from './support/localization';
 import { stubLayoutApis } from './support/no-layout';
 import { testForge } from './support/forge';
 import { selectElement } from './support/elements';
-import {
-  detail,
-  hoursAgo,
-  pane,
-  reference,
-  renderWorkbench,
-  repositoryUrl,
-  row,
-  summary,
-} from './support/issue-detail';
+import { detail, hoursAgo, pane, renderWorkbench, repositoryUrl, row, subIssue, summary } from './support/issue-detail';
 
 afterEach(cleanup);
 before(() => {
@@ -81,7 +72,7 @@ test("an issue with more sub-issues than listed shows the forge's progress and l
   (await request(1)).answer({
     ok: true,
     issue: detail(7, {
-      subIssues: Array.from({ length: 50 }, (_, index) => reference(100 + index)),
+      subIssues: Array.from({ length: 50 }, (_, index) => subIssue(100 + index)),
       subIssueProgress: { closed: 3, total: 55 },
     }),
   });
