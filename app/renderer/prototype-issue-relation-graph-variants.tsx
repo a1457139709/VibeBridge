@@ -209,7 +209,7 @@ function OtherRelations({ issue, act }: { issue: FocusIssue; act: Act }) {
     <section className="forge-box dl-rows" aria-label="其他关系">
       <div className="vb-rows">
         {!!issue.blockedBy.length && (
-          <ChipRow label="等待" note={waiting ? `${waiting} 未解决` : '已全部解决'}>
+          <ChipRow label="其他阻塞" note={waiting ? `${waiting} 未解决` : '已全部解决'}>
             {issue.blockedBy.map(item => (
               <IssueChip key={item.url} issue={item} act={act} />
             ))}
