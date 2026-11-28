@@ -182,6 +182,27 @@ const blockersOf = (issue: FakeIssue): IssueReference[] => [
   })),
 ];
 const childrenOf = (number: number) => world.filter(issue => issue.parent === number);
+const discussion: Record<number, [string, string][]> = {
+  500: [
+    ['red', '先把队列放在主进程，渲染进程只读快照。'],
+    ['mika', '面板关掉时队列里的派发怎么办？直接丢弃还是转给别的面板？'],
+    ['red', '先丢弃并在派发记录里标出来，转派以后再说。'],
+    ['ollie', '#503 依赖 terminal-core 的「本轮结束」事件，那边 #88 还没合。'],
+    ['red', '好，#503 先挂着，#504 和 #505 可以并行做。'],
+  ],
+  504: [
+    ['mika', '菜单里「排进队列」和「立即派发」放一起会不会误点？'],
+    ['red', '面板忙的时候才出现「排进队列」，空闲时不显示。'],
+    ['ollie', 'PR #622 的检查挂在快照测试上，我看一下。'],
+  ],
+};
+const commentsOf = (number: number, age: number) =>
+  (discussion[number] ?? [['red', '先做主进程那部分。']]).map(([author, text], index, all) => ({
+    author,
+    createdAt: ago((age * (all.length - index)) / (all.length + 1)),
+    html: `<p>（编造的评论）${text}</p>`,
+  }));
+
 const progressOf = (number: number) => {
   const children = childrenOf(number);
   return { closed: children.filter(child => child.state === 'closed').length, total: children.length };
@@ -201,8 +222,8 @@ export function fakeIssue(number: number): FocusIssue {
     author: 'red',
     assignees: [],
     body: `<p>（编造的正文）${issue.title}。这里是 Forge 上 issue 的原文，用来看卡片和正文之间的分界。</p><p>验收：见子 issue 和关联的 pull request。</p>`,
-    comments: [{ author: 'red', createdAt: ago(issue.age / 3), html: '<p>（编造的评论）先做主进程那部分。</p>' }],
-    commentCount: 1,
+    comments: commentsOf(number, issue.age),
+    commentCount: commentsOf(number, issue.age).length,
     parent: parent && { ...reference(parent), progress: progressOf(parent.number) },
     subIssues: childrenOf(number).map(child => ({ ...reference(child), blockedBy: blockersOf(child) })),
     subIssueProgress: progressOf(number),

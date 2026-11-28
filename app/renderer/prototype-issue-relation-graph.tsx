@@ -21,16 +21,7 @@ import {
   repoPath,
 } from './prototype-issue-relation-graph-data';
 import type { Act, VariantProps } from './prototype-issue-relation-graph-parts';
-import {
-  BandsVariant,
-  CardsVariant,
-  ListVariant,
-  ColumnsVariant,
-  PlanVariant,
-  SpecVariant,
-  StepsVariant,
-  VerdictVariant,
-} from './prototype-issue-relation-graph-variants';
+import { LightVariant, ThreadVariant, TimelineVariant } from './prototype-issue-relation-graph-variants';
 import '@xterm/xterm/css/xterm.css';
 import './style.css';
 import './panels/agent-panel.css';
@@ -48,19 +39,14 @@ import './prototype-issue-relation-graph-scenarios.css';
 
 const variants: { key: string; name: string; Component: ComponentType<VariantProps> | null }[] = [
   { key: '0', name: '现在线上的样子', Component: null },
-  { key: 'A', name: 'spec #341 原样：三栏关系图', Component: SpecVariant },
-  { key: 'B', name: '结论行 + 标签行', Component: VerdictVariant },
-  { key: 'C', name: '结论行 + 子 issue 执行顺序', Component: PlanVariant },
-  { key: 'D', name: 'C 改版：分组小方块，悬停高亮', Component: StepsVariant },
-  { key: 'E', name: 'D 迭代 1：整行列表，分组用交替底色条带', Component: BandsVariant },
-  { key: 'F', name: 'D 迭代 2：分组成列，从左到右，窄时纵向堆叠', Component: ColumnsVariant },
-  { key: 'G', name: 'D 迭代 3：每组一张卡片，卡片之间用 › 串起', Component: CardsVariant },
-  { key: 'H', name: 'E 简化：子 issue 列表本身就是关系图（不分组）', Component: ListVariant },
+  { key: 'H1', name: '评论：时间线（左侧竖线，无卡片）', Component: TimelineVariant },
+  { key: 'H2', name: '评论：轻卡片（浅底色，缩进）', Component: LightVariant },
+  { key: 'H3', name: '评论：可收起的「评论」框', Component: ThreadVariant },
 ];
 const variantStore = (() => {
   const listeners = new Set<() => void>();
   const initial = new URLSearchParams(window.location.search).get('variant')?.toUpperCase();
-  let current = variants.some(variant => variant.key === initial) ? initial! : 'H';
+  let current = variants.some(variant => variant.key === initial) ? initial! : 'H1';
   return {
     get: () => current,
     set(key: string) {

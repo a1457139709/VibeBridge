@@ -352,110 +352,6 @@
   min-width: 0;
 }
 
-/* ── C: the plan ── */
-.pc-plan {
-  border-top: 1px solid var(--line);
-  padding: 8px 12px 10px;
-}
-.pc-plan-head {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  margin-bottom: 6px;
-  font-size: 11.5px;
-  min-width: 0;
-}
-.pc-plan-head .vb-parent {
-  min-width: 0;
-  flex-shrink: 1;
-}
-.pc-plan-head .proto-muted {
-  flex-shrink: 0;
-}
-.pc-plot {
-  position: relative;
-  display: flex;
-  flex-direction: column;
-  gap: 14px;
-}
-.pc-layer {
-  display: grid;
-  grid-template-columns: 16px 1fr;
-  gap: 6px;
-  align-items: start;
-}
-.pc-step {
-  color: var(--muted);
-  font-size: 10.5px;
-  font-variant-numeric: tabular-nums;
-  padding-top: 4px;
-  text-align: right;
-}
-.pc-layer-nodes {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
-  min-width: 0;
-}
-.pc-node {
-  position: relative;
-  z-index: 1;
-  min-height: 0;
-  max-width: 100%;
-  flex: 0 1 auto;
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  padding: 3px 8px;
-  border: 1px solid var(--line);
-  border-radius: 6px;
-  background: var(--canvas);
-  color: inherit;
-  font-size: 11.5px;
-  transition: opacity 0.12s;
-}
-.pc-node .forge-ellipsis {
-  max-width: 150px;
-}
-.pc-node.done {
-  color: var(--muted);
-}
-.pc-node.done .forge-ellipsis {
-  max-width: 70px;
-}
-.pc-node.ready {
-  border-color: var(--forge-open);
-  box-shadow: 0 0 0 1px var(--forge-open) inset;
-}
-.pc-node.blocked {
-  border-style: dashed;
-}
-.pc-node.self {
-  background: var(--accent);
-  color: var(--canvas);
-  border-color: var(--accent);
-  box-shadow: none;
-}
-.pc-node.dim {
-  opacity: 0.35;
-}
-.pc-outside {
-  font-size: 10px;
-}
-.pc-plot .proto-edge.blocks {
-  stroke: var(--muted);
-  stroke-opacity: 0.5;
-}
-.pc-plot .proto-edge.blocking {
-  stroke: var(--accent);
-}
-.pc-plot .proto-marker.blocks path {
-  fill: var(--muted);
-}
-.pc-plot .proto-marker.blocking path {
-  fill: var(--accent);
-}
-
 /* ── D: grouped sub-issues, live graph colours on hover ── */
 .dg {
   padding: 10px;
@@ -533,152 +429,6 @@
   margin-top: 8px;
 }
 
-/* ── E / F / G: shared ── */
-.dg-bands .dg-node,
-.dg-columns .dg-node,
-.dg-cards .dg-node {
-  width: 100%;
-  height: 26px;
-  font-size: 11.5px;
-}
-.dg-bands .dg-node .forge-ellipsis,
-.dg-columns .dg-node .forge-ellipsis,
-.dg-cards .dg-node .forge-ellipsis {
-  flex: 1 1 auto;
-  max-width: none;
-  min-width: 0;
-}
-.dg-bands .dg-group,
-.dg-columns .dg-group,
-.dg-cards .dg-group {
-  flex-direction: column;
-  flex-wrap: nowrap;
-  gap: 3px;
-}
-
-/* E: bands */
-.dg-bands {
-  padding: 0;
-  gap: 0;
-  background: none;
-}
-.dg-bands .dg-owner {
-  margin: 8px 10px 4px;
-}
-.dg-bands .dg-groups {
-  gap: 0;
-}
-.dg-bands .dg-group {
-  padding: 6px 10px;
-  border-top: 1px solid var(--line);
-}
-.dg-bands .dg-group:nth-child(odd) {
-  background: color-mix(in srgb, var(--accent) 7%, var(--canvas));
-}
-.dg-bands .dg-group:nth-child(even) {
-  background: var(--canvas);
-}
-.dg-bands .dg-node:not([data-relation]),
-.dg-bands .dg-node[data-relation='dim'],
-.dg-list .dg-node:not([data-relation]),
-.dg-list .dg-node[data-relation='dim'] {
-  border-color: transparent;
-  background: transparent;
-}
-.dg-bands .dg-node:not([data-relation]):hover,
-.dg-list .dg-node:not([data-relation]):hover {
-  background: var(--surface);
-}
-
-/* F: columns */
-.dg-columns {
-  container-type: inline-size;
-}
-.dg-columns .dg-groups {
-  flex-direction: row;
-  gap: 0;
-  align-items: stretch;
-}
-.dg-columns .dg-group {
-  flex: 1 1 0;
-  min-width: 0;
-  padding: 0 8px;
-  border-left: 1px solid color-mix(in srgb, var(--muted) 45%, transparent);
-}
-.dg-columns .dg-group:first-child {
-  border-left: 0;
-  padding-left: 0;
-}
-.dg-columns .dg-group:last-child {
-  padding-right: 0;
-}
-@container (max-width: 460px) {
-  .dg-columns .dg-groups {
-    flex-direction: column;
-  }
-  .dg-columns .dg-group {
-    padding: 8px 0;
-    border-left: 0;
-    border-top: 1px solid color-mix(in srgb, var(--muted) 45%, transparent);
-  }
-  .dg-columns .dg-group:first-child {
-    border-top: 0;
-    padding-top: 0;
-  }
-}
-
-/* G: cards */
-.dg-cards {
-  container-type: inline-size;
-  background: none;
-}
-.dg-cards .dg-groups {
-  flex-direction: row;
-  align-items: center;
-  gap: 0;
-}
-.dg-cards .dg-group {
-  flex: 1 1 0;
-  min-width: 0;
-  padding: 6px;
-  border: 1px solid var(--line);
-  border-radius: 8px;
-  background: color-mix(in srgb, var(--accent) 6%, var(--canvas));
-}
-.dg-cards .dg-group + .dg-group::before {
-  content: '›';
-  position: absolute;
-  left: -13px;
-  color: var(--muted);
-  font-size: 16px;
-  align-self: flex-start;
-  top: 50%;
-  transform: translateY(-50%);
-}
-.dg-cards .dg-group {
-  position: relative;
-}
-.dg-cards .dg-group + .dg-group {
-  margin-left: 16px;
-}
-@container (max-width: 460px) {
-  .dg-cards .dg-groups {
-    flex-direction: column;
-    align-items: stretch;
-  }
-  .dg-cards .dg-group + .dg-group {
-    margin: 14px 0 0;
-  }
-  .dg-cards .dg-group + .dg-group::before {
-    content: '⌄';
-    left: 50%;
-    top: -17px;
-    margin: 0;
-    transform: translateX(-50%);
-    line-height: 1;
-  }
-}
-
 /* H: plain list inside a live-style forge-box */
 .dl-box,
 .dl-rows {
@@ -734,4 +484,81 @@
   flex: 1 1 auto;
   max-width: none;
   min-width: 0;
+}
+
+/* ── H1 / H2 / H3: comment layouts ── */
+.cm-head {
+  font-size: 11.5px;
+  color: var(--muted);
+  margin-bottom: 3px;
+}
+.cm-head b {
+  color: var(--text, inherit);
+  margin-right: 4px;
+}
+.cm-older {
+  align-self: flex-start;
+  min-height: 0;
+  height: auto;
+  padding: 2px 0;
+  border: 0;
+  background: none;
+  color: var(--accent);
+  font-size: 11.5px;
+}
+.cm-older:hover {
+  text-decoration: underline;
+}
+
+/* H1: timeline */
+.cm-timeline {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-left: 10px;
+  padding: 2px 0 2px 14px;
+  border-left: 2px solid var(--line);
+}
+.cm-timeline .cm-item {
+  position: relative;
+}
+.cm-timeline .cm-item::before {
+  content: '';
+  position: absolute;
+  left: -19px;
+  top: 4px;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--canvas);
+  border: 2px solid var(--line);
+}
+
+/* H2: light blocks */
+.cm-light {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-left: 14px;
+}
+.cm-light .cm-item {
+  padding: 7px 10px;
+  border-radius: 6px;
+  background: color-mix(in srgb, var(--muted) 9%, transparent);
+}
+
+/* H3: thread box */
+.cm-thread {
+  display: flex;
+  flex-direction: column;
+}
+.cm-thread .cm-older {
+  padding: 6px 12px;
+  border-bottom: 1px solid var(--line);
+}
+.cm-thread .cm-item {
+  padding: 8px 12px;
+}
+.cm-thread .cm-item + .cm-item {
+  border-top: 1px solid var(--line);
 }
