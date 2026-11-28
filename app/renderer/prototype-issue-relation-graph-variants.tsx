@@ -3,8 +3,10 @@
 // view (hover: green = this, red = blocks it, yellow = it unblocks); no "GitHub 原文" divider.
 // Open question: how comments sit under the body. H1 timeline, H2 light cards, H3 a foldable discussion box.
 import { useState, type ReactNode } from 'react';
+import { MarkGithubIcon } from '@primer/octicons-react';
 import { BlockedMark, IssueIcon, Post, Progress, PullRequestIcon, RelativeTime } from './forge/ForgeDisplay';
 import type { IssueReference } from '../shared/forge/forge';
+import { filterForgeHtml } from '../shared/forge/forge-html';
 import type { DispatchRecordView } from '../shared/dispatch';
 import { DispatchSkill, SessionId, type DispatchRecordsHost } from './dispatch/DispatchRecords';
 import { useLocalization } from './common/Localization';
@@ -207,7 +209,7 @@ function OtherRelations({ issue, act }: { issue: FocusIssue; act: Act }) {
 
 // ───────────── comment layouts ─────────────
 
-type CommentLayout = 'timeline' | 'light' | 'thread';
+type CommentLayout = 'cards' | 'timeline' | 'light' | 'thread';
 type Comment = FocusIssue['comments'][number];
 const shownComments = 2;
 
@@ -223,7 +225,7 @@ function CommentItem({ comment }: { comment: Comment }) {
       <div className="cm-head">
         <b>{comment.author}</b> <RelativeTime iso={comment.createdAt} />
       </div>
-      <div className="forge-markdown" dangerouslySetInnerHTML={{ __html: comment.html }} />
+      <div className="forge-markdown" dangerouslySetInnerHTML={{ __html: filterForgeHtml(comment.html) }} />
     </article>
   );
 }
@@ -309,10 +311,17 @@ function IssueDocument({
         <SubIssueBox owner={issue.parent!} subs={parentList} focus={issue.number} act={act} startFolded={false} />
       )}
       <OtherRelations issue={others} act={act} />
+      {comments === 'cards' && (
+        <div className="ga-rule">
+          <MarkGithubIcon size={12} /> GitHub 原文
+        </div>
+      )}
       <div className="forge-doc-main">
         <Post author={issue.author} createdAt={issue.createdAt} html={issue.body} />
         {!!issue.comments.length &&
-          (comments === 'thread' ? (
+          (comments === 'cards' ? (
+            issue.comments.map(comment => <Post key={comment.createdAt} {...comment} />)
+          ) : comments === 'thread' ? (
             <ThreadComments comments={issue.comments} />
           ) : (
             <PlainComments comments={issue.comments} layout={comments} />
@@ -323,6 +332,8 @@ function IssueDocument({
   );
 }
 
+// H (fixed baseline): the H settled last round — comments are cards like the body, with the GitHub 原文 divider.
+export const CardsVariant = (props: VariantProps) => <IssueDocument {...props} comments="cards" />;
 export const TimelineVariant = (props: VariantProps) => <IssueDocument {...props} comments="timeline" />;
 export const LightVariant = (props: VariantProps) => <IssueDocument {...props} comments="light" />;
 export const ThreadVariant = (props: VariantProps) => <IssueDocument {...props} comments="thread" />;
