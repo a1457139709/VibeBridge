@@ -12,7 +12,7 @@ import type { DispatchRecordView } from '../../shared/dispatch';
 import { IssueActions, type Actions } from './DirectActions';
 import { DispatchRecords, type DispatchRecordsHost } from '../dispatch/DispatchRecords';
 import { IssueComments } from './IssueComments';
-import { SubIssueList } from './SubIssueList';
+import { SubIssueList, type RelatedDispatch } from './SubIssueList';
 import './relation-graph.css';
 import {
   BlockedMark,
@@ -43,6 +43,7 @@ export interface IssueDispatch {
   button: ReactNode;
   records: DispatchRecordView[];
   host: DispatchRecordsHost;
+  related: RelatedDispatch;
 }
 
 export function IssueDocument({ project, issue, open, followLink, actions, dispatch }: DocumentProps) {
@@ -94,6 +95,7 @@ export function IssueDocument({ project, issue, open, followLink, actions, dispa
           current={null}
           blocking={capabilities.blocking}
           forge={project.forge.name}
+          dispatch={dispatch.related}
           open={openReference}
         />
       ) : (
@@ -106,6 +108,7 @@ export function IssueDocument({ project, issue, open, followLink, actions, dispa
             current={issue.number}
             blocking={capabilities.blocking}
             forge={project.forge.name}
+            dispatch={dispatch.related}
             open={openReference}
           />
         )

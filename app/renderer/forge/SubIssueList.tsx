@@ -1,4 +1,4 @@
-import { useId, useState } from 'react';
+import { useId, useState, type ReactNode } from 'react';
 import { useLocalization } from '../common/Localization';
 import type { IssueReference, SubIssue, SubIssueProgress } from '../../shared/forge/forge';
 import { BlockedMark, IssueIcon, MoreOnForge, Progress } from './ForgeDisplay';
@@ -11,6 +11,16 @@ const relationMessages = {
   blockedByLit: 'subIssueBlockedByLit',
   unrelated: 'subIssueUnrelated',
 } as const satisfies Record<SubIssueRelation, string>;
+export function relatedIssueRowOf(element: Element | null | undefined) {
+  const row = element?.closest<HTMLElement>('[data-related-issue]');
+  return row ? { row, number: Number(row.dataset.relatedIssue) } : undefined;
+}
+
+export interface RelatedDispatch {
+  button(issue: SubIssue): ReactNode;
+  openMenu(issueNumber: number): void;
+}
+
 const relations = ['lit', 'blocksLit', 'blockedByLit', 'unrelated'] as const satisfies readonly SubIssueRelation[];
 
 export function SubIssueList({
@@ -20,6 +30,7 @@ export function SubIssueList({
   current,
   blocking,
   forge,
+  dispatch,
   open,
 }: {
   owner: IssueReference;
@@ -28,6 +39,7 @@ export function SubIssueList({
   current: number | null;
   blocking: boolean;
   forge: string;
+  dispatch: RelatedDispatch;
   open(reference: IssueReference): void;
 }) {
   const { t } = useLocalization();
@@ -35,7 +47,7 @@ export function SubIssueList({
   const [pointed, setPointed] = useState<string | null>(null);
   const descriptionId = useId();
   const currentKey = current === null ? null : subIssueKey({ path: null, number: current });
-  const rows = presentSubIssueRows(subIssues, { lit: pointed ?? currentKey, blocking });
+  const rows = presentSubIssueRows(subIssues, { lit: pointed ?? currentKey, current: currentKey, blocking });
   const unlisted = progress.total - subIssues.length;
   const heading = t(current === null ? 'subIssues' : 'siblingIssues');
   return (
@@ -66,7 +78,13 @@ export function SubIssueList({
               key={row.key}
               className={`forge-sub-issue ${row.issue.state}`}
               data-relation={row.relation ?? undefined}
+              data-related-issue={row.issue.path === null ? row.issue.number : undefined}
               onMouseEnter={() => setPointed(row.key)}
+              onContextMenu={event => {
+                if (!row.dispatchable) return;
+                event.preventDefault();
+                dispatch.openMenu(row.issue.number);
+              }}
             >
               <button
                 className="forge-sub-issue-open"
@@ -87,6 +105,7 @@ export function SubIssueList({
                   unlisted={row.unlistedBlockers}
                 />
               )}
+              {row.dispatchable && <span className="forge-sub-issue-dispatch">{dispatch.button(row.issue)}</span>}
             </div>
           ))}
           {unlisted > 0 && <MoreOnForge message="moreSubIssues" count={unlisted} forge={forge} url={owner.url} />}

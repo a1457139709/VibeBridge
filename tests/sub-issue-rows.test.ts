@@ -29,10 +29,11 @@ const subIssues = [
   sub(5, { blockedBy: [blocker(2, { path: 'ada/other' })] }),
 ];
 const relations = (lit: number | null, blocking = true) =>
-  presentSubIssueRows(subIssues, { lit: lit === null ? null : subIssueKey(sub(lit)), blocking }).map(row => [
-    row.issue.number,
-    row.relation,
-  ]);
+  presentSubIssueRows(subIssues, {
+    lit: lit === null ? null : subIssueKey(sub(lit)),
+    current: null,
+    blocking,
+  }).map(row => [row.issue.number, row.relation]);
 
 test('with no row lit, no row carries a relation', () => {
   assert.deepEqual(relations(null), [
@@ -71,7 +72,7 @@ test('an open row blocked by an open issue carries its open blockers, and a clos
       sub(2, { state: 'closed', closedAs: 'completed', blockedBy: [blocker(7)] }),
       sub(3, { blockedBy: [blocker(8, { state: 'closed' })] }),
     ],
-    { lit: null, blocking: true },
+    { lit: null, current: null, blocking: true },
   );
   assert.deepEqual(
     rows.map(row => [row.issue.number, row.openBlockers.map(open => open.number), row.unlistedBlockers]),
@@ -93,7 +94,24 @@ test('a forge without blocking lights no relation and marks no row blocked', () 
   ]);
   const [blocked] = presentSubIssueRows([sub(1, { blockedBy: [blocker(7)], unlistedBlockers: 1 })], {
     lit: null,
+    current: null,
     blocking: false,
   });
   assert.deepEqual([blocked.openBlockers, blocked.unlistedBlockers], [[], 0]);
+});
+
+test('only open rows of this repository other than the current issue can be dispatched', () => {
+  const rows = presentSubIssueRows(subIssues, { lit: null, current: subIssueKey(sub(4)), blocking: true });
+  assert.deepEqual(
+    rows.map(row => [row.issue.number, row.dispatchable]),
+    [
+      [1, true],
+      [2, true],
+      [3, false],
+      [4, false],
+      [5, true],
+    ],
+  );
+  const [outside] = presentSubIssueRows([sub(6, { path: 'ada/other' })], { lit: null, current: null, blocking: true });
+  assert.equal(outside.dispatchable, false);
 });
